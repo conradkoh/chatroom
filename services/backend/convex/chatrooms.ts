@@ -1,11 +1,11 @@
 import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
-import { validateCliSession, requireChatroomAccess } from './lib/cliSessionAuth';
+import { requireChatroomAccess, validateSession } from './lib/cliSessionAuth';
 
 /**
  * Create a new chatroom with team configuration.
- * Requires CLI session authentication. The chatroom will be owned by the authenticated user.
+ * Requires session authentication. The chatroom will be owned by the authenticated user.
  */
 export const create = mutation({
   args: {
@@ -17,7 +17,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     // Validate session
-    const sessionResult = await validateCliSession(ctx, args.sessionId);
+    const sessionResult = await validateSession(ctx, args.sessionId);
     if (!sessionResult.valid) {
       throw new Error(`Authentication failed: ${sessionResult.reason}`);
     }
@@ -36,7 +36,7 @@ export const create = mutation({
 
 /**
  * Get a chatroom by ID.
- * Requires CLI session authentication and chatroom access.
+ * Requires session authentication and chatroom access.
  */
 export const get = query({
   args: {
@@ -52,7 +52,7 @@ export const get = query({
 
 /**
  * List chatrooms owned by the authenticated user, sorted by creation time (newest first).
- * Requires CLI session authentication.
+ * Requires session authentication.
  */
 export const listByUser = query({
   args: {
@@ -60,7 +60,7 @@ export const listByUser = query({
   },
   handler: async (ctx, args) => {
     // Validate session
-    const sessionResult = await validateCliSession(ctx, args.sessionId);
+    const sessionResult = await validateSession(ctx, args.sessionId);
     if (!sessionResult.valid) {
       throw new Error(`Authentication failed: ${sessionResult.reason}`);
     }

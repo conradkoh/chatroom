@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useQuery } from 'convex/react';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { MessageSquare } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo } from 'react';
 
@@ -48,8 +48,8 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chatroomApi = api as any;
 
-  // Query all chatrooms - we'll filter by status on the client
-  const chatrooms = useQuery(chatroomApi.chatrooms.listAll) as Chatroom[] | undefined;
+  // Query all chatrooms owned by the user - we'll filter by status on the client
+  const chatrooms = useSessionQuery(chatroomApi.chatrooms.listByUser) as Chatroom[] | undefined;
 
   const handleCreated = useCallback(
     (chatroomId: string) => {
@@ -151,12 +151,12 @@ const ChatroomCard = memo(function ChatroomCard({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chatroomApi = api as any;
 
-  const participants = useQuery(chatroomApi.participants.list, {
+  const participants = useSessionQuery(chatroomApi.participants.list, {
     chatroomId: chatroom._id as Id<'chatrooms'>,
   }) as Participant[] | undefined;
 
   // Only fetch last message for activity timestamp
-  const messages = useQuery(chatroomApi.messages.list, {
+  const messages = useSessionQuery(chatroomApi.messages.list, {
     chatroomId: chatroom._id as Id<'chatrooms'>,
   }) as Message[] | undefined;
 

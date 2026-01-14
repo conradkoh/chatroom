@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useQuery } from 'convex/react';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { ArrowLeft, XCircle } from 'lucide-react';
 import React, { useState, useMemo, useCallback } from 'react';
 
@@ -63,15 +63,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chatroomApi = api as any;
 
-  const chatroom = useQuery(chatroomApi.chatrooms.get, {
+  const chatroom = useSessionQuery(chatroomApi.chatrooms.get, {
     chatroomId: chatroomId as Id<'chatrooms'>,
   }) as Chatroom | null | undefined;
 
-  const participants = useQuery(chatroomApi.participants.list, {
+  const participants = useSessionQuery(chatroomApi.participants.list, {
     chatroomId: chatroomId as Id<'chatrooms'>,
   }) as Participant[] | undefined;
 
-  const readiness = useQuery(chatroomApi.chatrooms.getTeamReadiness, {
+  const readiness = useSessionQuery(chatroomApi.chatrooms.getTeamReadiness, {
     chatroomId: chatroomId as Id<'chatrooms'>,
   }) as TeamReadiness | null | undefined;
 

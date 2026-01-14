@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useQuery } from 'convex/react';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { MessageSquare } from 'lucide-react';
 import React, { useEffect, useRef, useMemo, memo } from 'react';
 import Markdown from 'react-markdown';
@@ -72,7 +72,7 @@ export const MessageFeed = memo(function MessageFeed({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chatroomApi = api as any;
 
-  const messages = useQuery(chatroomApi.messages.list, {
+  const messages = useSessionQuery(chatroomApi.messages.list, {
     chatroomId: chatroomId as Id<'chatrooms'>,
   }) as Message[] | undefined;
 

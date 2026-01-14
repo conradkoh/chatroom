@@ -1,7 +1,7 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import { useMutation } from 'convex/react';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useCallback } from 'react';
 
 interface TeamDefinition {
@@ -49,7 +49,7 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
   // Type assertion workaround for Convex API
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chatroomApi = api as any;
-  const createChatroom = useMutation(chatroomApi.chatrooms.create);
+  const createChatroom = useSessionMutation(chatroomApi.chatrooms.create);
 
   const handleCreate = useCallback(async () => {
     if (!selectedTeam) return;

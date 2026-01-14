@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useMutation } from 'convex/react';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 
 interface TeamReadiness {
@@ -28,7 +28,7 @@ export const SendForm = memo(function SendForm({ chatroomId, readiness }: SendFo
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chatroomApi = api as any;
 
-  const sendMessage = useMutation(chatroomApi.messages.send);
+  const sendMessage = useSessionMutation(chatroomApi.messages.send);
 
   const isReady = readiness === null || readiness?.isReady;
 

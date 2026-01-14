@@ -1,17 +1,24 @@
 /**
- * CLI Session Authentication Helper
+ * Session Authentication Helper
  *
- * Provides utilities for validating CLI sessions and checking chatroom access.
+ * Provides utilities for validating sessions and checking chatroom access.
  * Used by chatroom-related mutations and queries to enforce security.
+ *
+ * Supports both session types:
+ * - CLI sessions: stored in `cliSessions` table (from ~/.chatroom/auth.jsonc)
+ * - Web sessions: stored in `sessions` table (from convex-helpers SessionProvider)
+ *
+ * The validation tries CLI sessions first, then falls back to web sessions.
  */
 
 import type { Id } from '../_generated/dataModel';
-import type { QueryCtx, MutationCtx } from '../_generated/server';
+import type { MutationCtx, QueryCtx } from '../_generated/server';
 
 export interface ValidatedSession {
   sessionId: string;
   userId: Id<'users'>;
   userName?: string;
+  sessionType: 'cli' | 'web';
 }
 
 export interface ValidationError {
@@ -24,7 +31,7 @@ export type SessionValidationResult = ({ valid: true } & ValidatedSession) | Val
 /**
  * Validate a CLI session and return user information
  */
-export async function validateCliSession(
+async function validateCliSession(
   ctx: QueryCtx | MutationCtx,
   sessionId: string
 ): Promise<SessionValidationResult> {
@@ -34,15 +41,15 @@ export async function validateCliSession(
     .unique();
 
   if (!session) {
-    return { valid: false, reason: 'Session not found' };
+    return { valid: false, reason: 'CLI session not found' };
   }
 
   if (!session.isActive) {
-    return { valid: false, reason: 'Session revoked' };
+    return { valid: false, reason: 'CLI session revoked' };
   }
 
   if (session.expiresAt && Date.now() > session.expiresAt) {
-    return { valid: false, reason: 'Session expired' };
+    return { valid: false, reason: 'CLI session expired' };
   }
 
   // Get user info
@@ -56,7 +63,62 @@ export async function validateCliSession(
     sessionId,
     userId: session.userId,
     userName: user.name,
+    sessionType: 'cli',
   };
+}
+
+/**
+ * Validate a web session and return user information
+ */
+async function validateWebSession(
+  ctx: QueryCtx | MutationCtx,
+  sessionId: string
+): Promise<SessionValidationResult> {
+  const session = await ctx.db
+    .query('sessions')
+    .withIndex('by_sessionId', (q) => q.eq('sessionId', sessionId))
+    .unique();
+
+  if (!session) {
+    return { valid: false, reason: 'Web session not found' };
+  }
+
+  // Get user info
+  const user = await ctx.db.get('users', session.userId);
+  if (!user) {
+    return { valid: false, reason: 'User not found' };
+  }
+
+  return {
+    valid: true,
+    sessionId,
+    userId: session.userId,
+    userName: user.name,
+    sessionType: 'web',
+  };
+}
+
+/**
+ * Validate a session (tries CLI session first, then web session)
+ */
+export async function validateSession(
+  ctx: QueryCtx | MutationCtx,
+  sessionId: string
+): Promise<SessionValidationResult> {
+  // Try CLI session first
+  const cliResult = await validateCliSession(ctx, sessionId);
+  if (cliResult.valid) {
+    return cliResult;
+  }
+
+  // Fall back to web session
+  const webResult = await validateWebSession(ctx, sessionId);
+  if (webResult.valid) {
+    return webResult;
+  }
+
+  // Both failed - return a combined error
+  return { valid: false, reason: 'Session not found or invalid' };
 }
 
 /**
@@ -98,8 +160,8 @@ export async function requireChatroomAccess(
   sessionId: string,
   chatroomId: Id<'chatrooms'>
 ): Promise<ValidatedSession> {
-  // Validate session
-  const sessionResult = await validateCliSession(ctx, sessionId);
+  // Validate session (tries CLI session, then web session)
+  const sessionResult = await validateSession(ctx, sessionId);
   if (!sessionResult.valid) {
     throw new Error(`Authentication failed: ${sessionResult.reason}`);
   }
@@ -114,5 +176,6 @@ export async function requireChatroomAccess(
     sessionId: sessionResult.sessionId,
     userId: sessionResult.userId,
     userName: sessionResult.userName,
+    sessionType: sessionResult.sessionType,
   };
 }
