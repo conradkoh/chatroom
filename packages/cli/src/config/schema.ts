@@ -39,6 +39,8 @@ export interface PromptsConfig {
 export interface ChatroomConfig {
   /** Convex deployment URL (required) */
   convexUrl: string;
+  /** Webapp URL for browser-based operations like auth (optional, defaults to http://localhost:3000) */
+  webappUrl?: string;
   /** ID of the team to use when --team is not specified */
   defaultTeam: string;
   /** Map of team ID to team definition */

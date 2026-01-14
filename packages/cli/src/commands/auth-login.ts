@@ -3,10 +3,8 @@
  * Implements device authorization flow for CLI authentication
  */
 
-import { existsSync, readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-
 import { api, type AuthRequestResult, type AuthRequestStatus } from '../api.js';
+import { loadConfig } from '../config/loader.js';
 import {
   saveAuthData,
   getDeviceName,
@@ -25,9 +23,9 @@ interface AuthLoginOptions {
 
 /**
  * Get the webapp URL for the auth page
- * This reads from:
+ * Priority order:
  * 1. CHATROOM_WEB_URL environment variable (highest priority)
- * 2. apps/webapp/.env.local PORT variable (for development)
+ * 2. webappUrl from ~/.chatroom/chatroom.jsonc config
  * 3. Falls back to http://localhost:3000
  */
 function getWebAppUrl(): string {
@@ -37,57 +35,14 @@ function getWebAppUrl(): string {
     return webAppUrlOverride;
   }
 
-  // 2. Try to read PORT from webapp .env.local
+  // 2. Check config file
   try {
-    // Start from current working directory (where CLI is executed)
-    let currentDir = process.cwd();
-    let webappEnvPath: string | null = null;
-
-    // Walk up directories to find workspace root
-    // Look for either pnpm-workspace.yaml or package.json with workspaces field
-    for (let i = 0; i < 10; i++) {
-      const pnpmWorkspacePath = join(currentDir, 'pnpm-workspace.yaml');
-      const packageJsonPath = join(currentDir, 'package.json');
-
-      let isWorkspaceRoot = false;
-
-      // Check for pnpm workspace
-      if (existsSync(pnpmWorkspacePath)) {
-        isWorkspaceRoot = true;
-      }
-      // Check for npm/yarn workspace
-      else if (existsSync(packageJsonPath)) {
-        const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-        if (packageJson.workspaces) {
-          isWorkspaceRoot = true;
-        }
-      }
-
-      if (isWorkspaceRoot) {
-        // Found workspace root
-        webappEnvPath = join(currentDir, 'apps', 'webapp', '.env.local');
-        break;
-      }
-
-      const parentDir = dirname(currentDir);
-      if (parentDir === currentDir) {
-        // Reached filesystem root
-        break;
-      }
-      currentDir = parentDir;
-    }
-
-    // Read PORT from webapp .env.local
-    if (webappEnvPath && existsSync(webappEnvPath)) {
-      const envContent = readFileSync(webappEnvPath, 'utf-8');
-      const portMatch = envContent.match(/^PORT=(\d+)$/m);
-      if (portMatch) {
-        const port = portMatch[1];
-        return `http://localhost:${port}`;
-      }
+    const config = loadConfig();
+    if (config?.config?.webappUrl) {
+      return config.config.webappUrl;
     }
   } catch {
-    // Ignore errors and fall through to default
+    // Config not found or invalid, continue to default
   }
 
   // 3. Default to standard Next.js dev port
