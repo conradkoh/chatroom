@@ -3,8 +3,10 @@
  * Implements device authorization flow for CLI authentication
  */
 
+import { existsSync, readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+
 import { api, type AuthRequestResult, type AuthRequestStatus } from '../api.js';
-import { loadConfig } from '../config/loader.js';
 import {
   saveAuthData,
   getDeviceName,
@@ -19,6 +21,57 @@ const AUTH_POLL_INTERVAL_MS = 2000;
 
 interface AuthLoginOptions {
   force?: boolean;
+}
+
+/**
+ * Get the webapp URL for the auth page
+ * This reads from:
+ * 1. CHATROOM_WEB_URL environment variable (highest priority)
+ * 2. apps/webapp/.env.local PORT variable (for development)
+ * 3. Falls back to http://localhost:3000
+ */
+function getWebAppUrl(): string {
+  // 1. Check environment variable override
+  const webAppUrlOverride = process.env.CHATROOM_WEB_URL;
+  if (webAppUrlOverride) {
+    return webAppUrlOverride;
+  }
+
+  // 2. Try to read PORT from webapp .env.local
+  try {
+    // Find the workspace root by looking for package.json with workspaces
+    let currentDir = dirname(new URL(import.meta.url).pathname);
+    let webappEnvPath: string | null = null;
+
+    // Walk up directories to find workspace root
+    for (let i = 0; i < 10; i++) {
+      const packageJsonPath = join(currentDir, 'package.json');
+      if (existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+        if (packageJson.workspaces) {
+          // Found workspace root
+          webappEnvPath = join(currentDir, 'apps', 'webapp', '.env.local');
+          break;
+        }
+      }
+      currentDir = dirname(currentDir);
+    }
+
+    // Read PORT from webapp .env.local
+    if (webappEnvPath && existsSync(webappEnvPath)) {
+      const envContent = readFileSync(webappEnvPath, 'utf-8');
+      const portMatch = envContent.match(/^PORT=(\d+)$/m);
+      if (portMatch) {
+        const port = portMatch[1];
+        return `http://localhost:${port}`;
+      }
+    }
+  } catch {
+    // Ignore errors and fall through to default
+  }
+
+  // 3. Default to standard Next.js dev port
+  return 'http://localhost:3000';
 }
 
 /**
@@ -57,7 +110,6 @@ export async function authLogin(options: AuthLoginOptions): Promise<void> {
   }
 
   const client = await getConvexClient();
-  const config = loadConfig();
 
   // Get device info
   const deviceName = getDeviceName();
@@ -84,36 +136,8 @@ export async function authLogin(options: AuthLoginOptions): Promise<void> {
   console.log(`   Request ID: ${requestId.substring(0, 8)}...`);
   console.log(`   Expires in: ${expiresInSeconds} seconds`);
 
-  // Build auth URL
-  // Check environment variable for override
-  const webAppUrlOverride = process.env.CHATROOM_WEB_URL;
-
-  let webAppUrl: string;
-
-  if (webAppUrlOverride) {
-    // Use environment variable if provided
-    webAppUrl = webAppUrlOverride;
-  } else {
-    // Auto-detect based on Convex URL
-    const convexUrl = config?.config?.convexUrl;
-
-    if (!convexUrl || convexUrl.includes('localhost') || convexUrl.includes('127.0.0.1')) {
-      // Development: use localhost
-      webAppUrl = 'http://localhost:3000';
-    } else if (convexUrl.includes('.convex.cloud')) {
-      // Production: derive from Convex URL
-      // Extract subdomain from convex URL (e.g., "wonderful-raven-192" from "https://wonderful-raven-192.convex.cloud")
-      const match = convexUrl.match(/https:\/\/([^.]+)\.convex\.cloud/);
-      if (match) {
-        webAppUrl = `https://${match[1]}.vercel.app`;
-      } else {
-        webAppUrl = 'http://localhost:3000'; // Fallback
-      }
-    } else {
-      // Unknown/custom URL: default to localhost
-      webAppUrl = 'http://localhost:3000';
-    }
-  }
+  // Get the webapp URL (reads from .env.local PORT or uses defaults)
+  const webAppUrl = getWebAppUrl();
 
   // The auth page should be at /cli-auth
   const authUrl = `${webAppUrl}/cli-auth?request=${requestId}`;
