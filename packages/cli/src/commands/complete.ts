@@ -3,10 +3,18 @@
  */
 
 import { api, type Id } from '../api.js';
+import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
 export async function completeChatroom(chatroomId: string): Promise<void> {
   const client = await getConvexClient();
+
+  // Get session ID for authentication
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    process.exit(1);
+  }
 
   // Validate chatroom ID format
   if (
@@ -23,6 +31,7 @@ export async function completeChatroom(chatroomId: string): Promise<void> {
 
   try {
     await client.mutation(api.chatrooms.updateStatus, {
+      sessionId,
       chatroomId: chatroomId as Id<'chatrooms'>,
       status: 'completed',
     });

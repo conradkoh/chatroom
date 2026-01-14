@@ -1,18 +1,24 @@
 import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
+import { requireChatroomAccess } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 
 /**
  * Join a chatroom as a participant.
  * If already joined, updates status to waiting.
+ * Requires CLI session authentication and chatroom access.
  */
 export const join = mutation({
   args: {
+    sessionId: v.string(),
     chatroomId: v.id('chatrooms'),
     role: v.string(),
   },
   handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
     // Check if already joined
     const existing = await ctx.db
       .query('participants')
@@ -48,10 +54,17 @@ export const join = mutation({
 
 /**
  * List all participants in a chatroom.
+ * Requires CLI session authentication and chatroom access.
  */
 export const list = query({
-  args: { chatroomId: v.id('chatrooms') },
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatrooms'),
+  },
   handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
     return await ctx.db
       .query('participants')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -61,14 +74,19 @@ export const list = query({
 
 /**
  * Update participant status.
+ * Requires CLI session authentication and chatroom access.
  */
 export const updateStatus = mutation({
   args: {
+    sessionId: v.string(),
     chatroomId: v.id('chatrooms'),
     role: v.string(),
     status: v.union(v.literal('idle'), v.literal('active'), v.literal('waiting')),
   },
   handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
     const participant = await ctx.db
       .query('participants')
       .withIndex('by_chatroom_and_role', (q) =>
@@ -86,13 +104,18 @@ export const updateStatus = mutation({
 
 /**
  * Get a participant by role.
+ * Requires CLI session authentication and chatroom access.
  */
 export const getByRole = query({
   args: {
+    sessionId: v.string(),
     chatroomId: v.id('chatrooms'),
     role: v.string(),
   },
   handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
     return await ctx.db
       .query('participants')
       .withIndex('by_chatroom_and_role', (q) =>
@@ -105,10 +128,17 @@ export const getByRole = query({
 /**
  * Get the highest priority waiting role in a chatroom.
  * Used for determining who should receive broadcast messages.
+ * Requires CLI session authentication and chatroom access.
  */
 export const getHighestPriorityWaitingRole = query({
-  args: { chatroomId: v.id('chatrooms') },
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatrooms'),
+  },
   handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
     const participants = await ctx.db
       .query('participants')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))

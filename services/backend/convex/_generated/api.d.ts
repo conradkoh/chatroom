@@ -18,6 +18,7 @@ import type * as cleanupTasks from "../cleanupTasks.js";
 import type * as cliAuth from "../cliAuth.js";
 import type * as crypto from "../crypto.js";
 import type * as discussions from "../discussions.js";
+import type * as lib_cliSessionAuth from "../lib/cliSessionAuth.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
 import type * as messages from "../messages.js";
 import type * as migration from "../migration.js";
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   cliAuth: typeof cliAuth;
   crypto: typeof crypto;
   discussions: typeof discussions;
+  "lib/cliSessionAuth": typeof lib_cliSessionAuth;
   "lib/hierarchy": typeof lib_hierarchy;
   messages: typeof messages;
   migration: typeof migration;

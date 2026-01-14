@@ -5,6 +5,7 @@
 import { waitForMessage } from './wait-for-message.js';
 import { api } from '../api.js';
 import type { Id } from '../api.js';
+import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
 interface TaskCompleteOptions {
@@ -21,6 +22,13 @@ export async function taskComplete(
   const client = await getConvexClient();
   const { role, message, nextRole, noWait } = options;
 
+  // Get session ID for authentication
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    process.exit(1);
+  }
+
   // Validate chatroom ID format
   if (
     !chatroomId ||
@@ -36,6 +44,7 @@ export async function taskComplete(
 
   // Send handoff message
   await client.mutation(api.messages.send, {
+    sessionId,
     chatroomId: chatroomId as Id<'chatrooms'>,
     senderRole: role,
     content: message,
@@ -45,6 +54,7 @@ export async function taskComplete(
 
   // Update participant status to waiting
   await client.mutation(api.participants.updateStatus, {
+    sessionId,
     chatroomId: chatroomId as Id<'chatrooms'>,
     role,
     status: 'waiting',

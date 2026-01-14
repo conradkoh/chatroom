@@ -244,13 +244,17 @@ export default defineSchema({
    */
   chatrooms: defineTable({
     status: v.union(v.literal('active'), v.literal('interrupted'), v.literal('completed')),
+    // Owner of this chatroom (user ID from CLI session)
+    ownerId: v.optional(v.id('users')),
     // Team information (optional for backward compatibility with existing chatrooms)
     teamId: v.optional(v.string()),
     teamName: v.optional(v.string()),
     teamRoles: v.optional(v.array(v.string())),
     // Entry point role that receives all user messages (defaults to first role)
     teamEntryPoint: v.optional(v.string()),
-  }).index('by_status', ['status']),
+  })
+    .index('by_status', ['status'])
+    .index('by_ownerId', ['ownerId']),
 
   /**
    * Participants in chatrooms.

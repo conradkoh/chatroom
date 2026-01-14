@@ -4,6 +4,7 @@
 
 import { api, type Id, type Chatroom, type Message, type Participant } from '../api.js';
 import { WAIT_POLL_INTERVAL_MS, MAX_SILENT_ERRORS } from '../config.js';
+import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
 interface WaitForMessageOptions {
@@ -18,6 +19,13 @@ export async function waitForMessage(
 ): Promise<void> {
   const client = await getConvexClient();
   const { role, timeout, silent } = options;
+
+  // Get session ID for authentication
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    process.exit(1);
+  }
 
   // Validate chatroom ID format before query
   if (
@@ -39,18 +47,20 @@ export async function waitForMessage(
     process.exit(1);
   }
 
-  // Validate chatroom exists
+  // Validate chatroom exists and user has access
   const chatroom = (await client.query(api.chatrooms.get, {
+    sessionId,
     chatroomId: chatroomId as Id<'chatrooms'>,
   })) as Chatroom | null;
 
   if (!chatroom) {
-    console.error(`❌ Chatroom ${chatroomId} not found`);
+    console.error(`❌ Chatroom ${chatroomId} not found or access denied`);
     process.exit(1);
   }
 
   // Join the chatroom
   await client.mutation(api.participants.join, {
+    sessionId,
     chatroomId: chatroomId as Id<'chatrooms'>,
     role,
   });
@@ -73,6 +83,7 @@ export async function waitForMessage(
   // Get the current latest message ID to know where to start listening
   // Use pagination to avoid loading entire history
   const existingMessages = (await client.query(api.messages.list, {
+    sessionId,
     chatroomId: chatroomId as Id<'chatrooms'>,
     limit: 1,
   })) as Message[];
@@ -98,6 +109,7 @@ export async function waitForMessage(
   const poll = async () => {
     try {
       const message = (await client.query(api.messages.getLatestForRole, {
+        sessionId,
         chatroomId: chatroomId as Id<'chatrooms'>,
         role,
         afterMessageId,
@@ -108,6 +120,7 @@ export async function waitForMessage(
         // This mutation uses Convex's ACID guarantees to ensure only one agent
         // can successfully claim a broadcast message
         const claimed = await client.mutation(api.messages.claimMessage, {
+          sessionId,
           messageId: message._id,
           role,
         });
@@ -128,6 +141,7 @@ export async function waitForMessage(
 
         // Update participant status to active
         await client.mutation(api.participants.updateStatus, {
+          sessionId,
           chatroomId: chatroomId as Id<'chatrooms'>,
           role,
           status: 'active',
@@ -135,10 +149,12 @@ export async function waitForMessage(
 
         // Get current chatroom state
         const chatroomData = (await client.query(api.chatrooms.get, {
+          sessionId,
           chatroomId: chatroomId as Id<'chatrooms'>,
         })) as Chatroom | null;
 
         const participants = (await client.query(api.participants.list, {
+          sessionId,
           chatroomId: chatroomId as Id<'chatrooms'>,
         })) as Participant[];
 

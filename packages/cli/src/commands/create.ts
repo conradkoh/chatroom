@@ -4,6 +4,7 @@
 
 import { api } from '../api.js';
 import { loadConfig, getTeam, getDefaultTeam, getTeamIds } from '../config/loader.js';
+import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
 interface CreateOptions {
@@ -12,6 +13,13 @@ interface CreateOptions {
 
 export async function createChatroom(options: CreateOptions = {}): Promise<void> {
   const client = await getConvexClient();
+
+  // Get session ID for authentication
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    process.exit(1);
+  }
 
   // Load configuration
   const { config, configPath } = loadConfig();
@@ -38,6 +46,7 @@ export async function createChatroom(options: CreateOptions = {}): Promise<void>
 
   // Create the chatroom with team info
   const chatroomId = await client.mutation(api.chatrooms.create, {
+    sessionId,
     teamId,
     teamName: team.name,
     teamRoles: team.roles,

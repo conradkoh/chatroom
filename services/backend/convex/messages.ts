@@ -1,14 +1,17 @@
 import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
+import { requireChatroomAccess } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 
 /**
  * Send a message to a chatroom.
  * Handles message routing based on sender role and message type.
+ * Requires CLI session authentication and chatroom access.
  */
 export const send = mutation({
   args: {
+    sessionId: v.string(),
     chatroomId: v.id('chatrooms'),
     senderRole: v.string(),
     content: v.string(),
@@ -21,6 +24,9 @@ export const send = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
     // Get chatroom to check team configuration
     const chatroom = await ctx.db.get('chatrooms', args.chatroomId);
 
@@ -52,13 +58,18 @@ export const send = mutation({
 /**
  * List messages in a chatroom.
  * Optionally limit the number of messages returned.
+ * Requires CLI session authentication and chatroom access.
  */
 export const list = query({
   args: {
+    sessionId: v.string(),
     chatroomId: v.id('chatrooms'),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
     const query = ctx.db
       .query('messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId));
@@ -76,9 +87,11 @@ export const list = query({
 /**
  * Claim a message for a specific role.
  * Used for broadcast messages to prevent multiple agents from processing the same message.
+ * Requires CLI session authentication and chatroom access.
  */
 export const claimMessage = mutation({
   args: {
+    sessionId: v.string(),
     messageId: v.id('messages'),
     role: v.string(),
   },
@@ -88,6 +101,9 @@ export const claimMessage = mutation({
     if (!message) {
       return false;
     }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, message.chatroomId);
 
     // Already claimed by someone else
     if (message.claimedByRole && message.claimedByRole !== args.role) {
@@ -103,6 +119,7 @@ export const claimMessage = mutation({
 /**
  * Get the latest message for a specific role.
  * Used for polling for new messages.
+ * Requires CLI session authentication and chatroom access.
  *
  * Message routing logic:
  * 1. Targeted messages (targetRole set): Only the target role receives
@@ -112,11 +129,15 @@ export const claimMessage = mutation({
  */
 export const getLatestForRole = query({
   args: {
+    sessionId: v.string(),
     chatroomId: v.id('chatrooms'),
     role: v.string(),
     afterMessageId: v.optional(v.id('messages')),
   },
   handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
     const messages = await ctx.db
       .query('messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))

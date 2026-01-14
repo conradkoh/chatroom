@@ -3,6 +3,7 @@
  */
 
 import { api, type Id } from '../api.js';
+import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
 interface SendOptions {
@@ -14,6 +15,13 @@ interface SendOptions {
 export async function sendMessage(chatroomId: string, options: SendOptions): Promise<void> {
   const client = await getConvexClient();
   const role = options.role || 'user';
+
+  // Get session ID for authentication
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    process.exit(1);
+  }
 
   // Validate chatroom ID format
   if (
@@ -31,6 +39,7 @@ export async function sendMessage(chatroomId: string, options: SendOptions): Pro
   // Check team readiness (unless skipped)
   if (!options.skipReadyCheck && role.toLowerCase() === 'user') {
     const readiness = await client.query(api.chatrooms.getTeamReadiness, {
+      sessionId,
       chatroomId: chatroomId as Id<'chatrooms'>,
     });
 
@@ -45,6 +54,7 @@ export async function sendMessage(chatroomId: string, options: SendOptions): Pro
 
   try {
     const messageId = await client.mutation(api.messages.send, {
+      sessionId,
       chatroomId: chatroomId as Id<'chatrooms'>,
       senderRole: role,
       content: options.message,
