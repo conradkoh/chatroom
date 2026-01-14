@@ -39,22 +39,42 @@ function getWebAppUrl(): string {
 
   // 2. Try to read PORT from webapp .env.local
   try {
-    // Find the workspace root by looking for package.json with workspaces
-    let currentDir = dirname(new URL(import.meta.url).pathname);
+    // Start from current working directory (where CLI is executed)
+    let currentDir = process.cwd();
     let webappEnvPath: string | null = null;
 
     // Walk up directories to find workspace root
+    // Look for either pnpm-workspace.yaml or package.json with workspaces field
     for (let i = 0; i < 10; i++) {
+      const pnpmWorkspacePath = join(currentDir, 'pnpm-workspace.yaml');
       const packageJsonPath = join(currentDir, 'package.json');
-      if (existsSync(packageJsonPath)) {
+
+      let isWorkspaceRoot = false;
+
+      // Check for pnpm workspace
+      if (existsSync(pnpmWorkspacePath)) {
+        isWorkspaceRoot = true;
+      }
+      // Check for npm/yarn workspace
+      else if (existsSync(packageJsonPath)) {
         const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
         if (packageJson.workspaces) {
-          // Found workspace root
-          webappEnvPath = join(currentDir, 'apps', 'webapp', '.env.local');
-          break;
+          isWorkspaceRoot = true;
         }
       }
-      currentDir = dirname(currentDir);
+
+      if (isWorkspaceRoot) {
+        // Found workspace root
+        webappEnvPath = join(currentDir, 'apps', 'webapp', '.env.local');
+        break;
+      }
+
+      const parentDir = dirname(currentDir);
+      if (parentDir === currentDir) {
+        // Reached filesystem root
+        break;
+      }
+      currentDir = parentDir;
     }
 
     // Read PORT from webapp .env.local
