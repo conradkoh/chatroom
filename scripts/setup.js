@@ -210,6 +210,60 @@ function setupWebappEnv(convexUrl) {
 }
 
 /**
+ * Update CLI config file with webapp URL
+ * Reads the PORT from webapp .env.local and updates ~/.chatroom/chatroom.jsonc
+ */
+function updateCliConfig() {
+  console.log('🔧 Checking CLI configuration for webapp URL...');
+
+  const cliConfigPath = path.join(require('os').homedir(), '.chatroom', 'chatroom.jsonc');
+
+  // Check if CLI config exists
+  if (!fs.existsSync(cliConfigPath)) {
+    console.log('⚠️  CLI config not found at ~/.chatroom/chatroom.jsonc');
+    console.log('   Run "chatroom init" to initialize CLI configuration');
+    return;
+  }
+
+  // Read the PORT from webapp .env.local
+  if (!fs.existsSync(webappEnvPath)) {
+    console.log('⚠️  Webapp .env.local not found, skipping webapp URL update');
+    return;
+  }
+
+  const envContent = fs.readFileSync(webappEnvPath, 'utf8');
+  const portMatch = envContent.match(/^PORT=(\d+)$/m);
+
+  if (!portMatch) {
+    console.log('⚠️  PORT not found in webapp .env.local, skipping webapp URL update');
+    return;
+  }
+
+  const port = portMatch[1];
+  const webappUrl = `http://localhost:${port}`;
+
+  // Read and parse the CLI config (JSONC with comments)
+  let configContent = fs.readFileSync(cliConfigPath, 'utf8');
+
+  // Check if webappUrl already exists in config
+  if (configContent.match(/"webappUrl":\s*"[^"]*"/)) {
+    // Update existing webappUrl
+    configContent = configContent.replace(/"webappUrl":\s*"[^"]*"/, `"webappUrl": "${webappUrl}"`);
+    console.log(`✅ Updated webappUrl in CLI config: ${webappUrl}`);
+  } else {
+    // Add webappUrl after convexUrl
+    configContent = configContent.replace(
+      /("convexUrl":\s*"[^"]*",?)/,
+      `$1\n  "webappUrl": "${webappUrl}",`
+    );
+    console.log(`✅ Added webappUrl to CLI config: ${webappUrl}`);
+  }
+
+  // Write the updated config
+  fs.writeFileSync(cliConfigPath, configContent, 'utf8');
+}
+
+/**
  * Add upstream remote repository
  */
 function addUpstreamRemote() {
@@ -616,6 +670,9 @@ function continueSetup() {
   console.log('📄 Setting up webapp .env.local file...');
   setupWebappEnv(convexUrl);
   console.log('✅ Webapp .env.local file created/updated successfully.');
+
+  // Update CLI config with webapp URL
+  updateCliConfig();
 
   console.log('\n🎉 Setup completed successfully!');
   console.log('You can now run "pnpm run dev" to start both the frontend and backend services.');
