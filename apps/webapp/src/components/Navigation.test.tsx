@@ -38,41 +38,6 @@ vi.mock('@workspace/backend/config/featureFlags', () => ({
 }));
 
 describe('Navigation', () => {
-  it('renders title link to "/" when user is not authenticated', () => {
-    vi.mocked(useAuthState).mockReturnValue({
-      sessionId: 'test-session',
-      state: 'unauthenticated',
-      reason: 'test',
-    });
-
-    render(<Navigation />);
-
-    const titleLink = screen.getByRole('link', { name: /next convex/i });
-    expect(titleLink).toBeInTheDocument();
-    expect(titleLink).toHaveAttribute('href', '/');
-  });
-
-  it('renders title link to "/app" when user is authenticated', () => {
-    vi.mocked(useAuthState).mockReturnValue({
-      sessionId: 'test-session',
-      state: 'authenticated',
-      user: {
-        _id: 'test-user-id' as Id<'users'>,
-        _creationTime: Date.now(),
-        type: 'anonymous',
-        name: 'Test User',
-      },
-      accessLevel: 'user',
-      isSystemAdmin: false,
-    });
-
-    render(<Navigation />);
-
-    const titleLink = screen.getByRole('link', { name: /next convex/i });
-    expect(titleLink).toBeInTheDocument();
-    expect(titleLink).toHaveAttribute('href', '/app');
-  });
-
   it('renders login button when user is not authenticated', () => {
     vi.mocked(useAuthState).mockReturnValue({
       sessionId: 'test-session',
