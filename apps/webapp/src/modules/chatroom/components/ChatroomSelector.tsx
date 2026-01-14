@@ -152,12 +152,12 @@ const ChatroomCard = memo(function ChatroomCard({
   const chatroomApi = api as any;
 
   const participants = useSessionQuery(chatroomApi.participants.list, {
-    chatroomId: chatroom._id as Id<'chatrooms'>,
+    chatroomId: chatroom._id as Id<'chatroomRooms'>,
   }) as Participant[] | undefined;
 
   // Only fetch last message for activity timestamp
   const messages = useSessionQuery(chatroomApi.messages.list, {
-    chatroomId: chatroom._id as Id<'chatrooms'>,
+    chatroomId: chatroom._id as Id<'chatroomRooms'>,
   }) as Message[] | undefined;
 
   // Check if data is still loading

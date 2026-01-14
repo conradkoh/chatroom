@@ -232,21 +232,19 @@ export default defineSchema({
   }),
 
   // ============================================================================
-  // CHATROOM TABLES (Legacy names for backward compatibility with chatroom-cli)
+  // CHATROOM TABLES
   // Multi-agent chatroom collaboration system
   // ============================================================================
 
   /**
    * Chatrooms for multi-agent collaboration.
    * Stores chatroom state and team configuration.
-   *
-   * Note: Uses legacy table name 'chatrooms' for compatibility with chatroom-cli.
    */
-  chatrooms: defineTable({
+  chatroomRooms: defineTable({
     status: v.union(v.literal('active'), v.literal('interrupted'), v.literal('completed')),
     // Owner of this chatroom (user ID from session) - required for access control
     ownerId: v.id('users'),
-    // Team information (optional for backward compatibility with existing chatrooms)
+    // Team information
     teamId: v.optional(v.string()),
     teamName: v.optional(v.string()),
     teamRoles: v.optional(v.array(v.string())),
@@ -259,11 +257,9 @@ export default defineSchema({
   /**
    * Participants in chatrooms.
    * Tracks which agents/users have joined and their current status.
-   *
-   * Note: Uses legacy table name 'participants' for compatibility with chatroom-cli.
    */
-  participants: defineTable({
-    chatroomId: v.id('chatrooms'),
+  chatroomParticipants: defineTable({
+    chatroomId: v.id('chatroomRooms'),
     role: v.string(),
     status: v.union(v.literal('idle'), v.literal('active'), v.literal('waiting')),
   })
@@ -273,11 +269,9 @@ export default defineSchema({
   /**
    * Messages in chatrooms.
    * Supports targeted messages, broadcasts, handoffs, and interrupts.
-   *
-   * Note: Uses legacy table name 'messages' for compatibility with chatroom-cli.
    */
-  messages: defineTable({
-    chatroomId: v.id('chatrooms'),
+  chatroomMessages: defineTable({
+    chatroomId: v.id('chatroomRooms'),
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),

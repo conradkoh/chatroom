@@ -22,7 +22,7 @@ export const create = mutation({
       throw new Error(`Authentication failed: ${sessionResult.reason}`);
     }
 
-    const chatroomId = await ctx.db.insert('chatrooms', {
+    const chatroomId = await ctx.db.insert('chatroomRooms', {
       status: 'active',
       ownerId: sessionResult.userId,
       teamId: args.teamId,
@@ -41,12 +41,12 @@ export const create = mutation({
 export const get = query({
   args: {
     sessionId: v.string(),
-    chatroomId: v.id('chatrooms'),
+    chatroomId: v.id('chatroomRooms'),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    return await ctx.db.get('chatrooms', args.chatroomId);
+    return await ctx.db.get('chatroomRooms', args.chatroomId);
   },
 });
 
@@ -66,7 +66,7 @@ export const listByUser = query({
     }
 
     const chatrooms = await ctx.db
-      .query('chatrooms')
+      .query('chatroomRooms')
       .withIndex('by_ownerId', (q) => q.eq('ownerId', sessionResult.userId))
       .order('desc')
       .collect();
@@ -81,13 +81,13 @@ export const listByUser = query({
 export const updateStatus = mutation({
   args: {
     sessionId: v.string(),
-    chatroomId: v.id('chatrooms'),
+    chatroomId: v.id('chatroomRooms'),
     status: v.union(v.literal('active'), v.literal('interrupted'), v.literal('completed')),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    await ctx.db.patch('chatrooms', args.chatroomId, { status: args.status });
+    await ctx.db.patch('chatroomRooms', args.chatroomId, { status: args.status });
   },
 });
 
@@ -99,27 +99,27 @@ export const updateStatus = mutation({
 export const interrupt = mutation({
   args: {
     sessionId: v.string(),
-    chatroomId: v.id('chatrooms'),
+    chatroomId: v.id('chatroomRooms'),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Update chatroom status
-    await ctx.db.patch('chatrooms', args.chatroomId, { status: 'interrupted' });
+    await ctx.db.patch('chatroomRooms', args.chatroomId, { status: 'interrupted' });
 
     // Reset all participants to idle
     const participants = await ctx.db
-      .query('participants')
+      .query('chatroomParticipants')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
     for (const participant of participants) {
-      await ctx.db.patch('participants', participant._id, { status: 'idle' });
+      await ctx.db.patch('chatroomParticipants', participant._id, { status: 'idle' });
     }
 
     // Send interrupt message
-    await ctx.db.insert('messages', {
+    await ctx.db.insert('chatroomMessages', {
       chatroomId: args.chatroomId,
       senderRole: 'system',
       content: 'Chatroom interrupted by user',
@@ -127,7 +127,7 @@ export const interrupt = mutation({
     });
 
     // Reset chatroom to active for new messages
-    await ctx.db.patch('chatrooms', args.chatroomId, { status: 'active' });
+    await ctx.db.patch('chatroomRooms', args.chatroomId, { status: 'active' });
   },
 });
 
@@ -139,24 +139,24 @@ export const interrupt = mutation({
 export const getTeamReadiness = query({
   args: {
     sessionId: v.string(),
-    chatroomId: v.id('chatrooms'),
+    chatroomId: v.id('chatroomRooms'),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const chatroom = await ctx.db.get('chatrooms', args.chatroomId);
+    const chatroom = await ctx.db.get('chatroomRooms', args.chatroomId);
     if (!chatroom) {
       return null;
     }
 
-    // Legacy chatrooms without team info
+    // Chatrooms without team info
     if (!chatroom.teamId || !chatroom.teamRoles) {
       return null;
     }
 
     const participants = await ctx.db
-      .query('participants')
+      .query('chatroomParticipants')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 

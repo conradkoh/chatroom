@@ -45,7 +45,7 @@ export async function taskComplete(
   // Send handoff message
   await client.mutation(api.messages.send, {
     sessionId,
-    chatroomId: chatroomId as Id<'chatrooms'>,
+    chatroomId: chatroomId as Id<'chatroomRooms'>,
     senderRole: role,
     content: message,
     targetRole: nextRole,
@@ -55,7 +55,7 @@ export async function taskComplete(
   // Update participant status to waiting
   await client.mutation(api.participants.updateStatus, {
     sessionId,
-    chatroomId: chatroomId as Id<'chatrooms'>,
+    chatroomId: chatroomId as Id<'chatroomRooms'>,
     role,
     status: 'waiting',
   });

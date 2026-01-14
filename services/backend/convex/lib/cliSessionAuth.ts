@@ -127,10 +127,10 @@ export async function validateSession(
  */
 export async function checkChatroomAccess(
   ctx: QueryCtx | MutationCtx,
-  chatroomId: Id<'chatrooms'>,
+  chatroomId: Id<'chatroomRooms'>,
   userId: Id<'users'>
 ): Promise<{ hasAccess: boolean; reason?: string }> {
-  const chatroom = await ctx.db.get('chatrooms', chatroomId);
+  const chatroom = await ctx.db.get('chatroomRooms', chatroomId);
 
   if (!chatroom) {
     return { hasAccess: false, reason: 'Chatroom not found' };
@@ -151,7 +151,7 @@ export async function checkChatroomAccess(
 export async function requireChatroomAccess(
   ctx: QueryCtx | MutationCtx,
   sessionId: string,
-  chatroomId: Id<'chatrooms'>
+  chatroomId: Id<'chatroomRooms'>
 ): Promise<ValidatedSession> {
   // Validate session (tries CLI session, then web session)
   const sessionResult = await validateSession(ctx, sessionId);

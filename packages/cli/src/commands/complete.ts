@@ -32,7 +32,7 @@ export async function completeChatroom(chatroomId: string): Promise<void> {
   try {
     await client.mutation(api.chatrooms.updateStatus, {
       sessionId,
-      chatroomId: chatroomId as Id<'chatrooms'>,
+      chatroomId: chatroomId as Id<'chatroomRooms'>,
       status: 'completed',
     });
 

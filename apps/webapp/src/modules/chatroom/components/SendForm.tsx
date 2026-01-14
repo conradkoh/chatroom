@@ -47,7 +47,7 @@ export const SendForm = memo(function SendForm({ chatroomId, readiness }: SendFo
     setSending(true);
     try {
       await sendMessage({
-        chatroomId: chatroomId as Id<'chatrooms'>,
+        chatroomId: chatroomId as Id<'chatroomRooms'>,
         senderRole: 'user',
         content: message.trim(),
         type: 'message',
