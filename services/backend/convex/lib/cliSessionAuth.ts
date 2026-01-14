@@ -123,9 +123,7 @@ export async function validateSession(
 
 /**
  * Check if a user has access to a chatroom
- * Returns true if:
- * - The chatroom has no owner (legacy chatroom)
- * - The user is the owner of the chatroom
+ * Returns true only if the user is the owner of the chatroom
  */
 export async function checkChatroomAccess(
   ctx: QueryCtx | MutationCtx,
@@ -136,11 +134,6 @@ export async function checkChatroomAccess(
 
   if (!chatroom) {
     return { hasAccess: false, reason: 'Chatroom not found' };
-  }
-
-  // Legacy chatrooms without owner are accessible to all authenticated users
-  if (!chatroom.ownerId) {
-    return { hasAccess: true };
   }
 
   // Check if user is the owner

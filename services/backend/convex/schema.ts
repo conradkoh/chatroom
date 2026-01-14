@@ -244,8 +244,8 @@ export default defineSchema({
    */
   chatrooms: defineTable({
     status: v.union(v.literal('active'), v.literal('interrupted'), v.literal('completed')),
-    // Owner of this chatroom (user ID from CLI session)
-    ownerId: v.optional(v.id('users')),
+    // Owner of this chatroom (user ID from session) - required for access control
+    ownerId: v.id('users'),
     // Team information (optional for backward compatibility with existing chatrooms)
     teamId: v.optional(v.string()),
     teamName: v.optional(v.string()),
