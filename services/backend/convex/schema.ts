@@ -230,4 +230,60 @@ export default defineSchema({
     expiresAt: v.number(), // When this connect request expires (15 minutes from creation)
     redirectUri: v.string(), // The OAuth redirect URI used for this connect request
   }),
+
+  // ============================================================================
+  // CHATROOM TABLES (Legacy names for backward compatibility with chatroom-cli)
+  // Multi-agent chatroom collaboration system
+  // ============================================================================
+
+  /**
+   * Chatrooms for multi-agent collaboration.
+   * Stores chatroom state and team configuration.
+   *
+   * Note: Uses legacy table name 'chatrooms' for compatibility with chatroom-cli.
+   */
+  chatrooms: defineTable({
+    status: v.union(v.literal('active'), v.literal('interrupted'), v.literal('completed')),
+    // Team information (optional for backward compatibility with existing chatrooms)
+    teamId: v.optional(v.string()),
+    teamName: v.optional(v.string()),
+    teamRoles: v.optional(v.array(v.string())),
+    // Entry point role that receives all user messages (defaults to first role)
+    teamEntryPoint: v.optional(v.string()),
+  }).index('by_status', ['status']),
+
+  /**
+   * Participants in chatrooms.
+   * Tracks which agents/users have joined and their current status.
+   *
+   * Note: Uses legacy table name 'participants' for compatibility with chatroom-cli.
+   */
+  participants: defineTable({
+    chatroomId: v.id('chatrooms'),
+    role: v.string(),
+    status: v.union(v.literal('idle'), v.literal('active'), v.literal('waiting')),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_and_role', ['chatroomId', 'role']),
+
+  /**
+   * Messages in chatrooms.
+   * Supports targeted messages, broadcasts, handoffs, and interrupts.
+   *
+   * Note: Uses legacy table name 'messages' for compatibility with chatroom-cli.
+   */
+  messages: defineTable({
+    chatroomId: v.id('chatrooms'),
+    senderRole: v.string(),
+    content: v.string(),
+    targetRole: v.optional(v.string()),
+    // For broadcast messages, this gets set when the message is claimed
+    claimedByRole: v.optional(v.string()),
+    type: v.union(
+      v.literal('message'),
+      v.literal('handoff'),
+      v.literal('interrupt'),
+      v.literal('join')
+    ),
+  }).index('by_chatroom', ['chatroomId']),
 });
