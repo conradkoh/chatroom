@@ -7,6 +7,7 @@ This document outlines the migration plan for porting features from `chatroom-cl
 ## Source Application (chatroom-cli)
 
 **Tech Stack:**
+
 - Runtime: Bun
 - Package Manager: Bun
 - Backend: Convex
@@ -14,13 +15,16 @@ This document outlines the migration plan for porting features from `chatroom-cl
 - CLI: Commander.js
 
 **Key Features:**
+
 1. **Backend (Convex)**
+
    - Chatrooms management (create, get, update status, interrupt)
    - Participants management (join, list, update status)
    - Messages (send, list, claim, routing logic)
    - Role hierarchy system
 
 2. **Frontend (Web Dashboard)**
+
    - Real-time chatroom dashboard
    - Agent status panels
    - Message feed with markdown support
@@ -42,6 +46,7 @@ This document outlines the migration plan for porting features from `chatroom-cl
 ## Target Application
 
 **Tech Stack:**
+
 - Runtime: Node.js
 - Package Manager: pnpm
 - Monorepo: Nx
@@ -50,18 +55,22 @@ This document outlines the migration plan for porting features from `chatroom-cl
 - CLI: To be added
 
 **Existing Structure:**
+
 - `services/backend/` - Convex backend with auth, presentations, discussions, etc.
 - `apps/webapp/` - Next.js web application with various modules
 
 ## Migration Phases
 
 ### Phase 1: Backend Migration
+
 Migrate the chatroom backend schema and functions to `services/backend/`.
 
 ### Phase 2: Frontend Migration
+
 Migrate the web dashboard components to `apps/webapp/`.
 
 ### Phase 3: CLI Migration
+
 Add the CLI as a new package in the monorepo.
 
 ## Migration Principles

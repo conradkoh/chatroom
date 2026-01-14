@@ -12,7 +12,7 @@ import { getRolePriority } from './lib/hierarchy';
 export const send = mutation({
   args: {
     sessionId: v.string(),
-    chatroomId: v.id('chatroomRooms'),
+    chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),
@@ -28,7 +28,7 @@ export const send = mutation({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Get chatroom to check team configuration
-    const chatroom = await ctx.db.get('chatroomRooms', args.chatroomId);
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
 
     // Determine target role for routing
     let targetRole = args.targetRole;
@@ -43,7 +43,7 @@ export const send = mutation({
       }
     }
 
-    const messageId = await ctx.db.insert('chatroomMessages', {
+    const messageId = await ctx.db.insert('chatroom_messages', {
       chatroomId: args.chatroomId,
       senderRole: args.senderRole,
       content: args.content,
@@ -63,7 +63,7 @@ export const send = mutation({
 export const list = query({
   args: {
     sessionId: v.string(),
-    chatroomId: v.id('chatroomRooms'),
+    chatroomId: v.id('chatroom_rooms'),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -71,7 +71,7 @@ export const list = query({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const query = ctx.db
-      .query('chatroomMessages')
+      .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId));
 
     const messages = await query.collect();
@@ -92,11 +92,11 @@ export const list = query({
 export const claimMessage = mutation({
   args: {
     sessionId: v.string(),
-    messageId: v.id('chatroomMessages'),
+    messageId: v.id('chatroom_messages'),
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    const message = await ctx.db.get('chatroomMessages', args.messageId);
+    const message = await ctx.db.get('chatroom_messages', args.messageId);
 
     if (!message) {
       return false;
@@ -111,7 +111,7 @@ export const claimMessage = mutation({
     }
 
     // Claim the message
-    await ctx.db.patch('chatroomMessages', args.messageId, { claimedByRole: args.role });
+    await ctx.db.patch('chatroom_messages', args.messageId, { claimedByRole: args.role });
     return true;
   },
 });
@@ -130,25 +130,25 @@ export const claimMessage = mutation({
 export const getLatestForRole = query({
   args: {
     sessionId: v.string(),
-    chatroomId: v.id('chatroomRooms'),
+    chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    afterMessageId: v.optional(v.id('chatroomMessages')),
+    afterMessageId: v.optional(v.id('chatroom_messages')),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const messages = await ctx.db
-      .query('chatroomMessages')
+      .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
     // Get chatroom for team info
-    const chatroom = await ctx.db.get('chatroomRooms', args.chatroomId);
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
 
     // Get participants for priority routing
     const participants = await ctx.db
-      .query('chatroomParticipants')
+      .query('chatroom_participants')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 

@@ -73,7 +73,7 @@ export const MessageFeed = memo(function MessageFeed({
   const chatroomApi = api as any;
 
   const messages = useSessionQuery(chatroomApi.messages.list, {
-    chatroomId: chatroomId as Id<'chatroomRooms'>,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Message[] | undefined;
 
   const feedRef = useRef<HTMLDivElement>(null);

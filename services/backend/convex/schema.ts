@@ -240,7 +240,7 @@ export default defineSchema({
    * Chatrooms for multi-agent collaboration.
    * Stores chatroom state and team configuration.
    */
-  chatroomRooms: defineTable({
+  chatroom_rooms: defineTable({
     status: v.union(v.literal('active'), v.literal('interrupted'), v.literal('completed')),
     // Owner of this chatroom (user ID from session) - required for access control
     ownerId: v.id('users'),
@@ -258,8 +258,8 @@ export default defineSchema({
    * Participants in chatrooms.
    * Tracks which agents/users have joined and their current status.
    */
-  chatroomParticipants: defineTable({
-    chatroomId: v.id('chatroomRooms'),
+  chatroom_participants: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     status: v.union(v.literal('idle'), v.literal('active'), v.literal('waiting')),
   })
@@ -270,8 +270,8 @@ export default defineSchema({
    * Messages in chatrooms.
    * Supports targeted messages, broadcasts, handoffs, and interrupts.
    */
-  chatroomMessages: defineTable({
-    chatroomId: v.id('chatroomRooms'),
+  chatroom_messages: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),

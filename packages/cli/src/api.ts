@@ -11,7 +11,7 @@ export type Id<TableName extends string> = string & { __tableName: TableName };
 
 // Type helpers for Convex responses
 export interface Chatroom {
-  _id: Id<'chatroomRooms'>;
+  _id: Id<'chatroom_rooms'>;
   status: 'active' | 'interrupted' | 'completed';
   ownerId: Id<'users'>;
   teamId?: string;
@@ -22,8 +22,8 @@ export interface Chatroom {
 }
 
 export interface Message {
-  _id: Id<'chatroomMessages'>;
-  chatroomId: Id<'chatroomRooms'>;
+  _id: Id<'chatroom_messages'>;
+  chatroomId: Id<'chatroom_rooms'>;
   senderRole: string;
   content: string;
   type: 'message' | 'handoff' | 'interrupt' | 'join';
@@ -33,8 +33,8 @@ export interface Message {
 }
 
 export interface Participant {
-  _id: Id<'chatroomParticipants'>;
-  chatroomId: Id<'chatroomRooms'>;
+  _id: Id<'chatroom_participants'>;
+  chatroomId: Id<'chatroom_rooms'>;
   role: string;
   status: 'active' | 'waiting' | 'idle';
   _creationTime?: number;

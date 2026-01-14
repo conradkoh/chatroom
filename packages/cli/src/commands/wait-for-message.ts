@@ -50,7 +50,7 @@ export async function waitForMessage(
   // Validate chatroom exists and user has access
   const chatroom = (await client.query(api.chatrooms.get, {
     sessionId,
-    chatroomId: chatroomId as Id<'chatroomRooms'>,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
   })) as Chatroom | null;
 
   if (!chatroom) {
@@ -61,7 +61,7 @@ export async function waitForMessage(
   // Join the chatroom
   await client.mutation(api.participants.join, {
     sessionId,
-    chatroomId: chatroomId as Id<'chatroomRooms'>,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
     role,
   });
 
@@ -84,7 +84,7 @@ export async function waitForMessage(
   // Use pagination to avoid loading entire history
   const existingMessages = (await client.query(api.messages.list, {
     sessionId,
-    chatroomId: chatroomId as Id<'chatroomRooms'>,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
     limit: 1,
   })) as Message[];
 
@@ -110,7 +110,7 @@ export async function waitForMessage(
     try {
       const message = (await client.query(api.messages.getLatestForRole, {
         sessionId,
-        chatroomId: chatroomId as Id<'chatroomRooms'>,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
         afterMessageId,
       })) as Message | null;
@@ -142,7 +142,7 @@ export async function waitForMessage(
         // Update participant status to active
         await client.mutation(api.participants.updateStatus, {
           sessionId,
-          chatroomId: chatroomId as Id<'chatroomRooms'>,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           status: 'active',
         });
@@ -150,12 +150,12 @@ export async function waitForMessage(
         // Get current chatroom state
         const chatroomData = (await client.query(api.chatrooms.get, {
           sessionId,
-          chatroomId: chatroomId as Id<'chatroomRooms'>,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
         })) as Chatroom | null;
 
         const participants = (await client.query(api.participants.list, {
           sessionId,
-          chatroomId: chatroomId as Id<'chatroomRooms'>,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
         })) as Participant[];
 
         // Handle interrupt

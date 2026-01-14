@@ -64,15 +64,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const chatroomApi = api as any;
 
   const chatroom = useSessionQuery(chatroomApi.chatrooms.get, {
-    chatroomId: chatroomId as Id<'chatroomRooms'>,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Chatroom | null | undefined;
 
   const participants = useSessionQuery(chatroomApi.participants.list, {
-    chatroomId: chatroomId as Id<'chatroomRooms'>,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Participant[] | undefined;
 
   const readiness = useSessionQuery(chatroomApi.chatrooms.getTeamReadiness, {
-    chatroomId: chatroomId as Id<'chatroomRooms'>,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamReadiness | null | undefined;
 
   // Memoize derived values

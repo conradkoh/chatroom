@@ -40,7 +40,7 @@ export async function sendMessage(chatroomId: string, options: SendOptions): Pro
   if (!options.skipReadyCheck && role.toLowerCase() === 'user') {
     const readiness = await client.query(api.chatrooms.getTeamReadiness, {
       sessionId,
-      chatroomId: chatroomId as Id<'chatroomRooms'>,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
     });
 
     if (readiness && !readiness.isReady) {
@@ -55,7 +55,7 @@ export async function sendMessage(chatroomId: string, options: SendOptions): Pro
   try {
     const messageId = await client.mutation(api.messages.send, {
       sessionId,
-      chatroomId: chatroomId as Id<'chatroomRooms'>,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
       senderRole: role,
       content: options.message,
       type: 'message',
