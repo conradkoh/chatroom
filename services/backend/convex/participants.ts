@@ -19,6 +19,23 @@ export const join = mutation({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
+    // Get chatroom to validate role against team configuration
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) {
+      throw new Error('Chatroom not found');
+    }
+
+    // Validate role is in team configuration
+    if (chatroom.teamRoles && chatroom.teamRoles.length > 0) {
+      const normalizedRole = args.role.toLowerCase();
+      const normalizedTeamRoles = chatroom.teamRoles.map((r) => r.toLowerCase());
+      if (!normalizedTeamRoles.includes(normalizedRole)) {
+        throw new Error(
+          `Invalid role: "${args.role}" is not in team configuration. Allowed roles: ${chatroom.teamRoles.join(', ')}`
+        );
+      }
+    }
+
     // Check if already joined
     const existing = await ctx.db
       .query('chatroom_participants')

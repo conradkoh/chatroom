@@ -29,6 +29,23 @@ export const send = mutation({
 
     // Get chatroom to check team configuration
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) {
+      throw new Error('Chatroom not found');
+    }
+
+    // Validate senderRole to prevent impersonation
+    // Only allow 'user' or roles that are in the team configuration
+    const normalizedSenderRole = args.senderRole.toLowerCase();
+    if (normalizedSenderRole !== 'user') {
+      // Check if senderRole is in teamRoles
+      const teamRoles = chatroom.teamRoles || [];
+      const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
+      if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
+        throw new Error(
+          `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ') || 'user'}`
+        );
+      }
+    }
 
     // Determine target role for routing
     let targetRole = args.targetRole;
@@ -76,11 +93,11 @@ export const list = query({
 
     const messages = await query.collect();
 
-    if (args.limit) {
-      return messages.slice(-args.limit);
-    }
+    // Enforce maximum limit to prevent unbounded queries
+    const MAX_LIMIT = 1000;
+    const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
 
-    return messages;
+    return messages.slice(-limit);
   },
 });
 
