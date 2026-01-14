@@ -10,10 +10,63 @@ import { Command } from 'commander';
 
 const program = new Command();
 
-program.name('chatroom').description('CLI for multi-agent chatroom collaboration').version('1.0.0');
+program
+  .name('chatroom')
+  .description('CLI for multi-agent chatroom collaboration')
+  .version('1.0.0')
+  .option('--skip-auth', 'Skip authentication check (development only)');
 
-// TODO: Add commands as they are migrated
-// These will be implemented in separate files under src/commands/
+// Helper to check if auth should be skipped
+function shouldSkipAuth(): boolean {
+  // Check global options
+  const opts = program.opts();
+  return opts.skipAuth === true;
+}
+
+// Helper to conditionally require auth
+async function maybeRequireAuth(): Promise<void> {
+  if (shouldSkipAuth()) {
+    console.log('⚠️  Skipping authentication (--skip-auth flag)');
+    return;
+  }
+  const { requireAuth } = await import('./infrastructure/auth/middleware.js');
+  await requireAuth();
+}
+
+// ============================================================================
+// AUTH COMMANDS (no auth required)
+// ============================================================================
+
+const authCommand = program.command('auth').description('Manage CLI authentication');
+
+authCommand
+  .command('login')
+  .description('Authenticate the CLI via browser')
+  .option('-f, --force', 'Re-authenticate even if already logged in')
+  .action(async (options: { force?: boolean }) => {
+    const { authLogin } = await import('./commands/auth-login.js');
+    await authLogin(options);
+  });
+
+authCommand
+  .command('logout')
+  .description('Clear CLI authentication')
+  .action(async () => {
+    const { authLogout } = await import('./commands/auth-logout.js');
+    await authLogout();
+  });
+
+authCommand
+  .command('status')
+  .description('Show current authentication status')
+  .action(async () => {
+    const { authStatus } = await import('./commands/auth-status.js');
+    await authStatus();
+  });
+
+// ============================================================================
+// INIT COMMAND (no auth required)
+// ============================================================================
 
 program
   .command('init')
@@ -24,11 +77,16 @@ program
     await initConfig(options);
   });
 
+// ============================================================================
+// CHATROOM COMMANDS (auth required unless --skip-auth)
+// ============================================================================
+
 program
   .command('create')
   .description('Create a new chatroom')
   .option('-t, --team <teamId>', 'Team to use (default: from config)')
   .action(async (options: { team?: string }) => {
+    await maybeRequireAuth();
     const { createChatroom } = await import('./commands/create.js');
     await createChatroom(options);
   });
@@ -37,6 +95,7 @@ program
   .command('list')
   .description('List chatroom history')
   .action(async () => {
+    await maybeRequireAuth();
     const { listChatrooms } = await import('./commands/list.js');
     await listChatrooms();
   });
@@ -45,6 +104,7 @@ program
   .command('complete <chatroomId>')
   .description('Mark a chatroom as completed')
   .action(async (chatroomId: string) => {
+    await maybeRequireAuth();
     const { completeChatroom } = await import('./commands/complete.js');
     await completeChatroom(chatroomId);
   });
@@ -55,6 +115,7 @@ program
   .requiredOption('--role <role>', 'Role to join as (e.g., builder, reviewer)')
   .option('--timeout <ms>', 'Optional timeout in milliseconds')
   .action(async (chatroomId: string, options: { role: string; timeout?: string }) => {
+    await maybeRequireAuth();
     const { waitForMessage } = await import('./commands/wait-for-message.js');
     await waitForMessage(chatroomId, {
       role: options.role,
@@ -73,6 +134,7 @@ program
       chatroomId: string,
       options: { message: string; role?: string; skipReadyCheck?: boolean }
     ) => {
+      await maybeRequireAuth();
       const { sendMessage } = await import('./commands/send.js');
       await sendMessage(chatroomId, options);
     }
@@ -90,6 +152,7 @@ program
       chatroomId: string,
       options: { role: string; message: string; nextRole: string; wait?: boolean }
     ) => {
+      await maybeRequireAuth();
       const { taskComplete } = await import('./commands/task-complete.js');
       await taskComplete(chatroomId, { ...options, noWait: options.wait === false });
     }

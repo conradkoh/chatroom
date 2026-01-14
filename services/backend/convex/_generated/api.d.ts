@@ -15,6 +15,7 @@ import type * as auth_google from "../auth/google.js";
 import type * as chatrooms from "../chatrooms.js";
 import type * as checklists from "../checklists.js";
 import type * as cleanupTasks from "../cleanupTasks.js";
+import type * as cliAuth from "../cliAuth.js";
 import type * as crypto from "../crypto.js";
 import type * as discussions from "../discussions.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   chatrooms: typeof chatrooms;
   checklists: typeof checklists;
   cleanupTasks: typeof cleanupTasks;
+  cliAuth: typeof cliAuth;
   crypto: typeof crypto;
   discussions: typeof discussions;
   "lib/hierarchy": typeof lib_hierarchy;

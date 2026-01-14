@@ -74,4 +74,35 @@ export const api = {
     updateStatus: 'participants:updateStatus' as unknown as FunctionReference<'mutation', 'public'>,
     list: 'participants:list' as unknown as FunctionReference<'query', 'public'>,
   },
+  cliAuth: {
+    createAuthRequest: 'cliAuth:createAuthRequest' as unknown as FunctionReference<
+      'mutation',
+      'public'
+    >,
+    getAuthRequestStatus: 'cliAuth:getAuthRequestStatus' as unknown as FunctionReference<
+      'query',
+      'public'
+    >,
+    validateSession: 'cliAuth:validateSession' as unknown as FunctionReference<'query', 'public'>,
+    touchSession: 'cliAuth:touchSession' as unknown as FunctionReference<'mutation', 'public'>,
+  },
 };
+
+// Response types for CLI Auth
+export interface AuthRequestResult {
+  requestId: string;
+  expiresAt: number;
+}
+
+export interface AuthRequestStatus {
+  status: 'pending' | 'approved' | 'denied' | 'expired' | 'not_found';
+  sessionId?: string;
+  expiresAt?: number;
+}
+
+export interface SessionValidation {
+  valid: boolean;
+  userId?: string;
+  userName?: string;
+  reason?: string;
+}
