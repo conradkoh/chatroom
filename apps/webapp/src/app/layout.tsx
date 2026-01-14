@@ -27,15 +27,15 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Next Convex App',
-  description: 'A Next.js app with Convex backend',
+  title: 'Chatroom',
+  description: 'Chatroom',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Next Convex App',
+    title: 'Chatroom',
   },
-  applicationName: 'Next Convex App',
+  applicationName: 'Chatroom',
   formatDetection: {
     telephone: false,
   },

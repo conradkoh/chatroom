@@ -32,7 +32,7 @@ export function Navigation() {
             href={authStatus.isAuthenticated ? '/app' : '/'}
             className="flex items-center whitespace-nowrap"
           >
-            <span className="font-bold text-lg">Next Convex</span>
+            <span className="font-bold text-lg">Chatroom</span>
           </Link>
         </div>
         <nav className="flex items-center justify-between w-full">
