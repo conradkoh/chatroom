@@ -164,6 +164,9 @@ export const interrupt = mutation({
  * Check if all team members have joined and are waiting.
  * Returns null if chatroom has no team (legacy chatroom).
  * Requires CLI session authentication and chatroom access.
+ *
+ * Note: isReady considers both presence AND readyUntil expiration.
+ * A participant is considered "expired" if their readyUntil timestamp has passed.
  */
 export const getTeamReadiness = query({
   args: {
@@ -189,19 +192,40 @@ export const getTeamReadiness = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Get roles that have joined (any status)
-    const presentRoles = participants.map((p) => p.role.toLowerCase());
+    const now = Date.now();
+
+    // Build participant info with readiness status
+    const participantInfo = participants.map((p) => ({
+      role: p.role,
+      status: p.status,
+      readyUntil: p.readyUntil,
+      isExpired: p.readyUntil ? p.readyUntil < now : false,
+    }));
+
+    // Get roles that have joined (any status) and are not expired
+    const activeRoles = participantInfo
+      .filter((p) => !p.isExpired)
+      .map((p) => p.role.toLowerCase());
+
     const expectedRoles = chatroom.teamRoles.map((r) => r.toLowerCase());
 
-    const missingRoles = expectedRoles.filter((r) => !presentRoles.includes(r));
+    // Missing roles: not present OR expired
+    const missingRoles = expectedRoles.filter((r) => !activeRoles.includes(r));
+
+    // Expired roles: present but expired
+    const expiredRoles = participantInfo.filter((p) => p.isExpired).map((p) => p.role);
 
     return {
       teamId: chatroom.teamId,
       teamName: chatroom.teamName ?? chatroom.teamId,
       expectedRoles: chatroom.teamRoles,
       presentRoles: participants.map((p) => p.role),
-      missingRoles: chatroom.teamRoles.filter((r) => !presentRoles.includes(r.toLowerCase())),
+      missingRoles: chatroom.teamRoles.filter((r) => !activeRoles.includes(r.toLowerCase())),
+      expiredRoles,
+      // isReady: all expected roles are present AND not expired
       isReady: missingRoles.length === 0,
+      // New field: detailed participant info with readyUntil
+      participants: participantInfo,
     };
   },
 });

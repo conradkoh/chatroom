@@ -264,6 +264,9 @@ export default defineSchema({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     status: v.union(v.literal('idle'), v.literal('active'), v.literal('waiting')),
+    // Timestamp when this participant's readiness expires
+    // After this time, the participant is considered disconnected/stale
+    readyUntil: v.optional(v.number()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role']),

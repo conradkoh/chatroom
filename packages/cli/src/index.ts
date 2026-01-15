@@ -127,15 +127,35 @@ program
   .command('wait-for-message <chatroomId>')
   .description('Join a chatroom and wait for messages')
   .requiredOption('--role <role>', 'Role to join as (e.g., builder, reviewer)')
-  .option('--timeout <ms>', 'Optional timeout in milliseconds')
-  .action(async (chatroomId: string, options: { role: string; timeout?: string }) => {
-    await maybeRequireAuth();
-    const { waitForMessage } = await import('./commands/wait-for-message.js');
-    await waitForMessage(chatroomId, {
-      role: options.role,
-      timeout: options.timeout ? parseInt(options.timeout, 10) : undefined,
-    });
-  });
+  .option('--timeout <ms>', 'Optional timeout in milliseconds (deprecated, use --duration)')
+  .option('--duration <duration>', 'How long to wait (e.g., "1m", "5m", "30s")')
+  .action(
+    async (chatroomId: string, options: { role: string; timeout?: string; duration?: string }) => {
+      await maybeRequireAuth();
+      const { waitForMessage, parseDuration } = await import('./commands/wait-for-message.js');
+
+      // Parse duration if provided, otherwise fall back to timeout
+      let timeoutMs: number | undefined;
+      if (options.duration) {
+        const parsed = parseDuration(options.duration);
+        if (parsed === null) {
+          console.error(
+            `❌ Invalid duration format: "${options.duration}". Use formats like "1m", "5m", "30s".`
+          );
+          process.exit(1);
+        }
+        timeoutMs = parsed;
+      } else if (options.timeout) {
+        timeoutMs = parseInt(options.timeout, 10);
+      }
+
+      await waitForMessage(chatroomId, {
+        role: options.role,
+        timeout: timeoutMs,
+        duration: options.duration,
+      });
+    }
+  );
 
 program
   .command('send <chatroomId>')

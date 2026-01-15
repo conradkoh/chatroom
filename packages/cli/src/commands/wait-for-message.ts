@@ -18,7 +18,58 @@ import { getConvexClient } from '../infrastructure/convex/client.js';
 interface WaitForMessageOptions {
   role: string;
   timeout?: number;
+  duration?: string;
   silent?: boolean;
+}
+
+/**
+ * Parse a duration string (e.g., "1m", "5m", "30s") into milliseconds.
+ * Returns null if the format is invalid.
+ */
+export function parseDuration(duration: string): number | null {
+  const match = duration
+    .trim()
+    .match(/^(\d+(?:\.\d+)?)\s*(s|sec|second|seconds|m|min|minute|minutes|h|hr|hour|hours)?$/i);
+  if (!match) return null;
+
+  const value = parseFloat(match[1]!);
+  const unit = (match[2] || 's').toLowerCase();
+
+  switch (unit) {
+    case 's':
+    case 'sec':
+    case 'second':
+    case 'seconds':
+      return value * 1000;
+    case 'm':
+    case 'min':
+    case 'minute':
+    case 'minutes':
+      return value * 60 * 1000;
+    case 'h':
+    case 'hr':
+    case 'hour':
+    case 'hours':
+      return value * 60 * 60 * 1000;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Format milliseconds into a human-readable duration string.
+ */
+function formatDuration(ms: number): string {
+  if (ms >= 60 * 60 * 1000) {
+    const hours = Math.round((ms / (60 * 60 * 1000)) * 10) / 10;
+    return `${hours}h`;
+  }
+  if (ms >= 60 * 1000) {
+    const minutes = Math.round((ms / (60 * 1000)) * 10) / 10;
+    return `${minutes}m`;
+  }
+  const seconds = Math.round((ms / 1000) * 10) / 10;
+  return `${seconds}s`;
 }
 
 /**
@@ -38,7 +89,7 @@ export async function waitForMessage(
   options: WaitForMessageOptions
 ): Promise<void> {
   const client = await getConvexClient();
-  const { role, timeout, silent } = options;
+  const { role, timeout, duration, silent } = options;
 
   // Get session ID for authentication
   const sessionId = getSessionId();
@@ -78,17 +129,24 @@ export async function waitForMessage(
     process.exit(1);
   }
 
-  // Join the chatroom
+  // Calculate readyUntil timestamp for this session
+  // If no timeout specified, default to 5 minutes
+  const effectiveTimeout = timeout || 5 * 60 * 1000;
+  const readyUntil = Date.now() + effectiveTimeout;
+
+  // Join the chatroom with readyUntil timestamp
   await client.mutation(api.participants.join, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     role,
+    readyUntil,
   });
 
   if (!silent) {
     console.log(`✅ Joined chatroom as "${role}"`);
   }
-  console.log(`⏳ Waiting for messages...`);
+  const durationDisplay = duration || formatDuration(effectiveTimeout);
+  console.log(`⏳ Waiting for messages (duration: ${durationDisplay})...`);
   console.log('');
   printWaitReminder(chatroomId, role);
   console.log('');
@@ -109,14 +167,22 @@ export async function waitForMessage(
   let currentPollInterval = WAIT_POLL_INTERVAL_MS;
   let pollTimeout: ReturnType<typeof setTimeout>;
 
-  // Set up optional timeout
-  const timeoutHandle = timeout
-    ? setTimeout(() => {
-        if (pollTimeout) clearTimeout(pollTimeout);
-        console.log(`\n⏱️  Timeout after ${timeout / 1000}s waiting for messages`);
-        process.exit(1);
-      }, timeout)
-    : null;
+  // Set up timeout - now always has a default value
+  const timeoutHandle = setTimeout(() => {
+    if (pollTimeout) clearTimeout(pollTimeout);
+    const durationDisplay = duration || formatDuration(effectiveTimeout);
+    console.log(`\n${'═'.repeat(50)}`);
+    console.log(`⏱️  WAIT TIMEOUT EXPIRED`);
+    console.log(`${'═'.repeat(50)}`);
+    console.log(`Duration: ${durationDisplay}`);
+    console.log(`\nThis is expected behavior. The agent's readiness has expired.`);
+    console.log(`To continue waiting for messages, run the command again:\n`);
+    console.log(
+      `  chatroom wait-for-message ${chatroomId} --role=${role}${duration ? ` --duration="${duration}"` : ''}`
+    );
+    console.log(`\n${'─'.repeat(50)}`);
+    process.exit(0); // Exit with 0 since this is expected behavior
+  }, effectiveTimeout);
 
   // Polling function with exponential backoff
   const poll = async () => {
@@ -150,7 +216,7 @@ export async function waitForMessage(
 
         // SUCCESS: This agent has exclusive claim on the message
         if (pollTimeout) clearTimeout(pollTimeout);
-        if (timeoutHandle) clearTimeout(timeoutHandle);
+        clearTimeout(timeoutHandle);
 
         // Update participant status to active
         await client.mutation(api.participants.updateStatus, {
@@ -342,7 +408,7 @@ export async function waitForMessage(
   // Handle interrupt
   process.on('SIGINT', () => {
     if (pollTimeout) clearTimeout(pollTimeout);
-    if (timeoutHandle) clearTimeout(timeoutHandle);
+    clearTimeout(timeoutHandle);
     console.log(`\n⚠️  Interrupted`);
     process.exit(0);
   });

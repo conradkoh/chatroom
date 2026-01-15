@@ -6,7 +6,7 @@ import { getRolePriority } from './lib/hierarchy';
 
 /**
  * Join a chatroom as a participant.
- * If already joined, updates status to waiting.
+ * If already joined, updates status to waiting and refreshes readyUntil.
  * Requires CLI session authentication and chatroom access.
  */
 export const join = mutation({
@@ -14,6 +14,8 @@ export const join = mutation({
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
+    // Optional timestamp when this participant's readiness expires
+    readyUntil: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
@@ -45,8 +47,11 @@ export const join = mutation({
       .unique();
 
     if (existing) {
-      // Update status to waiting
-      await ctx.db.patch('chatroom_participants', existing._id, { status: 'waiting' });
+      // Update status to waiting and refresh readyUntil
+      await ctx.db.patch('chatroom_participants', existing._id, {
+        status: 'waiting',
+        readyUntil: args.readyUntil,
+      });
       return existing._id;
     }
 
@@ -55,6 +60,7 @@ export const join = mutation({
       chatroomId: args.chatroomId,
       role: args.role,
       status: 'waiting',
+      readyUntil: args.readyUntil,
     });
 
     // Send join message

@@ -17,6 +17,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { AgentPanel } from './components/AgentPanel';
 import { MessageFeed } from './components/MessageFeed';
 import { PromptModal } from './components/PromptModal';
+import { ReconnectModal } from './components/ReconnectModal';
 import { SendForm } from './components/SendForm';
 import { SetupChecklist } from './components/SetupChecklist';
 import { TeamStatus } from './components/TeamStatus';
@@ -52,11 +53,20 @@ interface Participant {
   status: string;
 }
 
+interface ParticipantInfo {
+  role: string;
+  status: string;
+  readyUntil?: number;
+  isExpired: boolean;
+}
+
 interface TeamReadiness {
   isReady: boolean;
   teamName: string;
   expectedRoles: string[];
   missingRoles: string[];
+  expiredRoles?: string[];
+  participants?: ParticipantInfo[];
 }
 
 // Hook to check if screen is small (< 768px)
@@ -82,6 +92,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     role: '',
     prompt: '',
   });
+
+  // Reconnect modal state
+  const [reconnectModalOpen, setReconnectModalOpen] = useState(false);
 
   // Sidebar visibility state - hidden by default on small screens
   const isSmallScreen = useIsSmallScreen();
@@ -191,6 +204,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     });
   }, []);
 
+  // Reconnect modal handlers
+  const handleOpenReconnect = useCallback(() => {
+    setReconnectModalOpen(true);
+  }, []);
+
+  const handleCloseReconnect = useCallback(() => {
+    setReconnectModalOpen(false);
+  }, []);
+
   // Rename handlers
   const handleStartRename = useCallback(() => {
     setEditedName(chatroom?.name || chatroom?.teamName || '');
@@ -237,19 +259,33 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Show setup checklist if not all members have joined
   const isSetupMode = !allMembersJoined;
 
+  // Check if team has disconnected (expired) agents
+  const hasDisconnectedAgents = useMemo(() => {
+    return readiness?.expiredRoles && readiness.expiredRoles.length > 0;
+  }, [readiness?.expiredRoles]);
+
+  // Determine if team is not ready due to disconnection (vs initial setup)
+  const isTeamDisconnected = useMemo(() => {
+    return !isSetupMode && !readiness?.isReady && hasDisconnectedAgents;
+  }, [isSetupMode, readiness?.isReady, hasDisconnectedAgents]);
+
   // Status badge colors
-  const getStatusBadgeClasses = useCallback((status: string, isSetup: boolean) => {
-    const base = 'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide';
-    if (isSetup) return `${base} bg-amber-400/15 text-amber-400`;
-    switch (status) {
-      case 'active':
-        return `${base} bg-emerald-400/15 text-emerald-400`;
-      case 'completed':
-        return `${base} bg-blue-400/15 text-blue-400`;
-      default:
-        return `${base} bg-zinc-500/15 text-zinc-500`;
-    }
-  }, []);
+  const getStatusBadgeClasses = useCallback(
+    (status: string, isSetup: boolean, isDisconnected: boolean) => {
+      const base = 'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide';
+      if (isDisconnected) return `${base} bg-red-400/15 text-red-400`;
+      if (isSetup) return `${base} bg-amber-400/15 text-amber-400`;
+      switch (status) {
+        case 'active':
+          return `${base} bg-emerald-400/15 text-emerald-400`;
+        case 'completed':
+          return `${base} bg-blue-400/15 text-blue-400`;
+        default:
+          return `${base} bg-zinc-500/15 text-zinc-500`;
+      }
+    },
+    []
+  );
 
   // Derive display name
   const displayName = chatroom?.name || chatroom?.teamName || 'Chatroom';
@@ -338,8 +374,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 Team: {chatroom.teamName}
               </span>
             )}
-            <span className={getStatusBadgeClasses(chatroom.status, isSetupMode)}>
-              {isSetupMode ? 'Setting Up' : chatroom.status}
+            <span
+              className={getStatusBadgeClasses(chatroom.status, isSetupMode, isTeamDisconnected)}
+            >
+              {isTeamDisconnected ? 'Disconnected' : isSetupMode ? 'Setting Up' : chatroom.status}
             </span>
             {/* Sidebar Toggle Button with Status Indicator */}
             {!isSetupMode && (
@@ -375,6 +413,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }, [
     chatroom,
     isSetupMode,
+    isTeamDisconnected,
     onBack,
     sidebarVisible,
     aggregateStatus,
@@ -459,7 +498,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 participants={participants || []}
                 onViewPrompt={handleViewPrompt}
               />
-              <TeamStatus readiness={readiness} />
+              <TeamStatus readiness={readiness} onReconnect={handleOpenReconnect} />
               <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
                   Chatroom ID
@@ -478,6 +517,18 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         onClose={handleCloseModal}
         role={modalState.role}
         prompt={modalState.prompt}
+      />
+
+      <ReconnectModal
+        isOpen={reconnectModalOpen}
+        onClose={handleCloseReconnect}
+        chatroomId={chatroomId}
+        teamName={teamName}
+        teamRoles={teamRoles}
+        teamEntryPoint={teamEntryPoint}
+        expiredRoles={readiness?.expiredRoles || []}
+        participants={readiness?.participants}
+        onViewPrompt={handleViewPrompt}
       />
     </>
   );
