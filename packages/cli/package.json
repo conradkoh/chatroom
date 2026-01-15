@@ -1,15 +1,17 @@
 {
-  "name": "@workspace/cli",
+  "name": "chatroom-cli",
   "version": "1.0.0",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {
-    "chatroom": "./src/index.ts"
+    "chatroom": "./dist/index.js"
   },
   "scripts": {
+    "build": "tsc",
     "dev": "bun run src/index.ts",
     "typecheck": "tsc --noEmit",
-    "chatroom": "bun run src/index.ts"
+    "chatroom": "bun run src/index.ts",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "commander": "^14.0.0",
@@ -29,5 +31,10 @@
     "convex"
   ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "files": [
+    "dist",
+    "package.json",
+    "README.md"
+  ]
 }
