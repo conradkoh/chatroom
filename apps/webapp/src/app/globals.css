@@ -44,6 +44,25 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  
+  /* Chatroom Module Colors - Dark Steel Theme */
+  --color-chatroom-bg-primary: var(--chatroom-bg-primary);
+  --color-chatroom-bg-secondary: var(--chatroom-bg-secondary);
+  --color-chatroom-bg-tertiary: var(--chatroom-bg-tertiary);
+  --color-chatroom-bg-hover: var(--chatroom-bg-hover);
+  --color-chatroom-bg-surface: var(--chatroom-bg-surface);
+  --color-chatroom-border: var(--chatroom-border);
+  --color-chatroom-border-strong: var(--chatroom-border-strong);
+  --color-chatroom-text-primary: var(--chatroom-text-primary);
+  --color-chatroom-text-secondary: var(--chatroom-text-secondary);
+  --color-chatroom-text-muted: var(--chatroom-text-muted);
+  --color-chatroom-status-success: var(--chatroom-status-success);
+  --color-chatroom-status-warning: var(--chatroom-status-warning);
+  --color-chatroom-status-error: var(--chatroom-status-error);
+  --color-chatroom-status-info: var(--chatroom-status-info);
+  --color-chatroom-status-purple: var(--chatroom-status-purple);
+  --color-chatroom-accent: var(--chatroom-accent);
+  --color-chatroom-accent-subtle: var(--chatroom-accent-subtle);
 }
 
 /* Mobile-responsive spacing and sizing variables */
@@ -219,6 +238,52 @@ input,
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* Chatroom Module Theme - Dark Steel Industrial Design System */
+.chatroom-root {
+  /* Background Colors */
+  --chatroom-bg-primary: #09090b;           /* zinc-950 */
+  --chatroom-bg-secondary: rgba(24, 24, 27, 0.5);  /* zinc-900/50 with glass effect */
+  --chatroom-bg-tertiary: #18181b;          /* zinc-900 */
+  --chatroom-bg-hover: #27272a;             /* zinc-800 */
+  --chatroom-bg-surface: rgba(24, 24, 27, 0.6);    /* glassmorphism surface */
+  
+  /* Borders */
+  --chatroom-border: rgba(250, 250, 250, 0.1);  /* zinc-100 at 10% */
+  --chatroom-border-strong: rgba(250, 250, 250, 0.15);
+  
+  /* Text */
+  --chatroom-text-primary: #fafafa;         /* zinc-100 */
+  --chatroom-text-secondary: #a1a1aa;       /* zinc-400 */
+  --chatroom-text-muted: #71717a;           /* zinc-500 */
+  
+  /* Status Colors */
+  --chatroom-status-success: #34d399;       /* emerald-400 */
+  --chatroom-status-warning: #fbbf24;       /* amber-400 */
+  --chatroom-status-error: #f87171;         /* red-400 */
+  --chatroom-status-info: #60a5fa;          /* blue-400 */
+  --chatroom-status-purple: #c084fc;        /* purple-400 */
+  
+  /* Accent */
+  --chatroom-accent: #fafafa;               /* zinc-100 */
+  --chatroom-accent-subtle: #27272a;        /* zinc-800 */
+  
+  /* Sharp corners - brutalist style */
+  --chatroom-radius: 0px;
+  --chatroom-radius-sm: 0px;
+
+  /* Base styles for the chatroom module root */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--chatroom-bg-primary);
+  color: var(--chatroom-text-primary);
+}
+
+/* Scoped box-sizing reset - only apply within chatroom module */
+.chatroom-root *,
+.chatroom-root *::before,
+.chatroom-root *::after {
+  box-sizing: border-box;
 }
 
 @layer base {
