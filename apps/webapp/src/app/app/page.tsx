@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation';
 
 import { ChatroomSelector } from '@/modules/chatroom';
-import '@/modules/chatroom/styles/index.css';
 
 /**
  * Main application page - displays the chatroom list.
