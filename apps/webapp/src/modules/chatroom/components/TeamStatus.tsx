@@ -16,9 +16,9 @@ interface TeamStatusProps {
 export const TeamStatus = memo(function TeamStatus({ readiness }: TeamStatusProps) {
   if (readiness === undefined) {
     return (
-      <div className="team-status">
-        <div className="team-status-card">
-          <div className="loading-spinner" style={{ margin: '0 auto' }} />
+      <div className="p-4 border-b-2 border-chatroom-border-strong">
+        <div className="bg-chatroom-bg-tertiary p-4 flex flex-col items-center justify-center">
+          <div className="w-5 h-5 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
         </div>
       </div>
     );
@@ -30,16 +30,25 @@ export const TeamStatus = memo(function TeamStatus({ readiness }: TeamStatusProp
   }
 
   return (
-    <div className="team-status">
-      <div className="panel-title">Team Status</div>
-      <div className="team-status-card">
-        <div className="team-status-icon">
+    <div className="p-4 border-b-2 border-chatroom-border-strong">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+        Team Status
+      </div>
+      <div className="bg-chatroom-bg-tertiary p-4 flex flex-col items-center gap-2">
+        {/* Status Icon */}
+        <div
+          className={`${readiness.isReady ? 'text-chatroom-status-success' : 'text-chatroom-status-warning'}`}
+        >
           {readiness.isReady ? <CheckCircle size={20} /> : <Clock size={20} />}
         </div>
-        <div className={`team-status-text ${readiness.isReady ? 'ready' : 'waiting'}`}>
+        {/* Status Text */}
+        <div
+          className={`text-xs font-bold uppercase tracking-wide ${readiness.isReady ? 'text-chatroom-status-success' : 'text-chatroom-status-warning'}`}
+        >
           {readiness.isReady ? 'Team Ready' : 'Waiting for members'}
         </div>
-        <div className="team-status-detail">
+        {/* Status Detail */}
+        <div className="text-[10px] text-chatroom-text-muted text-center">
           {readiness.isReady
             ? `All ${readiness.expectedRoles.length} members present`
             : `Missing: ${readiness.missingRoles.join(', ')}`}

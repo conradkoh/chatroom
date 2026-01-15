@@ -19,6 +19,19 @@ interface AgentPanelProps {
   onViewPrompt?: (role: string) => void;
 }
 
+// Status indicator colors
+const getStatusClasses = (status: string) => {
+  const base = 'w-2.5 h-2.5 flex-shrink-0';
+  switch (status) {
+    case 'active':
+      return `${base} bg-chatroom-status-info`;
+    case 'waiting':
+      return `${base} bg-chatroom-status-success`;
+    default:
+      return `${base} bg-chatroom-text-muted`;
+  }
+};
+
 export function AgentPanel({
   chatroomId,
   teamName = 'Team',
@@ -67,9 +80,11 @@ export function AgentPanel({
   }, []);
 
   return (
-    <div className="agent-panel">
-      <div className="panel-title">Agents</div>
-      <div className="agent-list">
+    <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
+        Agents
+      </div>
+      <div className="overflow-y-auto flex-1">
         {rolesToShow.map((role) => {
           const participant = participantMap.get(role.toLowerCase());
           const status = participant?.status || 'missing';
@@ -89,9 +104,9 @@ export function AgentPanel({
           const isActive = status === 'active';
 
           return (
-            <div key={role} className="agent-item-wrapper">
+            <div key={role} className="border-b border-chatroom-border last:border-b-0">
               <div
-                className={`agent-item agent-item-clickable ${isActive ? 'agent-working' : ''} ${isExpanded ? 'agent-expanded' : ''}`}
+                className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isActive ? 'bg-blue-400/5' : ''} ${isExpanded ? 'bg-chatroom-bg-tertiary' : ''}`}
                 role="button"
                 tabIndex={0}
                 aria-expanded={isExpanded}
@@ -104,33 +119,43 @@ export function AgentPanel({
                   }
                 }}
               >
+                {/* Status Indicator */}
                 <div
-                  className={`agent-status ${status}`}
+                  className={getStatusClasses(status)}
                   role="status"
                   aria-label={`Status: ${statusLabel}`}
                 />
-                <div className="agent-info">
-                  <div className="agent-role">{role}</div>
-                  <div className={`agent-state ${isActive ? 'state-working' : ''}`}>
+                {/* Agent Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
+                    {role}
+                  </div>
+                  <div
+                    className={`text-[10px] font-bold uppercase tracking-wide ${isActive ? 'text-chatroom-status-info animate-pulse' : 'text-chatroom-text-muted'}`}
+                  >
                     {statusLabel}
                   </div>
                 </div>
-                <div className={`agent-expand-indicator ${isExpanded ? 'expanded' : ''}`}>
+                {/* Expand Indicator */}
+                <div
+                  className={`text-chatroom-text-muted transition-transform duration-100 ${isExpanded ? 'rotate-90' : ''}`}
+                >
                   <ChevronRight size={14} />
                 </div>
               </div>
 
+              {/* Expanded Prompt Row */}
               {isExpanded && (
-                <div className="agent-prompt-row">
+                <div className="p-3 pt-0 flex items-center gap-2 bg-chatroom-bg-tertiary">
                   <div
-                    className="prompt-preview-inline"
+                    className="flex-1 px-2 py-1 bg-chatroom-bg-primary text-chatroom-text-muted text-xs truncate cursor-pointer hover:text-chatroom-text-secondary"
                     onClick={(e) => {
                       e.stopPropagation();
                       onViewPrompt?.(role);
                     }}
                     title="Click to view full prompt"
                   >
-                    <span className="prompt-preview-text">{preview}</span>
+                    <span className="font-mono">{preview}</span>
                   </div>
                   <CopyButton text={prompt} label="Copy" copiedLabel="Copied" />
                 </div>
