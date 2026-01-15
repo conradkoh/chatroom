@@ -243,30 +243,23 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               <SendForm chatroomId={chatroomId} readiness={readiness} />
             </div>
 
-            {/* Sidebar Overlay for mobile */}
+            {/* Sidebar Overlay for mobile - below header */}
             {sidebarVisible && isSmallScreen && (
-              <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={toggleSidebar} />
+              <div
+                className="fixed inset-0 top-[57px] bg-black/50 z-30 md:hidden"
+                onClick={toggleSidebar}
+              />
             )}
 
-            {/* Sidebar */}
+            {/* Sidebar - positioned below header on mobile */}
             <div
               className={`
-                ${isSmallScreen ? 'fixed right-0 top-0 h-full z-40' : 'relative'}
+                ${isSmallScreen ? 'fixed right-0 top-[57px] bottom-0 z-40' : 'relative'}
                 w-80 flex flex-col bg-chatroom-bg-surface backdrop-blur-xl border-l-2 border-chatroom-border-strong
                 transition-transform duration-300 ease-in-out
                 ${sidebarVisible ? 'translate-x-0' : 'translate-x-full'}
               `}
             >
-              {/* Close button for mobile */}
-              {isSmallScreen && (
-                <button
-                  className="absolute top-4 right-4 bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary z-10"
-                  onClick={toggleSidebar}
-                  title="Close sidebar"
-                >
-                  <XCircle size={16} />
-                </button>
-              )}
               <AgentPanel
                 chatroomId={chatroomId}
                 teamName={teamName}
