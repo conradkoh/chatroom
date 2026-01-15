@@ -13,7 +13,7 @@ const program = new Command();
 program
   .name('chatroom')
   .description('CLI for multi-agent chatroom collaboration')
-  .version('1.0.3')
+  .version('1.0.4')
   .option('--skip-auth', 'Skip authentication check (development only)');
 
 // Helper to check if auth should be skipped

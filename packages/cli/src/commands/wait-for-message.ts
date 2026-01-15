@@ -13,6 +13,18 @@ interface WaitForMessageOptions {
   silent?: boolean;
 }
 
+/**
+ * Print the wait-for-message reminder - short but forceful.
+ */
+function printWaitReminder(chatroomId: string, role: string): void {
+  console.log(`${'─'.repeat(50)}`);
+  console.log(
+    `⚠️  ALWAYS run \`wait-for-message\` after task-complete/send. If it times out, run it again immediately.`
+  );
+  console.log(`    chatroom wait-for-message ${chatroomId} --role=${role}`);
+  console.log(`${'─'.repeat(50)}`);
+}
+
 export async function waitForMessage(
   chatroomId: string,
   options: WaitForMessageOptions
@@ -69,16 +81,9 @@ export async function waitForMessage(
     console.log(`✅ Joined chatroom as "${role}"`);
   }
   console.log(`⏳ Waiting for messages...`);
-  console.log(`\n${'─'.repeat(50)}`);
-  console.log(`After completing this task, run:\n`);
-  console.log(`\`\`\`bash`);
-  console.log(`chatroom wait-for-message ${chatroomId} --role=${role}`);
-  console.log(`\`\`\``);
-  console.log(`${'─'.repeat(50)}`);
-  console.log(
-    `💡 NOTE: Remember to always wait for messages after your task is complete to prepare for the next task.`
-  );
-  console.log(`${'─'.repeat(50)}\n`);
+  console.log('');
+  printWaitReminder(chatroomId, role);
+  console.log('');
 
   // Get the current latest message ID to know where to start listening
   // Use pagination to avoid loading entire history
@@ -213,16 +218,7 @@ export async function waitForMessage(
         console.log(`    --next-role=<target>\n`);
 
         // Print reminder
-        console.log(`${'─'.repeat(50)}`);
-        console.log(`After completing this task, run:\n`);
-        console.log(`\`\`\`bash`);
-        console.log(`chatroom wait-for-message ${chatroomId} --role=${role}`);
-        console.log(`\`\`\``);
-        console.log(`${'─'.repeat(50)}`);
-        console.log(
-          `💡 NOTE: Remember to always wait for messages after your task is complete to prepare for the next task.`
-        );
-        console.log(`${'─'.repeat(50)}`);
+        printWaitReminder(chatroomId, role);
 
         // Output JSON for parsing
         console.log(`${'─'.repeat(50)}`);
