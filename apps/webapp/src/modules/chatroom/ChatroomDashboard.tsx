@@ -247,6 +247,17 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Derive display name
   const displayName = chatroom?.name || chatroom?.teamName || 'Chatroom';
 
+  // Update browser tab title with chatroom name
+  useEffect(() => {
+    if (chatroom) {
+      const previousTitle = document.title;
+      document.title = `${displayName} | Chatroom`;
+      return () => {
+        document.title = previousTitle;
+      };
+    }
+  }, [chatroom, displayName]);
+
   // Inject chatroom controls into the app header
   useEffect(() => {
     // Only set header content when chatroom is loaded
