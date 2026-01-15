@@ -14,6 +14,8 @@ import { SetupChecklist } from './components/SetupChecklist';
 import { TeamStatus } from './components/TeamStatus';
 import { generateAgentPrompt } from './prompts/generator';
 
+import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
+
 interface ChatroomDashboardProps {
   chatroomId: string;
   onBack?: () => void;
@@ -84,6 +86,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const toggleSidebar = useCallback(() => {
     setSidebarVisible((prev) => !prev);
   }, []);
+
+  // Header portal integration
+  const { setContent: setHeaderContent, clearContent: clearHeaderContent } = useSetHeaderPortal();
 
   // Type assertion workaround: The Convex API types are not fully generated
   // until `npx convex dev` is run. This assertion allows us to use the API
@@ -161,66 +166,48 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     });
   }, []);
 
-  if (chatroom === undefined || participants === undefined) {
-    return (
-      <div className="chatroom-root flex items-center justify-center h-screen bg-chatroom-bg-primary text-chatroom-text-muted">
-        <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
-      </div>
-    );
-  }
-
-  if (chatroom === null) {
-    return (
-      <div className="chatroom-root flex flex-col items-center justify-center h-screen bg-chatroom-bg-primary text-chatroom-status-error">
-        <div className="text-5xl mb-4">
-          <XCircle size={48} />
-        </div>
-        <div>Chatroom not found</div>
-        <div className="mt-2 text-chatroom-text-muted">ID: {chatroomId}</div>
-      </div>
-    );
-  }
-
   // Show setup checklist if not all members have joined
   const isSetupMode = !allMembersJoined;
 
   // Status badge colors
-  const getStatusBadgeClasses = (status: string, isSetup: boolean) => {
+  const getStatusBadgeClasses = useCallback((status: string, isSetup: boolean) => {
     const base = 'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide';
-    if (isSetup) return `${base} bg-amber-400/15 text-chatroom-status-warning`;
+    if (isSetup) return `${base} bg-amber-400/15 text-amber-400`;
     switch (status) {
       case 'active':
-        return `${base} bg-emerald-400/15 text-chatroom-status-success`;
+        return `${base} bg-emerald-400/15 text-emerald-400`;
       case 'completed':
-        return `${base} bg-blue-400/15 text-chatroom-status-info`;
+        return `${base} bg-blue-400/15 text-blue-400`;
       default:
-        return `${base} bg-zinc-500/15 text-chatroom-text-muted`;
+        return `${base} bg-zinc-500/15 text-zinc-500`;
     }
-  };
+  }, []);
 
-  return (
-    <>
-      <div className="chatroom-root flex flex-col h-screen overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
-        {/* Header */}
-        <header className="flex justify-between items-center px-4 md:px-6 py-4 bg-chatroom-bg-surface backdrop-blur-xl border-b-2 border-chatroom-border-strong">
+  // Inject chatroom controls into the app header
+  useEffect(() => {
+    // Only set header content when chatroom is loaded
+    if (chatroom) {
+      setHeaderContent({
+        left: (
           <div className="flex items-center gap-3">
             {onBack && (
               <button
-                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+                className="bg-transparent border-2 border-zinc-700 text-zinc-400 w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-zinc-800 hover:border-zinc-600 hover:text-zinc-100"
                 onClick={onBack}
                 title="Back to chatroom list"
               >
                 <ArrowLeft size={16} />
               </button>
             )}
-            <h1 className="text-sm font-bold uppercase tracking-widest hidden sm:block">
-              Chatroom Dashboard
-            </h1>
-            <h1 className="text-sm font-bold uppercase tracking-widest sm:hidden">Dashboard</h1>
+            <span className="text-zinc-400 text-xs font-bold uppercase tracking-wide hidden sm:block">
+              Dashboard
+            </span>
           </div>
-          <div className="flex gap-2 md:gap-4 items-center">
+        ),
+        right: (
+          <div className="flex gap-2 md:gap-3 items-center">
             {chatroom.teamName && (
-              <span className="bg-chatroom-bg-tertiary px-2 md:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-secondary hidden sm:block">
+              <span className="bg-zinc-800 px-2 md:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400 hidden sm:block">
                 Team: {chatroom.teamName}
               </span>
             )}
@@ -230,7 +217,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             {/* Sidebar Toggle Button with Status Indicator */}
             {!isSetupMode && (
               <button
-                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary relative"
+                className="bg-transparent border-2 border-zinc-700 text-zinc-400 w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-zinc-800 hover:border-zinc-600 hover:text-zinc-100 relative"
                 onClick={toggleSidebar}
                 title={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
               >
@@ -240,18 +227,59 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   <span
                     className={`absolute -top-1 -right-1 w-2.5 h-2.5 ${
                       aggregateStatus === 'working'
-                        ? 'bg-chatroom-status-info'
+                        ? 'bg-blue-400'
                         : aggregateStatus === 'ready'
-                          ? 'bg-chatroom-status-success'
-                          : 'bg-chatroom-text-muted'
+                          ? 'bg-emerald-400'
+                          : 'bg-zinc-500'
                     }`}
                   />
                 )}
               </button>
             )}
           </div>
-        </header>
+        ),
+      });
+    }
 
+    // Clear header content when component unmounts
+    return () => {
+      clearHeaderContent();
+    };
+  }, [
+    chatroom,
+    isSetupMode,
+    onBack,
+    sidebarVisible,
+    aggregateStatus,
+    toggleSidebar,
+    setHeaderContent,
+    clearHeaderContent,
+    getStatusBadgeClasses,
+  ]);
+
+  if (chatroom === undefined || participants === undefined) {
+    return (
+      <div className="chatroom-root flex items-center justify-center h-full bg-chatroom-bg-primary text-chatroom-text-muted">
+        <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+      </div>
+    );
+  }
+
+  if (chatroom === null) {
+    return (
+      <div className="chatroom-root flex flex-col items-center justify-center h-full bg-chatroom-bg-primary text-chatroom-status-error">
+        <div className="text-5xl mb-4">
+          <XCircle size={48} />
+        </div>
+        <div>Chatroom not found</div>
+        <div className="mt-2 text-chatroom-text-muted">ID: {chatroomId}</div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
         {isSetupMode ? (
           <div className="setup-content">
             <SetupChecklist
@@ -270,18 +298,18 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               <SendForm chatroomId={chatroomId} readiness={readiness} />
             </div>
 
-            {/* Sidebar Overlay for mobile - below header */}
+            {/* Sidebar Overlay for mobile - below app header */}
             {sidebarVisible && isSmallScreen && (
               <div
-                className="fixed inset-0 top-[57px] bg-black/50 z-30 md:hidden"
+                className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
                 onClick={toggleSidebar}
               />
             )}
 
-            {/* Sidebar - positioned below header on mobile */}
+            {/* Sidebar - positioned below app header on mobile */}
             <div
               className={`
-                ${isSmallScreen ? 'fixed right-0 top-[57px] bottom-0 z-40' : 'relative'}
+                ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40' : 'relative'}
                 w-80 flex flex-col bg-chatroom-bg-surface backdrop-blur-xl border-l-2 border-chatroom-border-strong
                 transition-transform duration-300 ease-in-out
                 ${sidebarVisible ? 'translate-x-0' : 'translate-x-full'}
