@@ -15,6 +15,7 @@ interface AgentPanelProps {
   chatroomId: string;
   teamName?: string;
   teamRoles?: string[];
+  teamEntryPoint?: string;
   participants: Participant[];
   onViewPrompt?: (role: string) => void;
 }
@@ -36,6 +37,7 @@ export function AgentPanel({
   chatroomId,
   teamName = 'Team',
   teamRoles = [],
+  teamEntryPoint,
   participants,
   onViewPrompt,
 }: AgentPanelProps) {
@@ -61,9 +63,10 @@ export function AgentPanel({
         role,
         teamName,
         teamRoles,
+        teamEntryPoint,
       });
     },
-    [chatroomId, teamName, teamRoles]
+    [chatroomId, teamName, teamRoles, teamEntryPoint]
   );
 
   // Memoize preview function

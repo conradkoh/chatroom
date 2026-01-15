@@ -12,6 +12,8 @@ export interface InitPromptContext {
   teamRoles: string[];
   template: RoleTemplate;
   handoffTargets: string[];
+  /** Whether this role is the entry point that receives user messages directly */
+  isEntryPoint: boolean;
 }
 
 /**

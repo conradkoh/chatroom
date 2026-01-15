@@ -5,11 +5,15 @@
 /**
  * Generate role-specific guidance based on the role
  */
-export function getRoleSpecificGuidance(role: string, otherRoles: string[]): string {
+export function getRoleSpecificGuidance(
+  role: string,
+  otherRoles: string[],
+  isEntryPoint: boolean
+): string {
   const normalizedRole = role.toLowerCase();
 
   if (normalizedRole === 'builder') {
-    return getBuilderGuidance();
+    return getBuilderGuidance(isEntryPoint);
   }
 
   if (normalizedRole === 'reviewer') {
@@ -19,40 +23,77 @@ export function getRoleSpecificGuidance(role: string, otherRoles: string[]): str
   return '';
 }
 
-function getBuilderGuidance(): string {
+function getBuilderGuidance(isEntryPoint: boolean): string {
+  const classificationNote = isEntryPoint
+    ? `
+**Classification (Entry Point Role):**
+As the entry point, you receive user messages directly. When you receive a user message:
+1. First run \`chatroom task-started\` to classify it (question, new_feature, or follow_up)
+2. Then do your work
+3. Hand off to reviewer for code changes, or directly to user for questions`
+    : '';
+
   return `
-## Handoff Guidelines
+## Builder Workflow
 
-Not every message requires a handoff to another agent.
+You are responsible for implementing code changes based on requirements.
+${classificationNote}
 
-**Rules:**
-- **You MUST hand off to \`reviewer\` after making code changes.**
-- **You MUST hand off to \`user\` for simple queries that don't require code changes.**
-- **You SHOULD use \`chatroom send\` to ask for clarification before starting work.**
+**Typical Flow:**
+1. Receive task (from user or handoff from reviewer)
+2. Implement the requested changes
+3. Commit your work with clear messages
+4. Hand off to reviewer with a summary of what you built
 
-**Decision Guide:**
-1. Made code changes? → Hand off to \`reviewer\`
-2. Answered a question or provided information only? → Hand off to \`user\`
-3. Need more info? → Send a message to ask`;
+**Handoff Rules:**
+- **After code changes** → Hand off to \`reviewer\`
+- **For simple questions** → Can hand off directly to \`user\`
+- **For \`new_feature\` classification** → MUST hand off to \`reviewer\` (cannot skip review)
+
+**When you receive handoffs from the reviewer:**
+You will receive feedback on your code. Review the feedback, make the requested changes, and hand back to the reviewer.`;
 }
 
 function getReviewerGuidance(otherRoles: string[]): string {
   const hasBuilder = otherRoles.some((r) => r.toLowerCase() === 'builder');
   return `
-## Review Workflow
+## Reviewer Workflow
 
-As a reviewer, you have full authority to approve or request changes.
+You receive handoffs from the builder containing completed work. You do NOT receive user messages directly.
 
-**Rules:**
-- **You MUST hand off to \`user\` when code looks good and review is approved.**
-- **You MUST hand off to \`builder\` with specific feedback when changes are needed.**${hasBuilder ? '' : ' (when available)'}
-- **You SHOULD use \`chatroom send\` to ask the user for clarification on requirements.**
+**Important: Do NOT run \`task-started\`** - The task has already been classified by the builder.
 
-**Example - Requesting Changes:**
+**Typical Flow:**
+1. Receive handoff from builder with work summary
+2. Review the code changes:
+   - Check uncommitted changes: \`git status\`, \`git diff\`
+   - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
+3. Either approve or request changes
+
+**Your Options After Review:**
+
+**If changes are needed:**
 \`\`\`bash
 chatroom task-complete <chatroom-id> \\
   --role=reviewer \\
-  --message="Found issues: 1) Missing error handling in X, 2) Y function needs input validation. Please fix." \\
+  --message="Please address: 1) <issue>, 2) <issue>..." \\
   --next-role=builder
-\`\`\``;
+\`\`\`
+
+**If work is approved:**
+\`\`\`bash
+chatroom task-complete <chatroom-id> \\
+  --role=reviewer \\
+  --message="APPROVED. <brief summary of what was reviewed and why it's good>" \\
+  --next-role=user
+\`\`\`
+
+**Review Checklist:**
+- [ ] Code correctness and functionality
+- [ ] Error handling and edge cases
+- [ ] Code style and best practices
+- [ ] Documentation and comments
+- [ ] Tests (if applicable)
+
+${hasBuilder ? '**Note:** For multi-round reviews, keep handing back to builder until all issues are resolved.' : ''}`;
 }

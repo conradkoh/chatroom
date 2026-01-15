@@ -158,6 +158,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     return 'partial';
   }, [participants]);
 
+  // Memoize the team entry point
+  const teamEntryPoint = useMemo(
+    () => chatroom?.teamEntryPoint || teamRoles[0] || 'builder',
+    [chatroom?.teamEntryPoint, teamRoles]
+  );
+
   // Memoize callbacks to prevent unnecessary child re-renders
   const handleViewPrompt = useCallback(
     (role: string) => {
@@ -166,6 +172,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         role,
         teamName,
         teamRoles,
+        teamEntryPoint,
       });
       setModalState({
         isOpen: true,
@@ -173,7 +180,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         prompt,
       });
     },
-    [chatroomId, teamName, teamRoles]
+    [chatroomId, teamName, teamRoles, teamEntryPoint]
   );
 
   const handleCloseModal = useCallback(() => {
@@ -414,6 +421,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               chatroomId={chatroomId}
               teamName={teamName}
               teamRoles={teamRoles}
+              teamEntryPoint={teamEntryPoint}
               participants={participants || []}
               onViewPrompt={handleViewPrompt}
             />
@@ -447,6 +455,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 chatroomId={chatroomId}
                 teamName={teamName}
                 teamRoles={teamRoles}
+                teamEntryPoint={teamEntryPoint}
                 participants={participants || []}
                 onViewPrompt={handleViewPrompt}
               />

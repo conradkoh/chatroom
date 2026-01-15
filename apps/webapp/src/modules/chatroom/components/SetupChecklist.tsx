@@ -15,6 +15,7 @@ interface SetupChecklistProps {
   chatroomId: string;
   teamName: string;
   teamRoles: string[];
+  teamEntryPoint?: string;
   participants: Participant[];
   onViewPrompt: (role: string) => void;
 }
@@ -23,6 +24,7 @@ export const SetupChecklist = memo(function SetupChecklist({
   chatroomId,
   teamName,
   teamRoles,
+  teamEntryPoint,
   participants,
   onViewPrompt,
 }: SetupChecklistProps) {
@@ -40,9 +42,10 @@ export const SetupChecklist = memo(function SetupChecklist({
         role,
         teamName,
         teamRoles,
+        teamEntryPoint,
       });
     },
-    [chatroomId, teamName, teamRoles]
+    [chatroomId, teamName, teamRoles, teamEntryPoint]
   );
 
   // Get first line of prompt for preview (pure function, no need for useCallback)
