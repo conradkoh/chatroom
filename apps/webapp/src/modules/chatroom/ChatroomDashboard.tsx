@@ -119,20 +119,20 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   if (chatroom === undefined || participants === undefined) {
     return (
-      <div className="chatroom-root loading">
-        <div className="loading-spinner" />
+      <div className="chatroom-root flex items-center justify-center h-screen bg-chatroom-bg-primary text-chatroom-text-muted">
+        <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
       </div>
     );
   }
 
   if (chatroom === null) {
     return (
-      <div className="chatroom-root error">
-        <div className="error-icon">
-          <XCircle size={24} />
+      <div className="chatroom-root flex flex-col items-center justify-center h-screen bg-chatroom-bg-primary text-chatroom-status-error">
+        <div className="text-5xl mb-4">
+          <XCircle size={48} />
         </div>
         <div>Chatroom not found</div>
-        <div style={{ marginTop: 8, color: 'var(--text-muted)' }}>ID: {chatroomId}</div>
+        <div className="mt-2 text-chatroom-text-muted">ID: {chatroomId}</div>
       </div>
     );
   }
@@ -140,21 +140,44 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Show setup checklist if not all members have joined
   const isSetupMode = !allMembersJoined;
 
+  // Status badge colors
+  const getStatusBadgeClasses = (status: string, isSetup: boolean) => {
+    const base = 'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide';
+    if (isSetup) return `${base} bg-amber-400/15 text-chatroom-status-warning`;
+    switch (status) {
+      case 'active':
+        return `${base} bg-emerald-400/15 text-chatroom-status-success`;
+      case 'completed':
+        return `${base} bg-blue-400/15 text-chatroom-status-info`;
+      default:
+        return `${base} bg-zinc-500/15 text-chatroom-text-muted`;
+    }
+  };
+
   return (
     <>
-      <div className="chatroom-root dashboard">
-        <header className="header">
-          <div className="header-left">
+      <div className="chatroom-root flex flex-col h-screen overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
+        {/* Header */}
+        <header className="flex justify-between items-center px-6 py-4 bg-chatroom-bg-surface backdrop-blur-xl border-b-2 border-chatroom-border-strong">
+          <div className="flex items-center gap-3">
             {onBack && (
-              <button className="back-button" onClick={onBack} title="Back to chatroom list">
+              <button
+                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+                onClick={onBack}
+                title="Back to chatroom list"
+              >
                 <ArrowLeft size={16} />
               </button>
             )}
-            <h1>Chatroom Dashboard</h1>
+            <h1 className="text-sm font-bold uppercase tracking-widest">Chatroom Dashboard</h1>
           </div>
-          <div className="header-info">
-            {chatroom.teamName && <span className="team-badge">Team: {chatroom.teamName}</span>}
-            <span className={`team-badge status-badge ${isSetupMode ? 'setup' : chatroom.status}`}>
+          <div className="flex gap-4 items-center">
+            {chatroom.teamName && (
+              <span className="bg-chatroom-bg-tertiary px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-secondary">
+                Team: {chatroom.teamName}
+              </span>
+            )}
+            <span className={getStatusBadgeClasses(chatroom.status, isSetupMode)}>
               {isSetupMode ? 'Setting Up' : chatroom.status}
             </span>
           </div>
@@ -171,13 +194,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             />
           </div>
         ) : (
-          <div className="main-content">
-            <div className="message-section">
+          <div className="flex flex-1 overflow-hidden">
+            {/* Message Section */}
+            <div className="flex-1 flex flex-col border-r-2 border-chatroom-border-strong min-h-0 overflow-hidden">
               <MessageFeed chatroomId={chatroomId} participants={participants || []} />
               <SendForm chatroomId={chatroomId} readiness={readiness} />
             </div>
 
-            <div className="sidebar">
+            {/* Sidebar */}
+            <div className="w-80 flex flex-col bg-chatroom-bg-surface backdrop-blur-xl">
               <AgentPanel
                 chatroomId={chatroomId}
                 teamName={teamName}
@@ -186,9 +211,13 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 onViewPrompt={handleViewPrompt}
               />
               <TeamStatus readiness={readiness} />
-              <div className="chatroom-id">
-                <div className="chatroom-id-label">Chatroom ID</div>
-                <div className="chatroom-id-value">{chatroomId}</div>
+              <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
+                  Chatroom ID
+                </div>
+                <div className="font-mono text-[10px] font-bold text-chatroom-text-secondary break-all p-2 bg-chatroom-bg-tertiary">
+                  {chatroomId}
+                </div>
               </div>
             </div>
           </div>
