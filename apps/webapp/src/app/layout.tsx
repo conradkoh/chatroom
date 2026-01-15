@@ -8,6 +8,7 @@ import { Navigation } from '@/components/Navigation';
 import { Toaster } from '@/components/ui/sonner';
 import { AppInfoProvider } from '@/modules/app/AppInfoProvider';
 import { AuthProvider } from '@/modules/auth/AuthProvider';
+import { HeaderPortalProvider } from '@/modules/header/HeaderPortalProvider';
 import { ThemeProvider } from '@/modules/theme/ThemeProvider';
 
 const geistSans = Geist({
@@ -66,10 +67,12 @@ export default function RootLayout({
             <AppInfoProvider>
               <AuthProvider>
                 <ThemeProvider>
-                  <div className="flex flex-col h-screen overflow-hidden">
-                    <Navigation />
-                    <main className="flex-1 flex flex-col overflow-scroll">{children}</main>
-                  </div>
+                  <HeaderPortalProvider>
+                    <div className="flex flex-col h-screen overflow-hidden bg-zinc-950">
+                      <Navigation />
+                      <main className="flex-1 flex flex-col overflow-scroll">{children}</main>
+                    </div>
+                  </HeaderPortalProvider>
                 </ThemeProvider>
               </AuthProvider>
             </AppInfoProvider>

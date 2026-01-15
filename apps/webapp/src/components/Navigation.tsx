@@ -7,13 +7,15 @@ import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { UserMenu } from '@/components/UserMenu';
 import { useAuthState } from '@/modules/auth/AuthProvider';
+import { useHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 /**
  * Main navigation header component with authentication state handling.
- * Shows login button for unauthenticated users and user menu for authenticated users.
+ * Implements Industrial Design System styling with portal support.
  */
 export function Navigation() {
   const authState = useAuthState();
+  const portalContent = useHeaderPortal();
 
   /**
    * Memoized authentication status to prevent unnecessary re-renders.
@@ -25,22 +27,32 @@ export function Navigation() {
   }, [authState]);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-16 items-center px-4 sm:px-6">
-        <div className="mr-6 flex">
+    <header className="sticky top-0 z-50 w-full border-b-2 border-border/15 bg-zinc-950/95 backdrop-blur-xl supports-[backdrop-filter]:bg-zinc-950/80">
+      <div className="flex h-14 items-center justify-between px-4 sm:px-6">
+        {/* Left section: Logo and portal content */}
+        <div className="flex items-center gap-4">
           <Link
             href={authStatus.isAuthenticated ? '/app' : '/'}
             className="flex items-center whitespace-nowrap"
           >
-            <span className="font-bold text-lg">Chatroom</span>
+            <span className="text-sm font-bold uppercase tracking-widest text-zinc-100">
+              Chatroom
+            </span>
           </Link>
+          {/* Portal content injection point */}
+          {portalContent.left}
         </div>
-        <nav className="flex items-center justify-between w-full">
-          <div className="flex gap-6 text-sm">{/* Navigation links removed */}</div>
-          <div className="flex items-center gap-2">
-            {_renderAuthSection(authStatus.isLoading, authStatus.isAuthenticated)}
-          </div>
-        </nav>
+
+        {/* Center section: Portal content */}
+        {portalContent.center && (
+          <div className="hidden sm:flex items-center">{portalContent.center}</div>
+        )}
+
+        {/* Right section: Portal content and auth */}
+        <div className="flex items-center gap-3">
+          {portalContent.right}
+          {_renderAuthSection(authStatus.isLoading, authStatus.isAuthenticated)}
+        </div>
       </div>
     </header>
   );
@@ -48,6 +60,7 @@ export function Navigation() {
 
 /**
  * Renders the appropriate authentication section based on user state.
+ * Uses Industrial Design System styling.
  */
 function _renderAuthSection(isLoading: boolean, isAuthenticated: boolean) {
   if (isLoading) {
@@ -61,7 +74,11 @@ function _renderAuthSection(isLoading: boolean, isAuthenticated: boolean) {
   if (!featureFlags.disableLogin) {
     return (
       <Link href="/login">
-        <Button size="sm" variant="outline">
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-2 border-zinc-700 bg-transparent text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 text-xs font-bold uppercase tracking-wide"
+        >
           Login
         </Button>
       </Link>
