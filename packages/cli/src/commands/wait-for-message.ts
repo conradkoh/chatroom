@@ -9,6 +9,7 @@ import {
   type Message,
   type Participant,
   type AllowedHandoffRoles,
+  type ContextWindow,
 } from '../api.js';
 import { WAIT_POLL_INTERVAL_MS, MAX_SILENT_ERRORS } from '../config.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
@@ -234,6 +235,12 @@ export async function waitForMessage(
           role,
         })) as AllowedHandoffRoles;
 
+        // Get context window (latest non-follow-up message + all messages after)
+        const contextWindow = (await client.query(api.messages.getContextWindow, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        })) as ContextWindow;
+
         // Build the list of allowed handoff targets
         const availableHandoffRoles = allowedRolesInfo.canHandoffToUser
           ? [...allowedRolesInfo.availableRoles, 'user']
@@ -261,7 +268,30 @@ export async function waitForMessage(
                 p.status === 'waiting' && p.role.toLowerCase() !== role.toLowerCase(),
             })),
           },
+          context: {
+            originMessage: contextWindow.originMessage
+              ? {
+                  id: contextWindow.originMessage._id,
+                  senderRole: contextWindow.originMessage.senderRole,
+                  content: contextWindow.originMessage.content,
+                  classification: contextWindow.originMessage.classification,
+                }
+              : null,
+            allMessages: contextWindow.contextMessages.map((m) => ({
+              id: m._id,
+              senderRole: m.senderRole,
+              content: m.content,
+              type: m.type,
+              targetRole: m.targetRole,
+              classification: m.classification,
+            })),
+            currentClassification: contextWindow.classification,
+          },
           instructions: {
+            taskStartedCommand:
+              allowedRolesInfo.currentClassification === null
+                ? `chatroom task-started ${chatroomId} --role=${role} --classification=<question|new_feature|follow_up>`
+                : null,
             taskCompleteCommand: `chatroom task-complete ${chatroomId} --role=${role} --message="<summary>" --next-role=<target>`,
             availableHandoffRoles,
             terminationRole: 'user',

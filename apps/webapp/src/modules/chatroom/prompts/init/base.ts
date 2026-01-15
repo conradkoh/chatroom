@@ -109,7 +109,19 @@ export function getImportantNotesSection(): string {
 - **Communication:** Use \`chatroom send\` to ask questions or provide updates. Use \`task-complete\` only when your task is done.
 - **Be thorough:** Include detailed summaries in your handoff messages so the next agent has full context
 - **Stay focused:** Complete your assigned task before handing off
-- **Handle interrupts:** If you receive an interrupt message, stop work and exit gracefully`;
+- **Handle interrupts:** If you receive an interrupt message, stop work and exit gracefully
+
+## Context Window
+
+When you receive a message, the JSON output includes a \`context\` section with:
+- **originMessage**: The original user message that started this task chain (the latest non-follow-up message)
+- **allMessages**: All messages from the origin message to now, including handoff messages
+
+**Important:**
+- You will see handoff messages between ALL agents, not just those targeted at you
+- **Ignore handoff messages that are not targeted at your role** - they are included for context only
+- Focus only on messages targeted at you or broadcast messages
+- Use the full context to understand the task history and decisions made`;
 }
 
 /**

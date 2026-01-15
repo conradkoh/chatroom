@@ -16,6 +16,7 @@ import {
   type InitPromptContext,
 } from './init/base';
 import { getRoleSpecificGuidance } from './init/roles';
+import { getTaskStartedSection } from './init/task-started';
 import { getWaitForMessageSection } from './init/wait-for-message';
 import { getRoleTemplate } from './templates';
 
@@ -55,6 +56,7 @@ export function generateAgentPrompt(context: PromptContext): string {
     getHeaderSection(ctx),
     getResponsibilitiesSection(ctx),
     getGettingStartedSection(ctx),
+    getTaskStartedSection(ctx),
     getCommunicationSection(ctx),
     getHandoffOptionsSection(ctx),
     roleSpecificGuidance,
