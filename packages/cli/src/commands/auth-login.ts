@@ -26,7 +26,7 @@ interface AuthLoginOptions {
  * Priority order:
  * 1. CHATROOM_WEB_URL environment variable (highest priority)
  * 2. webappUrl from ~/.chatroom/chatroom.jsonc config
- * 3. Falls back to http://localhost:3000
+ * 3. Falls back to https://chatroom.duskfare.com/
  */
 function getWebAppUrl(): string {
   // 1. Check environment variable override
@@ -45,8 +45,8 @@ function getWebAppUrl(): string {
     // Config not found or invalid, continue to default
   }
 
-  // 3. Default to standard Next.js dev port
-  return 'http://localhost:3000';
+  // 3. Default to production webapp URL
+  return 'https://chatroom.duskfare.com';
 }
 
 /**
