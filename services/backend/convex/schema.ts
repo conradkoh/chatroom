@@ -283,6 +283,18 @@ export default defineSchema({
       v.literal('interrupt'),
       v.literal('join')
     ),
+    // Classification of user messages (set via task-started command)
+    // Used to determine allowed handoff paths and context window
+    classification: v.optional(
+      v.union(
+        v.literal('question'), // Quick question - can hand directly back to user
+        v.literal('new_feature'), // New feature request - must go through reviewer
+        v.literal('follow_up') // Follow-up to previous message - part of same context
+      )
+    ),
+    // Reference to the original user message that started this task chain
+    // Set when an agent runs task-started, links all related messages
+    taskOriginMessageId: v.optional(v.id('chatroom_messages')),
   }).index('by_chatroom', ['chatroomId']),
 
   // ============================================================================
