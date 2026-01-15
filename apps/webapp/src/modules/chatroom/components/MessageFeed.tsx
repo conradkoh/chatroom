@@ -28,6 +28,7 @@ interface Message {
   targetRole?: string;
   content: string;
   _creationTime: number;
+  classification?: 'question' | 'new_feature' | 'follow_up';
 }
 
 // Message type badge styling
@@ -53,13 +54,31 @@ const getSenderClasses = (role: string) => {
   return `${base} text-chatroom-status-info`;
 };
 
+// Classification badge styling
+const getClassificationBadge = (classification: Message['classification']) => {
+  if (!classification) return null;
+  const base = 'inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 ml-2';
+  switch (classification) {
+    case 'question':
+      return { className: `${base} bg-cyan-400/15 text-cyan-400`, label: 'question' };
+    case 'new_feature':
+      return { className: `${base} bg-amber-400/15 text-amber-400`, label: 'new feature' };
+    case 'follow_up':
+      return { className: `${base} bg-zinc-400/15 text-zinc-400`, label: 'follow-up' };
+    default:
+      return null;
+  }
+};
+
 // Memoized message item to prevent re-renders of all messages when one changes
 const MessageItem = memo(function MessageItem({ message }: { message: Message }) {
+  const classificationBadge = getClassificationBadge(message.classification);
+
   return (
     <div className="px-4 py-3 bg-transparent border-b-2 border-chatroom-border transition-all duration-100 hover:bg-chatroom-accent-subtle hover:-mx-2 hover:px-6 last:border-b-0">
       {/* Message Header */}
       <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-chatroom-border">
-        <div>
+        <div className="flex items-center flex-wrap gap-y-1">
           {message.type !== 'message' && (
             <span className={getMessageTypeBadge(message.type)}>{message.type}</span>
           )}
@@ -68,6 +87,10 @@ const MessageItem = memo(function MessageItem({ message }: { message: Message })
             <span className="text-chatroom-text-muted text-[10px] font-bold uppercase tracking-wide ml-2 before:content-['→_'] before:text-chatroom-text-muted">
               {message.targetRole}
             </span>
+          )}
+          {/* Show classification badge for user messages */}
+          {message.senderRole.toLowerCase() === 'user' && classificationBadge && (
+            <span className={classificationBadge.className}>{classificationBadge.label}</span>
           )}
         </div>
         <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">

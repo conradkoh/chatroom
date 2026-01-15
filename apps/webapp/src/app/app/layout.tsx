@@ -1,24 +1,10 @@
-"use client";
+'use client';
 
-import { Suspense } from "react";
-import { Loader2 } from "lucide-react";
+import { Suspense } from 'react';
 
-import { AuthErrorBoundary } from "@/modules/auth/AuthErrorBoundary";
-import { RequireLogin } from "@/modules/auth/RequireLogin";
-
-/**
- * Loading fallback for Suspense boundary.
- */
-function LoadingFallback() {
-  return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-      <div className="flex flex-col items-center gap-2">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Loading...</p>
-      </div>
-    </div>
-  );
-}
+import { PageSpinner } from '@/components/ui/spinner';
+import { AuthErrorBoundary } from '@/modules/auth/AuthErrorBoundary';
+import { RequireLogin } from '@/modules/auth/RequireLogin';
 
 /**
  * Authenticated application layout.
@@ -40,7 +26,7 @@ export default function AppLayout({
   return (
     <RequireLogin>
       <AuthErrorBoundary>
-        <Suspense fallback={<LoadingFallback />}>{children}</Suspense>
+        <Suspense fallback={<PageSpinner />}>{children}</Suspense>
       </AuthErrorBoundary>
     </RequireLogin>
   );

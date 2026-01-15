@@ -26,19 +26,24 @@ export function Navigation() {
     return { isAuthenticated, isLoading };
   }, [authState]);
 
+  const hideAppTitle = portalContent.hideAppTitle ?? false;
+  const hideUserMenu = portalContent.hideUserMenu ?? false;
+
   return (
     <header className="sticky top-0 z-50 w-full border-b-2 border-border/15 bg-zinc-950/95 backdrop-blur-xl supports-[backdrop-filter]:bg-zinc-950/80">
       <div className="flex h-14 items-center justify-between px-4 sm:px-6">
         {/* Left section: Logo and portal content */}
         <div className="flex items-center gap-4">
-          <Link
-            href={authStatus.isAuthenticated ? '/app' : '/'}
-            className="flex items-center whitespace-nowrap"
-          >
-            <span className="text-sm font-bold uppercase tracking-widest text-zinc-100">
-              Chatroom
-            </span>
-          </Link>
+          {!hideAppTitle && (
+            <Link
+              href={authStatus.isAuthenticated ? '/app' : '/'}
+              className="flex items-center whitespace-nowrap"
+            >
+              <span className="text-sm font-bold uppercase tracking-widest text-zinc-100">
+                Chatroom
+              </span>
+            </Link>
+          )}
           {/* Portal content injection point */}
           {portalContent.left}
         </div>
@@ -51,7 +56,7 @@ export function Navigation() {
         {/* Right section: Portal content and auth */}
         <div className="flex items-center gap-3">
           {portalContent.right}
-          {_renderAuthSection(authStatus.isLoading, authStatus.isAuthenticated)}
+          {!hideUserMenu && _renderAuthSection(authStatus.isLoading, authStatus.isAuthenticated)}
         </div>
       </div>
     </header>

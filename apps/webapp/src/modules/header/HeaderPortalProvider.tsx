@@ -13,6 +13,10 @@ interface HeaderPortalContent {
   center?: ReactNode;
   /** Content to display on the right side of the header (before auth) */
   right?: ReactNode;
+  /** Whether to hide the app title/logo for immersive experience */
+  hideAppTitle?: boolean;
+  /** Whether to hide the user menu for immersive experience */
+  hideUserMenu?: boolean;
 }
 
 interface HeaderPortalContextValue {

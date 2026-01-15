@@ -18,6 +18,7 @@ interface Chatroom {
   _id: string;
   _creationTime: number;
   status: string;
+  name?: string;
   teamId?: string;
   teamName?: string;
   teamRoles?: string[];
@@ -262,6 +263,8 @@ const ChatroomCard = memo(function ChatroomCard({
 
   const teamRoles = chatroom.teamRoles || [];
   const teamName = chatroom.teamName || 'Team';
+  // Use custom name if set, otherwise show team name
+  const displayName = chatroom.name || teamName;
 
   // Show skeleton while loading
   if (isLoading) {
@@ -270,7 +273,7 @@ const ChatroomCard = memo(function ChatroomCard({
         {/* Card Main */}
         <div className="flex justify-between items-start mb-3">
           <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary">
-            {teamName}
+            {displayName}
           </span>
           <span className={getStatusBadgeClasses('loading')}>
             <span className="animate-pulse">loading</span>
@@ -305,7 +308,7 @@ const ChatroomCard = memo(function ChatroomCard({
       {/* Card Main */}
       <div className="flex justify-between items-start mb-3">
         <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary">
-          {teamName}
+          {displayName}
         </span>
         <span className={getStatusBadgeClasses(status)}>{status}</span>
       </div>

@@ -244,6 +244,8 @@ export default defineSchema({
     status: v.union(v.literal('active'), v.literal('interrupted'), v.literal('completed')),
     // Owner of this chatroom (user ID from session) - required for access control
     ownerId: v.id('users'),
+    // Custom chatroom name (user-defined for easier identification)
+    name: v.optional(v.string()),
     // Team information
     teamId: v.optional(v.string()),
     teamName: v.optional(v.string()),

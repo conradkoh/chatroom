@@ -2,9 +2,17 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { ArrowLeft, XCircle, PanelRightOpen, PanelRightClose } from 'lucide-react';
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import {
+  ArrowLeft,
+  XCircle,
+  PanelRightOpen,
+  PanelRightClose,
+  Pencil,
+  Check,
+  X,
+} from 'lucide-react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 
 import { AgentPanel } from './components/AgentPanel';
 import { MessageFeed } from './components/MessageFeed';
@@ -30,6 +38,7 @@ interface ModalState {
 interface Chatroom {
   _id: string;
   status: string;
+  name?: string;
   teamId?: string;
   teamName?: string;
   teamRoles?: string[];
@@ -90,6 +99,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Header portal integration
   const { setContent: setHeaderContent, clearContent: clearHeaderContent } = useSetHeaderPortal();
 
+  // Rename state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [isRenamePending, setIsRenamePending] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
   // Type assertion workaround: The Convex API types are not fully generated
   // until `npx convex dev` is run. This assertion allows us to use the API
   // without full type safety. The correct types will be available after
@@ -100,6 +115,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const chatroom = useSessionQuery(chatroomApi.chatrooms.get, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Chatroom | null | undefined;
+
+  // Rename mutation
+  const renameChatroom = useSessionMutation(chatroomApi.chatrooms.rename);
 
   const participants = useSessionQuery(chatroomApi.participants.list, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -166,6 +184,49 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     });
   }, []);
 
+  // Rename handlers
+  const handleStartRename = useCallback(() => {
+    setEditedName(chatroom?.name || chatroom?.teamName || '');
+    setIsEditingName(true);
+    // Focus input after render
+    setTimeout(() => nameInputRef.current?.focus(), 0);
+  }, [chatroom?.name, chatroom?.teamName]);
+
+  const handleCancelRename = useCallback(() => {
+    setIsEditingName(false);
+    setEditedName('');
+  }, []);
+
+  const handleSaveRename = useCallback(async () => {
+    if (!editedName.trim()) {
+      handleCancelRename();
+      return;
+    }
+    setIsRenamePending(true);
+    try {
+      await renameChatroom({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        name: editedName.trim(),
+      });
+      setIsEditingName(false);
+    } catch (error) {
+      console.error('Failed to rename chatroom:', error);
+    } finally {
+      setIsRenamePending(false);
+    }
+  }, [editedName, renameChatroom, chatroomId, handleCancelRename]);
+
+  const handleRenameKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        handleSaveRename();
+      } else if (e.key === 'Escape') {
+        handleCancelRename();
+      }
+    },
+    [handleSaveRename, handleCancelRename]
+  );
+
   // Show setup checklist if not all members have joined
   const isSetupMode = !allMembersJoined;
 
@@ -183,11 +244,17 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     }
   }, []);
 
+  // Derive display name
+  const displayName = chatroom?.name || chatroom?.teamName || 'Chatroom';
+
   // Inject chatroom controls into the app header
   useEffect(() => {
     // Only set header content when chatroom is loaded
     if (chatroom) {
       setHeaderContent({
+        // Hide app title and user menu for immersive chatroom experience
+        hideAppTitle: true,
+        hideUserMenu: true,
         left: (
           <div className="flex items-center gap-3">
             {onBack && (
@@ -199,9 +266,51 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 <ArrowLeft size={16} />
               </button>
             )}
-            <span className="text-zinc-400 text-xs font-bold uppercase tracking-wide hidden sm:block">
-              Dashboard
-            </span>
+            {/* Chatroom Name - Editable */}
+            {isEditingName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onKeyDown={handleRenameKeyDown}
+                  className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 px-2 py-1 text-xs font-bold uppercase tracking-wide w-32 sm:w-48 focus:outline-none focus:border-zinc-500"
+                  placeholder="Enter name..."
+                  disabled={isRenamePending}
+                  maxLength={100}
+                />
+                <button
+                  className="bg-transparent border-2 border-zinc-700 text-emerald-400 w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-zinc-800 hover:border-emerald-600 disabled:opacity-50"
+                  onClick={handleSaveRename}
+                  disabled={isRenamePending}
+                  title="Save name"
+                >
+                  <Check size={12} />
+                </button>
+                <button
+                  className="bg-transparent border-2 border-zinc-700 text-zinc-400 w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-zinc-800 hover:border-zinc-600 hover:text-zinc-100"
+                  onClick={handleCancelRename}
+                  disabled={isRenamePending}
+                  title="Cancel"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-100 text-xs font-bold uppercase tracking-wide hidden sm:block max-w-[200px] truncate">
+                  {displayName}
+                </span>
+                <button
+                  className="bg-transparent border-0 text-zinc-500 w-5 h-5 flex items-center justify-center cursor-pointer transition-all duration-100 hover:text-zinc-300"
+                  onClick={handleStartRename}
+                  title="Rename chatroom"
+                >
+                  <Pencil size={12} />
+                </button>
+              </div>
+            )}
           </div>
         ),
         right: (
@@ -255,6 +364,14 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     setHeaderContent,
     clearHeaderContent,
     getStatusBadgeClasses,
+    isEditingName,
+    editedName,
+    isRenamePending,
+    displayName,
+    handleStartRename,
+    handleCancelRename,
+    handleSaveRename,
+    handleRenameKeyDown,
   ]);
 
   if (chatroom === undefined || participants === undefined) {

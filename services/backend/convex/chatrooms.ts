@@ -92,6 +92,35 @@ export const updateStatus = mutation({
 });
 
 /**
+ * Rename a chatroom.
+ * Allows users to set a custom name for easier identification.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const rename = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Trim and validate name
+    const trimmedName = args.name.trim();
+    if (trimmedName.length === 0) {
+      throw new Error('Chatroom name cannot be empty');
+    }
+    if (trimmedName.length > 100) {
+      throw new Error('Chatroom name cannot exceed 100 characters');
+    }
+
+    await ctx.db.patch('chatroom_rooms', args.chatroomId, { name: trimmedName });
+    return { success: true, name: trimmedName };
+  },
+});
+
+/**
  * Interrupt a chatroom and reset all participants.
  * Sends an interrupt message and resets chatroom to active for new messages.
  * Requires CLI session authentication and chatroom access.

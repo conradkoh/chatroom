@@ -1,12 +1,13 @@
 'use client';
 
-import { ArrowLeft, Loader2, ShieldX } from 'lucide-react';
+import { ArrowLeft, ShieldX } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback, useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { SpinnerBlocks } from '@/components/ui/spinner';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 
 export interface AdminGuardProps {
@@ -56,9 +57,9 @@ export function AdminGuard({ children, fallbackTo = '/app' }: AdminGuardProps) {
 function _renderLoadingState(message: string) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="flex flex-col items-center gap-2">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">{message}</p>
+      <div className="flex flex-col items-center gap-3">
+        <SpinnerBlocks size="lg" variant="muted" />
+        <p className="text-xs font-bold uppercase tracking-wider text-zinc-500">{message}</p>
       </div>
     </div>
   );
