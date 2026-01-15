@@ -266,7 +266,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Determine if team is not ready due to disconnection (vs initial setup)
   const isTeamDisconnected = useMemo(() => {
-    return !isSetupMode && !readiness?.isReady && hasDisconnectedAgents;
+    return !isSetupMode && !readiness?.isReady && !!hasDisconnectedAgents;
   }, [isSetupMode, readiness?.isReady, hasDisconnectedAgents]);
 
   // Status badge colors
