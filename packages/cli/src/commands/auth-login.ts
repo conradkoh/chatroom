@@ -4,7 +4,6 @@
  */
 
 import { api, type AuthRequestResult, type AuthRequestStatus } from '../api.js';
-import { loadConfig } from '../config/loader.js';
 import {
   saveAuthData,
   getDeviceName,
@@ -17,36 +16,23 @@ import { getConvexClient } from '../infrastructure/convex/client.js';
 // Poll interval for checking auth status
 const AUTH_POLL_INTERVAL_MS = 2000;
 
+// The webapp URL for authentication
+const WEBAPP_URL = 'https://chatroom.duskfare.com';
+
 interface AuthLoginOptions {
   force?: boolean;
 }
 
 /**
  * Get the webapp URL for the auth page
- * Priority order:
- * 1. CHATROOM_WEB_URL environment variable (highest priority)
- * 2. webappUrl from ~/.chatroom/chatroom.jsonc config
- * 3. Falls back to https://chatroom.duskfare.com/
+ * Can be overridden with CHATROOM_WEB_URL environment variable for development
  */
 function getWebAppUrl(): string {
-  // 1. Check environment variable override
   const webAppUrlOverride = process.env.CHATROOM_WEB_URL;
   if (webAppUrlOverride) {
     return webAppUrlOverride;
   }
-
-  // 2. Check config file
-  try {
-    const config = loadConfig();
-    if (config?.config?.webappUrl) {
-      return config.config.webappUrl;
-    }
-  } catch {
-    // Config not found or invalid, continue to default
-  }
-
-  // 3. Default to production webapp URL
-  return 'https://chatroom.duskfare.com';
+  return WEBAPP_URL;
 }
 
 /**

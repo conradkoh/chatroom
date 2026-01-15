@@ -135,9 +135,9 @@ export function findConfigPath(startDir: string = process.cwd()): string | null 
 }
 
 /**
- * Create a global config file with the given Convex URL
+ * Create a global config file with default configuration
  */
-export function createGlobalConfig(convexUrl: string): string {
+export function createGlobalConfig(): string {
   const globalDir = getGlobalConfigDir();
 
   // Create .chatroom directory if it doesn't exist
@@ -145,14 +145,8 @@ export function createGlobalConfig(convexUrl: string): string {
     mkdirSync(globalDir, { recursive: true });
   }
 
-  // Create the config file with the provided URL
-  const configContent = DEFAULT_CONFIG_JSONC.replace(
-    /"convexUrl": "[^"]*"/,
-    `"convexUrl": "${convexUrl}"`
-  );
-
   const configPath = getGlobalConfigPath();
-  writeFileSync(configPath, configContent, 'utf-8');
+  writeFileSync(configPath, DEFAULT_CONFIG_JSONC, 'utf-8');
 
   return configPath;
 }

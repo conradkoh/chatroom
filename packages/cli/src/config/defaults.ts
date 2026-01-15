@@ -1,16 +1,10 @@
 import type { ChatroomConfig } from './schema';
 
 /**
- * Default Convex URL for the hosted chatroom service
- */
-export const DEFAULT_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
-
-/**
  * Default configuration used when no .chatroom/chatroom.jsonc is found
  * or as the template for `chatroom init`
  */
 export const DEFAULT_CONFIG: ChatroomConfig = {
-  convexUrl: DEFAULT_CONVEX_URL,
   defaultTeam: 'pair',
   teams: {
     pair: {
@@ -34,10 +28,7 @@ export const DEFAULT_CONFIG: ChatroomConfig = {
  */
 export const DEFAULT_CONFIG_JSONC = `{
   // Chatroom CLI Configuration
-  // This file defines the Convex backend, agent teams, and prompt customization.
-  
-  // The Convex deployment URL (required)
-  "convexUrl": "${DEFAULT_CONVEX_URL}",
+  // This file defines agent teams and prompt customization.
   
   // The default team to use when --team flag is not specified
   "defaultTeam": "pair",

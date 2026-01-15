@@ -37,10 +37,6 @@ export interface PromptsConfig {
  * Root configuration structure for .chatroom/chatroom.jsonc
  */
 export interface ChatroomConfig {
-  /** Convex deployment URL (required) */
-  convexUrl: string;
-  /** Webapp URL for browser-based operations like auth (optional, defaults to https://chatroom.duskfare.com) */
-  webappUrl?: string;
   /** ID of the team to use when --team is not specified */
   defaultTeam: string;
   /** Map of team ID to team definition */
@@ -58,11 +54,6 @@ export function validateConfig(config: unknown): config is ChatroomConfig {
   }
 
   const c = config as Record<string, unknown>;
-
-  // Check convexUrl
-  if (typeof c.convexUrl !== 'string' || c.convexUrl.length === 0) {
-    return false;
-  }
 
   // Check defaultTeam
   if (typeof c.defaultTeam !== 'string' || c.defaultTeam.length === 0) {
@@ -121,10 +112,6 @@ export function getConfigErrors(config: unknown): string[] {
   }
 
   const c = config as Record<string, unknown>;
-
-  if (typeof c.convexUrl !== 'string' || c.convexUrl.length === 0) {
-    errors.push("'convexUrl' must be a non-empty string");
-  }
 
   if (typeof c.defaultTeam !== 'string' || c.defaultTeam.length === 0) {
     errors.push("'defaultTeam' must be a non-empty string");

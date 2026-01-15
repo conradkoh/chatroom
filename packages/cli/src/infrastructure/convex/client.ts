@@ -1,36 +1,12 @@
 import { ConvexHttpClient } from 'convex/browser';
 
-import { findConfigPath, loadConfigFromPath, getGlobalConfigPath } from '../../config/loader.js';
+/**
+ * The hardcoded Convex URL for the chatroom cloud service.
+ * This is the only supported endpoint for the CLI.
+ */
+export const CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
 
 let client: ConvexHttpClient | null = null;
-let cachedConvexUrl: string | null = null;
-
-/**
- * Get the Convex URL from the nearest config file
- */
-function resolveConvexUrl(): string {
-  const configPath = findConfigPath();
-
-  if (!configPath) {
-    console.error('❌ No chatroom configuration found');
-    console.error('');
-    console.error("Please run 'chatroom init' to set up your configuration,");
-    console.error('or create a config file at: ' + getGlobalConfigPath());
-    process.exit(1);
-  }
-
-  const config = loadConfigFromPath(configPath);
-
-  if (!config.convexUrl) {
-    console.error('❌ No convexUrl found in configuration');
-    console.error(`   Config file: ${configPath}`);
-    console.error('');
-    console.error('Please add "convexUrl" to your config file.');
-    process.exit(1);
-  }
-
-  return config.convexUrl;
-}
 
 /**
  * Get a singleton Convex HTTP client instance.
@@ -38,18 +14,16 @@ function resolveConvexUrl(): string {
  */
 export async function getConvexClient(): Promise<ConvexHttpClient> {
   if (!client) {
-    cachedConvexUrl = resolveConvexUrl();
-    client = new ConvexHttpClient(cachedConvexUrl);
+    client = new ConvexHttpClient(CONVEX_URL);
   }
   return client;
 }
 
 /**
- * Get the current Convex URL (for logging/display purposes)
- * Returns null if client hasn't been initialized yet
+ * Get the Convex URL (for logging/display purposes)
  */
-export function getCurrentConvexUrl(): string | null {
-  return cachedConvexUrl;
+export function getConvexUrl(): string {
+  return CONVEX_URL;
 }
 
 /**
@@ -57,5 +31,4 @@ export function getCurrentConvexUrl(): string | null {
  */
 export function resetConvexClient(): void {
   client = null;
-  cachedConvexUrl = null;
 }
