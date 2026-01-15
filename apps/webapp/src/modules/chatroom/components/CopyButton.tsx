@@ -31,21 +31,21 @@ export function CopyButton({
   return (
     <button
       onClick={handleCopy}
-      className={`copy-button ${copied ? 'copied' : ''} ${className}`}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-100 border-2 cursor-pointer ${
+        copied
+          ? 'bg-emerald-400/15 text-chatroom-status-success border-emerald-400/30'
+          : 'bg-transparent text-chatroom-text-secondary border-chatroom-border hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary'
+      } ${className}`}
       title={copied ? copiedLabel : `Copy ${label}`}
     >
       {copied ? (
         <>
-          <span className="copy-icon">
-            <Check size={14} />
-          </span>
+          <Check size={14} />
           {copiedLabel}
         </>
       ) : (
         <>
-          <span className="copy-icon">
-            <Clipboard size={14} />
-          </span>
+          <Clipboard size={14} />
           {label}
         </>
       )}
