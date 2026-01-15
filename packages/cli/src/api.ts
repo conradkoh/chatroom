@@ -47,6 +47,14 @@ export interface ContextWindow {
   classification: 'question' | 'new_feature' | 'follow_up' | null;
 }
 
+export interface RolePromptResponse {
+  prompt: string;
+  currentClassification: 'question' | 'new_feature' | 'follow_up' | null;
+  availableHandoffRoles: string[];
+  canHandoffToUser: boolean;
+  restrictionReason: string | null;
+}
+
 export interface Participant {
   _id: Id<'chatroom_participants'>;
   chatroomId: Id<'chatroom_rooms'>;
@@ -93,6 +101,7 @@ export const api = {
       'query',
       'public'
     >,
+    getRolePrompt: 'messages:getRolePrompt' as unknown as FunctionReference<'query', 'public'>,
   },
   participants: {
     join: 'participants:join' as unknown as FunctionReference<'mutation', 'public'>,

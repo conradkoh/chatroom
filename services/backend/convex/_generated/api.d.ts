@@ -24,6 +24,9 @@ import type * as messages from "../messages.js";
 import type * as migration from "../migration.js";
 import type * as participants from "../participants.js";
 import type * as presentations from "../presentations.js";
+import type * as prompts_generator from "../prompts/generator.js";
+import type * as prompts_index from "../prompts/index.js";
+import type * as prompts_templates from "../prompts/templates.js";
 import type * as serviceDesk from "../serviceDesk.js";
 import type * as system_auth_google from "../system/auth/google.js";
 
@@ -50,6 +53,9 @@ declare const fullApi: ApiFromModules<{
   migration: typeof migration;
   participants: typeof participants;
   presentations: typeof presentations;
+  "prompts/generator": typeof prompts_generator;
+  "prompts/index": typeof prompts_index;
+  "prompts/templates": typeof prompts_templates;
   serviceDesk: typeof serviceDesk;
   "system/auth/google": typeof system_auth_google;
 }>;

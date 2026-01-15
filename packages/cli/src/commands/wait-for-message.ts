@@ -8,8 +8,8 @@ import {
   type Chatroom,
   type Message,
   type Participant,
-  type AllowedHandoffRoles,
   type ContextWindow,
+  type RolePromptResponse,
 } from '../api.js';
 import { WAIT_POLL_INTERVAL_MS, MAX_SILENT_ERRORS } from '../config.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
@@ -228,12 +228,12 @@ export async function waitForMessage(
         // Print reminder
         printWaitReminder(chatroomId, role);
 
-        // Get allowed handoff roles based on classification
-        const allowedRolesInfo = (await client.query(api.messages.getAllowedHandoffRoles, {
+        // Get role prompt (includes allowed roles, classification, and workflow guidance)
+        const rolePromptInfo = (await client.query(api.messages.getRolePrompt, {
           sessionId,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
-        })) as AllowedHandoffRoles;
+        })) as RolePromptResponse;
 
         // Get context window (latest non-follow-up message + all messages after)
         const contextWindow = (await client.query(api.messages.getContextWindow, {
@@ -241,13 +241,14 @@ export async function waitForMessage(
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
         })) as ContextWindow;
 
-        // Build the list of allowed handoff targets
-        const availableHandoffRoles = allowedRolesInfo.canHandoffToUser
-          ? [...allowedRolesInfo.availableRoles, 'user']
-          : allowedRolesInfo.availableRoles;
+        // Output role-specific prompt/guidance
+        console.log(`${'─'.repeat(50)}`);
+        console.log(`📋 ROLE GUIDANCE`);
+        console.log(`${'─'.repeat(50)}`);
+        console.log(rolePromptInfo.prompt);
 
         // Output JSON for parsing
-        console.log(`${'─'.repeat(50)}`);
+        console.log(`\n${'─'.repeat(50)}`);
         console.log(`📊 MESSAGE DATA (JSON)`);
         console.log(`${'─'.repeat(50)}`);
 
@@ -289,14 +290,14 @@ export async function waitForMessage(
           },
           instructions: {
             taskStartedCommand:
-              allowedRolesInfo.currentClassification === null
+              rolePromptInfo.currentClassification === null
                 ? `chatroom task-started ${chatroomId} --role=${role} --classification=<question|new_feature|follow_up>`
                 : null,
             taskCompleteCommand: `chatroom task-complete ${chatroomId} --role=${role} --message="<summary>" --next-role=<target>`,
-            availableHandoffRoles,
+            availableHandoffRoles: rolePromptInfo.availableHandoffRoles,
             terminationRole: 'user',
-            classification: allowedRolesInfo.currentClassification,
-            handoffRestriction: allowedRolesInfo.restrictionReason,
+            classification: rolePromptInfo.currentClassification,
+            handoffRestriction: rolePromptInfo.restrictionReason,
           },
         };
 

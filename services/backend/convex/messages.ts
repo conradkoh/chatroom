@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
+import { generateRolePrompt } from './prompts';
 
 /**
  * Send a message to a chatroom.
@@ -442,5 +443,95 @@ export const getLatestForRole = query({
     }
 
     return null;
+  },
+});
+
+/**
+ * Get role-specific prompt for an agent.
+ * Returns a prompt tailored to the role, current task context, and available actions.
+ * Designed to be called with every wait-for-message to provide fresh context.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const getRolePrompt = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Get chatroom for team info
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) {
+      throw new Error('Chatroom not found');
+    }
+
+    // Get participants
+    const participants = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    // Find waiting participants (excluding current role)
+    const waitingParticipants = participants.filter(
+      (p) => p.status === 'waiting' && p.role.toLowerCase() !== args.role.toLowerCase()
+    );
+
+    // Get the most recent classified user message to determine restrictions
+    const messages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    // Find the most recent classified user message
+    let currentClassification: 'question' | 'new_feature' | 'follow_up' | null = null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
+        currentClassification = msg.classification;
+        break;
+      }
+    }
+
+    // Determine allowed handoff roles based on classification
+    const availableRoles = waitingParticipants.map((p) => p.role);
+
+    // For new_feature requests, builder cannot hand off directly to user
+    let canHandoffToUser = true;
+    let restrictionReason: string | null = null;
+
+    if (currentClassification === 'new_feature') {
+      const normalizedRole = args.role.toLowerCase();
+      if (normalizedRole === 'builder') {
+        canHandoffToUser = false;
+        restrictionReason = 'new_feature requests must be reviewed before returning to user';
+      }
+    }
+
+    // Build the handoff roles list
+    const availableHandoffRoles = canHandoffToUser ? [...availableRoles, 'user'] : availableRoles;
+
+    // Generate the role-specific prompt
+    const prompt = generateRolePrompt({
+      chatroomId: args.chatroomId,
+      role: args.role,
+      teamName: chatroom.teamName || 'Team',
+      teamRoles: chatroom.teamRoles || [],
+      teamEntryPoint: chatroom.teamEntryPoint,
+      currentClassification,
+      availableHandoffRoles,
+      canHandoffToUser,
+      restrictionReason,
+    });
+
+    return {
+      prompt,
+      currentClassification,
+      availableHandoffRoles,
+      canHandoffToUser,
+      restrictionReason,
+    };
   },
 });
