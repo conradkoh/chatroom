@@ -3,8 +3,8 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { ArrowLeft, XCircle } from 'lucide-react';
-import React, { useState, useMemo, useCallback } from 'react';
+import { ArrowLeft, XCircle, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 
 import { AgentPanel } from './components/AgentPanel';
 import { MessageFeed } from './components/MessageFeed';
@@ -48,12 +48,42 @@ interface TeamReadiness {
   missingRoles: string[];
 }
 
+// Hook to check if screen is small (< 768px)
+function useIsSmallScreen() {
+  const [isSmall, setIsSmall] = useState(false);
+
+  useEffect(() => {
+    // Check initial screen size
+    const checkSize = () => setIsSmall(window.innerWidth < 768);
+    checkSize();
+
+    // Listen for resize events
+    window.addEventListener('resize', checkSize);
+    return () => window.removeEventListener('resize', checkSize);
+  }, []);
+
+  return isSmall;
+}
+
 export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps) {
   const [modalState, setModalState] = useState<ModalState>({
     isOpen: false,
     role: '',
     prompt: '',
   });
+
+  // Sidebar visibility state - hidden by default on small screens
+  const isSmallScreen = useIsSmallScreen();
+  const [sidebarVisible, setSidebarVisible] = useState(!isSmallScreen);
+
+  // Update sidebar visibility when screen size changes
+  useEffect(() => {
+    setSidebarVisible(!isSmallScreen);
+  }, [isSmallScreen]);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarVisible((prev) => !prev);
+  }, []);
 
   // Type assertion workaround: The Convex API types are not fully generated
   // until `npx convex dev` is run. This assertion allows us to use the API
@@ -157,7 +187,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     <>
       <div className="chatroom-root flex flex-col h-screen overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
         {/* Header */}
-        <header className="flex justify-between items-center px-6 py-4 bg-chatroom-bg-surface backdrop-blur-xl border-b-2 border-chatroom-border-strong">
+        <header className="flex justify-between items-center px-4 md:px-6 py-4 bg-chatroom-bg-surface backdrop-blur-xl border-b-2 border-chatroom-border-strong">
           <div className="flex items-center gap-3">
             {onBack && (
               <button
@@ -168,17 +198,30 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 <ArrowLeft size={16} />
               </button>
             )}
-            <h1 className="text-sm font-bold uppercase tracking-widest">Chatroom Dashboard</h1>
+            <h1 className="text-sm font-bold uppercase tracking-widest hidden sm:block">
+              Chatroom Dashboard
+            </h1>
+            <h1 className="text-sm font-bold uppercase tracking-widest sm:hidden">Dashboard</h1>
           </div>
-          <div className="flex gap-4 items-center">
+          <div className="flex gap-2 md:gap-4 items-center">
             {chatroom.teamName && (
-              <span className="bg-chatroom-bg-tertiary px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-secondary">
+              <span className="bg-chatroom-bg-tertiary px-2 md:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-secondary hidden sm:block">
                 Team: {chatroom.teamName}
               </span>
             )}
             <span className={getStatusBadgeClasses(chatroom.status, isSetupMode)}>
               {isSetupMode ? 'Setting Up' : chatroom.status}
             </span>
+            {/* Sidebar Toggle Button */}
+            {!isSetupMode && (
+              <button
+                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+                onClick={toggleSidebar}
+                title={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
+              >
+                {sidebarVisible ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+              </button>
+            )}
           </div>
         </header>
 
@@ -193,15 +236,37 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             />
           </div>
         ) : (
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-1 overflow-hidden relative">
             {/* Message Section */}
-            <div className="flex-1 flex flex-col border-r-2 border-chatroom-border-strong min-h-0 overflow-hidden">
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
               <MessageFeed chatroomId={chatroomId} participants={participants || []} />
               <SendForm chatroomId={chatroomId} readiness={readiness} />
             </div>
 
+            {/* Sidebar Overlay for mobile */}
+            {sidebarVisible && isSmallScreen && (
+              <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={toggleSidebar} />
+            )}
+
             {/* Sidebar */}
-            <div className="w-80 flex flex-col bg-chatroom-bg-surface backdrop-blur-xl">
+            <div
+              className={`
+                ${isSmallScreen ? 'fixed right-0 top-0 h-full z-40' : 'relative'}
+                w-80 flex flex-col bg-chatroom-bg-surface backdrop-blur-xl border-l-2 border-chatroom-border-strong
+                transition-transform duration-300 ease-in-out
+                ${sidebarVisible ? 'translate-x-0' : 'translate-x-full'}
+              `}
+            >
+              {/* Close button for mobile */}
+              {isSmallScreen && (
+                <button
+                  className="absolute top-4 right-4 bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary z-10"
+                  onClick={toggleSidebar}
+                  title="Close sidebar"
+                >
+                  <XCircle size={16} />
+                </button>
+              )}
               <AgentPanel
                 chatroomId={chatroomId}
                 teamName={teamName}
