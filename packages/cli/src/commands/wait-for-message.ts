@@ -2,7 +2,14 @@
  * Wait for messages in a chatroom
  */
 
-import { api, type Id, type Chatroom, type Message, type Participant } from '../api.js';
+import {
+  api,
+  type Id,
+  type Chatroom,
+  type Message,
+  type Participant,
+  type AllowedHandoffRoles,
+} from '../api.js';
 import { WAIT_POLL_INTERVAL_MS, MAX_SILENT_ERRORS } from '../config.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
@@ -220,14 +227,22 @@ export async function waitForMessage(
         // Print reminder
         printWaitReminder(chatroomId, role);
 
+        // Get allowed handoff roles based on classification
+        const allowedRolesInfo = (await client.query(api.messages.getAllowedHandoffRoles, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+        })) as AllowedHandoffRoles;
+
+        // Build the list of allowed handoff targets
+        const availableHandoffRoles = allowedRolesInfo.canHandoffToUser
+          ? [...allowedRolesInfo.availableRoles, 'user']
+          : allowedRolesInfo.availableRoles;
+
         // Output JSON for parsing
         console.log(`${'─'.repeat(50)}`);
         console.log(`📊 MESSAGE DATA (JSON)`);
         console.log(`${'─'.repeat(50)}`);
-
-        const availableHandoffRoles = participants
-          .filter((p) => p.status === 'waiting' && p.role.toLowerCase() !== role.toLowerCase())
-          .map((p) => p.role);
 
         const jsonOutput = {
           message: {
@@ -248,8 +263,10 @@ export async function waitForMessage(
           },
           instructions: {
             taskCompleteCommand: `chatroom task-complete ${chatroomId} --role=${role} --message="<summary>" --next-role=<target>`,
-            availableHandoffRoles: [...availableHandoffRoles, 'user'],
+            availableHandoffRoles,
             terminationRole: 'user',
+            classification: allowedRolesInfo.currentClassification,
+            handoffRestriction: allowedRolesInfo.restrictionReason,
           },
         };
 

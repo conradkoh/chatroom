@@ -155,6 +155,30 @@ program
   );
 
 program
+  .command('task-started <chatroomId>')
+  .description('Acknowledge a task and classify the user message')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption(
+    '--classification <type>',
+    'Message classification: question, new_feature, or follow_up'
+  )
+  .action(async (chatroomId: string, options: { role: string; classification: string }) => {
+    await maybeRequireAuth();
+    const validClassifications = ['question', 'new_feature', 'follow_up'];
+    if (!validClassifications.includes(options.classification)) {
+      console.error(
+        `❌ Invalid classification: ${options.classification}. Must be one of: ${validClassifications.join(', ')}`
+      );
+      process.exit(1);
+    }
+    const { taskStarted } = await import('./commands/task-started.js');
+    await taskStarted(chatroomId, {
+      role: options.role,
+      classification: options.classification as 'question' | 'new_feature' | 'follow_up',
+    });
+  });
+
+program
   .command('task-complete <chatroomId>')
   .description('Complete a task and hand off to the next role')
   .requiredOption('--role <role>', 'Your role')

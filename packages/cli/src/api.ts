@@ -29,7 +29,22 @@ export interface Message {
   type: 'message' | 'handoff' | 'interrupt' | 'join';
   targetRole?: string;
   claimedByRole?: string;
+  classification?: 'question' | 'new_feature' | 'follow_up';
+  taskOriginMessageId?: Id<'chatroom_messages'>;
   _creationTime?: number;
+}
+
+export interface AllowedHandoffRoles {
+  availableRoles: string[];
+  canHandoffToUser: boolean;
+  restrictionReason: string | null;
+  currentClassification: 'question' | 'new_feature' | 'follow_up' | null;
+}
+
+export interface ContextWindow {
+  originMessage: Message | null;
+  contextMessages: Message[];
+  classification: 'question' | 'new_feature' | 'follow_up' | null;
 }
 
 export interface Participant {
@@ -69,6 +84,15 @@ export const api = {
       'public'
     >,
     claimMessage: 'messages:claimMessage' as unknown as FunctionReference<'mutation', 'public'>,
+    taskStarted: 'messages:taskStarted' as unknown as FunctionReference<'mutation', 'public'>,
+    getAllowedHandoffRoles: 'messages:getAllowedHandoffRoles' as unknown as FunctionReference<
+      'query',
+      'public'
+    >,
+    getContextWindow: 'messages:getContextWindow' as unknown as FunctionReference<
+      'query',
+      'public'
+    >,
   },
   participants: {
     join: 'participants:join' as unknown as FunctionReference<'mutation', 'public'>,

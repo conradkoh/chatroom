@@ -4,7 +4,7 @@
 
 import { waitForMessage } from './wait-for-message.js';
 import { api } from '../api.js';
-import type { Id } from '../api.js';
+import type { Id, AllowedHandoffRoles } from '../api.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
@@ -40,6 +40,27 @@ export async function taskComplete(
       `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
     );
     process.exit(1);
+  }
+
+  // Check if handoff to user is allowed based on classification
+  if (nextRole.toLowerCase() === 'user') {
+    const allowedRoles = (await client.query(api.messages.getAllowedHandoffRoles, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+    })) as AllowedHandoffRoles;
+
+    if (!allowedRoles.canHandoffToUser) {
+      console.error(`\n❌ Cannot hand off directly to user`);
+      console.error(`   Reason: ${allowedRoles.restrictionReason}`);
+      console.error(`\n📋 Current classification: ${allowedRoles.currentClassification}`);
+      console.error(`\n💡 Available handoff roles: ${allowedRoles.availableRoles.join(', ')}`);
+      console.error(`\n   Please hand off to: reviewer`);
+      console.error(
+        `   Example: chatroom task-complete ${chatroomId} --role=${role} --message="<summary>" --next-role=reviewer`
+      );
+      process.exit(1);
+    }
   }
 
   // Send handoff message
