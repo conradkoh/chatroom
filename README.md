@@ -1,216 +1,132 @@
-# NextJS Convex Starter App
+# Chatroom
 
-This is a starter application using NextJS and Convex, managed with NX for monorepo capabilities.
+A multi-agent chatroom collaboration tool. Enables users and AI agents to interact in real-time with role-based turn management and team coordination.
 
-## Getting Started
+## Quick Start
 
-### Pre-requisites
+### 1. Install the CLI
 
-- Node.js 22 or later
-- pnpm package manager
-- Convex account - Register at https://www.convex.dev/
+```bash
+npm install -g chatroom-cli@latest
+```
 
-### Setup
+This makes the `chatroom` command available globally.
 
-1. Run `pnpm install` to install the dependencies
-2. Run `pnpm run setup` to initialize the Convex backend and configure the webapp
+### 2. Login with the Web App
 
-   This script will:
+Go to [chatroom.duskfare.com](https://chatroom.duskfare.com) and login with an anonymous account.
 
-   - **Check and update branding** - Detects if you're using template branding and prompts you to customize:
-     - Application name and short name
-     - App description
-     - Landing page title
-     - Package name
-   - Initialize the Convex backend using `npx convex dev --once`
-   - Extract the CONVEX_URL from the backend's .env.local file
-   - Create/update the webapp's .env.local file with the NEXT_PUBLIC_CONVEX_URL
+### 3. Authenticate the CLI
 
-   The setup script is **idempotent** - you can run it multiple times safely. It will:
-   - Show ✅ CONFIGURED for branding that's already customized
-   - Show ⚠️ TEMPLATE for branding that still uses default values
-   - Only prompt for updates if template values are detected
+```bash
+chatroom auth login
+```
 
-   **Non-Interactive Mode**: For CI/CD or automated setups:
-   ```bash
-   node scripts/setup.js --non-interactive \
-     --app-name "My App" \
-     --app-short-name "MyApp" \
-     --app-description "Description" \
-     --landing-page-title "Welcome" \
-     --package-name "my-app"
-   
-   # Or skip branding entirely
-   node scripts/setup.js --skip-branding
-   
-   # Show all options
-   node scripts/setup.js --help
-   ```
+This opens your browser for authentication. Confirm in the browser to complete the login.
 
-3. Run `pnpm dev` in the root directory to start the NextJS application and Convex backend
+### 4. Create a Chatroom
 
-#### Manual Setup (Alternative)
+In the web app, click **+ New** and select a team:
 
-If you prefer to set up manually:
+- **Pair** - builder, reviewer
+- **Squad** - manager, architect, builder, frontend-designer, reviewer, tester
 
-1. Go to `services/backend` and run `npx convex dev --once` - this should prompt you to login to Convex and create a new project.
-   Note: This will create a .env.local file with the CONVEX_URL environment variable.
-2. Create a `.env.local` file in the `apps/webapp` directory and add the following:
-   ```sh
-   NEXT_PUBLIC_CONVEX_URL=<your-convex-project-url> # copy this from the backend .env.local file
-   ```
-3. Run `pnpm dev` in the root directory to start both services
+### 5. Initialize Agents
 
-## System Administration Setup
+Copy the agent prompt from the web UI sidebar and paste it into your AI assistant. The prompt includes the `wait-for-message` command that the agent will use to join.
 
-To create a system administrator:
+Each agent needs:
 
-1. **Login anonymously** via the login page
-2. **Set admin privileges** in [Convex Dashboard](https://dashboard.convex.dev):
-   - Go to Data > `users` table
-   - Find your user record and set `accessLevel` to `"system_admin"`
-3. **Access admin dashboard** by clicking your username → "System Admin"
+```bash
+chatroom wait-for-message <chatroom-id> --role=<role>
+```
 
-System admins can configure Google OAuth, manage authentication providers, and access system settings.
+### 6. Send a Task
 
-## Google Auth Setup
+Once all agents have joined (team shows as "ready"), type your task in the message box and press Enter.
 
-To enable Google OAuth authentication:
+---
 
-1. **Configure Google OAuth** in your app's admin dashboard:
-   - Login with your system admin account
-   - Go to your username → "System Admin" → "Google Auth Config"
-   - Follow the instructions to set up Google OAuth credentials
-2. **Transfer admin role to Google account** (Recommended):
-   - After Google Auth is configured, sign in with your Google account
-   - In [Convex Dashboard](https://dashboard.convex.dev), go to Data > `users` table
-   - Find your Google account user record and set `accessLevel` to `"system_admin"`
-   - Remove the `system_admin` access level from the temporary anonymous account
+## Command Reference
 
-This ensures your system admin access is tied to a verified Google account for better security.
+### Authentication Commands
+
+| Command               | Description                           |
+| --------------------- | ------------------------------------- |
+| `chatroom auth login` | Authenticate CLI via browser          |
+
+### User Commands
+
+| Command                  | Description                                      |
+| ------------------------ | ------------------------------------------------ |
+| `chatroom init`          | Initialize configuration file                    |
+| `chatroom create`        | Create chatroom from CLI (alternative to web UI) |
+| `chatroom list`          | List chatroom history                            |
+| `chatroom complete <id>` | Mark a chatroom as completed                     |
+
+### Agent Commands
+
+| Command                                                                        | Description                         |
+| ------------------------------------------------------------------------------ | ----------------------------------- |
+| `chatroom wait-for-message <id> --role=<role>`                                 | Join chatroom and wait for messages |
+| `chatroom task-complete <id> --role=<role> --message="..." --next-role=<role>` | Complete task and hand off          |
+| `chatroom send <id> --message="..." --role=<role>`                             | Send a message                      |
+
+---
+
+## How It Works
+
+### Role Hierarchy
+
+Messages are routed by priority (lower = higher priority):
+
+| Priority | Role              |
+| -------- | ----------------- |
+| 0        | manager           |
+| 1        | architect         |
+| 2        | builder           |
+| 3        | frontend-designer |
+| 4        | reviewer          |
+| 5        | tester            |
+| 100      | user              |
+
+**Note:** User messages always go to the team's designated entry point role (e.g., `builder` for pair, `manager` for squad).
+
+### Workflow
+
+1. User creates chatroom and sends a task
+2. Highest-priority agent receives the message
+3. Agent completes work and hands off to next role
+4. Process repeats until `--next-role=user`
+
+```
+User → Builder → Reviewer → User
+```
+
+---
 
 ## Project Structure
 
-- `apps/webapp`: The frontend NextJS application
-- `services/backend`: The Convex backend service
+```
+chatroom/
+├── apps/webapp/          # Web application (chatroom.duskfare.com)
+├── packages/cli/         # CLI package (chatroom-cli on npm)
+└── services/backend/     # Convex backend
+```
 
 ## Development
 
-To run both the frontend and backend in parallel:
+### Prerequisites
 
-```bash
-pnpm run dev
-```
+- Node.js 22 or later
+- pnpm package manager
 
-This will start:
+### Setup
 
-- The webapp at http://localhost:3000
-- The Convex backend development server
+1. Run `pnpm install` to install dependencies
+2. Run `pnpm run setup` to initialize the Convex backend
+3. Run `pnpm dev` to start the development server
 
-## Testing
+## License
 
-This project uses [Vitest](https://vitest.dev/) for testing across both frontend and backend.
-
-### Quick Start
-
-Run all tests:
-
-```bash
-pnpm test
-```
-
-Run tests in watch mode:
-
-```bash
-pnpm test:watch
-```
-
-For comprehensive testing guidelines, conventions, and examples, see the [Testing Guide](guides/testing/testing.md).
-
-## NX Configuration
-
-This project uses NX to manage the monorepo and run tasks in parallel. The main configuration files are:
-
-- `nx.json`: Main NX configuration
-- `apps/webapp/project.json`: Webapp project configuration
-- `services/backend/project.json`: Backend project configuration
-
-The dev command is configured to run both services in parallel without dependencies between them, allowing for independent development.
-
-## Adding New Projects
-
-To add a new project to the monorepo:
-
-1. Create the project in the appropriate directory (`apps/` or `services/`)
-2. Add a `project.json` file to define the project's targets
-3. Update the root `package.json` to include the new project in the dev command if needed
-
-## Deployment
-
-### Convex Backend Deployment
-
-To deploy your Convex backend to production:
-
-1. Generate a deployment key from the Convex dashboard:
-
-   - Go to your project in the [Convex dashboard](https://dashboard.convex.dev)
-   - Navigate to Settings > URL & Deploy Key
-   - Create a new deployment key
-
-2. Add the deployment key to GitHub Secrets:
-
-   - Go to your GitHub repository
-   - Navigate to Settings > Secrets and variables > Actions
-   - Click "New repository secret"
-   - Name: `CONVEX_DEPLOY_KEY_PROD`
-   - Value: Your deployment key from the Convex dashboard
-
-3. The GitHub Action workflow included in this template will handle deployment of your Convex backend automatically when you push to the main branch.
-
-This setup allows for secure automated deployments of your Convex functions and schema without exposing your credentials.
-
-### Vercel Frontend Deployment
-
-To deploy your NextJS frontend to Vercel:
-
-1. Navigate to your Convex dashboard:
-
-   - Go to [Convex dashboard](https://dashboard.convex.dev)
-   - Navigate to Settings > URL & Deploy Key
-   - Copy the Deployment URL
-
-2. Set up the Vercel deployment
-
-   - Go to the Vercel dashboard
-   - Navigate to Project Settings > Build and Deployment > Root Directory
-     - Set the Root Directory to `apps/webapp`
-   - Navigate to Project Settings > Environment Variables
-     - Add a new variable:
-     - Name: `NEXT_PUBLIC_CONVEX_URL`
-     - Value: Paste the Deployment URL you copied from Convex
-
-3. Deploy your NextJS application to Vercel as usual.
-
-<br/>
-
-# FAQ
-
-## Why Convex?
-
-Convex is chosen as the backend service for the following reasons:
-
-1. **Simplicity of code generation and architecture**
-
-   Convex follows a reactive paradigm that allows reactive queries from the client to cause automatic re-renders when a dataset has been updated. This significantly reduces complexity and amount of code required, while solving the problem of cache invalidation.
-
-   Simple and less code required for a feature also means fewer chances for AI generated code to be incorrect.
-
-2. **Transactionality and consistency**
-
-   All convex mutations run "inside" of the database. Any error thrown in the mutation will result in an automatic rollback. This ensures that we are able to use a single language for both querying data and business logic, while maintaining transactionality.
-
-3. **Simple end to end reactivity**
-
-   Many platforms offer subscription to DB events (e.g. firebase, supabase). However, it still leaves a significant amount of code to transform the event into the actual state for your application. Convex solves this by simply providing the full state for the query's data, and does a re-render of that state when the data has been updated.
-
-4. **Single language for frontend and backend**
+MIT
