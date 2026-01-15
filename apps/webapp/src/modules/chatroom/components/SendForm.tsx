@@ -85,7 +85,10 @@ export const SendForm = memo(function SendForm({ chatroomId, readiness }: SendFo
   }, []);
 
   return (
-    <form className="send-form" onSubmit={handleFormSubmit}>
+    <form
+      className="flex gap-3 p-4 bg-chatroom-bg-surface backdrop-blur-xl border-t-2 border-chatroom-border-strong"
+      onSubmit={handleFormSubmit}
+    >
       <textarea
         ref={textareaRef}
         value={message}
@@ -98,8 +101,13 @@ export const SendForm = memo(function SendForm({ chatroomId, readiness }: SendFo
         }
         disabled={sending}
         rows={1}
+        className="flex-1 bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm p-3 resize-none min-h-[44px] max-h-[200px] placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
       />
-      <button type="submit" disabled={!message.trim() || sending || !isReady}>
+      <button
+        type="submit"
+        disabled={!message.trim() || sending || !isReady}
+        className="bg-chatroom-accent text-chatroom-bg-primary border-0 px-6 py-3 font-bold text-xs uppercase tracking-widest cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+      >
         {sending ? 'Sending...' : 'Send'}
       </button>
     </form>
