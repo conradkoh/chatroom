@@ -95,9 +95,7 @@ export const SendForm = memo(function SendForm({ chatroomId, readiness }: SendFo
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder={
-          isReady
-            ? 'Type a message... (Enter to send, Shift+Enter for new line)'
-            : `Waiting for team (${readiness?.missingRoles.join(', ')})`
+          isReady ? 'Type a message...' : `Waiting for team (${readiness?.missingRoles.join(', ')})`
         }
         disabled={sending}
         rows={1}
