@@ -40,6 +40,36 @@ interface Message {
   type: string;
 }
 
+// Status badge colors
+const getStatusBadgeClasses = (status: string) => {
+  const base = 'px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide';
+  switch (status) {
+    case 'active':
+      return `${base} bg-emerald-400/15 text-chatroom-status-success`;
+    case 'completed':
+      return `${base} bg-blue-400/15 text-chatroom-status-info`;
+    case 'loading':
+      return `${base} bg-zinc-500/15 text-chatroom-text-muted`;
+    default:
+      return `${base} bg-zinc-500/15 text-chatroom-text-muted`;
+  }
+};
+
+// Agent status indicator
+const getAgentIndicatorClasses = (status: 'active' | 'connected' | 'offline' | 'skeleton') => {
+  const base = 'w-1.5 h-1.5 flex-shrink-0';
+  switch (status) {
+    case 'active':
+      return `${base} bg-chatroom-status-info`;
+    case 'connected':
+      return `${base} bg-chatroom-status-success`;
+    case 'skeleton':
+      return `${base} bg-chatroom-text-muted animate-pulse`;
+    default:
+      return `${base} bg-chatroom-text-muted`;
+  }
+};
+
 export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('current');
@@ -61,10 +91,10 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
 
   if (chatrooms === undefined) {
     return (
-      <div className="chatroom-root chatroom-selector">
-        <div className="selector-loading">
-          <div className="loading-spinner" />
-          <span>Loading chatrooms...</span>
+      <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
+        <div className="flex flex-col items-center justify-center gap-4 py-12">
+          <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+          <span className="text-chatroom-text-muted text-sm">Loading chatrooms...</span>
         </div>
       </div>
     );
@@ -72,7 +102,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
 
   if (showCreateForm) {
     return (
-      <div className="chatroom-root chatroom-selector">
+      <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6 flex items-start justify-center pt-20">
         <CreateChatroomForm onCreated={handleCreated} onCancel={() => setShowCreateForm(false)} />
       </div>
     );
@@ -80,16 +110,23 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
 
   if (chatrooms.length === 0) {
     return (
-      <div className="chatroom-root chatroom-selector">
-        <div className="selector-header">
-          <h1>Welcome</h1>
-          <p>Create your first chatroom to get started</p>
+      <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
+        {/* Header */}
+        <div className="mb-8 border-b-2 border-chatroom-border pb-6">
+          <h1 className="text-lg font-bold uppercase tracking-widest mb-2">Welcome</h1>
+          <p className="text-chatroom-text-muted text-sm">
+            Create your first chatroom to get started
+          </p>
         </div>
-        <div className="selector-empty">
-          <span className="empty-icon">
-            <MessageSquare size={32} />
+        {/* Empty State */}
+        <div className="flex flex-col items-center justify-center py-16 text-chatroom-text-muted">
+          <span className="text-5xl mb-6">
+            <MessageSquare size={48} />
           </span>
-          <button className="new-chatroom-button-large" onClick={() => setShowCreateForm(true)}>
+          <button
+            className="bg-chatroom-accent text-chatroom-bg-primary px-6 py-3 font-bold text-sm uppercase tracking-widest cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary"
+            onClick={() => setShowCreateForm(true)}
+          >
             Create New Chatroom
           </button>
         </div>
@@ -98,31 +135,45 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
   }
 
   return (
-    <div className="chatroom-root chatroom-selector">
-      <div className="selector-header">
-        <div className="selector-header-content">
-          <h1>Chatrooms</h1>
-          <p>Select a chatroom or create a new one</p>
+    <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
+      {/* Header */}
+      <div className="flex justify-between items-start mb-6 border-b-2 border-chatroom-border pb-6">
+        <div>
+          <h1 className="text-lg font-bold uppercase tracking-widest mb-2">Chatrooms</h1>
+          <p className="text-chatroom-text-muted text-sm">Select a chatroom or create a new one</p>
         </div>
-        <button className="new-chatroom-button" onClick={() => setShowCreateForm(true)}>
+        <button
+          className="bg-chatroom-accent text-chatroom-bg-primary px-4 py-2 font-bold text-xs uppercase tracking-wide cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary"
+          onClick={() => setShowCreateForm(true)}
+        >
           + New
         </button>
       </div>
-      <div className="chatroom-tabs">
+      {/* Tabs */}
+      <div className="flex gap-0 mb-6 border-b-2 border-chatroom-border">
         <button
-          className={`tab-button ${activeTab === 'current' ? 'active' : ''}`}
+          className={`px-4 py-2 text-xs font-bold uppercase tracking-wide transition-all duration-100 border-b-2 -mb-0.5 ${
+            activeTab === 'current'
+              ? 'text-chatroom-accent border-chatroom-accent'
+              : 'text-chatroom-text-muted border-transparent hover:text-chatroom-text-secondary'
+          }`}
           onClick={() => setActiveTab('current')}
         >
           Current
         </button>
         <button
-          className={`tab-button ${activeTab === 'complete' ? 'active' : ''}`}
+          className={`px-4 py-2 text-xs font-bold uppercase tracking-wide transition-all duration-100 border-b-2 -mb-0.5 ${
+            activeTab === 'complete'
+              ? 'text-chatroom-accent border-chatroom-accent'
+              : 'text-chatroom-text-muted border-transparent hover:text-chatroom-text-secondary'
+          }`}
           onClick={() => setActiveTab('complete')}
         >
           Complete
         </button>
       </div>
-      <div className="chatroom-list">
+      {/* Chatroom List */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {chatrooms.map((chatroom) => (
           <ChatroomCard
             key={chatroom._id}
@@ -215,60 +266,74 @@ const ChatroomCard = memo(function ChatroomCard({
   // Show skeleton while loading
   if (isLoading) {
     return (
-      <div className="chatroom-card chatroom-card-skeleton">
-        <div className="card-main">
-          <div className="card-header">
-            <span className="card-team">{teamName}</span>
-            <span className="card-status loading">
-              <span className="skeleton-text">loading</span>
-            </span>
-          </div>
-          <div className="card-id">{chatroom._id}</div>
+      <div className="bg-chatroom-bg-surface border-2 border-chatroom-border p-4 cursor-default">
+        {/* Card Main */}
+        <div className="flex justify-between items-start mb-3">
+          <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary">
+            {teamName}
+          </span>
+          <span className={getStatusBadgeClasses('loading')}>
+            <span className="animate-pulse">loading</span>
+          </span>
         </div>
-        <div className="card-agents">
+        <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-3">
+          {chatroom._id}
+        </div>
+        {/* Card Agents */}
+        <div className="flex flex-wrap gap-2 mb-3">
           {teamRoles.map((role) => (
-            <div key={role} className="card-agent">
-              <span className="card-agent-indicator skeleton" />
-              <span className="card-agent-role">{role}</span>
+            <div key={role} className="flex items-center gap-1.5">
+              <span className={getAgentIndicatorClasses('skeleton')} />
+              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+                {role}
+              </span>
             </div>
           ))}
         </div>
-        <div className="card-date skeleton-text">{formattedDate}</div>
+        {/* Card Date */}
+        <div className="text-[10px] text-chatroom-text-muted animate-pulse">{formattedDate}</div>
       </div>
     );
   }
 
   return (
     <button
-      className="chatroom-card"
+      className="bg-chatroom-bg-surface border-2 border-chatroom-border p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
       onClick={() => onSelect(chatroom._id)}
       data-last-activity={lastActivity}
     >
-      <div className="card-main">
-        <div className="card-header">
-          <span className="card-team">{teamName}</span>
-          <span className={`card-status ${status}`}>{status}</span>
-        </div>
-        <div className="card-id">{chatroom._id}</div>
+      {/* Card Main */}
+      <div className="flex justify-between items-start mb-3">
+        <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary">
+          {teamName}
+        </span>
+        <span className={getStatusBadgeClasses(status)}>{status}</span>
       </div>
-      <div className="card-agents">
+      <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-3">
+        {chatroom._id}
+      </div>
+      {/* Card Agents */}
+      <div className="flex flex-wrap gap-2 mb-3">
         {teamRoles.map((role) => {
           const agentStatus = participantStatus.get(role.toLowerCase());
           const isConnected = agentStatus === 'waiting' || agentStatus === 'active';
           const isActive = agentStatus === 'active';
           return (
-            <div key={role} className="card-agent">
+            <div key={role} className="flex items-center gap-1.5">
               <span
-                className={`card-agent-indicator ${
+                className={getAgentIndicatorClasses(
                   isConnected ? (isActive ? 'active' : 'connected') : 'offline'
-                }`}
+                )}
               />
-              <span className="card-agent-role">{role}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+                {role}
+              </span>
             </div>
           );
         })}
       </div>
-      <div className="card-date">{formattedDate}</div>
+      {/* Card Date */}
+      <div className="text-[10px] text-chatroom-text-muted">{formattedDate}</div>
     </button>
   );
 });
