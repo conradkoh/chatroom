@@ -126,12 +126,4 @@ export function getDeviceName(): string {
 /**
  * Get CLI version for auth requests
  */
-export function getCliVersion(): string {
-  // Try to get version from package.json
-  try {
-    // This will be resolved at runtime
-    return '1.0.0';
-  } catch {
-    return 'unknown';
-  }
-}
+export { getVersion as getCliVersion } from '../../version.js';

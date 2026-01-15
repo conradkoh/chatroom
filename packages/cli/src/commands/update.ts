@@ -6,14 +6,15 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import { getVersion } from '../version.js';
+
 const execAsync = promisify(exec);
 
 /**
  * Get the current installed version
  */
 function getCurrentVersion(): string {
-  // This is set at build time in package.json
-  return process.env.npm_package_version || '1.0.0';
+  return getVersion();
 }
 
 /**

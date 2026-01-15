@@ -8,12 +8,14 @@
 
 import { Command } from 'commander';
 
+import { getVersion } from './version.js';
+
 const program = new Command();
 
 program
   .name('chatroom')
   .description('CLI for multi-agent chatroom collaboration')
-  .version('1.0.4')
+  .version(getVersion())
   .option('--skip-auth', 'Skip authentication check (development only)');
 
 // Helper to check if auth should be skipped
