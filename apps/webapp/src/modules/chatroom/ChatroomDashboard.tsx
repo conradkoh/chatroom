@@ -13,7 +13,6 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklist } from './components/SetupChecklist';
 import { TeamStatus } from './components/TeamStatus';
 import { generateAgentPrompt } from './prompts/generator';
-import './styles/index.css';
 
 interface ChatroomDashboardProps {
   chatroomId: string;
