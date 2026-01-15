@@ -120,6 +120,21 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     [teamRoles, participantMap]
   );
 
+  // Compute aggregate status for sidebar indicator
+  // Blue (working) if any agent is active, Green (ready) if all are waiting
+  const aggregateStatus = useMemo(() => {
+    if (!participants || participants.length === 0) return 'none';
+    const nonUserParticipants = participants.filter((p) => p.role.toLowerCase() !== 'user');
+    if (nonUserParticipants.length === 0) return 'none';
+    const hasActiveAgent = nonUserParticipants.some((p) => p.status === 'active');
+    if (hasActiveAgent) return 'working';
+    const allReady = nonUserParticipants.every(
+      (p) => p.status === 'waiting' || p.status === 'active'
+    );
+    if (allReady) return 'ready';
+    return 'partial';
+  }, [participants]);
+
   // Memoize callbacks to prevent unnecessary child re-renders
   const handleViewPrompt = useCallback(
     (role: string) => {
@@ -212,14 +227,26 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             <span className={getStatusBadgeClasses(chatroom.status, isSetupMode)}>
               {isSetupMode ? 'Setting Up' : chatroom.status}
             </span>
-            {/* Sidebar Toggle Button */}
+            {/* Sidebar Toggle Button with Status Indicator */}
             {!isSetupMode && (
               <button
-                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary relative"
                 onClick={toggleSidebar}
                 title={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
               >
                 {sidebarVisible ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+                {/* Aggregate status indicator - shown when sidebar is hidden */}
+                {!sidebarVisible && aggregateStatus !== 'none' && (
+                  <span
+                    className={`absolute -top-1 -right-1 w-2.5 h-2.5 ${
+                      aggregateStatus === 'working'
+                        ? 'bg-chatroom-status-info'
+                        : aggregateStatus === 'ready'
+                          ? 'bg-chatroom-status-success'
+                          : 'bg-chatroom-text-muted'
+                    }`}
+                  />
+                )}
               </button>
             )}
           </div>
