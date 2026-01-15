@@ -13,7 +13,7 @@ const program = new Command();
 program
   .name('chatroom')
   .description('CLI for multi-agent chatroom collaboration')
-  .version('1.0.0')
+  .version('1.0.3')
   .option('--skip-auth', 'Skip authentication check (development only)');
 
 // Helper to check if auth should be skipped
@@ -75,6 +75,18 @@ program
   .action(async (options: { force?: boolean }) => {
     const { initConfig } = await import('./commands/init.js');
     await initConfig(options);
+  });
+
+// ============================================================================
+// UPDATE COMMAND (no auth required)
+// ============================================================================
+
+program
+  .command('update')
+  .description('Update the CLI to the latest version')
+  .action(async () => {
+    const { update } = await import('./commands/update.js');
+    await update();
   });
 
 // ============================================================================

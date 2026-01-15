@@ -1,9 +1,9 @@
 import type { ChatroomConfig } from './schema';
 
 /**
- * Default Convex URL - this should be updated to your actual deployment
+ * Default Convex URL for the hosted chatroom service
  */
-export const DEFAULT_CONVEX_URL = 'https://your-deployment.convex.cloud';
+export const DEFAULT_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
 
 /**
  * Default configuration used when no .chatroom/chatroom.jsonc is found
