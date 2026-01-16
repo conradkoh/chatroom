@@ -2,11 +2,18 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { MessageSquare } from 'lucide-react';
+import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { MessageSquare, MoreVertical, CheckCircle } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import { CreateChatroomForm } from './CreateChatroomForm';
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 type TabType = 'current' | 'complete';
 
@@ -212,6 +219,24 @@ const ChatroomCard = memo(function ChatroomCard({
     chatroomId: chatroom._id as Id<'chatroom_rooms'>,
   }) as Message[] | undefined;
 
+  // Mutation to mark chatroom as complete
+  const updateStatus = useSessionMutation(chatroomApi.chatrooms.updateStatus);
+
+  const handleMarkComplete = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevent card click
+      try {
+        await updateStatus({
+          chatroomId: chatroom._id as Id<'chatroom_rooms'>,
+          status: 'completed',
+        });
+      } catch (error) {
+        console.error('Failed to mark as complete:', error);
+      }
+    },
+    [updateStatus, chatroom._id]
+  );
+
   // Check if data is still loading
   const isLoading = participants === undefined;
 
@@ -300,43 +325,67 @@ const ChatroomCard = memo(function ChatroomCard({
   }
 
   return (
-    <button
-      className="bg-chatroom-bg-surface border-2 border-chatroom-border p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
-      onClick={() => onSelect(chatroom._id)}
-      data-last-activity={lastActivity}
-    >
-      {/* Card Main */}
-      <div className="flex justify-between items-start mb-3">
-        <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary">
-          {displayName}
-        </span>
-        <span className={getStatusBadgeClasses(status)}>{status}</span>
-      </div>
-      <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-3">
-        {chatroom._id}
-      </div>
-      {/* Card Agents */}
-      <div className="flex flex-wrap gap-2 mb-3">
-        {teamRoles.map((role) => {
-          const agentStatus = participantStatus.get(role.toLowerCase());
-          const isConnected = agentStatus === 'waiting' || agentStatus === 'active';
-          const isActive = agentStatus === 'active';
-          return (
-            <div key={role} className="flex items-center gap-1.5">
-              <span
-                className={getAgentIndicatorClasses(
-                  isConnected ? (isActive ? 'active' : 'connected') : 'offline'
-                )}
-              />
-              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-                {role}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      {/* Card Date */}
-      <div className="text-[10px] text-chatroom-text-muted">{formattedDate}</div>
-    </button>
+    <div className="relative">
+      <button
+        className="bg-chatroom-bg-surface border-2 border-chatroom-border p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
+        onClick={() => onSelect(chatroom._id)}
+        data-last-activity={lastActivity}
+      >
+        {/* Card Main */}
+        <div className="flex justify-between items-start mb-3">
+          <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary pr-6">
+            {displayName}
+          </span>
+          <span className={getStatusBadgeClasses(status)}>{status}</span>
+        </div>
+        <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-3">
+          {chatroom._id}
+        </div>
+        {/* Card Agents */}
+        <div className="flex flex-wrap gap-2 mb-3">
+          {teamRoles.map((role) => {
+            const agentStatus = participantStatus.get(role.toLowerCase());
+            const isConnected = agentStatus === 'waiting' || agentStatus === 'active';
+            const isActive = agentStatus === 'active';
+            return (
+              <div key={role} className="flex items-center gap-1.5">
+                <span
+                  className={getAgentIndicatorClasses(
+                    isConnected ? (isActive ? 'active' : 'connected') : 'offline'
+                  )}
+                />
+                <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+                  {role}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        {/* Card Date */}
+        <div className="text-[10px] text-chatroom-text-muted">{formattedDate}</div>
+      </button>
+
+      {/* Action Menu - only show for non-completed chatrooms */}
+      {status !== 'completed' && (
+        <div className="absolute top-2 right-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-all duration-100"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical size={14} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[140px]">
+              <DropdownMenuItem onClick={handleMarkComplete}>
+                <CheckCircle size={14} className="mr-2" />
+                Mark Complete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+    </div>
   );
 });

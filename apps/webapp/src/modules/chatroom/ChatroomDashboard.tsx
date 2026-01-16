@@ -11,6 +11,8 @@ import {
   Pencil,
   Check,
   X,
+  CheckCircle,
+  MoreVertical,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 
@@ -23,6 +25,12 @@ import { SetupChecklist } from './components/SetupChecklist';
 import { TeamStatus } from './components/TeamStatus';
 import { generateAgentPrompt } from './prompts/generator';
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 interface ChatroomDashboardProps {
@@ -131,6 +139,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Rename mutation
   const renameChatroom = useSessionMutation(chatroomApi.chatrooms.rename);
+  // Update status mutation (for marking complete)
+  const updateStatus = useSessionMutation(chatroomApi.chatrooms.updateStatus);
 
   const participants = useSessionQuery(chatroomApi.participants.list, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -212,6 +222,22 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const handleCloseReconnect = useCallback(() => {
     setReconnectModalOpen(false);
   }, []);
+
+  // Mark complete handler
+  const handleMarkComplete = useCallback(async () => {
+    try {
+      await updateStatus({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        status: 'completed',
+      });
+      // Navigate back after marking complete
+      if (onBack) {
+        onBack();
+      }
+    } catch (error) {
+      console.error('Failed to mark as complete:', error);
+    }
+  }, [updateStatus, chatroomId, onBack]);
 
   // Rename handlers
   const handleStartRename = useCallback(() => {
@@ -401,6 +427,25 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 )}
               </button>
             )}
+            {/* Actions Menu - only show when not completed */}
+            {chatroom.status !== 'completed' && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="bg-transparent border-2 border-zinc-700 text-zinc-400 w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-zinc-800 hover:border-zinc-600 hover:text-zinc-100"
+                    title="Actions"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[160px]">
+                  <DropdownMenuItem onClick={handleMarkComplete}>
+                    <CheckCircle size={14} className="mr-2" />
+                    Mark Complete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         ),
       });
@@ -429,6 +474,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     handleCancelRename,
     handleSaveRename,
     handleRenameKeyDown,
+    handleMarkComplete,
   ]);
 
   if (chatroom === undefined || participants === undefined) {
