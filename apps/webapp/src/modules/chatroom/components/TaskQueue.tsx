@@ -219,51 +219,118 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   }
 
   return (
-    <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
+    <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1 min-h-0">
       {/* Header */}
-      <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border flex items-center justify-between">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border flex items-center justify-between flex-shrink-0">
         <span>Task Queue</span>
         <span className="text-chatroom-text-muted font-normal">{activeTotal}/100</span>
       </div>
 
-      {/* Queue Health Warning - Show when promotion needed */}
-      {queueHealth?.needsPromotion && (
-        <div className="p-3 border-b border-chatroom-border bg-chatroom-status-warning/10">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-chatroom-status-warning">
-              Queue has tasks but none active
-            </span>
-            <button
-              onClick={handlePromoteNext}
-              className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-status-warning text-chatroom-bg-primary hover:opacity-80 transition-colors"
-              title="Promote next queued task to pending"
-            >
-              <Play size={10} />
-              Start Next
-            </button>
+      {/* Scrollable Task List Container */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {/* Queue Health Warning - Show when promotion needed */}
+        {queueHealth?.needsPromotion && (
+          <div className="p-3 border-b border-chatroom-border bg-chatroom-status-warning/10">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-chatroom-status-warning">
+                Queue has tasks but none active
+              </span>
+              <button
+                onClick={handlePromoteNext}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-status-warning text-chatroom-bg-primary hover:opacity-80 transition-colors"
+                title="Promote next queued task to pending"
+              >
+                <Play size={10} />
+                Start Next
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Current Task */}
-      {categorizedTasks.current.length > 0 && (
-        <div className="border-b border-chatroom-border">
-          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary">
-            Current
+        {/* Current Task */}
+        {categorizedTasks.current.length > 0 && (
+          <div className="border-b border-chatroom-border">
+            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary">
+              Current
+            </div>
+            {categorizedTasks.current.map((task) => (
+              <TaskItem key={task._id} task={task} isProtected />
+            ))}
           </div>
-          {categorizedTasks.current.map((task) => (
-            <TaskItem key={task._id} task={task} isProtected />
-          ))}
-        </div>
-      )}
+        )}
 
-      {/* Queued Tasks */}
-      {categorizedTasks.queued.length > 0 && (
-        <div className="border-b border-chatroom-border">
-          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary">
-            Queued ({categorizedTasks.queued.length})
+        {/* Queued Tasks */}
+        {categorizedTasks.queued.length > 0 && (
+          <div className="border-b border-chatroom-border">
+            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary">
+              Queued ({categorizedTasks.queued.length})
+            </div>
+            {categorizedTasks.queued.map((task) => (
+              <TaskItem
+                key={task._id}
+                task={task}
+                isEditing={editingTaskId === task._id}
+                editedContent={editedContent}
+                onStartEdit={() => startEditing(task)}
+                onSaveEdit={() => handleEditTask(task._id)}
+                onCancelEdit={cancelEditing}
+                onEditContentChange={setEditedContent}
+                onDelete={() => handleCancelTask(task._id)}
+              />
+            ))}
           </div>
-          {categorizedTasks.queued.map((task) => (
+        )}
+
+        {/* Backlog Tasks */}
+        <div className="border-b border-chatroom-border">
+          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
+            <span>Backlog ({categorizedTasks.backlog.length})</span>
+            {!isAddingTask && (
+              <button
+                onClick={() => setIsAddingTask(true)}
+                className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
+                title="Add to backlog"
+              >
+                <Plus size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Add Task Form */}
+          {isAddingTask && (
+            <div className="p-3 border-b border-chatroom-border bg-chatroom-bg-hover">
+              <textarea
+                value={newTaskContent}
+                onChange={(e) => setNewTaskContent(e.target.value)}
+                placeholder="Enter task description..."
+                className="w-full bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary text-xs p-2 resize-none focus:outline-none focus:border-chatroom-accent"
+                rows={2}
+                autoFocus
+              />
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleAddTask}
+                  disabled={!newTaskContent.trim()}
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Check size={12} />
+                  Add
+                </button>
+                <button
+                  onClick={() => {
+                    setIsAddingTask(false);
+                    setNewTaskContent('');
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary"
+                >
+                  <X size={12} />
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {categorizedTasks.backlog.map((task) => (
             <TaskItem
               key={task._id}
               task={task}
@@ -274,79 +341,17 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
               onCancelEdit={cancelEditing}
               onEditContentChange={setEditedContent}
               onDelete={() => handleCancelTask(task._id)}
+              onMoveToQueue={() => handleMoveToQueue(task._id)}
             />
           ))}
-        </div>
-      )}
 
-      {/* Backlog Tasks */}
-      <div className="border-b border-chatroom-border">
-        <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
-          <span>Backlog ({categorizedTasks.backlog.length})</span>
-          {!isAddingTask && (
-            <button
-              onClick={() => setIsAddingTask(true)}
-              className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
-              title="Add to backlog"
-            >
-              <Plus size={14} />
-            </button>
+          {categorizedTasks.backlog.length === 0 && !isAddingTask && (
+            <div className="p-3 text-center text-chatroom-text-muted text-xs">No backlog items</div>
           )}
         </div>
-
-        {/* Add Task Form */}
-        {isAddingTask && (
-          <div className="p-3 border-b border-chatroom-border bg-chatroom-bg-hover">
-            <textarea
-              value={newTaskContent}
-              onChange={(e) => setNewTaskContent(e.target.value)}
-              placeholder="Enter task description..."
-              className="w-full bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary text-xs p-2 resize-none focus:outline-none focus:border-chatroom-accent"
-              rows={2}
-              autoFocus
-            />
-            <div className="flex gap-2 mt-2">
-              <button
-                onClick={handleAddTask}
-                disabled={!newTaskContent.trim()}
-                className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Check size={12} />
-                Add
-              </button>
-              <button
-                onClick={() => {
-                  setIsAddingTask(false);
-                  setNewTaskContent('');
-                }}
-                className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary"
-              >
-                <X size={12} />
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {categorizedTasks.backlog.map((task) => (
-          <TaskItem
-            key={task._id}
-            task={task}
-            isEditing={editingTaskId === task._id}
-            editedContent={editedContent}
-            onStartEdit={() => startEditing(task)}
-            onSaveEdit={() => handleEditTask(task._id)}
-            onCancelEdit={cancelEditing}
-            onEditContentChange={setEditedContent}
-            onDelete={() => handleCancelTask(task._id)}
-            onMoveToQueue={() => handleMoveToQueue(task._id)}
-          />
-        ))}
-
-        {categorizedTasks.backlog.length === 0 && !isAddingTask && (
-          <div className="p-3 text-center text-chatroom-text-muted text-xs">No backlog items</div>
-        )}
+        {/* End of Backlog Tasks */}
       </div>
+      {/* End of Scrollable Task List Container */}
     </div>
   );
 }
