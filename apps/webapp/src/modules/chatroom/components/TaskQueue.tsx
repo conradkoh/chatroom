@@ -5,6 +5,8 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Plus, Pencil, Trash2, ArrowRight, X, Check, Play } from 'lucide-react';
 import React, { useState, useCallback, useMemo } from 'react';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
 
@@ -421,8 +423,10 @@ function TaskItem({
         )}
       </div>
 
-      {/* Content */}
-      <div className="text-xs text-chatroom-text-primary line-clamp-2 mb-2">{task.content}</div>
+      {/* Content - Rendered as Markdown */}
+      <div className="text-xs text-chatroom-text-primary line-clamp-3 mb-2 prose dark:prose-invert prose-xs max-w-none prose-p:my-0 prose-headings:my-0 prose-headings:text-xs prose-headings:font-bold prose-ul:my-0 prose-ol:my-0 prose-li:my-0 prose-code:text-[10px] prose-code:bg-chatroom-bg-tertiary prose-code:px-1">
+        <Markdown remarkPlugins={[remarkGfm]}>{task.content}</Markdown>
+      </div>
 
       {/* Actions */}
       {!isProtected && (
