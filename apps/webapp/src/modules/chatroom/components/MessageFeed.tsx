@@ -118,6 +118,8 @@ const MessageItem = memo(function MessageItem({ message }: { message: Message })
 // Number of messages to load initially and per page
 const INITIAL_PAGE_SIZE = 5;
 const LOAD_MORE_SIZE = 10;
+// Threshold in pixels from top to trigger auto-load
+const SCROLL_THRESHOLD = 100;
 
 export const MessageFeed = memo(function MessageFeed({
   chatroomId,
@@ -143,6 +145,7 @@ export const MessageFeed = memo(function MessageFeed({
 
   const feedRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
+  const prevScrollHeightRef = useRef(0);
 
   // Filter out join messages and reverse to show oldest first (query returns newest first)
   const displayMessages = useMemo(() => {
@@ -152,19 +155,38 @@ export const MessageFeed = memo(function MessageFeed({
   }, [results]);
 
   // Auto-scroll to bottom when new messages arrive (not when loading older messages)
+  // Maintain scroll position when loading older messages
   useEffect(() => {
-    if (feedRef.current && displayMessages.length > prevMessageCountRef.current) {
-      // Only auto-scroll if messages increased (new message arrived, not loading older)
-      if (status !== 'LoadingMore') {
-        feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    if (feedRef.current) {
+      const newScrollHeight = feedRef.current.scrollHeight;
+      const heightDiff = newScrollHeight - prevScrollHeightRef.current;
+
+      if (displayMessages.length > prevMessageCountRef.current) {
+        if (status === 'LoadingMore' || prevScrollHeightRef.current > 0) {
+          // When loading older messages, maintain relative scroll position
+          // by adding the height difference to current scroll
+          if (heightDiff > 0 && feedRef.current.scrollTop < SCROLL_THRESHOLD + 50) {
+            feedRef.current.scrollTop = feedRef.current.scrollTop + heightDiff;
+          }
+        } else {
+          // New message arrived, scroll to bottom
+          feedRef.current.scrollTop = feedRef.current.scrollHeight;
+        }
       }
+
+      prevScrollHeightRef.current = newScrollHeight;
     }
     prevMessageCountRef.current = displayMessages.length;
   }, [displayMessages.length, status]);
 
-  const handleLoadMore = useCallback(() => {
-    if (status === 'CanLoadMore') {
-      loadMore(LOAD_MORE_SIZE);
+  // Handle scroll to detect when user is near the top
+  const handleScroll = useCallback(() => {
+    if (feedRef.current && status === 'CanLoadMore') {
+      const { scrollTop } = feedRef.current;
+      // Load more when user scrolls within threshold of top
+      if (scrollTop < SCROLL_THRESHOLD) {
+        loadMore(LOAD_MORE_SIZE);
+      }
     }
   }, [status, loadMore]);
 
@@ -196,16 +218,14 @@ export const MessageFeed = memo(function MessageFeed({
     <div
       className="flex-1 overflow-y-auto p-4 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
       ref={feedRef}
+      onScroll={handleScroll}
     >
-      {/* Load More button at top to load older messages */}
+      {/* Load More indicator at top - shows when more messages available */}
       {status === 'CanLoadMore' && (
-        <button
-          onClick={handleLoadMore}
-          className="w-full py-2 mb-2 text-sm text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors flex items-center justify-center gap-1"
-        >
-          <ChevronUp size={14} />
-          Load older messages
-        </button>
+        <div className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1">
+          <ChevronUp size={12} />
+          Scroll up to load older messages
+        </div>
       )}
       {status === 'LoadingMore' && (
         <div className="w-full py-2 mb-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
