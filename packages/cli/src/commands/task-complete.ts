@@ -63,6 +63,13 @@ export async function taskComplete(
     }
   }
 
+  // Complete the current in_progress task and promote queued tasks
+  await client.mutation(api.tasks.completeTask, {
+    sessionId,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    role,
+  });
+
   // Send handoff message
   await client.mutation(api.messages.send, {
     sessionId,
