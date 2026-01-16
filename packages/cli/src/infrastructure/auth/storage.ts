@@ -4,7 +4,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 
 const CHATROOM_DIR = join(homedir(), '.chatroom');
@@ -119,8 +119,8 @@ export function getSessionId(): string | null {
  */
 export function getDeviceName(): string {
   const os = process.platform;
-  const hostname = require('node:os').hostname();
-  return `${hostname} (${os})`;
+  const host = hostname();
+  return `${host} (${os})`;
 }
 
 /**
