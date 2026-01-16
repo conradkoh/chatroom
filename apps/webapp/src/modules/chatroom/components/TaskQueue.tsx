@@ -427,7 +427,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         tasks={tasks || []}
         onClose={() => setIsQueueModalOpen(false)}
         onTaskClick={(task) => {
-          setIsQueueModalOpen(false);
+          // Keep queue modal open, detail modal will layer on top
           handleOpenTaskDetail(task);
         }}
         onMoveToQueue={handleModalMoveToQueue}
