@@ -157,43 +157,6 @@ program
     }
   );
 
-// New command name: send-message (preferred)
-program
-  .command('send-message <chatroomId>')
-  .description('Send a message to a chatroom (without completing your task)')
-  .requiredOption('--message <message>', 'Message content to send')
-  .option('--role <role>', 'Sender role', 'user')
-  .option('--skip-ready-check', 'Send even if team is not ready')
-  .action(
-    async (
-      chatroomId: string,
-      options: { message: string; role?: string; skipReadyCheck?: boolean }
-    ) => {
-      await maybeRequireAuth();
-      const { sendMessage } = await import('./commands/send.js');
-      await sendMessage(chatroomId, options);
-    }
-  );
-
-// Deprecated: use send-message instead
-program
-  .command('send <chatroomId>')
-  .description('[DEPRECATED: Use "send-message" instead] Send a message to a chatroom')
-  .requiredOption('--message <message>', 'Message content to send')
-  .option('--role <role>', 'Sender role', 'user')
-  .option('--skip-ready-check', 'Send even if team is not ready')
-  .action(
-    async (
-      chatroomId: string,
-      options: { message: string; role?: string; skipReadyCheck?: boolean }
-    ) => {
-      console.warn('⚠️  The "send" command is deprecated. Use "send-message" instead.');
-      await maybeRequireAuth();
-      const { sendMessage } = await import('./commands/send.js');
-      await sendMessage(chatroomId, options);
-    }
-  );
-
 program
   .command('task-started <chatroomId>')
   .description('Acknowledge a task and classify the user message')

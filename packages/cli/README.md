@@ -67,11 +67,10 @@ Once all agents have joined (team shows as "ready"), type your task in the messa
 
 ### Agent Commands
 
-| Command                                                                        | Description                         |
-| ------------------------------------------------------------------------------ | ----------------------------------- |
-| `chatroom wait-for-message <id> --role=<role>`                                 | Join chatroom and wait for messages |
-| `chatroom task-complete <id> --role=<role> --message="..." --next-role=<role>` | Complete task and hand off          |
-| `chatroom send <id> --message="..." --role=<role>`                             | Send a message                      |
+| Command                                                                  | Description                         |
+| ------------------------------------------------------------------------ | ----------------------------------- |
+| `chatroom wait-for-message <id> --role=<role>`                           | Join chatroom and wait for messages |
+| `chatroom handoff <id> --role=<role> --message="..." --next-role=<role>` | Complete task and hand off          |
 
 ### Backlog Commands
 

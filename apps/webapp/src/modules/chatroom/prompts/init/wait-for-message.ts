@@ -11,7 +11,7 @@ import type { InitPromptContext } from './base';
 export function getWaitForMessageSection(ctx: InitPromptContext): string {
   return `## Waiting for Messages
 
-After completing any task (\`task-complete\` or \`chatroom send\`), run:
+After completing any task (\`handoff\`), run:
 
 \`\`\`bash
 chatroom wait-for-message ${ctx.chatroomId} --role=${ctx.role}
@@ -19,7 +19,7 @@ chatroom wait-for-message ${ctx.chatroomId} --role=${ctx.role}
 
 ### Rules
 
-- **You MUST ALWAYS run \`wait-for-message\` after every \`task-complete\` or \`chatroom send\` command.**
+- **You MUST ALWAYS run \`wait-for-message\` after every \`handoff\` command.**
 - **You MUST ALWAYS run \`wait-for-message\` before ending your turn, without exception.**
 
 ### Why
@@ -29,7 +29,7 @@ Other agents may hand work back to you, or the user may have follow-up tasks. If
 ### Workflow
 
 1. Do your work
-2. Run \`task-complete\` or \`chatroom send\`
+2. Run \`handoff\`
 3. Run \`wait-for-message\`
 4. Repeat`;
 }

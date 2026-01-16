@@ -65,6 +65,5 @@ export async function createChatroom(options: CreateOptions = {}): Promise<void>
   for (const role of team.roles) {
     console.log(`      chatroom wait-for-message ${chatroomId} --role=${role}`);
   }
-  console.log(`\n   2. Send a message to get started:`);
-  console.log(`      chatroom send ${chatroomId} --message="Your task here"`);
+  console.log(`\n   2. Send a message via the WebUI to get started`);
 }

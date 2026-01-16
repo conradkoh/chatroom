@@ -2,6 +2,50 @@
 
 This document tracks the cleanup work needed for the API naming changes.
 
+## Completed Work
+
+### CLI Commands Removed
+
+| Command | Status | Reason |
+|---------|--------|--------|
+| `chatroom send` | ❌ Removed | Agents must always hand off |
+| `chatroom send-message` | ❌ Removed | Agents must always hand off |
+
+### CLI Commands Added/Updated
+
+| Command | Status | Purpose |
+|---------|--------|---------|
+| `chatroom handoff` | ✅ Added | Complete task and hand off (preferred) |
+| `chatroom task-complete` | @deprecated | Deprecated alias for `handoff` |
+
+### Backend Methods
+
+| Method | Status | Purpose |
+|--------|--------|---------|
+| `messages.handoff` | ✅ Added | Complete work and hand off (preferred) |
+| `messages.sendHandoff` | @deprecated | Deprecated alias for `handoff` |
+| `messages.send` | Kept | Used by WebUI for user messages |
+| `messages.sendMessage` | Kept | Alias for `send`, used by WebUI |
+
+### Files Removed
+
+| File | Status |
+|------|--------|
+| `packages/cli/src/commands/send.ts` | ✅ Deleted |
+
+### Prompts Updated
+
+| Location | Status |
+|----------|--------|
+| `services/backend/convex/prompts/generator.ts` | ✅ Updated |
+| `apps/webapp/src/modules/chatroom/prompts/init/base.ts` | ✅ Updated |
+| `apps/webapp/src/modules/chatroom/prompts/init/wait-for-message.ts` | ✅ Updated |
+| `packages/cli/src/commands/create.ts` | ✅ Updated |
+| `README.md` (root) | ✅ Updated |
+| `packages/cli/README.md` | ✅ Updated |
+
+---
+
 ## Deprecated Items to Remove (Future Version)
 
 These items should be removed in a future major version after adequate deprecation period.
@@ -10,62 +54,19 @@ These items should be removed in a future major version after adequate deprecati
 
 | Method | Replacement | File | Status |
 |--------|-------------|------|--------|
-| `messages.send` | `messages.sendMessage` | `services/backend/convex/messages.ts` | 🔄 To be deprecated |
-| `messages.sendHandoff` | `messages.handoff` | `services/backend/convex/messages.ts` | 🔄 To be deprecated |
+| `messages.sendHandoff` | `messages.handoff` | `services/backend/convex/messages.ts` | @deprecated |
 
 ### CLI Commands
 
 | Command | Replacement | File | Status |
 |---------|-------------|------|--------|
-| `chatroom send` | `chatroom send-message` | `packages/cli/src/index.ts` | 🔄 To be deprecated |
-| `chatroom task-complete` | `chatroom handoff` | `packages/cli/src/index.ts` | 🔄 To be deprecated |
+| `chatroom task-complete` | `chatroom handoff` | `packages/cli/src/index.ts` | @deprecated |
 
 ### CLI Implementation Files
 
 | File | Action | Status |
 |------|--------|--------|
-| `packages/cli/src/commands/send.ts` | Rename to `send-message.ts` after deprecation period | 📋 Planned |
 | `packages/cli/src/commands/task-complete.ts` | Rename to `handoff.ts` after deprecation period | 📋 Planned |
-
----
-
-## Code Locations to Update
-
-### Backend Updates Required
-
-1. **`services/backend/convex/messages.ts`**
-   - [ ] Add `postMessage` mutation
-   - [ ] Add `completeAndHandoff` mutation
-   - [ ] Add `@deprecated` JSDoc to `send`
-   - [ ] Add `@deprecated` JSDoc to `sendHandoff`
-
-2. **`services/backend/convex/prompts/` (if any reference old names)**
-   - [ ] Update any CLI command examples
-
-### CLI Updates Required
-
-1. **`packages/cli/src/index.ts`**
-   - [ ] Add `message` command
-   - [ ] Add `handoff` command  
-   - [ ] Update `send` description with deprecation notice
-   - [ ] Update `task-complete` description with deprecation notice
-
-2. **`packages/cli/src/commands/`**
-   - [ ] Create `message.ts` (or reuse `send.ts`)
-   - [ ] Create `handoff.ts` (or reuse `task-complete.ts`)
-
-3. **`packages/cli/src/api.ts`**
-   - [ ] Will be auto-updated via sync script after backend changes
-
-### Documentation Updates Required
-
-1. **CLI README**
-   - [ ] Update command examples
-   - [ ] Add deprecation notices
-
-2. **Agent Prompts/Instructions**
-   - [ ] Update any hardcoded CLI examples in prompts
-   - [ ] Grep for `chatroom send` and `chatroom task-complete`
 
 ---
 
@@ -75,23 +76,29 @@ These items should be removed in a future major version after adequate deprecati
 
 ```bash
 # Old (deprecated)
-chatroom send <chatroomId> --message="Hello"
 chatroom task-complete <chatroomId> --role=builder --message="Done" --next-role=reviewer
 
 # New (recommended)
-chatroom send-message <chatroomId> --message="Hello"
 chatroom handoff <chatroomId> --role=builder --message="Done" --next-role=reviewer
+```
+
+### Asking Questions (changed pattern)
+
+```bash
+# Old approach (no longer supported - send without handoff)
+chatroom send <chatroomId> --message="Can you clarify X?" --role=builder
+
+# New approach (hand off to user with question)
+chatroom handoff <chatroomId> --role=builder --message="Can you clarify X?" --next-role=user
 ```
 
 ### For API Users (Direct Backend Calls)
 
 ```typescript
 // Old (deprecated)
-await client.mutation(api.messages.send, { ... });
 await client.mutation(api.messages.sendHandoff, { ... });
 
 // New (recommended)
-await client.mutation(api.messages.sendMessage, { ... });
 await client.mutation(api.messages.handoff, { ... });
 ```
 
@@ -101,19 +108,20 @@ await client.mutation(api.messages.handoff, { ... });
 
 | Version | Action |
 |---------|--------|
-| Current | Add new methods/commands alongside old ones |
-| v1.x.x | Show deprecation warnings when old names are used |
-| v2.0.0 | Remove deprecated methods/commands |
+| v1.0.18 | ✅ Removed `send`/`send-message` CLI commands |
+| v1.0.18 | ✅ Added `handoff` CLI command |
+| v1.0.18 | ✅ Added `handoff` backend mutation |
+| v1.x.x | Show deprecation warnings when `task-complete` is used |
+| v2.0.0 | Remove `task-complete` and `sendHandoff` |
 
 ---
 
 ## Testing Checklist
 
-Before marking cleanup as complete, verify:
-
-- [ ] All new commands work identically to old commands
-- [ ] Deprecation notices appear in `--help` output
-- [ ] Backend methods return identical results
-- [ ] Existing agent prompts work with new command names
-- [ ] No broken references in documentation
-- [ ] CLI sync script picks up new methods
+- [x] `chatroom handoff` works correctly
+- [x] `chatroom task-complete` shows deprecation warning and works
+- [x] Prompts use `handoff` command
+- [x] READMEs updated
+- [x] `send.ts` command file deleted
+- [ ] Deploy backend with new `handoff` mutation
+- [ ] Update CLI to use `api.messages.handoff` after backend deploy

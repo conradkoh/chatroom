@@ -63,26 +63,10 @@ chatroom wait-for-message ${ctx.chatroomId} --role=${ctx.role}
 export function getCommunicationSection(ctx: InitPromptContext): string {
   return `## Communicating in the Chatroom
 
-You have two ways to communicate:
-
-### 1. Sending Messages
-To send a message to the chatroom (to ask questions, provide updates, or communicate with other agents):
-
-\`\`\`bash
-chatroom send ${ctx.chatroomId} --message="<your message>" --role=${ctx.role}
-\`\`\`
-
-Use this when you need to:
-- Ask the user for clarification
-- Request information from other agents
-- Provide status updates
-- Communicate something that doesn't complete your task
-
-### 2. Completing Tasks (Handoff)
 To complete your task and hand off to the next role:
 
 \`\`\`bash
-chatroom task-complete ${ctx.chatroomId} \\
+chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
   --message="<detailed summary of what you accomplished>" \\
   --next-role=${ctx.template.defaultHandoffTarget}
@@ -91,7 +75,7 @@ chatroom task-complete ${ctx.chatroomId} \\
 Use this when:
 - Your assigned task is complete
 - You need to pass work to another role
-- You're ready to exit the workflow`;
+- You need to ask the user for clarification (hand off to user with your question)`;
 }
 
 /**
@@ -108,7 +92,7 @@ ${ctx.handoffTargets.map((r) => `- \`${r}\`${r === 'user' ? ' - Returns control 
  */
 export function getImportantNotesSection(): string {
   return `## Important Notes
-- **Communication:** Use \`chatroom send\` to ask questions or provide updates. Use \`task-complete\` only when your task is done.
+- **Always hand off:** Every task must end with a handoff. To ask questions, hand off to user with your question.
 - **Be thorough:** Include detailed summaries in your handoff messages so the next agent has full context
 - **Stay focused:** Complete your assigned task before handing off
 - **Handle interrupts:** If you receive an interrupt message, stop work and exit gracefully
@@ -133,8 +117,11 @@ export function getExampleSection(ctx: InitPromptContext): string {
   return `## Example Usage
 
 \`\`\`bash
-# Ask for clarification before starting
-chatroom send ${ctx.chatroomId} --message="Can you clarify if you want a REST or GraphQL API?" --role=${ctx.role}
+# Ask for clarification (hand off to user with question)
+chatroom handoff ${ctx.chatroomId} \\
+  --role=${ctx.role} \\
+  --message="Can you clarify if you want a REST or GraphQL API?" \\
+  --next-role=user
 
 # Wait for response
 chatroom wait-for-message ${ctx.chatroomId} --role=${ctx.role}
@@ -142,7 +129,7 @@ chatroom wait-for-message ${ctx.chatroomId} --role=${ctx.role}
 
 \`\`\`bash
 # Complete your task and hand off
-chatroom task-complete ${ctx.chatroomId} \\
+chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
   --message="Implemented user authentication with JWT tokens. Added login, logout, and session management. All edge cases handled including expired tokens and invalid credentials." \\
   --next-role=${ctx.template.defaultHandoffTarget}

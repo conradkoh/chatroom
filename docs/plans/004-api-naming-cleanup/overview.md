@@ -2,13 +2,13 @@
 
 ## Summary
 
-Rename and reorganize the backend message API methods and corresponding CLI commands to have clearer, more self-explanatory names. The current `send` and `sendHandoff` methods are confusingly named - it's not immediately clear what each does or when to use which.
+Rename and reorganize the backend message API methods and corresponding CLI commands to have clearer, more self-explanatory names. Removed the ability for agents to send messages without handing off - every agent action must result in a handoff to maintain workflow continuity.
 
 ## Goals
 
 1. **Clarity**: Method names should clearly indicate their purpose and side effects
 2. **Discoverability**: Developers should be able to understand the API from names alone
-3. **Backward Compatibility**: Keep old methods/commands as deprecated aliases
+3. **Workflow Continuity**: Every agent action ends with a handoff to ensure tasks are always delegated
 4. **Consistency**: Naming should follow a consistent pattern across CLI and backend
 
 ## Non-Goals
@@ -17,67 +17,38 @@ Rename and reorganize the backend message API methods and corresponding CLI comm
 - Removing deprecated methods immediately (will be removed in a future version)
 - Modifying the data model or schema
 
-## Current State Analysis
+## Completed Changes
 
 ### Backend Methods (services/backend/convex/messages.ts)
 
-| Current Name | Purpose | Side Effects |
-|--------------|---------|--------------|
-| `send` | Send a message to the chatroom | Creates task for user messages and agent handoffs |
-| `sendHandoff` | Complete task, send handoff message, update status | Completes in_progress tasks, sends message, creates task for target, updates participant status |
-
-### CLI Commands (packages/cli/src/commands/)
-
-| Current Command | Backend Method | Purpose |
-|-----------------|----------------|---------|
-| `chatroom send` | `messages.send` | Send a message as any role |
-| `chatroom task-complete` | `messages.sendHandoff` | Complete a task and hand off to next role |
-
-## Problem Analysis
-
-1. **`send` is overloaded** - Does different things based on sender role and message type
-2. **`sendHandoff` name is unclear** - Doesn't convey that it completes tasks and transitions state
-3. **CLI `send` vs `task-complete`** - Relationship to backend methods isn't obvious
-
-## Proposed Naming
-
-### Backend Methods
-
-| New Name | Replaces | Purpose |
-|----------|----------|---------|
-| `sendMessage` | `send` | Send a message to the chatroom (for agents asking questions/providing updates) |
-| `handoff` | `sendHandoff` | Complete current work and hand off to next agent |
+| Method | Status | Purpose |
+|--------|--------|---------|
+| `send` | Kept (for WebUI) | Send a message from users via WebUI |
+| `sendMessage` | Kept (for WebUI) | Alias for `send` - used by WebUI |
+| `sendHandoff` | @deprecated | Deprecated alias for `handoff` |
+| `handoff` | ✅ New (preferred) | Complete work and hand off to next agent |
 
 ### CLI Commands
 
-| New Command | Replaces | Backend Method | Purpose |
-|-------------|----------|----------------|---------|
-| `chatroom send-message` | `chatroom send` | `sendMessage` | Send a message without handing off |
-| `chatroom handoff` | `chatroom task-complete` | `completeAndHandoff` | Complete task and hand off |
+| Command | Status | Purpose |
+|---------|--------|---------|
+| `chatroom handoff` | ✅ New (preferred) | Complete task and hand off |
+| `chatroom task-complete` | @deprecated | Deprecated alias for `handoff` |
+| `chatroom send` | ❌ Removed | Agents must always hand off |
+| `chatroom send-message` | ❌ Removed | Agents must always hand off |
 
-**Note:** Users send messages via the WebUI, not the CLI. The `send-message` command is primarily for agents who need to ask clarifying questions or provide status updates without completing their task.
+## Design Decision: Removing Send Commands from CLI
 
-### Alternative Names Considered
+We removed the ability for agents to send messages without handing off because:
 
-**For `sendHandoff`:**
-- `finishAndDelegate` - Clear but long
-- `completeTask` - Conflicts with existing `tasks.completeTask`
-- `handoffTask` - Implies task only, not message
-- `completeAndHandoff` - Clear but verbose
-- `handoff` ✅ - Concise, matches CLI command name
+1. **Workflow Continuity**: Every task should have a clear owner. If an agent sends a message without handing off, no one is assigned to continue the work.
+2. **Simplified Mental Model**: Agents have one action: complete their work and hand off. Questions can be asked by handing off to the user.
+3. **Reduced Complexity**: No need to track "who should respond" - the handoff target is always clear.
 
-**For `send`:**
-- `sendMessage` ✅ - Clear, matches CLI naming
-- `postMessage` - Standard but slightly formal
-- `broadcast` - Implies multiple recipients
-- `chat` - Too informal
-- `say` - Too informal
+**How to ask questions as an agent:**
+```bash
+# Hand off to user with your question
+chatroom handoff <id> --role=builder --message="Can you clarify X?" --next-role=user
+```
 
-**For CLI:**
-- `chatroom send-message` ✅ - Verb-noun, clear action
-- `chatroom message` - Noun only, less clear as command
-- `chatroom msg` - Too abbreviated
-- `chatroom post` - Less clear than "send-message"
-- `chatroom handoff` ✅ - Clear about the action
-- `chatroom delegate` - Less familiar terminology
-- `chatroom finish` - Doesn't convey the handoff aspect
+**Note:** The backend `send`/`sendMessage` mutations are kept for the WebUI, where users submit messages.

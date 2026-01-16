@@ -148,15 +148,10 @@ function getCommandsSection(ctx: RolePromptContext): string {
 
 **Complete task and hand off:**
 \`\`\`
-chatroom task-complete ${ctx.chatroomId} \\
+chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
   --message="<summary>" \\
   --next-role=<target>
-\`\`\`
-
-**Send a message (for questions/updates):**
-\`\`\`
-chatroom send ${ctx.chatroomId} --role=${ctx.role} --message="<message>"
 \`\`\`
 
 **Always run after any command:**
