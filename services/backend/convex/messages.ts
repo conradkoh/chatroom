@@ -70,8 +70,12 @@ export const send = mutation({
       type: args.type,
     });
 
-    // Auto-create task for user messages
-    if (normalizedSenderRole === 'user' && args.type === 'message') {
+    // Auto-create task for user messages and handoff messages
+    const shouldCreateTask =
+      (normalizedSenderRole === 'user' && args.type === 'message') ||
+      (args.type === 'handoff' && targetRole && targetRole.toLowerCase() !== 'user');
+
+    if (shouldCreateTask) {
       // Check if any task is currently pending or in_progress
       const activeTasks = await ctx.db
         .query('chatroom_tasks')
@@ -92,16 +96,22 @@ export const send = mutation({
       const now = Date.now();
       const taskStatus = activeTasks ? 'queued' : 'pending';
 
+      // Determine the task creator and assignment
+      const isHandoff = args.type === 'handoff';
+      const createdBy = isHandoff ? args.senderRole : 'user';
+      const assignedTo = isHandoff ? targetRole : undefined;
+
       // Create the task
       const taskId = await ctx.db.insert('chatroom_tasks', {
         chatroomId: args.chatroomId,
-        createdBy: 'user',
+        createdBy,
         content: args.content,
         status: taskStatus,
         sourceMessageId: messageId,
         createdAt: now,
         updatedAt: now,
         queuePosition,
+        assignedTo,
       });
 
       // Update message with taskId reference
