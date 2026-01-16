@@ -16,10 +16,27 @@ interface SendFormProps {
   readiness: TeamReadiness | null | undefined;
 }
 
+/**
+ * Hook to detect if the user is on a touch device (likely mobile).
+ * Uses touch capability detection rather than screen size for better accuracy.
+ */
+function useIsTouchDevice() {
+  const [isTouch, setIsTouch] = useState(false);
+
+  useEffect(() => {
+    // Check for touch capability
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    setIsTouch(isTouchDevice);
+  }, []);
+
+  return isTouch;
+}
+
 export const SendForm = memo(function SendForm({ chatroomId, readiness }: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isTouchDevice = useIsTouchDevice();
 
   // Type assertion workaround: The Convex API types are not fully generated
   // until `npx convex dev` is run. This assertion allows us to use the API
@@ -62,14 +79,21 @@ export const SendForm = memo(function SendForm({ chatroomId, readiness }: SendFo
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Enter without Shift sends the message
+      // On touch devices (mobile), Enter creates a newline
+      // Submission only happens via the Send button
+      if (isTouchDevice) {
+        // Allow default behavior (newline) on Enter
+        return;
+      }
+
+      // On desktop: Enter without Shift sends the message
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
       // Shift+Enter allows newline (default behavior)
     },
-    [handleSubmit]
+    [handleSubmit, isTouchDevice]
   );
 
   const handleFormSubmit = useCallback(
