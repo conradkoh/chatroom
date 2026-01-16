@@ -107,6 +107,7 @@ export const api = {
   },
   messages: {
     send: 'messages:send' as unknown as FunctionReference<'mutation', 'public'>,
+    sendHandoff: 'messages:sendHandoff' as unknown as FunctionReference<'mutation', 'public'>,
     list: 'messages:list' as unknown as FunctionReference<'query', 'public'>,
     getLatestForRole: 'messages:getLatestForRole' as unknown as FunctionReference<
       'query',

@@ -1,10 +1,19 @@
 /**
  * Complete a task and hand off to the next role
+ *
+ * This command uses the atomic sendHandoff mutation which performs all of
+ * these operations in a single transaction:
+ * 1. Validates the handoff is allowed (classification rules)
+ * 2. Completes all in_progress tasks in the chatroom
+ * 3. Sends the handoff message
+ * 4. Creates a task for the target agent (if not handing to user)
+ * 5. Updates the sender's participant status to waiting
+ * 6. Promotes the next queued task to pending
  */
 
 import { waitForMessage } from './wait-for-message.js';
 import { api } from '../api.js';
-import type { Id, AllowedHandoffRoles } from '../api.js';
+import type { Id } from '../api.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
@@ -42,54 +51,41 @@ export async function taskComplete(
     process.exit(1);
   }
 
-  // Check if handoff to user is allowed based on classification
-  if (nextRole.toLowerCase() === 'user') {
-    const allowedRoles = (await client.query(api.messages.getAllowedHandoffRoles, {
+  try {
+    // Use atomic sendHandoff mutation - performs all operations in one transaction:
+    // - Validates handoff is allowed (classification rules for user handoff)
+    // - Completes all in_progress tasks
+    // - Sends the handoff message
+    // - Creates a task for target agent (if not user)
+    // - Updates sender's participant status to waiting
+    // - Promotes next queued task to pending
+    await client.mutation(api.messages.sendHandoff, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-    })) as AllowedHandoffRoles;
+      senderRole: role,
+      content: message,
+      targetRole: nextRole,
+    });
 
-    if (!allowedRoles.canHandoffToUser) {
+    console.log(`✅ Task completed and handed off to ${nextRole}`);
+    console.log(`📋 Summary: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`);
+  } catch (error) {
+    // Handle handoff validation errors with helpful messages
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('Cannot hand off directly to user')) {
       console.error(`\n❌ Cannot hand off directly to user`);
-      console.error(`   Reason: ${allowedRoles.restrictionReason}`);
-      console.error(`\n📋 Current classification: ${allowedRoles.currentClassification}`);
-      console.error(`\n💡 Available handoff roles: ${allowedRoles.availableRoles.join(', ')}`);
-      console.error(`\n   Please hand off to: reviewer`);
+      console.error(`   Reason: new_feature requests must be reviewed before returning to user`);
+      console.error(`\n💡 Please hand off to: reviewer`);
       console.error(
         `   Example: chatroom task-complete ${chatroomId} --role=${role} --message="<summary>" --next-role=reviewer`
       );
       process.exit(1);
     }
+
+    // Re-throw other errors
+    throw error;
   }
-
-  // Complete the current in_progress task and promote queued tasks
-  await client.mutation(api.tasks.completeTask, {
-    sessionId,
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    role,
-  });
-
-  // Send handoff message
-  await client.mutation(api.messages.send, {
-    sessionId,
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    senderRole: role,
-    content: message,
-    targetRole: nextRole,
-    type: 'handoff',
-  });
-
-  // Update participant status to waiting
-  await client.mutation(api.participants.updateStatus, {
-    sessionId,
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    role,
-    status: 'waiting',
-  });
-
-  console.log(`✅ Task completed and handed off to ${nextRole}`);
-  console.log(`📋 Summary: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`);
 
   // Check if handing off to user (workflow completion)
   if (nextRole.toLowerCase() === 'user') {

@@ -132,6 +132,177 @@ export const send = mutation({
 });
 
 /**
+ * Send a handoff message and complete the current task atomically.
+ * This is the preferred way to hand off work between agents.
+ *
+ * Performs all of these operations in a single atomic transaction:
+ * 1. Validates the handoff is allowed (classification rules)
+ * 2. Completes all in_progress tasks in the chatroom
+ * 3. Sends the handoff message
+ * 4. Creates a task for the target agent (if not handing to user)
+ * 5. Updates the sender's participant status to waiting
+ *
+ * Requires CLI session authentication and chatroom access.
+ */
+export const sendHandoff = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    senderRole: v.string(),
+    content: v.string(),
+    targetRole: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Get chatroom to check team configuration
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) {
+      throw new Error('Chatroom not found');
+    }
+
+    // Validate senderRole
+    const normalizedSenderRole = args.senderRole.toLowerCase();
+    const teamRoles = chatroom.teamRoles || [];
+    const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
+    if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
+      throw new Error(
+        `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ')}`
+      );
+    }
+
+    const normalizedTargetRole = args.targetRole.toLowerCase();
+    const isHandoffToUser = normalizedTargetRole === 'user';
+
+    // Validate handoff to user is allowed based on classification
+    if (isHandoffToUser) {
+      // Get the most recent classified user message to determine restrictions
+      const messages = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .collect();
+
+      let currentClassification = null;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+        if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
+          currentClassification = msg.classification;
+          break;
+        }
+      }
+
+      // For new_feature requests, builder cannot hand off directly to user
+      if (currentClassification === 'new_feature' && normalizedSenderRole === 'builder') {
+        throw new Error(
+          'Cannot hand off directly to user. new_feature requests must be reviewed before returning to user.'
+        );
+      }
+    }
+
+    const now = Date.now();
+
+    // Step 1: Complete ALL in_progress tasks
+    const inProgressTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+      )
+      .collect();
+
+    const completedTaskIds = [];
+    for (const task of inProgressTasks) {
+      await ctx.db.patch('chatroom_tasks', task._id, {
+        status: 'completed',
+        completedAt: now,
+        updatedAt: now,
+      });
+      completedTaskIds.push(task._id);
+    }
+
+    if (inProgressTasks.length > 1) {
+      console.log(
+        `[sendHandoff] Completed ${inProgressTasks.length} in_progress tasks in chatroom ${args.chatroomId}`
+      );
+    }
+
+    // Step 2: Send the handoff message
+    const messageId = await ctx.db.insert('chatroom_messages', {
+      chatroomId: args.chatroomId,
+      senderRole: args.senderRole,
+      content: args.content,
+      targetRole: args.targetRole,
+      type: 'handoff',
+    });
+
+    // Step 3: Create task for target agent (if not user)
+    let newTaskId = null;
+    if (!isHandoffToUser) {
+      const allTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .collect();
+      const maxPosition = allTasks.reduce((max, t) => Math.max(max, t.queuePosition), 0);
+      const queuePosition = maxPosition + 1;
+
+      newTaskId = await ctx.db.insert('chatroom_tasks', {
+        chatroomId: args.chatroomId,
+        createdBy: args.senderRole,
+        content: args.content,
+        status: 'pending', // Handoffs always start as pending
+        sourceMessageId: messageId,
+        createdAt: now,
+        updatedAt: now,
+        queuePosition,
+        assignedTo: args.targetRole,
+      });
+
+      // Link message to task
+      await ctx.db.patch('chatroom_messages', messageId, { taskId: newTaskId });
+    }
+
+    // Step 4: Promote next queued task (for the sender's queue, not target's)
+    let promotedTaskId = null;
+    const queuedTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
+      )
+      .collect();
+
+    if (queuedTasks.length > 0) {
+      queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+      const nextTask = queuedTasks[0];
+      await ctx.db.patch('chatroom_tasks', nextTask._id, {
+        status: 'pending',
+        updatedAt: now,
+      });
+      promotedTaskId = nextTask._id;
+      console.log(`[sendHandoff] Promoted queued task ${nextTask._id} to pending after handoff`);
+    }
+
+    // Step 5: Update sender's participant status to waiting
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.senderRole)
+      )
+      .unique();
+
+    if (participant) {
+      await ctx.db.patch('chatroom_participants', participant._id, { status: 'waiting' });
+    }
+
+    return {
+      messageId,
+      completedTaskIds,
+      newTaskId,
+      promotedTaskId,
+    };
+  },
+});
+
+/**
  * Mark a task as started and classify the user message.
  * Called by agents when they begin working on a user message.
  * Sets the classification which determines allowed handoff paths.

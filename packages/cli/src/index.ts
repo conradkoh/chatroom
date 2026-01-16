@@ -187,7 +187,9 @@ program
     const validClassifications = ['question', 'new_feature', 'follow_up'];
     if (!validClassifications.includes(options.classification)) {
       console.error(
-        `❌ Invalid classification: ${options.classification}. Must be one of: ${validClassifications.join(', ')}`
+        `❌ Invalid classification: ${
+          options.classification
+        }. Must be one of: ${validClassifications.join(', ')}`
       );
       process.exit(1);
     }
@@ -208,11 +210,19 @@ program
   .action(
     async (
       chatroomId: string,
-      options: { role: string; message: string; nextRole: string; wait?: boolean }
+      options: {
+        role: string;
+        message: string;
+        nextRole: string;
+        wait?: boolean;
+      }
     ) => {
       await maybeRequireAuth();
       const { taskComplete } = await import('./commands/task-complete.js');
-      await taskComplete(chatroomId, { ...options, noWait: options.wait === false });
+      await taskComplete(chatroomId, {
+        ...options,
+        noWait: options.wait === false,
+      });
     }
   );
 
