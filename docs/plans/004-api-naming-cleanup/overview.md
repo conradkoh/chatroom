@@ -45,15 +45,17 @@ Rename and reorganize the backend message API methods and corresponding CLI comm
 
 | New Name | Replaces | Purpose |
 |----------|----------|---------|
-| `postMessage` | `send` | Post a message to the chatroom (generic messaging) |
+| `sendMessage` | `send` | Send a message to the chatroom (for agents asking questions/providing updates) |
 | `completeAndHandoff` | `sendHandoff` | Complete current work and hand off to next agent |
 
 ### CLI Commands
 
 | New Command | Replaces | Backend Method | Purpose |
 |-------------|----------|----------------|---------|
-| `chatroom message` | `chatroom send` | `postMessage` | Send/post a message |
+| `chatroom send-message` | `chatroom send` | `sendMessage` | Send a message without handing off |
 | `chatroom handoff` | `chatroom task-complete` | `completeAndHandoff` | Complete task and hand off |
+
+**Note:** Users send messages via the WebUI, not the CLI. The `send-message` command is primarily for agents who need to ask clarifying questions or provide status updates without completing their task.
 
 ### Alternative Names Considered
 
@@ -64,15 +66,17 @@ Rename and reorganize the backend message API methods and corresponding CLI comm
 - `completeAndHandoff` ✅ - Clear about both actions
 
 **For `send`:**
-- `postMessage` ✅ - Standard terminology
+- `sendMessage` ✅ - Clear, matches CLI naming
+- `postMessage` - Standard but slightly formal
 - `broadcast` - Implies multiple recipients
 - `chat` - Too informal
 - `say` - Too informal
 
 **For CLI:**
-- `chatroom message` ✅ - Noun-based, clear
+- `chatroom send-message` ✅ - Verb-noun, clear action
+- `chatroom message` - Noun only, less clear as command
 - `chatroom msg` - Too abbreviated
-- `chatroom post` - Less clear than "message"
+- `chatroom post` - Less clear than "send-message"
 - `chatroom handoff` ✅ - Clear about the action
 - `chatroom delegate` - Less familiar terminology
 - `chatroom finish` - Doesn't convey the handoff aspect

@@ -4,7 +4,7 @@
 
 | Term | Definition |
 |------|------------|
-| **postMessage** | New method name for sending a message to a chatroom |
+| **sendMessage** | New method name for sending a message to a chatroom (without completing task) |
 | **completeAndHandoff** | New method name for completing current work and handing off to next agent |
 | **Deprecated** | Marked for removal in a future version; still works but shows warning |
 | **Handoff** | The act of passing control from one agent to another |
@@ -17,13 +17,13 @@
 
    - Given I run `chatroom --help`
    - When I see the command list
-   - Then `message` and `handoff` clearly indicate their purpose
+   - Then `send-message` and `handoff` clearly indicate their purpose
 
 2. **I want to be notified when using deprecated commands** so that I can update my scripts before they break.
 
    - Given I use `chatroom send` (deprecated)
    - When the command runs
-   - Then I see a deprecation notice suggesting `chatroom message`
+   - Then I see a deprecation notice suggesting `chatroom send-message`
 
 3. **I want old commands to still work** so that my existing scripts don't immediately break.
 
@@ -37,7 +37,7 @@
 
    - Given I type `api.messages.`
    - When I see autocomplete suggestions
-   - Then `postMessage` and `completeAndHandoff` clearly indicate their purpose
+   - Then `sendMessage` and `completeAndHandoff` clearly indicate their purpose
 
 2. **I want deprecated methods to remain available** so that my existing code continues to work.
 
@@ -59,9 +59,9 @@
 
 | Criteria | Verification |
 |----------|--------------|
-| `chatroom message` sends messages | Run command, verify message appears |
+| `chatroom send-message` sends messages | Run command, verify message appears |
 | `chatroom handoff` completes tasks and hands off | Run command, verify task completion and handoff |
-| `chatroom send` still works | Run command, verify same behavior as `message` |
+| `chatroom send` still works | Run command, verify same behavior as `send-message` |
 | `chatroom task-complete` still works | Run command, verify same behavior as `handoff` |
 | Deprecation notices in help | Run `chatroom --help`, see notices |
 
@@ -69,7 +69,7 @@
 
 | Criteria | Verification |
 |----------|--------------|
-| `postMessage` works | Call mutation, verify message created |
+| `sendMessage` works | Call mutation, verify message created |
 | `completeAndHandoff` works | Call mutation, verify task completed and handoff sent |
 | `send` still works | Call mutation, verify same behavior |
 | `sendHandoff` still works | Call mutation, verify same behavior |

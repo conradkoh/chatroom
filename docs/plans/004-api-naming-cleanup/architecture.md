@@ -16,7 +16,7 @@ Add new exported mutations that wrap existing functionality:
 
 ```typescript
 // New: clearer name for sending messages
-export const postMessage = mutation({
+export const sendMessage = mutation({
   // ... same args as send
   handler: async (ctx, args) => {
     // Calls same logic as send
@@ -32,7 +32,7 @@ export const completeAndHandoff = mutation({
 });
 
 // Existing methods become deprecated aliases
-/** @deprecated Use postMessage instead */
+/** @deprecated Use sendMessage instead */
 export const send = mutation({ ... });
 
 /** @deprecated Use completeAndHandoff instead */
@@ -44,16 +44,16 @@ export const sendHandoff = mutation({ ... });
 Add new commands as aliases:
 
 ```typescript
-// New command: chatroom message
+// New command: chatroom send-message
 program
-  .command('message <chatroomId>')
-  .description('Send a message to a chatroom')
+  .command('send-message <chatroomId>')
+  .description('Send a message to a chatroom (without completing task)')
   // ... same options as send
   
 // Old command: chatroom send (deprecated)
 program
   .command('send <chatroomId>')
-  .description('[DEPRECATED: Use "message" instead] Send a message to a chatroom')
+  .description('[DEPRECATED: Use "send-message" instead] Send a message to a chatroom')
   // ... same implementation
 
 // New command: chatroom handoff
@@ -94,7 +94,7 @@ Add to CLI API exports:
 export const api: {
   messages: {
     // New methods
-    postMessage: FunctionReference<'mutation', 'public'>;
+    sendMessage: FunctionReference<'mutation', 'public'>;
     completeAndHandoff: FunctionReference<'mutation', 'public'>;
     
     // Deprecated (kept for backward compatibility)

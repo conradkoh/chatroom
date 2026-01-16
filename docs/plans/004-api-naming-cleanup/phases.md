@@ -8,15 +8,15 @@ Add new mutations with clearer names in the backend.
 ### Changes
 
 1. **Extract shared logic into internal helper functions**
-   - `_postMessageHandler` - core logic for posting messages
+   - `_sendMessageHandler` - core logic for sending messages
    - `_completeAndHandoffHandler` - core logic for completing and handing off
 
 2. **Add new exported mutations**
-   - `postMessage` - calls `_postMessageHandler`
+   - `sendMessage` - calls `_sendMessageHandler`
    - `completeAndHandoff` - calls `_completeAndHandoffHandler`
 
 3. **Update existing mutations to use shared logic**
-   - `send` - calls `_postMessageHandler` (add deprecation JSDoc)
+   - `send` - calls `_sendMessageHandler` (add deprecation JSDoc)
    - `sendHandoff` - calls `_completeAndHandoffHandler` (add deprecation JSDoc)
 
 ### Success Criteria
@@ -34,7 +34,7 @@ Add new CLI commands with clearer names.
 ### Changes
 
 1. **Add new commands**
-   - `chatroom message` - new command for sending messages
+   - `chatroom send-message` - new command for sending messages
    - `chatroom handoff` - new command for completing and handing off
 
 2. **Update existing commands**

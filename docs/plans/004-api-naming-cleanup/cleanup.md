@@ -10,21 +10,21 @@ These items should be removed in a future major version after adequate deprecati
 
 | Method | Replacement | File | Status |
 |--------|-------------|------|--------|
-| `messages.send` | `messages.postMessage` | `services/backend/convex/messages.ts` | 🔄 To be deprecated |
+| `messages.send` | `messages.sendMessage` | `services/backend/convex/messages.ts` | 🔄 To be deprecated |
 | `messages.sendHandoff` | `messages.completeAndHandoff` | `services/backend/convex/messages.ts` | 🔄 To be deprecated |
 
 ### CLI Commands
 
 | Command | Replacement | File | Status |
 |---------|-------------|------|--------|
-| `chatroom send` | `chatroom message` | `packages/cli/src/index.ts` | 🔄 To be deprecated |
+| `chatroom send` | `chatroom send-message` | `packages/cli/src/index.ts` | 🔄 To be deprecated |
 | `chatroom task-complete` | `chatroom handoff` | `packages/cli/src/index.ts` | 🔄 To be deprecated |
 
 ### CLI Implementation Files
 
 | File | Action | Status |
 |------|--------|--------|
-| `packages/cli/src/commands/send.ts` | Rename to `message.ts` after deprecation period | 📋 Planned |
+| `packages/cli/src/commands/send.ts` | Rename to `send-message.ts` after deprecation period | 📋 Planned |
 | `packages/cli/src/commands/task-complete.ts` | Rename to `handoff.ts` after deprecation period | 📋 Planned |
 
 ---
@@ -79,7 +79,7 @@ chatroom send <chatroomId> --message="Hello"
 chatroom task-complete <chatroomId> --role=builder --message="Done" --next-role=reviewer
 
 # New (recommended)
-chatroom message <chatroomId> --message="Hello"
+chatroom send-message <chatroomId> --message="Hello"
 chatroom handoff <chatroomId> --role=builder --message="Done" --next-role=reviewer
 ```
 
@@ -91,7 +91,7 @@ await client.mutation(api.messages.send, { ... });
 await client.mutation(api.messages.sendHandoff, { ... });
 
 // New (recommended)
-await client.mutation(api.messages.postMessage, { ... });
+await client.mutation(api.messages.sendMessage, { ... });
 await client.mutation(api.messages.completeAndHandoff, { ... });
 ```
 
