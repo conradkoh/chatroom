@@ -249,6 +249,44 @@ export const cancelTask = mutation({
 });
 
 /**
+ * Complete a specific task by ID.
+ * Only allowed for backlog and queued tasks.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const completeTaskById = mutation({
+  args: {
+    sessionId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+
+    // Only allow completion of backlog and queued tasks
+    if (task.status !== 'backlog' && task.status !== 'queued') {
+      throw new Error(
+        `Cannot complete task with status: ${task.status}. Only backlog and queued tasks can be completed directly.`
+      );
+    }
+
+    const now = Date.now();
+
+    await ctx.db.patch('chatroom_tasks', args.taskId, {
+      status: 'completed',
+      completedAt: now,
+      updatedAt: now,
+    });
+
+    return { success: true, taskId: args.taskId };
+  },
+});
+
+/**
  * Update a task's content.
  * Only allowed for queued and backlog tasks.
  * Requires CLI session authentication and chatroom access.

@@ -255,4 +255,15 @@ backlogCommand
     await addBacklog(chatroomId, options);
   });
 
+backlogCommand
+  .command('complete <chatroomId>')
+  .description('Mark a backlog task as complete')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--task-id <taskId>', 'Task ID to complete')
+  .action(async (chatroomId: string, options: { role: string; taskId: string }) => {
+    await maybeRequireAuth();
+    const { completeBacklog } = await import('./commands/backlog.js');
+    await completeBacklog(chatroomId, options);
+  });
+
 program.parse();

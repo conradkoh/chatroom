@@ -222,6 +222,60 @@ export async function addBacklog(
   }
 }
 
+/**
+ * Complete a backlog task by ID
+ */
+export async function completeBacklog(
+  chatroomId: string,
+  options: {
+    role: string;
+    taskId: string;
+  }
+): Promise<void> {
+  const client = await getConvexClient();
+
+  // Get session ID for authentication
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    process.exit(1);
+  }
+
+  // Validate chatroom ID format
+  if (
+    !chatroomId ||
+    typeof chatroomId !== 'string' ||
+    chatroomId.length < 20 ||
+    chatroomId.length > 40
+  ) {
+    console.error(
+      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
+    );
+    process.exit(1);
+  }
+
+  // Validate task ID
+  if (!options.taskId || options.taskId.trim().length === 0) {
+    console.error(`❌ Task ID is required`);
+    process.exit(1);
+  }
+
+  try {
+    await client.mutation(api.tasks.completeTaskById, {
+      sessionId,
+      taskId: options.taskId as Id<'chatroom_tasks'>,
+    });
+
+    console.log('');
+    console.log('✅ Task completed');
+    console.log(`   ID: ${options.taskId}`);
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to complete task: ${(error as Error).message}`);
+    process.exit(1);
+  }
+}
+
 function getStatusEmoji(status: TaskStatus): string {
   switch (status) {
     case 'pending':

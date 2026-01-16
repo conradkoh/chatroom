@@ -124,6 +124,10 @@ export const api = {
     createTask: 'tasks:createTask' as unknown as FunctionReference<'mutation', 'public'>,
     startTask: 'tasks:startTask' as unknown as FunctionReference<'mutation', 'public'>,
     completeTask: 'tasks:completeTask' as unknown as FunctionReference<'mutation', 'public'>,
+    completeTaskById: 'tasks:completeTaskById' as unknown as FunctionReference<
+      'mutation',
+      'public'
+    >,
     cancelTask: 'tasks:cancelTask' as unknown as FunctionReference<'mutation', 'public'>,
     updateTask: 'tasks:updateTask' as unknown as FunctionReference<'mutation', 'public'>,
     moveToQueue: 'tasks:moveToQueue' as unknown as FunctionReference<'mutation', 'public'>,
