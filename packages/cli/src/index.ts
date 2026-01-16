@@ -96,16 +96,6 @@ program
 // ============================================================================
 
 program
-  .command('create')
-  .description('Create a new chatroom')
-  .option('-t, --team <teamId>', 'Team to use (default: from config)')
-  .action(async (options: { team?: string }) => {
-    await maybeRequireAuth();
-    const { createChatroom } = await import('./commands/create.js');
-    await createChatroom(options);
-  });
-
-program
   .command('list')
   .description('List chatroom history')
   .action(async () => {
@@ -183,7 +173,6 @@ program
     });
   });
 
-// New command name: handoff (preferred)
 program
   .command('handoff <chatroomId>')
   .description('Complete your task and hand off to the next role')
@@ -202,36 +191,8 @@ program
       }
     ) => {
       await maybeRequireAuth();
-      const { taskComplete } = await import('./commands/task-complete.js');
-      await taskComplete(chatroomId, {
-        ...options,
-        noWait: options.wait === false,
-      });
-    }
-  );
-
-// Deprecated: use handoff instead
-program
-  .command('task-complete <chatroomId>')
-  .description('[DEPRECATED: Use "handoff" instead] Complete a task and hand off to the next role')
-  .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--message <message>', 'Completion message/summary')
-  .requiredOption('--next-role <nextRole>', 'Role to hand off to')
-  .option('--no-wait', 'Exit instead of waiting for next message')
-  .action(
-    async (
-      chatroomId: string,
-      options: {
-        role: string;
-        message: string;
-        nextRole: string;
-        wait?: boolean;
-      }
-    ) => {
-      console.warn('⚠️  The "task-complete" command is deprecated. Use "handoff" instead.');
-      await maybeRequireAuth();
-      const { taskComplete } = await import('./commands/task-complete.js');
-      await taskComplete(chatroomId, {
+      const { handoff } = await import('./commands/handoff.js');
+      await handoff(chatroomId, {
         ...options,
         noWait: options.wait === false,
       });

@@ -57,13 +57,14 @@ Once all agents have joined (team shows as "ready"), type your task in the messa
 
 ### User Commands
 
-| Command                  | Description                                      |
-| ------------------------ | ------------------------------------------------ |
-| `chatroom init`          | Initialize configuration file                    |
-| `chatroom update`        | Update the CLI to the latest version             |
-| `chatroom create`        | Create chatroom from CLI (alternative to web UI) |
-| `chatroom list`          | List chatroom history                            |
-| `chatroom complete <id>` | Mark a chatroom as completed                     |
+| Command                  | Description                      |
+| ------------------------ | -------------------------------- |
+| `chatroom init`          | Initialize configuration file    |
+| `chatroom update`        | Update the CLI to the latest version |
+| `chatroom list`          | List chatroom history            |
+| `chatroom complete <id>` | Mark a chatroom as completed     |
+
+> **Note:** Chatrooms are created via the WebUI.
 
 ### Agent Commands
 

@@ -17,17 +17,14 @@ import type { Id } from '../api.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
-interface TaskCompleteOptions {
+interface HandoffOptions {
   role: string;
   message: string;
   nextRole: string;
   noWait?: boolean;
 }
 
-export async function taskComplete(
-  chatroomId: string,
-  options: TaskCompleteOptions
-): Promise<void> {
+export async function handoff(chatroomId: string, options: HandoffOptions): Promise<void> {
   const client = await getConvexClient();
   const { role, message, nextRole, noWait } = options;
 
@@ -81,7 +78,7 @@ export async function taskComplete(
       console.error(`   Reason: new_feature requests must be reviewed before returning to user`);
       console.error(`\n💡 Please hand off to: reviewer`);
       console.error(
-        `   Example: chatroom task-complete ${chatroomId} --role=${role} --message="<summary>" --next-role=reviewer`
+        `   Example: chatroom handoff ${chatroomId} --role=${role} --message="<summary>" --next-role=reviewer`
       );
       process.exit(1);
     }
