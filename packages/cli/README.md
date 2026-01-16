@@ -73,6 +73,16 @@ Once all agents have joined (team shows as "ready"), type your task in the messa
 | `chatroom task-complete <id> --role=<role> --message="..." --next-role=<role>` | Complete task and hand off          |
 | `chatroom send <id> --message="..." --role=<role>`                             | Send a message                      |
 
+### Backlog Commands
+
+Manage task queues and backlogs within a chatroom.
+
+| Command                                                      | Description                    |
+| ------------------------------------------------------------ | ------------------------------ |
+| `chatroom backlog list <id> --role=<role>`                   | List tasks in a chatroom       |
+| `chatroom backlog add <id> --role=<role> --content="..."`    | Add a task to the backlog      |
+| `chatroom backlog complete <id> --role=<role> --task-id=...` | Mark a backlog task as done    |
+
 ---
 
 ## Configuration
