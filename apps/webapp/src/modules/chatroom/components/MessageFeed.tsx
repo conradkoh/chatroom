@@ -215,30 +215,33 @@ export const MessageFeed = memo(function MessageFeed({
   }
 
   return (
-    <div
-      className="flex-1 overflow-y-auto p-4 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
-      ref={feedRef}
-      onScroll={handleScroll}
-    >
-      {/* Load More indicator at top - shows when more messages available */}
-      {status === 'CanLoadMore' && (
-        <div className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1">
-          <ChevronUp size={12} />
-          Scroll up to load older messages
-        </div>
-      )}
-      {status === 'LoadingMore' && (
-        <div className="w-full py-2 mb-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
-          <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
-          Loading...
-        </div>
-      )}
-      {displayMessages.map((message) => (
-        <MessageItem key={message._id} message={message} />
-      ))}
-      <WorkingIndicator participants={participants} />
-      {/* Message counter for debugging pagination - at bottom for visibility */}
-      <div className="text-[10px] text-chatroom-text-muted mt-2 text-right">
+    <div className="flex-1 flex flex-col min-h-0 relative">
+      {/* Scrollable message content */}
+      <div
+        className="flex-1 overflow-y-auto p-4 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
+        ref={feedRef}
+        onScroll={handleScroll}
+      >
+        {/* Load More indicator at top - shows when more messages available */}
+        {status === 'CanLoadMore' && (
+          <div className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1">
+            <ChevronUp size={12} />
+            Scroll up to load older messages
+          </div>
+        )}
+        {status === 'LoadingMore' && (
+          <div className="w-full py-2 mb-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
+            <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+            Loading...
+          </div>
+        )}
+        {displayMessages.map((message) => (
+          <MessageItem key={message._id} message={message} />
+        ))}
+        <WorkingIndicator participants={participants} />
+      </div>
+      {/* Sticky message counter - always visible at bottom */}
+      <div className="px-4 py-1 text-[10px] text-chatroom-text-muted text-right bg-chatroom-bg-primary border-t border-chatroom-border">
         {displayMessages.length} messages loaded
       </div>
     </div>
