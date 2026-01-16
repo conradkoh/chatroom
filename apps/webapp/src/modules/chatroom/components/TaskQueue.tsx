@@ -3,7 +3,17 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Plus, Pencil, Trash2, ArrowRight, X, Check, Play, ChevronRight } from 'lucide-react';
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  ArrowRight,
+  X,
+  Check,
+  Play,
+  ChevronRight,
+  StopCircle,
+} from 'lucide-react';
 import React, { useState, useCallback, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -112,6 +122,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const updateTask = useSessionMutation(tasksApi.tasks.updateTask);
   const cancelTask = useSessionMutation(tasksApi.tasks.cancelTask);
   const moveToQueue = useSessionMutation(tasksApi.tasks.moveToQueue);
+  const completeTaskById = useSessionMutation(tasksApi.tasks.completeTaskById);
 
   // Categorize tasks
   const categorizedTasks = useMemo(() => {
@@ -195,6 +206,20 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
       console.error('Failed to promote next task:', error);
     }
   }, [promoteNextTask, chatroomId]);
+
+  const handleForceComplete = useCallback(
+    async (taskId: string) => {
+      try {
+        await completeTaskById({
+          taskId: taskId as Id<'chatroom_tasks'>,
+          force: true,
+        });
+      } catch (error) {
+        console.error('Failed to force-complete task:', error);
+      }
+    },
+    [completeTaskById]
+  );
 
   const startEditing = useCallback((task: Task) => {
     setEditingTaskId(task._id);
@@ -298,7 +323,12 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
               Current
             </div>
             {categorizedTasks.current.map((task) => (
-              <TaskItem key={task._id} task={task} isProtected />
+              <TaskItem
+                key={task._id}
+                task={task}
+                isProtected
+                onForceComplete={() => handleForceComplete(task._id)}
+              />
             ))}
           </div>
         )}
@@ -447,6 +477,7 @@ interface TaskItemProps {
   onEditContentChange?: (content: string) => void;
   onDelete?: () => void;
   onMoveToQueue?: () => void;
+  onForceComplete?: () => void;
 }
 
 function TaskItem({
@@ -460,6 +491,7 @@ function TaskItem({
   onEditContentChange,
   onDelete,
   onMoveToQueue,
+  onForceComplete,
 }: TaskItemProps) {
   const badge = getStatusBadge(task.status);
 
@@ -522,7 +554,7 @@ function TaskItem({
         <Markdown remarkPlugins={[remarkGfm]}>{task.content}</Markdown>
       </div>
 
-      {/* Actions */}
+      {/* Actions for editable tasks */}
       {!isProtected && (
         <div className="flex items-center gap-1">
           {onStartEdit && (
@@ -552,6 +584,20 @@ function TaskItem({
               <ArrowRight size={12} />
             </button>
           )}
+        </div>
+      )}
+
+      {/* Force complete action for in_progress tasks */}
+      {onForceComplete && (task.status === 'in_progress' || task.status === 'pending') && (
+        <div className="flex items-center gap-1 mt-1">
+          <button
+            onClick={onForceComplete}
+            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-status-warning hover:bg-chatroom-status-warning/10 transition-colors"
+            title="Force complete this stuck task"
+          >
+            <StopCircle size={12} />
+            Force Complete
+          </button>
         </div>
       )}
     </div>
