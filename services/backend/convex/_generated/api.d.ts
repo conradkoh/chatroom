@@ -29,6 +29,7 @@ import type * as prompts_index from "../prompts/index.js";
 import type * as prompts_templates from "../prompts/templates.js";
 import type * as serviceDesk from "../serviceDesk.js";
 import type * as system_auth_google from "../system/auth/google.js";
+import type * as tasks from "../tasks.js";
 
 import type {
   ApiFromModules,
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   "prompts/templates": typeof prompts_templates;
   serviceDesk: typeof serviceDesk;
   "system/auth/google": typeof system_auth_google;
+  tasks: typeof tasks;
 }>;
 
 /**
