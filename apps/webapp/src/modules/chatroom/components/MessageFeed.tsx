@@ -75,7 +75,7 @@ const MessageItem = memo(function MessageItem({ message }: { message: Message })
   const classificationBadge = getClassificationBadge(message.classification);
 
   return (
-    <div className="px-4 py-3 bg-transparent border-b-2 border-chatroom-border transition-all duration-100 hover:bg-chatroom-accent-subtle hover:-mx-2 hover:px-6 last:border-b-0">
+    <div className="px-4 py-3 bg-transparent border-b-2 border-chatroom-border transition-all duration-100 hover:bg-chatroom-accent-subtle hover:-mx-2 hover:px-6 last:border-b-0 animate-in fade-in duration-150">
       {/* Message Header */}
       <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-chatroom-border">
         <div className="flex items-center flex-wrap gap-y-1">
@@ -125,7 +125,10 @@ export const MessageFeed = memo(function MessageFeed({
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+      feedRef.current.scrollTo({
+        top: feedRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
     }
   }, [messages]);
 

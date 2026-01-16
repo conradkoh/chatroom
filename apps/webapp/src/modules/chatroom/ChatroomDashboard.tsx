@@ -476,7 +476,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             {/* Sidebar Overlay for mobile - below app header */}
             {sidebarVisible && isSmallScreen && (
               <div
-                className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
+                className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden animate-in fade-in duration-150"
                 onClick={toggleSidebar}
               />
             )}
@@ -486,7 +486,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               className={`
                 ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40' : 'relative'}
                 w-80 flex flex-col bg-chatroom-bg-surface backdrop-blur-xl border-l-2 border-chatroom-border-strong
-                transition-transform duration-300 ease-in-out
+                transition-transform duration-150 ease-out
                 ${sidebarVisible ? 'translate-x-0' : 'translate-x-full'}
               `}
             >
