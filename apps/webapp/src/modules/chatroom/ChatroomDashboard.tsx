@@ -114,6 +114,34 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     setSidebarVisible(!isSmallScreen);
   }, [isSmallScreen]);
 
+  // Lock body scroll when sidebar overlay is visible on mobile
+  useEffect(() => {
+    if (sidebarVisible && isSmallScreen) {
+      // Store original styles
+      const originalOverflow = document.body.style.overflow;
+      const originalPosition = document.body.style.position;
+      const originalTop = document.body.style.top;
+      const originalWidth = document.body.style.width;
+      const scrollY = window.scrollY;
+
+      // Lock body scroll
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+
+      return () => {
+        // Restore original styles
+        document.body.style.overflow = originalOverflow;
+        document.body.style.position = originalPosition;
+        document.body.style.top = originalTop;
+        document.body.style.width = originalWidth;
+        // Restore scroll position
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [sidebarVisible, isSmallScreen]);
+
   const toggleSidebar = useCallback(() => {
     setSidebarVisible((prev) => !prev);
   }, []);
@@ -531,9 +559,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             {/* Sidebar - positioned below app header on mobile */}
             <div
               className={`
-                ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40' : 'relative'}
+                ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain' : 'relative'}
                 w-80 flex flex-col bg-chatroom-bg-surface backdrop-blur-xl border-l-2 border-chatroom-border-strong
-                transition-transform duration-300 ease-in-out
+                transition-transform duration-300 ease-in-out overflow-y-auto
                 ${sidebarVisible ? 'translate-x-0' : 'translate-x-full'}
               `}
             >
