@@ -476,7 +476,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             {/* Sidebar Overlay for mobile - below app header */}
             {sidebarVisible && isSmallScreen && (
               <div
-                className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden animate-in fade-in duration-150"
+                className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
                 onClick={toggleSidebar}
               />
             )}
