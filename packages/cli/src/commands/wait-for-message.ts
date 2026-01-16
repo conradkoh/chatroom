@@ -274,19 +274,6 @@ export async function waitForMessage(
           console.log(`  ${statusIcon} ${p.role}${youMarker} - ${p.status}${availableMarker}`);
         }
 
-        // Print next steps
-        console.log(`\n${'─'.repeat(50)}`);
-        console.log(`📝 NEXT STEPS`);
-        console.log(`${'─'.repeat(50)}`);
-        console.log(`When your task is complete, run:\n`);
-        console.log(`  chatroom task-complete ${chatroomId} \\`);
-        console.log(`    --role=${role} \\`);
-        console.log(`    --message="<summary of what you accomplished>" \\`);
-        console.log(`    --next-role=<target>\n`);
-
-        // Print reminder
-        printWaitReminder(chatroomId, role);
-
         // Get role prompt (includes allowed roles, classification, and workflow guidance)
         const rolePromptInfo = (await client.query(api.messages.getRolePrompt, {
           sessionId,
@@ -299,6 +286,39 @@ export async function waitForMessage(
           sessionId,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
         })) as ContextWindow;
+
+        // Determine if classification is needed
+        const needsClassification =
+          rolePromptInfo.currentClassification === null &&
+          message.senderRole.toLowerCase() === 'user';
+
+        // Print next steps
+        console.log(`\n${'─'.repeat(50)}`);
+        console.log(`📝 NEXT STEPS`);
+        console.log(`${'─'.repeat(50)}`);
+
+        // Show classification step if needed
+        if (needsClassification) {
+          console.log(`\n1️⃣ First, classify this user message:\n`);
+          console.log(`  chatroom task-started ${chatroomId} \\`);
+          console.log(`    --role=${role} \\`);
+          console.log(`    --classification=<question|new_feature|follow_up>\n`);
+          console.log(`   Options:`);
+          console.log(`     question    - User asking a question`);
+          console.log(`     new_feature - New feature request (requires review)`);
+          console.log(`     follow_up   - Follow-up to previous task\n`);
+          console.log(`2️⃣ When your task is complete, run:\n`);
+        } else {
+          console.log(`When your task is complete, run:\n`);
+        }
+
+        console.log(`  chatroom task-complete ${chatroomId} \\`);
+        console.log(`    --role=${role} \\`);
+        console.log(`    --message="<summary of what you accomplished>" \\`);
+        console.log(`    --next-role=<target>\n`);
+
+        // Print reminder
+        printWaitReminder(chatroomId, role);
 
         // Output role-specific prompt/guidance
         console.log(`${'─'.repeat(50)}`);
@@ -348,10 +368,9 @@ export async function waitForMessage(
             currentClassification: contextWindow.classification,
           },
           instructions: {
-            taskStartedCommand:
-              rolePromptInfo.currentClassification === null
-                ? `chatroom task-started ${chatroomId} --role=${role} --classification=<question|new_feature|follow_up>`
-                : null,
+            taskStartedCommand: needsClassification
+              ? `chatroom task-started ${chatroomId} --role=${role} --classification=<question|new_feature|follow_up>`
+              : null,
             taskCompleteCommand: `chatroom task-complete ${chatroomId} --role=${role} --message="<summary>" --next-role=<target>`,
             availableHandoffRoles: rolePromptInfo.availableHandoffRoles,
             terminationRole: 'user',
