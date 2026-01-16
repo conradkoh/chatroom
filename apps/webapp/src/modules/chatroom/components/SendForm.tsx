@@ -5,15 +5,8 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 
-interface TeamReadiness {
-  isReady: boolean;
-  expectedRoles: string[];
-  missingRoles: string[];
-}
-
 interface SendFormProps {
   chatroomId: string;
-  readiness: TeamReadiness | null | undefined;
 }
 
 /**
@@ -32,7 +25,7 @@ function useIsTouchDevice() {
   return isTouch;
 }
 
-export const SendForm = memo(function SendForm({ chatroomId, readiness }: SendFormProps) {
+export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -47,8 +40,6 @@ export const SendForm = memo(function SendForm({ chatroomId, readiness }: SendFo
 
   const sendMessage = useSessionMutation(chatroomApi.messages.send);
 
-  const isReady = readiness === null || readiness?.isReady;
-
   // Auto-resize textarea based on content
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -59,7 +50,7 @@ export const SendForm = memo(function SendForm({ chatroomId, readiness }: SendFo
   }, [message]);
 
   const handleSubmit = useCallback(async () => {
-    if (!message.trim() || sending || !isReady) return;
+    if (!message.trim() || sending) return;
 
     setSending(true);
     try {
@@ -75,7 +66,7 @@ export const SendForm = memo(function SendForm({ chatroomId, readiness }: SendFo
     } finally {
       setSending(false);
     }
-  }, [message, sending, isReady, sendMessage, chatroomId]);
+  }, [message, sending, sendMessage, chatroomId]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -118,16 +109,14 @@ export const SendForm = memo(function SendForm({ chatroomId, readiness }: SendFo
         value={message}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        placeholder={
-          isReady ? 'Type a message...' : `Waiting for team (${readiness?.missingRoles.join(', ')})`
-        }
+        placeholder="Type a message..."
         disabled={sending}
         rows={1}
         className="flex-1 bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm p-3 resize-none min-h-[44px] max-h-[200px] placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
       />
       <button
         type="submit"
-        disabled={!message.trim() || sending || !isReady}
+        disabled={!message.trim() || sending}
         className="bg-chatroom-accent text-chatroom-bg-primary border-0 px-6 py-3 font-bold text-xs uppercase tracking-widest cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {sending ? 'Sending...' : 'Send'}

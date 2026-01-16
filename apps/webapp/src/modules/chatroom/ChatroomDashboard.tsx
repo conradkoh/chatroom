@@ -545,7 +545,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             {/* Message Section */}
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
               <MessageFeed chatroomId={chatroomId} participants={participants || []} />
-              <SendForm chatroomId={chatroomId} readiness={readiness} />
+              <SendForm chatroomId={chatroomId} />
             </div>
 
             {/* Sidebar Overlay for mobile - below app header */}
