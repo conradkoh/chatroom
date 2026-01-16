@@ -353,7 +353,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="text-zinc-100 text-xs font-bold uppercase tracking-wide hidden sm:block max-w-[200px] truncate">
+                <span className="text-zinc-100 text-xs font-bold uppercase tracking-wide max-w-[120px] sm:max-w-[200px] truncate">
                   {displayName}
                 </span>
                 <button
