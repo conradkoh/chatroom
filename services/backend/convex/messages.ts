@@ -71,20 +71,12 @@ export const send = mutation({
     });
 
     // Auto-create task for user messages and handoff messages
-    const shouldCreateTask =
-      (normalizedSenderRole === 'user' && args.type === 'message') ||
-      (args.type === 'handoff' && targetRole && targetRole.toLowerCase() !== 'user');
+    const isUserMessage = normalizedSenderRole === 'user' && args.type === 'message';
+    const isHandoffToAgent =
+      args.type === 'handoff' && targetRole && targetRole.toLowerCase() !== 'user';
+    const shouldCreateTask = isUserMessage || isHandoffToAgent;
 
     if (shouldCreateTask) {
-      // Check if any task is currently pending or in_progress
-      const activeTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .filter((q) =>
-          q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
-        )
-        .first();
-
       // Determine next queue position
       const allTasks = await ctx.db
         .query('chatroom_tasks')
@@ -94,12 +86,29 @@ export const send = mutation({
       const queuePosition = maxPosition + 1;
 
       const now = Date.now();
-      const taskStatus = activeTasks ? 'queued' : 'pending';
+
+      // Determine task status:
+      // - Handoff messages to agents always start as 'pending' (targeted, not queued)
+      // - User messages check for existing pending/in_progress tasks
+      let taskStatus: 'pending' | 'queued';
+      if (isHandoffToAgent) {
+        // Handoffs are targeted to a specific agent and should start immediately
+        taskStatus = 'pending';
+      } else {
+        // User messages: check if any task is currently pending or in_progress
+        const activeTasks = await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+          .filter((q) =>
+            q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
+          )
+          .first();
+        taskStatus = activeTasks ? 'queued' : 'pending';
+      }
 
       // Determine the task creator and assignment
-      const isHandoff = args.type === 'handoff';
-      const createdBy = isHandoff ? args.senderRole : 'user';
-      const assignedTo = isHandoff ? targetRole : undefined;
+      const createdBy = isHandoffToAgent ? args.senderRole : 'user';
+      const assignedTo = isHandoffToAgent ? targetRole : undefined;
 
       // Create the task
       const taskId = await ctx.db.insert('chatroom_tasks', {
