@@ -97,9 +97,9 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
     return;
   }
 
-  // Auto-wait for next message unless --no-wait is specified
+  // Auto-wait for next task unless --no-wait is specified
   if (!noWait) {
     console.log(`\n⏳ Waiting for next assignment...`);
-    await waitForMessage(chatroomId, { role, silent: true });
+    await waitForTask(chatroomId, { role, silent: true });
   }
 }
