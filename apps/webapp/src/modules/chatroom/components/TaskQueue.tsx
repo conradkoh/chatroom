@@ -1,0 +1,400 @@
+'use client';
+
+import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { Plus, Pencil, Trash2, ArrowRight, X, Check } from 'lucide-react';
+import React, { useState, useCallback, useMemo } from 'react';
+
+type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
+
+interface Task {
+  _id: Id<'chatroom_tasks'>;
+  content: string;
+  status: TaskStatus;
+  createdAt: number;
+  queuePosition: number;
+  assignedTo?: string;
+}
+
+interface TaskCounts {
+  pending: number;
+  in_progress: number;
+  queued: number;
+  backlog: number;
+  completed: number;
+  cancelled: number;
+}
+
+interface TaskQueueProps {
+  chatroomId: string;
+}
+
+// Status badge colors
+const getStatusBadge = (status: TaskStatus) => {
+  switch (status) {
+    case 'pending':
+      return { emoji: '🟢', label: 'Pending', classes: 'bg-emerald-400/15 text-emerald-400' };
+    case 'in_progress':
+      return { emoji: '🔵', label: 'Working', classes: 'bg-blue-400/15 text-blue-400' };
+    case 'queued':
+      return { emoji: '🟡', label: 'Queued', classes: 'bg-amber-400/15 text-amber-400' };
+    case 'backlog':
+      return { emoji: '⚪', label: 'Backlog', classes: 'bg-zinc-500/15 text-zinc-400' };
+    default:
+      return { emoji: '⚫', label: status, classes: 'bg-zinc-500/15 text-zinc-400' };
+  }
+};
+
+export function TaskQueue({ chatroomId }: TaskQueueProps) {
+  const [isAddingTask, setIsAddingTask] = useState(false);
+  const [newTaskContent, setNewTaskContent] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editedContent, setEditedContent] = useState('');
+
+  // Type assertion workaround for Convex API
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tasksApi = api as any;
+
+  // Query tasks
+  const tasks = useSessionQuery(tasksApi.tasks.listTasks, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    statusFilter: 'active',
+    limit: 50,
+  }) as Task[] | undefined;
+
+  // Query task counts
+  const counts = useSessionQuery(tasksApi.tasks.getTaskCounts, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  }) as TaskCounts | undefined;
+
+  // Mutations
+  const createTask = useSessionMutation(tasksApi.tasks.createTask);
+  const updateTask = useSessionMutation(tasksApi.tasks.updateTask);
+  const cancelTask = useSessionMutation(tasksApi.tasks.cancelTask);
+  const moveToQueue = useSessionMutation(tasksApi.tasks.moveToQueue);
+
+  // Categorize tasks
+  const categorizedTasks = useMemo(() => {
+    if (!tasks) return { current: [], queued: [], backlog: [] };
+
+    return {
+      current: tasks.filter((t) => t.status === 'pending' || t.status === 'in_progress'),
+      queued: tasks.filter((t) => t.status === 'queued'),
+      backlog: tasks.filter((t) => t.status === 'backlog'),
+    };
+  }, [tasks]);
+
+  // Handlers
+  const handleAddTask = useCallback(async () => {
+    if (!newTaskContent.trim()) return;
+
+    try {
+      await createTask({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        content: newTaskContent.trim(),
+        createdBy: 'user',
+        isBacklog: true,
+      });
+      setNewTaskContent('');
+      setIsAddingTask(false);
+    } catch (error) {
+      console.error('Failed to create task:', error);
+    }
+  }, [createTask, chatroomId, newTaskContent]);
+
+  const handleEditTask = useCallback(
+    async (taskId: string) => {
+      if (!editedContent.trim()) return;
+
+      try {
+        await updateTask({
+          taskId: taskId as Id<'chatroom_tasks'>,
+          content: editedContent.trim(),
+        });
+        setEditingTaskId(null);
+        setEditedContent('');
+      } catch (error) {
+        console.error('Failed to update task:', error);
+      }
+    },
+    [updateTask, editedContent]
+  );
+
+  const handleCancelTask = useCallback(
+    async (taskId: string) => {
+      try {
+        await cancelTask({
+          taskId: taskId as Id<'chatroom_tasks'>,
+        });
+      } catch (error) {
+        console.error('Failed to cancel task:', error);
+      }
+    },
+    [cancelTask]
+  );
+
+  const handleMoveToQueue = useCallback(
+    async (taskId: string) => {
+      try {
+        await moveToQueue({
+          taskId: taskId as Id<'chatroom_tasks'>,
+        });
+      } catch (error) {
+        console.error('Failed to move task:', error);
+      }
+    },
+    [moveToQueue]
+  );
+
+  const startEditing = useCallback((task: Task) => {
+    setEditingTaskId(task._id);
+    setEditedContent(task.content);
+  }, []);
+
+  const cancelEditing = useCallback(() => {
+    setEditingTaskId(null);
+    setEditedContent('');
+  }, []);
+
+  // Calculate active total
+  const activeTotal = useMemo(() => {
+    if (!counts) return 0;
+    return counts.pending + counts.in_progress + counts.queued + counts.backlog;
+  }, [counts]);
+
+  if (tasks === undefined) {
+    return (
+      <div className="flex flex-col border-b-2 border-chatroom-border-strong">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
+          Task Queue
+        </div>
+        <div className="p-4 text-center text-chatroom-text-muted text-xs">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
+      {/* Header */}
+      <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border flex items-center justify-between">
+        <span>Task Queue</span>
+        <span className="text-chatroom-text-muted font-normal">{activeTotal}/100</span>
+      </div>
+
+      {/* Current Task */}
+      {categorizedTasks.current.length > 0 && (
+        <div className="border-b border-chatroom-border">
+          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary">
+            Current
+          </div>
+          {categorizedTasks.current.map((task) => (
+            <TaskItem key={task._id} task={task} isProtected />
+          ))}
+        </div>
+      )}
+
+      {/* Queued Tasks */}
+      {categorizedTasks.queued.length > 0 && (
+        <div className="border-b border-chatroom-border">
+          <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary">
+            Queued ({categorizedTasks.queued.length})
+          </div>
+          {categorizedTasks.queued.map((task) => (
+            <TaskItem
+              key={task._id}
+              task={task}
+              isEditing={editingTaskId === task._id}
+              editedContent={editedContent}
+              onStartEdit={() => startEditing(task)}
+              onSaveEdit={() => handleEditTask(task._id)}
+              onCancelEdit={cancelEditing}
+              onEditContentChange={setEditedContent}
+              onDelete={() => handleCancelTask(task._id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Backlog Tasks */}
+      <div className="border-b border-chatroom-border">
+        <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
+          <span>Backlog ({categorizedTasks.backlog.length})</span>
+          {!isAddingTask && (
+            <button
+              onClick={() => setIsAddingTask(true)}
+              className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
+              title="Add to backlog"
+            >
+              <Plus size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Add Task Form */}
+        {isAddingTask && (
+          <div className="p-3 border-b border-chatroom-border bg-chatroom-bg-hover">
+            <textarea
+              value={newTaskContent}
+              onChange={(e) => setNewTaskContent(e.target.value)}
+              placeholder="Enter task description..."
+              className="w-full bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary text-xs p-2 resize-none focus:outline-none focus:border-chatroom-accent"
+              rows={2}
+              autoFocus
+            />
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={handleAddTask}
+                disabled={!newTaskContent.trim()}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Check size={12} />
+                Add
+              </button>
+              <button
+                onClick={() => {
+                  setIsAddingTask(false);
+                  setNewTaskContent('');
+                }}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary"
+              >
+                <X size={12} />
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {categorizedTasks.backlog.map((task) => (
+          <TaskItem
+            key={task._id}
+            task={task}
+            isEditing={editingTaskId === task._id}
+            editedContent={editedContent}
+            onStartEdit={() => startEditing(task)}
+            onSaveEdit={() => handleEditTask(task._id)}
+            onCancelEdit={cancelEditing}
+            onEditContentChange={setEditedContent}
+            onDelete={() => handleCancelTask(task._id)}
+            onMoveToQueue={() => handleMoveToQueue(task._id)}
+          />
+        ))}
+
+        {categorizedTasks.backlog.length === 0 && !isAddingTask && (
+          <div className="p-3 text-center text-chatroom-text-muted text-xs">No backlog items</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface TaskItemProps {
+  task: Task;
+  isProtected?: boolean;
+  isEditing?: boolean;
+  editedContent?: string;
+  onStartEdit?: () => void;
+  onSaveEdit?: () => void;
+  onCancelEdit?: () => void;
+  onEditContentChange?: (content: string) => void;
+  onDelete?: () => void;
+  onMoveToQueue?: () => void;
+}
+
+function TaskItem({
+  task,
+  isProtected = false,
+  isEditing = false,
+  editedContent = '',
+  onStartEdit,
+  onSaveEdit,
+  onCancelEdit,
+  onEditContentChange,
+  onDelete,
+  onMoveToQueue,
+}: TaskItemProps) {
+  const badge = getStatusBadge(task.status);
+
+  if (isEditing) {
+    return (
+      <div className="p-3 border-b border-chatroom-border bg-chatroom-bg-hover">
+        <textarea
+          value={editedContent}
+          onChange={(e) => onEditContentChange?.(e.target.value)}
+          className="w-full bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary text-xs p-2 resize-none focus:outline-none focus:border-chatroom-accent"
+          rows={2}
+          autoFocus
+        />
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={onSaveEdit}
+            disabled={!editedContent.trim()}
+            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Check size={12} />
+            Save
+          </button>
+          <button
+            onClick={onCancelEdit}
+            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary"
+          >
+            <X size={12} />
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors">
+      {/* Status Badge */}
+      <div className="flex items-center gap-2 mb-1">
+        <span
+          className={`px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${badge.classes}`}
+        >
+          {badge.label}
+        </span>
+        {task.assignedTo && (
+          <span className="text-[9px] text-chatroom-text-muted">→ {task.assignedTo}</span>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="text-xs text-chatroom-text-primary line-clamp-2 mb-2">{task.content}</div>
+
+      {/* Actions */}
+      {!isProtected && (
+        <div className="flex items-center gap-1">
+          {onStartEdit && (
+            <button
+              onClick={onStartEdit}
+              className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+              title="Edit"
+            >
+              <Pencil size={12} />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="p-1 text-chatroom-text-muted hover:text-red-400 transition-colors"
+              title="Delete"
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
+          {onMoveToQueue && (
+            <button
+              onClick={onMoveToQueue}
+              className="p-1 text-chatroom-text-muted hover:text-chatroom-accent transition-colors"
+              title="Move to queue"
+            >
+              <ArrowRight size={12} />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
