@@ -71,13 +71,13 @@ export function CallbackSuccessCard({
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         <Card
-          className={`border-green-200 transition-all duration-500 ${isClosing ? 'opacity-50 scale-95' : ''}`}
+          className={`border-green-700/20 dark:border-green-400/20 transition-all duration-500 ${isClosing ? 'opacity-50 scale-95' : ''}`}
         >
           <CardHeader className="text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-              <CheckCircle className="h-8 w-8 text-green-600" />
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-700/10 dark:bg-green-400/10">
+              <CheckCircle className="h-8 w-8 text-green-700 dark:text-green-400" />
             </div>
-            <CardTitle className="text-green-600">
+            <CardTitle className="text-green-700 dark:text-green-400">
               {flowType === 'connect' ? 'Account Connected!' : 'Sign In Successful!'}
             </CardTitle>
             <CardDescription className="text-muted-foreground">{successMessage}</CardDescription>
