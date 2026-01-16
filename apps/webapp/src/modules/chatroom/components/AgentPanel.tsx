@@ -109,7 +109,7 @@ export function AgentPanel({
           return (
             <div key={role} className="border-b border-chatroom-border last:border-b-0">
               <div
-                className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isActive ? 'bg-blue-400/5' : ''} ${isExpanded ? 'bg-chatroom-bg-tertiary' : ''}`}
+                className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isActive ? 'bg-chatroom-status-info/5' : ''} ${isExpanded ? 'bg-chatroom-bg-tertiary' : ''}`}
                 role="button"
                 tabIndex={0}
                 aria-expanded={isExpanded}

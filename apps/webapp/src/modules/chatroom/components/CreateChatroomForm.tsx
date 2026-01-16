@@ -132,7 +132,7 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
 
         {/* Error */}
         {error && (
-          <div className="bg-red-400/10 text-chatroom-status-error p-3 text-xs">
+          <div className="bg-chatroom-status-error/10 text-chatroom-status-error p-3 text-xs">
             <span>{error}</span>
           </div>
         )}

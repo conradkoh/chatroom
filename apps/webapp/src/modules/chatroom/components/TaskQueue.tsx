@@ -36,19 +36,39 @@ interface TaskQueueProps {
   chatroomId: string;
 }
 
-// Status badge colors
+// Status badge colors - using chatroom status variables for theme support
 const getStatusBadge = (status: TaskStatus) => {
   switch (status) {
     case 'pending':
-      return { emoji: '🟢', label: 'Pending', classes: 'bg-emerald-400/15 text-emerald-400' };
+      return {
+        emoji: '🟢',
+        label: 'Pending',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
     case 'in_progress':
-      return { emoji: '🔵', label: 'Working', classes: 'bg-blue-400/15 text-blue-400' };
+      return {
+        emoji: '🔵',
+        label: 'Working',
+        classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
+      };
     case 'queued':
-      return { emoji: '🟡', label: 'Queued', classes: 'bg-amber-400/15 text-amber-400' };
+      return {
+        emoji: '🟡',
+        label: 'Queued',
+        classes: 'bg-chatroom-status-warning/15 text-chatroom-status-warning',
+      };
     case 'backlog':
-      return { emoji: '⚪', label: 'Backlog', classes: 'bg-zinc-500/15 text-zinc-400' };
+      return {
+        emoji: '⚪',
+        label: 'Backlog',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
     default:
-      return { emoji: '⚫', label: status, classes: 'bg-zinc-500/15 text-zinc-400' };
+      return {
+        emoji: '⚫',
+        label: status,
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
   }
 };
 
@@ -206,12 +226,14 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
 
       {/* Queue Health Warning - Show when promotion needed */}
       {queueHealth?.needsPromotion && (
-        <div className="p-3 border-b border-chatroom-border bg-amber-500/10">
+        <div className="p-3 border-b border-chatroom-border bg-chatroom-status-warning/10">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-amber-400">Queue has tasks but none active</span>
+            <span className="text-xs text-chatroom-status-warning">
+              Queue has tasks but none active
+            </span>
             <button
               onClick={handlePromoteNext}
-              className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-amber-500 text-black hover:bg-amber-400 transition-colors"
+              className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-status-warning text-chatroom-bg-primary hover:opacity-80 transition-colors"
               title="Promote next queued task to pending"
             >
               <Play size={10} />
@@ -417,7 +439,7 @@ function TaskItem({
           {onDelete && (
             <button
               onClick={onDelete}
-              className="p-1 text-chatroom-text-muted hover:text-red-400 transition-colors"
+              className="p-1 text-chatroom-text-muted hover:text-chatroom-status-error transition-colors"
               title="Delete"
             >
               <Trash2 size={12} />

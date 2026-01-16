@@ -30,7 +30,7 @@ export const WorkingIndicator = memo(function WorkingIndicator({
       {activeAgents.map((agent) => (
         <div
           key={agent._id || agent.role}
-          className="flex items-center gap-3 px-4 py-3 bg-blue-400/10 border border-blue-400/20"
+          className="flex items-center gap-3 px-4 py-3 bg-chatroom-status-info/10 border border-chatroom-status-info/20"
         >
           {/* Bouncing dots */}
           <div className="flex gap-1 items-center">

@@ -95,7 +95,7 @@ export const SetupChecklist = memo(function SetupChecklist({
               key={role}
               className={`bg-chatroom-bg-surface border-2 transition-all duration-100 ${
                 isJoined
-                  ? 'border-emerald-400/30 bg-emerald-400/5'
+                  ? 'border-chatroom-status-success/30 bg-chatroom-status-success/5'
                   : 'border-chatroom-border hover:border-chatroom-border-strong'
               }`}
             >
@@ -118,8 +118,8 @@ export const SetupChecklist = memo(function SetupChecklist({
                 <span
                   className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                     isJoined
-                      ? 'bg-emerald-400/15 text-chatroom-status-success'
-                      : 'bg-amber-400/15 text-chatroom-status-warning'
+                      ? 'bg-chatroom-status-success/15 text-chatroom-status-success'
+                      : 'bg-chatroom-status-warning/15 text-chatroom-status-warning'
                   }`}
                 >
                   {isJoined ? 'Ready' : 'Waiting'}

@@ -155,7 +155,7 @@ export const ReconnectModal = memo(function ReconnectModal({
                         {role}
                       </span>
                     </div>
-                    <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-red-400/15 text-chatroom-status-error">
+                    <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-chatroom-status-error/15 text-chatroom-status-error">
                       Disconnected
                     </span>
                   </div>

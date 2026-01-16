@@ -31,16 +31,16 @@ interface Message {
   classification?: 'question' | 'new_feature' | 'follow_up';
 }
 
-// Message type badge styling
+// Message type badge styling - using chatroom status variables for theme support
 const getMessageTypeBadge = (type: string) => {
   const base = 'inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 mr-2';
   switch (type) {
     case 'handoff':
-      return `${base} bg-purple-400/15 text-chatroom-status-purple`;
+      return `${base} bg-chatroom-status-purple/15 text-chatroom-status-purple`;
     case 'interrupt':
-      return `${base} bg-red-400/15 text-chatroom-status-error`;
+      return `${base} bg-chatroom-status-error/15 text-chatroom-status-error`;
     case 'join':
-      return `${base} bg-emerald-400/15 text-chatroom-status-success`;
+      return `${base} bg-chatroom-status-success/15 text-chatroom-status-success`;
     default:
       return base;
   }
@@ -54,17 +54,26 @@ const getSenderClasses = (role: string) => {
   return `${base} text-chatroom-status-info`;
 };
 
-// Classification badge styling
+// Classification badge styling - using chatroom status variables for theme support
 const getClassificationBadge = (classification: Message['classification']) => {
   if (!classification) return null;
   const base = 'inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 ml-2';
   switch (classification) {
     case 'question':
-      return { className: `${base} bg-cyan-400/15 text-cyan-400`, label: 'question' };
+      return {
+        className: `${base} bg-chatroom-status-info/15 text-chatroom-status-info`,
+        label: 'question',
+      };
     case 'new_feature':
-      return { className: `${base} bg-amber-400/15 text-amber-400`, label: 'new feature' };
+      return {
+        className: `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`,
+        label: 'new feature',
+      };
     case 'follow_up':
-      return { className: `${base} bg-zinc-400/15 text-zinc-400`, label: 'follow-up' };
+      return {
+        className: `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
+        label: 'follow-up',
+      };
     default:
       return null;
   }

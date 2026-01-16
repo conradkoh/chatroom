@@ -49,17 +49,18 @@ interface Message {
 }
 
 // Status badge colors
+// Status badge colors - using chatroom status variables for theme support
 const getStatusBadgeClasses = (status: string) => {
   const base = 'px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide';
   switch (status) {
     case 'active':
-      return `${base} bg-emerald-400/15 text-chatroom-status-success`;
+      return `${base} bg-chatroom-status-success/15 text-chatroom-status-success`;
     case 'completed':
-      return `${base} bg-blue-400/15 text-chatroom-status-info`;
+      return `${base} bg-chatroom-status-info/15 text-chatroom-status-info`;
     case 'loading':
-      return `${base} bg-zinc-500/15 text-chatroom-text-muted`;
+      return `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`;
     default:
-      return `${base} bg-zinc-500/15 text-chatroom-text-muted`;
+      return `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`;
   }
 };
 
