@@ -173,6 +173,10 @@ export const MessageFeed = memo(function MessageFeed({
       className="flex-1 overflow-y-auto p-4 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
       ref={feedRef}
     >
+      {/* Message counter for debugging pagination */}
+      <div className="text-[10px] text-chatroom-text-muted mb-2 text-right">
+        {displayMessages.length} messages loaded
+      </div>
       {displayMessages.map((message) => (
         <MessageItem key={message._id} message={message} />
       ))}
