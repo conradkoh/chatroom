@@ -9,6 +9,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { TaskDetailModal } from './TaskDetailModal';
+import { TaskQueueModal } from './TaskQueueModal';
 
 type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
 
@@ -82,6 +83,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
 
   // Type assertion workaround for Convex API
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -383,13 +385,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
           {/* View More Button */}
           {categorizedTasks.backlog.length > 3 && (
             <button
-              onClick={() => {
-                // TODO: Open full task queue modal
-                // For now, open the first hidden task
-                if (categorizedTasks.backlog[3]) {
-                  handleOpenTaskDetail(categorizedTasks.backlog[3]);
-                }
-              }}
+              onClick={() => setIsQueueModalOpen(true)}
               className="w-full p-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors text-center"
             >
               View More ({categorizedTasks.backlog.length - 3} more items)
@@ -411,6 +407,18 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         onClose={handleCloseTaskDetail}
         onEdit={handleModalEdit}
         onDelete={handleModalDelete}
+        onMoveToQueue={handleModalMoveToQueue}
+      />
+
+      {/* Full Task Queue Modal */}
+      <TaskQueueModal
+        isOpen={isQueueModalOpen}
+        tasks={tasks || []}
+        onClose={() => setIsQueueModalOpen(false)}
+        onTaskClick={(task) => {
+          setIsQueueModalOpen(false);
+          handleOpenTaskDetail(task);
+        }}
         onMoveToQueue={handleModalMoveToQueue}
       />
     </div>
