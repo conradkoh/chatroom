@@ -302,6 +302,47 @@ export default defineSchema({
     taskOriginMessageId: v.optional(v.id('chatroom_messages')),
   }).index('by_chatroom', ['chatroomId']),
 
+  /**
+   * Tasks in chatrooms for queue and backlog management.
+   * Tracks task lifecycle from creation through completion.
+   * Only one task can be pending or in_progress at a time per chatroom.
+   */
+  chatroom_tasks: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    createdBy: v.string(), // 'user' or role name that created the task
+
+    // Content (plain text only)
+    content: v.string(),
+
+    // Status tracking
+    status: v.union(
+      v.literal('pending'), // Ready for agent, awaiting task-started
+      v.literal('in_progress'), // Agent actively working on it
+      v.literal('queued'), // Waiting in line (hidden from agent)
+      v.literal('backlog'), // User-created future task (not auto-picked)
+      v.literal('completed'), // Finished
+      v.literal('cancelled') // Cancelled by user
+    ),
+
+    // Assignment
+    assignedTo: v.optional(v.string()), // Role assigned to work on this
+
+    // Link to source message (for auto-created tasks from user messages)
+    sourceMessageId: v.optional(v.id('chatroom_messages')),
+
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    startedAt: v.optional(v.number()), // When task-started was called
+    completedAt: v.optional(v.number()), // When task-complete was called
+
+    // Queue ordering (lower = earlier in queue)
+    queuePosition: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_status', ['chatroomId', 'status'])
+    .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
+
   // ============================================================================
   // CLI AUTHENTICATION TABLES
   // Device authorization flow for CLI tools
