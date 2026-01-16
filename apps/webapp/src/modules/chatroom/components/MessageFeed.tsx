@@ -125,10 +125,7 @@ export const MessageFeed = memo(function MessageFeed({
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (feedRef.current) {
-      feedRef.current.scrollTo({
-        top: feedRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
     }
   }, [messages]);
 
