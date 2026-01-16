@@ -1,0 +1,262 @@
+'use client';
+
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { ArrowRight, Check, Pencil, Trash2, X } from 'lucide-react';
+import React, { useState, useCallback, useEffect, memo } from 'react';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
+
+interface Task {
+  _id: Id<'chatroom_tasks'>;
+  content: string;
+  status: TaskStatus;
+  createdAt: number;
+  queuePosition: number;
+  assignedTo?: string;
+}
+
+interface TaskDetailModalProps {
+  isOpen: boolean;
+  task: Task | null;
+  onClose: () => void;
+  onEdit: (taskId: string, content: string) => Promise<void>;
+  onDelete: (taskId: string) => Promise<void>;
+  onMoveToQueue: (taskId: string) => Promise<void>;
+  isProtected?: boolean;
+}
+
+// Status badge colors
+const getStatusBadge = (status: TaskStatus) => {
+  switch (status) {
+    case 'pending':
+      return {
+        emoji: '🟢',
+        label: 'Pending',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
+    case 'in_progress':
+      return {
+        emoji: '🔵',
+        label: 'Working',
+        classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
+      };
+    case 'queued':
+      return {
+        emoji: '🟡',
+        label: 'Queued',
+        classes: 'bg-chatroom-status-warning/15 text-chatroom-status-warning',
+      };
+    case 'backlog':
+      return {
+        emoji: '⚪',
+        label: 'Backlog',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
+    default:
+      return {
+        emoji: '⚫',
+        label: status,
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
+  }
+};
+
+export const TaskDetailModal = memo(function TaskDetailModal({
+  isOpen,
+  task,
+  onClose,
+  onEdit,
+  onDelete,
+  onMoveToQueue,
+  isProtected = false,
+}: TaskDetailModalProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Reset state when modal opens/closes or task changes
+  useEffect(() => {
+    if (isOpen && task) {
+      setEditedContent(task.content);
+      setIsEditing(false);
+    }
+  }, [isOpen, task]);
+
+  // Handle Escape key
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isEditing) {
+          setIsEditing(false);
+        } else {
+          onClose();
+        }
+      }
+    },
+    [onClose, isEditing]
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, handleKeyDown]);
+
+  // Handle backdrop click
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    },
+    [onClose]
+  );
+
+  const handleSave = useCallback(async () => {
+    if (!task || !editedContent.trim()) return;
+    setIsLoading(true);
+    try {
+      await onEdit(task._id, editedContent.trim());
+      setIsEditing(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [task, editedContent, onEdit]);
+
+  const handleDelete = useCallback(async () => {
+    if (!task) return;
+    setIsLoading(true);
+    try {
+      await onDelete(task._id);
+      onClose();
+    } finally {
+      setIsLoading(false);
+    }
+  }, [task, onDelete, onClose]);
+
+  const handleMoveToQueue = useCallback(async () => {
+    if (!task) return;
+    setIsLoading(true);
+    try {
+      await onMoveToQueue(task._id);
+      onClose();
+    } finally {
+      setIsLoading(false);
+    }
+  }, [task, onMoveToQueue, onClose]);
+
+  if (!isOpen || !task) {
+    return null;
+  }
+
+  const badge = getStatusBadge(task.status);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
+        onClick={handleBackdropClick}
+      />
+
+      {/* Modal */}
+      <div className="fixed inset-x-2 top-16 bottom-2 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[95%] md:max-w-lg md:max-h-[85vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong z-50 flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <span
+              className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${badge.classes}`}
+            >
+              {badge.label}
+            </span>
+            {task.assignedTo && (
+              <span className="text-[10px] text-chatroom-text-muted">→ {task.assignedTo}</span>
+            )}
+          </div>
+          <button
+            className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 min-h-0">
+          {isEditing ? (
+            <textarea
+              value={editedContent}
+              onChange={(e) => setEditedContent(e.target.value)}
+              className="w-full h-full min-h-[200px] bg-chatroom-bg-tertiary border-2 border-chatroom-border text-chatroom-text-primary text-sm p-3 resize-none focus:outline-none focus:border-chatroom-accent"
+              autoFocus
+            />
+          ) : (
+            <div className="text-sm text-chatroom-text-primary prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent">
+              <Markdown remarkPlugins={[remarkGfm]}>{task.content}</Markdown>
+            </div>
+          )}
+        </div>
+
+        {/* Footer Actions */}
+        {!isProtected && (
+          <div className="p-4 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex items-center gap-2 flex-shrink-0">
+            {isEditing ? (
+              <>
+                <button
+                  onClick={handleSave}
+                  disabled={isLoading || !editedContent.trim()}
+                  className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Check size={12} />
+                  Save
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  disabled={isLoading}
+                  className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+                >
+                  <X size={12} />
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-colors"
+                >
+                  <Pencil size={12} />
+                  Edit
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isLoading}
+                  className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-status-error/10 hover:border-chatroom-status-error/30 hover:text-chatroom-status-error transition-colors"
+                >
+                  <Trash2 size={12} />
+                  Delete
+                </button>
+                {task.status === 'backlog' && (
+                  <button
+                    onClick={handleMoveToQueue}
+                    disabled={isLoading}
+                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary transition-colors ml-auto"
+                  >
+                    <ArrowRight size={12} />
+                    Move to Queue
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+});

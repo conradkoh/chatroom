@@ -3,10 +3,12 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Plus, Pencil, Trash2, ArrowRight, X, Check, Play } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowRight, X, Check, Play, ChevronRight } from 'lucide-react';
 import React, { useState, useCallback, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+import { TaskDetailModal } from './TaskDetailModal';
 
 type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
 
@@ -79,6 +81,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const [newTaskContent, setNewTaskContent] = useState('');
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState('');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   // Type assertion workaround for Convex API
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -200,6 +203,43 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     setEditingTaskId(null);
     setEditedContent('');
   }, []);
+
+  // Modal handlers
+  const handleOpenTaskDetail = useCallback((task: Task) => {
+    setSelectedTask(task);
+  }, []);
+
+  const handleCloseTaskDetail = useCallback(() => {
+    setSelectedTask(null);
+  }, []);
+
+  const handleModalEdit = useCallback(
+    async (taskId: string, content: string) => {
+      await updateTask({
+        taskId: taskId as Id<'chatroom_tasks'>,
+        content,
+      });
+    },
+    [updateTask]
+  );
+
+  const handleModalDelete = useCallback(
+    async (taskId: string) => {
+      await cancelTask({
+        taskId: taskId as Id<'chatroom_tasks'>,
+      });
+    },
+    [cancelTask]
+  );
+
+  const handleModalMoveToQueue = useCallback(
+    async (taskId: string) => {
+      await moveToQueue({
+        taskId: taskId as Id<'chatroom_tasks'>,
+      });
+    },
+    [moveToQueue]
+  );
 
   // Calculate active total
   const activeTotal = useMemo(() => {
@@ -330,20 +370,31 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
             </div>
           )}
 
-          {categorizedTasks.backlog.map((task) => (
-            <TaskItem
+          {/* Compact Backlog Items - Show first 3 */}
+          {categorizedTasks.backlog.slice(0, 3).map((task) => (
+            <CompactBacklogItem
               key={task._id}
               task={task}
-              isEditing={editingTaskId === task._id}
-              editedContent={editedContent}
-              onStartEdit={() => startEditing(task)}
-              onSaveEdit={() => handleEditTask(task._id)}
-              onCancelEdit={cancelEditing}
-              onEditContentChange={setEditedContent}
-              onDelete={() => handleCancelTask(task._id)}
+              onClick={() => handleOpenTaskDetail(task)}
               onMoveToQueue={() => handleMoveToQueue(task._id)}
             />
           ))}
+
+          {/* View More Button */}
+          {categorizedTasks.backlog.length > 3 && (
+            <button
+              onClick={() => {
+                // TODO: Open full task queue modal
+                // For now, open the first hidden task
+                if (categorizedTasks.backlog[3]) {
+                  handleOpenTaskDetail(categorizedTasks.backlog[3]);
+                }
+              }}
+              className="w-full p-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors text-center"
+            >
+              View More ({categorizedTasks.backlog.length - 3} more items)
+            </button>
+          )}
 
           {categorizedTasks.backlog.length === 0 && !isAddingTask && (
             <div className="p-3 text-center text-chatroom-text-muted text-xs">No backlog items</div>
@@ -352,6 +403,16 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         {/* End of Backlog Tasks */}
       </div>
       {/* End of Scrollable Task List Container */}
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        isOpen={selectedTask !== null}
+        task={selectedTask}
+        onClose={handleCloseTaskDetail}
+        onEdit={handleModalEdit}
+        onDelete={handleModalDelete}
+        onMoveToQueue={handleModalMoveToQueue}
+      />
     </div>
   );
 }
@@ -465,6 +526,52 @@ function TaskItem({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Compact Backlog Item - for sidebar display
+interface CompactBacklogItemProps {
+  task: Task;
+  onClick: () => void;
+  onMoveToQueue: () => void;
+}
+
+function CompactBacklogItem({ task, onClick, onMoveToQueue }: CompactBacklogItemProps) {
+  const handleMoveClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onMoveToQueue();
+    },
+    [onMoveToQueue]
+  );
+
+  return (
+    <div
+      className="flex items-center gap-2 p-2 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      {/* Content - 2 lines max */}
+      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
+        {task.content}
+      </div>
+
+      {/* Move to Queue Arrow */}
+      <button
+        onClick={handleMoveClick}
+        className="flex-shrink-0 p-1 text-chatroom-text-muted hover:text-chatroom-accent opacity-0 group-hover:opacity-100 transition-all"
+        title="Move to queue"
+      >
+        <ChevronRight size={14} />
+      </button>
     </div>
   );
 }
