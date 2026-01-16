@@ -2,7 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { ArrowRight, Search, X } from 'lucide-react';
-import React, { useState, useCallback, useEffect, useMemo, memo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 
 type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
 
@@ -54,7 +54,7 @@ const getStatusBadge = (status: TaskStatus) => {
   }
 };
 
-export const TaskQueueModal = memo(function TaskQueueModal({
+export function TaskQueueModal({
   isOpen,
   tasks,
   onClose,
@@ -223,7 +223,7 @@ export const TaskQueueModal = memo(function TaskQueueModal({
       </div>
     </>
   );
-});
+}
 
 // Task Group Component
 interface TaskGroupProps {

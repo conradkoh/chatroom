@@ -2,7 +2,7 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { ArrowRight, Check, Pencil, Trash2, X } from 'lucide-react';
-import React, { useState, useCallback, useEffect, memo } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -63,7 +63,7 @@ const getStatusBadge = (status: TaskStatus) => {
   }
 };
 
-export const TaskDetailModal = memo(function TaskDetailModal({
+export function TaskDetailModal({
   isOpen,
   task,
   onClose,
@@ -268,4 +268,4 @@ export const TaskDetailModal = memo(function TaskDetailModal({
       </div>
     </>
   );
-});
+}
