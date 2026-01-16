@@ -222,14 +222,23 @@ export async function addBacklog(
   }
 }
 
+interface CompleteResult {
+  success: boolean;
+  taskId: string;
+  promoted: string | null;
+  wasForced: boolean;
+}
+
 /**
- * Complete a backlog task by ID
+ * Complete a backlog task by ID.
+ * Use --force to complete stuck in_progress or pending tasks.
  */
 export async function completeBacklog(
   chatroomId: string,
   options: {
     role: string;
     taskId: string;
+    force?: boolean;
   }
 ): Promise<void> {
   const client = await getConvexClient();
@@ -261,14 +270,25 @@ export async function completeBacklog(
   }
 
   try {
-    await client.mutation(api.tasks.completeTaskById, {
+    const result = (await client.mutation(api.tasks.completeTaskById, {
       sessionId,
       taskId: options.taskId as Id<'chatroom_tasks'>,
-    });
+      force: options.force,
+    })) as CompleteResult;
 
     console.log('');
-    console.log('✅ Task completed');
+    if (result.wasForced) {
+      console.log('⚠️  Task force-completed (was in_progress or pending)');
+    } else {
+      console.log('✅ Task completed');
+    }
     console.log(`   ID: ${options.taskId}`);
+
+    if (result.promoted) {
+      console.log(`   📤 Next task promoted: ${result.promoted}`);
+      console.log('');
+      console.log('💡 The next queued task is now pending and ready for processing.');
+    }
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to complete task: ${(error as Error).message}`);

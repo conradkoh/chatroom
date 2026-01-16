@@ -257,13 +257,16 @@ backlogCommand
 
 backlogCommand
   .command('complete <chatroomId>')
-  .description('Mark a backlog task as complete')
+  .description('Mark a task as complete. Use --force for stuck in_progress/pending tasks.')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--task-id <taskId>', 'Task ID to complete')
-  .action(async (chatroomId: string, options: { role: string; taskId: string }) => {
-    await maybeRequireAuth();
-    const { completeBacklog } = await import('./commands/backlog.js');
-    await completeBacklog(chatroomId, options);
-  });
+  .option('-f, --force', 'Force complete a stuck in_progress or pending task')
+  .action(
+    async (chatroomId: string, options: { role: string; taskId: string; force?: boolean }) => {
+      await maybeRequireAuth();
+      const { completeBacklog } = await import('./commands/backlog.js');
+      await completeBacklog(chatroomId, options);
+    }
+  );
 
 program.parse();

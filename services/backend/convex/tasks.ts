@@ -250,13 +250,15 @@ export const cancelTask = mutation({
 
 /**
  * Complete a specific task by ID.
- * Only allowed for backlog and queued tasks.
+ * Allowed for backlog, queued, pending, and in_progress tasks.
+ * For pending/in_progress tasks, use `force: true` to complete and auto-promote the next queued task.
  * Requires CLI session authentication and chatroom access.
  */
 export const completeTaskById = mutation({
   args: {
     sessionId: v.string(),
     taskId: v.id('chatroom_tasks'),
+    force: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const task = await ctx.db.get('chatroom_tasks', args.taskId);
@@ -267,14 +269,66 @@ export const completeTaskById = mutation({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Only allow completion of backlog and queued tasks
-    if (task.status !== 'backlog' && task.status !== 'queued') {
-      throw new Error(
-        `Cannot complete task with status: ${task.status}. Only backlog and queued tasks can be completed directly.`
+    const now = Date.now();
+
+    // For pending/in_progress tasks, require force flag
+    if (task.status === 'pending' || task.status === 'in_progress') {
+      if (!args.force) {
+        throw new Error(
+          `Task is ${task.status}. Use --force to complete an active task. ` +
+            `This will mark it as completed and promote the next queued task.`
+        );
+      }
+
+      // Complete the task
+      await ctx.db.patch('chatroom_tasks', args.taskId, {
+        status: 'completed',
+        completedAt: now,
+        updatedAt: now,
+      });
+
+      // Log force completion
+      console.log(
+        `[Force Complete] Task ${args.taskId} force-completed from ${task.status}. ` +
+          `Content: "${task.content.substring(0, 50)}${task.content.length > 50 ? '...' : ''}"`
       );
+
+      // Auto-promote the next queued task
+      const queuedTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', task.chatroomId).eq('status', 'queued')
+        )
+        .collect();
+
+      let promoted = null;
+      if (queuedTasks.length > 0) {
+        // Sort by queuePosition to get oldest
+        queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+        const nextTask = queuedTasks[0];
+
+        await ctx.db.patch('chatroom_tasks', nextTask._id, {
+          status: 'pending',
+          updatedAt: now,
+        });
+
+        console.log(
+          `[Queue Promotion] Auto-promoted task ${nextTask._id} after force-completing ${args.taskId}. ` +
+            `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
+        );
+
+        promoted = nextTask._id;
+      }
+
+      return { success: true, taskId: args.taskId, promoted, wasForced: true };
     }
 
-    const now = Date.now();
+    // For backlog and queued tasks, complete normally (no promotion needed)
+    if (task.status !== 'backlog' && task.status !== 'queued') {
+      throw new Error(
+        `Cannot complete task with status: ${task.status}. Only backlog, queued, pending, and in_progress tasks can be completed.`
+      );
+    }
 
     await ctx.db.patch('chatroom_tasks', args.taskId, {
       status: 'completed',
@@ -282,7 +336,7 @@ export const completeTaskById = mutation({
       updatedAt: now,
     });
 
-    return { success: true, taskId: args.taskId };
+    return { success: true, taskId: args.taskId, promoted: null, wasForced: false };
   },
 });
 
