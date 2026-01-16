@@ -3,17 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  ArrowRight,
-  X,
-  Check,
-  Play,
-  ChevronRight,
-  StopCircle,
-} from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowRight, X, Check, Play, ChevronRight } from 'lucide-react';
 import React, { useState, useCallback, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -207,20 +197,6 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     }
   }, [promoteNextTask, chatroomId]);
 
-  const handleForceComplete = useCallback(
-    async (taskId: string) => {
-      try {
-        await completeTaskById({
-          taskId: taskId as Id<'chatroom_tasks'>,
-          force: true,
-        });
-      } catch (error) {
-        console.error('Failed to force-complete task:', error);
-      }
-    },
-    [completeTaskById]
-  );
-
   const startEditing = useCallback((task: Task) => {
     setEditingTaskId(task._id);
     setEditedContent(task.content);
@@ -268,6 +244,16 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
       });
     },
     [moveToQueue]
+  );
+
+  const handleModalForceComplete = useCallback(
+    async (taskId: string) => {
+      await completeTaskById({
+        taskId: taskId as Id<'chatroom_tasks'>,
+        force: true,
+      });
+    },
+    [completeTaskById]
   );
 
   // Calculate active total
@@ -327,7 +313,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
                 key={task._id}
                 task={task}
                 isProtected
-                onForceComplete={() => handleForceComplete(task._id)}
+                onClick={() => handleOpenTaskDetail(task)}
               />
             ))}
           </div>
@@ -449,6 +435,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         onEdit={handleModalEdit}
         onDelete={handleModalDelete}
         onMoveToQueue={handleModalMoveToQueue}
+        onForceComplete={handleModalForceComplete}
       />
 
       {/* Full Task Queue Modal */}
@@ -477,7 +464,7 @@ interface TaskItemProps {
   onEditContentChange?: (content: string) => void;
   onDelete?: () => void;
   onMoveToQueue?: () => void;
-  onForceComplete?: () => void;
+  onClick?: () => void;
 }
 
 function TaskItem({
@@ -491,7 +478,7 @@ function TaskItem({
   onEditContentChange,
   onDelete,
   onMoveToQueue,
-  onForceComplete,
+  onClick,
 }: TaskItemProps) {
   const badge = getStatusBadge(task.status);
 
@@ -535,8 +522,25 @@ function TaskItem({
     );
   }
 
+  const isClickable = !!onClick;
+
   return (
-    <div className="p-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors">
+    <div
+      className={`p-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors ${isClickable ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onKeyDown={
+        isClickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
+    >
       {/* Status Badge */}
       <div className="flex items-center gap-2 mb-1">
         <span
@@ -559,7 +563,10 @@ function TaskItem({
         <div className="flex items-center gap-1">
           {onStartEdit && (
             <button
-              onClick={onStartEdit}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartEdit();
+              }}
               className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
               title="Edit"
             >
@@ -568,7 +575,10 @@ function TaskItem({
           )}
           {onDelete && (
             <button
-              onClick={onDelete}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
               className="p-1 text-chatroom-text-muted hover:text-chatroom-status-error transition-colors"
               title="Delete"
             >
@@ -577,27 +587,16 @@ function TaskItem({
           )}
           {onMoveToQueue && (
             <button
-              onClick={onMoveToQueue}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveToQueue();
+              }}
               className="p-1 text-chatroom-text-muted hover:text-chatroom-accent transition-colors"
               title="Move to queue"
             >
               <ArrowRight size={12} />
             </button>
           )}
-        </div>
-      )}
-
-      {/* Force complete action for in_progress tasks */}
-      {onForceComplete && (task.status === 'in_progress' || task.status === 'pending') && (
-        <div className="flex items-center gap-1 mt-1">
-          <button
-            onClick={onForceComplete}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-status-warning hover:bg-chatroom-status-warning/10 transition-colors"
-            title="Force complete this stuck task"
-          >
-            <StopCircle size={12} />
-            Force Complete
-          </button>
         </div>
       )}
     </div>

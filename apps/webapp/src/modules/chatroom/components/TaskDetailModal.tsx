@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { ArrowRight, Check, Pencil, Trash2, X } from 'lucide-react';
+import { ArrowRight, Check, Pencil, StopCircle, Trash2, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -24,6 +24,7 @@ interface TaskDetailModalProps {
   onEdit: (taskId: string, content: string) => Promise<void>;
   onDelete: (taskId: string) => Promise<void>;
   onMoveToQueue: (taskId: string) => Promise<void>;
+  onForceComplete?: (taskId: string) => Promise<void>;
   isProtected?: boolean;
 }
 
@@ -70,6 +71,7 @@ export function TaskDetailModal({
   onEdit,
   onDelete,
   onMoveToQueue,
+  onForceComplete,
   isProtected = false,
 }: TaskDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -149,6 +151,17 @@ export function TaskDetailModal({
       setIsLoading(false);
     }
   }, [task, onMoveToQueue, onClose]);
+
+  const handleForceComplete = useCallback(async () => {
+    if (!task || !onForceComplete) return;
+    setIsLoading(true);
+    try {
+      await onForceComplete(task._id);
+      onClose();
+    } finally {
+      setIsLoading(false);
+    }
+  }, [task, onForceComplete, onClose]);
 
   if (!isOpen || !task) {
     return null;
@@ -261,6 +274,18 @@ export function TaskDetailModal({
                     Move to Queue
                   </button>
                 )}
+                {onForceComplete &&
+                  (task.status === 'in_progress' || task.status === 'pending') && (
+                    <button
+                      onClick={handleForceComplete}
+                      disabled={isLoading}
+                      className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-status-warning/30 text-chatroom-status-warning hover:bg-chatroom-status-warning/10 hover:border-chatroom-status-warning transition-colors ml-auto"
+                      title="Force complete this stuck task"
+                    >
+                      <StopCircle size={12} />
+                      Force Complete
+                    </button>
+                  )}
               </>
             )}
           </div>
