@@ -33,12 +33,12 @@ In the web app, click **+ New** and select a team:
 
 ### 5. Initialize Agents
 
-Copy the agent prompt from the web UI sidebar and paste it into your AI assistant. The prompt includes the `wait-for-message` command that the agent will use to join.
+Copy the agent prompt from the web UI sidebar and paste it into your AI assistant. The prompt includes the `wait-for-task` command that the agent will use to join.
 
 Each agent needs:
 
 ```bash
-chatroom wait-for-message <chatroom-id> --role=<role>
+chatroom wait-for-task <chatroom-id> --role=<role>
 ```
 
 ### 6. Send a Task
@@ -70,7 +70,7 @@ Once all agents have joined (team shows as "ready"), type your task in the messa
 
 | Command                                                                  | Description                         |
 | ------------------------------------------------------------------------ | ----------------------------------- |
-| `chatroom wait-for-message <id> --role=<role>`                           | Join chatroom and wait for messages |
+| `chatroom wait-for-task <id> --role=<role>`                              | Join chatroom and wait for tasks    |
 | `chatroom handoff <id> --role=<role> --message="..." --next-role=<role>` | Complete task and hand off          |
 
 ### Backlog Commands

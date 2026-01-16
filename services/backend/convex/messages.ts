@@ -826,7 +826,7 @@ export const getLatestForRole = query({
 /**
  * Get role-specific prompt for an agent.
  * Returns a prompt tailored to the role, current task context, and available actions.
- * Designed to be called with every wait-for-message to provide fresh context.
+ * Designed to be called with every wait-for-task to provide fresh context.
  * Requires CLI session authentication and chatroom access.
  */
 export const getRolePrompt = query({

@@ -194,7 +194,7 @@ export const ReconnectModal = memo(function ReconnectModal({
           <p className="text-[10px] text-chatroom-text-muted text-center">
             After pasting prompts, agents will automatically reconnect when they run{' '}
             <code className="bg-chatroom-bg-tertiary px-1 text-chatroom-status-success">
-              wait-for-message
+              wait-for-task
             </code>
           </p>
         </div>

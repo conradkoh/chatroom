@@ -660,7 +660,7 @@ export const getTaskCounts = query({
 /**
  * Get all pending tasks for a role.
  * Returns tasks in queue order (oldest first).
- * Used by wait-for-message to find work items.
+ * Used by wait-for-task to find work items.
  * Requires CLI session authentication and chatroom access.
  */
 export const getPendingTasksForRole = query({

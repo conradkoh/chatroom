@@ -2,7 +2,7 @@
  * Role Prompt Generator
  *
  * Generates role-specific prompts that are returned with each message.
- * These prompts are designed to be refreshed with every wait-for-message
+ * These prompts are designed to be refreshed with every wait-for-task
  * to combat context rot in long conversations.
  */
 
@@ -156,6 +156,6 @@ chatroom handoff ${ctx.chatroomId} \\
 
 **Always run after any command:**
 \`\`\`
-chatroom wait-for-message ${ctx.chatroomId} --role=${ctx.role}
+chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 \`\`\``;
 }
