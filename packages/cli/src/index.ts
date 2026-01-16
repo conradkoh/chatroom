@@ -157,9 +157,10 @@ program
     }
   );
 
+// New command name: send-message (preferred)
 program
-  .command('send <chatroomId>')
-  .description('Send a message to a chatroom')
+  .command('send-message <chatroomId>')
+  .description('Send a message to a chatroom (without completing your task)')
   .requiredOption('--message <message>', 'Message content to send')
   .option('--role <role>', 'Sender role', 'user')
   .option('--skip-ready-check', 'Send even if team is not ready')
@@ -168,6 +169,25 @@ program
       chatroomId: string,
       options: { message: string; role?: string; skipReadyCheck?: boolean }
     ) => {
+      await maybeRequireAuth();
+      const { sendMessage } = await import('./commands/send.js');
+      await sendMessage(chatroomId, options);
+    }
+  );
+
+// Deprecated: use send-message instead
+program
+  .command('send <chatroomId>')
+  .description('[DEPRECATED: Use "send-message" instead] Send a message to a chatroom')
+  .requiredOption('--message <message>', 'Message content to send')
+  .option('--role <role>', 'Sender role', 'user')
+  .option('--skip-ready-check', 'Send even if team is not ready')
+  .action(
+    async (
+      chatroomId: string,
+      options: { message: string; role?: string; skipReadyCheck?: boolean }
+    ) => {
+      console.warn('⚠️  The "send" command is deprecated. Use "send-message" instead.');
       await maybeRequireAuth();
       const { sendMessage } = await import('./commands/send.js');
       await sendMessage(chatroomId, options);
@@ -200,9 +220,10 @@ program
     });
   });
 
+// New command name: handoff (preferred)
 program
-  .command('task-complete <chatroomId>')
-  .description('Complete a task and hand off to the next role')
+  .command('handoff <chatroomId>')
+  .description('Complete your task and hand off to the next role')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--message <message>', 'Completion message/summary')
   .requiredOption('--next-role <nextRole>', 'Role to hand off to')
@@ -217,6 +238,34 @@ program
         wait?: boolean;
       }
     ) => {
+      await maybeRequireAuth();
+      const { taskComplete } = await import('./commands/task-complete.js');
+      await taskComplete(chatroomId, {
+        ...options,
+        noWait: options.wait === false,
+      });
+    }
+  );
+
+// Deprecated: use handoff instead
+program
+  .command('task-complete <chatroomId>')
+  .description('[DEPRECATED: Use "handoff" instead] Complete a task and hand off to the next role')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--message <message>', 'Completion message/summary')
+  .requiredOption('--next-role <nextRole>', 'Role to hand off to')
+  .option('--no-wait', 'Exit instead of waiting for next message')
+  .action(
+    async (
+      chatroomId: string,
+      options: {
+        role: string;
+        message: string;
+        nextRole: string;
+        wait?: boolean;
+      }
+    ) => {
+      console.warn('⚠️  The "task-complete" command is deprecated. Use "handoff" instead.');
       await maybeRequireAuth();
       const { taskComplete } = await import('./commands/task-complete.js');
       await taskComplete(chatroomId, {

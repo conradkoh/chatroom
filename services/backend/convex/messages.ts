@@ -10,6 +10,8 @@ import { generateRolePrompt } from './prompts';
  * Send a message to a chatroom.
  * Handles message routing based on sender role and message type.
  * Requires CLI session authentication and chatroom access.
+ *
+ * @deprecated Use `sendMessage` instead. This method will be removed in a future version.
  */
 export const send = mutation({
   args: {
@@ -143,6 +145,8 @@ export const send = mutation({
  * 5. Updates the sender's participant status to waiting
  *
  * Requires CLI session authentication and chatroom access.
+ *
+ * @deprecated Use `completeAndHandoff` instead. This method will be removed in a future version.
  */
 export const sendHandoff = mutation({
   args: {
@@ -299,6 +303,63 @@ export const sendHandoff = mutation({
       newTaskId,
       promotedTaskId,
     };
+  },
+});
+
+/**
+ * Send a message to a chatroom.
+ * Handles message routing based on sender role and message type.
+ * Requires CLI session authentication and chatroom access.
+ *
+ * This is primarily used by agents to send messages without completing their current task,
+ * such as asking clarifying questions or providing status updates.
+ *
+ * Note: Users typically send messages via the WebUI, not the CLI.
+ */
+export const sendMessage = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    senderRole: v.string(),
+    content: v.string(),
+    targetRole: v.optional(v.string()),
+    type: v.union(
+      v.literal('message'),
+      v.literal('handoff'),
+      v.literal('interrupt'),
+      v.literal('join')
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Delegate to the send handler (same logic)
+    return send.handler(ctx, args);
+  },
+});
+
+/**
+ * Complete your current task and hand off to the next agent.
+ * This is the preferred way to finish work and pass control between agents.
+ *
+ * Performs all of these operations in a single atomic transaction:
+ * 1. Validates the handoff is allowed (classification rules)
+ * 2. Completes all in_progress tasks in the chatroom
+ * 3. Sends the handoff message
+ * 4. Creates a task for the target agent (if not handing to user)
+ * 5. Updates the sender's participant status to waiting
+ *
+ * Requires CLI session authentication and chatroom access.
+ */
+export const completeAndHandoff = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    senderRole: v.string(),
+    content: v.string(),
+    targetRole: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Delegate to the sendHandoff handler (same logic)
+    return sendHandoff.handler(ctx, args);
   },
 });
 
