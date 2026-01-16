@@ -183,7 +183,8 @@ export const completeTask = mutation({
 
 /**
  * Cancel a task.
- * Only allowed for queued and backlog tasks.
+ * Only allowed for pending, queued and backlog tasks.
+ * If a pending task is cancelled, promotes the next queued task.
  * Requires CLI session authentication and chatroom access.
  */
 export const cancelTask = mutation({
@@ -200,17 +201,50 @@ export const cancelTask = mutation({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Only allow cancellation of queued and backlog tasks
-    if (task.status !== 'queued' && task.status !== 'backlog') {
+    // Only allow cancellation of pending, queued and backlog tasks (not in_progress)
+    if (task.status !== 'pending' && task.status !== 'queued' && task.status !== 'backlog') {
       throw new Error(`Cannot cancel task with status: ${task.status}`);
     }
 
+    const now = Date.now();
+    const wasPending = task.status === 'pending';
+
     await ctx.db.patch('chatroom_tasks', args.taskId, {
       status: 'cancelled',
-      updatedAt: Date.now(),
+      updatedAt: now,
     });
 
-    return { success: true };
+    // If we cancelled a pending task, promote the next queued task
+    let promoted = null;
+    if (wasPending) {
+      const queuedTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', task.chatroomId).eq('status', 'queued')
+        )
+        .collect();
+
+      if (queuedTasks.length > 0) {
+        // Sort by queuePosition to get oldest
+        queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+        const nextTask = queuedTasks[0];
+
+        await ctx.db.patch('chatroom_tasks', nextTask._id, {
+          status: 'pending',
+          updatedAt: now,
+        });
+
+        // Log the automatic promotion
+        console.log(
+          `[Queue Promotion] Auto-promoted task ${nextTask._id} after cancellation of pending task ${args.taskId}. ` +
+            `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
+        );
+
+        promoted = nextTask._id;
+      }
+    }
+
+    return { success: true, promoted };
   },
 });
 
@@ -383,6 +417,111 @@ export const getActiveTask = query({
       .first();
 
     return pending || null;
+  },
+});
+
+/**
+ * Manually promote the next queued task to pending.
+ * Use when the queue is stuck (queued tasks exist but no pending/in_progress).
+ * Logs when automatic promotion occurs.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const promoteNextTask = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Check if there's already a pending or in_progress task
+    const activeTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .filter((q) =>
+        q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
+      )
+      .collect();
+
+    if (activeTasks.length > 0) {
+      // Already have an active task - no promotion needed
+      return { promoted: false, reason: 'active_task_exists', taskId: null };
+    }
+
+    // Find the oldest queued task to promote
+    const queuedTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
+      )
+      .collect();
+
+    if (queuedTasks.length === 0) {
+      // No queued tasks to promote
+      return { promoted: false, reason: 'no_queued_tasks', taskId: null };
+    }
+
+    // Sort by queuePosition to get oldest
+    queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+    const nextTask = queuedTasks[0];
+
+    const now = Date.now();
+    await ctx.db.patch('chatroom_tasks', nextTask._id, {
+      status: 'pending',
+      updatedAt: now,
+    });
+
+    // Log the promotion
+    console.log(
+      `[Queue Promotion] Promoted task ${nextTask._id} to pending in chatroom ${args.chatroomId}. ` +
+        `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
+    );
+
+    return { promoted: true, reason: 'success', taskId: nextTask._id };
+  },
+});
+
+/**
+ * Check queue health and promote if needed.
+ * Returns queue status and whether promotion was triggered.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const checkQueueHealth = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Check for pending or in_progress tasks
+    const activeTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .filter((q) =>
+        q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
+      )
+      .collect();
+
+    // Check for queued tasks
+    const queuedTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
+      )
+      .collect();
+
+    const hasActiveTask = activeTasks.length > 0;
+    const hasQueuedTasks = queuedTasks.length > 0;
+    const needsPromotion = !hasActiveTask && hasQueuedTasks;
+
+    return {
+      hasActiveTask,
+      queuedCount: queuedTasks.length,
+      needsPromotion,
+    };
   },
 });
 

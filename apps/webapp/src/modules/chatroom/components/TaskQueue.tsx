@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Plus, Pencil, Trash2, ArrowRight, X, Check } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowRight, X, Check, Play } from 'lucide-react';
 import React, { useState, useCallback, useMemo } from 'react';
 
 type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
@@ -24,6 +24,12 @@ interface TaskCounts {
   backlog: number;
   completed: number;
   cancelled: number;
+}
+
+interface QueueHealth {
+  hasActiveTask: boolean;
+  queuedCount: number;
+  needsPromotion: boolean;
 }
 
 interface TaskQueueProps {
@@ -68,8 +74,14 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TaskCounts | undefined;
 
+  // Query queue health
+  const queueHealth = useSessionQuery(tasksApi.tasks.checkQueueHealth, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  }) as QueueHealth | undefined;
+
   // Mutations
   const createTask = useSessionMutation(tasksApi.tasks.createTask);
+  const promoteNextTask = useSessionMutation(tasksApi.tasks.promoteNextTask);
   const updateTask = useSessionMutation(tasksApi.tasks.updateTask);
   const cancelTask = useSessionMutation(tasksApi.tasks.cancelTask);
   const moveToQueue = useSessionMutation(tasksApi.tasks.moveToQueue);
@@ -147,6 +159,16 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     [moveToQueue]
   );
 
+  const handlePromoteNext = useCallback(async () => {
+    try {
+      await promoteNextTask({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      });
+    } catch (error) {
+      console.error('Failed to promote next task:', error);
+    }
+  }, [promoteNextTask, chatroomId]);
+
   const startEditing = useCallback((task: Task) => {
     setEditingTaskId(task._id);
     setEditedContent(task.content);
@@ -181,6 +203,23 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         <span>Task Queue</span>
         <span className="text-chatroom-text-muted font-normal">{activeTotal}/100</span>
       </div>
+
+      {/* Queue Health Warning - Show when promotion needed */}
+      {queueHealth?.needsPromotion && (
+        <div className="p-3 border-b border-chatroom-border bg-amber-500/10">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-amber-400">Queue has tasks but none active</span>
+            <button
+              onClick={handlePromoteNext}
+              className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-amber-500 text-black hover:bg-amber-400 transition-colors"
+              title="Promote next queued task to pending"
+            >
+              <Play size={10} />
+              Start Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Current Task */}
       {categorizedTasks.current.length > 0 && (
