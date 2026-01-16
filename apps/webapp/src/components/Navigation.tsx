@@ -30,7 +30,7 @@ export function Navigation() {
   const hideUserMenu = portalContent.hideUserMenu ?? false;
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b-2 border-border/15 bg-zinc-950/95 backdrop-blur-xl supports-[backdrop-filter]:bg-zinc-950/80">
+    <header className="sticky top-0 z-50 w-full border-b-2 border-border/15 bg-background/95 dark:bg-zinc-950/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 dark:supports-[backdrop-filter]:bg-zinc-950/80">
       <div className="flex h-14 items-center justify-between px-4 sm:px-6">
         {/* Left section: Logo and portal content */}
         <div className="flex items-center gap-4">
@@ -39,7 +39,7 @@ export function Navigation() {
               href={authStatus.isAuthenticated ? '/app' : '/'}
               className="flex items-center whitespace-nowrap"
             >
-              <span className="text-sm font-bold uppercase tracking-widest text-zinc-100">
+              <span className="text-sm font-bold uppercase tracking-widest text-foreground">
                 Chatroom
               </span>
             </Link>
@@ -82,7 +82,7 @@ function _renderAuthSection(isLoading: boolean, isAuthenticated: boolean) {
         <Button
           size="sm"
           variant="outline"
-          className="border-2 border-zinc-700 bg-transparent text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 text-xs font-bold uppercase tracking-wide"
+          className="border-2 border-border bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground text-xs font-bold uppercase tracking-wide"
         >
           Login
         </Button>
