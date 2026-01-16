@@ -130,8 +130,8 @@ export async function waitForMessage(
   }
 
   // Calculate readyUntil timestamp for this session
-  // If no timeout specified, default to 5 minutes
-  const effectiveTimeout = timeout || 5 * 60 * 1000;
+  // If no timeout specified, default to 2 minutes
+  const effectiveTimeout = timeout || 2 * 60 * 1000;
   const readyUntil = Date.now() + effectiveTimeout;
 
   // Join the chatroom with readyUntil timestamp
@@ -171,16 +171,9 @@ export async function waitForMessage(
   const timeoutHandle = setTimeout(() => {
     if (pollTimeout) clearTimeout(pollTimeout);
     const durationDisplay = duration || formatDuration(effectiveTimeout);
-    console.log(`\n${'═'.repeat(50)}`);
-    console.log(`⏱️  WAIT TIMEOUT EXPIRED`);
-    console.log(`${'═'.repeat(50)}`);
-    console.log(`Duration: ${durationDisplay}`);
-    console.log(`\nThis is expected behavior. The agent's readiness has expired.`);
-    console.log(`To continue waiting for messages, run the command again:\n`);
-    console.log(
-      `  chatroom wait-for-message ${chatroomId} --role=${role}${duration ? ` --duration="${duration}"` : ''}`
-    );
-    console.log(`\n${'─'.repeat(50)}`);
+    const command = `chatroom wait-for-message ${chatroomId} --role=${role}${duration ? ` --duration="${duration}"` : ''}`;
+    console.log(`\n✅ WAIT SESSION COMPLETE AFTER ${durationDisplay} of waiting`);
+    console.log(`Please continue listening by running \`${command}\``);
     process.exit(0); // Exit with 0 since this is expected behavior
   }, effectiveTimeout);
 

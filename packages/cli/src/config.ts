@@ -10,8 +10,8 @@ export const CREATE_POLL_INTERVAL_MS = 1000;
 /** Polling interval for wait-for-message command */
 export const WAIT_POLL_INTERVAL_MS = 500;
 
-/** Default timeout for wait-for-message (5 minutes) */
-export const DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
+/** Default timeout for wait-for-message (2 minutes) */
+export const DEFAULT_WAIT_TIMEOUT_MS = 2 * 60 * 1000;
 
 /** Maximum consecutive errors before logging a warning */
 export const MAX_SILENT_ERRORS = 5;
