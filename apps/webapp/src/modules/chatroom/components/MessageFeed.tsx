@@ -30,6 +30,8 @@ interface Message {
   content: string;
   _creationTime: number;
   classification?: 'question' | 'new_feature' | 'follow_up';
+  taskId?: string;
+  taskStatus?: 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
 }
 
 // Message type badge styling - using chatroom status variables for theme support
@@ -53,6 +55,46 @@ const getSenderClasses = (role: string) => {
   if (role === 'user') return `${base} text-chatroom-status-success`;
   if (role === 'system') return `${base} text-chatroom-status-warning`;
   return `${base} text-chatroom-status-info`;
+};
+
+// Task status badge styling - shows processing status for user messages
+const getTaskStatusBadge = (status: Message['taskStatus']) => {
+  if (!status) return null;
+  const base = 'inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 ml-2';
+  switch (status) {
+    case 'pending':
+      return {
+        className: `${base} bg-chatroom-status-success/15 text-chatroom-status-success`,
+        label: '🟢 pending',
+      };
+    case 'in_progress':
+      return {
+        className: `${base} bg-chatroom-status-info/15 text-chatroom-status-info`,
+        label: '🔵 in progress',
+      };
+    case 'queued':
+      return {
+        className: `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`,
+        label: '🟡 queued',
+      };
+    case 'completed':
+      return {
+        className: `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
+        label: '✅ done',
+      };
+    case 'cancelled':
+      return {
+        className: `${base} bg-chatroom-status-error/15 text-chatroom-status-error`,
+        label: '❌ cancelled',
+      };
+    case 'backlog':
+      return {
+        className: `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
+        label: '📋 backlog',
+      };
+    default:
+      return null;
+  }
 };
 
 // Classification badge styling - using chatroom status variables for theme support
@@ -83,6 +125,7 @@ const getClassificationBadge = (classification: Message['classification']) => {
 // Memoized message item to prevent re-renders of all messages when one changes
 const MessageItem = memo(function MessageItem({ message }: { message: Message }) {
   const classificationBadge = getClassificationBadge(message.classification);
+  const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
 
   return (
     <div className="px-4 py-3 bg-transparent border-b-2 border-chatroom-border transition-all duration-100 hover:bg-chatroom-accent-subtle hover:-mx-2 hover:px-6 last:border-b-0">
@@ -101,6 +144,10 @@ const MessageItem = memo(function MessageItem({ message }: { message: Message })
           {/* Show classification badge for user messages */}
           {message.senderRole.toLowerCase() === 'user' && classificationBadge && (
             <span className={classificationBadge.className}>{classificationBadge.label}</span>
+          )}
+          {/* Show task status badge for user messages with linked tasks */}
+          {message.senderRole.toLowerCase() === 'user' && taskStatusBadge && (
+            <span className={taskStatusBadge.className}>{taskStatusBadge.label}</span>
           )}
         </div>
         <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">

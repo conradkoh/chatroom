@@ -591,3 +591,70 @@ export const getTaskCounts = query({
     };
   },
 });
+
+/**
+ * Get all pending tasks for a role.
+ * Returns tasks in queue order (oldest first).
+ * Used by wait-for-message to find work items.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const getPendingTasksForRole = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Get chatroom for entry point info
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) {
+      throw new Error('Chatroom not found');
+    }
+
+    // Determine the entry point role for user messages
+    const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
+    const normalizedRole = args.role.toLowerCase();
+    const normalizedEntryPoint = entryPoint?.toLowerCase();
+
+    // Get all pending tasks
+    const pendingTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+      )
+      .collect();
+
+    // Filter for tasks assigned to this role or user-created tasks routed to entry point
+    const relevantTasks = pendingTasks.filter((task) => {
+      // If task has explicit assignment, check it matches
+      if (task.assignedTo) {
+        return task.assignedTo.toLowerCase() === normalizedRole;
+      }
+      // User-created tasks go to entry point
+      if (task.createdBy === 'user') {
+        return normalizedRole === normalizedEntryPoint;
+      }
+      // Backlog/manual tasks without assignment - entry point handles
+      return normalizedRole === normalizedEntryPoint;
+    });
+
+    // Sort by queuePosition (oldest first)
+    relevantTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+
+    // For each task, get the source message if available
+    const tasksWithMessages = await Promise.all(
+      relevantTasks.map(async (task) => {
+        let message = null;
+        if (task.sourceMessageId) {
+          message = await ctx.db.get('chatroom_messages', task.sourceMessageId);
+        }
+        return { task, message };
+      })
+    );
+
+    return tasksWithMessages;
+  },
+});

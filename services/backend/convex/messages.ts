@@ -70,6 +70,44 @@ export const send = mutation({
       type: args.type,
     });
 
+    // Auto-create task for user messages
+    if (normalizedSenderRole === 'user' && args.type === 'message') {
+      // Check if any task is currently pending or in_progress
+      const activeTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .filter((q) =>
+          q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
+        )
+        .first();
+
+      // Determine next queue position
+      const allTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .collect();
+      const maxPosition = allTasks.reduce((max, t) => Math.max(max, t.queuePosition), 0);
+      const queuePosition = maxPosition + 1;
+
+      const now = Date.now();
+      const taskStatus = activeTasks ? 'queued' : 'pending';
+
+      // Create the task
+      const taskId = await ctx.db.insert('chatroom_tasks', {
+        chatroomId: args.chatroomId,
+        createdBy: 'user',
+        content: args.content,
+        status: taskStatus,
+        sourceMessageId: messageId,
+        createdAt: now,
+        updatedAt: now,
+        queuePosition,
+      });
+
+      // Update message with taskId reference
+      await ctx.db.patch('chatroom_messages', messageId, { taskId });
+    }
+
     return messageId;
   },
 });
@@ -263,6 +301,7 @@ export const list = query({
 /**
  * List messages in a chatroom with pagination.
  * Returns newest messages first (descending order).
+ * Includes task status for messages with linked tasks.
  * Requires CLI session authentication and chatroom access.
  */
 export const listPaginated = query({
@@ -276,11 +315,30 @@ export const listPaginated = query({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Paginate with descending order (newest first)
-    return await ctx.db
+    const result = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .order('desc')
       .paginate(args.paginationOpts);
+
+    // Enrich messages with task status
+    const enrichedPage = await Promise.all(
+      result.page.map(async (message) => {
+        if (message.taskId) {
+          const task = await ctx.db.get('chatroom_tasks', message.taskId);
+          return {
+            ...message,
+            taskStatus: task?.status,
+          };
+        }
+        return message;
+      })
+    );
+
+    return {
+      ...result,
+      page: enrichedPage,
+    };
   },
 });
 

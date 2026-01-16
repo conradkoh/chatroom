@@ -6,10 +6,10 @@ import {
   api,
   type Id,
   type Chatroom,
-  type Message,
   type Participant,
   type ContextWindow,
   type RolePromptResponse,
+  type TaskWithMessage,
 } from '../api.js';
 import { WAIT_POLL_INTERVAL_MS, MAX_SILENT_ERRORS } from '../config.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
@@ -151,17 +151,6 @@ export async function waitForMessage(
   printWaitReminder(chatroomId, role);
   console.log('');
 
-  // Get the current latest message ID to know where to start listening
-  // Use pagination to avoid loading entire history
-  const existingMessages = (await client.query(api.messages.list, {
-    sessionId,
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    limit: 1,
-  })) as Message[];
-
-  const afterMessageId =
-    existingMessages.length > 0 ? existingMessages[existingMessages.length - 1]!._id : undefined;
-
   // Track errors for better debugging with exponential backoff
   let consecutiveErrors = 0;
   let currentPollInterval = WAIT_POLL_INTERVAL_MS;
@@ -180,34 +169,44 @@ export async function waitForMessage(
   // Polling function with exponential backoff
   const poll = async () => {
     try {
-      const message = (await client.query(api.messages.getLatestForRole, {
+      // Poll for pending tasks instead of messages
+      const pendingTasks = (await client.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
-        afterMessageId,
-      })) as Message | null;
+      })) as TaskWithMessage[];
 
-      if (message) {
-        // CRITICAL: Claim the message atomically to handle race conditions
-        // This mutation uses Convex's ACID guarantees to ensure only one agent
-        // can successfully claim a broadcast message
-        const claimed = await client.mutation(api.messages.claimMessage, {
-          sessionId,
-          messageId: message._id,
-          role,
-        });
+      // Get the oldest pending task (first in array)
+      const taskWithMessage = pendingTasks.length > 0 ? pendingTasks[0] : null;
 
-        if (!claimed) {
-          // RACE CONDITION DETECTED: Another agent successfully claimed this message
-          // This is expected behavior when multiple agents are polling for broadcasts
-          console.log(`🔄 Message already claimed by another agent, continuing to wait...`);
+      if (taskWithMessage) {
+        const { task, message } = taskWithMessage;
 
-          // Schedule next poll with current interval and return early
+        // Start the task (transition to in_progress)
+        // This is atomic and handles race conditions - only one agent can start a task
+        try {
+          await client.mutation(api.tasks.startTask, {
+            sessionId,
+            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+            role,
+          });
+        } catch (_startError) {
+          // Task was already started by another agent
+          console.log(`🔄 Task already started by another agent, continuing to wait...`);
           pollTimeout = setTimeout(poll, currentPollInterval);
           return;
         }
 
-        // SUCCESS: This agent has exclusive claim on the message
+        // Also claim the message if it exists (for compatibility)
+        if (message) {
+          await client.mutation(api.messages.claimMessage, {
+            sessionId,
+            messageId: message._id,
+            role,
+          });
+        }
+
+        // SUCCESS: This agent has exclusive claim on the task
         if (pollTimeout) clearTimeout(pollTimeout);
         clearTimeout(timeoutHandle);
 
@@ -230,8 +229,8 @@ export async function waitForMessage(
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
         })) as Participant[];
 
-        // Handle interrupt
-        if (message.type === 'interrupt') {
+        // Handle interrupt (if message is interrupt type)
+        if (message && message.type === 'interrupt') {
           console.log(`\n${'═'.repeat(50)}`);
           console.log(`⚠️  INTERRUPT RECEIVED`);
           console.log(`${'═'.repeat(50)}`);
@@ -241,16 +240,22 @@ export async function waitForMessage(
           process.exit(0);
         }
 
+        // Use message content if available, otherwise task content
+        const displayContent = message?.content || task.content;
+        const senderRole = message?.senderRole || task.createdBy;
+        const messageType = message?.type || 'message';
+        const targetRole = message?.targetRole;
+
         // Print message details
         console.log(`\n${'═'.repeat(50)}`);
         console.log(`📨 MESSAGE RECEIVED`);
         console.log(`${'═'.repeat(50)}`);
-        console.log(`From: ${message.senderRole}`);
-        console.log(`Type: ${message.type}`);
-        if (message.targetRole) {
-          console.log(`To: ${message.targetRole}`);
+        console.log(`From: ${senderRole}`);
+        console.log(`Type: ${messageType}`);
+        if (targetRole) {
+          console.log(`To: ${targetRole}`);
         }
-        console.log(`\n📄 Content:\n${message.content}`);
+        console.log(`\n📄 Content:\n${displayContent}`);
 
         // Print chatroom state
         console.log(`\n${'─'.repeat(50)}`);
@@ -289,8 +294,7 @@ export async function waitForMessage(
 
         // Determine if classification is needed
         const needsClassification =
-          rolePromptInfo.currentClassification === null &&
-          message.senderRole.toLowerCase() === 'user';
+          rolePromptInfo.currentClassification === null && senderRole.toLowerCase() === 'user';
 
         // Print next steps
         console.log(`\n${'─'.repeat(50)}`);
@@ -333,10 +337,16 @@ export async function waitForMessage(
 
         const jsonOutput = {
           message: {
-            id: message._id,
-            senderRole: message.senderRole,
-            content: message.content,
-            type: message.type,
+            id: message?._id || task._id,
+            senderRole: senderRole,
+            content: displayContent,
+            type: messageType,
+          },
+          task: {
+            id: task._id,
+            status: task.status,
+            createdBy: task.createdBy,
+            queuePosition: task.queuePosition,
           },
           chatroom: {
             id: chatroomId,
@@ -383,7 +393,7 @@ export async function waitForMessage(
 
         process.exit(0);
       } else {
-        // No message yet, schedule next poll
+        // No pending tasks yet, schedule next poll
         pollTimeout = setTimeout(poll, currentPollInterval);
       }
 

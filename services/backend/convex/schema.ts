@@ -300,7 +300,12 @@ export default defineSchema({
     // Reference to the original user message that started this task chain
     // Set when an agent runs task-started, links all related messages
     taskOriginMessageId: v.optional(v.id('chatroom_messages')),
-  }).index('by_chatroom', ['chatroomId']),
+    // Link to the task created for this message (for user messages)
+    // Used to track processing status in the UI
+    taskId: v.optional(v.id('chatroom_tasks')),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_taskId', ['taskId']),
 
   /**
    * Tasks in chatrooms for queue and backlog management.

@@ -31,7 +31,28 @@ export interface Message {
   claimedByRole?: string;
   classification?: 'question' | 'new_feature' | 'follow_up';
   taskOriginMessageId?: Id<'chatroom_messages'>;
+  taskId?: Id<'chatroom_tasks'>;
   _creationTime?: number;
+}
+
+export interface Task {
+  _id: Id<'chatroom_tasks'>;
+  chatroomId: Id<'chatroom_rooms'>;
+  createdBy: string;
+  content: string;
+  status: 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
+  assignedTo?: string;
+  sourceMessageId?: Id<'chatroom_messages'>;
+  createdAt: number;
+  updatedAt: number;
+  startedAt?: number;
+  completedAt?: number;
+  queuePosition: number;
+}
+
+export interface TaskWithMessage {
+  task: Task;
+  message: Message | null;
 }
 
 export interface AllowedHandoffRoles {
@@ -134,6 +155,10 @@ export const api = {
     listTasks: 'tasks:listTasks' as unknown as FunctionReference<'query', 'public'>,
     getActiveTask: 'tasks:getActiveTask' as unknown as FunctionReference<'query', 'public'>,
     getTaskCounts: 'tasks:getTaskCounts' as unknown as FunctionReference<'query', 'public'>,
+    getPendingTasksForRole: 'tasks:getPendingTasksForRole' as unknown as FunctionReference<
+      'query',
+      'public'
+    >,
   },
 };
 
