@@ -193,6 +193,15 @@ export const TaskDetailModal = memo(function TaskDetailModal({
             <textarea
               value={editedContent}
               onChange={(e) => setEditedContent(e.target.value)}
+              onKeyDown={(e) => {
+                // Cmd+Enter or Ctrl+Enter to save
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  if (editedContent.trim()) {
+                    handleSave();
+                  }
+                }
+              }}
               className="w-full h-full min-h-[200px] bg-chatroom-bg-tertiary border-2 border-chatroom-border text-chatroom-text-primary text-sm p-3 resize-none focus:outline-none focus:border-chatroom-accent"
               autoFocus
             />

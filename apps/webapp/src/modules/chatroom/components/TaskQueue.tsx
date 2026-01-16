@@ -344,6 +344,15 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
               <textarea
                 value={newTaskContent}
                 onChange={(e) => setNewTaskContent(e.target.value)}
+                onKeyDown={(e) => {
+                  // Cmd+Enter or Ctrl+Enter to add
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    if (newTaskContent.trim()) {
+                      handleAddTask();
+                    }
+                  }
+                }}
                 placeholder="Enter task description..."
                 className="w-full bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary text-xs p-2 resize-none focus:outline-none focus:border-chatroom-accent"
                 rows={2}
@@ -458,6 +467,15 @@ function TaskItem({
         <textarea
           value={editedContent}
           onChange={(e) => onEditContentChange?.(e.target.value)}
+          onKeyDown={(e) => {
+            // Cmd+Enter or Ctrl+Enter to save
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+              e.preventDefault();
+              if (editedContent.trim() && onSaveEdit) {
+                onSaveEdit();
+              }
+            }
+          }}
           className="w-full bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary text-xs p-2 resize-none focus:outline-none focus:border-chatroom-accent"
           rows={2}
           autoFocus
