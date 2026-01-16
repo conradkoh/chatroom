@@ -7,6 +7,7 @@ import { getRolePriority } from './lib/hierarchy';
 /**
  * Join a chatroom as a participant.
  * If already joined, updates status to waiting and refreshes readyUntil.
+ * When the entry point (primary) role joins, auto-promotes queued tasks if no active task exists.
  * Requires CLI session authentication and chatroom access.
  */
 export const join = mutation({
@@ -46,30 +47,75 @@ export const join = mutation({
       )
       .unique();
 
+    let participantId;
     if (existing) {
       // Update status to waiting and refresh readyUntil
       await ctx.db.patch('chatroom_participants', existing._id, {
         status: 'waiting',
         readyUntil: args.readyUntil,
       });
-      return existing._id;
+      participantId = existing._id;
+    } else {
+      // Create new participant
+      participantId = await ctx.db.insert('chatroom_participants', {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        status: 'waiting',
+        readyUntil: args.readyUntil,
+      });
+
+      // Send join message
+      await ctx.db.insert('chatroom_messages', {
+        chatroomId: args.chatroomId,
+        senderRole: args.role,
+        content: `${args.role} joined the chatroom`,
+        type: 'join',
+      });
     }
 
-    // Create new participant
-    const participantId = await ctx.db.insert('chatroom_participants', {
-      chatroomId: args.chatroomId,
-      role: args.role,
-      status: 'waiting',
-      readyUntil: args.readyUntil,
-    });
+    // Auto-promote queued tasks when the entry point (primary) role joins
+    // This ensures resilience - if a worker reconnects after being stuck, queued items get promoted
+    const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
+    const normalizedRole = args.role.toLowerCase();
+    const normalizedEntryPoint = entryPoint?.toLowerCase();
 
-    // Send join message
-    await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: args.role,
-      content: `${args.role} joined the chatroom`,
-      type: 'join',
-    });
+    if (normalizedRole === normalizedEntryPoint) {
+      // Check if there's an active task (pending or in_progress)
+      const activeTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .filter((q) =>
+          q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
+        )
+        .collect();
+
+      // If no active task, check for queued tasks to promote
+      if (activeTasks.length === 0) {
+        const queuedTasks = await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom_status', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
+          )
+          .collect();
+
+        if (queuedTasks.length > 0) {
+          // Sort by queuePosition to get oldest
+          queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+          const nextTask = queuedTasks[0];
+
+          const now = Date.now();
+          await ctx.db.patch('chatroom_tasks', nextTask._id, {
+            status: 'pending',
+            updatedAt: now,
+          });
+
+          console.log(
+            `[Auto-Promote on Join] Primary role "${args.role}" joined. Promoted task ${nextTask._id} to pending. ` +
+              `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
+          );
+        }
+      }
+    }
 
     return participantId;
   },

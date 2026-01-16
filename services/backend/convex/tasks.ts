@@ -121,8 +121,9 @@ export const startTask = mutation({
 });
 
 /**
- * Complete the current in_progress task.
- * Transitions to completed and promotes the next queued task to pending.
+ * Complete ALL in_progress tasks in the chatroom.
+ * Transitions all in_progress tasks to completed and promotes the next queued task to pending.
+ * This ensures resilience - when an agent completes, any orphaned in_progress tasks are cleaned up.
  * Requires CLI session authentication and chatroom access.
  */
 export const completeTask = mutation({
@@ -135,27 +136,37 @@ export const completeTask = mutation({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Find the in_progress task
-    const inProgressTask = await ctx.db
+    // Find ALL in_progress tasks (there should typically be only one, but complete all for resilience)
+    const inProgressTasks = await ctx.db
       .query('chatroom_tasks')
       .withIndex('by_chatroom_status', (q) =>
         q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
       )
-      .first();
+      .collect();
 
-    if (!inProgressTask) {
-      // No task to complete - this is okay, just return
-      return { completed: false, promoted: null };
+    if (inProgressTasks.length === 0) {
+      // No tasks to complete - this is okay, just return
+      return { completed: false, completedCount: 0, promoted: null };
     }
 
     const now = Date.now();
 
-    // Complete the task
-    await ctx.db.patch('chatroom_tasks', inProgressTask._id, {
-      status: 'completed',
-      completedAt: now,
-      updatedAt: now,
-    });
+    // Complete ALL in_progress tasks
+    for (const task of inProgressTasks) {
+      await ctx.db.patch('chatroom_tasks', task._id, {
+        status: 'completed',
+        completedAt: now,
+        updatedAt: now,
+      });
+    }
+
+    // Log if multiple tasks were completed (indicates a stuck state that was cleaned up)
+    if (inProgressTasks.length > 1) {
+      console.log(
+        `[Task Cleanup] Completed ${inProgressTasks.length} in_progress tasks in chatroom ${args.chatroomId}. ` +
+          `Task IDs: ${inProgressTasks.map((t) => t._id).join(', ')}`
+      );
+    }
 
     // Find the oldest queued task to promote
     const queuedTasks = await ctx.db
@@ -174,10 +185,10 @@ export const completeTask = mutation({
         status: 'pending',
         updatedAt: now,
       });
-      return { completed: true, promoted: nextTask._id };
+      return { completed: true, completedCount: inProgressTasks.length, promoted: nextTask._id };
     }
 
-    return { completed: true, promoted: null };
+    return { completed: true, completedCount: inProgressTasks.length, promoted: null };
   },
 });
 
