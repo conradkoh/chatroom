@@ -3,6 +3,8 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { ArrowRight, Search, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
 
@@ -259,6 +261,43 @@ function TaskGroup({
   );
 }
 
+// Simplified markdown components for compact display
+const compactMarkdownComponents = {
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-bold">{children}</strong>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-bold">{children}</strong>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-bold">{children}</strong>
+  ),
+  h4: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-bold">{children}</strong>
+  ),
+  h5: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-bold">{children}</strong>
+  ),
+  h6: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-bold">{children}</strong>
+  ),
+  p: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
+  ul: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
+  ol: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
+  li: ({ children }: { children?: React.ReactNode }) => <span>• {children} </span>,
+  code: ({ children }: { children?: React.ReactNode }) => (
+    <code className="bg-chatroom-bg-tertiary px-0.5 text-[10px]">{children}</code>
+  ),
+  pre: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
+  em: ({ children }: { children?: React.ReactNode }) => <em className="italic">{children}</em>,
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-bold">{children}</strong>
+  ),
+  a: ({ children }: { children?: React.ReactNode }) => (
+    <span className="underline">{children}</span>
+  ),
+};
+
 // Task List Item Component
 interface TaskListItemProps {
   task: Task;
@@ -298,9 +337,11 @@ function TaskListItem({ task, onClick, onMoveToQueue, isProtected = false }: Tas
         {badge.label}
       </span>
 
-      {/* Content */}
+      {/* Content - with simplified markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-        {task.content}
+        <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+          {task.content}
+        </Markdown>
       </div>
 
       {/* Move to Queue Button (only for backlog) */}
