@@ -221,6 +221,8 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         taskId: taskId as Id<'chatroom_tasks'>,
         content,
       });
+      // Update selectedTask with new content to reflect edit immediately
+      setSelectedTask((prev) => (prev ? { ...prev, content } : null));
     },
     [updateTask]
   );

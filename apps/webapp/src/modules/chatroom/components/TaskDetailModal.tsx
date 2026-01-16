@@ -76,13 +76,13 @@ export function TaskDetailModal({
   const [editedContent, setEditedContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Reset state when modal opens/closes or task changes
+  // Reset state when modal opens/closes or task content changes
   useEffect(() => {
     if (isOpen && task) {
       setEditedContent(task.content);
       setIsEditing(false);
     }
-  }, [isOpen, task]);
+  }, [isOpen, task?.content, task?._id]);
 
   // Handle Escape key
   const handleKeyDown = useCallback(
