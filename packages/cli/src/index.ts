@@ -216,4 +216,43 @@ program
     }
   );
 
+// ============================================================================
+// BACKLOG COMMANDS (auth required)
+// ============================================================================
+
+const backlogCommand = program.command('backlog').description('Manage task queue and backlog');
+
+backlogCommand
+  .command('list <chatroomId>')
+  .description('List tasks in a chatroom')
+  .requiredOption('--role <role>', 'Your role')
+  .option(
+    '--status <status>',
+    'Filter by status (pending|in_progress|queued|backlog|active|all)',
+    'active'
+  )
+  .option('--limit <n>', 'Maximum number of tasks to show', '20')
+  .action(
+    async (chatroomId: string, options: { role: string; status?: string; limit?: string }) => {
+      await maybeRequireAuth();
+      const { listBacklog } = await import('./commands/backlog.js');
+      await listBacklog(chatroomId, {
+        role: options.role,
+        status: options.status,
+        limit: options.limit ? parseInt(options.limit, 10) : undefined,
+      });
+    }
+  );
+
+backlogCommand
+  .command('add <chatroomId>')
+  .description('Add a task to the backlog')
+  .requiredOption('--role <role>', 'Your role (creator)')
+  .requiredOption('--content <content>', 'Task content/description')
+  .action(async (chatroomId: string, options: { role: string; content: string }) => {
+    await maybeRequireAuth();
+    const { addBacklog } = await import('./commands/backlog.js');
+    await addBacklog(chatroomId, options);
+  });
+
 program.parse();
