@@ -1,5 +1,5 @@
 /**
- * Wait for messages in a chatroom
+ * Wait for tasks in a chatroom
  */
 
 import {
@@ -15,7 +15,7 @@ import { WAIT_POLL_INTERVAL_MS, MAX_SILENT_ERRORS } from '../config.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
-interface WaitForMessageOptions {
+interface WaitForTaskOptions {
   role: string;
   timeout?: number;
   duration?: string;
@@ -73,21 +73,18 @@ function formatDuration(ms: number): string {
 }
 
 /**
- * Print the wait-for-message reminder - short but forceful.
+ * Print the wait-for-task reminder - short but forceful.
  */
 function printWaitReminder(chatroomId: string, role: string): void {
   console.log(`${'─'.repeat(50)}`);
   console.log(
-    `⚠️  ALWAYS run \`wait-for-message\` after handoff. If it times out, run it again immediately.`
+    `⚠️  ALWAYS run \`wait-for-task\` after handoff. If it times out, run it again immediately.`
   );
-  console.log(`    chatroom wait-for-message ${chatroomId} --role=${role}`);
+  console.log(`    chatroom wait-for-task ${chatroomId} --role=${role}`);
   console.log(`${'─'.repeat(50)}`);
 }
 
-export async function waitForMessage(
-  chatroomId: string,
-  options: WaitForMessageOptions
-): Promise<void> {
+export async function waitForTask(chatroomId: string, options: WaitForTaskOptions): Promise<void> {
   const client = await getConvexClient();
   const { role, timeout, duration, silent } = options;
 
@@ -146,7 +143,7 @@ export async function waitForMessage(
     console.log(`✅ Joined chatroom as "${role}"`);
   }
   const durationDisplay = duration || formatDuration(effectiveTimeout);
-  console.log(`⏳ Waiting for messages (duration: ${durationDisplay})...`);
+  console.log(`⏳ Waiting for tasks (duration: ${durationDisplay})...`);
   console.log('');
   printWaitReminder(chatroomId, role);
   console.log('');
@@ -160,7 +157,7 @@ export async function waitForMessage(
   const timeoutHandle = setTimeout(() => {
     if (pollTimeout) clearTimeout(pollTimeout);
     const durationDisplay = duration || formatDuration(effectiveTimeout);
-    const command = `chatroom wait-for-message ${chatroomId} --role=${role}${duration ? ` --duration="${duration}"` : ''}`;
+    const command = `chatroom wait-for-task ${chatroomId} --role=${role}${duration ? ` --duration="${duration}"` : ''}`;
     console.log(`\n✅ WAIT SESSION COMPLETE AFTER ${durationDisplay} of waiting`);
     console.log(`Please continue listening by running \`${command}\``);
     process.exit(0); // Exit with 0 since this is expected behavior

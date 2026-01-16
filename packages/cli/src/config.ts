@@ -7,10 +7,10 @@
 /** Polling interval for the create command (monitoring chatroom) */
 export const CREATE_POLL_INTERVAL_MS = 1000;
 
-/** Polling interval for wait-for-message command */
+/** Polling interval for wait-for-task command */
 export const WAIT_POLL_INTERVAL_MS = 500;
 
-/** Default timeout for wait-for-message (2 minutes) */
+/** Default timeout for wait-for-task (2 minutes) */
 export const DEFAULT_WAIT_TIMEOUT_MS = 2 * 60 * 1000;
 
 /** Maximum consecutive errors before logging a warning */

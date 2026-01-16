@@ -11,7 +11,7 @@
  * 6. Promotes the next queued task to pending
  */
 
-import { waitForMessage } from './wait-for-message.js';
+import { waitForTask } from './wait-for-task.js';
 import { api } from '../api.js';
 import type { Id } from '../api.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
@@ -92,7 +92,7 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
     console.log(`\n🎉 Workflow complete! Control returned to user.`);
     if (!noWait) {
       console.log(`\n⏳ Waiting for next assignment...`);
-      await waitForMessage(chatroomId, { role, silent: true });
+      await waitForTask(chatroomId, { role, silent: true });
     }
     return;
   }

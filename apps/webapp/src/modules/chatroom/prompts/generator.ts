@@ -17,7 +17,7 @@ import {
 } from './init/base';
 import { getRoleSpecificGuidance } from './init/roles';
 import { getTaskStartedSection } from './init/task-started';
-import { getWaitForMessageSection } from './init/wait-for-message';
+import { getWaitForTaskSection } from './init/wait-for-task';
 import { getRoleTemplate } from './templates';
 
 export interface PromptContext {
@@ -68,7 +68,7 @@ export function generateAgentPrompt(context: PromptContext): string {
     getHandoffOptionsSection(ctx),
     roleSpecificGuidance,
     getImportantNotesSection(),
-    getWaitForMessageSection(ctx),
+    getWaitForTaskSection(ctx),
     getExampleSection(ctx),
   ];
 
@@ -84,5 +84,5 @@ export function generateAgentPrompt(context: PromptContext): string {
  */
 export function generateShortPrompt(context: PromptContext): string {
   const { chatroomId, role } = context;
-  return `chatroom wait-for-message ${chatroomId} --role=${role}`;
+  return `chatroom wait-for-task ${chatroomId} --role=${role}`;
 }

@@ -114,15 +114,15 @@ program
   });
 
 program
-  .command('wait-for-message <chatroomId>')
-  .description('Join a chatroom and wait for messages')
+  .command('wait-for-task <chatroomId>')
+  .description('Join a chatroom and wait for tasks')
   .requiredOption('--role <role>', 'Role to join as (e.g., builder, reviewer)')
   .option('--timeout <ms>', 'Optional timeout in milliseconds (deprecated, use --duration)')
   .option('--duration <duration>', 'How long to wait (e.g., "1m", "5m", "30s")')
   .action(
     async (chatroomId: string, options: { role: string; timeout?: string; duration?: string }) => {
       await maybeRequireAuth();
-      const { waitForMessage, parseDuration } = await import('./commands/wait-for-message.js');
+      const { waitForTask, parseDuration } = await import('./commands/wait-for-task.js');
 
       // Parse duration if provided, otherwise fall back to timeout
       let timeoutMs: number | undefined;
@@ -139,7 +139,7 @@ program
         timeoutMs = parseInt(options.timeout, 10);
       }
 
-      await waitForMessage(chatroomId, {
+      await waitForTask(chatroomId, {
         role: options.role,
         timeout: timeoutMs,
         duration: options.duration,
