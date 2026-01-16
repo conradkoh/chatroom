@@ -59,7 +59,10 @@ export async function taskComplete(
     // - Creates a task for target agent (if not user)
     // - Updates sender's participant status to waiting
     // - Promotes next queued task to pending
-    await client.mutation(api.messages.handoff, {
+    //
+    // Note: We use sendHandoff here for backward compatibility with deployed backend.
+    // Once backend is deployed with the new 'handoff' mutation, this can be changed to api.messages.handoff
+    await client.mutation(api.messages.sendHandoff, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       senderRole: role,

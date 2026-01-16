@@ -1,10 +1,139 @@
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
+import type { Id } from './_generated/dataModel';
+import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { generateRolePrompt } from './prompts';
+
+// =============================================================================
+// SHARED HANDLERS - Internal functions that contain the actual logic
+// =============================================================================
+
+/**
+ * Internal handler for sending a message.
+ * Called by both `send` (deprecated) and `sendMessage` (preferred).
+ */
+async function _sendMessageHandler(
+  ctx: MutationCtx,
+  args: {
+    sessionId: string;
+    chatroomId: Id<'chatroom_rooms'>;
+    senderRole: string;
+    content: string;
+    targetRole?: string;
+    type: 'message' | 'handoff' | 'interrupt' | 'join';
+  }
+) {
+  // Validate session and check chatroom access
+  await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+  // Get chatroom to check team configuration
+  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+  if (!chatroom) {
+    throw new Error('Chatroom not found');
+  }
+
+  // Validate senderRole to prevent impersonation
+  // Only allow 'user' or roles that are in the team configuration
+  const normalizedSenderRole = args.senderRole.toLowerCase();
+  if (normalizedSenderRole !== 'user') {
+    // Check if senderRole is in teamRoles
+    const teamRoles = chatroom.teamRoles || [];
+    const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
+    if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
+      throw new Error(
+        `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ') || 'user'}`
+      );
+    }
+  }
+
+  // Determine target role for routing
+  let targetRole = args.targetRole;
+
+  // For user messages without explicit target, route to entry point
+  if (!targetRole && args.senderRole.toLowerCase() === 'user' && args.type === 'message') {
+    if (chatroom?.teamEntryPoint) {
+      targetRole = chatroom.teamEntryPoint;
+    } else if (chatroom?.teamRoles && chatroom.teamRoles.length > 0) {
+      // Default to first role if no entry point specified
+      targetRole = chatroom.teamRoles[0];
+    }
+  }
+
+  const messageId = await ctx.db.insert('chatroom_messages', {
+    chatroomId: args.chatroomId,
+    senderRole: args.senderRole,
+    content: args.content,
+    targetRole,
+    type: args.type,
+  });
+
+  // Auto-create task for user messages and handoff messages
+  const isUserMessage = normalizedSenderRole === 'user' && args.type === 'message';
+  const isHandoffToAgent =
+    args.type === 'handoff' && targetRole && targetRole.toLowerCase() !== 'user';
+  const shouldCreateTask = isUserMessage || isHandoffToAgent;
+
+  if (shouldCreateTask) {
+    // Determine next queue position
+    const allTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+    const maxPosition = allTasks.reduce((max, t) => Math.max(max, t.queuePosition), 0);
+    const queuePosition = maxPosition + 1;
+
+    const now = Date.now();
+
+    // Determine task status:
+    // - Handoff messages to agents always start as 'pending' (targeted, not queued)
+    // - User messages check for existing pending/in_progress tasks
+    let taskStatus: 'pending' | 'queued';
+    if (isHandoffToAgent) {
+      // Handoffs are targeted to a specific agent and should start immediately
+      taskStatus = 'pending';
+    } else {
+      // User messages: check if any task is currently pending or in_progress
+      const activeTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .filter((q) =>
+          q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
+        )
+        .first();
+      taskStatus = activeTasks ? 'queued' : 'pending';
+    }
+
+    // Determine the task creator and assignment
+    const createdBy = isHandoffToAgent ? args.senderRole : 'user';
+    const assignedTo = isHandoffToAgent ? targetRole : undefined;
+
+    // Create the task
+    const taskId = await ctx.db.insert('chatroom_tasks', {
+      chatroomId: args.chatroomId,
+      createdBy,
+      content: args.content,
+      status: taskStatus,
+      sourceMessageId: messageId,
+      createdAt: now,
+      updatedAt: now,
+      queuePosition,
+      assignedTo,
+    });
+
+    // Update message with taskId reference
+    await ctx.db.patch('chatroom_messages', messageId, { taskId });
+  }
+
+  return messageId;
+}
+
+// =============================================================================
+// PUBLIC MUTATIONS - sendMessage is preferred, send is deprecated
+// =============================================================================
 
 /**
  * Send a message to a chatroom.
@@ -28,110 +157,171 @@ export const send = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Get chatroom to check team configuration
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
-      throw new Error('Chatroom not found');
-    }
-
-    // Validate senderRole to prevent impersonation
-    // Only allow 'user' or roles that are in the team configuration
-    const normalizedSenderRole = args.senderRole.toLowerCase();
-    if (normalizedSenderRole !== 'user') {
-      // Check if senderRole is in teamRoles
-      const teamRoles = chatroom.teamRoles || [];
-      const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
-      if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
-        throw new Error(
-          `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ') || 'user'}`
-        );
-      }
-    }
-
-    // Determine target role for routing
-    let targetRole = args.targetRole;
-
-    // For user messages without explicit target, route to entry point
-    if (!targetRole && args.senderRole.toLowerCase() === 'user' && args.type === 'message') {
-      if (chatroom?.teamEntryPoint) {
-        targetRole = chatroom.teamEntryPoint;
-      } else if (chatroom?.teamRoles && chatroom.teamRoles.length > 0) {
-        // Default to first role if no entry point specified
-        targetRole = chatroom.teamRoles[0];
-      }
-    }
-
-    const messageId = await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: args.senderRole,
-      content: args.content,
-      targetRole,
-      type: args.type,
-    });
-
-    // Auto-create task for user messages and handoff messages
-    const isUserMessage = normalizedSenderRole === 'user' && args.type === 'message';
-    const isHandoffToAgent =
-      args.type === 'handoff' && targetRole && targetRole.toLowerCase() !== 'user';
-    const shouldCreateTask = isUserMessage || isHandoffToAgent;
-
-    if (shouldCreateTask) {
-      // Determine next queue position
-      const allTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .collect();
-      const maxPosition = allTasks.reduce((max, t) => Math.max(max, t.queuePosition), 0);
-      const queuePosition = maxPosition + 1;
-
-      const now = Date.now();
-
-      // Determine task status:
-      // - Handoff messages to agents always start as 'pending' (targeted, not queued)
-      // - User messages check for existing pending/in_progress tasks
-      let taskStatus: 'pending' | 'queued';
-      if (isHandoffToAgent) {
-        // Handoffs are targeted to a specific agent and should start immediately
-        taskStatus = 'pending';
-      } else {
-        // User messages: check if any task is currently pending or in_progress
-        const activeTasks = await ctx.db
-          .query('chatroom_tasks')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-          .filter((q) =>
-            q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
-          )
-          .first();
-        taskStatus = activeTasks ? 'queued' : 'pending';
-      }
-
-      // Determine the task creator and assignment
-      const createdBy = isHandoffToAgent ? args.senderRole : 'user';
-      const assignedTo = isHandoffToAgent ? targetRole : undefined;
-
-      // Create the task
-      const taskId = await ctx.db.insert('chatroom_tasks', {
-        chatroomId: args.chatroomId,
-        createdBy,
-        content: args.content,
-        status: taskStatus,
-        sourceMessageId: messageId,
-        createdAt: now,
-        updatedAt: now,
-        queuePosition,
-        assignedTo,
-      });
-
-      // Update message with taskId reference
-      await ctx.db.patch('chatroom_messages', messageId, { taskId });
-    }
-
-    return messageId;
+    return _sendMessageHandler(ctx, args);
   },
 });
+
+/**
+ * Internal handler for completing a task and handing off.
+ * Called by both `sendHandoff` (deprecated) and `handoff` (preferred).
+ */
+async function _handoffHandler(
+  ctx: MutationCtx,
+  args: {
+    sessionId: string;
+    chatroomId: Id<'chatroom_rooms'>;
+    senderRole: string;
+    content: string;
+    targetRole: string;
+  }
+) {
+  // Validate session and check chatroom access
+  await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+  // Get chatroom to check team configuration
+  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+  if (!chatroom) {
+    throw new Error('Chatroom not found');
+  }
+
+  // Validate senderRole
+  const normalizedSenderRole = args.senderRole.toLowerCase();
+  const teamRoles = chatroom.teamRoles || [];
+  const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
+  if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
+    throw new Error(
+      `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ')}`
+    );
+  }
+
+  const normalizedTargetRole = args.targetRole.toLowerCase();
+  const isHandoffToUser = normalizedTargetRole === 'user';
+
+  // Validate handoff to user is allowed based on classification
+  if (isHandoffToUser) {
+    // Get the most recent classified user message to determine restrictions
+    const messages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    let currentClassification = null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
+        currentClassification = msg.classification;
+        break;
+      }
+    }
+
+    // For new_feature requests, builder cannot hand off directly to user
+    if (currentClassification === 'new_feature' && normalizedSenderRole === 'builder') {
+      throw new Error(
+        'Cannot hand off directly to user. new_feature requests must be reviewed before returning to user.'
+      );
+    }
+  }
+
+  const now = Date.now();
+
+  // Step 1: Complete ALL in_progress tasks
+  const inProgressTasks = await ctx.db
+    .query('chatroom_tasks')
+    .withIndex('by_chatroom_status', (q) =>
+      q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+    )
+    .collect();
+
+  const completedTaskIds: Id<'chatroom_tasks'>[] = [];
+  for (const task of inProgressTasks) {
+    await ctx.db.patch('chatroom_tasks', task._id, {
+      status: 'completed',
+      completedAt: now,
+      updatedAt: now,
+    });
+    completedTaskIds.push(task._id);
+  }
+
+  if (inProgressTasks.length > 1) {
+    console.log(
+      `[handoff] Completed ${inProgressTasks.length} in_progress tasks in chatroom ${args.chatroomId}`
+    );
+  }
+
+  // Step 2: Send the handoff message
+  const messageId = await ctx.db.insert('chatroom_messages', {
+    chatroomId: args.chatroomId,
+    senderRole: args.senderRole,
+    content: args.content,
+    targetRole: args.targetRole,
+    type: 'handoff',
+  });
+
+  // Step 3: Create task for target agent (if not user)
+  let newTaskId: Id<'chatroom_tasks'> | null = null;
+  if (!isHandoffToUser) {
+    const allTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+    const maxPosition = allTasks.reduce((max, t) => Math.max(max, t.queuePosition), 0);
+    const queuePosition = maxPosition + 1;
+
+    newTaskId = await ctx.db.insert('chatroom_tasks', {
+      chatroomId: args.chatroomId,
+      createdBy: args.senderRole,
+      content: args.content,
+      status: 'pending', // Handoffs always start as pending
+      sourceMessageId: messageId,
+      createdAt: now,
+      updatedAt: now,
+      queuePosition,
+      assignedTo: args.targetRole,
+    });
+
+    // Link message to task
+    await ctx.db.patch('chatroom_messages', messageId, { taskId: newTaskId });
+  }
+
+  // Step 4: Promote next queued task (for the sender's queue, not target's)
+  let promotedTaskId: Id<'chatroom_tasks'> | null = null;
+  const queuedTasks = await ctx.db
+    .query('chatroom_tasks')
+    .withIndex('by_chatroom_status', (q) =>
+      q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
+    )
+    .collect();
+
+  if (queuedTasks.length > 0) {
+    queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+    const nextTask = queuedTasks[0];
+    await ctx.db.patch('chatroom_tasks', nextTask._id, {
+      status: 'pending',
+      updatedAt: now,
+    });
+    promotedTaskId = nextTask._id;
+    console.log(`[handoff] Promoted queued task ${nextTask._id} to pending after handoff`);
+  }
+
+  // Step 5: Update sender's participant status to waiting
+  const participant = await ctx.db
+    .query('chatroom_participants')
+    .withIndex('by_chatroom_and_role', (q) =>
+      q.eq('chatroomId', args.chatroomId).eq('role', args.senderRole)
+    )
+    .unique();
+
+  if (participant) {
+    await ctx.db.patch('chatroom_participants', participant._id, { status: 'waiting' });
+  }
+
+  return {
+    messageId,
+    completedTaskIds,
+    newTaskId,
+    promotedTaskId,
+  };
+}
 
 /**
  * Send a handoff message and complete the current task atomically.
@@ -146,7 +336,7 @@ export const send = mutation({
  *
  * Requires CLI session authentication and chatroom access.
  *
- * @deprecated Use `completeAndHandoff` instead. This method will be removed in a future version.
+ * @deprecated Use `handoff` instead. This method will be removed in a future version.
  */
 export const sendHandoff = mutation({
   args: {
@@ -157,152 +347,7 @@ export const sendHandoff = mutation({
     targetRole: v.string(),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Get chatroom to check team configuration
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
-      throw new Error('Chatroom not found');
-    }
-
-    // Validate senderRole
-    const normalizedSenderRole = args.senderRole.toLowerCase();
-    const teamRoles = chatroom.teamRoles || [];
-    const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
-    if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
-      throw new Error(
-        `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ')}`
-      );
-    }
-
-    const normalizedTargetRole = args.targetRole.toLowerCase();
-    const isHandoffToUser = normalizedTargetRole === 'user';
-
-    // Validate handoff to user is allowed based on classification
-    if (isHandoffToUser) {
-      // Get the most recent classified user message to determine restrictions
-      const messages = await ctx.db
-        .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .collect();
-
-      let currentClassification = null;
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const msg = messages[i];
-        if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
-          currentClassification = msg.classification;
-          break;
-        }
-      }
-
-      // For new_feature requests, builder cannot hand off directly to user
-      if (currentClassification === 'new_feature' && normalizedSenderRole === 'builder') {
-        throw new Error(
-          'Cannot hand off directly to user. new_feature requests must be reviewed before returning to user.'
-        );
-      }
-    }
-
-    const now = Date.now();
-
-    // Step 1: Complete ALL in_progress tasks
-    const inProgressTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-      )
-      .collect();
-
-    const completedTaskIds = [];
-    for (const task of inProgressTasks) {
-      await ctx.db.patch('chatroom_tasks', task._id, {
-        status: 'completed',
-        completedAt: now,
-        updatedAt: now,
-      });
-      completedTaskIds.push(task._id);
-    }
-
-    if (inProgressTasks.length > 1) {
-      console.log(
-        `[sendHandoff] Completed ${inProgressTasks.length} in_progress tasks in chatroom ${args.chatroomId}`
-      );
-    }
-
-    // Step 2: Send the handoff message
-    const messageId = await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: args.senderRole,
-      content: args.content,
-      targetRole: args.targetRole,
-      type: 'handoff',
-    });
-
-    // Step 3: Create task for target agent (if not user)
-    let newTaskId = null;
-    if (!isHandoffToUser) {
-      const allTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .collect();
-      const maxPosition = allTasks.reduce((max, t) => Math.max(max, t.queuePosition), 0);
-      const queuePosition = maxPosition + 1;
-
-      newTaskId = await ctx.db.insert('chatroom_tasks', {
-        chatroomId: args.chatroomId,
-        createdBy: args.senderRole,
-        content: args.content,
-        status: 'pending', // Handoffs always start as pending
-        sourceMessageId: messageId,
-        createdAt: now,
-        updatedAt: now,
-        queuePosition,
-        assignedTo: args.targetRole,
-      });
-
-      // Link message to task
-      await ctx.db.patch('chatroom_messages', messageId, { taskId: newTaskId });
-    }
-
-    // Step 4: Promote next queued task (for the sender's queue, not target's)
-    let promotedTaskId = null;
-    const queuedTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
-      )
-      .collect();
-
-    if (queuedTasks.length > 0) {
-      queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-      const nextTask = queuedTasks[0];
-      await ctx.db.patch('chatroom_tasks', nextTask._id, {
-        status: 'pending',
-        updatedAt: now,
-      });
-      promotedTaskId = nextTask._id;
-      console.log(`[sendHandoff] Promoted queued task ${nextTask._id} to pending after handoff`);
-    }
-
-    // Step 5: Update sender's participant status to waiting
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.senderRole)
-      )
-      .unique();
-
-    if (participant) {
-      await ctx.db.patch('chatroom_participants', participant._id, { status: 'waiting' });
-    }
-
-    return {
-      messageId,
-      completedTaskIds,
-      newTaskId,
-      promotedTaskId,
-    };
+    return _handoffHandler(ctx, args);
   },
 });
 
@@ -331,8 +376,7 @@ export const sendMessage = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    // Delegate to the send handler (same logic)
-    return send.handler(ctx, args);
+    return _sendMessageHandler(ctx, args);
   },
 });
 
@@ -358,8 +402,7 @@ export const handoff = mutation({
     targetRole: v.string(),
   },
   handler: async (ctx, args) => {
-    // Delegate to the sendHandoff handler (same logic)
-    return sendHandoff.handler(ctx, args);
+    return _handoffHandler(ctx, args);
   },
 });
 
