@@ -5,7 +5,7 @@
 | Term | Definition |
 |------|------------|
 | **sendMessage** | New method name for sending a message to a chatroom (without completing task) |
-| **completeAndHandoff** | New method name for completing current work and handing off to next agent |
+| **handoff** | New method name for completing current work and handing off to next agent |
 | **Deprecated** | Marked for removal in a future version; still works but shows warning |
 | **Handoff** | The act of passing control from one agent to another |
 
@@ -37,7 +37,7 @@
 
    - Given I type `api.messages.`
    - When I see autocomplete suggestions
-   - Then `sendMessage` and `completeAndHandoff` clearly indicate their purpose
+   - Then `sendMessage` and `handoff` clearly indicate their purpose
 
 2. **I want deprecated methods to remain available** so that my existing code continues to work.
 
@@ -70,7 +70,7 @@
 | Criteria | Verification |
 |----------|--------------|
 | `sendMessage` works | Call mutation, verify message created |
-| `completeAndHandoff` works | Call mutation, verify task completed and handoff sent |
+| `handoff` works | Call mutation, verify task completed and handoff sent |
 | `send` still works | Call mutation, verify same behavior |
 | `sendHandoff` still works | Call mutation, verify same behavior |
 | JSDoc deprecation notes | Check TypeScript hover text shows deprecation |

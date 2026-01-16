@@ -24,7 +24,7 @@ export const sendMessage = mutation({
 });
 
 // New: clearer name for completing and handing off
-export const completeAndHandoff = mutation({
+export const handoff = mutation({
   // ... same args as sendHandoff
   handler: async (ctx, args) => {
     // Calls same logic as sendHandoff
@@ -35,7 +35,7 @@ export const completeAndHandoff = mutation({
 /** @deprecated Use sendMessage instead */
 export const send = mutation({ ... });
 
-/** @deprecated Use completeAndHandoff instead */
+/** @deprecated Use handoff instead */
 export const sendHandoff = mutation({ ... });
 ```
 
@@ -95,7 +95,7 @@ export const api: {
   messages: {
     // New methods
     sendMessage: FunctionReference<'mutation', 'public'>;
-    completeAndHandoff: FunctionReference<'mutation', 'public'>;
+    handoff: FunctionReference<'mutation', 'public'>;
     
     // Deprecated (kept for backward compatibility)
     send: FunctionReference<'mutation', 'public'>;

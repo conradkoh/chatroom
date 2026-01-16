@@ -1,7 +1,7 @@
 /**
  * Complete a task and hand off to the next role
  *
- * This command uses the atomic sendHandoff mutation which performs all of
+ * This command uses the atomic handoff mutation which performs all of
  * these operations in a single transaction:
  * 1. Validates the handoff is allowed (classification rules)
  * 2. Completes all in_progress tasks in the chatroom
@@ -52,14 +52,14 @@ export async function taskComplete(
   }
 
   try {
-    // Use atomic sendHandoff mutation - performs all operations in one transaction:
+    // Use atomic handoff mutation - performs all operations in one transaction:
     // - Validates handoff is allowed (classification rules for user handoff)
     // - Completes all in_progress tasks
     // - Sends the handoff message
     // - Creates a task for target agent (if not user)
     // - Updates sender's participant status to waiting
     // - Promotes next queued task to pending
-    await client.mutation(api.messages.sendHandoff, {
+    await client.mutation(api.messages.handoff, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       senderRole: role,

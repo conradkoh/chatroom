@@ -349,7 +349,7 @@ export const sendMessage = mutation({
  *
  * Requires CLI session authentication and chatroom access.
  */
-export const completeAndHandoff = mutation({
+export const handoff = mutation({
   args: {
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),

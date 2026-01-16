@@ -9,15 +9,15 @@ Add new mutations with clearer names in the backend.
 
 1. **Extract shared logic into internal helper functions**
    - `_sendMessageHandler` - core logic for sending messages
-   - `_completeAndHandoffHandler` - core logic for completing and handing off
+   - `_handoffHandler` - core logic for completing and handing off
 
 2. **Add new exported mutations**
    - `sendMessage` - calls `_sendMessageHandler`
-   - `completeAndHandoff` - calls `_completeAndHandoffHandler`
+   - `handoff` - calls `_handoffHandler`
 
 3. **Update existing mutations to use shared logic**
    - `send` - calls `_sendMessageHandler` (add deprecation JSDoc)
-   - `sendHandoff` - calls `_completeAndHandoffHandler` (add deprecation JSDoc)
+   - `sendHandoff` - calls `_handoffHandler` (add deprecation JSDoc)
 
 ### Success Criteria
 - Both old and new method names work identically

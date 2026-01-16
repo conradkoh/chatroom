@@ -46,7 +46,7 @@ Rename and reorganize the backend message API methods and corresponding CLI comm
 | New Name | Replaces | Purpose |
 |----------|----------|---------|
 | `sendMessage` | `send` | Send a message to the chatroom (for agents asking questions/providing updates) |
-| `completeAndHandoff` | `sendHandoff` | Complete current work and hand off to next agent |
+| `handoff` | `sendHandoff` | Complete current work and hand off to next agent |
 
 ### CLI Commands
 
@@ -63,7 +63,8 @@ Rename and reorganize the backend message API methods and corresponding CLI comm
 - `finishAndDelegate` - Clear but long
 - `completeTask` - Conflicts with existing `tasks.completeTask`
 - `handoffTask` - Implies task only, not message
-- `completeAndHandoff` ✅ - Clear about both actions
+- `completeAndHandoff` - Clear but verbose
+- `handoff` ✅ - Concise, matches CLI command name
 
 **For `send`:**
 - `sendMessage` ✅ - Clear, matches CLI naming

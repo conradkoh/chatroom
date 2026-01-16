@@ -11,7 +11,7 @@ These items should be removed in a future major version after adequate deprecati
 | Method | Replacement | File | Status |
 |--------|-------------|------|--------|
 | `messages.send` | `messages.sendMessage` | `services/backend/convex/messages.ts` | 🔄 To be deprecated |
-| `messages.sendHandoff` | `messages.completeAndHandoff` | `services/backend/convex/messages.ts` | 🔄 To be deprecated |
+| `messages.sendHandoff` | `messages.handoff` | `services/backend/convex/messages.ts` | 🔄 To be deprecated |
 
 ### CLI Commands
 
@@ -92,7 +92,7 @@ await client.mutation(api.messages.sendHandoff, { ... });
 
 // New (recommended)
 await client.mutation(api.messages.sendMessage, { ... });
-await client.mutation(api.messages.completeAndHandoff, { ... });
+await client.mutation(api.messages.handoff, { ... });
 ```
 
 ---
