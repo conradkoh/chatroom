@@ -78,7 +78,7 @@ function formatDuration(ms: number): string {
 function printWaitReminder(chatroomId: string, role: string): void {
   console.log(`${'─'.repeat(50)}`);
   console.log(
-    `⚠️  ALWAYS run \`wait-for-message\` after handoff/send. If it times out, run it again immediately.`
+    `⚠️  ALWAYS run \`wait-for-message\` after handoff. If it times out, run it again immediately.`
   );
   console.log(`    chatroom wait-for-message ${chatroomId} --role=${role}`);
   console.log(`${'─'.repeat(50)}`);
