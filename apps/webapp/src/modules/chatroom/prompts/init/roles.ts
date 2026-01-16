@@ -74,7 +74,7 @@ You receive handoffs from the builder containing completed work. You do NOT rece
 
 **If changes are needed:**
 \`\`\`bash
-chatroom task-complete <chatroom-id> \\
+chatroom handoff <chatroom-id> \\
   --role=reviewer \\
   --message="Please address: 1) <issue>, 2) <issue>..." \\
   --next-role=builder
@@ -82,7 +82,7 @@ chatroom task-complete <chatroom-id> \\
 
 **If work is approved:**
 \`\`\`bash
-chatroom task-complete <chatroom-id> \\
+chatroom handoff <chatroom-id> \\
   --role=reviewer \\
   --message="APPROVED. <brief summary of what was reviewed and why it's good>" \\
   --next-role=user

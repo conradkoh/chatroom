@@ -78,7 +78,7 @@ function formatDuration(ms: number): string {
 function printWaitReminder(chatroomId: string, role: string): void {
   console.log(`${'─'.repeat(50)}`);
   console.log(
-    `⚠️  ALWAYS run \`wait-for-message\` after task-complete/send. If it times out, run it again immediately.`
+    `⚠️  ALWAYS run \`wait-for-message\` after handoff/send. If it times out, run it again immediately.`
   );
   console.log(`    chatroom wait-for-message ${chatroomId} --role=${role}`);
   console.log(`${'─'.repeat(50)}`);
@@ -316,7 +316,7 @@ export async function waitForMessage(
           console.log(`When your task is complete, run:\n`);
         }
 
-        console.log(`  chatroom task-complete ${chatroomId} \\`);
+        console.log(`  chatroom handoff ${chatroomId} \\`);
         console.log(`    --role=${role} \\`);
         console.log(`    --message="<summary of what you accomplished>" \\`);
         console.log(`    --next-role=<target>\n`);
@@ -381,7 +381,7 @@ export async function waitForMessage(
             taskStartedCommand: needsClassification
               ? `chatroom task-started ${chatroomId} --role=${role} --classification=<question|new_feature|follow_up>`
               : null,
-            taskCompleteCommand: `chatroom task-complete ${chatroomId} --role=${role} --message="<summary>" --next-role=<target>`,
+            taskCompleteCommand: `chatroom handoff ${chatroomId} --role=${role} --message="<summary>" --next-role=<target>`,
             availableHandoffRoles: rolePromptInfo.availableHandoffRoles,
             terminationRole: 'user',
             classification: rolePromptInfo.currentClassification,

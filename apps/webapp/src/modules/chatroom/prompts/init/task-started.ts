@@ -51,7 +51,7 @@ chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_
 # Now do your work...
 
 # When done, hand off appropriately based on classification
-chatroom task-complete ${ctx.chatroomId} \\
+chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
   --message="<summary>" \\
   --next-role=${isBuilder ? 'reviewer' : 'user'}

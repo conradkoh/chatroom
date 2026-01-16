@@ -53,7 +53,7 @@ chatroom wait-for-message ${ctx.chatroomId} --role=${ctx.role}
 ## Workflow
 1. The command above will wait until you receive a message
 2. When you receive a message, read it carefully and perform your task
-3. When done, hand off to the next agent using the task-complete command
+3. When done, hand off to the next agent using the handoff command
 4. The command will **automatically wait** for your next assignment`;
 }
 
