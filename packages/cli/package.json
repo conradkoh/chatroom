@@ -7,7 +7,7 @@
     "chatroom": "./dist/index.js"
   },
   "scripts": {
-    "sync": "node ../../scripts/sync-cli-api.js",
+    "sync": "bun ../../scripts/sync-cli-api.ts",
     "prebuild": "npm run sync",
     "build": "tsc",
     "dev": "bun run src/index.ts",
