@@ -296,19 +296,19 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     return !isSetupMode && !readiness?.isReady && !!hasDisconnectedAgents;
   }, [isSetupMode, readiness?.isReady, hasDisconnectedAgents]);
 
-  // Status badge colors
+  // Status badge colors - using chatroom status variables for theme support
   const getStatusBadgeClasses = useCallback(
     (status: string, isSetup: boolean, isDisconnected: boolean) => {
       const base = 'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide';
-      if (isDisconnected) return `${base} bg-red-400/15 text-red-400`;
-      if (isSetup) return `${base} bg-amber-400/15 text-amber-400`;
+      if (isDisconnected) return `${base} bg-chatroom-status-error/15 text-chatroom-status-error`;
+      if (isSetup) return `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`;
       switch (status) {
         case 'active':
-          return `${base} bg-emerald-400/15 text-emerald-400`;
+          return `${base} bg-chatroom-status-success/15 text-chatroom-status-success`;
         case 'completed':
-          return `${base} bg-blue-400/15 text-blue-400`;
+          return `${base} bg-chatroom-status-info/15 text-chatroom-status-info`;
         default:
-          return `${base} bg-zinc-500/15 text-zinc-500`;
+          return `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`;
       }
     },
     []
@@ -340,7 +340,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
           <div className="flex items-center gap-3">
             {onBack && (
               <button
-                className="bg-transparent border-2 border-zinc-700 text-zinc-400 w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-zinc-800 hover:border-zinc-600 hover:text-zinc-100"
+                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
                 onClick={onBack}
                 title="Back to chatroom list"
               >
@@ -356,13 +356,13 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   value={editedName}
                   onChange={(e) => setEditedName(e.target.value)}
                   onKeyDown={handleRenameKeyDown}
-                  className="bg-zinc-800 border-2 border-zinc-600 text-zinc-100 px-2 py-1 text-xs font-bold uppercase tracking-wide w-32 sm:w-48 focus:outline-none focus:border-zinc-500"
+                  className="bg-chatroom-bg-tertiary border-2 border-chatroom-border-strong text-chatroom-text-primary px-2 py-1 text-xs font-bold uppercase tracking-wide w-32 sm:w-48 focus:outline-none focus:border-chatroom-accent"
                   placeholder="Enter name..."
                   disabled={isRenamePending}
                   maxLength={100}
                 />
                 <button
-                  className="bg-transparent border-2 border-zinc-700 text-emerald-400 w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-zinc-800 hover:border-emerald-600 disabled:opacity-50"
+                  className="bg-transparent border-2 border-chatroom-border text-chatroom-status-success w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-status-success disabled:opacity-50"
                   onClick={handleSaveRename}
                   disabled={isRenamePending}
                   title="Save name"
@@ -370,7 +370,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   <Check size={12} />
                 </button>
                 <button
-                  className="bg-transparent border-2 border-zinc-700 text-zinc-400 w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-zinc-800 hover:border-zinc-600 hover:text-zinc-100"
+                  className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
                   onClick={handleCancelRename}
                   disabled={isRenamePending}
                   title="Cancel"
@@ -380,11 +380,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="text-zinc-100 text-xs font-bold uppercase tracking-wide max-w-[120px] sm:max-w-[200px] truncate">
+                <span className="text-chatroom-text-primary text-xs font-bold uppercase tracking-wide max-w-[120px] sm:max-w-[200px] truncate">
                   {displayName}
                 </span>
                 <button
-                  className="bg-transparent border-0 text-zinc-500 w-5 h-5 flex items-center justify-center cursor-pointer transition-all duration-100 hover:text-zinc-300"
+                  className="bg-transparent border-0 text-chatroom-text-muted w-5 h-5 flex items-center justify-center cursor-pointer transition-all duration-100 hover:text-chatroom-text-secondary"
                   onClick={handleStartRename}
                   title="Rename chatroom"
                 >
@@ -397,7 +397,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         right: (
           <div className="flex gap-2 md:gap-3 items-center">
             {chatroom.teamName && (
-              <span className="bg-zinc-800 px-2 md:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400 hidden sm:block">
+              <span className="bg-chatroom-bg-tertiary px-2 md:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-secondary hidden sm:block">
                 Team: {chatroom.teamName}
               </span>
             )}
@@ -409,7 +409,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             {/* Sidebar Toggle Button with Status Indicator */}
             {!isSetupMode && (
               <button
-                className="bg-transparent border-2 border-zinc-700 text-zinc-400 w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-zinc-800 hover:border-zinc-600 hover:text-zinc-100 relative"
+                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary relative"
                 onClick={toggleSidebar}
                 title={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
               >
@@ -419,10 +419,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   <span
                     className={`absolute -top-1 -right-1 w-2.5 h-2.5 ${
                       aggregateStatus === 'working'
-                        ? 'bg-blue-400'
+                        ? 'bg-chatroom-status-info'
                         : aggregateStatus === 'ready'
-                          ? 'bg-emerald-400'
-                          : 'bg-zinc-500'
+                          ? 'bg-chatroom-status-success'
+                          : 'bg-chatroom-text-muted'
                     }`}
                   />
                 )}
@@ -433,7 +433,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="bg-transparent border-2 border-zinc-700 text-zinc-400 w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-zinc-800 hover:border-zinc-600 hover:text-zinc-100"
+                    className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
                     title="Actions"
                   >
                     <MoreVertical size={16} />
