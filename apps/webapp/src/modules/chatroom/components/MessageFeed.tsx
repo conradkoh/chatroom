@@ -2,13 +2,14 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { MessageSquare } from 'lucide-react';
-import React, { useEffect, useRef, useMemo, memo } from 'react';
+import { ChevronUp, MessageSquare } from 'lucide-react';
+import React, { useEffect, useRef, useMemo, memo, useCallback } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { WorkingIndicator } from './WorkingIndicator';
+
+import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
 
 interface Participant {
   _id?: string;
@@ -114,6 +115,10 @@ const MessageItem = memo(function MessageItem({ message }: { message: Message })
   );
 });
 
+// Number of messages to load initially and per page
+const INITIAL_PAGE_SIZE = 5;
+const LOAD_MORE_SIZE = 10;
+
 export const MessageFeed = memo(function MessageFeed({
   chatroomId,
   participants,
@@ -125,26 +130,45 @@ export const MessageFeed = memo(function MessageFeed({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chatroomApi = api as any;
 
-  const messages = useSessionQuery(chatroomApi.messages.list, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as Message[] | undefined;
+  const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
+    chatroomApi.messages.listPaginated,
+    { chatroomId: chatroomId as Id<'chatroom_rooms'> },
+    { initialNumItems: INITIAL_PAGE_SIZE }
+  ) as {
+    results: Message[];
+    status: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted';
+    isLoading: boolean;
+    loadMore: (numItems: number) => void;
+  };
 
   const feedRef = useRef<HTMLDivElement>(null);
+  const prevMessageCountRef = useRef(0);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Filter out join messages and reverse to show oldest first (query returns newest first)
+  const displayMessages = useMemo(() => {
+    const filtered = (results || []).filter((m) => m.type !== 'join');
+    // Reverse because paginated query returns newest first, but we want oldest at top
+    return [...filtered].reverse();
+  }, [results]);
+
+  // Auto-scroll to bottom when new messages arrive (not when loading older messages)
   useEffect(() => {
-    if (feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    if (feedRef.current && displayMessages.length > prevMessageCountRef.current) {
+      // Only auto-scroll if messages increased (new message arrived, not loading older)
+      if (status !== 'LoadingMore') {
+        feedRef.current.scrollTop = feedRef.current.scrollHeight;
+      }
     }
-  }, [messages]);
+    prevMessageCountRef.current = displayMessages.length;
+  }, [displayMessages.length, status]);
 
-  // Filter out join messages - memoized
-  const displayMessages = useMemo(
-    () => (messages || []).filter((m) => m.type !== 'join'),
-    [messages]
-  );
+  const handleLoadMore = useCallback(() => {
+    if (status === 'CanLoadMore') {
+      loadMore(LOAD_MORE_SIZE);
+    }
+  }, [status, loadMore]);
 
-  if (messages === undefined) {
+  if (status === 'LoadingFirstPage' || (isLoading && results.length === 0)) {
     return (
       <div className="flex-1 overflow-y-auto p-4 min-h-0">
         <div className="flex flex-col items-center justify-center h-full text-chatroom-text-muted">
@@ -173,6 +197,22 @@ export const MessageFeed = memo(function MessageFeed({
       className="flex-1 overflow-y-auto p-4 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
       ref={feedRef}
     >
+      {/* Load More button at top to load older messages */}
+      {status === 'CanLoadMore' && (
+        <button
+          onClick={handleLoadMore}
+          className="w-full py-2 mb-2 text-sm text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors flex items-center justify-center gap-1"
+        >
+          <ChevronUp size={14} />
+          Load older messages
+        </button>
+      )}
+      {status === 'LoadingMore' && (
+        <div className="w-full py-2 mb-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
+          <div className="w-4 h-4 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+          Loading...
+        </div>
+      )}
       {displayMessages.map((message) => (
         <MessageItem key={message._id} message={message} />
       ))}

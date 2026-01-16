@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
@@ -256,6 +257,30 @@ export const list = query({
     const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
 
     return messages.slice(-limit);
+  },
+});
+
+/**
+ * List messages in a chatroom with pagination.
+ * Returns newest messages first (descending order).
+ * Requires CLI session authentication and chatroom access.
+ */
+export const listPaginated = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Paginate with descending order (newest first)
+    return await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .order('desc')
+      .paginate(args.paginationOpts);
   },
 });
 
