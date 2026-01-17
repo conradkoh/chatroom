@@ -332,6 +332,22 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
         console.log(`📊 MESSAGE DATA (JSON)`);
         console.log(`${'─'.repeat(50)}`);
 
+        // Build classification commands object
+        const classificationCommands = {
+          question: `chatroom task-started ${chatroomId} --role=${role} --classification=question`,
+          new_feature: `chatroom task-started ${chatroomId} --role=${role} --classification=new_feature --title="<title>" --description="<description>" --tech-specs="<specifications>"`,
+          follow_up: `chatroom task-started ${chatroomId} --role=${role} --classification=follow_up`,
+        };
+
+        // Build context commands for question classification
+        const contextCommands =
+          rolePromptInfo.currentClassification === 'question'
+            ? [
+                `chatroom feature list ${chatroomId} --limit=5`,
+                `chatroom backlog list ${chatroomId} --role=${role}`,
+              ]
+            : undefined;
+
         const jsonOutput = {
           message: {
             id: message?._id || task._id,
@@ -383,6 +399,8 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
             terminationRole: 'user',
             classification: rolePromptInfo.currentClassification,
             handoffRestriction: rolePromptInfo.restrictionReason,
+            classificationCommands,
+            contextCommands,
           },
         };
 

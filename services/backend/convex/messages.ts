@@ -442,6 +442,10 @@ export const taskStarted = mutation({
       v.literal('new_feature'),
       v.literal('follow_up')
     ),
+    // Feature metadata (optional for backward compatibility, required by CLI for new_feature)
+    featureTitle: v.optional(v.string()),
+    featureDescription: v.optional(v.string()),
+    featureTechSpecs: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
@@ -468,9 +472,12 @@ export const taskStarted = mutation({
       throw new Error('Message is already classified');
     }
 
-    // Update the message with classification
+    // Update the message with classification and feature metadata
     await ctx.db.patch('chatroom_messages', args.messageId, {
       classification: args.classification,
+      ...(args.featureTitle && { featureTitle: args.featureTitle }),
+      ...(args.featureDescription && { featureDescription: args.featureDescription }),
+      ...(args.featureTechSpecs && { featureTechSpecs: args.featureTechSpecs }),
     });
 
     // For follow-ups, link to the previous non-follow-up message
@@ -842,6 +849,139 @@ export const getLatestForRole = query({
     }
 
     return null;
+  },
+});
+
+/**
+ * List features in a chatroom.
+ * Returns messages classified as new_feature that have feature metadata.
+ * Used by agents to discover past features for context.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const listFeatures = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const limit = args.limit || 10;
+    const MAX_LIMIT = 50;
+    const effectiveLimit = Math.min(limit, MAX_LIMIT);
+
+    // Get all messages in the chatroom
+    const messages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    // Filter to new_feature messages with feature title
+    const features = messages
+      .filter((msg) => msg.classification === 'new_feature' && msg.featureTitle)
+      .reverse() // Most recent first
+      .slice(0, effectiveLimit)
+      .map((msg) => ({
+        id: msg._id,
+        title: msg.featureTitle!,
+        descriptionPreview: msg.featureDescription
+          ? msg.featureDescription.substring(0, 100) +
+            (msg.featureDescription.length > 100 ? '...' : '')
+          : undefined,
+        createdAt: msg._creationTime,
+      }));
+
+    return features;
+  },
+});
+
+/**
+ * Inspect a specific feature.
+ * Returns full feature details including tech specs and conversation thread.
+ * Used by agents to understand implementation details of past features.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const inspectFeature = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    messageId: v.id('chatroom_messages'),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Get the feature message
+    const message = await ctx.db.get('chatroom_messages', args.messageId);
+    if (!message) {
+      throw new Error('Message not found');
+    }
+
+    // Verify it belongs to this chatroom
+    if (message.chatroomId !== args.chatroomId) {
+      throw new Error('Message does not belong to this chatroom');
+    }
+
+    // Verify it's a feature
+    if (message.classification !== 'new_feature' || !message.featureTitle) {
+      throw new Error('Message is not a feature');
+    }
+
+    // Get all messages in the chatroom to find the thread
+    const allMessages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    // Find the index of this message
+    const messageIndex = allMessages.findIndex((m) => m._id === args.messageId);
+    if (messageIndex === -1) {
+      throw new Error('Message not found in chatroom');
+    }
+
+    // Get all messages after this one until the next non-follow-up user message
+    const thread: {
+      id: string;
+      senderRole: string;
+      content: string;
+      type: string;
+      createdAt: number;
+    }[] = [];
+
+    for (let i = messageIndex + 1; i < allMessages.length; i++) {
+      const msg = allMessages[i];
+
+      // Stop at the next non-follow-up user message
+      if (
+        msg.senderRole.toLowerCase() === 'user' &&
+        msg.type === 'message' &&
+        msg.classification !== 'follow_up'
+      ) {
+        break;
+      }
+
+      thread.push({
+        id: msg._id,
+        senderRole: msg.senderRole,
+        content: msg.content,
+        type: msg.type,
+        createdAt: msg._creationTime,
+      });
+    }
+
+    return {
+      feature: {
+        id: message._id,
+        title: message.featureTitle,
+        description: message.featureDescription,
+        techSpecs: message.featureTechSpecs,
+        content: message.content,
+        createdAt: message._creationTime,
+      },
+      thread,
+    };
   },
 });
 

@@ -297,6 +297,10 @@ export default defineSchema({
         v.literal('follow_up') // Follow-up to previous message - part of same context
       )
     ),
+    // Feature metadata (set for new_feature classification)
+    featureTitle: v.optional(v.string()),
+    featureDescription: v.optional(v.string()),
+    featureTechSpecs: v.optional(v.string()),
     // Reference to the original user message that started this task chain
     // Set when an agent runs task-started, links all related messages
     taskOriginMessageId: v.optional(v.id('chatroom_messages')),

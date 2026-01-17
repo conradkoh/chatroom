@@ -10,11 +10,15 @@ import { getConvexClient } from '../infrastructure/convex/client.js';
 interface TaskStartedOptions {
   role: string;
   classification: 'question' | 'new_feature' | 'follow_up';
+  // Feature metadata (required for new_feature classification)
+  title?: string;
+  description?: string;
+  techSpecs?: string;
 }
 
 export async function taskStarted(chatroomId: string, options: TaskStartedOptions): Promise<void> {
   const client = await getConvexClient();
-  const { role, classification } = options;
+  const { role, classification, title, description, techSpecs } = options;
 
   // Get session ID for authentication
   const sessionId = getSessionId();
@@ -34,6 +38,34 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
     );
     process.exit(1);
+  }
+
+  // Validate feature metadata for new_feature classification
+  if (classification === 'new_feature') {
+    const missingFields: string[] = [];
+    if (!title || title.trim().length === 0) {
+      missingFields.push('--title');
+    }
+    if (!description || description.trim().length === 0) {
+      missingFields.push('--description');
+    }
+    if (!techSpecs || techSpecs.trim().length === 0) {
+      missingFields.push('--tech-specs');
+    }
+
+    if (missingFields.length > 0) {
+      console.error(`❌ new_feature classification requires feature metadata`);
+      console.error(`   Missing fields: ${missingFields.join(', ')}`);
+      console.error('');
+      console.error('   Example:');
+      console.error(
+        `   chatroom task-started ${chatroomId} --role=${role} --classification=new_feature \\`
+      );
+      console.error(`     --title="Feature title" \\`);
+      console.error(`     --description="What this feature does" \\`);
+      console.error(`     --tech-specs="How to implement it"`);
+      process.exit(1);
+    }
   }
 
   // Get the most recent user message to classify
@@ -67,6 +99,10 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       role,
       messageId: targetMessage._id,
       classification,
+      // Include feature metadata if provided (validated above for new_feature)
+      ...(title && { featureTitle: title.trim() }),
+      ...(description && { featureDescription: description.trim() }),
+      ...(techSpecs && { featureTechSpecs: techSpecs.trim() }),
     })) as { success: boolean; classification: string; reminder: string };
 
     console.log(`✅ Task acknowledged and classified`);

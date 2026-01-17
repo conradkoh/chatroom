@@ -155,23 +155,40 @@ program
     '--classification <type>',
     'Message classification: question, new_feature, or follow_up'
   )
-  .action(async (chatroomId: string, options: { role: string; classification: string }) => {
-    await maybeRequireAuth();
-    const validClassifications = ['question', 'new_feature', 'follow_up'];
-    if (!validClassifications.includes(options.classification)) {
-      console.error(
-        `❌ Invalid classification: ${
-          options.classification
-        }. Must be one of: ${validClassifications.join(', ')}`
-      );
-      process.exit(1);
+  .option('--title <title>', 'Feature title (required for new_feature)')
+  .option('--description <description>', 'Feature description (required for new_feature)')
+  .option('--tech-specs <specs>', 'Technical specifications (required for new_feature)')
+  .action(
+    async (
+      chatroomId: string,
+      options: {
+        role: string;
+        classification: string;
+        title?: string;
+        description?: string;
+        techSpecs?: string;
+      }
+    ) => {
+      await maybeRequireAuth();
+      const validClassifications = ['question', 'new_feature', 'follow_up'];
+      if (!validClassifications.includes(options.classification)) {
+        console.error(
+          `❌ Invalid classification: ${
+            options.classification
+          }. Must be one of: ${validClassifications.join(', ')}`
+        );
+        process.exit(1);
+      }
+      const { taskStarted } = await import('./commands/task-started.js');
+      await taskStarted(chatroomId, {
+        role: options.role,
+        classification: options.classification as 'question' | 'new_feature' | 'follow_up',
+        title: options.title,
+        description: options.description,
+        techSpecs: options.techSpecs,
+      });
     }
-    const { taskStarted } = await import('./commands/task-started.js');
-    await taskStarted(chatroomId, {
-      role: options.role,
-      classification: options.classification as 'question' | 'new_feature' | 'follow_up',
-    });
-  });
+  );
 
 program
   .command('handoff <chatroomId>')
@@ -198,6 +215,33 @@ program
       });
     }
   );
+
+// ============================================================================
+// FEATURE COMMANDS (auth required)
+// ============================================================================
+
+const featureCommand = program.command('feature').description('Browse and inspect features');
+
+featureCommand
+  .command('list <chatroomId>')
+  .description('List features in a chatroom')
+  .option('--limit <n>', 'Maximum number of features to show', '10')
+  .action(async (chatroomId: string, options: { limit?: string }) => {
+    await maybeRequireAuth();
+    const { listFeatures } = await import('./commands/feature.js');
+    await listFeatures(chatroomId, {
+      limit: options.limit ? parseInt(options.limit, 10) : undefined,
+    });
+  });
+
+featureCommand
+  .command('inspect <chatroomId> <messageId>')
+  .description('Inspect a specific feature')
+  .action(async (chatroomId: string, messageId: string) => {
+    await maybeRequireAuth();
+    const { inspectFeature } = await import('./commands/feature.js');
+    await inspectFeature(chatroomId, messageId);
+  });
 
 // ============================================================================
 // BACKLOG COMMANDS (auth required)
