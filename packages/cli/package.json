@@ -1,6 +1,6 @@
 {
   "name": "chatroom-cli",
-  "version": "1.0.24",
+  "version": "1.0.25",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {
@@ -34,6 +34,10 @@
   ],
   "author": "",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/conradkoh/chatroom"
+  },
   "files": [
     "dist",
     "package.json",
