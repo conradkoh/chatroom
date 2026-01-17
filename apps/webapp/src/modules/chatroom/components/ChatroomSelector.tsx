@@ -2,11 +2,12 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { MessageSquare, MoreVertical, CheckCircle } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import { CreateChatroomForm } from './CreateChatroomForm';
+import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 
 import {
   DropdownMenu,
@@ -21,59 +22,39 @@ interface ChatroomSelectorProps {
   onSelect: (chatroomId: string) => void;
 }
 
-interface Chatroom {
-  _id: string;
-  _creationTime: number;
-  status: string;
-  name?: string;
-  teamId?: string;
-  teamName?: string;
-  teamRoles?: string[];
-  teamEntryPoint?: string;
-}
-
-interface Participant {
-  _id: string;
-  chatroomId: string;
-  role: string;
-  status: string;
-}
-
-interface Message {
-  _id: string;
-  _creationTime: number;
-  chatroomId: string;
-  senderRole: string;
-  content: string;
-  type: string;
-}
-
-// Status badge colors
 // Status badge colors - using chatroom status variables for theme support
-const getStatusBadgeClasses = (status: string) => {
+const getStatusBadgeClasses = (chatStatus: ChatroomWithStatus['chatStatus']) => {
   const base = 'px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide';
-  switch (status) {
-    case 'active':
+  switch (chatStatus) {
+    case 'ready':
       return `${base} bg-chatroom-status-success/15 text-chatroom-status-success`;
+    case 'working':
+      return `${base} bg-chatroom-status-info/15 text-chatroom-status-info`;
     case 'completed':
       return `${base} bg-chatroom-status-info/15 text-chatroom-status-info`;
-    case 'loading':
-      return `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`;
+    case 'disconnected':
+      return `${base} bg-chatroom-status-error/15 text-chatroom-status-error`;
+    case 'setup':
+      return `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`;
+    case 'partial':
     default:
       return `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`;
   }
 };
 
-// Agent status indicator
-const getAgentIndicatorClasses = (status: 'active' | 'connected' | 'offline' | 'skeleton') => {
+// Agent status indicator - now uses effectiveStatus which accounts for expiration
+const getAgentIndicatorClasses = (
+  effectiveStatus: 'active' | 'waiting' | 'idle' | 'disconnected'
+) => {
   const base = 'w-1.5 h-1.5 flex-shrink-0';
-  switch (status) {
+  switch (effectiveStatus) {
     case 'active':
       return `${base} bg-chatroom-status-info`;
-    case 'connected':
+    case 'waiting':
       return `${base} bg-chatroom-status-success`;
-    case 'skeleton':
-      return `${base} bg-chatroom-text-muted animate-pulse`;
+    case 'disconnected':
+      return `${base} bg-chatroom-status-error`;
+    case 'idle':
     default:
       return `${base} bg-chatroom-text-muted`;
   }
@@ -83,12 +64,8 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('current');
 
-  // Type assertion workaround for Convex API
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-
-  // Query all chatrooms owned by the user - we'll filter by status on the client
-  const chatrooms = useSessionQuery(chatroomApi.chatrooms.listByUser) as Chatroom[] | undefined;
+  // Use context for chatroom data - single source of truth
+  const { chatrooms, isLoading } = useChatroomListing();
 
   const handleCreated = useCallback(
     (chatroomId: string) => {
@@ -98,7 +75,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
     [onSelect]
   );
 
-  if (chatrooms === undefined) {
+  if (isLoading) {
     return (
       <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
         <div className="flex flex-col items-center justify-center gap-4 py-12">
@@ -117,7 +94,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
     );
   }
 
-  if (chatrooms.length === 0) {
+  if (!chatrooms || chatrooms.length === 0) {
     return (
       <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
         {/* Header */}
@@ -197,7 +174,7 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
 }
 
 interface ChatroomCardProps {
-  chatroom: Chatroom;
+  chatroom: ChatroomWithStatus;
   onSelect: (chatroomId: string) => void;
   activeTab: TabType;
 }
@@ -210,15 +187,6 @@ const ChatroomCard = memo(function ChatroomCard({
   // Type assertion workaround for Convex API
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chatroomApi = api as any;
-
-  const participants = useSessionQuery(chatroomApi.participants.list, {
-    chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-  }) as Participant[] | undefined;
-
-  // Only fetch last message for activity timestamp
-  const messages = useSessionQuery(chatroomApi.messages.list, {
-    chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-  }) as Message[] | undefined;
 
   // Mutation to mark chatroom as complete
   const updateStatus = useSessionMutation(chatroomApi.chatrooms.updateStatus);
@@ -238,50 +206,22 @@ const ChatroomCard = memo(function ChatroomCard({
     [updateStatus, chatroom._id]
   );
 
-  // Check if data is still loading
-  const isLoading = participants === undefined;
-
-  // Create a map of role -> status for quick lookup
-  const participantStatus = useMemo(
-    () => new Map((participants || []).map((p) => [p.role.toLowerCase(), p.status])),
-    [participants]
-  );
-
-  // Get the latest activity time (most recent message or creation time)
-  const lastActivity = useMemo(() => {
-    if (messages && messages.length > 0) {
-      return messages[messages.length - 1]!._creationTime;
-    }
-    return chatroom._creationTime;
-  }, [messages, chatroom._creationTime]);
-
   const formattedDate = useMemo(() => {
-    return new Date(lastActivity).toLocaleString('en-US', {
+    return new Date(chatroom._creationTime).toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
     });
-  }, [lastActivity]);
+  }, [chatroom._creationTime]);
 
-  // Compute effective status based on participants
-  const storedStatus = chatroom.status;
-  const hasConnectedAgents = useMemo(
-    () => participants?.some((p) => p.status === 'waiting' || p.status === 'active'),
-    [participants]
-  );
+  // Use computed chatStatus from backend (single source of truth)
+  const { chatStatus, agents } = chatroom;
 
-  const status = isLoading
-    ? 'loading'
-    : storedStatus === 'completed'
-      ? 'completed'
-      : hasConnectedAgents
-        ? 'active'
-        : 'idle';
-
-  // Filter based on active tab
-  const shouldShow = activeTab === 'current' ? status !== 'completed' : status === 'completed';
+  // Filter based on active tab using chatStatus
+  const shouldShow =
+    activeTab === 'current' ? chatStatus !== 'completed' : chatStatus === 'completed';
 
   if (!shouldShow) {
     return null;
@@ -292,48 +232,29 @@ const ChatroomCard = memo(function ChatroomCard({
   // Use custom name if set, otherwise show team name
   const displayName = chatroom.name || teamName;
 
-  // Show skeleton while loading - but still clickable
-  if (isLoading) {
-    return (
-      <button
-        className="bg-chatroom-bg-surface border-2 border-chatroom-border p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
-        onClick={() => onSelect(chatroom._id)}
-      >
-        {/* Card Main */}
-        <div className="flex justify-between items-start mb-3">
-          <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary">
-            {displayName}
-          </span>
-          <span className={getStatusBadgeClasses('loading')}>
-            <span className="animate-pulse">loading</span>
-          </span>
-        </div>
-        <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-3">
-          {chatroom._id}
-        </div>
-        {/* Card Agents */}
-        <div className="flex flex-wrap gap-2 mb-3">
-          {teamRoles.map((role) => (
-            <div key={role} className="flex items-center gap-1.5">
-              <span className={getAgentIndicatorClasses('skeleton')} />
-              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-                {role}
-              </span>
-            </div>
-          ))}
-        </div>
-        {/* Card Date */}
-        <div className="text-[10px] text-chatroom-text-muted animate-pulse">{formattedDate}</div>
-      </button>
-    );
-  }
+  // Create a map of role -> agent for quick lookup
+  const agentMap = new Map(agents.map((a) => [a.role.toLowerCase(), a]));
+
+  // Display label for chat status
+  const statusLabel =
+    chatStatus === 'ready'
+      ? 'ready'
+      : chatStatus === 'working'
+        ? 'working'
+        : chatStatus === 'completed'
+          ? 'completed'
+          : chatStatus === 'disconnected'
+            ? 'disconnected'
+            : chatStatus === 'setup'
+              ? 'setup'
+              : 'idle';
 
   return (
     <div className="relative">
       <button
         className="bg-chatroom-bg-surface border-2 border-chatroom-border p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
         onClick={() => onSelect(chatroom._id)}
-        data-last-activity={lastActivity}
+        data-chat-status={chatStatus}
       >
         {/* Card Main */}
         <div className="flex justify-between items-start mb-3">
@@ -341,9 +262,9 @@ const ChatroomCard = memo(function ChatroomCard({
             {displayName}
           </span>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <span className={getStatusBadgeClasses(status)}>{status}</span>
+            <span className={getStatusBadgeClasses(chatStatus)}>{statusLabel}</span>
             {/* Action Menu - only show for non-completed chatrooms */}
-            {status !== 'completed' && (
+            {chatStatus !== 'completed' && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div
@@ -373,19 +294,15 @@ const ChatroomCard = memo(function ChatroomCard({
         <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-3">
           {chatroom._id}
         </div>
-        {/* Card Agents */}
+        {/* Card Agents - now uses effectiveStatus which accounts for expiration */}
         <div className="flex flex-wrap gap-2 mb-3">
           {teamRoles.map((role) => {
-            const agentStatus = participantStatus.get(role.toLowerCase());
-            const isConnected = agentStatus === 'waiting' || agentStatus === 'active';
-            const isActive = agentStatus === 'active';
+            const agent = agentMap.get(role.toLowerCase());
+            // Use effectiveStatus which is computed on backend and accounts for readyUntil expiration
+            const effectiveStatus = agent?.effectiveStatus || 'idle';
             return (
               <div key={role} className="flex items-center gap-1.5">
-                <span
-                  className={getAgentIndicatorClasses(
-                    isConnected ? (isActive ? 'active' : 'connected') : 'offline'
-                  )}
-                />
+                <span className={getAgentIndicatorClasses(effectiveStatus)} />
                 <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
                   {role}
                 </span>

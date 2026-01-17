@@ -20,5 +20,14 @@ export { SetupChecklist } from './components/SetupChecklist';
 export { TeamStatus } from './components/TeamStatus';
 export { WorkingIndicator } from './components/WorkingIndicator';
 
+// Context
+export {
+  ChatroomListingProvider,
+  useChatroomListing,
+  type ChatroomWithStatus,
+  type Agent,
+  type TeamReadiness,
+} from './context/ChatroomListingContext';
+
 // Prompts
 export * from './prompts';

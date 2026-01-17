@@ -75,6 +75,100 @@ export const listByUser = query({
 });
 
 /**
+ * List chatrooms owned by the authenticated user with computed agent and chat status.
+ * Returns enriched chatroom data with:
+ * - agents: Array of agent statuses with computed effectiveStatus (accounts for expiration)
+ * - chatStatus: Computed overall status ('ready' | 'working' | 'partial' | 'disconnected' | 'setup')
+ * - teamReadiness: Summary of team readiness state
+ *
+ * This is the single source of truth for chatroom listing display.
+ * Requires session authentication.
+ */
+export const listByUserWithStatus = query({
+  args: {
+    sessionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate session
+    const sessionResult = await validateSession(ctx, args.sessionId);
+    if (!sessionResult.valid) {
+      throw new Error(`Authentication failed: ${sessionResult.reason}`);
+    }
+
+    const chatrooms = await ctx.db
+      .query('chatroom_rooms')
+      .withIndex('by_ownerId', (q) => q.eq('ownerId', sessionResult.userId))
+      .order('desc')
+      .collect();
+
+    const now = Date.now();
+
+    // Fetch all participant data and compute statuses
+    const chatroomsWithStatus = await Promise.all(
+      chatrooms.map(async (chatroom) => {
+        const participants = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+          .collect();
+
+        // Compute agent statuses with expiration check
+        const agents = participants.map((p) => {
+          const isExpired = p.readyUntil ? p.readyUntil < now : false;
+          // Effective status: if expired, treat as 'disconnected'
+          const effectiveStatus = isExpired ? ('disconnected' as const) : p.status;
+          return {
+            role: p.role,
+            status: p.status, // Raw status in DB
+            effectiveStatus, // Computed status considering expiration
+            isExpired,
+            readyUntil: p.readyUntil,
+          };
+        });
+
+        // Compute chat status (single source of truth)
+        const teamRoles = chatroom.teamRoles || [];
+        const activeAgents = agents.filter((a) => !a.isExpired);
+        const presentRoles = new Set(activeAgents.map((a) => a.role.toLowerCase()));
+
+        const allPresent = teamRoles.every((r) => presentRoles.has(r.toLowerCase()));
+        const hasDisconnected = agents.some((a) => a.isExpired);
+        const hasActive = agents.some((a) => a.effectiveStatus === 'active');
+
+        // Compute chatStatus
+        type ChatStatus = 'ready' | 'working' | 'partial' | 'disconnected' | 'setup' | 'completed';
+        let chatStatus: ChatStatus;
+        if (chatroom.status === 'completed') {
+          chatStatus = 'completed';
+        } else if (hasDisconnected && !allPresent) {
+          chatStatus = 'disconnected';
+        } else if (!allPresent) {
+          chatStatus = 'setup';
+        } else if (hasActive) {
+          chatStatus = 'working';
+        } else if (allPresent) {
+          chatStatus = 'ready';
+        } else {
+          chatStatus = 'partial';
+        }
+
+        return {
+          ...chatroom,
+          agents,
+          chatStatus,
+          teamReadiness: {
+            isReady: allPresent && !hasDisconnected,
+            missingRoles: teamRoles.filter((r) => !presentRoles.has(r.toLowerCase())),
+            expiredRoles: agents.filter((a) => a.isExpired).map((a) => a.role),
+          },
+        };
+      })
+    );
+
+    return chatroomsWithStatus;
+  },
+});
+
+/**
  * Update the status of a chatroom.
  * Requires CLI session authentication and chatroom access.
  */
