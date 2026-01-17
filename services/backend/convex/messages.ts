@@ -243,7 +243,7 @@ async function _handoffHandler(
   }
 
   if (inProgressTasks.length > 1) {
-    console.log(
+    console.warn(
       `[handoff] Completed ${inProgressTasks.length} in_progress tasks in chatroom ${args.chatroomId}`
     );
   }
@@ -322,12 +322,12 @@ async function _handoffHandler(
           updatedAt: now,
         });
         promotedTaskId = nextTask._id;
-        console.log(
+        console.warn(
           `[handoff] Promoted queued task ${nextTask._id} to pending (all agents ready after handoff to user)`
         );
       }
     } else {
-      console.log(
+      console.warn(
         `[handoff] Skipping queue promotion - some agents are still active after handoff to user`
       );
     }

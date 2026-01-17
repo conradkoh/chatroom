@@ -162,7 +162,7 @@ export const completeTask = mutation({
 
     // Log if multiple tasks were completed (indicates a stuck state that was cleaned up)
     if (inProgressTasks.length > 1) {
-      console.log(
+      console.warn(
         `[Task Cleanup] Completed ${inProgressTasks.length} in_progress tasks in chatroom ${args.chatroomId}. ` +
           `Task IDs: ${inProgressTasks.map((t) => t._id).join(', ')}`
       );
@@ -193,7 +193,7 @@ export const completeTask = mutation({
         return { completed: true, completedCount: inProgressTasks.length, promoted: nextTask._id };
       }
     } else {
-      console.log(
+      console.warn(
         `[Task Complete] Skipping queue promotion - some agents are still active in chatroom ${args.chatroomId}`
       );
     }
@@ -259,7 +259,7 @@ export const cancelTask = mutation({
           });
 
           // Log the automatic promotion
-          console.log(
+          console.warn(
             `[Queue Promotion] Auto-promoted task ${nextTask._id} after cancellation of pending task ${args.taskId}. ` +
               `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
           );
@@ -267,7 +267,7 @@ export const cancelTask = mutation({
           promoted = nextTask._id;
         }
       } else {
-        console.log(
+        console.warn(
           `[Queue Promotion Deferred] Cancelled pending task ${args.taskId} but some agents are still active. ` +
             `Queue promotion deferred until all agents are ready.`
         );
@@ -318,7 +318,7 @@ export const completeTaskById = mutation({
       });
 
       // Log force completion
-      console.log(
+      console.warn(
         `[Force Complete] Task ${args.taskId} force-completed from ${task.status}. ` +
           `Content: "${task.content.substring(0, 50)}${task.content.length > 50 ? '...' : ''}"`
       );
@@ -345,7 +345,7 @@ export const completeTaskById = mutation({
             updatedAt: now,
           });
 
-          console.log(
+          console.warn(
             `[Queue Promotion] Auto-promoted task ${nextTask._id} after force-completing ${args.taskId}. ` +
               `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
           );
@@ -353,7 +353,7 @@ export const completeTaskById = mutation({
           promoted = nextTask._id;
         }
       } else {
-        console.log(
+        console.warn(
           `[Queue Promotion Deferred] Force-completed task ${args.taskId} but some agents are still active. ` +
             `Queue promotion deferred until all agents are ready.`
         );
@@ -611,7 +611,7 @@ export const promoteNextTask = mutation({
     });
 
     // Log the promotion
-    console.log(
+    console.warn(
       `[Queue Promotion] Promoted task ${nextTask._id} to pending in chatroom ${args.chatroomId}. ` +
         `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
     );

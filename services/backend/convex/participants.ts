@@ -112,13 +112,13 @@ export const join = mutation({
             updatedAt: now,
           });
 
-          console.log(
+          console.warn(
             `[Auto-Promote on Join] Primary role "${args.role}" joined (all agents ready). Promoted task ${nextTask._id} to pending. ` +
               `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
           );
         }
       } else if (activeTasks.length === 0 && !allAgentsReady) {
-        console.log(
+        console.warn(
           `[Auto-Promote Deferred] Primary role "${args.role}" joined but some agents are still active. Queue promotion deferred.`
         );
       }
