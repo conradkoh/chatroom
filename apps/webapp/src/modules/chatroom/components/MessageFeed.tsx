@@ -58,6 +58,7 @@ const getSenderClasses = (role: string) => {
 };
 
 // Task status badge styling - shows processing status for user messages
+// Per theme.md: use text labels with color, no emoji circles
 const getTaskStatusBadge = (status: Message['taskStatus']) => {
   if (!status) return null;
   const base = 'inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 ml-2';
@@ -65,32 +66,32 @@ const getTaskStatusBadge = (status: Message['taskStatus']) => {
     case 'pending':
       return {
         className: `${base} bg-chatroom-status-success/15 text-chatroom-status-success`,
-        label: '🟢 pending',
+        label: 'pending',
       };
     case 'in_progress':
       return {
         className: `${base} bg-chatroom-status-info/15 text-chatroom-status-info`,
-        label: '🔵 in progress',
+        label: 'in progress',
       };
     case 'queued':
       return {
         className: `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`,
-        label: '🟡 queued',
+        label: 'queued',
       };
     case 'completed':
       return {
         className: `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
-        label: '✅ done',
+        label: 'done',
       };
     case 'cancelled':
       return {
         className: `${base} bg-chatroom-status-error/15 text-chatroom-status-error`,
-        label: '❌ cancelled',
+        label: 'cancelled',
       };
     case 'backlog':
       return {
         className: `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
-        label: '📋 backlog',
+        label: 'backlog',
       };
     default:
       return null;
