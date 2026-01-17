@@ -142,7 +142,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   if (!silent) {
     console.log(`✅ Joined chatroom as "${role}"`);
   }
-  const durationDisplay = duration || formatDuration(effectiveTimeout);
+  const durationDisplay = formatDuration(effectiveTimeout);
   console.log(`⏳ Waiting for tasks (duration: ${durationDisplay})...`);
   console.log('');
   printWaitReminder(chatroomId, role);
