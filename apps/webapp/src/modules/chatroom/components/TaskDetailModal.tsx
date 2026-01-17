@@ -84,7 +84,7 @@ export function TaskDetailModal({
       setEditedContent(task.content);
       setIsEditing(false);
     }
-  }, [isOpen, task?.content, task?._id]);
+  }, [isOpen, task]);
 
   // Handle Escape key
   const handleKeyDown = useCallback(
