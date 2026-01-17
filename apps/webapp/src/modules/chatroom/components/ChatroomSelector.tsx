@@ -292,10 +292,13 @@ const ChatroomCard = memo(function ChatroomCard({
   // Use custom name if set, otherwise show team name
   const displayName = chatroom.name || teamName;
 
-  // Show skeleton while loading
+  // Show skeleton while loading - but still clickable
   if (isLoading) {
     return (
-      <div className="bg-chatroom-bg-surface border-2 border-chatroom-border p-4 cursor-default">
+      <button
+        className="bg-chatroom-bg-surface border-2 border-chatroom-border p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
+        onClick={() => onSelect(chatroom._id)}
+      >
         {/* Card Main */}
         <div className="flex justify-between items-start mb-3">
           <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary">
@@ -321,7 +324,7 @@ const ChatroomCard = memo(function ChatroomCard({
         </div>
         {/* Card Date */}
         <div className="text-[10px] text-chatroom-text-muted animate-pulse">{formattedDate}</div>
-      </div>
+      </button>
     );
   }
 
