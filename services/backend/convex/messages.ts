@@ -6,7 +6,7 @@ import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
-import { generateRolePrompt } from './prompts';
+import { generateRolePrompt, generateTaskStartedReminder } from './prompts';
 
 // =============================================================================
 // SHARED HANDLERS - Internal functions that contain the actual logic
@@ -504,7 +504,10 @@ export const taskStarted = mutation({
       }
     }
 
-    return { success: true, classification: args.classification };
+    // Generate a focused reminder for this role + classification
+    const reminder = generateTaskStartedReminder(args.role, args.classification, args.chatroomId);
+
+    return { success: true, classification: args.classification, reminder };
   },
 });
 

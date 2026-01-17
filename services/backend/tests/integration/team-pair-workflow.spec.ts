@@ -713,4 +713,118 @@ chatroom wait-for-task ${chatroomId} --role=builder
       expect(reviewerPrompt.prompt).not.toContain('Classify the task first');
     });
   });
+
+  describe('task-started reminders', () => {
+    test('taskStarted returns focused reminder for builder + new_feature', async () => {
+      // Setup
+      const { sessionId } = await createTestSession('test-reminder-new-feature');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+      // User sends message
+      const userMsgId = await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'user',
+        content: 'Add a new dashboard',
+        type: 'message',
+      });
+
+      await t.mutation(api.tasks.startTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      // Classify as new_feature and check reminder
+      const result = await t.mutation(api.messages.taskStarted, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+        messageId: userMsgId,
+        classification: 'new_feature',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.classification).toBe('new_feature');
+      expect(result.reminder).toBeDefined();
+      expect(result.reminder).toContain('hand off to reviewer');
+      expect(result.reminder).toContain('--next-role=reviewer');
+    });
+
+    test('taskStarted returns focused reminder for builder + question', async () => {
+      // Setup
+      const { sessionId } = await createTestSession('test-reminder-question');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+      // User asks a question
+      const userMsgId = await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'user',
+        content: 'What is the current status?',
+        type: 'message',
+      });
+
+      await t.mutation(api.tasks.startTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      // Classify as question and check reminder
+      const result = await t.mutation(api.messages.taskStarted, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+        messageId: userMsgId,
+        classification: 'question',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.classification).toBe('question');
+      expect(result.reminder).toBeDefined();
+      expect(result.reminder).toContain('directly to the user');
+      // Should NOT mention reviewer for questions
+      expect(result.reminder).not.toContain('reviewer');
+    });
+
+    test('taskStarted returns focused reminder for builder + follow_up', async () => {
+      // Setup
+      const { sessionId } = await createTestSession('test-reminder-follow-up');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+      // User sends message
+      const userMsgId = await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'user',
+        content: 'Also add search functionality',
+        type: 'message',
+      });
+
+      await t.mutation(api.tasks.startTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      // Classify as follow_up and check reminder
+      const result = await t.mutation(api.messages.taskStarted, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+        messageId: userMsgId,
+        classification: 'follow_up',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.classification).toBe('follow_up');
+      expect(result.reminder).toBeDefined();
+      expect(result.reminder).toContain('Continue');
+      expect(result.reminder).toContain('original task');
+    });
+  });
 });

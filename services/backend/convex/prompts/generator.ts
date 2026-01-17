@@ -159,3 +159,39 @@ chatroom handoff ${ctx.chatroomId} \\
 chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 \`\`\``;
 }
+
+/**
+ * Generate a focused reminder for task-started based on role + classification.
+ * Returns a short, specific prompt reminding the agent of the expected action.
+ */
+export function generateTaskStartedReminder(
+  role: string,
+  classification: 'question' | 'new_feature' | 'follow_up',
+  chatroomId: string
+): string {
+  const normalizedRole = role.toLowerCase();
+
+  // Builder-specific reminders
+  if (normalizedRole === 'builder') {
+    switch (classification) {
+      case 'question':
+        return `You can respond directly to the user when done.`;
+      case 'new_feature':
+        return `When complete, hand off to reviewer for approval:
+\`\`\`
+chatroom handoff ${chatroomId} --role=builder --message="<summary>" --next-role=reviewer
+\`\`\``;
+      case 'follow_up':
+        return `Continue from where you left off. Same workflow rules as the original task apply.`;
+    }
+  }
+
+  // Reviewer should not call task-started (they receive pre-classified tasks)
+  // But provide a fallback just in case
+  if (normalizedRole === 'reviewer') {
+    return `Review the work and approve or request changes.`;
+  }
+
+  // Generic fallback for unknown roles
+  return `Proceed with your task and hand off when complete.`;
+}

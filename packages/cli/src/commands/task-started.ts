@@ -61,13 +61,13 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
 
   // Call the taskStarted mutation
   try {
-    await client.mutation(api.messages.taskStarted, {
+    const result = (await client.mutation(api.messages.taskStarted, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
       messageId: targetMessage._id,
       classification,
-    });
+    })) as { success: boolean; classification: string; reminder: string };
 
     console.log(`✅ Task acknowledged and classified`);
     console.log(`   Classification: ${classification}`);
@@ -75,21 +75,9 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       `   Message: "${targetMessage.content.substring(0, 80)}${targetMessage.content.length > 80 ? '...' : ''}"`
     );
 
-    // Show classification-specific guidance
-    switch (classification) {
-      case 'question':
-        console.log(`\n💡 This is a question - you can respond directly to the user.`);
-        break;
-      case 'new_feature':
-        console.log(
-          `\n💡 This is a new feature request - changes must be reviewed before returning to user.`
-        );
-        break;
-      case 'follow_up':
-        console.log(
-          `\n💡 This is a follow-up to a previous message - same rules as the original apply.`
-        );
-        break;
+    // Display the focused reminder from the backend
+    if (result.reminder) {
+      console.log(`\n💡 ${result.reminder}`);
     }
   } catch (error) {
     const err = error as Error;
