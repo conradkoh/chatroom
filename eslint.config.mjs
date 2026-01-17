@@ -241,7 +241,17 @@ export default [
 
   // Test files - relaxed rules
   {
-    files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}', '**/test/**/*.{ts,tsx}'],
+    files: [
+      '**/*.test.{ts,tsx}',
+      '**/*.spec.{ts,tsx}',
+      '**/test/**/*.{ts,tsx}',
+      '**/tests/**/*.{ts,tsx}',
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: false, // Disable type-aware linting for test files
+      },
+    },
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       'no-console': 'off',
@@ -275,6 +285,14 @@ export default [
   // API callback pages - console.log is expected for debugging OAuth flows
   {
     files: ['**/api/**/callback/**/*.{ts,tsx}'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+
+  // CLI package - console.log is expected for CLI output
+  {
+    files: ['**/packages/cli/**/*.{ts,tsx}'],
     rules: {
       'no-console': 'off',
     },
