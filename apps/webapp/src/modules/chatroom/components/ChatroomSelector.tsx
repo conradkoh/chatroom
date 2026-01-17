@@ -337,10 +337,38 @@ const ChatroomCard = memo(function ChatroomCard({
       >
         {/* Card Main */}
         <div className="flex justify-between items-start mb-3">
-          <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary pr-6">
+          <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary pr-2 flex-1 min-w-0 truncate">
             {displayName}
           </span>
-          <span className={getStatusBadgeClasses(status)}>{status}</span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className={getStatusBadgeClasses(status)}>{status}</span>
+            {/* Action Menu - only show for non-completed chatrooms */}
+            {status !== 'completed' && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div
+                    className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-all duration-100"
+                    onClick={(e) => e.stopPropagation()}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.stopPropagation();
+                      }
+                    }}
+                  >
+                    <MoreVertical size={14} />
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[140px]">
+                  <DropdownMenuItem onClick={handleMarkComplete}>
+                    <CheckCircle size={14} className="mr-2" />
+                    Mark Complete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
         <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-3">
           {chatroom._id}
@@ -368,28 +396,6 @@ const ChatroomCard = memo(function ChatroomCard({
         {/* Card Date */}
         <div className="text-[10px] text-chatroom-text-muted">{formattedDate}</div>
       </button>
-
-      {/* Action Menu - only show for non-completed chatrooms */}
-      {status !== 'completed' && (
-        <div className="absolute top-2 right-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-all duration-100"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreVertical size={14} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[140px]">
-              <DropdownMenuItem onClick={handleMarkComplete}>
-                <CheckCircle size={14} className="mr-2" />
-                Mark Complete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
     </div>
   );
 });
