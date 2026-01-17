@@ -11,6 +11,13 @@ import {
   CheckCircle2,
   XCircle,
   Archive,
+  ArrowRightLeft,
+  LogIn,
+  AlertCircle,
+  HelpCircle,
+  Sparkles,
+  RotateCcw,
+  ArrowRight,
 } from 'lucide-react';
 import React, { useEffect, useRef, useMemo, memo, useCallback } from 'react';
 import Markdown from 'react-markdown';
@@ -43,24 +50,40 @@ interface Message {
   taskStatus?: 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
 }
 
-// Message type badge styling - using chatroom status variables for theme support
+// Shared badge styling constants
+const BADGE_BASE =
+  'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5';
+const ICON_SIZE = 10;
+
+// Message type badge styling - with icons for visual consistency
 const getMessageTypeBadge = (type: string) => {
-  const base = 'inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 mr-2';
   switch (type) {
     case 'handoff':
-      return `${base} bg-chatroom-status-purple/15 text-chatroom-status-purple`;
+      return {
+        className: `${BADGE_BASE} bg-chatroom-status-purple/15 text-chatroom-status-purple`,
+        label: 'handoff',
+        icon: <ArrowRightLeft size={ICON_SIZE} className="flex-shrink-0" />,
+      };
     case 'interrupt':
-      return `${base} bg-chatroom-status-error/15 text-chatroom-status-error`;
+      return {
+        className: `${BADGE_BASE} bg-chatroom-status-error/15 text-chatroom-status-error`,
+        label: 'interrupt',
+        icon: <AlertCircle size={ICON_SIZE} className="flex-shrink-0" />,
+      };
     case 'join':
-      return `${base} bg-chatroom-status-success/15 text-chatroom-status-success`;
+      return {
+        className: `${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`,
+        label: 'join',
+        icon: <LogIn size={ICON_SIZE} className="flex-shrink-0" />,
+      };
     default:
-      return base;
+      return null;
   }
 };
 
-// Sender role styling
+// Sender role styling - plain text with color (no background)
 const getSenderClasses = (role: string) => {
-  const base = 'font-bold text-xs uppercase tracking-wide';
+  const base = 'font-bold text-[10px] uppercase tracking-wide';
   if (role === 'user') return `${base} text-chatroom-status-success`;
   if (role === 'system') return `${base} text-chatroom-status-warning`;
   return `${base} text-chatroom-status-info`;
@@ -71,70 +94,69 @@ const getSenderClasses = (role: string) => {
 // Icons from Lucide with animations for active states
 const getTaskStatusBadge = (status: Message['taskStatus']) => {
   if (!status) return null;
-  const base =
-    'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 ml-2 transition-all duration-300';
-  const iconSize = 10;
   switch (status) {
     case 'pending':
       return {
-        className: `${base} bg-chatroom-status-success/15 text-chatroom-status-success`,
+        className: `${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`,
         label: 'pending',
-        icon: <Clock size={iconSize} className="flex-shrink-0" />,
+        icon: <Clock size={ICON_SIZE} className="flex-shrink-0" />,
       };
     case 'in_progress':
       return {
-        className: `${base} bg-chatroom-status-info/15 text-chatroom-status-info`,
+        className: `${BADGE_BASE} bg-chatroom-status-info/15 text-chatroom-status-info`,
         label: 'in progress',
-        icon: <Loader2 size={iconSize} className="flex-shrink-0 animate-spin" />,
+        icon: <Loader2 size={ICON_SIZE} className="flex-shrink-0 animate-spin" />,
       };
     case 'queued':
       return {
-        className: `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`,
+        className: `${BADGE_BASE} bg-chatroom-status-warning/15 text-chatroom-status-warning`,
         label: 'queued',
-        icon: <Timer size={iconSize} className="flex-shrink-0" />,
+        icon: <Timer size={ICON_SIZE} className="flex-shrink-0" />,
       };
     case 'completed':
       return {
-        className: `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
+        className: `${BADGE_BASE} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
         label: 'done',
-        icon: <CheckCircle2 size={iconSize} className="flex-shrink-0" />,
+        icon: <CheckCircle2 size={ICON_SIZE} className="flex-shrink-0" />,
       };
     case 'cancelled':
       return {
-        className: `${base} bg-chatroom-status-error/15 text-chatroom-status-error`,
+        className: `${BADGE_BASE} bg-chatroom-status-error/15 text-chatroom-status-error`,
         label: 'cancelled',
-        icon: <XCircle size={iconSize} className="flex-shrink-0" />,
+        icon: <XCircle size={ICON_SIZE} className="flex-shrink-0" />,
       };
     case 'backlog':
       return {
-        className: `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
+        className: `${BADGE_BASE} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
         label: 'backlog',
-        icon: <Archive size={iconSize} className="flex-shrink-0" />,
+        icon: <Archive size={ICON_SIZE} className="flex-shrink-0" />,
       };
     default:
       return null;
   }
 };
 
-// Classification badge styling - using chatroom status variables for theme support
+// Classification badge styling - with icons for visual consistency
 const getClassificationBadge = (classification: Message['classification']) => {
   if (!classification) return null;
-  const base = 'inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 ml-2';
   switch (classification) {
     case 'question':
       return {
-        className: `${base} bg-chatroom-status-info/15 text-chatroom-status-info`,
+        className: `${BADGE_BASE} bg-chatroom-status-info/15 text-chatroom-status-info`,
         label: 'question',
+        icon: <HelpCircle size={ICON_SIZE} className="flex-shrink-0" />,
       };
     case 'new_feature':
       return {
-        className: `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`,
+        className: `${BADGE_BASE} bg-chatroom-status-warning/15 text-chatroom-status-warning`,
         label: 'new feature',
+        icon: <Sparkles size={ICON_SIZE} className="flex-shrink-0" />,
       };
     case 'follow_up':
       return {
-        className: `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
+        className: `${BADGE_BASE} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
         label: 'follow-up',
+        icon: <RotateCcw size={ICON_SIZE} className="flex-shrink-0" />,
       };
     default:
       return null;
@@ -145,26 +167,43 @@ const getClassificationBadge = (classification: Message['classification']) => {
 const MessageItem = memo(function MessageItem({ message }: { message: Message }) {
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
+  const messageTypeBadge = getMessageTypeBadge(message.type);
+
+  // Check if we have any contextual badges to show
+  const hasContextualBadges =
+    messageTypeBadge ||
+    (message.senderRole.toLowerCase() === 'user' && (classificationBadge || taskStatusBadge));
 
   return (
     <div className="px-4 py-3 bg-transparent border-b-2 border-chatroom-border transition-all duration-100 hover:bg-chatroom-accent-subtle hover:-mx-2 hover:px-6 last:border-b-0">
       {/* Message Header */}
       <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-chatroom-border">
-        <div className="flex items-center flex-wrap gap-y-1">
-          {message.type !== 'message' && (
-            <span className={getMessageTypeBadge(message.type)}>{message.type}</span>
-          )}
+        <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5">
+          {/* Primary: Sender → Target */}
           <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
           {message.targetRole && (
-            <span className="text-chatroom-text-muted text-[10px] font-bold uppercase tracking-wide ml-2 before:content-['→_'] before:text-chatroom-text-muted">
-              {message.targetRole}
+            <>
+              <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
+              <span className="text-chatroom-text-muted text-[10px] font-bold uppercase tracking-wide">
+                {message.targetRole}
+              </span>
+            </>
+          )}
+          {/* Separator between primary info and badges */}
+          {hasContextualBadges && <span className="text-chatroom-border mx-1">│</span>}
+          {/* Contextual badges: Type, Classification, Status */}
+          {messageTypeBadge && (
+            <span className={messageTypeBadge.className}>
+              {messageTypeBadge.icon}
+              {messageTypeBadge.label}
             </span>
           )}
-          {/* Show classification badge for user messages */}
           {message.senderRole.toLowerCase() === 'user' && classificationBadge && (
-            <span className={classificationBadge.className}>{classificationBadge.label}</span>
+            <span className={classificationBadge.className}>
+              {classificationBadge.icon}
+              {classificationBadge.label}
+            </span>
           )}
-          {/* Show task status badge for user messages with linked tasks */}
           {message.senderRole.toLowerCase() === 'user' && taskStatusBadge && (
             <span className={taskStatusBadge.className}>
               {taskStatusBadge.icon}
