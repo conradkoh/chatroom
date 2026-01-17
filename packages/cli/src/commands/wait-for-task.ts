@@ -11,7 +11,7 @@ import {
   type RolePromptResponse,
   type TaskWithMessage,
 } from '../api.js';
-import { WAIT_POLL_INTERVAL_MS, MAX_SILENT_ERRORS } from '../config.js';
+import { WAIT_POLL_INTERVAL_MS, MAX_SILENT_ERRORS, DEFAULT_WAIT_TIMEOUT_MS } from '../config.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
@@ -127,8 +127,8 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   }
 
   // Calculate readyUntil timestamp for this session
-  // If no timeout specified, default to 2 minutes
-  const effectiveTimeout = timeout || 2 * 60 * 1000;
+  // If no timeout specified, use configured default (10 minutes)
+  const effectiveTimeout = timeout || DEFAULT_WAIT_TIMEOUT_MS;
   const readyUntil = Date.now() + effectiveTimeout;
 
   // Join the chatroom with readyUntil timestamp
@@ -424,11 +424,23 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // Start polling
   poll();
 
-  // Handle interrupt
-  process.on('SIGINT', () => {
+  // Handle interrupt signals
+  const handleSignal = (signal: string) => {
     if (pollTimeout) clearTimeout(pollTimeout);
     clearTimeout(timeoutHandle);
-    console.log(`\n⚠️  Interrupted`);
+    console.log(`\n⚠️  ${signal} received - process terminated by host`);
+    console.log(`   The wait session ended before timing out naturally.`);
+    console.log(`   To resume waiting, run:`);
+    console.log(`   chatroom wait-for-task ${chatroomId} --role=${role}`);
     process.exit(0);
-  });
+  };
+
+  // SIGINT: Ctrl+C or interrupt signal
+  process.on('SIGINT', () => handleSignal('SIGINT'));
+
+  // SIGTERM: Graceful termination (e.g., container shutdown, AI agent timeout)
+  process.on('SIGTERM', () => handleSignal('SIGTERM'));
+
+  // SIGHUP: Hang up signal (terminal closed)
+  process.on('SIGHUP', () => handleSignal('SIGHUP'));
 }

@@ -172,3 +172,38 @@ export async function requireChatroomAccess(
     sessionType: sessionResult.sessionType,
   };
 }
+
+/**
+ * Check if all agents in the chatroom are ready (idle or waiting, not active).
+ * An agent is considered "active" if they are currently working on a task.
+ * Returns true if no agents are active (all are idle/waiting).
+ */
+export async function areAllAgentsReady(
+  ctx: QueryCtx | MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<boolean> {
+  const participants = await ctx.db
+    .query('chatroom_participants')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+    .collect();
+
+  // Check if any participant is active (working on a task)
+  const hasActiveParticipant = participants.some((p) => p.status === 'active');
+
+  return !hasActiveParticipant;
+}
+
+/**
+ * Get the entry point role for a chatroom.
+ * The entry point is the primary agent that receives user messages and queue promotions.
+ */
+export async function getEntryPointRole(
+  ctx: QueryCtx | MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<string | null> {
+  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  if (!chatroom) {
+    return null;
+  }
+  return chatroom.teamEntryPoint || chatroom.teamRoles?.[0] || null;
+}

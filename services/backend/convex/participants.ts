@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
-import { requireChatroomAccess } from './lib/cliSessionAuth';
+import { areAllAgentsReady, requireChatroomAccess } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 
 /**
@@ -74,6 +74,7 @@ export const join = mutation({
     }
 
     // Auto-promote queued tasks when the entry point (primary) role joins
+    // AND all other agents are ready (idle/waiting, not active)
     // This ensures resilience - if a worker reconnects after being stuck, queued items get promoted
     const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
     const normalizedRole = args.role.toLowerCase();
@@ -89,8 +90,10 @@ export const join = mutation({
         )
         .collect();
 
-      // If no active task, check for queued tasks to promote
-      if (activeTasks.length === 0) {
+      // Only promote if no active tasks AND all agents are ready (not working on anything)
+      const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
+
+      if (activeTasks.length === 0 && allAgentsReady) {
         const queuedTasks = await ctx.db
           .query('chatroom_tasks')
           .withIndex('by_chatroom_status', (q) =>
@@ -110,10 +113,14 @@ export const join = mutation({
           });
 
           console.log(
-            `[Auto-Promote on Join] Primary role "${args.role}" joined. Promoted task ${nextTask._id} to pending. ` +
+            `[Auto-Promote on Join] Primary role "${args.role}" joined (all agents ready). Promoted task ${nextTask._id} to pending. ` +
               `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
           );
         }
+      } else if (activeTasks.length === 0 && !allAgentsReady) {
+        console.log(
+          `[Auto-Promote Deferred] Primary role "${args.role}" joined but some agents are still active. Queue promotion deferred.`
+        );
       }
     }
 

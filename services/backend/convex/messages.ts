@@ -4,7 +4,7 @@ import { v } from 'convex/values';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { requireChatroomAccess } from './lib/cliSessionAuth';
+import { areAllAgentsReady, requireChatroomAccess } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { generateRolePrompt } from './prompts';
 
@@ -283,27 +283,7 @@ async function _handoffHandler(
     await ctx.db.patch('chatroom_messages', messageId, { taskId: newTaskId });
   }
 
-  // Step 4: Promote next queued task (for the sender's queue, not target's)
-  let promotedTaskId: Id<'chatroom_tasks'> | null = null;
-  const queuedTasks = await ctx.db
-    .query('chatroom_tasks')
-    .withIndex('by_chatroom_status', (q) =>
-      q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
-    )
-    .collect();
-
-  if (queuedTasks.length > 0) {
-    queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-    const nextTask = queuedTasks[0];
-    await ctx.db.patch('chatroom_tasks', nextTask._id, {
-      status: 'pending',
-      updatedAt: now,
-    });
-    promotedTaskId = nextTask._id;
-    console.log(`[handoff] Promoted queued task ${nextTask._id} to pending after handoff`);
-  }
-
-  // Step 5: Update sender's participant status to waiting
+  // Step 4: Update sender's participant status to waiting (before checking queue promotion)
   const participant = await ctx.db
     .query('chatroom_participants')
     .withIndex('by_chatroom_and_role', (q) =>
@@ -314,6 +294,45 @@ async function _handoffHandler(
   if (participant) {
     await ctx.db.patch('chatroom_participants', participant._id, { status: 'waiting' });
   }
+
+  // Step 5: Promote next queued task only if ALL agents are ready (not active)
+  // This ensures queued tasks are only promoted when the team is idle
+  let promotedTaskId: Id<'chatroom_tasks'> | null = null;
+
+  // Check if we're handing off to a specific agent (not the queue)
+  // Handoffs to specific agents don't trigger queue promotion - the target agent gets a dedicated task
+  // Queue promotion only happens when all agents become idle
+  if (isHandoffToUser) {
+    // When handing off to user, check if all agents are ready for queue promotion
+    const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
+
+    if (allAgentsReady) {
+      const queuedTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
+        )
+        .collect();
+
+      if (queuedTasks.length > 0) {
+        queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+        const nextTask = queuedTasks[0];
+        await ctx.db.patch('chatroom_tasks', nextTask._id, {
+          status: 'pending',
+          updatedAt: now,
+        });
+        promotedTaskId = nextTask._id;
+        console.log(
+          `[handoff] Promoted queued task ${nextTask._id} to pending (all agents ready after handoff to user)`
+        );
+      }
+    } else {
+      console.log(
+        `[handoff] Skipping queue promotion - some agents are still active after handoff to user`
+      );
+    }
+  }
+  // For handoffs to other agents, no queue promotion - the handoff already creates a pending task for the target
 
   return {
     messageId,

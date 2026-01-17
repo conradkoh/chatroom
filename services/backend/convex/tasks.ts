@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
-import { requireChatroomAccess } from './lib/cliSessionAuth';
+import { areAllAgentsReady, requireChatroomAccess } from './lib/cliSessionAuth';
 
 /**
  * Maximum number of active tasks per chatroom.
@@ -168,24 +168,34 @@ export const completeTask = mutation({
       );
     }
 
-    // Find the oldest queued task to promote
-    const queuedTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
-      )
-      .collect();
+    // Only promote from queue if all agents are ready (not active)
+    // This ensures the entry point can pick up the next task from the queue
+    const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
 
-    // Sort by queuePosition to get oldest
-    queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-    const nextTask = queuedTasks[0];
+    if (allAgentsReady) {
+      // Find the oldest queued task to promote
+      const queuedTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
+        )
+        .collect();
 
-    if (nextTask) {
-      await ctx.db.patch('chatroom_tasks', nextTask._id, {
-        status: 'pending',
-        updatedAt: now,
-      });
-      return { completed: true, completedCount: inProgressTasks.length, promoted: nextTask._id };
+      // Sort by queuePosition to get oldest
+      queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+      const nextTask = queuedTasks[0];
+
+      if (nextTask) {
+        await ctx.db.patch('chatroom_tasks', nextTask._id, {
+          status: 'pending',
+          updatedAt: now,
+        });
+        return { completed: true, completedCount: inProgressTasks.length, promoted: nextTask._id };
+      }
+    } else {
+      console.log(
+        `[Task Complete] Skipping queue promotion - some agents are still active in chatroom ${args.chatroomId}`
+      );
     }
 
     return { completed: true, completedCount: inProgressTasks.length, promoted: null };
@@ -225,33 +235,42 @@ export const cancelTask = mutation({
       updatedAt: now,
     });
 
-    // If we cancelled a pending task, promote the next queued task
+    // If we cancelled a pending task, promote the next queued task only if all agents are ready
     let promoted = null;
     if (wasPending) {
-      const queuedTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', task.chatroomId).eq('status', 'queued')
-        )
-        .collect();
+      const allAgentsReady = await areAllAgentsReady(ctx, task.chatroomId);
 
-      if (queuedTasks.length > 0) {
-        // Sort by queuePosition to get oldest
-        queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-        const nextTask = queuedTasks[0];
+      if (allAgentsReady) {
+        const queuedTasks = await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom_status', (q) =>
+            q.eq('chatroomId', task.chatroomId).eq('status', 'queued')
+          )
+          .collect();
 
-        await ctx.db.patch('chatroom_tasks', nextTask._id, {
-          status: 'pending',
-          updatedAt: now,
-        });
+        if (queuedTasks.length > 0) {
+          // Sort by queuePosition to get oldest
+          queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+          const nextTask = queuedTasks[0];
 
-        // Log the automatic promotion
+          await ctx.db.patch('chatroom_tasks', nextTask._id, {
+            status: 'pending',
+            updatedAt: now,
+          });
+
+          // Log the automatic promotion
+          console.log(
+            `[Queue Promotion] Auto-promoted task ${nextTask._id} after cancellation of pending task ${args.taskId}. ` +
+              `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
+          );
+
+          promoted = nextTask._id;
+        }
+      } else {
         console.log(
-          `[Queue Promotion] Auto-promoted task ${nextTask._id} after cancellation of pending task ${args.taskId}. ` +
-            `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
+          `[Queue Promotion Deferred] Cancelled pending task ${args.taskId} but some agents are still active. ` +
+            `Queue promotion deferred until all agents are ready.`
         );
-
-        promoted = nextTask._id;
       }
     }
 
@@ -304,31 +323,40 @@ export const completeTaskById = mutation({
           `Content: "${task.content.substring(0, 50)}${task.content.length > 50 ? '...' : ''}"`
       );
 
-      // Auto-promote the next queued task
-      const queuedTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', task.chatroomId).eq('status', 'queued')
-        )
-        .collect();
-
+      // Auto-promote the next queued task only if all agents are ready
       let promoted = null;
-      if (queuedTasks.length > 0) {
-        // Sort by queuePosition to get oldest
-        queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-        const nextTask = queuedTasks[0];
+      const allAgentsReady = await areAllAgentsReady(ctx, task.chatroomId);
 
-        await ctx.db.patch('chatroom_tasks', nextTask._id, {
-          status: 'pending',
-          updatedAt: now,
-        });
+      if (allAgentsReady) {
+        const queuedTasks = await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom_status', (q) =>
+            q.eq('chatroomId', task.chatroomId).eq('status', 'queued')
+          )
+          .collect();
 
+        if (queuedTasks.length > 0) {
+          // Sort by queuePosition to get oldest
+          queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+          const nextTask = queuedTasks[0];
+
+          await ctx.db.patch('chatroom_tasks', nextTask._id, {
+            status: 'pending',
+            updatedAt: now,
+          });
+
+          console.log(
+            `[Queue Promotion] Auto-promoted task ${nextTask._id} after force-completing ${args.taskId}. ` +
+              `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
+          );
+
+          promoted = nextTask._id;
+        }
+      } else {
         console.log(
-          `[Queue Promotion] Auto-promoted task ${nextTask._id} after force-completing ${args.taskId}. ` +
-            `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
+          `[Queue Promotion Deferred] Force-completed task ${args.taskId} but some agents are still active. ` +
+            `Queue promotion deferred until all agents are ready.`
         );
-
-        promoted = nextTask._id;
       }
 
       return { success: true, taskId: args.taskId, promoted, wasForced: true };
@@ -526,6 +554,7 @@ export const getActiveTask = query({
 /**
  * Manually promote the next queued task to pending.
  * Use when the queue is stuck (queued tasks exist but no pending/in_progress).
+ * Only promotes if all agents are ready (not active).
  * Logs when automatic promotion occurs.
  * Requires CLI session authentication and chatroom access.
  */
@@ -550,6 +579,12 @@ export const promoteNextTask = mutation({
     if (activeTasks.length > 0) {
       // Already have an active task - no promotion needed
       return { promoted: false, reason: 'active_task_exists', taskId: null };
+    }
+
+    // Check if all agents are ready (not active)
+    const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
+    if (!allAgentsReady) {
+      return { promoted: false, reason: 'agents_still_active', taskId: null };
     }
 
     // Find the oldest queued task to promote
@@ -586,8 +621,9 @@ export const promoteNextTask = mutation({
 });
 
 /**
- * Check queue health and promote if needed.
- * Returns queue status and whether promotion was triggered.
+ * Check queue health and promotion eligibility.
+ * Returns queue status and whether promotion is possible.
+ * Promotion requires: no active tasks AND all agents are ready (not active).
  * Requires CLI session authentication and chatroom access.
  */
 export const checkQueueHealth = query({
@@ -616,13 +652,18 @@ export const checkQueueHealth = query({
       )
       .collect();
 
+    // Check if all agents are ready
+    const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
+
     const hasActiveTask = activeTasks.length > 0;
     const hasQueuedTasks = queuedTasks.length > 0;
-    const needsPromotion = !hasActiveTask && hasQueuedTasks;
+    // Promotion is possible only if no active tasks, there are queued tasks, AND all agents are ready
+    const needsPromotion = !hasActiveTask && hasQueuedTasks && allAgentsReady;
 
     return {
       hasActiveTask,
       queuedCount: queuedTasks.length,
+      allAgentsReady,
       needsPromotion,
     };
   },
