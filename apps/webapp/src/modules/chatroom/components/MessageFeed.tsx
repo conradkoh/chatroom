@@ -169,29 +169,20 @@ const MessageItem = memo(function MessageItem({ message }: { message: Message })
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
   const messageTypeBadge = getMessageTypeBadge(message.type);
 
-  // Check if we have any contextual badges to show
-  const hasContextualBadges =
-    messageTypeBadge ||
-    (message.senderRole.toLowerCase() === 'user' && (classificationBadge || taskStatusBadge));
+  // Only show status badge for active tasks (in_progress), not for done/completed
+  const isActiveTask =
+    message.taskStatus === 'pending' ||
+    message.taskStatus === 'in_progress' ||
+    message.taskStatus === 'queued';
+  const showStatusBadge =
+    message.senderRole.toLowerCase() === 'user' && taskStatusBadge && isActiveTask;
 
   return (
     <div className="px-4 py-3 bg-transparent border-b-2 border-chatroom-border transition-all duration-100 hover:bg-chatroom-accent-subtle hover:-mx-2 hover:px-6 last:border-b-0">
-      {/* Message Header */}
+      {/* Message Header - badges left, sender flow right */}
       <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-chatroom-border">
+        {/* Left: Type and Classification badges */}
         <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5">
-          {/* Primary: Sender → Target */}
-          <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
-          {message.targetRole && (
-            <>
-              <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
-              <span className="text-chatroom-text-muted text-[10px] font-bold uppercase tracking-wide">
-                {message.targetRole}
-              </span>
-            </>
-          )}
-          {/* Separator between primary info and badges */}
-          {hasContextualBadges && <span className="text-chatroom-border mx-1">│</span>}
-          {/* Contextual badges: Type, Classification, Status */}
           {messageTypeBadge && (
             <span className={messageTypeBadge.className}>
               {messageTypeBadge.icon}
@@ -204,20 +195,39 @@ const MessageItem = memo(function MessageItem({ message }: { message: Message })
               {classificationBadge.label}
             </span>
           )}
-          {message.senderRole.toLowerCase() === 'user' && taskStatusBadge && (
+        </div>
+        {/* Right: Sender → Target */}
+        <div className="flex items-center gap-x-1.5">
+          <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
+          {message.targetRole && (
+            <>
+              <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
+              <span className="text-chatroom-text-muted text-[10px] font-bold uppercase tracking-wide">
+                {message.targetRole}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+      {/* Message Content */}
+      <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-pre:overflow-x-auto prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
+        <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+      </div>
+      {/* Message Footer - status left, timestamp right */}
+      <div className="flex justify-between items-center mt-2 pt-1.5">
+        {/* Left: Status badge (only for active tasks) */}
+        <div className="flex items-center gap-x-1.5">
+          {showStatusBadge && (
             <span className={taskStatusBadge.className}>
               {taskStatusBadge.icon}
               {taskStatusBadge.label}
             </span>
           )}
         </div>
+        {/* Right: Timestamp */}
         <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
           {formatTime(message._creationTime)}
         </span>
-      </div>
-      {/* Message Content */}
-      <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-pre:overflow-x-auto prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
-        <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
       </div>
     </div>
   );
