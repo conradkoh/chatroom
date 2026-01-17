@@ -2,7 +2,16 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { ChevronUp, MessageSquare } from 'lucide-react';
+import {
+  ChevronUp,
+  MessageSquare,
+  Clock,
+  Loader2,
+  Timer,
+  CheckCircle2,
+  XCircle,
+  Archive,
+} from 'lucide-react';
 import React, { useEffect, useRef, useMemo, memo, useCallback } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -59,39 +68,48 @@ const getSenderClasses = (role: string) => {
 
 // Task status badge styling - shows processing status for user messages
 // Per theme.md: use text labels with color, no emoji circles
+// Icons from Lucide with animations for active states
 const getTaskStatusBadge = (status: Message['taskStatus']) => {
   if (!status) return null;
-  const base = 'inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 ml-2';
+  const base =
+    'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 ml-2 transition-all duration-300';
+  const iconSize = 10;
   switch (status) {
     case 'pending':
       return {
         className: `${base} bg-chatroom-status-success/15 text-chatroom-status-success`,
         label: 'pending',
+        icon: <Clock size={iconSize} className="flex-shrink-0" />,
       };
     case 'in_progress':
       return {
         className: `${base} bg-chatroom-status-info/15 text-chatroom-status-info`,
         label: 'in progress',
+        icon: <Loader2 size={iconSize} className="flex-shrink-0 animate-spin" />,
       };
     case 'queued':
       return {
         className: `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`,
         label: 'queued',
+        icon: <Timer size={iconSize} className="flex-shrink-0" />,
       };
     case 'completed':
       return {
         className: `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
         label: 'done',
+        icon: <CheckCircle2 size={iconSize} className="flex-shrink-0" />,
       };
     case 'cancelled':
       return {
         className: `${base} bg-chatroom-status-error/15 text-chatroom-status-error`,
         label: 'cancelled',
+        icon: <XCircle size={iconSize} className="flex-shrink-0" />,
       };
     case 'backlog':
       return {
         className: `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
         label: 'backlog',
+        icon: <Archive size={iconSize} className="flex-shrink-0" />,
       };
     default:
       return null;
@@ -148,7 +166,10 @@ const MessageItem = memo(function MessageItem({ message }: { message: Message })
           )}
           {/* Show task status badge for user messages with linked tasks */}
           {message.senderRole.toLowerCase() === 'user' && taskStatusBadge && (
-            <span className={taskStatusBadge.className}>{taskStatusBadge.label}</span>
+            <span className={taskStatusBadge.className}>
+              {taskStatusBadge.icon}
+              {taskStatusBadge.label}
+            </span>
           )}
         </div>
         <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
