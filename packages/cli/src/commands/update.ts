@@ -41,7 +41,6 @@ async function getLatestVersion(): Promise<string | null> {
   }
 }
 
-// eslint-disable-next-line no-console
 const log = console.log.bind(console);
 
 export async function update(): Promise<void> {
