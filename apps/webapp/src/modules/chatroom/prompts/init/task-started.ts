@@ -42,18 +42,37 @@ chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<typ
 | \`new_feature\` | User wants new functionality built | Must go through review before returning to user |
 | \`follow_up\` | User is following up on previous task | Same rules as the original task |
 
+### New Feature Classification
+
+When classifying a message as \`new_feature\`, you MUST provide metadata:
+
+\`\`\`bash
+chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
+  --title="<plain text title>" \\
+  --description="<markdown formatted description>" \\
+  --tech-specs="<markdown formatted technical specifications>"
+\`\`\`
+
+**Format Requirements:**
+- \`--title\`: Plain text only (no markdown)
+- \`--description\`: Markdown formatted
+- \`--tech-specs\`: Markdown formatted
+
 ### Example
 
 \`\`\`bash
 # Acknowledge you're starting work on a new feature request
-chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature
+chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
+  --title="Add user authentication" \\
+  --description="Implement JWT-based authentication with login/logout flow" \\
+  --tech-specs="- Use bcrypt for password hashing\\n- JWT tokens expire after 24h"
 
 # Now do your work...
 
 # When done, hand off appropriately based on classification
 chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
-  --message="<summary>" \\
+  --message="<markdown formatted summary>" \\
   --next-role=${isBuilder ? 'reviewer' : 'user'}
 \`\`\`
 ${roleSpecificNote}`;

@@ -68,9 +68,11 @@ To complete your task and hand off to the next role:
 \`\`\`bash
 chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
-  --message="<detailed summary of what you accomplished>" \\
+  --message="<markdown formatted summary of what you accomplished>" \\
   --next-role=${ctx.template.defaultHandoffTarget}
 \`\`\`
+
+**Message Format:** Your handoff message should be formatted in markdown for readability. Use headers, bullet points, code blocks, and tables as appropriate.
 
 Use this when:
 - Your assigned task is complete
@@ -94,6 +96,7 @@ export function getImportantNotesSection(): string {
   return `## Important Notes
 - **Always hand off:** Every task must end with a handoff. To ask questions, hand off to user with your question.
 - **Be thorough:** Include detailed summaries in your handoff messages so the next agent has full context
+- **Format in Markdown:** Your handoff message content should be formatted in markdown for readability
 - **Stay focused:** Complete your assigned task before handing off
 - **Handle interrupts:** If you receive an interrupt message, stop work and exit gracefully
 
