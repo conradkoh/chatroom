@@ -79,13 +79,14 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
 
   // Check for handoff restriction errors
   if (!result.success && result.error) {
-    console.error(`\n❌ Handoff Failed`);
-    console.error(`   Reason: ${result.error.message}`);
+    console.error(`\n❌ ERROR: ${result.error.message}`);
     if (result.error.suggestedTarget) {
-      console.error(`\n💡 Please hand off to: ${result.error.suggestedTarget}`);
+      console.error(`\n💡 Try this instead:`);
+      console.error('```');
       console.error(
-        `   Example: chatroom handoff ${chatroomId} --role=${role} --message="<summary>" --next-role=${result.error.suggestedTarget}`
+        `chatroom handoff ${chatroomId} --role=${role} --message="<summary>" --next-role=${result.error.suggestedTarget}`
       );
+      console.error('```');
     }
     process.exit(1);
   }

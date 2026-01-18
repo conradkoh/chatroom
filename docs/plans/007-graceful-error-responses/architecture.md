@@ -4,6 +4,8 @@
 
 This plan modifies the error handling pattern in Convex backend mutations and their corresponding CLI command handlers. Instead of throwing errors that crash the CLI process, mutations return structured error responses that the CLI can handle gracefully.
 
+The key insight is that error responses should include **recovery commands** - complete CLI examples that AI agents can execute to fix the issue automatically.
+
 ## New Contracts
 
 ### Standard Error Response Structure
@@ -13,10 +15,9 @@ All mutations that can fail gracefully will return a union type:
 ```typescript
 // Base error response structure
 interface ErrorInfo {
-  code: string;                    // Machine-readable error code
   message: string;                 // Human-readable error message
-  suggestedAction?: string;        // Optional guidance for resolution
-  context?: Record<string, unknown>; // Additional error context
+  recoveryCommand?: string;        // Complete CLI command to fix the issue
+  allowedValues?: string[];        // List of valid options (e.g., allowed roles)
 }
 
 // Generic mutation response wrapper
@@ -27,26 +28,39 @@ interface MutationResult<T> {
 }
 ```
 
-### Error Codes by Domain
+### Error Output Format (CLI)
 
-```typescript
-// Task-related error codes
-type TaskErrorCode =
-  | 'NO_PENDING_TASK'           // No pending task to start
-  | 'TASK_NOT_FOUND'            // Task ID doesn't exist
-  | 'INVALID_TASK_STATUS'       // Task is in wrong status for operation
-  | 'FORCE_COMPLETE_REQUIRED';  // Must use --force for active tasks
+The CLI will display errors in a format that AI agents can easily parse and act on:
 
-// Message-related error codes
-type MessageErrorCode =
-  | 'HANDOFF_RESTRICTED'        // Already implemented
-  | 'CANNOT_CLASSIFY'           // Message cannot be classified
-  | 'ALREADY_CLASSIFIED';       // Message already has classification
+```
+❌ ERROR: [Human-readable message explaining what went wrong]
 
-// Participant-related error codes
-type ParticipantErrorCode =
-  | 'INVALID_ROLE'              // Role not in team configuration
-  | 'PARTICIPANT_NOT_FOUND';    // Participant doesn't exist
+💡 Try this instead:
+```
+[Complete CLI command that fixes the issue]
+```
+```
+
+**Example - Handoff Restriction:**
+```
+❌ ERROR: Cannot hand off directly to user. new_feature requests must be reviewed before returning to user.
+
+💡 Try this instead:
+```
+chatroom handoff jn7fmvz7sd76z5wwgj1m7ty6vd7z81x2 --role=builder --message="<your-message>" --next-role=reviewer
+```
+```
+
+**Example - Invalid Role:**
+```
+❌ ERROR: Invalid role "architect". This chatroom uses the Pair team.
+
+💡 Allowed roles: builder, reviewer
+
+Try this instead:
+```
+chatroom wait-for-task jn7fmvz7sd76z5wwgj1m7ty6vd7z81x2 --role=builder
+```
 ```
 
 ## Modified Components
@@ -122,10 +136,19 @@ Each CLI command handler will be updated to:
 const result = await client.mutation(api.tasks.startTask, { ... });
 
 if (!result.success && result.error) {
-  console.error(`\n❌ ${result.error.message}`);
-  if (result.error.suggestedAction) {
-    console.error(`\n💡 ${result.error.suggestedAction}`);
+  console.error(`\n❌ ERROR: ${result.error.message}`);
+  
+  if (result.error.allowedValues) {
+    console.error(`\n💡 Allowed values: ${result.error.allowedValues.join(', ')}`);
   }
+  
+  if (result.error.recoveryCommand) {
+    console.error(`\n💡 Try this instead:`);
+    console.error('```');
+    console.error(result.error.recoveryCommand);
+    console.error('```');
+  }
+  
   process.exit(1);
 }
 
