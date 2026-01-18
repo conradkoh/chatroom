@@ -164,17 +164,19 @@ chatroom wait-for-task ${chatroomId} --role=builder
       // ========================================
       // STEP 4: Builder tries to hand off directly to user - SHOULD FAIL
       // ========================================
-      await expect(
-        t.mutation(api.messages.handoff, {
-          sessionId,
-          chatroomId,
-          senderRole: 'builder',
-          content: 'Done with the login page!',
-          targetRole: 'user',
-        })
-      ).rejects.toThrow(
+      const failedHandoff = await t.mutation(api.messages.handoff, {
+        sessionId,
+        chatroomId,
+        senderRole: 'builder',
+        content: 'Done with the login page!',
+        targetRole: 'user',
+      });
+      expect(failedHandoff.success).toBe(false);
+      expect(failedHandoff.error).toBeDefined();
+      expect(failedHandoff.error?.message).toContain(
         'Cannot hand off directly to user. new_feature requests must be reviewed before returning to user.'
       );
+      expect(failedHandoff.error?.suggestedTarget).toBe('reviewer');
 
       // ========================================
       // STEP 5: Builder hands off to reviewer (allowed)
