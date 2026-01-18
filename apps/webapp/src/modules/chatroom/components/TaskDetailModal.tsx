@@ -77,14 +77,24 @@ export function TaskDetailModal({
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Reset state when modal opens/closes or task content changes
+  // Track which task we've initialized for - prevents resetting during edits
+  const [initializedTaskId, setInitializedTaskId] = useState<string | null>(null);
+
+  // Reset state when modal opens with a different task
   useEffect(() => {
-    if (isOpen && task) {
+    if (isOpen && task && task._id !== initializedTaskId) {
       setEditedContent(task.content);
       setIsEditing(false);
+      setError(null);
+      setInitializedTaskId(task._id);
+    } else if (!isOpen) {
+      // Reset when modal closes
+      setInitializedTaskId(null);
+      setError(null);
     }
-  }, [isOpen, task]);
+  }, [isOpen, task, initializedTaskId]);
 
   // Handle Escape key
   const handleKeyDown = useCallback(
@@ -122,9 +132,14 @@ export function TaskDetailModal({
   const handleSave = useCallback(async () => {
     if (!task || !editedContent.trim()) return;
     setIsLoading(true);
+    setError(null);
     try {
       await onEdit(task._id, editedContent.trim());
       setIsEditing(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save changes';
+      setError(message);
+      // Keep editing mode open so user can retry
     } finally {
       setIsLoading(false);
     }
@@ -133,9 +148,13 @@ export function TaskDetailModal({
   const handleDelete = useCallback(async () => {
     if (!task) return;
     setIsLoading(true);
+    setError(null);
     try {
       await onDelete(task._id);
       onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete task';
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -144,9 +163,13 @@ export function TaskDetailModal({
   const handleMoveToQueue = useCallback(async () => {
     if (!task) return;
     setIsLoading(true);
+    setError(null);
     try {
       await onMoveToQueue(task._id);
       onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to move task';
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -155,9 +178,13 @@ export function TaskDetailModal({
   const handleForceComplete = useCallback(async () => {
     if (!task) return;
     setIsLoading(true);
+    setError(null);
     try {
       await onForceComplete(task._id);
       onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to complete task';
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -224,6 +251,13 @@ export function TaskDetailModal({
             </div>
           )}
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="px-4 py-2 bg-chatroom-status-error/10 border-t-2 border-chatroom-status-error/30 flex-shrink-0">
+            <p className="text-xs text-chatroom-status-error">{error}</p>
+          </div>
+        )}
 
         {/* Footer Actions */}
         {!isProtected && (

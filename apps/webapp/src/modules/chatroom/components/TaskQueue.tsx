@@ -218,40 +218,60 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
 
   const handleModalEdit = useCallback(
     async (taskId: string, content: string) => {
-      await updateTask({
-        taskId: taskId as Id<'chatroom_tasks'>,
-        content,
-      });
-      // Update selectedTask with new content to reflect edit immediately
-      setSelectedTask((prev) => (prev ? { ...prev, content } : null));
+      try {
+        await updateTask({
+          taskId: taskId as Id<'chatroom_tasks'>,
+          content,
+        });
+        // Update selectedTask with new content to reflect edit immediately
+        setSelectedTask((prev) => (prev ? { ...prev, content } : null));
+      } catch (error) {
+        console.error('Failed to update task:', error);
+        throw error; // Re-throw so TaskDetailModal can handle it
+      }
     },
     [updateTask]
   );
 
   const handleModalDelete = useCallback(
     async (taskId: string) => {
-      await cancelTask({
-        taskId: taskId as Id<'chatroom_tasks'>,
-      });
+      try {
+        await cancelTask({
+          taskId: taskId as Id<'chatroom_tasks'>,
+        });
+      } catch (error) {
+        console.error('Failed to delete task:', error);
+        throw error;
+      }
     },
     [cancelTask]
   );
 
   const handleModalMoveToQueue = useCallback(
     async (taskId: string) => {
-      await moveToQueue({
-        taskId: taskId as Id<'chatroom_tasks'>,
-      });
+      try {
+        await moveToQueue({
+          taskId: taskId as Id<'chatroom_tasks'>,
+        });
+      } catch (error) {
+        console.error('Failed to move task to queue:', error);
+        throw error;
+      }
     },
     [moveToQueue]
   );
 
   const handleModalForceComplete = useCallback(
     async (taskId: string) => {
-      await completeTaskById({
-        taskId: taskId as Id<'chatroom_tasks'>,
-        force: true,
-      });
+      try {
+        await completeTaskById({
+          taskId: taskId as Id<'chatroom_tasks'>,
+          force: true,
+        });
+      } catch (error) {
+        console.error('Failed to force complete task:', error);
+        throw error;
+      }
     },
     [completeTaskById]
   );
