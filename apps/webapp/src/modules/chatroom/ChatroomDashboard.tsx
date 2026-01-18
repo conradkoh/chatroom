@@ -506,7 +506,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     handleMarkComplete,
   ]);
 
-  if (chatroom === undefined || participants === undefined) {
+  // Wait for all required data before rendering to prevent flash of incorrect status
+  if (chatroom === undefined || participants === undefined || readiness === undefined) {
     return (
       <div className="chatroom-root flex items-center justify-center h-full bg-chatroom-bg-primary text-chatroom-text-muted">
         <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
