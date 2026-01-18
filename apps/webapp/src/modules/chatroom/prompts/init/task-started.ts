@@ -65,7 +65,7 @@ chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_
 chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
   --title="Add user authentication" \\
   --description="Implement JWT-based authentication with login/logout flow" \\
-  --tech-specs="- Use bcrypt for password hashing\\n- JWT tokens expire after 24h"
+  --tech-specs="Use bcrypt for password hashing. JWT tokens expire after 24h."
 
 # Now do your work...
 
@@ -75,5 +75,7 @@ chatroom handoff ${ctx.chatroomId} \\
   --message="<markdown formatted summary>" \\
   --next-role=${isBuilder ? 'reviewer' : 'user'}
 \`\`\`
+
+**Note:** For multiline content in description/tech-specs, use markdown formatting within the string (e.g., bullet points with \`- item\` or numbered lists with \`1. item\`). The content will be rendered as markdown in the UI.
 ${roleSpecificNote}`;
 }
