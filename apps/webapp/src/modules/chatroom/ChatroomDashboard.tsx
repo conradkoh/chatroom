@@ -23,7 +23,7 @@ import { ReconnectModal } from './components/ReconnectModal';
 import { SendForm } from './components/SendForm';
 import { SetupChecklist } from './components/SetupChecklist';
 import { TaskQueue } from './components/TaskQueue';
-import { TeamStatus } from './components/TeamStatus';
+// TeamStatus is now consolidated into AgentPanel
 import { generateAgentPrompt } from './prompts/generator';
 
 import {
@@ -571,11 +571,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 teamName={teamName}
                 teamRoles={teamRoles}
                 teamEntryPoint={teamEntryPoint}
-                participants={participants || []}
+                readiness={readiness}
                 onViewPrompt={handleViewPrompt}
+                onReconnect={handleOpenReconnect}
               />
               <TaskQueue chatroomId={chatroomId} />
-              <TeamStatus readiness={readiness} onReconnect={handleOpenReconnect} />
               <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
                   Chatroom ID

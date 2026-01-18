@@ -1,14 +1,27 @@
 'use client';
 
-import { ChevronRight } from 'lucide-react';
-import React, { useState, useMemo, useCallback } from 'react';
+import { ChevronRight, CheckCircle, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import { CopyButton } from './CopyButton';
 import { generateAgentPrompt } from '../prompts/generator';
 
-interface Participant {
+// Participant info from readiness query - includes expiration data
+interface ParticipantInfo {
   role: string;
   status: string;
+  readyUntil?: number;
+  isExpired: boolean;
+}
+
+// Team readiness data from backend - single source of truth
+interface TeamReadiness {
+  isReady: boolean;
+  expectedRoles: string[];
+  presentRoles?: string[]; // Optional - not all callers provide this
+  missingRoles: string[];
+  expiredRoles?: string[];
+  participants?: ParticipantInfo[];
 }
 
 interface AgentPanelProps {
@@ -16,43 +29,70 @@ interface AgentPanelProps {
   teamName?: string;
   teamRoles?: string[];
   teamEntryPoint?: string;
-  participants: Participant[];
+  readiness: TeamReadiness | null | undefined;
   onViewPrompt?: (role: string) => void;
+  onReconnect?: () => void;
 }
 
-// Status indicator colors
-const getStatusClasses = (status: string) => {
+// Status indicator colors - now includes disconnected state
+const getStatusClasses = (effectiveStatus: string) => {
   const base = 'w-2.5 h-2.5 flex-shrink-0';
-  switch (status) {
+  switch (effectiveStatus) {
     case 'active':
       return `${base} bg-chatroom-status-info`;
     case 'waiting':
       return `${base} bg-chatroom-status-success`;
+    case 'disconnected':
+      return `${base} bg-chatroom-status-error`;
     default:
       return `${base} bg-chatroom-text-muted`;
   }
 };
 
-export function AgentPanel({
+// Compute effective status accounting for expiration
+const getEffectiveStatus = (
+  role: string,
+  participantMap: Map<string, ParticipantInfo>,
+  expiredRolesSet: Set<string>
+): { status: string; isExpired: boolean } => {
+  const participant = participantMap.get(role.toLowerCase());
+  if (!participant) {
+    return { status: 'missing', isExpired: false };
+  }
+  // Check if this role is in the expired set
+  if (expiredRolesSet.has(role.toLowerCase())) {
+    return { status: 'disconnected', isExpired: true };
+  }
+  return { status: participant.status, isExpired: false };
+};
+
+export const AgentPanel = memo(function AgentPanel({
   chatroomId,
   teamName = 'Team',
   teamRoles = [],
   teamEntryPoint,
-  participants,
+  readiness,
   onViewPrompt,
+  onReconnect,
 }: AgentPanelProps) {
   const [expandedRole, setExpandedRole] = useState<string | null>(null);
 
-  // Memoize the participant map
-  const participantMap = useMemo(
-    () => new Map(participants.map((p) => [p.role.toLowerCase(), p])),
-    [participants]
-  );
+  // Build participant map from readiness data
+  const participantMap = useMemo(() => {
+    if (!readiness?.participants) return new Map<string, ParticipantInfo>();
+    return new Map(readiness.participants.map((p) => [p.role.toLowerCase(), p]));
+  }, [readiness?.participants]);
+
+  // Build expired roles set for O(1) lookup
+  const expiredRolesSet = useMemo(() => {
+    if (!readiness?.expiredRoles) return new Set<string>();
+    return new Set(readiness.expiredRoles.map((r) => r.toLowerCase()));
+  }, [readiness?.expiredRoles]);
 
   // Determine which roles to show (memoized)
   const rolesToShow = useMemo(
-    () => (teamRoles.length > 0 ? teamRoles : Array.from(participantMap.keys())),
-    [teamRoles, participantMap]
+    () => (teamRoles.length > 0 ? teamRoles : readiness?.expectedRoles || []),
+    [teamRoles, readiness?.expectedRoles]
   );
 
   // Memoize prompt generation function
@@ -82,6 +122,36 @@ export function AgentPanel({
     setExpandedRole((prev) => (prev === role ? null : role));
   }, []);
 
+  // Compute team status
+  const hasExpiredRoles = readiness?.expiredRoles && readiness.expiredRoles.length > 0;
+  const isDisconnected = !readiness?.isReady && hasExpiredRoles;
+
+  // Loading state
+  if (readiness === undefined) {
+    return (
+      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
+          Agents
+        </div>
+        <div className="p-4 flex items-center justify-center">
+          <div className="w-5 h-5 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  // Legacy chatroom without team
+  if (readiness === null) {
+    return (
+      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
+          Agents
+        </div>
+        <div className="p-4 text-center text-chatroom-text-muted text-xs">No team configured</div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
       <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
@@ -89,27 +159,33 @@ export function AgentPanel({
       </div>
       <div className="overflow-y-auto flex-1">
         {rolesToShow.map((role) => {
-          const participant = participantMap.get(role.toLowerCase());
-          const status = participant?.status || 'missing';
+          const { status: effectiveStatus } = getEffectiveStatus(
+            role,
+            participantMap,
+            expiredRolesSet
+          );
           const prompt = generatePrompt(role);
           const preview = getPromptPreview(prompt);
           const isExpanded = expandedRole === role;
 
           const statusLabel =
-            status === 'missing'
+            effectiveStatus === 'missing'
               ? 'NOT JOINED'
-              : status === 'waiting'
-                ? 'READY'
-                : status === 'active'
-                  ? 'WORKING'
-                  : 'IDLE';
+              : effectiveStatus === 'disconnected'
+                ? 'DISCONNECTED'
+                : effectiveStatus === 'waiting'
+                  ? 'READY'
+                  : effectiveStatus === 'active'
+                    ? 'WORKING'
+                    : 'IDLE';
 
-          const isActive = status === 'active';
+          const isActive = effectiveStatus === 'active';
+          const isDisconnectedAgent = effectiveStatus === 'disconnected';
 
           return (
             <div key={role} className="border-b border-chatroom-border last:border-b-0">
               <div
-                className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isActive ? 'bg-chatroom-status-info/5' : ''} ${isExpanded ? 'bg-chatroom-bg-tertiary' : ''}`}
+                className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isActive ? 'bg-chatroom-status-info/5' : ''} ${isDisconnectedAgent ? 'bg-chatroom-status-error/5' : ''} ${isExpanded ? 'bg-chatroom-bg-tertiary' : ''}`}
                 role="button"
                 tabIndex={0}
                 aria-expanded={isExpanded}
@@ -124,7 +200,7 @@ export function AgentPanel({
               >
                 {/* Status Indicator */}
                 <div
-                  className={getStatusClasses(status)}
+                  className={getStatusClasses(effectiveStatus)}
                   role="status"
                   aria-label={`Status: ${statusLabel}`}
                 />
@@ -134,7 +210,13 @@ export function AgentPanel({
                     {role}
                   </div>
                   <div
-                    className={`text-[10px] font-bold uppercase tracking-wide ${isActive ? 'text-chatroom-status-info animate-pulse' : 'text-chatroom-text-muted'}`}
+                    className={`text-[10px] font-bold uppercase tracking-wide ${
+                      isActive
+                        ? 'text-chatroom-status-info animate-pulse'
+                        : isDisconnectedAgent
+                          ? 'text-chatroom-status-error'
+                          : 'text-chatroom-text-muted'
+                    }`}
                   >
                     {statusLabel}
                   </div>
@@ -167,6 +249,67 @@ export function AgentPanel({
           );
         })}
       </div>
+
+      {/* Team Status Summary - consolidated from TeamStatus component */}
+      <div className="p-3 bg-chatroom-bg-tertiary border-t border-chatroom-border">
+        <div className="flex items-center justify-between">
+          {/* Status Icon and Text */}
+          <div className="flex items-center gap-2">
+            <div
+              className={`${
+                readiness.isReady
+                  ? 'text-chatroom-status-success'
+                  : isDisconnected
+                    ? 'text-chatroom-status-error'
+                    : 'text-chatroom-status-warning'
+              }`}
+            >
+              {readiness.isReady ? (
+                <CheckCircle size={14} />
+              ) : isDisconnected ? (
+                <AlertTriangle size={14} />
+              ) : (
+                <Clock size={14} />
+              )}
+            </div>
+            <div
+              className={`text-[10px] font-bold uppercase tracking-wide ${
+                readiness.isReady
+                  ? 'text-chatroom-status-success'
+                  : isDisconnected
+                    ? 'text-chatroom-status-error'
+                    : 'text-chatroom-status-warning'
+              }`}
+            >
+              {readiness.isReady
+                ? 'Team Ready'
+                : isDisconnected
+                  ? 'Agents Disconnected'
+                  : 'Waiting'}
+            </div>
+          </div>
+
+          {/* Reconnect Button - shown when agents are disconnected */}
+          {isDisconnected && onReconnect && (
+            <button
+              onClick={onReconnect}
+              className="flex items-center gap-1 px-2 py-1 border border-chatroom-status-info text-chatroom-status-info text-[10px] font-bold uppercase tracking-wide hover:bg-chatroom-status-info/10 transition-all duration-100"
+            >
+              <RefreshCw size={10} />
+              Reconnect
+            </button>
+          )}
+        </div>
+
+        {/* Status Detail */}
+        {!readiness.isReady && (
+          <div className="mt-1.5 text-[10px] text-chatroom-text-muted">
+            {isDisconnected
+              ? `Disconnected: ${readiness.expiredRoles?.join(', ')}`
+              : `Missing: ${readiness.missingRoles.join(', ')}`}
+          </div>
+        )}
+      </div>
     </div>
   );
-}
+});
