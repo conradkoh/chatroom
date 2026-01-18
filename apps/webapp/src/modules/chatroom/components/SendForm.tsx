@@ -12,17 +12,21 @@ interface SendFormProps {
 /**
  * Hook to detect if the user is on a touch device (likely mobile).
  * Uses touch capability detection rather than screen size for better accuracy.
+ * Returns undefined during SSR/hydration to prevent layout flickering.
  */
-function useIsTouchDevice() {
+function useIsTouchDevice(): boolean | undefined {
+  const [mounted, setMounted] = useState(false);
   const [isTouch, setIsTouch] = useState(false);
 
   useEffect(() => {
-    // Check for touch capability
+    // Mark as mounted and check for touch capability
+    setMounted(true);
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     setIsTouch(isTouchDevice);
   }, []);
 
-  return isTouch;
+  // Return undefined during SSR/hydration - component defaults to non-touch behavior
+  return mounted ? isTouch : undefined;
 }
 
 export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {

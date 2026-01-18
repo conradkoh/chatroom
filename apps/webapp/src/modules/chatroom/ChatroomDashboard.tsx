@@ -79,11 +79,14 @@ interface TeamReadiness {
 }
 
 // Hook to check if screen is small (< 768px)
-function useIsSmallScreen() {
+// Returns undefined during SSR/hydration to prevent layout flickering
+function useIsSmallScreen(): boolean | undefined {
+  const [mounted, setMounted] = useState(false);
   const [isSmall, setIsSmall] = useState(false);
 
   useEffect(() => {
-    // Check initial screen size
+    // Mark as mounted and check initial screen size
+    setMounted(true);
     const checkSize = () => setIsSmall(window.innerWidth < 768);
     checkSize();
 
@@ -92,7 +95,8 @@ function useIsSmallScreen() {
     return () => window.removeEventListener('resize', checkSize);
   }, []);
 
-  return isSmall;
+  // Return undefined during SSR/hydration to trigger loading state
+  return mounted ? isSmall : undefined;
 }
 
 export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps) {
@@ -506,8 +510,13 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     handleMarkComplete,
   ]);
 
-  // Wait for all required data before rendering to prevent flash of incorrect status
-  if (chatroom === undefined || participants === undefined || readiness === undefined) {
+  // Wait for all required data and hydration before rendering to prevent flickering
+  if (
+    chatroom === undefined ||
+    participants === undefined ||
+    readiness === undefined ||
+    isSmallScreen === undefined
+  ) {
     return (
       <div className="chatroom-root flex items-center justify-center h-full bg-chatroom-bg-primary text-chatroom-text-muted">
         <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
