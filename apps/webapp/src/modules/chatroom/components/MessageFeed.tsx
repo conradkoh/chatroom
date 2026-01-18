@@ -19,10 +19,11 @@ import {
   RotateCcw,
   ArrowRight,
 } from 'lucide-react';
-import React, { useEffect, useRef, useMemo, memo, useCallback } from 'react';
+import React, { useEffect, useRef, useMemo, memo, useCallback, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { FeatureDetailModal } from './FeatureDetailModal';
 import { WorkingIndicator } from './WorkingIndicator';
 
 import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
@@ -48,6 +49,10 @@ interface Message {
   classification?: 'question' | 'new_feature' | 'follow_up';
   taskId?: string;
   taskStatus?: 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
+  // Feature metadata (only for new_feature classification)
+  featureTitle?: string;
+  featureDescription?: string;
+  featureTechSpecs?: string;
 }
 
 // Shared badge styling constants
@@ -163,8 +168,13 @@ const getClassificationBadge = (classification: Message['classification']) => {
   }
 };
 
+interface MessageItemProps {
+  message: Message;
+  onFeatureClick?: (message: Message) => void;
+}
+
 // Memoized message item to prevent re-renders of all messages when one changes
-const MessageItem = memo(function MessageItem({ message }: { message: Message }) {
+const MessageItem = memo(function MessageItem({ message, onFeatureClick }: MessageItemProps) {
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
   const messageTypeBadge = getMessageTypeBadge(message.type);
@@ -176,6 +186,15 @@ const MessageItem = memo(function MessageItem({ message }: { message: Message })
     message.taskStatus === 'queued';
   const showStatusBadge =
     message.senderRole.toLowerCase() === 'user' && taskStatusBadge && isActiveTask;
+
+  // Check if this is a new_feature message with a title
+  const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
+
+  const handleFeatureTitleClick = useCallback(() => {
+    if (hasFeatureTitle && onFeatureClick) {
+      onFeatureClick(message);
+    }
+  }, [hasFeatureTitle, onFeatureClick, message]);
 
   return (
     <div className="px-4 py-3 bg-transparent border-b-2 border-chatroom-border transition-all duration-100 hover:bg-chatroom-accent-subtle hover:-mx-2 hover:px-6 last:border-b-0">
@@ -209,6 +228,23 @@ const MessageItem = memo(function MessageItem({ message }: { message: Message })
           )}
         </div>
       </div>
+      {/* Feature Title - clickable link for new_feature messages */}
+      {hasFeatureTitle && (
+        <button
+          onClick={handleFeatureTitleClick}
+          className="w-full text-left mb-2 px-3 py-2 bg-chatroom-status-warning/10 border border-chatroom-status-warning/20 hover:bg-chatroom-status-warning/20 transition-colors cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles size={14} className="text-chatroom-status-warning flex-shrink-0" />
+            <span className="text-sm font-semibold text-chatroom-text-primary">
+              {message.featureTitle}
+            </span>
+          </div>
+          {(message.featureDescription || message.featureTechSpecs) && (
+            <span className="text-[10px] text-chatroom-text-muted ml-5">Click to view details</span>
+          )}
+        </button>
+      )}
       {/* Message Content */}
       <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-pre:overflow-x-auto prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
         <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
@@ -239,6 +275,14 @@ const LOAD_MORE_SIZE = 10;
 // Threshold in pixels from top to trigger auto-load
 const SCROLL_THRESHOLD = 100;
 
+// State for feature detail modal
+interface FeatureModalState {
+  isOpen: boolean;
+  title: string;
+  description?: string;
+  techSpecs?: string;
+}
+
 export const MessageFeed = memo(function MessageFeed({
   chatroomId,
   participants,
@@ -264,6 +308,29 @@ export const MessageFeed = memo(function MessageFeed({
   const feedRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
   const prevScrollHeightRef = useRef(0);
+
+  // Feature detail modal state
+  const [featureModal, setFeatureModal] = useState<FeatureModalState>({
+    isOpen: false,
+    title: '',
+  });
+
+  // Handle feature title click - open modal with details
+  const handleFeatureClick = useCallback((message: Message) => {
+    if (message.featureTitle) {
+      setFeatureModal({
+        isOpen: true,
+        title: message.featureTitle,
+        description: message.featureDescription,
+        techSpecs: message.featureTechSpecs,
+      });
+    }
+  }, []);
+
+  // Close feature modal
+  const handleCloseFeatureModal = useCallback(() => {
+    setFeatureModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
 
   // Filter out join messages and reverse to show oldest first (query returns newest first)
   const displayMessages = useMemo(() => {
@@ -354,7 +421,7 @@ export const MessageFeed = memo(function MessageFeed({
           </div>
         )}
         {displayMessages.map((message) => (
-          <MessageItem key={message._id} message={message} />
+          <MessageItem key={message._id} message={message} onFeatureClick={handleFeatureClick} />
         ))}
         <WorkingIndicator participants={participants} />
       </div>
@@ -362,6 +429,14 @@ export const MessageFeed = memo(function MessageFeed({
       <div className="px-4 py-1 text-[10px] text-chatroom-text-muted text-right bg-chatroom-bg-primary border-t border-chatroom-border">
         {displayMessages.length} messages loaded
       </div>
+      {/* Feature Detail Modal */}
+      <FeatureDetailModal
+        isOpen={featureModal.isOpen}
+        onClose={handleCloseFeatureModal}
+        title={featureModal.title}
+        description={featureModal.description}
+        techSpecs={featureModal.techSpecs}
+      />
     </div>
   );
 });
