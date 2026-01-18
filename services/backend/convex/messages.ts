@@ -199,15 +199,15 @@ async function _handoffHandler(
 
   // Validate handoff to user is allowed based on classification
   if (isHandoffToUser) {
-    // Get the most recent classified user message to determine restrictions
-    const messages = await ctx.db
+    // Get the most recent classified user message to determine restrictions (optimized)
+    const recentMessages = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+      .order('desc')
+      .take(50);
 
     let currentClassification = null;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
+    for (const msg of recentMessages) {
       if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
         currentClassification = msg.classification;
         break;
@@ -482,16 +482,16 @@ export const taskStarted = mutation({
 
     // For follow-ups, link to the previous non-follow-up message
     if (args.classification === 'follow_up') {
-      // Find the most recent non-follow-up user message
-      const messages = await ctx.db
+      // Find the most recent non-follow-up user message (optimized with limit)
+      const recentMessages = await ctx.db
         .query('chatroom_messages')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .collect();
+        .order('desc')
+        .take(100); // Limit to recent messages for performance
 
       // Find the most recent classified message that is not a follow-up
       let originMessage = null;
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const msg = messages[i];
+      for (const msg of recentMessages) {
         if (
           msg._id !== args.messageId &&
           msg.senderRole.toLowerCase() === 'user' &&
@@ -550,16 +550,16 @@ export const getAllowedHandoffRoles = query({
       (p) => p.status === 'waiting' && p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
-    // Get the most recent classified user message to determine restrictions
-    const messages = await ctx.db
+    // Get the most recent classified user message to determine restrictions (optimized)
+    const recentMessages = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+      .order('desc')
+      .take(50);
 
     // Find the most recent classified user message
     let currentClassification = null;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
+    for (const msg of recentMessages) {
       if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
         currentClassification = msg.classification;
         break;
@@ -670,6 +670,12 @@ export const listPaginated = query({
  * Returns the latest non-follow-up user message and all messages after it.
  * This provides agents with the full context of the current task.
  * Requires CLI session authentication and chatroom access.
+ *
+ * Optimized approach:
+ * 1. Get recent messages (limited fetch)
+ * 2. Check if latest user message has taskOriginMessageId (fast path for follow-ups)
+ * 3. Otherwise, find origin in recent messages (handles most cases)
+ * 4. Fetch messages from origin onwards if needed
  */
 export const getContextWindow = query({
   args: {
@@ -680,12 +686,76 @@ export const getContextWindow = query({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const messages = await ctx.db
+    // Fetch recent messages (limited to 200 for performance)
+    // This handles most chatrooms efficiently
+    const recentMessages = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+      .order('desc')
+      .take(200);
 
-    // Find the index of the latest non-follow-up user message
+    // Reverse to get chronological order
+    const messages = recentMessages.reverse();
+
+    if (messages.length === 0) {
+      return {
+        originMessage: null,
+        contextMessages: [],
+        classification: null,
+      };
+    }
+
+    // Fast path: Check if most recent user message has taskOriginMessageId
+    // This is set for follow-up messages and points directly to the origin
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.senderRole.toLowerCase() === 'user' && msg.type === 'message') {
+        // If this is a follow-up with origin reference, use it directly
+        if (msg.classification === 'follow_up' && msg.taskOriginMessageId) {
+          const originMessage = await ctx.db.get('chatroom_messages', msg.taskOriginMessageId);
+          if (originMessage) {
+            // Find where the origin is in our recent messages, or just return from origin
+            const originIndex = messages.findIndex((m) => m._id === originMessage._id);
+            if (originIndex !== -1) {
+              // Origin is in our recent messages, return from there
+              const contextMessages = messages.slice(originIndex);
+              return {
+                originMessage,
+                contextMessages,
+                classification: originMessage.classification || null,
+              };
+            }
+            // Origin is older than our recent window - fetch all messages from origin
+            // This is rare but handles edge case
+            const allMessages = await ctx.db
+              .query('chatroom_messages')
+              .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+              .collect();
+            const fullOriginIndex = allMessages.findIndex((m) => m._id === originMessage._id);
+            const contextMessages =
+              fullOriginIndex !== -1 ? allMessages.slice(fullOriginIndex) : allMessages;
+            return {
+              originMessage,
+              contextMessages,
+              classification: originMessage.classification || null,
+            };
+          }
+        }
+
+        // This is the origin itself (non-follow-up user message)
+        if (msg.classification !== 'follow_up') {
+          const contextMessages = messages.slice(i);
+          return {
+            originMessage: msg,
+            contextMessages,
+            classification: msg.classification || null,
+          };
+        }
+        break;
+      }
+    }
+
+    // Standard path: Find the latest non-follow-up user message in recent messages
     let originIndex = -1;
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
@@ -699,7 +769,7 @@ export const getContextWindow = query({
       }
     }
 
-    // If no origin found, return all messages (fallback)
+    // If no origin found in recent messages, return recent messages (fallback)
     if (originIndex === -1) {
       return {
         originMessage: null,
@@ -774,10 +844,15 @@ export const getLatestForRole = query({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const messages = await ctx.db
+    // Fetch recent messages (optimized with limit)
+    const recentMessages = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+      .order('desc')
+      .take(200);
+
+    // Reverse to get chronological order
+    const messages = recentMessages.reverse();
 
     // Get chatroom for team info
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
@@ -1018,16 +1093,16 @@ export const getRolePrompt = query({
       (p) => p.status === 'waiting' && p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
-    // Get the most recent classified user message to determine restrictions
-    const messages = await ctx.db
+    // Get the most recent classified user message to determine restrictions (optimized)
+    const recentMessages = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+      .order('desc')
+      .take(50);
 
     // Find the most recent classified user message
     let currentClassification: 'question' | 'new_feature' | 'follow_up' | null = null;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
+    for (const msg of recentMessages) {
       if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
         currentClassification = msg.classification;
         break;
