@@ -252,9 +252,13 @@ export default defineSchema({
     teamRoles: v.optional(v.array(v.string())),
     // Entry point role that receives all user messages (defaults to first role)
     teamEntryPoint: v.optional(v.string()),
+    // Last activity timestamp - updated when messages are sent
+    // Used for sorting chatrooms by recent activity
+    lastActivityAt: v.optional(v.number()),
   })
     .index('by_status', ['status'])
-    .index('by_ownerId', ['ownerId']),
+    .index('by_ownerId', ['ownerId'])
+    .index('by_ownerId_lastActivity', ['ownerId', 'lastActivityAt']),
 
   /**
    * Participants in chatrooms.

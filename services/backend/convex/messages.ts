@@ -71,6 +71,11 @@ async function _sendMessageHandler(
     type: args.type,
   });
 
+  // Update chatroom's lastActivityAt for sorting by recent activity
+  await ctx.db.patch('chatroom_rooms', args.chatroomId, {
+    lastActivityAt: Date.now(),
+  });
+
   // Auto-create task for user messages and handoff messages
   const isUserMessage = normalizedSenderRole === 'user' && args.type === 'message';
   const isHandoffToAgent =
@@ -255,6 +260,11 @@ async function _handoffHandler(
     content: args.content,
     targetRole: args.targetRole,
     type: 'handoff',
+  });
+
+  // Update chatroom's lastActivityAt for sorting by recent activity
+  await ctx.db.patch('chatroom_rooms', args.chatroomId, {
+    lastActivityAt: now,
   });
 
   // Step 3: Create task for target agent (if not user)

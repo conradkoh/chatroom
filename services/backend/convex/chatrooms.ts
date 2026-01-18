@@ -51,7 +51,8 @@ export const get = query({
 });
 
 /**
- * List chatrooms owned by the authenticated user, sorted by creation time (newest first).
+ * List chatrooms owned by the authenticated user, sorted by last activity (most recent first).
+ * Falls back to creation time for chatrooms without activity.
  * Requires session authentication.
  */
 export const listByUser = query({
@@ -68,8 +69,15 @@ export const listByUser = query({
     const chatrooms = await ctx.db
       .query('chatroom_rooms')
       .withIndex('by_ownerId', (q) => q.eq('ownerId', sessionResult.userId))
-      .order('desc')
       .collect();
+
+    // Sort by lastActivityAt (most recent first), falling back to _creationTime
+    chatrooms.sort((a, b) => {
+      const aTime = a.lastActivityAt ?? a._creationTime;
+      const bTime = b.lastActivityAt ?? b._creationTime;
+      return bTime - aTime;
+    });
+
     return chatrooms;
   },
 });
@@ -95,11 +103,18 @@ export const listByUserWithStatus = query({
       throw new Error(`Authentication failed: ${sessionResult.reason}`);
     }
 
+    // Fetch chatrooms - we'll sort by lastActivityAt after fetching
     const chatrooms = await ctx.db
       .query('chatroom_rooms')
       .withIndex('by_ownerId', (q) => q.eq('ownerId', sessionResult.userId))
-      .order('desc')
       .collect();
+
+    // Sort by lastActivityAt (most recent first), falling back to _creationTime
+    chatrooms.sort((a, b) => {
+      const aTime = a.lastActivityAt ?? a._creationTime;
+      const bTime = b.lastActivityAt ?? b._creationTime;
+      return bTime - aTime;
+    });
 
     const now = Date.now();
 
