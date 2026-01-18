@@ -48,44 +48,50 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
     process.exit(1);
   }
 
-  try {
-    // Use atomic handoff mutation - performs all operations in one transaction:
-    // - Validates handoff is allowed (classification rules for user handoff)
-    // - Completes all in_progress tasks
-    // - Sends the handoff message
-    // - Creates a task for target agent (if not user)
-    // - Updates sender's participant status to waiting
-    // - Promotes next queued task to pending
-    //
-    // Note: We use sendHandoff here for backward compatibility with deployed backend.
-    // Once backend is deployed with the new 'handoff' mutation, this can be changed to api.messages.handoff
-    await client.mutation(api.messages.sendHandoff, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      senderRole: role,
-      content: message,
-      targetRole: nextRole,
-    });
+  // Use atomic handoff mutation - performs all operations in one transaction:
+  // - Validates handoff is allowed (classification rules for user handoff)
+  // - Completes all in_progress tasks
+  // - Sends the handoff message
+  // - Creates a task for target agent (if not user)
+  // - Updates sender's participant status to waiting
+  // - Promotes next queued task to pending
+  //
+  // Note: We use sendHandoff here for backward compatibility with deployed backend.
+  // Once backend is deployed with the new 'handoff' mutation, this can be changed to api.messages.handoff
+  const result = (await client.mutation(api.messages.sendHandoff, {
+    sessionId,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    senderRole: role,
+    content: message,
+    targetRole: nextRole,
+  })) as {
+    success: boolean;
+    error?: {
+      code: string;
+      message: string;
+      suggestedTarget?: string;
+    } | null;
+    messageId: string | null;
+    completedTaskIds: string[];
+    newTaskId: string | null;
+    promotedTaskId: string | null;
+  };
 
-    console.log(`✅ Task completed and handed off to ${nextRole}`);
-    console.log(`📋 Summary: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`);
-  } catch (error) {
-    // Handle handoff validation errors with helpful messages
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    if (errorMessage.includes('Cannot hand off directly to user')) {
-      console.error(`\n❌ Cannot hand off directly to user`);
-      console.error(`   Reason: new_feature requests must be reviewed before returning to user`);
-      console.error(`\n💡 Please hand off to: reviewer`);
+  // Check for handoff restriction errors
+  if (!result.success && result.error) {
+    console.error(`\n❌ Handoff Failed`);
+    console.error(`   Reason: ${result.error.message}`);
+    if (result.error.suggestedTarget) {
+      console.error(`\n💡 Please hand off to: ${result.error.suggestedTarget}`);
       console.error(
-        `   Example: chatroom handoff ${chatroomId} --role=${role} --message="<summary>" --next-role=reviewer`
+        `   Example: chatroom handoff ${chatroomId} --role=${role} --message="<summary>" --next-role=${result.error.suggestedTarget}`
       );
-      process.exit(1);
     }
-
-    // Re-throw other errors
-    throw error;
+    process.exit(1);
   }
+
+  console.log(`✅ Task completed and handed off to ${nextRole}`);
+  console.log(`📋 Summary: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`);
 
   // Check if handing off to user (workflow completion)
   if (nextRole.toLowerCase() === 'user') {

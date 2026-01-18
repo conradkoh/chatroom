@@ -221,9 +221,20 @@ async function _handoffHandler(
 
     // For new_feature requests, builder cannot hand off directly to user
     if (currentClassification === 'new_feature' && normalizedSenderRole === 'builder') {
-      throw new Error(
-        'Cannot hand off directly to user. new_feature requests must be reviewed before returning to user.'
-      );
+      // Return error response instead of throwing - allows CLI to handle gracefully
+      return {
+        success: false,
+        error: {
+          code: 'HANDOFF_RESTRICTED',
+          message:
+            'Cannot hand off directly to user. new_feature requests must be reviewed before returning to user.',
+          suggestedTarget: 'reviewer',
+        },
+        messageId: null,
+        completedTaskIds: [],
+        newTaskId: null,
+        promotedTaskId: null,
+      };
     }
   }
 
@@ -345,6 +356,8 @@ async function _handoffHandler(
   // For handoffs to other agents, no queue promotion - the handoff already creates a pending task for the target
 
   return {
+    success: true,
+    error: null,
     messageId,
     completedTaskIds,
     newTaskId,
