@@ -674,15 +674,17 @@ export const listPaginated = query({
 
 /**
  * Get context window for agents.
- * Returns the latest non-follow-up user message and all messages after it.
+ * Returns the latest non-follow-up user message and all messages after it,
+ * EXCLUDING user messages that haven't been acknowledged (still queued).
  * This provides agents with the full context of the current task.
  * Requires CLI session authentication and chatroom access.
  *
  * Optimized approach:
  * 1. Get recent messages (limited fetch)
- * 2. Check if latest user message has taskOriginMessageId (fast path for follow-ups)
- * 3. Otherwise, find origin in recent messages (handles most cases)
- * 4. Fetch messages from origin onwards if needed
+ * 2. Filter out unacknowledged user messages (queued messages)
+ * 3. Check if latest user message has taskOriginMessageId (fast path for follow-ups)
+ * 4. Otherwise, find origin in recent messages (handles most cases)
+ * 5. Fetch messages from origin onwards if needed
  */
 export const getContextWindow = query({
   args: {
@@ -702,7 +704,16 @@ export const getContextWindow = query({
       .take(200);
 
     // Reverse to get chronological order
-    const messages = recentMessages.reverse();
+    let messages = recentMessages.reverse();
+
+    // Filter out unacknowledged user messages (still queued, not yet worked on)
+    // Non-user messages (handoffs, agent messages) are always included
+    messages = messages.filter((msg) => {
+      // Non-user messages are always included
+      if (msg.senderRole.toLowerCase() !== 'user') return true;
+      // User messages must have acknowledgedAt to be included
+      return msg.acknowledgedAt !== undefined;
+    });
 
     if (messages.length === 0) {
       return {
