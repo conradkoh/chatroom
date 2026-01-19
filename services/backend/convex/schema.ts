@@ -364,6 +364,19 @@ export default defineSchema({
 
     // Queue ordering (lower = earlier in queue)
     queuePosition: v.number(),
+
+    // Backlog lifecycle tracking (only for tasks that originated as backlog items)
+    // Enables tracking backlog item completion independently of task queue status
+    backlog: v.optional(
+      v.object({
+        status: v.union(
+          v.literal('not_started'), // Default - task is in backlog, work has not begun
+          v.literal('started'), // Task has been moved to queue at least once
+          v.literal('complete'), // User has confirmed the issue is resolved
+          v.literal('closed') // User has closed the task without completing
+        ),
+      })
+    ),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])

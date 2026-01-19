@@ -3,7 +3,18 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Plus, Pencil, Trash2, ArrowRight, X, Check, Play, ChevronRight } from 'lucide-react';
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  ArrowRight,
+  X,
+  Check,
+  Play,
+  ChevronRight,
+  ChevronDown,
+  Archive,
+} from 'lucide-react';
 import React, { useState, useCallback, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -13,13 +24,19 @@ import { TaskQueueModal } from './TaskQueueModal';
 
 type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
 
+type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
+
 interface Task {
   _id: Id<'chatroom_tasks'>;
   content: string;
   status: TaskStatus;
   createdAt: number;
+  updatedAt: number;
   queuePosition: number;
   assignedTo?: string;
+  backlog?: {
+    status: BacklogStatus;
+  };
 }
 
 interface TaskCounts {
@@ -84,6 +101,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const [editedContent, setEditedContent] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
+  const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
 
   // Type assertion workaround for Convex API
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -106,6 +124,18 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as QueueHealth | undefined;
 
+  // Query archived backlog tasks (only when expanded)
+  const archivedTasks = useSessionQuery(
+    isArchivedExpanded ? tasksApi.tasks.listTasks : undefined,
+    isArchivedExpanded
+      ? {
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          backlogStatusFilter: 'archived',
+          limit: 50,
+        }
+      : 'skip'
+  ) as Task[] | undefined;
+
   // Mutations
   const createTask = useSessionMutation(tasksApi.tasks.createTask);
   const promoteNextTask = useSessionMutation(tasksApi.tasks.promoteNextTask);
@@ -113,17 +143,32 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const cancelTask = useSessionMutation(tasksApi.tasks.cancelTask);
   const moveToQueue = useSessionMutation(tasksApi.tasks.moveToQueue);
   const completeTaskById = useSessionMutation(tasksApi.tasks.completeTaskById);
+  const markBacklogComplete = useSessionMutation(tasksApi.tasks.markBacklogComplete);
+  const closeBacklogTask = useSessionMutation(tasksApi.tasks.closeBacklogTask);
+  const reopenBacklogTask = useSessionMutation(tasksApi.tasks.reopenBacklogTask);
 
-  // Categorize tasks
+  // Helper to check if a task is archived (backlog.status is complete or closed)
+  const isArchivedTask = useCallback((task: Task) => {
+    return task.backlog?.status === 'complete' || task.backlog?.status === 'closed';
+  }, []);
+
+  // Categorize tasks - filter out archived from the active backlog list
   const categorizedTasks = useMemo(() => {
     if (!tasks) return { current: [], queued: [], backlog: [] };
 
     return {
       current: tasks.filter((t) => t.status === 'pending' || t.status === 'in_progress'),
       queued: tasks.filter((t) => t.status === 'queued'),
-      backlog: tasks.filter((t) => t.status === 'backlog'),
+      // Only show active backlog items (not archived)
+      backlog: tasks.filter((t) => t.status === 'backlog' && !isArchivedTask(t)),
     };
-  }, [tasks]);
+  }, [tasks, isArchivedTask]);
+
+  // Count archived items
+  const archivedCount = useMemo(() => {
+    if (!tasks) return 0;
+    return tasks.filter((t) => isArchivedTask(t)).length + (archivedTasks?.length || 0);
+  }, [tasks, isArchivedTask, archivedTasks]);
 
   // Handlers
   const handleAddTask = useCallback(async () => {
@@ -274,6 +319,48 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
       }
     },
     [completeTaskById]
+  );
+
+  const handleModalMarkBacklogComplete = useCallback(
+    async (taskId: string) => {
+      try {
+        await markBacklogComplete({
+          taskId: taskId as Id<'chatroom_tasks'>,
+        });
+      } catch (error) {
+        console.error('Failed to mark backlog complete:', error);
+        throw error;
+      }
+    },
+    [markBacklogComplete]
+  );
+
+  const handleModalCloseBacklog = useCallback(
+    async (taskId: string) => {
+      try {
+        await closeBacklogTask({
+          taskId: taskId as Id<'chatroom_tasks'>,
+        });
+      } catch (error) {
+        console.error('Failed to close backlog task:', error);
+        throw error;
+      }
+    },
+    [closeBacklogTask]
+  );
+
+  const handleModalReopenBacklog = useCallback(
+    async (taskId: string) => {
+      try {
+        await reopenBacklogTask({
+          taskId: taskId as Id<'chatroom_tasks'>,
+        });
+      } catch (error) {
+        console.error('Failed to reopen backlog task:', error);
+        throw error;
+      }
+    },
+    [reopenBacklogTask]
   );
 
   // Calculate active total
@@ -444,6 +531,42 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
           )}
         </div>
         {/* End of Backlog Tasks */}
+
+        {/* Archived Section - Expandable */}
+        {archivedCount > 0 && (
+          <div className="border-b border-chatroom-border">
+            <button
+              onClick={() => setIsArchivedExpanded(!isArchivedExpanded)}
+              className="w-full px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between hover:bg-chatroom-bg-hover transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Archive size={12} />
+                Archived ({archivedCount})
+              </span>
+              {isArchivedExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </button>
+
+            {isArchivedExpanded && (
+              <div>
+                {archivedTasks === undefined ? (
+                  <div className="p-3 text-center text-chatroom-text-muted text-xs">Loading...</div>
+                ) : archivedTasks.length === 0 ? (
+                  <div className="p-3 text-center text-chatroom-text-muted text-xs">
+                    No archived items
+                  </div>
+                ) : (
+                  archivedTasks.map((task) => (
+                    <ArchivedBacklogItem
+                      key={task._id}
+                      task={task}
+                      onClick={() => handleOpenTaskDetail(task)}
+                    />
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {/* End of Scrollable Task List Container */}
 
@@ -456,6 +579,9 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         onDelete={handleModalDelete}
         onMoveToQueue={handleModalMoveToQueue}
         onForceComplete={handleModalForceComplete}
+        onMarkBacklogComplete={handleModalMarkBacklogComplete}
+        onCloseBacklog={handleModalCloseBacklog}
+        onReopenBacklog={handleModalReopenBacklog}
       />
 
       {/* Full Task Queue Modal */}
@@ -684,6 +810,14 @@ function CompactBacklogItem({ task, onClick, onMoveToQueue }: CompactBacklogItem
     [onMoveToQueue]
   );
 
+  // Get backlog status indicator
+  const backlogStatusIndicator =
+    task.backlog?.status === 'started' ? (
+      <span className="flex-shrink-0 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide bg-chatroom-status-info/15 text-chatroom-status-info">
+        Started
+      </span>
+    ) : null;
+
   return (
     <div
       className="flex items-center gap-2 p-2 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group"
@@ -697,6 +831,9 @@ function CompactBacklogItem({ task, onClick, onMoveToQueue }: CompactBacklogItem
         }
       }}
     >
+      {/* Backlog Status Indicator */}
+      {backlogStatusIndicator}
+
       {/* Content - 2 lines max, with simplified markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
         <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
@@ -712,6 +849,59 @@ function CompactBacklogItem({ task, onClick, onMoveToQueue }: CompactBacklogItem
       >
         <ChevronRight size={14} />
       </button>
+    </div>
+  );
+}
+
+// Archived Backlog Item - for archived section display
+interface ArchivedBacklogItemProps {
+  task: Task;
+  onClick: () => void;
+}
+
+function ArchivedBacklogItem({ task, onClick }: ArchivedBacklogItemProps) {
+  const backlogStatus = task.backlog?.status;
+  const statusLabel = backlogStatus === 'complete' ? 'Complete' : 'Closed';
+  const statusClasses =
+    backlogStatus === 'complete'
+      ? 'bg-chatroom-status-success/15 text-chatroom-status-success'
+      : 'bg-chatroom-text-muted/15 text-chatroom-text-muted';
+
+  // Format date
+  const formattedDate = new Date(task.updatedAt).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+
+  return (
+    <div
+      className="flex items-center gap-2 p-2 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors cursor-pointer"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      {/* Status Badge */}
+      <span
+        className={`flex-shrink-0 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide ${statusClasses}`}
+      >
+        {statusLabel}
+      </span>
+
+      {/* Content - 1 line max */}
+      <div className="flex-1 min-w-0 text-xs text-chatroom-text-muted line-clamp-1">
+        <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+          {task.content}
+        </Markdown>
+      </div>
+
+      {/* Date */}
+      <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{formattedDate}</span>
     </div>
   );
 }

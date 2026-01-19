@@ -1,7 +1,17 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { ArrowRight, Check, Pencil, StopCircle, Trash2, X } from 'lucide-react';
+import {
+  ArrowRight,
+  Check,
+  CheckCircle,
+  Pencil,
+  RotateCcw,
+  StopCircle,
+  Trash2,
+  X,
+  XCircle,
+} from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -9,14 +19,19 @@ import remarkGfm from 'remark-gfm';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
+type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
 
 interface Task {
   _id: Id<'chatroom_tasks'>;
   content: string;
   status: TaskStatus;
   createdAt: number;
+  updatedAt: number;
   queuePosition: number;
   assignedTo?: string;
+  backlog?: {
+    status: BacklogStatus;
+  };
 }
 
 interface TaskDetailModalProps {
@@ -27,6 +42,9 @@ interface TaskDetailModalProps {
   onDelete: (taskId: string) => Promise<void>;
   onMoveToQueue: (taskId: string) => Promise<void>;
   onForceComplete: (taskId: string) => Promise<void>;
+  onMarkBacklogComplete?: (taskId: string) => Promise<void>;
+  onCloseBacklog?: (taskId: string) => Promise<void>;
+  onReopenBacklog?: (taskId: string) => Promise<void>;
   isProtected?: boolean;
 }
 
@@ -74,6 +92,9 @@ export function TaskDetailModal({
   onDelete,
   onMoveToQueue,
   onForceComplete,
+  onMarkBacklogComplete,
+  onCloseBacklog,
+  onReopenBacklog,
   isProtected = false,
 }: TaskDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -193,9 +214,59 @@ export function TaskDetailModal({
     }
   }, [task, onForceComplete, onClose]);
 
+  const handleMarkBacklogComplete = useCallback(async () => {
+    if (!task || !onMarkBacklogComplete) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      await onMarkBacklogComplete(task._id);
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to mark as complete';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [task, onMarkBacklogComplete, onClose]);
+
+  const handleCloseBacklog = useCallback(async () => {
+    if (!task || !onCloseBacklog) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      await onCloseBacklog(task._id);
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to close task';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [task, onCloseBacklog, onClose]);
+
+  const handleReopenBacklog = useCallback(async () => {
+    if (!task || !onReopenBacklog) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      await onReopenBacklog(task._id);
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to reopen task';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [task, onReopenBacklog, onClose]);
+
   if (!isOpen || !task) {
     return null;
   }
+
+  // Determine backlog status for showing appropriate actions
+  const isArchivedBacklog =
+    task.backlog?.status === 'complete' || task.backlog?.status === 'closed';
+  const isActiveBacklog = task.backlog && !isArchivedBacklog;
 
   const badge = getStatusBadge(task.status);
 
@@ -345,7 +416,43 @@ export function TaskDetailModal({
                   <Trash2 size={12} />
                   Delete
                 </button>
-                {task.status === 'backlog' && (
+                {/* Backlog-specific actions */}
+                {isActiveBacklog && (
+                  <>
+                    <button
+                      onClick={handleMarkBacklogComplete}
+                      disabled={isLoading}
+                      className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-status-success/30 text-chatroom-status-success hover:bg-chatroom-status-success/10 hover:border-chatroom-status-success transition-colors"
+                      title="Mark this backlog item as complete"
+                    >
+                      <CheckCircle size={12} />
+                      Mark Complete
+                    </button>
+                    <button
+                      onClick={handleCloseBacklog}
+                      disabled={isLoading}
+                      className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-text-muted/30 text-chatroom-text-muted hover:bg-chatroom-text-muted/10 hover:border-chatroom-text-muted transition-colors"
+                      title="Close without completing (won't fix, duplicate, etc.)"
+                    >
+                      <XCircle size={12} />
+                      Close
+                    </button>
+                  </>
+                )}
+                {/* Archived backlog actions */}
+                {isArchivedBacklog && (
+                  <button
+                    onClick={handleReopenBacklog}
+                    disabled={isLoading}
+                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-status-info/30 text-chatroom-status-info hover:bg-chatroom-status-info/10 hover:border-chatroom-status-info transition-colors"
+                    title="Reopen this archived item"
+                  >
+                    <RotateCcw size={12} />
+                    Reopen
+                  </button>
+                )}
+                {/* Move to queue for backlog items */}
+                {task.status === 'backlog' && !isArchivedBacklog && (
                   <button
                     onClick={handleMoveToQueue}
                     disabled={isLoading}

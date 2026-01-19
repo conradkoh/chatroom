@@ -7,14 +7,19 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
+type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
 
 interface Task {
   _id: Id<'chatroom_tasks'>;
   content: string;
   status: TaskStatus;
   createdAt: number;
+  updatedAt: number;
   queuePosition: number;
   assignedTo?: string;
+  backlog?: {
+    status: BacklogStatus;
+  };
 }
 
 interface TaskQueueModalProps {

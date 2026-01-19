@@ -74,6 +74,8 @@ export const createTask = mutation({
       createdAt: now,
       updatedAt: now,
       queuePosition,
+      // Initialize backlog lifecycle tracking for backlog tasks
+      ...(args.isBacklog && { backlog: { status: 'not_started' as const } }),
     });
 
     return { taskId, status, queuePosition };
@@ -461,9 +463,128 @@ export const moveToQueue = mutation({
     await ctx.db.patch('chatroom_tasks', args.taskId, {
       status: newStatus,
       updatedAt: Date.now(),
+      // Update backlog lifecycle to 'started' when moving to queue
+      backlog: { status: 'started' as const },
     });
 
     return { success: true, newStatus };
+  },
+});
+
+/**
+ * Mark a backlog task as complete.
+ * User confirms the issue is resolved.
+ * Only allowed for tasks with backlog lifecycle tracking.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const markBacklogComplete = mutation({
+  args: {
+    sessionId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+
+    // Task must have backlog lifecycle tracking
+    if (!task.backlog) {
+      throw new Error('Task is not a backlog item');
+    }
+
+    // Cannot complete already completed/closed items
+    if (task.backlog.status === 'complete' || task.backlog.status === 'closed') {
+      throw new Error(`Task is already ${task.backlog.status}`);
+    }
+
+    await ctx.db.patch('chatroom_tasks', args.taskId, {
+      backlog: { status: 'complete' as const },
+      updatedAt: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Close a backlog task without completing.
+ * Used for won't fix, duplicate, or no longer relevant items.
+ * Only allowed for tasks with backlog lifecycle tracking.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const closeBacklogTask = mutation({
+  args: {
+    sessionId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+
+    // Task must have backlog lifecycle tracking
+    if (!task.backlog) {
+      throw new Error('Task is not a backlog item');
+    }
+
+    // Cannot close already completed/closed items
+    if (task.backlog.status === 'complete' || task.backlog.status === 'closed') {
+      throw new Error(`Task is already ${task.backlog.status}`);
+    }
+
+    await ctx.db.patch('chatroom_tasks', args.taskId, {
+      backlog: { status: 'closed' as const },
+      updatedAt: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Reopen a completed or closed backlog task.
+ * Returns the task to 'started' status.
+ * Only allowed for tasks with backlog lifecycle tracking.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const reopenBacklogTask = mutation({
+  args: {
+    sessionId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+
+    // Task must have backlog lifecycle tracking
+    if (!task.backlog) {
+      throw new Error('Task is not a backlog item');
+    }
+
+    // Can only reopen completed or closed items
+    if (task.backlog.status !== 'complete' && task.backlog.status !== 'closed') {
+      throw new Error(`Task is ${task.backlog.status}, not completed or closed`);
+    }
+
+    await ctx.db.patch('chatroom_tasks', args.taskId, {
+      backlog: { status: 'started' as const },
+      updatedAt: Date.now(),
+    });
+
+    return { success: true };
   },
 });
 
@@ -485,6 +606,13 @@ export const listTasks = query({
         v.literal('completed'),
         v.literal('cancelled'),
         v.literal('active') // pending + in_progress + queued + backlog
+      )
+    ),
+    // Filter for backlog lifecycle status
+    backlogStatusFilter: v.optional(
+      v.union(
+        v.literal('active'), // not_started + started (shown in main backlog list)
+        v.literal('archived') // complete + closed (hidden from main list)
       )
     ),
     limit: v.optional(v.number()),
@@ -513,8 +641,27 @@ export const listTasks = query({
       }
     }
 
-    // Sort by queuePosition
-    tasks.sort((a, b) => a.queuePosition - b.queuePosition);
+    // Filter by backlog lifecycle status
+    if (args.backlogStatusFilter) {
+      if (args.backlogStatusFilter === 'active') {
+        // Active: tasks without backlog field OR with not_started/started status
+        tasks = tasks.filter(
+          (t) => !t.backlog || t.backlog.status === 'not_started' || t.backlog.status === 'started'
+        );
+      } else if (args.backlogStatusFilter === 'archived') {
+        // Archived: only tasks with complete/closed status
+        tasks = tasks.filter(
+          (t) => t.backlog?.status === 'complete' || t.backlog?.status === 'closed'
+        );
+      }
+    }
+
+    // Sort by queuePosition for active, by updatedAt desc for archived
+    if (args.backlogStatusFilter === 'archived') {
+      tasks.sort((a, b) => b.updatedAt - a.updatedAt);
+    } else {
+      tasks.sort((a, b) => a.queuePosition - b.queuePosition);
+    }
 
     // Apply limit
     const limit = args.limit ? Math.min(args.limit, 100) : 100;
