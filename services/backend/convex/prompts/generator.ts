@@ -154,7 +154,9 @@ chatroom handoff ${ctx.chatroomId} \\
   --next-role=<target>
 \`\`\`
 
-**Always run after any command:**
+The handoff command **automatically waits** for your next assignment.
+
+**If wait is interrupted, restart immediately:**
 \`\`\`
 chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 \`\`\`

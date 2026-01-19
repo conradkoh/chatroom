@@ -155,7 +155,9 @@ chatroom handoff ${chatroomId} \\
   --next-role=<target>
 \`\`\`
 
-**Always run after any command:**
+The handoff command **automatically waits** for your next assignment.
+
+**If wait is interrupted, restart immediately:**
 \`\`\`
 chatroom wait-for-task ${chatroomId} --role=builder
 \`\`\`
@@ -263,7 +265,9 @@ chatroom handoff ${chatroomId} \\
   --next-role=<target>
 \`\`\`
 
-**Always run after any command:**
+The handoff command **automatically waits** for your next assignment.
+
+**If wait is interrupted, restart immediately:**
 \`\`\`
 chatroom wait-for-task ${chatroomId} --role=reviewer
 \`\`\`
@@ -424,7 +428,9 @@ chatroom handoff ${chatroomId} \\
   --next-role=<target>
 \`\`\`
 
-**Always run after any command:**
+The handoff command **automatically waits** for your next assignment.
+
+**If wait is interrupted, restart immediately:**
 \`\`\`
 chatroom wait-for-task ${chatroomId} --role=builder
 \`\`\`
