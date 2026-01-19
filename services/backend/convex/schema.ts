@@ -315,9 +315,18 @@ export default defineSchema({
     // Link to the task created for this message (for user messages)
     // Used to track processing status in the UI
     taskId: v.optional(v.id('chatroom_tasks')),
+
+    // Message lifecycle tracking
+    // acknowledgedAt: When an agent received and started working on this message
+    acknowledgedAt: v.optional(v.number()),
+    // completedAt: When the agent completed work on this message (via handoff)
+    completedAt: v.optional(v.number()),
   })
     .index('by_chatroom', ['chatroomId'])
-    .index('by_taskId', ['taskId']),
+    .index('by_taskId', ['taskId'])
+    // Index for efficient origin message lookup (non-follow-up user messages)
+    // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
+    .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type']),
 
   /**
    * Tasks in chatrooms for queue and backlog management.
