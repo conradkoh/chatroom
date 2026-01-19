@@ -96,24 +96,6 @@ program
 // ============================================================================
 
 program
-  .command('list')
-  .description('List chatroom history')
-  .action(async () => {
-    await maybeRequireAuth();
-    const { listChatrooms } = await import('./commands/list.js');
-    await listChatrooms();
-  });
-
-program
-  .command('complete <chatroomId>')
-  .description('Mark a chatroom as completed')
-  .action(async (chatroomId: string) => {
-    await maybeRequireAuth();
-    const { completeChatroom } = await import('./commands/complete.js');
-    await completeChatroom(chatroomId);
-  });
-
-program
   .command('wait-for-task <chatroomId>')
   .description('Join a chatroom and wait for tasks')
   .requiredOption('--role <role>', 'Role to join as (e.g., builder, reviewer)')
