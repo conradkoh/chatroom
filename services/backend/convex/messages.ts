@@ -243,6 +243,13 @@ async function _handoffHandler(
       updatedAt: now,
     });
     completedTaskIds.push(task._id);
+
+    // Set completedAt on the source message (lifecycle tracking)
+    if (task.sourceMessageId) {
+      await ctx.db.patch('chatroom_messages', task.sourceMessageId, {
+        completedAt: now,
+      });
+    }
   }
 
   if (inProgressTasks.length > 1) {
