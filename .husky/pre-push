@@ -4,3 +4,7 @@ pnpm run test
 
 # Run typecheck before pushing
 pnpm run typecheck
+
+# Build CLI to verify it compiles correctly
+# Note: Next.js webapp build is excluded as it interferes with dev server
+pnpm --filter chatroom-cli build
