@@ -20,6 +20,7 @@ interface WaitForTaskOptions {
   timeout?: number;
   duration?: string;
   silent?: boolean;
+  session?: number;
 }
 
 /**
@@ -154,22 +155,24 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   let pollTimeout: ReturnType<typeof setTimeout>;
 
   // Set up timeout - now always has a default value
-  // Large but finite session counter to help agents understand this is a bounded task
+  // Session tracking for finite but long task framing
   const TOTAL_SESSIONS = 1000000;
-  const sessionsRemaining = TOTAL_SESSIONS - 1; // Simulated counter showing remaining sessions
+  const currentSession = options.session || 1;
+  const nextSession = currentSession + 1;
+  const sessionsRemaining = TOTAL_SESSIONS - currentSession;
 
   const timeoutHandle = setTimeout(() => {
     if (pollTimeout) clearTimeout(pollTimeout);
     const durationDisplay = duration || formatDuration(effectiveTimeout);
-    const command = `chatroom wait-for-task ${chatroomId} --role=${role}${duration ? ` --duration="${duration}"` : ''}`;
+    const nextCommand = `chatroom wait-for-task ${chatroomId} --role=${role}${duration ? ` --duration="${duration}"` : ''} --session=${nextSession}`;
     console.log(`\n${'─'.repeat(50)}`);
     console.log(
-      `⏱️  COMPLETED WAIT SESSION (${durationDisplay}) - ${sessionsRemaining.toLocaleString()} sessions remaining`
+      `⏱️  COMPLETED WAIT SESSION #${currentSession} (${durationDisplay}) - ${sessionsRemaining.toLocaleString()} sessions remaining`
     );
     console.log(`${'─'.repeat(50)}`);
     console.log(`\n   ✅ Wait session completed successfully. No tasks received this session.`);
     console.log(`\n⚠️  Continue to the next session by running:\n`);
-    console.log(`   ${command}`);
+    console.log(`   ${nextCommand}`);
     console.log(`\n${'─'.repeat(50)}`);
     process.exit(0); // Exit with 0 since this is expected behavior
   }, effectiveTimeout);
