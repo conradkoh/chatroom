@@ -196,7 +196,6 @@ program
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--message <message>', 'Completion message/summary')
   .requiredOption('--next-role <nextRole>', 'Role to hand off to')
-  .option('--no-wait', 'Exit instead of waiting for next message')
   .action(
     async (
       chatroomId: string,
@@ -204,15 +203,11 @@ program
         role: string;
         message: string;
         nextRole: string;
-        wait?: boolean;
       }
     ) => {
       await maybeRequireAuth();
       const { handoff } = await import('./commands/handoff.js');
-      await handoff(chatroomId, {
-        ...options,
-        noWait: options.wait === false,
-      });
+      await handoff(chatroomId, options);
     }
   );
 

@@ -11,7 +11,6 @@
  * 6. Promotes the next queued task to pending
  */
 
-import { waitForTask } from './wait-for-task.js';
 import { api } from '../api.js';
 import type { Id } from '../api.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
@@ -21,12 +20,11 @@ interface HandoffOptions {
   role: string;
   message: string;
   nextRole: string;
-  noWait?: boolean;
 }
 
 export async function handoff(chatroomId: string, options: HandoffOptions): Promise<void> {
   const client = await getConvexClient();
-  const { role, message, nextRole, noWait } = options;
+  const { role, message, nextRole } = options;
 
   // Get session ID for authentication
   const sessionId = getSessionId();
@@ -97,16 +95,9 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
   // Check if handing off to user (workflow completion)
   if (nextRole.toLowerCase() === 'user') {
     console.log(`\n🎉 Workflow complete! Control returned to user.`);
-    if (!noWait) {
-      console.log(`\n⏳ Waiting for next assignment...`);
-      await waitForTask(chatroomId, { role, silent: true });
-    }
-    return;
   }
 
-  // Auto-wait for next task unless --no-wait is specified
-  if (!noWait) {
-    console.log(`\n⏳ Waiting for next assignment...`);
-    await waitForTask(chatroomId, { role, silent: true });
-  }
+  // Remind agent to run wait-for-task manually
+  console.log(`\n⏳ Now run wait-for-task to wait for your next assignment:`);
+  console.log(`   chatroom wait-for-task ${chatroomId} --role=${role}`);
 }
