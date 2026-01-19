@@ -158,7 +158,9 @@ chatroom handoff ${chatroomId} \\
 **Always run after any command:**
 \`\`\`
 chatroom wait-for-task ${chatroomId} --role=builder
-\`\`\`"
+\`\`\`
+
+**⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
 `);
 
       // ========================================
@@ -264,7 +266,9 @@ chatroom handoff ${chatroomId} \\
 **Always run after any command:**
 \`\`\`
 chatroom wait-for-task ${chatroomId} --role=reviewer
-\`\`\`"
+\`\`\`
+
+**⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
 `);
 
       // ========================================
@@ -423,7 +427,9 @@ chatroom handoff ${chatroomId} \\
 **Always run after any command:**
 \`\`\`
 chatroom wait-for-task ${chatroomId} --role=builder
-\`\`\`"
+\`\`\`
+
+**⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
 `);
 
       // Builder hands off directly to user (should succeed)
