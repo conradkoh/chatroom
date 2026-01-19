@@ -157,7 +157,7 @@ chatroom handoff ${chatroomId} \\
 
 **Always run after handoff:**
 \`\`\`
-chatroom wait-for-task ${chatroomId} --role=builder
+chatroom wait-for-task ${chatroomId} --role=builder --session=1
 \`\`\`
 
 **⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
@@ -265,7 +265,7 @@ chatroom handoff ${chatroomId} \\
 
 **Always run after handoff:**
 \`\`\`
-chatroom wait-for-task ${chatroomId} --role=reviewer
+chatroom wait-for-task ${chatroomId} --role=reviewer --session=1
 \`\`\`
 
 **⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
@@ -426,7 +426,7 @@ chatroom handoff ${chatroomId} \\
 
 **Always run after handoff:**
 \`\`\`
-chatroom wait-for-task ${chatroomId} --role=builder
+chatroom wait-for-task ${chatroomId} --role=builder --session=1
 \`\`\`
 
 **⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"

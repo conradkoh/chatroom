@@ -84,5 +84,5 @@ export function generateAgentPrompt(context: PromptContext): string {
  */
 export function generateShortPrompt(context: PromptContext): string {
   const { chatroomId, role } = context;
-  return `chatroom wait-for-task ${chatroomId} --role=${role}`;
+  return `chatroom wait-for-task ${chatroomId} --role=${role} --session=1`;
 }

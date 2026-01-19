@@ -169,7 +169,7 @@ chatroom handoff ${ctx.chatroomId} \\
 
 **Always run after handoff:**
 \`\`\`
-chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
+chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
 \`\`\`
 
 **⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**`;
