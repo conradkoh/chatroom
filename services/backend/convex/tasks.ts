@@ -439,8 +439,8 @@ export const moveToQueue = mutation({
       throw new Error('Task not found');
     }
 
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+    // Validate session and check chatroom access - need chatroom for entry point
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
     // Only allow moving backlog tasks
     if (task.status !== 'backlog') {
@@ -460,14 +460,38 @@ export const moveToQueue = mutation({
     // Otherwise, it goes to the queue
     const newStatus = activeTasks.length > 0 ? 'queued' : 'pending';
 
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: newStatus,
-      updatedAt: Date.now(),
-      // Update backlog lifecycle to 'started' when moving to queue
-      backlog: { status: 'started' as const },
+    const now = Date.now();
+
+    // Create a message from 'user' with the task content
+    // This makes the task visible in the chat message list
+    const targetRole = chatroom.teamEntryPoint || chatroom.teamRoles?.[0] || 'builder';
+    const messageId = await ctx.db.insert('chatroom_messages', {
+      chatroomId: task.chatroomId,
+      senderRole: 'user',
+      content: task.content,
+      targetRole,
+      type: 'message',
     });
 
-    return { success: true, newStatus };
+    // Update task with new status and link to the message
+    await ctx.db.patch('chatroom_tasks', args.taskId, {
+      status: newStatus,
+      updatedAt: now,
+      // Update backlog lifecycle to 'started' when moving to queue
+      backlog: { status: 'started' as const },
+      // Link task to the message
+      sourceMessageId: messageId,
+    });
+
+    // Link message to task
+    await ctx.db.patch('chatroom_messages', messageId, { taskId: args.taskId });
+
+    // Update chatroom's lastActivityAt for sorting by recent activity
+    await ctx.db.patch('chatroom_rooms', task.chatroomId, {
+      lastActivityAt: now,
+    });
+
+    return { success: true, newStatus, messageId };
   },
 });
 
