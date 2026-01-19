@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Check,
   CheckCircle,
+  MoreHorizontal,
   Pencil,
   RotateCcw,
   StopCircle,
@@ -16,6 +17,13 @@ import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
@@ -401,78 +409,103 @@ export function TaskDetailModal({
               </>
             ) : (
               <>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-colors"
-                >
-                  <Pencil size={12} />
-                  Edit
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={isLoading}
-                  className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-status-error/10 hover:border-chatroom-status-error/30 hover:text-chatroom-status-error transition-colors"
-                >
-                  <Trash2 size={12} />
-                  Delete
-                </button>
-                {/* Backlog-specific actions */}
-                {isActiveBacklog && (
-                  <>
-                    <button
-                      onClick={handleMarkBacklogComplete}
-                      disabled={isLoading}
-                      className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-status-success/30 text-chatroom-status-success hover:bg-chatroom-status-success/10 hover:border-chatroom-status-success transition-colors"
-                      title="Mark this backlog item as complete"
-                    >
-                      <CheckCircle size={12} />
-                      Mark Complete
-                    </button>
-                    <button
-                      onClick={handleCloseBacklog}
-                      disabled={isLoading}
-                      className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-text-muted/30 text-chatroom-text-muted hover:bg-chatroom-text-muted/10 hover:border-chatroom-text-muted transition-colors"
-                      title="Close without completing (won't fix, duplicate, etc.)"
-                    >
-                      <XCircle size={12} />
-                      Close
-                    </button>
-                  </>
-                )}
-                {/* Archived backlog actions */}
-                {isArchivedBacklog && (
-                  <button
-                    onClick={handleReopenBacklog}
-                    disabled={isLoading}
-                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-status-info/30 text-chatroom-status-info hover:bg-chatroom-status-info/10 hover:border-chatroom-status-info transition-colors"
-                    title="Reopen this archived item"
-                  >
-                    <RotateCcw size={12} />
-                    Reopen
-                  </button>
-                )}
-                {/* Move to queue for backlog items */}
+                {/* Primary Actions - Always visible */}
+                {/* Move to queue for active backlog items */}
                 {task.status === 'backlog' && !isArchivedBacklog && (
                   <button
                     onClick={handleMoveToQueue}
                     disabled={isLoading}
-                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary transition-colors ml-auto"
+                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary transition-colors"
                   >
                     <ArrowRight size={12} />
                     Move to Queue
                   </button>
                 )}
+
+                {/* Force complete for active tasks */}
                 {(task.status === 'in_progress' || task.status === 'pending') && (
                   <button
                     onClick={handleForceComplete}
                     disabled={isLoading}
-                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-status-warning/30 text-chatroom-status-warning hover:bg-chatroom-status-warning/10 hover:border-chatroom-status-warning transition-colors ml-auto"
+                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-status-warning/30 text-chatroom-status-warning hover:bg-chatroom-status-warning/10 hover:border-chatroom-status-warning transition-colors"
                     title="Force complete this stuck task"
                   >
                     <StopCircle size={12} />
                     Force Complete
                   </button>
                 )}
+
+                {/* Spacer to push dropdown to right */}
+                <div className="flex-1" />
+
+                {/* Secondary Actions - In dropdown menu */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      disabled={isLoading}
+                      className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-colors disabled:opacity-50"
+                      title="More actions"
+                    >
+                      <MoreHorizontal size={14} />
+                      Actions
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[160px]">
+                    {/* Edit action */}
+                    <DropdownMenuItem
+                      onClick={() => setIsEditing(true)}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Pencil size={14} />
+                      Edit
+                    </DropdownMenuItem>
+
+                    {/* Backlog lifecycle actions */}
+                    {isActiveBacklog && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={handleMarkBacklogComplete}
+                          className="flex items-center gap-2 cursor-pointer text-chatroom-status-success"
+                        >
+                          <CheckCircle size={14} />
+                          Mark Complete
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={handleCloseBacklog}
+                          className="flex items-center gap-2 cursor-pointer text-chatroom-text-muted"
+                        >
+                          <XCircle size={14} />
+                          Close
+                        </DropdownMenuItem>
+                      </>
+                    )}
+
+                    {/* Reopen for archived */}
+                    {isArchivedBacklog && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={handleReopenBacklog}
+                          className="flex items-center gap-2 cursor-pointer text-chatroom-status-info"
+                        >
+                          <RotateCcw size={14} />
+                          Reopen
+                        </DropdownMenuItem>
+                      </>
+                    )}
+
+                    {/* Delete action - always at bottom, dangerous */}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleDelete}
+                      className="flex items-center gap-2 cursor-pointer text-chatroom-status-error"
+                    >
+                      <Trash2 size={14} />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
             )}
           </div>
