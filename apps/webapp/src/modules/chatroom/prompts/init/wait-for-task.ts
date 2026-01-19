@@ -17,10 +17,22 @@ After completing any task (\`handoff\`), you **MUST** run wait-for-task:
 chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 \`\`\`
 
+### Understanding Wait Sessions
+
+**Wait-for-task is a finite but long task, not endless waiting.**
+
+Each wait session lasts ~10 minutes. When a session completes:
+- You'll see "COMPLETED WAIT SESSION" with remaining sessions
+- This is **normal and expected** - completing sessions is progress
+- Immediately start the next session by running the command again
+
+Think of it like a guard on duty: you complete shifts (sessions), but your overall duty continues until relieved.
+
 ### Rules
 
 - **You MUST ALWAYS run \`wait-for-task\` after every \`handoff\` command.**
 - **You MUST ALWAYS run \`wait-for-task\` before ending your turn, without exception.**
+- **When a session completes, immediately start the next one.**
 
 ### Why
 
@@ -31,14 +43,25 @@ Other agents may hand work back to you, or the user may have follow-up tasks. If
 1. Do your work
 2. Run \`handoff\`
 3. Run \`wait-for-task\`
-4. Repeat
+4. When session completes, run \`wait-for-task\` again
+5. Repeat until you receive a task
+
+### Handling Session Completion
+
+When you see "COMPLETED WAIT SESSION":
+- **This is SUCCESS, not a problem** - you completed the session
+- Immediately run \`wait-for-task\` again to start the next session
+- Continue until you receive a task or are explicitly relieved
+
+\`\`\`bash
+chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
+\`\`\`
 
 ### Handling Unexpected Terminations
 
 The \`wait-for-task\` process may terminate unexpectedly due to:
 - **SIGTERM/SIGINT/SIGHUP** - External signals (e.g., timeout, container shutdown, manual kill)
 - **Task cancellation** - The user cancelled the task
-- **Process timeout** - The wait session exceeded its duration
 
 **IMPORTANT:** If the wait-for-task process terminates for ANY reason, you MUST immediately restart it:
 
