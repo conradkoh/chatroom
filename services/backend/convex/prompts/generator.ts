@@ -6,6 +6,19 @@
  * to combat context rot in long conversations.
  */
 
+import {
+  type InitPromptContext,
+  getHeaderSection,
+  getResponsibilitiesSection,
+  getGettingStartedSection,
+  getCommunicationSection,
+  getHandoffOptionsSection,
+  getImportantNotesSection,
+  getExampleSection,
+  getRoleSpecificGuidance,
+  getWaitForTaskSection,
+  getTaskStartedSection,
+} from './init';
 import { getRoleTemplate } from './templates';
 
 export interface RolePromptContext {
@@ -196,4 +209,64 @@ chatroom handoff ${chatroomId} --role=builder --message="<summary>" --next-role=
 
   // Generic fallback for unknown roles
   return `Proceed with your task and hand off when complete.`;
+}
+
+export interface InitPromptInput {
+  chatroomId: string;
+  role: string;
+  teamName: string;
+  teamRoles: string[];
+  teamEntryPoint?: string;
+}
+
+/**
+ * Generate a complete agent initialization prompt.
+ * This is the full prompt shown when an agent first joins the chatroom.
+ */
+export function generateInitPrompt(input: InitPromptInput): string {
+  const { chatroomId, role, teamName, teamRoles, teamEntryPoint } = input;
+  const template = getRoleTemplate(role);
+
+  // Determine available handoff targets (other roles in the team + user)
+  const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
+  const handoffTargets = [...new Set([...otherRoles, 'user'])];
+
+  // Determine if this role is the entry point (receives user messages directly)
+  const entryPoint = teamEntryPoint || teamRoles[0] || 'builder';
+  const isEntryPoint = role.toLowerCase() === entryPoint.toLowerCase();
+
+  // Build the init prompt context
+  const ctx: InitPromptContext = {
+    chatroomId,
+    role,
+    teamName,
+    teamRoles,
+    template,
+    handoffTargets,
+    isEntryPoint,
+  };
+
+  // Get role-specific guidance
+  const roleSpecificGuidance = getRoleSpecificGuidance(role, otherRoles, isEntryPoint);
+
+  // Compose the prompt from sections
+  // Only include task-started section for entry-point roles
+  const sections = [
+    getHeaderSection(ctx),
+    getResponsibilitiesSection(ctx),
+    getGettingStartedSection(ctx),
+    isEntryPoint ? getTaskStartedSection(ctx) : '',
+    getCommunicationSection(ctx),
+    getHandoffOptionsSection(ctx),
+    roleSpecificGuidance,
+    getImportantNotesSection(),
+    getWaitForTaskSection(ctx),
+    getExampleSection(ctx),
+  ];
+
+  // Filter out empty sections and join with double newlines
+  return sections
+    .filter((s) => s.trim())
+    .join('\n\n')
+    .trim();
 }

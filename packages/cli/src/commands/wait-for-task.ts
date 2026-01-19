@@ -143,6 +143,35 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   if (!silent) {
     console.log(`✅ Joined chatroom as "${role}"`);
   }
+
+  // Session tracking for finite but long task framing
+  const currentSession = options.session || 1;
+
+  // On first session, fetch and display the full initialization prompt from backend
+  if (currentSession === 1) {
+    try {
+      const initPromptResult = (await client.query(api.messages.getInitPrompt, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        role,
+      })) as { prompt: string } | null;
+
+      if (initPromptResult?.prompt) {
+        console.log('');
+        console.log('═'.repeat(50));
+        console.log('📋 AGENT INITIALIZATION PROMPT');
+        console.log('═'.repeat(50));
+        console.log('');
+        console.log(initPromptResult.prompt);
+        console.log('');
+        console.log('═'.repeat(50));
+        console.log('');
+      }
+    } catch {
+      // Fallback - init prompt not critical, continue without it
+    }
+  }
+
   const durationDisplay = formatDuration(effectiveTimeout);
   console.log(`⏳ Waiting for tasks (duration: ${durationDisplay})...`);
   console.log('');
@@ -155,9 +184,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   let pollTimeout: ReturnType<typeof setTimeout>;
 
   // Set up timeout - now always has a default value
-  // Session tracking for finite but long task framing
   const TOTAL_SESSIONS = 1000000;
-  const currentSession = options.session || 1;
   const nextSession = currentSession + 1;
   const sessionsRemaining = TOTAL_SESSIONS - currentSession;
 

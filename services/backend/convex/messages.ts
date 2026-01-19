@@ -10,7 +10,7 @@ import {
   requireChatroomAccess,
 } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
-import { generateRolePrompt, generateTaskStartedReminder } from './prompts';
+import { generateRolePrompt, generateTaskStartedReminder, generateInitPrompt } from './prompts';
 
 // =============================================================================
 // SHARED HANDLERS - Internal functions that contain the actual logic
@@ -1162,5 +1162,32 @@ export const getRolePrompt = query({
       canHandoffToUser,
       restrictionReason,
     };
+  },
+});
+
+/**
+ * Get the full initialization prompt for an agent joining the chatroom.
+ * This is called once when an agent first joins and provides the complete
+ * setup instructions including role, workflow, and command reference.
+ */
+export const getInitPrompt = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Generate the full initialization prompt
+    const prompt = generateInitPrompt({
+      chatroomId: args.chatroomId,
+      role: args.role,
+      teamName: chatroom.teamName || 'Team',
+      teamRoles: chatroom.teamRoles || [],
+      teamEntryPoint: chatroom.teamEntryPoint,
+    });
+
+    return { prompt };
   },
 });
