@@ -4,7 +4,11 @@ import { v } from 'convex/values';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import { areAllAgentsReady, requireChatroomAccess } from './lib/cliSessionAuth';
+import {
+  areAllAgentsReady,
+  getAndIncrementQueuePosition,
+  requireChatroomAccess,
+} from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { generateRolePrompt, generateTaskStartedReminder } from './prompts';
 
@@ -77,13 +81,8 @@ async function _sendMessageHandler(
   const shouldCreateTask = isUserMessage || isHandoffToAgent;
 
   if (shouldCreateTask) {
-    // Determine next queue position
-    const allTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-    const maxPosition = allTasks.reduce((max, t) => Math.max(max, t.queuePosition), 0);
-    const queuePosition = maxPosition + 1;
+    // Get next queue position atomically (prevents race conditions)
+    const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
     const now = Date.now();
 
@@ -269,12 +268,8 @@ async function _handoffHandler(
   // Step 3: Create task for target agent (if not user)
   let newTaskId: Id<'chatroom_tasks'> | null = null;
   if (!isHandoffToUser) {
-    const allTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-    const maxPosition = allTasks.reduce((max, t) => Math.max(max, t.queuePosition), 0);
-    const queuePosition = maxPosition + 1;
+    // Get next queue position atomically (prevents race conditions)
+    const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
     newTaskId = await ctx.db.insert('chatroom_tasks', {
       chatroomId: args.chatroomId,

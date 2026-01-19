@@ -255,6 +255,10 @@ export default defineSchema({
     // Last activity timestamp - updated when messages are sent
     // Used for sorting chatrooms by recent activity
     lastActivityAt: v.optional(v.number()),
+    // Atomic counter for task queue positions
+    // Incremented atomically when creating tasks to prevent race conditions
+    // Optional for backward compatibility - defaults to 0 for existing chatrooms
+    nextQueuePosition: v.optional(v.number()),
   })
     .index('by_status', ['status'])
     .index('by_ownerId', ['ownerId'])

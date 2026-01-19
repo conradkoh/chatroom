@@ -211,14 +211,47 @@ export async function areAllAgentsReady(
 /**
  * Get the entry point role for a chatroom.
  * The entry point is the primary agent that receives user messages and queue promotions.
+ *
+ * @param chatroom - The chatroom document (to avoid re-fetching)
  */
-export async function getEntryPointRole(
-  ctx: QueryCtx | MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>
-): Promise<string | null> {
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (!chatroom) {
-    return null;
-  }
+export function getEntryPointRole(chatroom: Doc<'chatroom_rooms'>): string | null {
   return chatroom.teamEntryPoint || chatroom.teamRoles?.[0] || null;
+}
+
+/**
+ * Get and atomically increment the next queue position for a chatroom.
+ * This prevents race conditions when multiple tasks are created concurrently.
+ *
+ * For new chatrooms without nextQueuePosition, we initialize from the current max
+ * task queue position to ensure backward compatibility.
+ *
+ * @param ctx - Mutation context (must be mutation for atomic update)
+ * @param chatroom - The chatroom document
+ * @returns The next queue position to use for a new task
+ */
+export async function getAndIncrementQueuePosition(
+  ctx: MutationCtx,
+  chatroom: Doc<'chatroom_rooms'>
+): Promise<number> {
+  const currentPosition = chatroom.nextQueuePosition;
+
+  if (currentPosition === undefined) {
+    // Migration path: initialize from max existing task position
+    const allTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+      .collect();
+    const maxPosition = allTasks.reduce((max, t) => Math.max(max, t.queuePosition), 0);
+    const nextPosition = maxPosition + 1;
+
+    // Initialize the counter (next task will get nextPosition + 1)
+    await ctx.db.patch('chatroom_rooms', chatroom._id, { nextQueuePosition: nextPosition + 1 });
+
+    return nextPosition;
+  }
+
+  // Atomic increment: get current value and increment for next use
+  await ctx.db.patch('chatroom_rooms', chatroom._id, { nextQueuePosition: currentPosition + 1 });
+
+  return currentPosition;
 }

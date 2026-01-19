@@ -1,7 +1,11 @@
 import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
-import { areAllAgentsReady, requireChatroomAccess } from './lib/cliSessionAuth';
+import {
+  areAllAgentsReady,
+  getAndIncrementQueuePosition,
+  requireChatroomAccess,
+} from './lib/cliSessionAuth';
 
 /**
  * Maximum number of active tasks per chatroom.
@@ -26,8 +30,8 @@ export const createTask = mutation({
     sourceMessageId: v.optional(v.id('chatroom_messages')),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    // Validate session and check chatroom access - need chatroom for queue position
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Check active task limit
     const activeTasks = await ctx.db
@@ -44,13 +48,8 @@ export const createTask = mutation({
       );
     }
 
-    // Determine next queue position
-    const allTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-    const maxPosition = allTasks.reduce((max, t) => Math.max(max, t.queuePosition), 0);
-    const queuePosition = maxPosition + 1;
+    // Get next queue position atomically (prevents race conditions)
+    const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
     const now = Date.now();
 
