@@ -425,13 +425,16 @@ export const updateTask = mutation({
 });
 
 /**
- * Move a backlog task to the queue.
+ * Move a backlog task to the queue (chat).
+ * Optionally specify a custom message to send instead of the task content.
  * Requires CLI session authentication and chatroom access.
  */
 export const moveToQueue = mutation({
   args: {
     sessionId: v.string(),
     taskId: v.id('chatroom_tasks'),
+    // Optional custom message to send instead of task content
+    customMessage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const task = await ctx.db.get('chatroom_tasks', args.taskId);
@@ -462,15 +465,20 @@ export const moveToQueue = mutation({
 
     const now = Date.now();
 
-    // Create a message from 'user' with the task content
+    // Use custom message if provided, otherwise use task content
+    const messageContent = args.customMessage?.trim() || task.content;
+
+    // Create a message from 'user' with the message content
     // This makes the task visible in the chat message list
     const targetRole = chatroom.teamEntryPoint || chatroom.teamRoles?.[0] || 'builder';
     const messageId = await ctx.db.insert('chatroom_messages', {
       chatroomId: task.chatroomId,
       senderRole: 'user',
-      content: task.content,
+      content: messageContent,
       targetRole,
       type: 'message',
+      // Always attach the backlog task for context
+      attachedTaskIds: [args.taskId],
     });
 
     // Update task with new status and link to the message

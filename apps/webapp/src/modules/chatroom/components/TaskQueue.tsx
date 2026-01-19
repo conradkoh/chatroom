@@ -7,7 +7,6 @@ import {
   Plus,
   Pencil,
   Trash2,
-  ArrowRight,
   X,
   Check,
   Play,
@@ -219,19 +218,6 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     [cancelTask]
   );
 
-  const handleMoveToQueue = useCallback(
-    async (taskId: string) => {
-      try {
-        await moveToQueue({
-          taskId: taskId as Id<'chatroom_tasks'>,
-        });
-      } catch (error) {
-        console.error('Failed to move task:', error);
-      }
-    },
-    [moveToQueue]
-  );
-
   const handlePromoteNext = useCallback(async () => {
     try {
       await promoteNextTask({
@@ -292,14 +278,15 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     [cancelTask]
   );
 
-  const handleModalMoveToQueue = useCallback(
-    async (taskId: string) => {
+  const handleModalMoveToChat = useCallback(
+    async (taskId: string, customMessage?: string) => {
       try {
         await moveToQueue({
           taskId: taskId as Id<'chatroom_tasks'>,
+          customMessage,
         });
       } catch (error) {
-        console.error('Failed to move task to queue:', error);
+        console.error('Failed to move task to chat:', error);
         throw error;
       }
     },
@@ -512,7 +499,6 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
               key={task._id}
               task={task}
               onClick={() => handleOpenTaskDetail(task)}
-              onMoveToQueue={() => handleMoveToQueue(task._id)}
             />
           ))}
 
@@ -577,7 +563,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         onClose={handleCloseTaskDetail}
         onEdit={handleModalEdit}
         onDelete={handleModalDelete}
-        onMoveToQueue={handleModalMoveToQueue}
+        onMoveToChat={handleModalMoveToChat}
         onForceComplete={handleModalForceComplete}
         onMarkBacklogComplete={handleModalMarkBacklogComplete}
         onCloseBacklog={handleModalCloseBacklog}
@@ -593,7 +579,6 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
           // Keep queue modal open, detail modal will layer on top
           handleOpenTaskDetail(task);
         }}
-        onMoveToQueue={handleModalMoveToQueue}
       />
     </div>
   );
@@ -609,7 +594,6 @@ interface TaskItemProps {
   onCancelEdit?: () => void;
   onEditContentChange?: (content: string) => void;
   onDelete?: () => void;
-  onMoveToQueue?: () => void;
   onClick?: () => void;
 }
 
@@ -623,7 +607,6 @@ function TaskItem({
   onCancelEdit,
   onEditContentChange,
   onDelete,
-  onMoveToQueue,
   onClick,
 }: TaskItemProps) {
   const badge = getStatusBadge(task.status);
@@ -731,18 +714,6 @@ function TaskItem({
               <Trash2 size={12} />
             </button>
           )}
-          {onMoveToQueue && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveToQueue();
-              }}
-              className="p-1 text-chatroom-text-muted hover:text-chatroom-accent transition-colors"
-              title="Move to queue"
-            >
-              <ArrowRight size={12} />
-            </button>
-          )}
         </div>
       )}
     </div>
@@ -753,7 +724,6 @@ function TaskItem({
 interface CompactBacklogItemProps {
   task: Task;
   onClick: () => void;
-  onMoveToQueue: () => void;
 }
 
 // Simplified markdown components for compact display
@@ -801,15 +771,7 @@ const compactMarkdownComponents = {
   ),
 };
 
-function CompactBacklogItem({ task, onClick, onMoveToQueue }: CompactBacklogItemProps) {
-  const handleMoveClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      onMoveToQueue();
-    },
-    [onMoveToQueue]
-  );
-
+function CompactBacklogItem({ task, onClick }: CompactBacklogItemProps) {
   // Get backlog status indicator
   const backlogStatusIndicator =
     task.backlog?.status === 'started' ? (
@@ -841,14 +803,11 @@ function CompactBacklogItem({ task, onClick, onMoveToQueue }: CompactBacklogItem
         </Markdown>
       </div>
 
-      {/* Move to Queue Arrow */}
-      <button
-        onClick={handleMoveClick}
-        className="flex-shrink-0 p-1 text-chatroom-text-muted hover:text-chatroom-accent opacity-0 group-hover:opacity-100 transition-all"
-        title="Move to queue"
-      >
-        <ChevronRight size={14} />
-      </button>
+      {/* Arrow to indicate clickable */}
+      <ChevronRight
+        size={14}
+        className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
+      />
     </div>
   );
 }

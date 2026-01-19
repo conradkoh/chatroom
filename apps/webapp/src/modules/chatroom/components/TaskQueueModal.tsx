@@ -1,7 +1,7 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { ArrowRight, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -27,7 +27,6 @@ interface TaskQueueModalProps {
   tasks: Task[];
   onClose: () => void;
   onTaskClick: (task: Task) => void;
-  onMoveToQueue: (taskId: string) => Promise<void>;
 }
 
 // Status badge colors
@@ -61,13 +60,7 @@ const getStatusBadge = (status: TaskStatus) => {
   }
 };
 
-export function TaskQueueModal({
-  isOpen,
-  tasks,
-  onClose,
-  onTaskClick,
-  onMoveToQueue,
-}: TaskQueueModalProps) {
+export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueueModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Reset search when modal closes
@@ -200,7 +193,6 @@ export function TaskQueueModal({
                   title="Current"
                   tasks={groupedTasks.current}
                   onTaskClick={onTaskClick}
-                  onMoveToQueue={onMoveToQueue}
                   isProtected
                 />
               )}
@@ -211,7 +203,6 @@ export function TaskQueueModal({
                   title={`Queued (${groupedTasks.queued.length})`}
                   tasks={groupedTasks.queued}
                   onTaskClick={onTaskClick}
-                  onMoveToQueue={onMoveToQueue}
                 />
               )}
 
@@ -221,7 +212,6 @@ export function TaskQueueModal({
                   title={`Backlog (${groupedTasks.backlog.length})`}
                   tasks={groupedTasks.backlog}
                   onTaskClick={onTaskClick}
-                  onMoveToQueue={onMoveToQueue}
                 />
               )}
             </>
@@ -237,17 +227,10 @@ interface TaskGroupProps {
   title: string;
   tasks: Task[];
   onTaskClick: (task: Task) => void;
-  onMoveToQueue: (taskId: string) => Promise<void>;
   isProtected?: boolean;
 }
 
-function TaskGroup({
-  title,
-  tasks,
-  onTaskClick,
-  onMoveToQueue,
-  isProtected = false,
-}: TaskGroupProps) {
+function TaskGroup({ title, tasks, onTaskClick, isProtected = false }: TaskGroupProps) {
   return (
     <div className="border-b border-chatroom-border last:border-b-0">
       <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary sticky top-0">
@@ -258,7 +241,6 @@ function TaskGroup({
           key={task._id}
           task={task}
           onClick={() => onTaskClick(task)}
-          onMoveToQueue={() => onMoveToQueue(task._id)}
           isProtected={isProtected}
         />
       ))}
@@ -307,20 +289,11 @@ const compactMarkdownComponents = {
 interface TaskListItemProps {
   task: Task;
   onClick: () => void;
-  onMoveToQueue: () => void;
   isProtected?: boolean;
 }
 
-function TaskListItem({ task, onClick, onMoveToQueue, isProtected = false }: TaskListItemProps) {
+function TaskListItem({ task, onClick, isProtected: _isProtected = false }: TaskListItemProps) {
   const badge = getStatusBadge(task.status);
-
-  const handleMoveClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      onMoveToQueue();
-    },
-    [onMoveToQueue]
-  );
 
   return (
     <div
@@ -348,17 +321,6 @@ function TaskListItem({ task, onClick, onMoveToQueue, isProtected = false }: Tas
           {task.content}
         </Markdown>
       </div>
-
-      {/* Move to Queue Button (only for backlog) */}
-      {!isProtected && task.status === 'backlog' && (
-        <button
-          onClick={handleMoveClick}
-          className="flex-shrink-0 p-1 text-chatroom-text-muted hover:text-chatroom-accent opacity-0 group-hover:opacity-100 transition-all"
-          title="Move to queue"
-        >
-          <ArrowRight size={14} />
-        </button>
-      )}
     </div>
   );
 }

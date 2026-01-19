@@ -2,9 +2,9 @@
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import {
-  ArrowRight,
   Check,
   CheckCircle,
+  MessageSquare,
   MoreHorizontal,
   Pencil,
   RotateCcw,
@@ -16,6 +16,8 @@ import {
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+import { MoveToChatModal } from './MoveToChatModal';
 
 import {
   DropdownMenu,
@@ -47,7 +49,7 @@ interface TaskDetailModalProps {
   onClose: () => void;
   onEdit: (taskId: string, content: string) => Promise<void>;
   onDelete: (taskId: string) => Promise<void>;
-  onMoveToQueue: (taskId: string) => Promise<void>;
+  onMoveToChat: (taskId: string, customMessage?: string) => Promise<void>;
   onForceComplete: (taskId: string) => Promise<void>;
   onMarkBacklogComplete?: (taskId: string) => Promise<void>;
   onCloseBacklog?: (taskId: string) => Promise<void>;
@@ -97,7 +99,7 @@ export function TaskDetailModal({
   onClose,
   onEdit,
   onDelete,
-  onMoveToQueue,
+  onMoveToChat,
   onForceComplete,
   onMarkBacklogComplete,
   onCloseBacklog,
@@ -109,6 +111,7 @@ export function TaskDetailModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+  const [isMoveToChatOpen, setIsMoveToChatOpen] = useState(false);
 
   // Track which task we've initialized for - prevents resetting during edits
   const [initializedTaskId, setInitializedTaskId] = useState<string | null>(null);
@@ -191,20 +194,24 @@ export function TaskDetailModal({
     }
   }, [task, onDelete, onClose]);
 
-  const handleMoveToQueue = useCallback(async () => {
-    if (!task) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      await onMoveToQueue(task._id);
-      onClose();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to move task';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [task, onMoveToQueue, onClose]);
+  const handleMoveToChat = useCallback(
+    async (taskId: string, customMessage?: string) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        await onMoveToChat(taskId, customMessage);
+        setIsMoveToChatOpen(false);
+        onClose();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to move task';
+        setError(message);
+        throw err; // Re-throw so modal can show error
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [onMoveToChat, onClose]
+  );
 
   const handleForceComplete = useCallback(async () => {
     if (!task) return;
@@ -408,15 +415,15 @@ export function TaskDetailModal({
             ) : (
               <>
                 {/* Primary Actions - Always visible */}
-                {/* Move to queue for active backlog items */}
+                {/* Move to chat for active backlog items */}
                 {task.status === 'backlog' && !isArchivedBacklog && (
                   <button
-                    onClick={handleMoveToQueue}
+                    onClick={() => setIsMoveToChatOpen(true)}
                     disabled={isLoading}
                     className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary transition-colors"
                   >
-                    <ArrowRight size={12} />
-                    Move to Queue
+                    <MessageSquare size={12} />
+                    Move to Chat
                   </button>
                 )}
 
@@ -509,6 +516,14 @@ export function TaskDetailModal({
           </div>
         )}
       </div>
+
+      {/* Move to Chat Modal */}
+      <MoveToChatModal
+        isOpen={isMoveToChatOpen}
+        task={task}
+        onClose={() => setIsMoveToChatOpen(false)}
+        onConfirm={handleMoveToChat}
+      />
     </>
   );
 }
