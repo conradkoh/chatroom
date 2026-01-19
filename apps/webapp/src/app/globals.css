@@ -63,6 +63,7 @@
   --color-chatroom-status-purple: var(--chatroom-status-purple);
   --color-chatroom-accent: var(--chatroom-accent);
   --color-chatroom-accent-subtle: var(--chatroom-accent-subtle);
+  --color-chatroom-text-on-accent: var(--chatroom-text-on-accent);
 }
 
 /* Mobile-responsive spacing and sizing variables */
@@ -274,6 +275,7 @@ input,
   /* Accent */
   --chatroom-accent: #171717;               /* neutral-900 */
   --chatroom-accent-subtle: #f5f5f5;        /* neutral-100 */
+  --chatroom-text-on-accent: #fafafa;       /* light text on dark accent */
 
   /* Base styles for the chatroom module root */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -309,6 +311,7 @@ input,
   /* Accent */
   --chatroom-accent: #fafafa;               /* zinc-100 */
   --chatroom-accent-subtle: #27272a;        /* zinc-800 */
+  --chatroom-text-on-accent: #09090b;       /* dark text on light accent */
 }
 
 /* Scoped box-sizing reset - only apply within chatroom module */
