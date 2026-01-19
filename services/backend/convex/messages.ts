@@ -667,17 +667,15 @@ export const listPaginated = query({
 
 /**
  * Get context window for agents.
- * Returns the latest non-follow-up user message and all messages after it,
- * EXCLUDING messages whose associated tasks are still queued.
- * This ensures agents only see messages that have been actively worked on.
+ * Returns the latest non-follow-up user message and all messages after it.
+ * This provides agents with the full context of the current task.
  * Requires CLI session authentication and chatroom access.
  *
  * Optimized approach:
  * 1. Get recent messages (limited fetch)
- * 2. Filter out messages from queued tasks
- * 3. Check if latest user message has taskOriginMessageId (fast path for follow-ups)
- * 4. Otherwise, find origin in recent messages (handles most cases)
- * 5. Fetch messages from origin onwards if needed
+ * 2. Check if latest user message has taskOriginMessageId (fast path for follow-ups)
+ * 3. Otherwise, find origin in recent messages (handles most cases)
+ * 4. Fetch messages from origin onwards if needed
  */
 export const getContextWindow = query({
   args: {
@@ -697,38 +695,7 @@ export const getContextWindow = query({
       .take(200);
 
     // Reverse to get chronological order
-    let messages = recentMessages.reverse();
-
-    if (messages.length === 0) {
-      return {
-        originMessage: null,
-        contextMessages: [],
-        classification: null,
-      };
-    }
-
-    // FILTER: Exclude messages whose associated tasks are still queued
-    // This ensures agents only see messages that have been actively worked on
-    const tasksInChatroom = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    // Build a map of messageId -> task status (for messages that have tasks)
-    const messageTaskStatus = new Map<string, string>();
-    for (const task of tasksInChatroom) {
-      if (task.sourceMessageId) {
-        messageTaskStatus.set(task.sourceMessageId.toString(), task.status);
-      }
-    }
-
-    // Filter out messages whose tasks are queued
-    // Messages without tasks (handoffs, agent-to-agent) are kept
-    messages = messages.filter((msg) => {
-      const taskStatus = messageTaskStatus.get(msg._id.toString());
-      // Keep message if: no associated task, or task is not queued
-      return !taskStatus || taskStatus !== 'queued';
-    });
+    const messages = recentMessages.reverse();
 
     if (messages.length === 0) {
       return {
@@ -747,17 +714,10 @@ export const getContextWindow = query({
         if (msg.classification === 'follow_up' && msg.taskOriginMessageId) {
           const originMessage = await ctx.db.get('chatroom_messages', msg.taskOriginMessageId);
           if (originMessage) {
-            // Check if origin's task is queued (shouldn't include it)
-            const originTaskStatus = messageTaskStatus.get(originMessage._id.toString());
-            if (originTaskStatus === 'queued') {
-              // Origin is queued, skip this follow-up chain
-              continue;
-            }
-
-            // Find where the origin is in our filtered messages, or just return from origin
+            // Find where the origin is in our recent messages, or just return from origin
             const originIndex = messages.findIndex((m) => m._id === originMessage._id);
             if (originIndex !== -1) {
-              // Origin is in our filtered messages, return from there
+              // Origin is in our recent messages, return from there
               const contextMessages = messages.slice(originIndex);
               return {
                 originMessage,
@@ -771,18 +731,9 @@ export const getContextWindow = query({
               .query('chatroom_messages')
               .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
               .collect();
-            // Filter all messages by task status too
-            const filteredAllMessages = allMessages.filter((m) => {
-              const status = messageTaskStatus.get(m._id.toString());
-              return !status || status !== 'queued';
-            });
-            const fullOriginIndex = filteredAllMessages.findIndex(
-              (m) => m._id === originMessage._id
-            );
+            const fullOriginIndex = allMessages.findIndex((m) => m._id === originMessage._id);
             const contextMessages =
-              fullOriginIndex !== -1
-                ? filteredAllMessages.slice(fullOriginIndex)
-                : filteredAllMessages;
+              fullOriginIndex !== -1 ? allMessages.slice(fullOriginIndex) : allMessages;
             return {
               originMessage,
               contextMessages,
@@ -804,7 +755,7 @@ export const getContextWindow = query({
       }
     }
 
-    // Standard path: Find the latest non-follow-up user message in filtered messages
+    // Standard path: Find the latest non-follow-up user message in recent messages
     let originIndex = -1;
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
@@ -818,7 +769,7 @@ export const getContextWindow = query({
       }
     }
 
-    // If no origin found in filtered messages, return filtered messages (fallback)
+    // If no origin found in recent messages, return recent messages (fallback)
     if (originIndex === -1) {
       return {
         originMessage: null,
