@@ -29,10 +29,29 @@ async function _sendMessageHandler(
     content: string;
     targetRole?: string;
     type: 'message' | 'handoff' | 'interrupt' | 'join';
+    attachedTaskIds?: Id<'chatroom_tasks'>[];
   }
 ) {
   // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
   const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+  // Validate attached tasks if provided
+  if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
+    for (const taskId of args.attachedTaskIds) {
+      const task = await ctx.db.get('chatroom_tasks', taskId);
+      if (!task) {
+        throw new Error(
+          'One or more attached tasks no longer exist. Please refresh and try again.'
+        );
+      }
+      if (task.chatroomId !== args.chatroomId) {
+        throw new Error('Invalid task reference: task belongs to different chatroom.');
+      }
+      if (task.backlog?.status === 'closed') {
+        throw new Error('Cannot attach closed tasks. Please select active backlog items.');
+      }
+    }
+  }
 
   // Validate senderRole to prevent impersonation
   // Only allow 'user' or roles that are in the team configuration
@@ -67,6 +86,11 @@ async function _sendMessageHandler(
     content: args.content,
     targetRole,
     type: args.type,
+    // Include attached backlog tasks if provided
+    ...(args.attachedTaskIds &&
+      args.attachedTaskIds.length > 0 && {
+        attachedTaskIds: args.attachedTaskIds,
+      }),
   });
 
   // Update chatroom's lastActivityAt for sorting by recent activity
@@ -153,6 +177,7 @@ export const send = mutation({
       v.literal('interrupt'),
       v.literal('join')
     ),
+    attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   },
   handler: async (ctx, args) => {
     return _sendMessageHandler(ctx, args);
@@ -406,6 +431,7 @@ export const sendMessage = mutation({
       v.literal('interrupt'),
       v.literal('join')
     ),
+    attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   },
   handler: async (ctx, args) => {
     return _sendMessageHandler(ctx, args);
@@ -492,6 +518,19 @@ export const taskStarted = mutation({
       ...(args.featureDescription && { featureDescription: args.featureDescription }),
       ...(args.featureTechSpecs && { featureTechSpecs: args.featureTechSpecs }),
     });
+
+    // Update attached backlog tasks to 'started' status (only those with 'not_started')
+    if (message.attachedTaskIds && message.attachedTaskIds.length > 0) {
+      for (const taskId of message.attachedTaskIds) {
+        const task = await ctx.db.get('chatroom_tasks', taskId);
+        // Only update tasks with backlog.status === 'not_started'
+        if (task?.backlog?.status === 'not_started') {
+          await ctx.db.patch('chatroom_tasks', taskId, {
+            backlog: { status: 'started' },
+          });
+        }
+      }
+    }
 
     // For follow-ups, link to the previous non-follow-up message
     if (args.classification === 'follow_up') {
@@ -651,17 +690,36 @@ export const listPaginated = query({
       .order('desc')
       .paginate(args.paginationOpts);
 
-    // Enrich messages with task status
+    // Enrich messages with task status and attached task details
     const enrichedPage = await Promise.all(
       result.page.map(async (message) => {
+        // Fetch task status if message has a linked task
+        let taskStatus: string | undefined;
         if (message.taskId) {
           const task = await ctx.db.get('chatroom_tasks', message.taskId);
-          return {
-            ...message,
-            taskStatus: task?.status,
-          };
+          taskStatus = task?.status;
         }
-        return message;
+
+        // Fetch attached task details if message has attached tasks
+        let attachedTasks: { _id: string; content: string; backlogStatus?: string }[] | undefined;
+        if (message.attachedTaskIds && message.attachedTaskIds.length > 0) {
+          const tasks = await Promise.all(
+            message.attachedTaskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId))
+          );
+          attachedTasks = tasks
+            .filter((t) => t !== null)
+            .map((t) => ({
+              _id: t!._id,
+              content: t!.content,
+              backlogStatus: t!.backlog?.status,
+            }));
+        }
+
+        return {
+          ...message,
+          ...(taskStatus && { taskStatus }),
+          ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
+        };
       })
     );
 

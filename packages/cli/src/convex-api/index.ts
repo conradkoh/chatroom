@@ -36,6 +36,7 @@ export interface Message {
   classification?: 'question' | 'new_feature' | 'follow_up';
   taskOriginMessageId?: Id<'chatroom_messages'>;
   taskId?: Id<'chatroom_tasks'>;
+  attachedTaskIds?: Id<'chatroom_tasks'>[];
   _creationTime?: number;
 }
 

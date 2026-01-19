@@ -316,6 +316,11 @@ export default defineSchema({
     // Used to track processing status in the UI
     taskId: v.optional(v.id('chatroom_tasks')),
 
+    // Attached backlog tasks for context
+    // User can attach multiple backlog tasks to a message for agent context
+    // When agent runs task-started, all attached tasks with backlog.status = 'not_started' become 'started'
+    attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+
     // Message lifecycle tracking
     // acknowledgedAt: When an agent received and started working on this message
     acknowledgedAt: v.optional(v.number()),

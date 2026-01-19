@@ -54,6 +54,14 @@ interface Message {
   featureTitle?: string;
   featureDescription?: string;
   featureTechSpecs?: string;
+  // Attached backlog tasks for context
+  attachedTasks?: AttachedTask[];
+}
+
+interface AttachedTask {
+  _id: string;
+  content: string;
+  backlogStatus?: 'not_started' | 'started' | 'complete' | 'closed';
 }
 
 // Shared badge styling constants
@@ -250,6 +258,37 @@ const MessageItem = memo(function MessageItem({ message, onFeatureClick }: Messa
       <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-pre:overflow-x-auto prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
         <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
       </div>
+      {/* Attached Backlog Tasks */}
+      {message.attachedTasks && message.attachedTasks.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-chatroom-border">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
+            Attached Backlog ({message.attachedTasks.length})
+          </div>
+          {message.attachedTasks.map((task) => (
+            <div
+              key={task._id}
+              className="border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-chatroom-text-primary line-clamp-2">
+                  {task.content}
+                </span>
+                <span
+                  className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                    task.backlogStatus === 'started'
+                      ? 'bg-chatroom-status-info/15 text-chatroom-status-info'
+                      : task.backlogStatus === 'complete'
+                        ? 'bg-chatroom-status-success/15 text-chatroom-status-success'
+                        : 'bg-chatroom-text-muted/15 text-chatroom-text-muted'
+                  }`}
+                >
+                  {task.backlogStatus || 'not started'}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* Message Footer - status left, timestamp right */}
       <div className="flex justify-between items-center mt-2 pt-1.5">
         {/* Left: Status badge (only for active tasks) */}

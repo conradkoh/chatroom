@@ -419,6 +419,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
                   senderRole: contextWindow.originMessage.senderRole,
                   content: contextWindow.originMessage.content,
                   classification: contextWindow.originMessage.classification,
+                  ...(contextWindow.originMessage.attachedTaskIds &&
+                    contextWindow.originMessage.attachedTaskIds.length > 0 && {
+                      attachedTaskIds: contextWindow.originMessage.attachedTaskIds,
+                    }),
                 }
               : null,
             allMessages: contextWindow.contextMessages.map((m) => ({
@@ -428,6 +432,8 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
               type: m.type,
               targetRole: m.targetRole,
               classification: m.classification,
+              ...(m.attachedTaskIds &&
+                m.attachedTaskIds.length > 0 && { attachedTaskIds: m.attachedTaskIds }),
             })),
             currentClassification: contextWindow.classification,
           },
