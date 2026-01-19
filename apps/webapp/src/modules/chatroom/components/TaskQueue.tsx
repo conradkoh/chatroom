@@ -126,11 +126,11 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
 
   // Query archived backlog tasks (only when expanded)
   const archivedTasks = useSessionQuery(
-    isArchivedExpanded ? tasksApi.tasks.listTasks : undefined,
+    tasksApi.tasks.listTasks,
     isArchivedExpanded
       ? {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          backlogStatusFilter: 'archived',
+          backlogStatusFilter: 'archived' as const,
           limit: 50,
         }
       : 'skip'
