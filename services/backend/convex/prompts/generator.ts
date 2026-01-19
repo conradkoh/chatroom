@@ -157,7 +157,9 @@ chatroom handoff ${ctx.chatroomId} \\
 **Always run after any command:**
 \`\`\`
 chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
-\`\`\``;
+\`\`\`
+
+**⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**`;
 }
 
 /**

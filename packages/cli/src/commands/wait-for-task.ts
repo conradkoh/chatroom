@@ -158,8 +158,14 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (pollTimeout) clearTimeout(pollTimeout);
     const durationDisplay = duration || formatDuration(effectiveTimeout);
     const command = `chatroom wait-for-task ${chatroomId} --role=${role}${duration ? ` --duration="${duration}"` : ''}`;
-    console.log(`\n✅ WAIT SESSION COMPLETE AFTER ${durationDisplay} of waiting`);
-    console.log(`Please continue listening by running \`${command}\``);
+    console.log(`\n${'─'.repeat(50)}`);
+    console.log(`⏱️  WAIT SESSION TIMED OUT (${durationDisplay})`);
+    console.log(`${'─'.repeat(50)}`);
+    console.log(`\n   This is a normal timeout - no tasks were received during the wait period.`);
+    console.log(`\n⚠️  You MUST continue listening for tasks!`);
+    console.log(`   Immediately run the wait command again:\n`);
+    console.log(`   ${command}`);
+    console.log(`\n${'─'.repeat(50)}`);
     process.exit(0); // Exit with 0 since this is expected behavior
   }, effectiveTimeout);
 
@@ -442,14 +448,22 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // Start polling
   poll();
 
-  // Handle interrupt signals
+  // Handle interrupt signals - These are UNEXPECTED terminations that require immediate restart
   const handleSignal = (signal: string) => {
     if (pollTimeout) clearTimeout(pollTimeout);
     clearTimeout(timeoutHandle);
-    console.log(`\n⚠️  ${signal} received - process terminated by host`);
-    console.log(`   The wait session ended before timing out naturally.`);
-    console.log(`   To resume waiting, run:`);
-    console.log(`   chatroom wait-for-task ${chatroomId} --role=${role}`);
+    console.log(`\n${'═'.repeat(50)}`);
+    console.log(`🚨 UNEXPECTED TERMINATION: ${signal} received`);
+    console.log(`${'═'.repeat(50)}`);
+    console.log(`\n❌ The wait-for-task process was killed unexpectedly.`);
+    console.log(
+      `   This was NOT a normal timeout - the process was terminated by an external signal.`
+    );
+    console.log(`\n⚠️  IMPORTANT: You may miss messages while not waiting!`);
+    console.log(`   Other agents or users may send tasks to you that will be missed.`);
+    console.log(`\n🔄 IMMEDIATELY restart the wait process:`);
+    console.log(`\n   chatroom wait-for-task ${chatroomId} --role=${role}`);
+    console.log(`\n${'═'.repeat(50)}`);
     process.exit(0);
   };
 

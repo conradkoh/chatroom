@@ -99,6 +99,7 @@ export function getImportantNotesSection(): string {
 - **Format in Markdown:** Your handoff message content should be formatted in markdown for readability
 - **Stay focused:** Complete your assigned task before handing off
 - **Handle interrupts:** If you receive an interrupt message, stop work and exit gracefully
+- **Restart immediately after unexpected termination:** If your \`wait-for-task\` process is killed (SIGTERM, SIGINT, timeout, or any other signal), immediately restart it. You will miss messages while not waiting.
 
 ## Context Window
 

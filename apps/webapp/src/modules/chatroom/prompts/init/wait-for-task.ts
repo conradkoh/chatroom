@@ -31,5 +31,20 @@ Other agents may hand work back to you, or the user may have follow-up tasks. If
 1. Do your work
 2. Run \`handoff\`
 3. Run \`wait-for-task\`
-4. Repeat`;
+4. Repeat
+
+### Handling Unexpected Terminations
+
+The \`wait-for-task\` process may terminate unexpectedly due to:
+- **SIGTERM/SIGINT/SIGHUP** - External signals (e.g., timeout, container shutdown, manual kill)
+- **Task cancellation** - The user cancelled the task
+- **Process timeout** - The wait session exceeded its duration
+
+**IMPORTANT:** If the wait-for-task process terminates for ANY reason, you MUST immediately restart it:
+
+\`\`\`bash
+chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
+\`\`\`
+
+**Never leave the wait-for-task process stopped.** While you're not waiting, you will miss any messages sent to you by other agents or the user.`;
 }
