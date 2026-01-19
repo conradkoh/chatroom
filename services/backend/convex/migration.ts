@@ -193,3 +193,131 @@ export const getUsersBatch = internalQuery({
     return await ctx.db.query('users').paginate(args.paginationOpts);
   },
 });
+
+// ========================================
+// BACKLOG STATUS MIGRATION
+// ========================================
+
+/**
+ * Internal mutation to set default backlog status for a single task.
+ * Sets backlog: { status: 'not_started' } for backlog tasks that have undefined backlog field.
+ */
+export const setTaskBacklogStatusDefault = internalMutation({
+  args: { taskId: v.id('chatroom_tasks') },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      return; // Task doesn't exist, skip
+    }
+
+    // Only update if backlog is undefined and task was created as a backlog task
+    // We can identify original backlog tasks by checking if status is 'backlog'
+    // or if it was a backlog task that has been moved (we check createdBy !== 'user' for non-agent tasks)
+    // For safety, we set backlog.status for ALL tasks with status 'backlog' that have undefined backlog
+    if (task.backlog === undefined && task.status === 'backlog') {
+      await ctx.db.patch('chatroom_tasks', args.taskId, {
+        backlog: { status: 'not_started' },
+      });
+    }
+  },
+});
+
+/**
+ * Internal mutation to normalize all backlog tasks with undefined backlog field in a single batch.
+ * Sets backlog: { status: 'not_started' } for all backlog tasks.
+ * WARNING: This processes all tasks at once and may timeout for large datasets.
+ * For large datasets, use migrateBacklogStatus (action) instead.
+ *
+ * @returns Object with count of tasks updated
+ */
+export const normalizeAllBacklogStatuses = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    // Fetch all tasks with status 'backlog'
+    const allTasks = await ctx.db.query('chatroom_tasks').collect();
+
+    // Filter tasks that need updating: status is 'backlog' and backlog field is undefined
+    const tasksToUpdate = allTasks.filter(
+      (task) => task.status === 'backlog' && task.backlog === undefined
+    );
+
+    // Update all tasks in parallel
+    await Promise.all(
+      tasksToUpdate.map((task) =>
+        ctx.db.patch('chatroom_tasks', task._id, {
+          backlog: { status: 'not_started' },
+        })
+      )
+    );
+
+    console.log(
+      `Migration complete: Updated ${tasksToUpdate.length} backlog tasks to backlog.status: 'not_started' (out of ${allTasks.length} total tasks)`
+    );
+
+    return {
+      success: true,
+      updatedCount: tasksToUpdate.length,
+      totalTasks: allTasks.length,
+    };
+  },
+});
+
+/**
+ * Internal action to migrate all backlog tasks to have explicit backlog.status values.
+ * Sets undefined backlog fields to { status: 'not_started' } as the default.
+ * Processes tasks in batches to handle large datasets safely.
+ */
+export const migrateBacklogStatus = internalAction({
+  args: { cursor: v.optional(v.string()) }, // Convex cursor for pagination
+  handler: async (ctx, args) => {
+    const paginationOpts: PaginationOpts = {
+      numItems: BATCH_SIZE,
+      cursor: args.cursor ?? null,
+    };
+
+    // Fetch a batch of tasks
+    const results = await ctx.runQuery(internal.migration.getTasksBatch, {
+      paginationOpts,
+    });
+
+    // Filter tasks that need updating
+    const tasksToUpdate = results.page.filter(
+      (task) => task.status === 'backlog' && task.backlog === undefined
+    );
+
+    // Schedule mutations to update all tasks in the batch in parallel
+    await Promise.all(
+      tasksToUpdate.map((task) =>
+        ctx.runMutation(internal.migration.setTaskBacklogStatusDefault, {
+          taskId: task._id,
+        })
+      )
+    );
+
+    console.log(`Processed batch: ${results.page.length} tasks, updated: ${tasksToUpdate.length}`);
+
+    // If there are more tasks, schedule the next batch
+    if (!results.isDone) {
+      await ctx.runAction(internal.migration.migrateBacklogStatus, {
+        cursor: results.continueCursor,
+      });
+    } else {
+      console.log('Backlog status migration completed');
+    }
+  },
+});
+
+/**
+ * Helper query to fetch tasks in batches for pagination during migration.
+ */
+export const getTasksBatch = internalQuery({
+  args: {
+    paginationOpts: v.object({
+      numItems: v.number(),
+      cursor: v.union(v.string(), v.null()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.query('chatroom_tasks').paginate(args.paginationOpts);
+  },
+});
