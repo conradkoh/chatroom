@@ -4,6 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import {
   ChevronUp,
+  ChevronDown,
   MessageSquare,
   Clock,
   Loader2,
@@ -339,15 +340,32 @@ export const MessageFeed = memo(function MessageFeed({
     return [...filtered].reverse();
   }, [results]);
 
-  // Track if user is at bottom of scroll (to decide auto-scroll behavior)
+  // Track if user is at bottom of scroll for auto-scroll behavior and floating button
+  // Using state instead of ref so the floating button can react to changes
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  // Also keep a ref for the auto-scroll useEffect (avoids stale closure issues)
   const isAtBottomRef = useRef(true);
 
-  // Update isAtBottom on scroll
+  // Threshold for considering user "at bottom" (in pixels)
+  const AT_BOTTOM_THRESHOLD = 50;
+
+  // Check if user is at bottom and update both state and ref
   const updateIsAtBottom = useCallback(() => {
     if (feedRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
-      // Consider "at bottom" if within 50px of the bottom
-      isAtBottomRef.current = scrollHeight - scrollTop - clientHeight < 50;
+      const atBottom = scrollHeight - scrollTop - clientHeight < AT_BOTTOM_THRESHOLD;
+      isAtBottomRef.current = atBottom;
+      setIsAtBottom(atBottom);
+    }
+  }, []);
+
+  // Scroll to bottom smoothly
+  const scrollToBottom = useCallback(() => {
+    if (feedRef.current) {
+      feedRef.current.scrollTo({
+        top: feedRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
     }
   }, []);
 
@@ -369,6 +387,8 @@ export const MessageFeed = memo(function MessageFeed({
         } else if (isAtBottomRef.current) {
           // New message arrived and user was at bottom - scroll to bottom
           feedRef.current.scrollTop = feedRef.current.scrollHeight;
+          // Ensure state is also updated
+          setIsAtBottom(true);
         }
         // If user scrolled up (not at bottom), don't auto-scroll
       }
@@ -378,14 +398,14 @@ export const MessageFeed = memo(function MessageFeed({
     prevMessageCountRef.current = displayMessages.length;
   }, [displayMessages.length, status]);
 
-  // Handle scroll to detect when user is near the top and track if at bottom
+  // Handle scroll: load more when near top, track if at bottom
   const handleScroll = useCallback(() => {
     // Track if user is at bottom for auto-scroll behavior
     updateIsAtBottom();
 
+    // Load more when user scrolls within threshold of top
     if (feedRef.current && status === 'CanLoadMore') {
       const { scrollTop } = feedRef.current;
-      // Load more when user scrolls within threshold of top
       if (scrollTop < SCROLL_THRESHOLD) {
         loadMore(LOAD_MORE_SIZE);
       }
@@ -442,6 +462,17 @@ export const MessageFeed = memo(function MessageFeed({
         ))}
         <WorkingIndicator participants={participants} />
       </div>
+      {/* Scroll to bottom floating button - appears when user scrolls up */}
+      {!isAtBottom && (
+        <button
+          onClick={scrollToBottom}
+          className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent rounded-full shadow-lg hover:bg-chatroom-accent/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
+          aria-label="Scroll to bottom"
+        >
+          <ChevronDown size={16} />
+          <span className="text-xs font-medium">New messages</span>
+        </button>
+      )}
       {/* Sticky message counter - always visible at bottom */}
       <div className="px-4 py-1 text-[10px] text-chatroom-text-muted text-right bg-chatroom-bg-primary border-t border-chatroom-border">
         {displayMessages.length} messages loaded
