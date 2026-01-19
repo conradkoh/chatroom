@@ -26,7 +26,7 @@ export const createTask = mutation({
     sourceMessageId: v.optional(v.id('chatroom_messages')),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Check active task limit
@@ -93,7 +93,7 @@ export const startTask = mutation({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Find the pending task
@@ -133,7 +133,7 @@ export const completeTask = mutation({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Find ALL in_progress tasks (there should typically be only one, but complete all for resilience)
@@ -219,7 +219,7 @@ export const cancelTask = mutation({
       throw new Error('Task not found');
     }
 
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
     // Only allow cancellation of pending, queued and backlog tasks (not in_progress)
@@ -296,7 +296,7 @@ export const completeTaskById = mutation({
       throw new Error('Task not found');
     }
 
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
     const now = Date.now();
@@ -396,7 +396,7 @@ export const updateTask = mutation({
       throw new Error('Task not found');
     }
 
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
     // Only allow editing of queued and backlog tasks
@@ -428,7 +428,7 @@ export const moveToQueue = mutation({
       throw new Error('Task not found');
     }
 
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
     // Only allow moving backlog tasks
@@ -481,7 +481,7 @@ export const listTasks = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     let tasks = await ctx.db
@@ -524,7 +524,7 @@ export const getActiveTask = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // First check for in_progress
@@ -564,7 +564,7 @@ export const promoteNextTask = mutation({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Check if there's already a pending or in_progress task
@@ -632,7 +632,7 @@ export const checkQueueHealth = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Check for pending or in_progress tasks
@@ -679,7 +679,7 @@ export const getTaskCounts = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const tasks = await ctx.db
@@ -711,14 +711,8 @@ export const getPendingTasksForRole = query({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Get chatroom for entry point info
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
-      throw new Error('Chatroom not found');
-    }
+    // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Determine the entry point role for user messages
     const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];

@@ -27,14 +27,8 @@ async function _sendMessageHandler(
     type: 'message' | 'handoff' | 'interrupt' | 'join';
   }
 ) {
-  // Validate session and check chatroom access
-  await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-  // Get chatroom to check team configuration
-  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  if (!chatroom) {
-    throw new Error('Chatroom not found');
-  }
+  // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
+  const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
   // Validate senderRole to prevent impersonation
   // Only allow 'user' or roles that are in the team configuration
@@ -180,14 +174,8 @@ async function _handoffHandler(
     targetRole: string;
   }
 ) {
-  // Validate session and check chatroom access
-  await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-  // Get chatroom to check team configuration
-  const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-  if (!chatroom) {
-    throw new Error('Chatroom not found');
-  }
+  // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
+  const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
   // Validate senderRole
   const normalizedSenderRole = args.senderRole.toLowerCase();
@@ -471,7 +459,7 @@ export const taskStarted = mutation({
     featureTechSpecs: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Get the message to update
@@ -553,14 +541,8 @@ export const getAllowedHandoffRoles = query({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Get chatroom for team info
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
-      throw new Error('Chatroom not found');
-    }
 
     // Get participants
     const participants = await ctx.db
@@ -627,7 +609,7 @@ export const list = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const query = ctx.db
@@ -657,7 +639,7 @@ export const listPaginated = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Paginate with descending order (newest first)
@@ -706,7 +688,7 @@ export const getContextWindow = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Fetch recent messages (limited to 200 for performance)
@@ -831,7 +813,7 @@ export const claimMessage = mutation({
       return false;
     }
 
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, message.chatroomId);
 
     // Already claimed by someone else
@@ -864,8 +846,8 @@ export const getLatestForRole = query({
     afterMessageId: v.optional(v.id('chatroom_messages')),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    // Validate session and check chatroom access - returns chatroom directly
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Fetch recent messages (optimized with limit)
     const recentMessages = await ctx.db
@@ -876,9 +858,6 @@ export const getLatestForRole = query({
 
     // Reverse to get chronological order
     const messages = recentMessages.reverse();
-
-    // Get chatroom for team info
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
 
     // Get participants for priority routing
     const participants = await ctx.db
@@ -896,7 +875,7 @@ export const getLatestForRole = query({
     const highestPriorityWaiting = waitingParticipants[0]?.role;
 
     // Determine entry point for user messages
-    const entryPoint = chatroom?.teamEntryPoint || chatroom?.teamRoles?.[0];
+    const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
 
     // Filter messages after the specified ID
     let relevantMessages = messages;
@@ -963,7 +942,7 @@ export const listFeatures = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const limit = args.limit || 10;
@@ -1008,7 +987,7 @@ export const inspectFeature = query({
     messageId: v.id('chatroom_messages'),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Get the feature message
@@ -1096,14 +1075,8 @@ export const getRolePrompt = query({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Get chatroom for team info
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
-      throw new Error('Chatroom not found');
-    }
+    // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Get participants
     const participants = await ctx.db

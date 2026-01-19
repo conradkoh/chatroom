@@ -19,14 +19,8 @@ export const join = mutation({
     readyUntil: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Get chatroom to validate role against team configuration
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
-      throw new Error('Chatroom not found');
-    }
+    // Validate session and check chatroom access - returns chatroom directly
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Validate role is in team configuration
     if (chatroom.teamRoles && chatroom.teamRoles.length > 0) {
@@ -138,7 +132,7 @@ export const list = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     return await ctx.db
@@ -160,7 +154,7 @@ export const updateStatus = mutation({
     status: v.union(v.literal('idle'), v.literal('active'), v.literal('waiting')),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const participant = await ctx.db
@@ -189,7 +183,7 @@ export const getByRole = query({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     return await ctx.db
@@ -212,7 +206,7 @@ export const getHighestPriorityWaitingRole = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     const participants = await ctx.db

@@ -44,9 +44,9 @@ export const get = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-    return await ctx.db.get('chatroom_rooms', args.chatroomId);
+    // Validate session and check chatroom access - returns chatroom directly
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return chatroom;
   },
 });
 
@@ -194,7 +194,7 @@ export const updateStatus = mutation({
     status: v.union(v.literal('active'), v.literal('interrupted'), v.literal('completed')),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { status: args.status });
   },
@@ -212,7 +212,7 @@ export const rename = mutation({
     name: v.string(),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Trim and validate name
@@ -240,7 +240,7 @@ export const interrupt = mutation({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
+    // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Update chatroom status
@@ -283,13 +283,8 @@ export const getTeamReadiness = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
-      return null;
-    }
+    // Validate session and check chatroom access - returns chatroom directly
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Chatrooms without team info
     if (!chatroom.teamId || !chatroom.teamRoles) {

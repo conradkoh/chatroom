@@ -11,7 +11,7 @@
  * The validation tries CLI sessions first, then falls back to web sessions.
  */
 
-import type { Id } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 
 export interface ValidatedSession {
@@ -19,6 +19,15 @@ export interface ValidatedSession {
   userId: Id<'users'>;
   userName?: string;
   sessionType: 'cli' | 'web';
+}
+
+/**
+ * Result of requireChatroomAccess - includes both session info and chatroom document.
+ * This eliminates the need to re-fetch the chatroom after authentication.
+ */
+export interface AuthenticatedChatroomAccess {
+  session: ValidatedSession;
+  chatroom: Doc<'chatroom_rooms'>;
 }
 
 export interface ValidationError {
@@ -123,13 +132,15 @@ export async function validateSession(
 
 /**
  * Check if a user has access to a chatroom
- * Returns true only if the user is the owner of the chatroom
+ * Returns the chatroom document if access is granted
  */
 export async function checkChatroomAccess(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
   userId: Id<'users'>
-): Promise<{ hasAccess: boolean; reason?: string }> {
+): Promise<
+  { hasAccess: true; chatroom: Doc<'chatroom_rooms'> } | { hasAccess: false; reason: string }
+> {
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
 
   if (!chatroom) {
@@ -138,7 +149,7 @@ export async function checkChatroomAccess(
 
   // Check if user is the owner
   if (chatroom.ownerId === userId) {
-    return { hasAccess: true };
+    return { hasAccess: true, chatroom };
   }
 
   return { hasAccess: false, reason: 'Access denied: You do not own this chatroom' };
@@ -147,29 +158,33 @@ export async function checkChatroomAccess(
 /**
  * Combined helper: Validate session and check chatroom access
  * Throws an error if validation or access check fails
+ * Returns both the session info and chatroom document to avoid re-fetching
  */
 export async function requireChatroomAccess(
   ctx: QueryCtx | MutationCtx,
   sessionId: string,
   chatroomId: Id<'chatroom_rooms'>
-): Promise<ValidatedSession> {
+): Promise<AuthenticatedChatroomAccess> {
   // Validate session (tries CLI session, then web session)
   const sessionResult = await validateSession(ctx, sessionId);
   if (!sessionResult.valid) {
     throw new Error(`Authentication failed: ${sessionResult.reason}`);
   }
 
-  // Check chatroom access
+  // Check chatroom access - now returns the chatroom document
   const accessResult = await checkChatroomAccess(ctx, chatroomId, sessionResult.userId);
   if (!accessResult.hasAccess) {
-    throw new Error(accessResult.reason || 'Access denied');
+    throw new Error(accessResult.reason);
   }
 
   return {
-    sessionId: sessionResult.sessionId,
-    userId: sessionResult.userId,
-    userName: sessionResult.userName,
-    sessionType: sessionResult.sessionType,
+    session: {
+      sessionId: sessionResult.sessionId,
+      userId: sessionResult.userId,
+      userName: sessionResult.userName,
+      sessionType: sessionResult.sessionType,
+    },
+    chatroom: accessResult.chatroom,
   };
 }
 
