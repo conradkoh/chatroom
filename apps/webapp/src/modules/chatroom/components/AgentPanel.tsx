@@ -1,12 +1,10 @@
 'use client';
 
-import { ChevronRight, CheckCircle, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
-import React, { useState, useMemo, useCallback, memo } from 'react';
+import { ChevronRight, CheckCircle, AlertTriangle, Clock, RefreshCw, X } from 'lucide-react';
+import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
 
 import { CopyButton } from './CopyButton';
 import { generateAgentPrompt } from '../prompts/generator';
-
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 // Participant info from readiness query - includes expiration data
 interface ParticipantInfo {
@@ -68,7 +66,7 @@ const getEffectiveStatus = (
   return { status: participant.status, isExpired: false };
 };
 
-// Collapsed Agent Group Component - now opens a dialog instead of inline expansion
+// Collapsed Agent Group Component - now opens a custom modal instead of ShadCN Dialog
 interface CollapsedAgentGroupProps {
   title: string;
   agents: string[];
@@ -84,7 +82,7 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   generatePrompt,
   onViewPrompt,
 }: CollapsedAgentGroupProps) {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const variantClasses = {
     ready: {
@@ -99,6 +97,26 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
 
   const classes = variantClasses[variant];
 
+  // Handle escape key to close modal
+  useEffect(() => {
+    if (isModalOpen) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setIsModalOpen(false);
+        }
+      };
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isModalOpen]);
+
+  // Handle backdrop click
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      setIsModalOpen(false);
+    }
+  }, []);
+
   return (
     <>
       <div className="border-b border-chatroom-border last:border-b-0">
@@ -107,11 +125,11 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
           role="button"
           tabIndex={0}
           aria-label={`${title} agents (${agents.length}). Click to view details.`}
-          onClick={() => setIsDialogOpen(true)}
+          onClick={() => setIsModalOpen(true)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              setIsDialogOpen(true);
+              setIsModalOpen(true);
             }
           }}
         >
@@ -134,44 +152,68 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
         </div>
       </div>
 
-      {/* Agent Group Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="bg-chatroom-bg-primary border-2 border-chatroom-border-strong max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-chatroom-text-primary flex items-center gap-2">
-              <div className={`w-2.5 h-2.5 flex-shrink-0 ${classes.indicator}`} />
-              {title} Agents ({agents.length})
-            </DialogTitle>
-          </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto -mx-6 px-6">
-            {agents.map((role) => {
-              const prompt = generatePrompt(role);
-              const preview = prompt.split('\n')[0]?.substring(0, 40) + '...';
+      {/* Custom Agent Group Modal - matches TaskDetailModal pattern */}
+      {isModalOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm"
+            onClick={handleBackdropClick}
+          />
 
-              return (
-                <div key={role} className="border-b border-chatroom-border last:border-b-0 py-3">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
-                      {role}
-                    </div>
-                    <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
-                  </div>
+          {/* Modal Content */}
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-sm w-[90%] max-h-[70vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong z-[70] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <div className={`w-2.5 h-2.5 flex-shrink-0 ${classes.indicator}`} />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-primary">
+                  {title} Agents ({agents.length})
+                </span>
+              </div>
+              <button
+                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+                onClick={() => setIsModalOpen(false)}
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden">
+              {agents.map((role) => {
+                const prompt = generatePrompt(role);
+                const preview = prompt.split('\n')[0]?.substring(0, 40) + '...';
+
+                return (
                   <div
-                    className="text-xs text-chatroom-text-muted font-mono truncate cursor-pointer hover:text-chatroom-text-secondary"
-                    onClick={() => {
-                      onViewPrompt?.(role);
-                      setIsDialogOpen(false);
-                    }}
-                    title="Click to view full prompt"
+                    key={role}
+                    className="border-b border-chatroom-border last:border-b-0 p-4 hover:bg-chatroom-bg-hover transition-colors"
                   >
-                    {preview}
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
+                        {role}
+                      </div>
+                      <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
+                    </div>
+                    <div
+                      className="text-xs text-chatroom-text-muted font-mono truncate cursor-pointer hover:text-chatroom-text-secondary"
+                      onClick={() => {
+                        onViewPrompt?.(role);
+                        setIsModalOpen(false);
+                      }}
+                      title="Click to view full prompt"
+                    >
+                      {preview}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </>
+      )}
     </>
   );
 });
