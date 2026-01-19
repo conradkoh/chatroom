@@ -82,6 +82,6 @@ Phase 4 (Context Window) ←───┘
 ## Current Status
 
 - [x] Phase 1: Schema Changes ✅
-- [ ] Phase 2: Update Mutations (acknowledgedAt)
+- [x] Phase 2: Update Mutations (acknowledgedAt) ✅
 - [ ] Phase 3: Update Mutations (completedAt)
 - [ ] Phase 4: Update Context Window Query

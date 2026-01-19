@@ -115,6 +115,16 @@ export const startTask = mutation({
       updatedAt: now,
     });
 
+    // Set acknowledgedAt on the source message (if not already set)
+    if (pendingTask.sourceMessageId) {
+      const sourceMessage = await ctx.db.get('chatroom_messages', pendingTask.sourceMessageId);
+      if (sourceMessage && !sourceMessage.acknowledgedAt) {
+        await ctx.db.patch('chatroom_messages', pendingTask.sourceMessageId, {
+          acknowledgedAt: now,
+        });
+      }
+    }
+
     return { taskId: pendingTask._id, content: pendingTask.content };
   },
 });

@@ -816,8 +816,14 @@ export const claimMessage = mutation({
       return false;
     }
 
-    // Claim the message
-    await ctx.db.patch('chatroom_messages', args.messageId, { claimedByRole: args.role });
+    // Claim the message and set acknowledgedAt (if not already set)
+    const updates: { claimedByRole: string; acknowledgedAt?: number } = {
+      claimedByRole: args.role,
+    };
+    if (!message.acknowledgedAt) {
+      updates.acknowledgedAt = Date.now();
+    }
+    await ctx.db.patch('chatroom_messages', args.messageId, updates);
     return true;
   },
 });
