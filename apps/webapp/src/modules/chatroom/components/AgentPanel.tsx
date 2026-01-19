@@ -66,6 +66,77 @@ const getEffectiveStatus = (
   return { status: participant.status, isExpired: false };
 };
 
+// Collapsed Agent Group Component
+interface CollapsedAgentGroupProps {
+  title: string;
+  agents: string[];
+  variant: 'ready' | 'offline';
+  renderAgent: (role: string) => React.ReactNode;
+}
+
+const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
+  title,
+  agents,
+  variant,
+  renderAgent,
+}: CollapsedAgentGroupProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const variantClasses = {
+    ready: {
+      indicator: 'bg-chatroom-status-success',
+      text: 'text-chatroom-status-success',
+    },
+    offline: {
+      indicator: 'bg-chatroom-status-warning',
+      text: 'text-chatroom-status-warning',
+    },
+  };
+
+  const classes = variantClasses[variant];
+
+  return (
+    <div className="border-b border-chatroom-border last:border-b-0">
+      <div
+        className="flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover"
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+        aria-label={`${title} agents (${agents.length}). Click to ${isExpanded ? 'collapse' : 'expand'}.`}
+        onClick={() => setIsExpanded(!isExpanded)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsExpanded(!isExpanded);
+          }
+        }}
+      >
+        {/* Status Indicator */}
+        <div className={`w-2.5 h-2.5 flex-shrink-0 ${classes.indicator}`} />
+        {/* Group Info */}
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
+            {title}
+            <span className="ml-1.5 text-chatroom-text-muted">({agents.length})</span>
+          </div>
+          <div className={`text-[10px] font-bold uppercase tracking-wide ${classes.text}`}>
+            {agents.map((r) => r.toUpperCase()).join(', ')}
+          </div>
+        </div>
+        {/* Expand Indicator */}
+        <div
+          className={`text-chatroom-text-muted transition-transform duration-100 ${isExpanded ? 'rotate-90' : ''}`}
+        >
+          <ChevronRight size={14} />
+        </div>
+      </div>
+
+      {/* Expanded Agents */}
+      {isExpanded && <div className="pl-4 bg-chatroom-bg-tertiary">{agents.map(renderAgent)}</div>}
+    </div>
+  );
+});
+
 export const AgentPanel = memo(function AgentPanel({
   chatroomId,
   teamName = 'Team',
@@ -94,6 +165,27 @@ export const AgentPanel = memo(function AgentPanel({
     () => (teamRoles.length > 0 ? teamRoles : readiness?.expectedRoles || []),
     [teamRoles, readiness?.expectedRoles]
   );
+
+  // Phase 1: Categorize agents by status for grouped display
+  const categorizedAgents = useMemo(() => {
+    const active: string[] = [];
+    const ready: string[] = [];
+    const other: string[] = [];
+
+    for (const role of rolesToShow) {
+      const { status } = getEffectiveStatus(role, participantMap, expiredRolesSet);
+      if (status === 'active') {
+        active.push(role);
+      } else if (status === 'waiting') {
+        ready.push(role);
+      } else {
+        // disconnected, missing, or any other status
+        other.push(role);
+      }
+    }
+
+    return { active, ready, other };
+  }, [rolesToShow, participantMap, expiredRolesSet]);
 
   // Memoize prompt generation function
   const generatePrompt = useCallback(
@@ -152,102 +244,122 @@ export const AgentPanel = memo(function AgentPanel({
     );
   }
 
+  // Helper to render an agent row
+  const renderAgentRow = (role: string) => {
+    const { status: effectiveStatus } = getEffectiveStatus(role, participantMap, expiredRolesSet);
+    const prompt = generatePrompt(role);
+    const preview = getPromptPreview(prompt);
+    const isExpanded = expandedRole === role;
+
+    const statusLabel =
+      effectiveStatus === 'missing'
+        ? 'NOT JOINED'
+        : effectiveStatus === 'disconnected'
+          ? 'DISCONNECTED'
+          : effectiveStatus === 'waiting'
+            ? 'READY'
+            : effectiveStatus === 'active'
+              ? 'WORKING'
+              : 'IDLE';
+
+    const isActive = effectiveStatus === 'active';
+    const isDisconnectedAgent = effectiveStatus === 'disconnected';
+
+    return (
+      <div key={role} className="border-b border-chatroom-border last:border-b-0">
+        <div
+          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isActive ? 'bg-chatroom-status-info/5' : ''} ${isDisconnectedAgent ? 'bg-chatroom-status-error/5' : ''} ${isExpanded ? 'bg-chatroom-bg-tertiary' : ''}`}
+          role="button"
+          tabIndex={0}
+          aria-expanded={isExpanded}
+          aria-label={`${role}: ${statusLabel}. Click to ${isExpanded ? 'collapse' : 'expand'} options.`}
+          onClick={() => toggleExpanded(role)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleExpanded(role);
+            }
+          }}
+        >
+          {/* Status Indicator */}
+          <div
+            className={getStatusClasses(effectiveStatus)}
+            role="status"
+            aria-label={`Status: ${statusLabel}`}
+          />
+          {/* Agent Info */}
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
+              {role}
+            </div>
+            <div
+              className={`text-[10px] font-bold uppercase tracking-wide ${
+                isActive
+                  ? 'text-chatroom-status-info animate-pulse'
+                  : isDisconnectedAgent
+                    ? 'text-chatroom-status-error'
+                    : 'text-chatroom-text-muted'
+              }`}
+            >
+              {statusLabel}
+            </div>
+          </div>
+          {/* Expand Indicator */}
+          <div
+            className={`text-chatroom-text-muted transition-transform duration-100 ${isExpanded ? 'rotate-90' : ''}`}
+          >
+            <ChevronRight size={14} />
+          </div>
+        </div>
+
+        {/* Expanded Prompt Row */}
+        {isExpanded && (
+          <div className="p-3 pt-0 flex items-center gap-2 bg-chatroom-bg-tertiary">
+            <div
+              className="flex-1 px-2 py-1 bg-chatroom-bg-primary text-chatroom-text-muted text-xs truncate cursor-pointer hover:text-chatroom-text-secondary"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewPrompt?.(role);
+              }}
+              title="Click to view full prompt"
+            >
+              <span className="font-mono">{preview}</span>
+            </div>
+            <CopyButton text={prompt} label="Copy" copiedLabel="Copied" />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
+    <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
       <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
         Agents
       </div>
-      <div className="overflow-y-auto flex-1">
-        {rolesToShow.map((role) => {
-          const { status: effectiveStatus } = getEffectiveStatus(
-            role,
-            participantMap,
-            expiredRolesSet
-          );
-          const prompt = generatePrompt(role);
-          const preview = getPromptPreview(prompt);
-          const isExpanded = expandedRole === role;
+      <div className="overflow-y-auto">
+        {/* Active Agents - always shown prominently at top */}
+        {categorizedAgents.active.map(renderAgentRow)}
 
-          const statusLabel =
-            effectiveStatus === 'missing'
-              ? 'NOT JOINED'
-              : effectiveStatus === 'disconnected'
-                ? 'DISCONNECTED'
-                : effectiveStatus === 'waiting'
-                  ? 'READY'
-                  : effectiveStatus === 'active'
-                    ? 'WORKING'
-                    : 'IDLE';
+        {/* Ready Agents - collapsed group */}
+        {categorizedAgents.ready.length > 0 && (
+          <CollapsedAgentGroup
+            title="Ready"
+            agents={categorizedAgents.ready}
+            variant="ready"
+            renderAgent={renderAgentRow}
+          />
+        )}
 
-          const isActive = effectiveStatus === 'active';
-          const isDisconnectedAgent = effectiveStatus === 'disconnected';
-
-          return (
-            <div key={role} className="border-b border-chatroom-border last:border-b-0">
-              <div
-                className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isActive ? 'bg-chatroom-status-info/5' : ''} ${isDisconnectedAgent ? 'bg-chatroom-status-error/5' : ''} ${isExpanded ? 'bg-chatroom-bg-tertiary' : ''}`}
-                role="button"
-                tabIndex={0}
-                aria-expanded={isExpanded}
-                aria-label={`${role}: ${statusLabel}. Click to ${isExpanded ? 'collapse' : 'expand'} options.`}
-                onClick={() => toggleExpanded(role)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    toggleExpanded(role);
-                  }
-                }}
-              >
-                {/* Status Indicator */}
-                <div
-                  className={getStatusClasses(effectiveStatus)}
-                  role="status"
-                  aria-label={`Status: ${statusLabel}`}
-                />
-                {/* Agent Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
-                    {role}
-                  </div>
-                  <div
-                    className={`text-[10px] font-bold uppercase tracking-wide ${
-                      isActive
-                        ? 'text-chatroom-status-info animate-pulse'
-                        : isDisconnectedAgent
-                          ? 'text-chatroom-status-error'
-                          : 'text-chatroom-text-muted'
-                    }`}
-                  >
-                    {statusLabel}
-                  </div>
-                </div>
-                {/* Expand Indicator */}
-                <div
-                  className={`text-chatroom-text-muted transition-transform duration-100 ${isExpanded ? 'rotate-90' : ''}`}
-                >
-                  <ChevronRight size={14} />
-                </div>
-              </div>
-
-              {/* Expanded Prompt Row */}
-              {isExpanded && (
-                <div className="p-3 pt-0 flex items-center gap-2 bg-chatroom-bg-tertiary">
-                  <div
-                    className="flex-1 px-2 py-1 bg-chatroom-bg-primary text-chatroom-text-muted text-xs truncate cursor-pointer hover:text-chatroom-text-secondary"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onViewPrompt?.(role);
-                    }}
-                    title="Click to view full prompt"
-                  >
-                    <span className="font-mono">{preview}</span>
-                  </div>
-                  <CopyButton text={prompt} label="Copy" copiedLabel="Copied" />
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {/* Other Agents (disconnected/missing) - collapsed group */}
+        {categorizedAgents.other.length > 0 && (
+          <CollapsedAgentGroup
+            title="Offline"
+            agents={categorizedAgents.other}
+            variant="offline"
+            renderAgent={renderAgentRow}
+          />
+        )}
       </div>
 
       {/* Team Status Summary - consolidated from TeamStatus component */}
