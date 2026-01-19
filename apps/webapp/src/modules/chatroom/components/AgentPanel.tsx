@@ -6,6 +6,8 @@ import React, { useState, useMemo, useCallback, memo } from 'react';
 import { CopyButton } from './CopyButton';
 import { generateAgentPrompt } from '../prompts/generator';
 
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
 // Participant info from readiness query - includes expiration data
 interface ParticipantInfo {
   role: string;
@@ -66,21 +68,23 @@ const getEffectiveStatus = (
   return { status: participant.status, isExpired: false };
 };
 
-// Collapsed Agent Group Component
+// Collapsed Agent Group Component - now opens a dialog instead of inline expansion
 interface CollapsedAgentGroupProps {
   title: string;
   agents: string[];
   variant: 'ready' | 'offline';
-  renderAgent: (role: string) => React.ReactNode;
+  generatePrompt: (role: string) => string;
+  onViewPrompt?: (role: string) => void;
 }
 
 const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   title,
   agents,
   variant,
-  renderAgent,
+  generatePrompt,
+  onViewPrompt,
 }: CollapsedAgentGroupProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const variantClasses = {
     ready: {
@@ -96,44 +100,79 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   const classes = variantClasses[variant];
 
   return (
-    <div className="border-b border-chatroom-border last:border-b-0">
-      <div
-        className="flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover"
-        role="button"
-        tabIndex={0}
-        aria-expanded={isExpanded}
-        aria-label={`${title} agents (${agents.length}). Click to ${isExpanded ? 'collapse' : 'expand'}.`}
-        onClick={() => setIsExpanded(!isExpanded)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setIsExpanded(!isExpanded);
-          }
-        }}
-      >
-        {/* Status Indicator */}
-        <div className={`w-2.5 h-2.5 flex-shrink-0 ${classes.indicator}`} />
-        {/* Group Info */}
-        <div className="flex-1 min-w-0">
-          <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
-            {title}
-            <span className="ml-1.5 text-chatroom-text-muted">({agents.length})</span>
-          </div>
-          <div className={`text-[10px] font-bold uppercase tracking-wide ${classes.text}`}>
-            {agents.map((r) => r.toUpperCase()).join(', ')}
-          </div>
-        </div>
-        {/* Expand Indicator */}
+    <>
+      <div className="border-b border-chatroom-border last:border-b-0">
         <div
-          className={`text-chatroom-text-muted transition-transform duration-100 ${isExpanded ? 'rotate-90' : ''}`}
+          className="flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover"
+          role="button"
+          tabIndex={0}
+          aria-label={`${title} agents (${agents.length}). Click to view details.`}
+          onClick={() => setIsDialogOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setIsDialogOpen(true);
+            }
+          }}
         >
-          <ChevronRight size={14} />
+          {/* Status Indicator */}
+          <div className={`w-2.5 h-2.5 flex-shrink-0 ${classes.indicator}`} />
+          {/* Group Info */}
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
+              {title}
+              <span className="ml-1.5 text-chatroom-text-muted">({agents.length})</span>
+            </div>
+            <div className={`text-[10px] font-bold uppercase tracking-wide ${classes.text}`}>
+              {agents.map((r) => r.toUpperCase()).join(', ')}
+            </div>
+          </div>
+          {/* View More Indicator */}
+          <div className="text-chatroom-text-muted">
+            <ChevronRight size={14} />
+          </div>
         </div>
       </div>
 
-      {/* Expanded Agents */}
-      {isExpanded && <div className="pl-4 bg-chatroom-bg-tertiary">{agents.map(renderAgent)}</div>}
-    </div>
+      {/* Agent Group Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="bg-chatroom-bg-primary border-2 border-chatroom-border-strong max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-chatroom-text-primary flex items-center gap-2">
+              <div className={`w-2.5 h-2.5 flex-shrink-0 ${classes.indicator}`} />
+              {title} Agents ({agents.length})
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto -mx-6 px-6">
+            {agents.map((role) => {
+              const prompt = generatePrompt(role);
+              const preview = prompt.split('\n')[0]?.substring(0, 40) + '...';
+
+              return (
+                <div key={role} className="border-b border-chatroom-border last:border-b-0 py-3">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
+                      {role}
+                    </div>
+                    <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
+                  </div>
+                  <div
+                    className="text-xs text-chatroom-text-muted font-mono truncate cursor-pointer hover:text-chatroom-text-secondary"
+                    onClick={() => {
+                      onViewPrompt?.(role);
+                      setIsDialogOpen(false);
+                    }}
+                    title="Click to view full prompt"
+                  >
+                    {preview}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 });
 
@@ -375,23 +414,25 @@ export const AgentPanel = memo(function AgentPanel({
         {/* Active Agents - always shown prominently at top */}
         {categorizedAgents.active.map(renderAgentRow)}
 
-        {/* Ready Agents - collapsed group */}
+        {/* Ready Agents - collapsed group with dialog */}
         {categorizedAgents.ready.length > 0 && (
           <CollapsedAgentGroup
             title="Ready"
             agents={categorizedAgents.ready}
             variant="ready"
-            renderAgent={renderAgentRow}
+            generatePrompt={generatePrompt}
+            onViewPrompt={onViewPrompt}
           />
         )}
 
-        {/* Other Agents (disconnected/missing) - collapsed group */}
+        {/* Other Agents (disconnected/missing) - collapsed group with dialog */}
         {categorizedAgents.other.length > 0 && (
           <CollapsedAgentGroup
             title="Offline"
             agents={categorizedAgents.other}
             variant="offline"
-            renderAgent={renderAgentRow}
+            generatePrompt={generatePrompt}
+            onViewPrompt={onViewPrompt}
           />
         )}
       </div>
