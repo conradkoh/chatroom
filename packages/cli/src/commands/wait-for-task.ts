@@ -147,6 +147,13 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // Session tracking for finite but long task framing
   const currentSession = options.session || 1;
 
+  // Warn if session not provided (helps agents track session progress)
+  if (!options.session) {
+    console.warn(
+      '⚠️  Warning: --session not provided (defaulting to 1). Use the command shown in CLI output after session completes for accurate tracking.'
+    );
+  }
+
   // On first session, fetch and display the full initialization prompt from backend
   if (currentSession === 1) {
     try {

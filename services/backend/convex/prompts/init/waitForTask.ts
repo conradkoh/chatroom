@@ -49,13 +49,9 @@ Other agents may hand work back to you, or the user may have follow-up tasks. If
 ### Handling Session Completion
 
 When you see "COMPLETED WAIT SESSION":
-- **This is SUCCESS, not a problem** - you completed the session
-- Immediately run \`wait-for-task\` again to start the next session
-- Continue until you receive a task or are explicitly relieved
-
-\`\`\`bash
-chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
-\`\`\`
+- This is SUCCESS, not a problem - completing sessions is progress
+- The CLI will show the exact next command to run with the updated session number
+- Immediately run that command to continue waiting
 
 ### Handling Unexpected Terminations
 
