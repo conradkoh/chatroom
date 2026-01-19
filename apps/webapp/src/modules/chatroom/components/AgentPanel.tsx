@@ -334,8 +334,41 @@ export const AgentPanel = memo(function AgentPanel({
 
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
-        Agents
+      {/* Header with status indicator */}
+      <div className="flex items-center justify-between p-4 border-b-2 border-chatroom-border">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+          Agents
+        </div>
+        <div className="flex items-center gap-2">
+          <div
+            className={`${
+              readiness.isReady
+                ? 'text-chatroom-status-success'
+                : isDisconnected
+                  ? 'text-chatroom-status-error'
+                  : 'text-chatroom-status-warning'
+            }`}
+          >
+            {readiness.isReady ? (
+              <CheckCircle size={12} />
+            ) : isDisconnected ? (
+              <AlertTriangle size={12} />
+            ) : (
+              <Clock size={12} />
+            )}
+          </div>
+          <div
+            className={`text-[10px] font-bold uppercase tracking-wide ${
+              readiness.isReady
+                ? 'text-chatroom-status-success'
+                : isDisconnected
+                  ? 'text-chatroom-status-error'
+                  : 'text-chatroom-status-warning'
+            }`}
+          >
+            {readiness.isReady ? 'Ready' : isDisconnected ? 'Disconnected' : 'Waiting'}
+          </div>
+        </div>
       </div>
       <div className="overflow-y-auto">
         {/* Active Agents - always shown prominently at top */}
@@ -362,66 +395,34 @@ export const AgentPanel = memo(function AgentPanel({
         )}
       </div>
 
-      {/* Team Status Summary - consolidated from TeamStatus component */}
-      <div className="p-3 bg-chatroom-bg-tertiary border-t border-chatroom-border">
-        <div className="flex items-center justify-between">
-          {/* Status Icon and Text */}
-          <div className="flex items-center gap-2">
-            <div
-              className={`${
-                readiness.isReady
-                  ? 'text-chatroom-status-success'
-                  : isDisconnected
-                    ? 'text-chatroom-status-error'
-                    : 'text-chatroom-status-warning'
-              }`}
-            >
-              {readiness.isReady ? (
-                <CheckCircle size={14} />
-              ) : isDisconnected ? (
-                <AlertTriangle size={14} />
-              ) : (
-                <Clock size={14} />
-              )}
+      {/* Reconnect footer - only shown when agents are disconnected */}
+      {isDisconnected && (
+        <div className="p-3 bg-chatroom-bg-tertiary border-t border-chatroom-border">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] text-chatroom-text-muted">
+              {`Disconnected: ${readiness.expiredRoles?.join(', ')}`}
             </div>
-            <div
-              className={`text-[10px] font-bold uppercase tracking-wide ${
-                readiness.isReady
-                  ? 'text-chatroom-status-success'
-                  : isDisconnected
-                    ? 'text-chatroom-status-error'
-                    : 'text-chatroom-status-warning'
-              }`}
-            >
-              {readiness.isReady
-                ? 'Team Ready'
-                : isDisconnected
-                  ? 'Agents Disconnected'
-                  : 'Waiting'}
-            </div>
+            {onReconnect && (
+              <button
+                onClick={onReconnect}
+                className="flex items-center gap-1 px-2 py-1 border border-chatroom-status-info text-chatroom-status-info text-[10px] font-bold uppercase tracking-wide hover:bg-chatroom-status-info/10 transition-all duration-100"
+              >
+                <RefreshCw size={10} />
+                Reconnect
+              </button>
+            )}
           </div>
-
-          {/* Reconnect Button - shown when agents are disconnected */}
-          {isDisconnected && onReconnect && (
-            <button
-              onClick={onReconnect}
-              className="flex items-center gap-1 px-2 py-1 border border-chatroom-status-info text-chatroom-status-info text-[10px] font-bold uppercase tracking-wide hover:bg-chatroom-status-info/10 transition-all duration-100"
-            >
-              <RefreshCw size={10} />
-              Reconnect
-            </button>
-          )}
         </div>
+      )}
 
-        {/* Status Detail */}
-        {!readiness.isReady && (
-          <div className="mt-1.5 text-[10px] text-chatroom-text-muted">
-            {isDisconnected
-              ? `Disconnected: ${readiness.expiredRoles?.join(', ')}`
-              : `Missing: ${readiness.missingRoles.join(', ')}`}
+      {/* Waiting footer - only shown when waiting for agents */}
+      {!readiness.isReady && !isDisconnected && (
+        <div className="p-3 bg-chatroom-bg-tertiary border-t border-chatroom-border">
+          <div className="text-[10px] text-chatroom-text-muted">
+            {`Missing: ${readiness.missingRoles.join(', ')}`}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 });
