@@ -370,7 +370,8 @@ export const AgentPanel = memo(function AgentPanel({
           </div>
         </div>
       </div>
-      <div className="overflow-y-auto">
+      {/* Fixed height container for 2 rows to prevent layout jumping */}
+      <div className="overflow-y-auto h-[108px]">
         {/* Active Agents - always shown prominently at top */}
         {categorizedAgents.active.map(renderAgentRow)}
 
