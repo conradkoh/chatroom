@@ -339,24 +339,38 @@ export const MessageFeed = memo(function MessageFeed({
     return [...filtered].reverse();
   }, [results]);
 
-  // Auto-scroll to bottom when new messages arrive (not when loading older messages)
-  // Maintain scroll position when loading older messages
+  // Track if user is at bottom of scroll (to decide auto-scroll behavior)
+  const isAtBottomRef = useRef(true);
+
+  // Update isAtBottom on scroll
+  const updateIsAtBottom = useCallback(() => {
+    if (feedRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = feedRef.current;
+      // Consider "at bottom" if within 50px of the bottom
+      isAtBottomRef.current = scrollHeight - scrollTop - clientHeight < 50;
+    }
+  }, []);
+
+  // Auto-scroll to bottom when new messages arrive (if user was at bottom)
+  // Maintain scroll position when loading older messages (paginating up)
   useEffect(() => {
     if (feedRef.current) {
       const newScrollHeight = feedRef.current.scrollHeight;
       const heightDiff = newScrollHeight - prevScrollHeightRef.current;
+      const messagesAdded = displayMessages.length > prevMessageCountRef.current;
 
-      if (displayMessages.length > prevMessageCountRef.current) {
-        if (status === 'LoadingMore' || prevScrollHeightRef.current > 0) {
-          // When loading older messages, maintain relative scroll position
+      if (messagesAdded) {
+        if (status === 'LoadingMore') {
+          // Loading older messages (paginating up) - maintain scroll position
           // by adding the height difference to current scroll
-          if (heightDiff > 0 && feedRef.current.scrollTop < SCROLL_THRESHOLD + 50) {
+          if (heightDiff > 0) {
             feedRef.current.scrollTop = feedRef.current.scrollTop + heightDiff;
           }
-        } else {
-          // New message arrived, scroll to bottom
+        } else if (isAtBottomRef.current) {
+          // New message arrived and user was at bottom - scroll to bottom
           feedRef.current.scrollTop = feedRef.current.scrollHeight;
         }
+        // If user scrolled up (not at bottom), don't auto-scroll
       }
 
       prevScrollHeightRef.current = newScrollHeight;
@@ -364,8 +378,11 @@ export const MessageFeed = memo(function MessageFeed({
     prevMessageCountRef.current = displayMessages.length;
   }, [displayMessages.length, status]);
 
-  // Handle scroll to detect when user is near the top
+  // Handle scroll to detect when user is near the top and track if at bottom
   const handleScroll = useCallback(() => {
+    // Track if user is at bottom for auto-scroll behavior
+    updateIsAtBottom();
+
     if (feedRef.current && status === 'CanLoadMore') {
       const { scrollTop } = feedRef.current;
       // Load more when user scrolls within threshold of top
@@ -373,7 +390,7 @@ export const MessageFeed = memo(function MessageFeed({
         loadMore(LOAD_MORE_SIZE);
       }
     }
-  }, [status, loadMore]);
+  }, [status, loadMore, updateIsAtBottom]);
 
   if (status === 'LoadingFirstPage' || (isLoading && results.length === 0)) {
     return (
