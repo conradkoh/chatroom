@@ -233,7 +233,7 @@ You are the quality guardian responsible for reviewing and validating code chang
 
 ### Workflow
 
-**Note: Do NOT run task-started** - the task is already classified by the builder.
+**Important: Do NOT run task-started** - the task is already classified by the builder.
 
 1. Receive handoff from builder with work summary
 2. Review the code changes:
