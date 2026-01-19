@@ -24,7 +24,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
 type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
@@ -109,7 +108,7 @@ export function TaskDetailModal({
   const [editedContent, setEditedContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isDesktop = useIsDesktop();
+  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
 
   // Track which task we've initialized for - prevents resetting during edits
   const [initializedTaskId, setInitializedTaskId] = useState<string | null>(null);
@@ -311,17 +310,38 @@ export function TaskDetailModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden min-h-0">
+        <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
           {isEditing ? (
-            // Desktop: Split-panel with editor on left, preview on right
-            // Mobile/Tablet: Single textarea
-            isDesktop ? (
-              <div className="flex h-full">
-                {/* Editor Panel */}
-                <div className="flex-1 flex flex-col border-r border-chatroom-border">
-                  <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted bg-chatroom-bg-tertiary border-b border-chatroom-border">
-                    Editor
-                  </div>
+            // Tab-based editor with Edit/Preview tabs
+            <>
+              {/* Tab Bar */}
+              <div className="flex border-b-2 border-chatroom-border-strong bg-chatroom-bg-tertiary flex-shrink-0">
+                <button
+                  onClick={() => setActiveTab('edit')}
+                  className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors border-b-2 -mb-[2px] ${
+                    activeTab === 'edit'
+                      ? 'border-chatroom-accent text-chatroom-text-primary bg-chatroom-bg-primary'
+                      : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
+                  }`}
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => setActiveTab('preview')}
+                  className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors border-b-2 -mb-[2px] ${
+                    activeTab === 'preview'
+                      ? 'border-chatroom-accent text-chatroom-text-primary bg-chatroom-bg-primary'
+                      : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
+                  }`}
+                >
+                  Preview
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="flex-1 overflow-hidden min-h-0">
+                {activeTab === 'edit' ? (
+                  // Edit Tab - Full width textarea
                   <textarea
                     value={editedContent}
                     onChange={(e) => setEditedContent(e.target.value)}
@@ -334,44 +354,22 @@ export function TaskDetailModal({
                         }
                       }
                     }}
-                    className="flex-1 w-full bg-chatroom-bg-primary border-0 text-chatroom-text-primary text-sm p-4 resize-none focus:outline-none font-mono"
+                    className="w-full h-full bg-chatroom-bg-primary border-0 text-chatroom-text-primary text-sm p-4 resize-none focus:outline-none font-mono"
                     autoFocus
                     placeholder="Write your markdown here..."
                   />
-                </div>
-                {/* Preview Panel */}
-                <div className="flex-1 flex flex-col">
-                  <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted bg-chatroom-bg-tertiary border-b border-chatroom-border">
-                    Preview
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-4 text-sm text-chatroom-text-primary prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent">
+                ) : (
+                  // Preview Tab - Read-only rendered markdown
+                  <div className="h-full overflow-y-auto p-4 text-sm text-chatroom-text-primary prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent">
                     <Markdown remarkPlugins={[remarkGfm]}>
                       {editedContent || '*No content yet*'}
                     </Markdown>
                   </div>
-                </div>
+                )}
               </div>
-            ) : (
-              // Mobile/Tablet: Single textarea
-              <div className="h-full p-4 overflow-y-auto">
-                <textarea
-                  value={editedContent}
-                  onChange={(e) => setEditedContent(e.target.value)}
-                  onKeyDown={(e) => {
-                    // Cmd+Enter or Ctrl+Enter to save
-                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                      e.preventDefault();
-                      if (editedContent.trim()) {
-                        handleSave();
-                      }
-                    }
-                  }}
-                  className="w-full h-full min-h-[200px] bg-chatroom-bg-tertiary border-2 border-chatroom-border text-chatroom-text-primary text-sm p-3 resize-none focus:outline-none focus:border-chatroom-accent"
-                  autoFocus
-                />
-              </div>
-            )
+            </>
           ) : (
+            // View mode - Read-only rendered markdown
             <div className="h-full overflow-y-auto p-4 text-sm text-chatroom-text-primary prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent">
               <Markdown remarkPlugins={[remarkGfm]}>{task.content}</Markdown>
             </div>
