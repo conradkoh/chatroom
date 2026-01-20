@@ -218,6 +218,120 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   );
 });
 
+// Single Agent Modal Component - shows prompt and copy button for individual agents
+interface SingleAgentModalProps {
+  role: string;
+  effectiveStatus: string;
+  prompt: string;
+  isOpen: boolean;
+  onClose: () => void;
+  onViewPrompt?: (role: string) => void;
+}
+
+const SingleAgentModal = memo(function SingleAgentModal({
+  role,
+  effectiveStatus,
+  prompt,
+  isOpen,
+  onClose,
+  onViewPrompt,
+}: SingleAgentModalProps) {
+  // Handle escape key to close modal
+  useEffect(() => {
+    if (isOpen) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      };
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
+  // Handle backdrop click
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    },
+    [onClose]
+  );
+
+  if (!isOpen) return null;
+
+  const statusLabel =
+    effectiveStatus === 'missing'
+      ? 'NOT JOINED'
+      : effectiveStatus === 'disconnected'
+        ? 'DISCONNECTED'
+        : effectiveStatus === 'waiting'
+          ? 'READY'
+          : effectiveStatus === 'active'
+            ? 'WORKING'
+            : 'IDLE';
+
+  const indicatorClass =
+    effectiveStatus === 'active'
+      ? 'bg-chatroom-status-info'
+      : effectiveStatus === 'waiting'
+        ? 'bg-chatroom-status-success'
+        : effectiveStatus === 'disconnected'
+          ? 'bg-chatroom-status-error'
+          : 'bg-chatroom-text-muted';
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm"
+        onClick={handleBackdropClick}
+      />
+
+      {/* Modal Content */}
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-sm w-[90%] max-h-[70vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong z-[70] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <div className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`} />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-primary">
+              {role.toUpperCase()} - {statusLabel}
+            </span>
+          </div>
+          <button
+            className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
+              Agent Prompt
+            </div>
+            <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
+          </div>
+          <div
+            className="text-xs text-chatroom-text-muted font-mono whitespace-pre-wrap break-words bg-chatroom-bg-tertiary p-3 max-h-[40vh] overflow-y-auto cursor-pointer hover:text-chatroom-text-secondary"
+            onClick={() => {
+              onViewPrompt?.(role);
+              onClose();
+            }}
+            title="Click to view full prompt in viewer"
+          >
+            {prompt.length > 500 ? prompt.substring(0, 500) + '...' : prompt}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+});
+
 export const AgentPanel = memo(function AgentPanel({
   chatroomId,
   teamName = 'Team',
@@ -227,7 +341,7 @@ export const AgentPanel = memo(function AgentPanel({
   onViewPrompt,
   onReconnect,
 }: AgentPanelProps) {
-  const [expandedRole, setExpandedRole] = useState<string | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
   // Build participant map from readiness data
   const participantMap = useMemo(() => {
@@ -282,17 +396,14 @@ export const AgentPanel = memo(function AgentPanel({
     [chatroomId, teamName, teamRoles, teamEntryPoint]
   );
 
-  // Memoize preview function
-  const getPromptPreview = useCallback((prompt: string): string => {
-    const firstLine = prompt.split('\n')[0] || '';
-    if (firstLine.length > 50) {
-      return firstLine.substring(0, 50) + '...';
-    }
-    return firstLine;
+  // Open agent modal
+  const openAgentModal = useCallback((role: string) => {
+    setSelectedAgent(role);
   }, []);
 
-  const toggleExpanded = useCallback((role: string) => {
-    setExpandedRole((prev) => (prev === role ? null : role));
+  // Close agent modal
+  const closeAgentModal = useCallback(() => {
+    setSelectedAgent(null);
   }, []);
 
   // Compute team status
@@ -328,9 +439,6 @@ export const AgentPanel = memo(function AgentPanel({
   // Helper to render an agent row
   const renderAgentRow = (role: string) => {
     const { status: effectiveStatus } = getEffectiveStatus(role, participantMap, expiredRolesSet);
-    const prompt = generatePrompt(role);
-    const preview = getPromptPreview(prompt);
-    const isExpanded = expandedRole === role;
 
     const statusLabel =
       effectiveStatus === 'missing'
@@ -349,16 +457,15 @@ export const AgentPanel = memo(function AgentPanel({
     return (
       <div key={role} className="border-b border-chatroom-border last:border-b-0">
         <div
-          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isActive ? 'bg-chatroom-status-info/5' : ''} ${isDisconnectedAgent ? 'bg-chatroom-status-error/5' : ''} ${isExpanded ? 'bg-chatroom-bg-tertiary' : ''}`}
+          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isActive ? 'bg-chatroom-status-info/5' : ''} ${isDisconnectedAgent ? 'bg-chatroom-status-error/5' : ''}`}
           role="button"
           tabIndex={0}
-          aria-expanded={isExpanded}
-          aria-label={`${role}: ${statusLabel}. Click to ${isExpanded ? 'collapse' : 'expand'} options.`}
-          onClick={() => toggleExpanded(role)}
+          aria-label={`${role}: ${statusLabel}. Click to view prompt.`}
+          onClick={() => openAgentModal(role)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              toggleExpanded(role);
+              openAgentModal(role);
             }
           }}
         >
@@ -385,30 +492,11 @@ export const AgentPanel = memo(function AgentPanel({
               {statusLabel}
             </div>
           </div>
-          {/* Expand Indicator */}
-          <div
-            className={`text-chatroom-text-muted transition-transform duration-100 ${isExpanded ? 'rotate-90' : ''}`}
-          >
+          {/* View Indicator */}
+          <div className="text-chatroom-text-muted">
             <ChevronRight size={14} />
           </div>
         </div>
-
-        {/* Expanded Prompt Row */}
-        {isExpanded && (
-          <div className="p-3 pt-0 flex items-center gap-2 bg-chatroom-bg-tertiary">
-            <div
-              className="flex-1 px-2 py-1 bg-chatroom-bg-primary text-chatroom-text-muted text-xs truncate cursor-pointer hover:text-chatroom-text-secondary"
-              onClick={(e) => {
-                e.stopPropagation();
-                onViewPrompt?.(role);
-              }}
-              title="Click to view full prompt"
-            >
-              <span className="font-mono">{preview}</span>
-            </div>
-            <CopyButton text={prompt} label="Copy" copiedLabel="Copied" />
-          </div>
-        )}
       </div>
     );
   };
@@ -506,6 +594,20 @@ export const AgentPanel = memo(function AgentPanel({
             {`Missing: ${readiness.missingRoles.join(', ')}`}
           </div>
         </div>
+      )}
+
+      {/* Single Agent Modal */}
+      {selectedAgent && (
+        <SingleAgentModal
+          role={selectedAgent}
+          effectiveStatus={
+            getEffectiveStatus(selectedAgent, participantMap, expiredRolesSet).status
+          }
+          prompt={generatePrompt(selectedAgent)}
+          isOpen={true}
+          onClose={closeAgentModal}
+          onViewPrompt={onViewPrompt}
+        />
       )}
     </div>
   );
