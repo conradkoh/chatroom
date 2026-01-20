@@ -111,7 +111,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const tasks = useSessionQuery(tasksApi.tasks.listTasks, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     statusFilter: 'active',
-    limit: 50,
+    limit: 100, // Match MAX_TASK_LIST_LIMIT from backend
   }) as Task[] | undefined;
 
   // Query task counts
@@ -128,7 +128,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const pendingReviewTasks = useSessionQuery(tasksApi.tasks.listTasks, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     statusFilter: 'completed',
-    limit: 50,
+    limit: 100, // Match MAX_TASK_LIST_LIMIT from backend
   }) as Task[] | undefined;
 
   // Filter to only show tasks that are pending review (completed + backlog.status = started)
@@ -144,7 +144,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
       ? {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           backlogStatusFilter: 'archived' as const,
-          limit: 50,
+          limit: 100, // Match MAX_TASK_LIST_LIMIT from backend
         }
       : 'skip'
   ) as Task[] | undefined;

@@ -15,6 +15,12 @@ import {
 const MAX_ACTIVE_TASKS = 100;
 
 /**
+ * Maximum number of tasks to return in list queries.
+ * This is a server-side limit to prevent excessive data transfer.
+ */
+const MAX_TASK_LIST_LIMIT = 100;
+
+/**
  * Create a new task in a chatroom.
  * If isBacklog is true, creates a backlog task.
  * Otherwise, creates as pending if no pending/in_progress exists, else queued.
@@ -696,8 +702,8 @@ export const listTasks = query({
       tasks.sort((a, b) => a.queuePosition - b.queuePosition);
     }
 
-    // Apply limit
-    const limit = args.limit ? Math.min(args.limit, 100) : 100;
+    // Apply limit (capped at MAX_TASK_LIST_LIMIT)
+    const limit = args.limit ? Math.min(args.limit, MAX_TASK_LIST_LIMIT) : MAX_TASK_LIST_LIMIT;
     return tasks.slice(0, limit);
   },
 });
@@ -983,5 +989,20 @@ export const getTasksByIds = query({
     );
 
     return tasks.filter((t) => t !== null);
+  },
+});
+
+/**
+ * Get task system limits.
+ * Returns the configured limits for task operations.
+ * This allows clients to use the same limits as the server.
+ */
+export const getTaskLimits = query({
+  args: {},
+  handler: async () => {
+    return {
+      maxActiveTasks: MAX_ACTIVE_TASKS,
+      maxTaskListLimit: MAX_TASK_LIST_LIMIT,
+    };
   },
 });
