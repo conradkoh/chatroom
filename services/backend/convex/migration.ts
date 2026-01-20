@@ -438,3 +438,125 @@ export const migrateCompletedTasksBacklogStatus = internalAction({
     }
   },
 });
+
+// ========================================
+// TASK ORIGIN FIELD MIGRATION
+// ========================================
+
+/**
+ * Internal mutation to set origin field for a single task.
+ * - Tasks with backlog field → origin: 'backlog'
+ * - Tasks with status 'backlog' → origin: 'backlog'
+ * - All other tasks → origin: 'chat'
+ */
+export const setTaskOrigin = internalMutation({
+  args: { taskId: v.id('chatroom_tasks') },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      return; // Task doesn't exist, skip
+    }
+
+    // Skip if origin is already set
+    if (task.origin !== undefined) {
+      return;
+    }
+
+    // Determine origin based on existing fields:
+    // - If task has backlog field, it originated from backlog
+    // - If task has status 'backlog', it originated from backlog
+    // - Otherwise, it originated from chat
+    const isBacklogOrigin = task.backlog !== undefined || task.status === 'backlog';
+    const origin = isBacklogOrigin ? 'backlog' : 'chat';
+
+    await ctx.db.patch('chatroom_tasks', args.taskId, {
+      origin,
+    });
+  },
+});
+
+/**
+ * Internal mutation to set origin for all tasks without origin field in a single batch.
+ * WARNING: This processes all tasks at once and may timeout for large datasets.
+ * For large datasets, use migrateTaskOrigins (action) instead.
+ *
+ * @returns Object with count of tasks updated
+ */
+export const normalizeAllTaskOrigins = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allTasks = await ctx.db.query('chatroom_tasks').collect();
+
+    // Filter tasks that need updating: origin is undefined
+    const tasksToUpdate = allTasks.filter((task) => task.origin === undefined);
+
+    // Update all tasks in parallel
+    await Promise.all(
+      tasksToUpdate.map((task) => {
+        const isBacklogOrigin = task.backlog !== undefined || task.status === 'backlog';
+        const origin = isBacklogOrigin ? 'backlog' : 'chat';
+        return ctx.db.patch('chatroom_tasks', task._id, { origin });
+      })
+    );
+
+    const backlogCount = tasksToUpdate.filter(
+      (t) => t.backlog !== undefined || t.status === 'backlog'
+    ).length;
+
+    console.log(
+      `Migration complete: Set origin for ${tasksToUpdate.length} tasks ` +
+        `(${backlogCount} backlog, ${tasksToUpdate.length - backlogCount} chat) ` +
+        `out of ${allTasks.length} total tasks`
+    );
+
+    return {
+      success: true,
+      updatedCount: tasksToUpdate.length,
+      backlogOriginCount: backlogCount,
+      chatOriginCount: tasksToUpdate.length - backlogCount,
+      totalTasks: allTasks.length,
+    };
+  },
+});
+
+/**
+ * Internal action to migrate all tasks to have explicit origin values.
+ * Processes tasks in batches to handle large datasets safely.
+ */
+export const migrateTaskOrigins = internalAction({
+  args: { cursor: v.optional(v.string()) }, // Convex cursor for pagination
+  handler: async (ctx, args) => {
+    const paginationOpts: PaginationOpts = {
+      numItems: BATCH_SIZE,
+      cursor: args.cursor ?? null,
+    };
+
+    // Fetch a batch of tasks
+    const results = await ctx.runQuery(internal.migration.getTasksBatch, {
+      paginationOpts,
+    });
+
+    // Filter tasks that need updating
+    const tasksToUpdate = results.page.filter((task) => task.origin === undefined);
+
+    // Schedule mutations to update all tasks in the batch in parallel
+    await Promise.all(
+      tasksToUpdate.map((task) =>
+        ctx.runMutation(internal.migration.setTaskOrigin, {
+          taskId: task._id,
+        })
+      )
+    );
+
+    console.log(`Processed batch: ${results.page.length} tasks, updated: ${tasksToUpdate.length}`);
+
+    // If there are more tasks, schedule the next batch
+    if (!results.isDone) {
+      await ctx.runAction(internal.migration.migrateTaskOrigins, {
+        cursor: results.continueCursor,
+      });
+    } else {
+      console.log('Task origin migration completed');
+    }
+  },
+});

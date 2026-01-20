@@ -72,20 +72,24 @@ export const createTask = mutation({
       status = hasPendingOrInProgress ? 'queued' : 'pending';
     }
 
+    // Set origin field based on whether this is a backlog task
+    const origin = args.isBacklog ? ('backlog' as const) : ('chat' as const);
+
     const taskId = await ctx.db.insert('chatroom_tasks', {
       chatroomId: args.chatroomId,
       createdBy: args.createdBy,
       content: args.content,
       status,
+      origin, // Always set origin field for new tasks
       sourceMessageId: args.sourceMessageId,
       createdAt: now,
       updatedAt: now,
       queuePosition,
-      // Initialize backlog lifecycle tracking for backlog tasks
+      // Initialize backlog lifecycle tracking for backlog tasks (deprecated, kept for compatibility)
       ...(args.isBacklog && { backlog: { status: 'not_started' as const } }),
     });
 
-    return { taskId, status, queuePosition };
+    return { taskId, status, queuePosition, origin };
   },
 });
 
@@ -140,8 +144,9 @@ export const startTask = mutation({
 
 /**
  * Complete ALL in_progress tasks in the chatroom.
- * Transitions all in_progress tasks to completed and promotes the next queued task to pending.
- * This ensures resilience - when an agent completes, any orphaned in_progress tasks are cleaned up.
+ * For backlog-origin tasks: transitions to pending_user_review (user must confirm).
+ * For chat-origin tasks: transitions to completed directly.
+ * Promotes the next queued task to pending when all agents are ready.
  * Requires CLI session authentication and chatroom access.
  */
 export const completeTask = mutation({
@@ -164,25 +169,37 @@ export const completeTask = mutation({
 
     if (inProgressTasks.length === 0) {
       // No tasks to complete - this is okay, just return
-      return { completed: false, completedCount: 0, promoted: null };
+      return { completed: false, completedCount: 0, promoted: null, pendingReview: [] };
     }
 
     const now = Date.now();
+    const pendingReview: string[] = [];
 
-    // Complete ALL in_progress tasks
+    // Complete ALL in_progress tasks based on their origin
     for (const task of inProgressTasks) {
+      // Determine the new status based on origin:
+      // - backlog-origin tasks → pending_user_review (user must confirm completion)
+      // - chat-origin tasks → completed
+      // - legacy tasks without origin → check for backlog field
+      const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
+      const newStatus = isBacklogOrigin ? 'pending_user_review' : 'completed';
+
       await ctx.db.patch('chatroom_tasks', task._id, {
-        status: 'completed',
-        completedAt: now,
+        status: newStatus,
+        ...(newStatus === 'completed' && { completedAt: now }),
         updatedAt: now,
       });
+
+      if (newStatus === 'pending_user_review') {
+        pendingReview.push(task._id);
+      }
     }
 
     // Log if multiple tasks were completed (indicates a stuck state that was cleaned up)
     if (inProgressTasks.length > 1) {
       console.warn(
-        `[Task Cleanup] Completed ${inProgressTasks.length} in_progress tasks in chatroom ${args.chatroomId}. ` +
-          `Task IDs: ${inProgressTasks.map((t) => t._id).join(', ')}`
+        `[Task Cleanup] Processed ${inProgressTasks.length} in_progress tasks in chatroom ${args.chatroomId}. ` +
+          `Task IDs: ${inProgressTasks.map((t) => t._id).join(', ')}, Pending review: ${pendingReview.length}`
       );
     }
 
@@ -208,7 +225,12 @@ export const completeTask = mutation({
           status: 'pending',
           updatedAt: now,
         });
-        return { completed: true, completedCount: inProgressTasks.length, promoted: nextTask._id };
+        return {
+          completed: true,
+          completedCount: inProgressTasks.length,
+          promoted: nextTask._id,
+          pendingReview,
+        };
       }
     } else {
       console.warn(
@@ -216,14 +238,20 @@ export const completeTask = mutation({
       );
     }
 
-    return { completed: true, completedCount: inProgressTasks.length, promoted: null };
+    return {
+      completed: true,
+      completedCount: inProgressTasks.length,
+      promoted: null,
+      pendingReview,
+    };
   },
 });
 
 /**
  * Cancel a task.
- * Only allowed for pending, queued and backlog tasks.
+ * Only allowed for pending, queued, backlog, and pending_user_review tasks.
  * If a pending task is cancelled, promotes the next queued task.
+ * Uses 'closed' for backlog-origin tasks, 'cancelled' for chat-origin tasks.
  * Requires CLI session authentication and chatroom access.
  */
 export const cancelTask = mutation({
@@ -240,16 +268,22 @@ export const cancelTask = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Only allow cancellation of pending, queued and backlog tasks (not in_progress)
-    if (task.status !== 'pending' && task.status !== 'queued' && task.status !== 'backlog') {
+    // Only allow cancellation of pending, queued, backlog, and pending_user_review tasks (not in_progress)
+    const allowedStatuses = ['pending', 'queued', 'backlog', 'pending_user_review'];
+    if (!allowedStatuses.includes(task.status)) {
       throw new Error(`Cannot cancel task with status: ${task.status}`);
     }
 
     const now = Date.now();
     const wasPending = task.status === 'pending';
 
+    // Use 'closed' for backlog-origin tasks, 'cancelled' for chat-origin tasks
+    const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
+    const newStatus = isBacklogOrigin ? ('closed' as const) : ('cancelled' as const);
+
     await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'cancelled',
+      status: newStatus,
+      ...(task.backlog && { backlog: { status: 'closed' as const } }),
       updatedAt: now,
     });
 
@@ -292,7 +326,7 @@ export const cancelTask = mutation({
       }
     }
 
-    return { success: true, promoted };
+    return { success: true, promoted, status: newStatus };
   },
 });
 
@@ -521,7 +555,10 @@ export const moveToQueue = mutation({
 /**
  * Mark a backlog task as complete.
  * User confirms the issue is resolved.
- * Only allowed for tasks with backlog lifecycle tracking.
+ * Allowed for:
+ * - Tasks in 'pending_user_review' status (normal flow after agent completes)
+ * - Tasks in 'backlog' status (force complete from backlog tab)
+ * - Legacy tasks with backlog.status that aren't already complete/closed
  * Requires CLI session authentication and chatroom access.
  */
 export const markBacklogComplete = mutation({
@@ -538,20 +575,30 @@ export const markBacklogComplete = mutation({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Task must have backlog lifecycle tracking
-    if (!task.backlog) {
+    // Task must be a backlog-origin task (or legacy with backlog field)
+    const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
+    if (!isBacklogOrigin) {
       throw new Error('Task is not a backlog item');
     }
 
     // Cannot complete already completed/closed items
-    if (task.backlog.status === 'complete' || task.backlog.status === 'closed') {
-      throw new Error(`Task is already ${task.backlog.status}`);
+    if (task.status === 'completed' || task.status === 'closed') {
+      throw new Error(`Task is already ${task.status}`);
     }
 
-    // Update both task.status and backlog.status to ensure proper archiving
+    // Allow completion from pending_user_review (normal flow) or backlog (force complete)
+    if (task.status !== 'pending_user_review' && task.status !== 'backlog') {
+      // For legacy compatibility, also check backlog.status
+      if (task.backlog?.status === 'complete' || task.backlog?.status === 'closed') {
+        throw new Error(`Task is already ${task.backlog.status}`);
+      }
+    }
+
+    // Update task to completed status
     await ctx.db.patch('chatroom_tasks', args.taskId, {
       status: 'completed' as const,
-      backlog: { status: 'complete' as const },
+      completedAt: Date.now(),
+      ...(task.backlog && { backlog: { status: 'complete' as const } }),
       updatedAt: Date.now(),
     });
 
@@ -562,7 +609,7 @@ export const markBacklogComplete = mutation({
 /**
  * Close a backlog task without completing.
  * Used for won't fix, duplicate, or no longer relevant items.
- * Only allowed for tasks with backlog lifecycle tracking.
+ * Only allowed for backlog-origin tasks (or legacy tasks with backlog field).
  * Requires CLI session authentication and chatroom access.
  */
 export const closeBacklogTask = mutation({
@@ -579,20 +626,21 @@ export const closeBacklogTask = mutation({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Task must have backlog lifecycle tracking
-    if (!task.backlog) {
+    // Task must be a backlog-origin task (or legacy with backlog field)
+    const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
+    if (!isBacklogOrigin) {
       throw new Error('Task is not a backlog item');
     }
 
     // Cannot close already completed/closed items
-    if (task.backlog.status === 'complete' || task.backlog.status === 'closed') {
-      throw new Error(`Task is already ${task.backlog.status}`);
+    if (task.status === 'completed' || task.status === 'closed') {
+      throw new Error(`Task is already ${task.status}`);
     }
 
-    // Update both task.status and backlog.status to ensure proper archiving
+    // Update task status to 'closed' (and backlog.status for compatibility)
     await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'cancelled' as const,
-      backlog: { status: 'closed' as const },
+      status: 'closed' as const,
+      ...(task.backlog && { backlog: { status: 'closed' as const } }),
       updatedAt: Date.now(),
     });
 
@@ -602,8 +650,8 @@ export const closeBacklogTask = mutation({
 
 /**
  * Reopen a completed or closed backlog task.
- * Returns the task to 'started' status.
- * Only allowed for tasks with backlog lifecycle tracking.
+ * Returns the task to pending_user_review status (ready for user to review again).
+ * Only allowed for backlog-origin tasks (or legacy tasks with backlog field).
  * Requires CLI session authentication and chatroom access.
  */
 export const reopenBacklogTask = mutation({
@@ -620,22 +668,106 @@ export const reopenBacklogTask = mutation({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Task must have backlog lifecycle tracking
-    if (!task.backlog) {
+    // Task must be a backlog-origin task (or legacy with backlog field)
+    const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
+    if (!isBacklogOrigin) {
       throw new Error('Task is not a backlog item');
     }
 
     // Can only reopen completed or closed items
-    if (task.backlog.status !== 'complete' && task.backlog.status !== 'closed') {
-      throw new Error(`Task is ${task.backlog.status}, not completed or closed`);
+    if (task.status !== 'completed' && task.status !== 'closed') {
+      throw new Error(`Task is ${task.status}, not completed or closed`);
     }
 
+    // Reopen to pending_user_review (user can then review or send back)
     await ctx.db.patch('chatroom_tasks', args.taskId, {
-      backlog: { status: 'started' as const },
+      status: 'pending_user_review' as const,
+      completedAt: undefined,
+      ...(task.backlog && { backlog: { status: 'started' as const } }),
       updatedAt: Date.now(),
     });
 
     return { success: true };
+  },
+});
+
+/**
+ * Send a task back for re-work.
+ * Transitions task from pending_user_review back to the queue.
+ * User can attach an optional message with feedback for the agent.
+ * Only allowed for backlog-origin tasks in pending_user_review status.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const sendBackForRework = mutation({
+  args: {
+    sessionId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+    // Optional feedback message for the agent
+    feedback: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Validate session and check chatroom access
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+
+    // Task must be a backlog-origin task
+    const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
+    if (!isBacklogOrigin) {
+      throw new Error('Task is not a backlog item');
+    }
+
+    // Only allowed for tasks in pending_user_review status
+    if (task.status !== 'pending_user_review') {
+      throw new Error(
+        `Cannot send back task with status: ${task.status}. Must be pending_user_review.`
+      );
+    }
+
+    const now = Date.now();
+
+    // Check if there's a pending or in_progress task
+    const activeTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', task.chatroomId))
+      .filter((q) =>
+        q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
+      )
+      .collect();
+
+    // Determine new status: queued if active task exists, pending otherwise
+    const newStatus = activeTasks.length > 0 ? 'queued' : 'pending';
+
+    // If feedback provided, create a message from user
+    let messageId = null;
+    if (args.feedback?.trim()) {
+      const targetRole = chatroom.teamEntryPoint || chatroom.teamRoles?.[0] || 'builder';
+      messageId = await ctx.db.insert('chatroom_messages', {
+        chatroomId: task.chatroomId,
+        senderRole: 'user',
+        content: args.feedback.trim(),
+        targetRole,
+        type: 'message',
+        attachedTaskIds: [args.taskId],
+      });
+
+      // Update chatroom's lastActivityAt
+      await ctx.db.patch('chatroom_rooms', task.chatroomId, {
+        lastActivityAt: now,
+      });
+    }
+
+    // Update task status back to queue
+    await ctx.db.patch('chatroom_tasks', args.taskId, {
+      status: newStatus,
+      sourceMessageId: messageId || task.sourceMessageId,
+      updatedAt: now,
+    });
+
+    return { success: true, newStatus, messageId };
   },
 });
 
@@ -655,12 +787,15 @@ export const listTasks = query({
         v.literal('queued'),
         v.literal('backlog'),
         v.literal('completed'),
-        v.literal('cancelled'),
+        v.literal('cancelled'), // deprecated, use 'closed'
+        v.literal('closed'),
+        v.literal('pending_user_review'),
         v.literal('active'), // pending + in_progress + queued + backlog
-        v.literal('pending_review') // completed + backlog.status === 'started'
+        v.literal('pending_review'), // pending_user_review status (new) OR legacy: completed + backlog.status === 'started'
+        v.literal('archived') // completed + closed + cancelled
       )
     ),
-    // Filter for backlog lifecycle status
+    // Filter for backlog lifecycle status (deprecated, kept for compatibility)
     backlogStatusFilter: v.optional(
       v.union(
         v.literal('active'), // not_started + started (shown in main backlog list)
@@ -689,31 +824,49 @@ export const listTasks = query({
             t.status === 'backlog'
         );
       } else if (args.statusFilter === 'pending_review') {
-        // Pending review: completed tasks with backlog.status === 'started'
-        // These are backlog tasks that have been completed but not yet marked as reviewed
-        tasks = tasks.filter((t) => t.status === 'completed' && t.backlog?.status === 'started');
+        // Pending review: tasks in pending_user_review status
+        // OR legacy: completed tasks with backlog.status === 'started'
+        tasks = tasks.filter(
+          (t) =>
+            t.status === 'pending_user_review' ||
+            (t.status === 'completed' && t.backlog?.status === 'started')
+        );
+      } else if (args.statusFilter === 'archived') {
+        // Archived: completed, closed, or cancelled tasks
+        tasks = tasks.filter(
+          (t) => t.status === 'completed' || t.status === 'closed' || t.status === 'cancelled'
+        );
       } else {
         tasks = tasks.filter((t) => t.status === args.statusFilter);
       }
     }
 
-    // Filter by backlog lifecycle status
+    // Filter by backlog lifecycle status (deprecated, kept for compatibility)
     if (args.backlogStatusFilter) {
       if (args.backlogStatusFilter === 'active') {
         // Active: tasks without backlog field OR with not_started/started status
+        // Also include pending_user_review (new status) as "active" for backlog
         tasks = tasks.filter(
-          (t) => !t.backlog || t.backlog.status === 'not_started' || t.backlog.status === 'started'
+          (t) =>
+            !t.backlog ||
+            t.backlog.status === 'not_started' ||
+            t.backlog.status === 'started' ||
+            t.status === 'pending_user_review'
         );
       } else if (args.backlogStatusFilter === 'archived') {
         // Archived: only tasks with complete/closed status
         tasks = tasks.filter(
-          (t) => t.backlog?.status === 'complete' || t.backlog?.status === 'closed'
+          (t) =>
+            t.backlog?.status === 'complete' ||
+            t.backlog?.status === 'closed' ||
+            t.status === 'closed' ||
+            (t.status === 'completed' && t.backlog?.status !== 'started')
         );
       }
     }
 
     // Sort by queuePosition for active, by updatedAt desc for archived
-    if (args.backlogStatusFilter === 'archived') {
+    if (args.statusFilter === 'archived' || args.backlogStatusFilter === 'archived') {
       tasks.sort((a, b) => b.updatedAt - a.updatedAt);
     } else {
       tasks.sort((a, b) => a.queuePosition - b.queuePosition);
@@ -904,8 +1057,10 @@ export const getTaskCounts = query({
       in_progress: tasks.filter((t) => t.status === 'in_progress').length,
       queued: tasks.filter((t) => t.status === 'queued').length,
       backlog: tasks.filter((t) => t.status === 'backlog').length,
+      pending_user_review: tasks.filter((t) => t.status === 'pending_user_review').length,
       completed: tasks.filter((t) => t.status === 'completed').length,
-      cancelled: tasks.filter((t) => t.status === 'cancelled').length,
+      closed: tasks.filter((t) => t.status === 'closed').length,
+      cancelled: tasks.filter((t) => t.status === 'cancelled').length, // deprecated
     };
   },
 });
