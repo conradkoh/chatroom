@@ -93,10 +93,29 @@ async function _sendMessageHandler(
       }),
   });
 
+  const now = Date.now();
+
   // Update chatroom's lastActivityAt for sorting by recent activity
   await ctx.db.patch('chatroom_rooms', args.chatroomId, {
-    lastActivityAt: Date.now(),
+    lastActivityAt: now,
   });
+
+  // Update attached backlog tasks to 'started' status when attached to a message
+  // This matches the behavior of moveToQueue - tasks are now in progress
+  if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
+    for (const taskId of args.attachedTaskIds) {
+      const task = await ctx.db.get('chatroom_tasks', taskId);
+      // Only update tasks that are still in backlog status
+      if (task && task.status === 'backlog') {
+        await ctx.db.patch('chatroom_tasks', taskId, {
+          status: 'queued' as const,
+          updatedAt: now,
+          backlog: { status: 'started' as const },
+          sourceMessageId: messageId,
+        });
+      }
+    }
+  }
 
   // Auto-create task for user messages and handoff messages
   const isUserMessage = normalizedSenderRole === 'user' && args.type === 'message';
