@@ -11,28 +11,64 @@ import {
   isAuthenticated,
   getAuthFilePath,
 } from '../infrastructure/auth/storage.js';
-import { getConvexClient } from '../infrastructure/convex/client.js';
+import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.js';
 
 // Poll interval for checking auth status
 const AUTH_POLL_INTERVAL_MS = 2000;
 
-// The webapp URL for authentication
-const WEBAPP_URL = 'https://chatroom.duskfare.com';
+// Production URLs
+const PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
+const PRODUCTION_WEBAPP_URL = 'https://chatroom.duskfare.com';
+const DEFAULT_LOCAL_WEBAPP_URL = 'http://localhost:3000';
 
 interface AuthLoginOptions {
   force?: boolean;
 }
 
 /**
+ * Check if a URL is a local development URL
+ */
+function isLocalUrl(url: string): boolean {
+  return (
+    url.includes('localhost') ||
+    url.includes('127.0.0.1') ||
+    url.includes('0.0.0.0') ||
+    url.startsWith('http://192.168.') ||
+    url.startsWith('http://10.')
+  );
+}
+
+/**
  * Get the webapp URL for the auth page
- * Can be overridden with CHATROOM_WEB_URL environment variable for development
+ *
+ * Priority:
+ * 1. CHATROOM_WEB_URL environment variable (explicit override)
+ * 2. Derived from CHATROOM_CONVEX_URL:
+ *    - Production Convex URL → Production webapp URL
+ *    - Local Convex URL → Default local webapp URL (http://localhost:3000)
  */
 function getWebAppUrl(): string {
+  // 1. Check explicit override
   const webAppUrlOverride = process.env.CHATROOM_WEB_URL;
   if (webAppUrlOverride) {
     return webAppUrlOverride;
   }
-  return WEBAPP_URL;
+
+  // 2. Derive from Convex URL
+  const convexUrl = getConvexUrl();
+
+  // Production Convex → Production webapp
+  if (convexUrl === PRODUCTION_CONVEX_URL) {
+    return PRODUCTION_WEBAPP_URL;
+  }
+
+  // Local/dev Convex → Local webapp (default port 3000)
+  if (isLocalUrl(convexUrl)) {
+    return DEFAULT_LOCAL_WEBAPP_URL;
+  }
+
+  // Unknown/preview → Assume production webapp
+  return PRODUCTION_WEBAPP_URL;
 }
 
 /**
@@ -76,11 +112,21 @@ export async function authLogin(options: AuthLoginOptions): Promise<void> {
   const deviceName = getDeviceName();
   const cliVersion = getCliVersion();
 
+  // Get the Convex URL being used
+  const convexUrl = getConvexUrl();
+  const isLocal = isLocalUrl(convexUrl);
+
   console.log(`\n${'═'.repeat(50)}`);
   console.log(`🔐 CHATROOM CLI AUTHENTICATION`);
   console.log(`${'═'.repeat(50)}`);
   console.log(`\nDevice: ${deviceName}`);
   console.log(`CLI Version: ${cliVersion}`);
+
+  // Show environment info for non-production
+  if (convexUrl !== PRODUCTION_CONVEX_URL) {
+    console.log(`\n📍 Environment: ${isLocal ? 'Local Development' : 'Custom'}`);
+    console.log(`   Convex URL: ${convexUrl}`);
+  }
 
   // Create auth request
   console.log(`\n⏳ Creating authentication request...`);
