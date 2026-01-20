@@ -548,7 +548,9 @@ export const markBacklogComplete = mutation({
       throw new Error(`Task is already ${task.backlog.status}`);
     }
 
+    // Update both task.status and backlog.status to ensure proper archiving
     await ctx.db.patch('chatroom_tasks', args.taskId, {
+      status: 'completed' as const,
       backlog: { status: 'complete' as const },
       updatedAt: Date.now(),
     });
@@ -587,7 +589,9 @@ export const closeBacklogTask = mutation({
       throw new Error(`Task is already ${task.backlog.status}`);
     }
 
+    // Update both task.status and backlog.status to ensure proper archiving
     await ctx.db.patch('chatroom_tasks', args.taskId, {
+      status: 'cancelled' as const,
       backlog: { status: 'closed' as const },
       updatedAt: Date.now(),
     });
