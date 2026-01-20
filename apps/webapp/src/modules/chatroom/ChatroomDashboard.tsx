@@ -23,6 +23,7 @@ import { ReconnectModal } from './components/ReconnectModal';
 import { SendForm } from './components/SendForm';
 import { SetupChecklist } from './components/SetupChecklist';
 import { TaskQueue } from './components/TaskQueue';
+import { AttachedTasksProvider } from './context/AttachedTasksContext';
 // TeamStatus is now consolidated into AgentPanel
 import { generateAgentPrompt } from './prompts/generator';
 
@@ -538,40 +539,41 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }
 
   return (
-    <>
-      <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
-        {isSetupMode ? (
-          <div className="setup-content">
-            <SetupChecklist
-              chatroomId={chatroomId}
-              teamName={teamName}
-              teamRoles={teamRoles}
-              teamEntryPoint={teamEntryPoint}
-              participants={participants || []}
-              onViewPrompt={handleViewPrompt}
-            />
-          </div>
-        ) : (
-          <div className="flex flex-1 overflow-hidden relative">
-            {/* Message Section */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              <MessageFeed chatroomId={chatroomId} participants={participants || []} />
-              <SendForm chatroomId={chatroomId} />
-            </div>
-
-            {/* Sidebar Overlay for mobile - below app header */}
-            {sidebarVisible && isSmallScreen && (
-              <div
-                className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
-                onClick={toggleSidebar}
+    <AttachedTasksProvider>
+      <>
+        <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
+          {isSetupMode ? (
+            <div className="setup-content">
+              <SetupChecklist
+                chatroomId={chatroomId}
+                teamName={teamName}
+                teamRoles={teamRoles}
+                teamEntryPoint={teamEntryPoint}
+                participants={participants || []}
+                onViewPrompt={handleViewPrompt}
               />
-            )}
+            </div>
+          ) : (
+            <div className="flex flex-1 overflow-hidden relative">
+              {/* Message Section */}
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <MessageFeed chatroomId={chatroomId} participants={participants || []} />
+                <SendForm chatroomId={chatroomId} />
+              </div>
 
-            {/* Sidebar - positioned below app header on mobile */}
-            {/* On desktop: transitions width to 0 when hidden so chat fills space */}
-            {/* On mobile: uses fixed positioning with translate for overlay effect */}
-            <div
-              className={`
+              {/* Sidebar Overlay for mobile - below app header */}
+              {sidebarVisible && isSmallScreen && (
+                <div
+                  className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
+                  onClick={toggleSidebar}
+                />
+              )}
+
+              {/* Sidebar - positioned below app header on mobile */}
+              {/* On desktop: transitions width to 0 when hidden so chat fills space */}
+              {/* On mobile: uses fixed positioning with translate for overlay effect */}
+              <div
+                className={`
                 ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain w-80' : 'relative overflow-hidden'}
                 ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
@@ -579,48 +581,49 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 transition-all duration-300 ease-in-out
                 ${isSmallScreen ? (sidebarVisible ? 'translate-x-0' : 'translate-x-full') : ''}
               `}
-            >
-              <AgentPanel
-                chatroomId={chatroomId}
-                teamName={teamName}
-                teamRoles={teamRoles}
-                teamEntryPoint={teamEntryPoint}
-                readiness={readiness}
-                onViewPrompt={handleViewPrompt}
-                onReconnect={handleOpenReconnect}
-              />
-              <TaskQueue chatroomId={chatroomId} />
-              <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
-                  Chatroom ID
-                </div>
-                <div className="font-mono text-[10px] font-bold text-chatroom-text-secondary break-all p-2 bg-chatroom-bg-tertiary">
-                  {chatroomId}
+              >
+                <AgentPanel
+                  chatroomId={chatroomId}
+                  teamName={teamName}
+                  teamRoles={teamRoles}
+                  teamEntryPoint={teamEntryPoint}
+                  readiness={readiness}
+                  onViewPrompt={handleViewPrompt}
+                  onReconnect={handleOpenReconnect}
+                />
+                <TaskQueue chatroomId={chatroomId} />
+                <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
+                    Chatroom ID
+                  </div>
+                  <div className="font-mono text-[10px] font-bold text-chatroom-text-secondary break-all p-2 bg-chatroom-bg-tertiary">
+                    {chatroomId}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      <PromptModal
-        isOpen={modalState.isOpen}
-        onClose={handleCloseModal}
-        role={modalState.role}
-        prompt={modalState.prompt}
-      />
+        <PromptModal
+          isOpen={modalState.isOpen}
+          onClose={handleCloseModal}
+          role={modalState.role}
+          prompt={modalState.prompt}
+        />
 
-      <ReconnectModal
-        isOpen={reconnectModalOpen}
-        onClose={handleCloseReconnect}
-        chatroomId={chatroomId}
-        teamName={teamName}
-        teamRoles={teamRoles}
-        teamEntryPoint={teamEntryPoint}
-        expiredRoles={readiness?.expiredRoles || []}
-        participants={readiness?.participants}
-        onViewPrompt={handleViewPrompt}
-      />
-    </>
+        <ReconnectModal
+          isOpen={reconnectModalOpen}
+          onClose={handleCloseReconnect}
+          chatroomId={chatroomId}
+          teamName={teamName}
+          teamRoles={teamRoles}
+          teamEntryPoint={teamEntryPoint}
+          expiredRoles={readiness?.expiredRoles || []}
+          participants={readiness?.participants}
+          onViewPrompt={handleViewPrompt}
+        />
+      </>
+    </AttachedTasksProvider>
   );
 }

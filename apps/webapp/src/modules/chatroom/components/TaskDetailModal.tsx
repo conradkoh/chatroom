@@ -4,9 +4,9 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import {
   Check,
   CheckCircle,
-  MessageSquare,
   MoreHorizontal,
   Pencil,
+  Plus,
   RotateCcw,
   StopCircle,
   Trash2,
@@ -17,7 +17,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { MoveToChatModal } from './MoveToChatModal';
+import { useAttachedTasks, MAX_ATTACHMENTS } from '../context/AttachedTasksContext';
 
 import {
   DropdownMenu,
@@ -49,7 +49,6 @@ interface TaskDetailModalProps {
   onClose: () => void;
   onEdit: (taskId: string, content: string) => Promise<void>;
   onDelete: (taskId: string) => Promise<void>;
-  onMoveToChat: (taskId: string, customMessage?: string) => Promise<void>;
   onForceComplete: (taskId: string) => Promise<void>;
   onMarkBacklogComplete?: (taskId: string) => Promise<void>;
   onCloseBacklog?: (taskId: string) => Promise<void>;
@@ -99,7 +98,6 @@ export function TaskDetailModal({
   onClose,
   onEdit,
   onDelete,
-  onMoveToChat,
   onForceComplete,
   onMarkBacklogComplete,
   onCloseBacklog,
@@ -111,7 +109,9 @@ export function TaskDetailModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
-  const [isMoveToChatOpen, setIsMoveToChatOpen] = useState(false);
+
+  // Attached tasks context for adding to chat
+  const { addTask, isTaskAttached, canAddMore } = useAttachedTasks();
 
   // Track which task we've initialized for - prevents resetting during edits
   const [initializedTaskId, setInitializedTaskId] = useState<string | null>(null);
@@ -193,25 +193,6 @@ export function TaskDetailModal({
       setIsLoading(false);
     }
   }, [task, onDelete, onClose]);
-
-  const handleMoveToChat = useCallback(
-    async (taskId: string, customMessage?: string) => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        await onMoveToChat(taskId, customMessage);
-        setIsMoveToChatOpen(false);
-        onClose();
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to move task';
-        setError(message);
-        throw err; // Re-throw so modal can show error
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [onMoveToChat, onClose]
-  );
 
   const handleForceComplete = useCallback(async () => {
     if (!task) return;
@@ -419,15 +400,31 @@ export function TaskDetailModal({
             ) : (
               <>
                 {/* Primary Actions - Always visible */}
-                {/* Move to chat for active backlog items and pending review items */}
+                {/* Add to chat for active backlog items and pending review items */}
                 {((task.status === 'backlog' && !isArchivedBacklog) || isPendingReview) && (
                   <button
-                    onClick={() => setIsMoveToChatOpen(true)}
-                    disabled={isLoading}
-                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary transition-colors"
+                    onClick={() => {
+                      if (task) {
+                        const added = addTask({ _id: task._id, content: task.content });
+                        if (added) {
+                          onClose();
+                        }
+                      }
+                    }}
+                    disabled={isLoading || isTaskAttached(task._id) || !canAddMore}
+                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={
+                      isTaskAttached(task._id)
+                        ? 'Already added to chat'
+                        : !canAddMore
+                          ? `Maximum ${MAX_ATTACHMENTS} attachments`
+                          : isPendingReview
+                            ? 'Add to chat for re-review'
+                            : 'Add to chat'
+                    }
                   >
-                    <MessageSquare size={12} />
-                    {isPendingReview ? 'Re-assign' : 'Move to Chat'}
+                    <Plus size={12} />
+                    {isTaskAttached(task._id) ? 'Added' : 'Add to Chat'}
                   </button>
                 )}
 
@@ -520,14 +517,6 @@ export function TaskDetailModal({
           </div>
         )}
       </div>
-
-      {/* Move to Chat Modal */}
-      <MoveToChatModal
-        isOpen={isMoveToChatOpen}
-        task={task}
-        onClose={() => setIsMoveToChatOpen(false)}
-        onConfirm={handleMoveToChat}
-      />
     </>
   );
 }

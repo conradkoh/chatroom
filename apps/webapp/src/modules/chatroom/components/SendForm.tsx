@@ -5,6 +5,9 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 
+import { AttachedTaskChip } from './AttachedTaskChip';
+import { useAttachedTasks } from '../context/AttachedTasksContext';
+
 interface SendFormProps {
   chatroomId: string;
 }
@@ -35,6 +38,9 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isTouchDevice = useIsTouchDevice();
 
+  // Attached tasks context
+  const { attachedTasks, removeTask, clearTasks } = useAttachedTasks();
+
   // Type assertion workaround: The Convex API types are not fully generated
   // until `npx convex dev` is run. This assertion allows us to use the API
   // without full type safety. The correct types will be available after
@@ -63,14 +69,22 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
         senderRole: 'user',
         content: message.trim(),
         type: 'message',
+        // Include attached task IDs if any
+        ...(attachedTasks.length > 0 && {
+          attachedTaskIds: attachedTasks.map((task) => task._id),
+        }),
       });
       setMessage('');
+      // Clear attached tasks after successful send
+      if (attachedTasks.length > 0) {
+        clearTasks();
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
     } finally {
       setSending(false);
     }
-  }, [message, sending, sendMessage, chatroomId]);
+  }, [message, sending, sendMessage, chatroomId, attachedTasks, clearTasks]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -105,6 +119,19 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
 
   return (
     <div className="bg-chatroom-bg-surface backdrop-blur-xl border-t-2 border-chatroom-border-strong">
+      {/* Attached Tasks Row */}
+      {attachedTasks.length > 0 && (
+        <div className="flex flex-wrap gap-2 px-4 pt-3 pb-1">
+          {attachedTasks.map((task) => (
+            <AttachedTaskChip
+              key={task._id}
+              taskId={task._id}
+              content={task.content}
+              onRemove={() => removeTask(task._id)}
+            />
+          ))}
+        </div>
+      )}
       {/* Input Form */}
       <form className="flex gap-3 p-4" onSubmit={handleFormSubmit}>
         <textarea

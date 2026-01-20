@@ -156,7 +156,6 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const promoteNextTask = useSessionMutation(tasksApi.tasks.promoteNextTask);
   const updateTask = useSessionMutation(tasksApi.tasks.updateTask);
   const cancelTask = useSessionMutation(tasksApi.tasks.cancelTask);
-  const moveToQueue = useSessionMutation(tasksApi.tasks.moveToQueue);
   const completeTaskById = useSessionMutation(tasksApi.tasks.completeTaskById);
   const markBacklogComplete = useSessionMutation(tasksApi.tasks.markBacklogComplete);
   const closeBacklogTask = useSessionMutation(tasksApi.tasks.closeBacklogTask);
@@ -292,21 +291,6 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
       }
     },
     [cancelTask]
-  );
-
-  const handleModalMoveToChat = useCallback(
-    async (taskId: string, customMessage?: string) => {
-      try {
-        await moveToQueue({
-          taskId: taskId as Id<'chatroom_tasks'>,
-          customMessage,
-        });
-      } catch (error) {
-        console.error('Failed to move task to chat:', error);
-        throw error;
-      }
-    },
-    [moveToQueue]
   );
 
   const handleModalForceComplete = useCallback(
@@ -602,7 +586,6 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         onClose={handleCloseTaskDetail}
         onEdit={handleModalEdit}
         onDelete={handleModalDelete}
-        onMoveToChat={handleModalMoveToChat}
         onForceComplete={handleModalForceComplete}
         onMarkBacklogComplete={handleModalMarkBacklogComplete}
         onCloseBacklog={handleModalCloseBacklog}
