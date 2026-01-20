@@ -282,6 +282,9 @@ export function TaskDetailModal({
     task.backlog?.status === 'complete' || task.backlog?.status === 'closed';
   const isActiveBacklog = task.backlog && !isArchivedBacklog;
 
+  // Pending review items: completed tasks with backlog.status === 'started'
+  const isPendingReview = task.status === 'completed' && task.backlog?.status === 'started';
+
   const badge = getStatusBadge(task.status);
 
   return (
@@ -416,15 +419,15 @@ export function TaskDetailModal({
             ) : (
               <>
                 {/* Primary Actions - Always visible */}
-                {/* Move to chat for active backlog items */}
-                {task.status === 'backlog' && !isArchivedBacklog && (
+                {/* Move to chat for active backlog items and pending review items */}
+                {((task.status === 'backlog' && !isArchivedBacklog) || isPendingReview) && (
                   <button
                     onClick={() => setIsMoveToChatOpen(true)}
                     disabled={isLoading}
                     className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary transition-colors"
                   >
                     <MessageSquare size={12} />
-                    Move to Chat
+                    {isPendingReview ? 'Re-assign' : 'Move to Chat'}
                   </button>
                 )}
 

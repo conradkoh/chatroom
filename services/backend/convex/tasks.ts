@@ -452,9 +452,17 @@ export const moveToQueue = mutation({
     // Validate session and check chatroom access - need chatroom for entry point
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Only allow moving backlog tasks
-    if (task.status !== 'backlog') {
-      throw new Error('Can only move backlog tasks to queue');
+    // Allow moving:
+    // 1. Backlog tasks (status === 'backlog')
+    // 2. Pending review tasks (status === 'completed' && backlog.status === 'started')
+    const isBacklogTask = task.status === 'backlog';
+    const isPendingReview = task.status === 'completed' && task.backlog?.status === 'started';
+
+    if (!isBacklogTask && !isPendingReview) {
+      throw new Error(
+        'Can only move backlog tasks or pending review tasks to queue. ' +
+          'Pending review tasks must have status "completed" and backlog.status "started".'
+      );
     }
 
     // Check if there's a pending or in_progress task
