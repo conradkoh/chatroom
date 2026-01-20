@@ -4,7 +4,7 @@ import { Rocket, Check, Lightbulb, ArrowRight } from 'lucide-react';
 import React, { useMemo, useCallback, memo } from 'react';
 
 import { CopyButton } from './CopyButton';
-import { generateAgentPrompt } from '../prompts/generator';
+import { generateAgentPrompt, generateShortPrompt } from '../prompts/generator';
 
 interface Participant {
   role: string;
@@ -38,6 +38,21 @@ export const SetupChecklist = memo(function SetupChecklist({
   const generatePrompt = useCallback(
     (role: string): string => {
       return generateAgentPrompt({
+        chatroomId,
+        role,
+        teamName,
+        teamRoles,
+        teamEntryPoint,
+        convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
+      });
+    },
+    [chatroomId, teamName, teamRoles, teamEntryPoint]
+  );
+
+  // Memoize command generation (short form for copy)
+  const generateCommand = useCallback(
+    (role: string): string => {
+      return generateShortPrompt({
         chatroomId,
         role,
         teamName,
@@ -130,6 +145,18 @@ export const SetupChecklist = memo(function SetupChecklist({
               {/* Step Content - only show for pending steps */}
               {!isJoined && (
                 <div className="px-4 pb-4 flex flex-col gap-3">
+                  {/* Command Preview */}
+                  <div className="flex items-center gap-2 p-3 bg-chatroom-bg-primary">
+                    <code className="font-mono text-xs text-chatroom-text-muted truncate flex-1">
+                      {generateCommand(role)}
+                    </code>
+                    <CopyButton
+                      text={generateCommand(role)}
+                      label="Copy"
+                      copiedLabel="Copied!"
+                      variant="compact"
+                    />
+                  </div>
                   {/* Prompt Preview */}
                   <div
                     className="flex justify-between items-center p-3 bg-chatroom-bg-primary cursor-pointer hover:bg-chatroom-bg-hover transition-all duration-100"
