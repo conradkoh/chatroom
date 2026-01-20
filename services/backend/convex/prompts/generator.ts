@@ -20,6 +20,11 @@ import {
   getTaskStartedSection,
 } from './init';
 import { getRoleTemplate } from './templates';
+// Guidelines and policies are exported for external use
+// They can be included in review prompts as needed
+export { getReviewGuidelines } from './guidelines';
+export { getSecurityPolicy } from './policies/security';
+export { getDesignPolicy } from './policies/design';
 
 export interface RolePromptContext {
   chatroomId: string;
@@ -31,6 +36,13 @@ export interface RolePromptContext {
   availableHandoffRoles: string[];
   canHandoffToUser: boolean;
   restrictionReason?: string | null;
+  // User context for reviewers - the original request that needs to be validated
+  userContext?: {
+    originalRequest: string;
+    featureTitle?: string;
+    featureDescription?: string;
+    techSpecs?: string;
+  };
 }
 
 /**
@@ -93,22 +105,81 @@ chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<que
   return workflow;
 }
 
-function getReviewerWorkflow(_ctx: RolePromptContext): string {
-  return `### Workflow
+function getReviewerWorkflow(ctx: RolePromptContext): string {
+  const sections: string[] = [];
+
+  // Core workflow
+  sections.push(`### Workflow
 
 **Important: Do NOT run task-started** - the task is already classified by the builder.
 
-1. Receive handoff from builder with work summary
-2. Review the code changes:
-   - Check uncommitted: \`git status\`, \`git diff\`
-   - Check commits: \`git log --oneline -5\`, \`git show HEAD\`
-3. Either approve or request changes
+**Phase 1: Understand the Request**
+First, read the ORIGINAL user request below to understand what should have been built.
 
-**Review Checklist:**
-- [ ] Code correctness and functionality
-- [ ] Error handling and edge cases  
-- [ ] Code style and best practices
-- [ ] Requirements met`;
+**Phase 2: Run Verification Commands**
+\`\`\`bash
+pnpm typecheck    # Check for TypeScript errors
+pnpm lint:fix     # Check for linting issues
+git status        # View uncommitted changes
+git diff          # View detailed changes
+git log --oneline -5  # View recent commits
+\`\`\`
+
+**Phase 3: Review Against Checklist**
+- [ ] TypeScript: No errors, no \`any\` types, proper typing
+- [ ] Code quality: No hacks/shortcuts, proper patterns
+- [ ] Requirements: ALL original requirements addressed
+- [ ] Guidelines: Follows codebase conventions (check AGENTS.md, etc.)
+- [ ] Design: Uses design system (semantic colors, existing components)
+- [ ] Security: No obvious vulnerabilities
+
+**Phase 4: Decision**
+- **Changes needed** → Provide specific feedback, hand to builder
+- **Approved** → Confirm requirements met, hand to user`);
+
+  // Inject user context if available
+  if (ctx.userContext) {
+    sections.push(getUserContextSection(ctx.userContext));
+  }
+
+  // Multi-phase review option
+  sections.push(`### Multi-Phase Review
+
+For complex reviews, you can break the review into phases:
+
+1. **Phase 1**: TypeScript and linting verification
+2. **Phase 2**: Code quality and patterns review
+3. **Phase 3**: Requirements and design compliance
+
+To continue to the next phase, hand off to yourself:
+\`\`\`bash
+chatroom handoff ${ctx.chatroomId} --role=reviewer --message="Phase 1 complete: <findings>. Continuing to Phase 2." --next-role=reviewer
+\`\`\``);
+
+  return sections.join('\n\n');
+}
+
+/**
+ * Generate the user context section for reviewers
+ */
+function getUserContextSection(userContext: NonNullable<RolePromptContext['userContext']>): string {
+  const parts: string[] = ['### Original User Request\n'];
+  parts.push('**IMPORTANT: Verify the implementation matches this original request:**\n');
+  parts.push(`> ${userContext.originalRequest.split('\n').join('\n> ')}`);
+
+  if (userContext.featureTitle) {
+    parts.push(`\n**Feature Title:** ${userContext.featureTitle}`);
+  }
+
+  if (userContext.featureDescription) {
+    parts.push(`\n**Description:**\n${userContext.featureDescription}`);
+  }
+
+  if (userContext.techSpecs) {
+    parts.push(`\n**Technical Specifications:**\n${userContext.techSpecs}`);
+  }
+
+  return parts.join('\n');
 }
 
 function getGenericWorkflow(
