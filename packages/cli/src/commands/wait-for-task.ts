@@ -374,10 +374,17 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
         if (allAttachedTaskIds.length > 0) {
           // Remove duplicates
           const uniqueTaskIds = [...new Set(allAttachedTaskIds)];
-          attachedTasks = (await client.query(api.tasks.getTasksByIds, {
-            sessionId,
-            taskIds: uniqueTaskIds,
-          })) as AttachedTask[];
+          try {
+            attachedTasks = (await client.query(api.tasks.getTasksByIds, {
+              sessionId,
+              taskIds: uniqueTaskIds,
+            })) as AttachedTask[];
+          } catch (err) {
+            // Log error but continue - attached tasks are informational
+            console.warn(
+              `⚠️  Failed to fetch attached task content: ${err instanceof Error ? err.message : 'Unknown error'}`
+            );
+          }
         }
 
         // Build a map for easy lookup
