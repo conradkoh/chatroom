@@ -199,16 +199,6 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const closeBacklogTask = useSessionMutation(tasksApi.tasks.closeBacklogTask);
   const reopenBacklogTask = useSessionMutation(tasksApi.tasks.reopenBacklogTask);
 
-  // Helper to check if a task is archived (task.status is completed/closed/cancelled OR backlog.status is complete/closed)
-  const isArchivedTask = useCallback((task: Task) => {
-    // Check new status field first
-    if (task.status === 'completed' || task.status === 'closed' || task.status === 'cancelled') {
-      return true;
-    }
-    // Legacy check for backlog.status
-    return task.backlog?.status === 'complete' || task.backlog?.status === 'closed';
-  }, []);
-
   // Categorize tasks - filter out archived from the active backlog list
   const categorizedTasks = useMemo(() => {
     if (!tasks) return { current: [], queued: [], backlog: [] };
@@ -216,10 +206,16 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     return {
       current: tasks.filter((t) => t.status === 'pending' || t.status === 'in_progress'),
       queued: tasks.filter((t) => t.status === 'queued'),
-      // Only show active backlog items (not archived)
-      backlog: tasks.filter((t) => t.status === 'backlog' && !isArchivedTask(t)),
+      // Only show active backlog items - filter out legacy archived items
+      // (tasks with status='backlog' can't have new archived statuses, only check legacy backlog.status)
+      backlog: tasks.filter(
+        (t) =>
+          t.status === 'backlog' &&
+          t.backlog?.status !== 'complete' &&
+          t.backlog?.status !== 'closed'
+      ),
     };
-  }, [tasks, isArchivedTask]);
+  }, [tasks]);
 
   // Count archived items using task counts from backend
   // This ensures the count is accurate even when archived section is collapsed
