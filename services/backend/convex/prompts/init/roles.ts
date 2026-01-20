@@ -51,27 +51,7 @@ ${classificationNote}
 - **For \`new_feature\` classification** → MUST hand off to \`reviewer\` (cannot skip review)
 
 **When you receive handoffs from the reviewer:**
-You will receive feedback on your code. Review the feedback, make the requested changes, and hand back to the reviewer.
-
-## Backlog Commands
-
-If the user refers to the backlog or you need to check pending tasks, use these commands:
-
-**List tasks in the backlog:**
-\`\`\`bash
-chatroom backlog list <chatroomId> --role=<role> [--status=<status>] [--limit=<n>]
-\`\`\`
-Status options: \`pending\`, \`in_progress\`, \`queued\`, \`backlog\`, \`completed\`, \`cancelled\`, \`active\` (default), \`all\`
-
-**Add a task to the backlog:**
-\`\`\`bash
-chatroom backlog add <chatroomId> --role=<role> --content="<task description>"
-\`\`\`
-
-**Complete a task by ID:**
-\`\`\`bash
-chatroom backlog complete <chatroomId> --role=<role> --taskId=<id> [--force]
-\`\`\``;
+You will receive feedback on your code. Review the feedback, make the requested changes, and hand back to the reviewer.`;
 }
 
 function getReviewerGuidance(otherRoles: string[]): string {
