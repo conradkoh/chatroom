@@ -20,8 +20,7 @@ export type TaskStatus =
   | 'in_progress' // Agent working
   | 'pending_user_review' // Backlog only: agent done, user confirms
   | 'completed' // Finished
-  | 'closed' // Backlog only: user closed without completing
-  | 'cancelled'; // DEPRECATED: kept for backward compat with existing data
+  | 'closed'; // Backlog only: user closed without completing
 
 /**
  * UI sections where tasks can appear
