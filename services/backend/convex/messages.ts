@@ -268,15 +268,24 @@ async function _handoffHandler(
 
   const completedTaskIds: Id<'chatroom_tasks'>[] = [];
   for (const task of inProgressTasks) {
+    // Backlog-origin tasks should go to pending_user_review when handing off to user
+    // so the user can confirm completion. Chat-origin tasks complete directly.
+    const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
+    const newStatus =
+      isHandoffToUser && isBacklogOrigin
+        ? ('pending_user_review' as const)
+        : ('completed' as const);
+
     await ctx.db.patch('chatroom_tasks', task._id, {
-      status: 'completed',
-      completedAt: now,
+      status: newStatus,
+      // Only set completedAt for tasks that are actually completed
+      ...(newStatus === 'completed' && { completedAt: now }),
       updatedAt: now,
     });
     completedTaskIds.push(task._id);
 
-    // Set completedAt on the source message (lifecycle tracking)
-    if (task.sourceMessageId) {
+    // Set completedAt on the source message (lifecycle tracking) - only for completed tasks
+    if (task.sourceMessageId && newStatus === 'completed') {
       await ctx.db.patch('chatroom_messages', task.sourceMessageId, {
         completedAt: now,
       });
