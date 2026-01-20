@@ -322,3 +322,149 @@ export const getTasksBatch = internalQuery({
     return await ctx.db.query('chatroom_tasks').paginate(args.paginationOpts);
   },
 });
+
+// ========================================
+// LEGACY FIELD CLEANUP MIGRATION
+// ========================================
+
+/**
+ * Internal mutation to clean up legacy fields from a single task.
+ * - Removes the deprecated 'backlog' field
+ * - Changes status 'cancelled' to 'closed'
+ */
+export const cleanupTaskLegacyFields = internalMutation({
+  args: { taskId: v.id('chatroom_tasks') },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      return { updated: false }; // Task doesn't exist, skip
+    }
+
+    const updates: Record<string, unknown> = {};
+
+    // Remove backlog field if present
+    if (task.backlog !== undefined) {
+      updates.backlog = undefined;
+    }
+
+    // Change cancelled to closed
+    if (task.status === 'cancelled') {
+      updates.status = 'closed';
+    }
+
+    // Only patch if there are updates
+    if (Object.keys(updates).length > 0) {
+      await ctx.db.patch('chatroom_tasks', args.taskId, updates);
+      return {
+        updated: true,
+        removedBacklog: task.backlog !== undefined,
+        changedStatus: task.status === 'cancelled',
+      };
+    }
+
+    return { updated: false };
+  },
+});
+
+/**
+ * Internal mutation to clean up legacy fields from all tasks in a single batch.
+ * - Removes the deprecated 'backlog' field
+ * - Changes status 'cancelled' to 'closed'
+ *
+ * WARNING: This processes all tasks at once and may timeout for large datasets.
+ * For large datasets, use migrateCleanupLegacyFields (action) instead.
+ *
+ * @returns Object with counts of tasks updated
+ */
+export const cleanupAllTaskLegacyFields = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allTasks = await ctx.db.query('chatroom_tasks').collect();
+
+    let backlogFieldsRemoved = 0;
+    let cancelledToClosedChanged = 0;
+
+    // Update all tasks that need cleanup
+    await Promise.all(
+      allTasks.map(async (task) => {
+        const updates: Record<string, unknown> = {};
+
+        // Remove backlog field if present
+        if (task.backlog !== undefined) {
+          updates.backlog = undefined;
+          backlogFieldsRemoved++;
+        }
+
+        // Change cancelled to closed
+        if (task.status === 'cancelled') {
+          updates.status = 'closed';
+          cancelledToClosedChanged++;
+        }
+
+        // Only patch if there are updates
+        if (Object.keys(updates).length > 0) {
+          await ctx.db.patch('chatroom_tasks', task._id, updates);
+        }
+      })
+    );
+
+    console.log(
+      `Migration complete: Processed ${allTasks.length} tasks. ` +
+        `Removed backlog field from ${backlogFieldsRemoved} tasks. ` +
+        `Changed cancelled→closed for ${cancelledToClosedChanged} tasks.`
+    );
+
+    return {
+      success: true,
+      totalTasks: allTasks.length,
+      backlogFieldsRemoved,
+      cancelledToClosedChanged,
+    };
+  },
+});
+
+/**
+ * Internal action to clean up legacy fields from all tasks.
+ * Processes tasks in batches to handle large datasets safely.
+ */
+export const migrateCleanupLegacyFields = internalAction({
+  args: { cursor: v.optional(v.string()) }, // Convex cursor for pagination
+  handler: async (ctx, args) => {
+    const paginationOpts: PaginationOpts = {
+      numItems: BATCH_SIZE,
+      cursor: args.cursor ?? null,
+    };
+
+    // Fetch a batch of tasks
+    const results = await ctx.runQuery(internal.migration.getTasksBatch, {
+      paginationOpts,
+    });
+
+    // Filter tasks that need updating
+    const tasksToUpdate = results.page.filter(
+      (task) => task.backlog !== undefined || task.status === 'cancelled'
+    );
+
+    // Schedule mutations to update all tasks in the batch in parallel
+    await Promise.all(
+      tasksToUpdate.map((task) =>
+        ctx.runMutation(internal.migration.cleanupTaskLegacyFields, {
+          taskId: task._id,
+        })
+      )
+    );
+
+    console.log(
+      `Processed batch: ${results.page.length} tasks, cleaned up: ${tasksToUpdate.length}`
+    );
+
+    // If there are more tasks, schedule the next batch
+    if (!results.isDone) {
+      await ctx.runAction(internal.migration.migrateCleanupLegacyFields, {
+        cursor: results.continueCursor,
+      });
+    } else {
+      console.log('Legacy field cleanup migration completed');
+    }
+  },
+});
