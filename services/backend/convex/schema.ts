@@ -390,6 +390,19 @@ export default defineSchema({
 
     // Queue ordering (lower = earlier in queue)
     queuePosition: v.number(),
+
+    // DEPRECATED: Legacy backlog field - kept for backward compatibility with existing data
+    // New code should not use this field; use origin and status instead
+    backlog: v.optional(
+      v.object({
+        status: v.union(
+          v.literal('not_started'),
+          v.literal('started'),
+          v.literal('complete'),
+          v.literal('closed')
+        ),
+      })
+    ),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])
