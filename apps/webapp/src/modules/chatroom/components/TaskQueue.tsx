@@ -468,16 +468,10 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
             ))}
             {/* Show "View More" button when there are more items */}
             {filteredPendingReviewTasks.length > PENDING_REVIEW_PREVIEW_LIMIT && (
-              <button
+              <ViewMoreButton
+                count={filteredPendingReviewTasks.length - PENDING_REVIEW_PREVIEW_LIMIT}
                 onClick={() => setIsPendingReviewModalOpen(true)}
-                className="w-full px-3 py-2 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-tertiary/50 transition-colors text-left flex items-center gap-2"
-              >
-                <span>
-                  View More ({filteredPendingReviewTasks.length - PENDING_REVIEW_PREVIEW_LIMIT} more
-                  items)
-                </span>
-                <ChevronRight size={12} />
-              </button>
+              />
             )}
           </div>
         )}
@@ -551,12 +545,10 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
 
           {/* View More Button */}
           {categorizedTasks.backlog.length > 3 && (
-            <button
+            <ViewMoreButton
+              count={categorizedTasks.backlog.length - 3}
               onClick={() => setIsQueueModalOpen(true)}
-              className="w-full p-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors text-center"
-            >
-              View More ({categorizedTasks.backlog.length - 3} more items)
-            </button>
+            />
           )}
 
           {categorizedTasks.backlog.length === 0 && !isAddingTask && (
@@ -920,6 +912,23 @@ function ArchivedBacklogItem({ task, onClick }: ArchivedBacklogItemProps) {
       {/* Date */}
       <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{formattedDate}</span>
     </div>
+  );
+}
+
+// ViewMoreButton - shared component for expandable list sections
+interface ViewMoreButtonProps {
+  count: number;
+  onClick: () => void;
+}
+
+function ViewMoreButton({ count, onClick }: ViewMoreButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full p-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors text-center"
+    >
+      View More ({count} more items)
+    </button>
   );
 }
 
