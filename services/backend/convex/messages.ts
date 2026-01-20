@@ -12,6 +12,11 @@ import {
 import { getRolePriority } from './lib/hierarchy';
 import { getCompletionStatus } from './lib/taskWorkflows';
 import { generateRolePrompt, generateTaskStartedReminder, generateInitPrompt } from './prompts';
+import {
+  buildTaskDeliveryPrompt,
+  type TaskDeliveryContext,
+  type TaskDeliveryPromptResponse,
+} from './prompts/taskDelivery';
 
 // =============================================================================
 // SHARED HANDLERS - Internal functions that contain the actual logic
@@ -1279,5 +1284,261 @@ export const getInitPrompt = query({
     });
 
     return { prompt };
+  },
+});
+
+/**
+ * Get the complete task delivery prompt for an agent receiving a task.
+ * This is called when wait-for-task receives a task, replacing the
+ * local prompt construction in the CLI.
+ *
+ * Returns both human-readable prompt sections and structured JSON data.
+ */
+export const getTaskDeliveryPrompt = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    taskId: v.id('chatroom_tasks'),
+    messageId: v.optional(v.id('chatroom_messages')),
+  },
+  handler: async (ctx, args): Promise<TaskDeliveryPromptResponse> => {
+    // Validate session and check chatroom access
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Fetch the task
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Fetch the message if provided
+    let message = null;
+    if (args.messageId) {
+      message = await ctx.db.get('chatroom_messages', args.messageId);
+    }
+
+    // Fetch participants
+    const participants = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    // Get role prompt info (reuse existing logic)
+    const waitingParticipants = participants.filter(
+      (p) => p.status === 'waiting' && p.role.toLowerCase() !== args.role.toLowerCase()
+    );
+
+    // Get recent messages for classification
+    const recentMessages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .order('desc')
+      .take(50);
+
+    // Find current classification
+    let currentClassification: 'question' | 'new_feature' | 'follow_up' | null = null;
+    for (const msg of recentMessages) {
+      if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
+        currentClassification = msg.classification;
+        break;
+      }
+    }
+
+    // Determine handoff restrictions
+    const availableRoles = waitingParticipants.map((p) => p.role);
+    let canHandoffToUser = true;
+    let restrictionReason: string | null = null;
+
+    if (currentClassification === 'new_feature') {
+      const normalizedRole = args.role.toLowerCase();
+      if (normalizedRole === 'builder') {
+        canHandoffToUser = false;
+        restrictionReason = 'new_feature requests must be reviewed before returning to user';
+      }
+    }
+
+    const availableHandoffRoles = canHandoffToUser ? [...availableRoles, 'user'] : availableRoles;
+
+    // Generate role-specific prompt
+    const rolePromptText = generateRolePrompt({
+      chatroomId: args.chatroomId,
+      role: args.role,
+      teamName: chatroom.teamName || 'Team',
+      teamRoles: chatroom.teamRoles || [],
+      teamEntryPoint: chatroom.teamEntryPoint,
+      currentClassification,
+      availableHandoffRoles,
+      canHandoffToUser,
+      restrictionReason,
+    });
+
+    // Get context window (reuse getContextWindow logic)
+    // Fetch recent messages for context
+    const contextRecentMessages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .order('desc')
+      .take(200);
+
+    let contextMessages = contextRecentMessages.reverse();
+    // Filter out unacknowledged user messages
+    contextMessages = contextMessages.filter((msg) => {
+      if (msg.senderRole.toLowerCase() !== 'user') return true;
+      return msg.acknowledgedAt !== undefined;
+    });
+
+    // Find origin message
+    let originMessage = null;
+    let originIndex = -1;
+
+    // Check for follow-up with origin reference
+    for (let i = contextMessages.length - 1; i >= 0; i--) {
+      const msg = contextMessages[i];
+      if (msg.senderRole.toLowerCase() === 'user' && msg.type === 'message') {
+        if (msg.classification === 'follow_up' && msg.taskOriginMessageId) {
+          originMessage = await ctx.db.get('chatroom_messages', msg.taskOriginMessageId);
+          if (originMessage) {
+            originIndex = contextMessages.findIndex((m) => m._id === originMessage!._id);
+            break;
+          }
+        }
+        if (msg.classification !== 'follow_up') {
+          originMessage = msg;
+          originIndex = i;
+          break;
+        }
+      }
+    }
+
+    // If no origin found via follow-up, search for non-follow-up user message
+    if (!originMessage) {
+      for (let i = contextMessages.length - 1; i >= 0; i--) {
+        const msg = contextMessages[i];
+        if (
+          msg.senderRole.toLowerCase() === 'user' &&
+          msg.type === 'message' &&
+          msg.classification !== 'follow_up'
+        ) {
+          originMessage = msg;
+          originIndex = i;
+          break;
+        }
+      }
+    }
+
+    // Get messages from origin onwards
+    const contextMessagesSlice =
+      originIndex >= 0 ? contextMessages.slice(originIndex) : contextMessages;
+
+    // Fetch attached tasks if any exist in context messages
+    const allAttachedTaskIds: Id<'chatroom_tasks'>[] = [];
+    if (originMessage?.attachedTaskIds && originMessage.attachedTaskIds.length > 0) {
+      allAttachedTaskIds.push(...originMessage.attachedTaskIds);
+    }
+    for (const msg of contextMessagesSlice) {
+      if (msg.attachedTaskIds && msg.attachedTaskIds.length > 0) {
+        allAttachedTaskIds.push(...msg.attachedTaskIds);
+      }
+    }
+
+    // Fetch attached task details
+    const attachedTasksMap = new Map<
+      string,
+      { id: string; content: string; status: string; createdBy: string; backlogStatus?: string }
+    >();
+    if (allAttachedTaskIds.length > 0) {
+      const uniqueTaskIds = [...new Set(allAttachedTaskIds)];
+      for (const taskId of uniqueTaskIds) {
+        const attachedTask = await ctx.db.get('chatroom_tasks', taskId);
+        if (attachedTask) {
+          attachedTasksMap.set(taskId, {
+            id: attachedTask._id,
+            content: attachedTask.content,
+            status: attachedTask.status,
+            createdBy: attachedTask.createdBy,
+            backlogStatus: attachedTask.origin === 'backlog' ? attachedTask.status : undefined,
+          });
+        }
+      }
+    }
+
+    // Build context for prompt generation
+    const deliveryContext: TaskDeliveryContext = {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      task: {
+        _id: task._id,
+        content: task.content,
+        status: task.status,
+        createdBy: task.createdBy,
+        queuePosition: task.queuePosition,
+      },
+      message: message
+        ? {
+            _id: message._id,
+            content: message.content,
+            senderRole: message.senderRole,
+            type: message.type,
+            targetRole: message.targetRole,
+          }
+        : null,
+      participants: participants.map((p) => ({
+        role: p.role,
+        status: p.status,
+      })),
+      contextWindow: {
+        originMessage: originMessage
+          ? {
+              _id: originMessage._id,
+              senderRole: originMessage.senderRole,
+              content: originMessage.content,
+              type: originMessage.type,
+              targetRole: originMessage.targetRole,
+              classification: originMessage.classification,
+              attachedTaskIds: originMessage.attachedTaskIds,
+              attachedTasks: originMessage.attachedTaskIds
+                ?.map((id) => attachedTasksMap.get(id))
+                .filter(Boolean) as {
+                id: string;
+                content: string;
+                status: string;
+                createdBy: string;
+                backlogStatus?: string;
+              }[],
+            }
+          : null,
+        contextMessages: contextMessagesSlice.map((m) => ({
+          _id: m._id,
+          senderRole: m.senderRole,
+          content: m.content,
+          type: m.type,
+          targetRole: m.targetRole,
+          classification: m.classification,
+          attachedTaskIds: m.attachedTaskIds,
+          attachedTasks: m.attachedTaskIds
+            ?.map((id) => attachedTasksMap.get(id))
+            .filter(Boolean) as {
+            id: string;
+            content: string;
+            status: string;
+            createdBy: string;
+            backlogStatus?: string;
+          }[],
+        })),
+        classification: originMessage?.classification || null,
+      },
+      rolePrompt: {
+        prompt: rolePromptText,
+        currentClassification,
+        availableHandoffRoles,
+        restrictionReason,
+      },
+      teamName: chatroom.teamName || 'Team',
+      teamRoles: chatroom.teamRoles || [],
+    };
+
+    // Build and return the complete prompt
+    return buildTaskDeliveryPrompt(deliveryContext);
   },
 });
