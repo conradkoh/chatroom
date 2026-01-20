@@ -127,8 +127,20 @@ export const listByUserWithStatus = query({
           .collect();
 
         // Compute agent statuses with expiration check
+        // Check the appropriate timeout field based on status:
+        // - 'active' agents use activeUntil (typically ~1 hour)
+        // - 'waiting' agents use readyUntil (typically ~10 minutes)
         const agents = participants.map((p) => {
-          const isExpired = p.readyUntil ? p.readyUntil < now : false;
+          let isExpired = false;
+          if (p.status === 'active') {
+            // Active agents expire based on activeUntil
+            isExpired = p.activeUntil ? p.activeUntil < now : false;
+          } else if (p.status === 'waiting') {
+            // Waiting agents expire based on readyUntil
+            isExpired = p.readyUntil ? p.readyUntil < now : false;
+          }
+          // Idle agents don't have timeouts
+
           // Effective status: if expired, treat as 'disconnected'
           const effectiveStatus = isExpired ? ('disconnected' as const) : p.status;
           return {
@@ -137,6 +149,7 @@ export const listByUserWithStatus = query({
             effectiveStatus, // Computed status considering expiration
             isExpired,
             readyUntil: p.readyUntil,
+            activeUntil: p.activeUntil,
           };
         });
 

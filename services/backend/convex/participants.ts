@@ -43,10 +43,11 @@ export const join = mutation({
 
     let participantId;
     if (existing) {
-      // Update status to waiting and refresh readyUntil
+      // Update status to waiting and refresh readyUntil, clear activeUntil
       await ctx.db.patch('chatroom_participants', existing._id, {
         status: 'waiting',
         readyUntil: args.readyUntil,
+        activeUntil: undefined, // Clear active timeout when transitioning to waiting
       });
       participantId = existing._id;
     } else {
@@ -56,6 +57,7 @@ export const join = mutation({
         role: args.role,
         status: 'waiting',
         readyUntil: args.readyUntil,
+        // activeUntil not set - will be set when transitioning to active
       });
 
       // Send join message
@@ -144,6 +146,8 @@ export const list = query({
 
 /**
  * Update participant status.
+ * When transitioning to 'active', sets activeUntil and clears readyUntil.
+ * When transitioning to 'waiting', sets readyUntil and clears activeUntil.
  * Requires CLI session authentication and chatroom access.
  */
 export const updateStatus = mutation({
@@ -152,6 +156,10 @@ export const updateStatus = mutation({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     status: v.union(v.literal('idle'), v.literal('active'), v.literal('waiting')),
+    // Optional: timestamp when the new status expires
+    // For 'active': when agent is considered crashed (~1 hour)
+    // For 'waiting': when agent is considered disconnected (~10 min)
+    expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access (chatroom not needed)
@@ -168,7 +176,28 @@ export const updateStatus = mutation({
       throw new Error(`Participant ${args.role} not found in chatroom`);
     }
 
-    await ctx.db.patch('chatroom_participants', participant._id, { status: args.status });
+    // Build the update based on the target status
+    const update: {
+      status: 'idle' | 'active' | 'waiting';
+      readyUntil?: number;
+      activeUntil?: number;
+    } = { status: args.status };
+
+    if (args.status === 'active') {
+      // Transitioning to active: set activeUntil, clear readyUntil
+      update.activeUntil = args.expiresAt;
+      update.readyUntil = undefined;
+    } else if (args.status === 'waiting') {
+      // Transitioning to waiting: set readyUntil, clear activeUntil
+      update.readyUntil = args.expiresAt;
+      update.activeUntil = undefined;
+    } else {
+      // Idle: clear both
+      update.readyUntil = undefined;
+      update.activeUntil = undefined;
+    }
+
+    await ctx.db.patch('chatroom_participants', participant._id, update);
   },
 });
 

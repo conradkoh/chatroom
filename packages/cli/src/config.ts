@@ -13,6 +13,9 @@ export const WAIT_POLL_INTERVAL_MS = 500;
 /** Default timeout for wait-for-task (10 minutes) */
 export const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 
+/** Default active work timeout (1 hour) - how long an active agent has before being considered crashed */
+export const DEFAULT_ACTIVE_TIMEOUT_MS = 60 * 60 * 1000;
+
 /** Maximum consecutive errors before logging a warning */
 export const MAX_SILENT_ERRORS = 5;
 

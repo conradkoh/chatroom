@@ -11,7 +11,12 @@ import {
   type RolePromptResponse,
   type TaskWithMessage,
 } from '../api.js';
-import { WAIT_POLL_INTERVAL_MS, MAX_SILENT_ERRORS, DEFAULT_WAIT_TIMEOUT_MS } from '../config.js';
+import {
+  WAIT_POLL_INTERVAL_MS,
+  MAX_SILENT_ERRORS,
+  DEFAULT_WAIT_TIMEOUT_MS,
+  DEFAULT_ACTIVE_TIMEOUT_MS,
+} from '../config.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
@@ -255,12 +260,15 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
         if (pollTimeout) clearTimeout(pollTimeout);
         clearTimeout(timeoutHandle);
 
-        // Update participant status to active
+        // Update participant status to active with activeUntil timeout
+        // This gives the agent ~1 hour to complete the task before being considered crashed
+        const activeUntil = Date.now() + DEFAULT_ACTIVE_TIMEOUT_MS;
         await client.mutation(api.participants.updateStatus, {
           sessionId,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           status: 'active',
+          expiresAt: activeUntil,
         });
 
         // Get current chatroom state
