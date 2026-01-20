@@ -5,6 +5,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import {
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   MessageSquare,
   Clock,
   Loader2,
@@ -24,7 +25,9 @@ import React, { useEffect, useRef, useMemo, memo, useCallback, useState } from '
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
+import { compactMarkdownComponents } from './markdown-utils';
 import { WorkingIndicator } from './WorkingIndicator';
 
 import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
@@ -180,10 +183,15 @@ const getClassificationBadge = (classification: Message['classification']) => {
 interface MessageItemProps {
   message: Message;
   onFeatureClick?: (message: Message) => void;
+  onAttachedTaskClick?: (task: AttachedTask) => void;
 }
 
 // Memoized message item to prevent re-renders of all messages when one changes
-const MessageItem = memo(function MessageItem({ message, onFeatureClick }: MessageItemProps) {
+const MessageItem = memo(function MessageItem({
+  message,
+  onFeatureClick,
+  onAttachedTaskClick,
+}: MessageItemProps) {
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
   const messageTypeBadge = getMessageTypeBadge(message.type);
@@ -265,14 +273,17 @@ const MessageItem = memo(function MessageItem({ message, onFeatureClick }: Messa
             Attached Backlog ({message.attachedTasks.length})
           </div>
           {message.attachedTasks.map((task) => (
-            <div
+            <button
               key={task._id}
-              className="border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
+              onClick={() => onAttachedTaskClick?.(task)}
+              className="w-full text-left border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0 hover:bg-chatroom-accent-subtle transition-colors cursor-pointer group"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-chatroom-text-primary line-clamp-2">
-                  {task.content}
-                </span>
+                <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
+                  <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+                    {task.content}
+                  </Markdown>
+                </div>
                 <span
                   className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
                     task.backlogStatus === 'started'
@@ -284,8 +295,12 @@ const MessageItem = memo(function MessageItem({ message, onFeatureClick }: Messa
                 >
                   {task.backlogStatus || 'not started'}
                 </span>
+                <ChevronRight
+                  size={14}
+                  className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
+                />
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -355,6 +370,9 @@ export const MessageFeed = memo(function MessageFeed({
     title: '',
   });
 
+  // Attached task detail modal state
+  const [selectedAttachedTask, setSelectedAttachedTask] = useState<AttachedTask | null>(null);
+
   // Handle feature title click - open modal with details
   const handleFeatureClick = useCallback((message: Message) => {
     if (message.featureTitle) {
@@ -370,6 +388,16 @@ export const MessageFeed = memo(function MessageFeed({
   // Close feature modal
   const handleCloseFeatureModal = useCallback(() => {
     setFeatureModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  // Handle attached task click - open read-only detail modal
+  const handleAttachedTaskClick = useCallback((task: AttachedTask) => {
+    setSelectedAttachedTask(task);
+  }, []);
+
+  // Close attached task modal
+  const handleCloseAttachedTaskModal = useCallback(() => {
+    setSelectedAttachedTask(null);
   }, []);
 
   // Filter out join messages and reverse to show oldest first (query returns newest first)
@@ -497,7 +525,12 @@ export const MessageFeed = memo(function MessageFeed({
           </div>
         )}
         {displayMessages.map((message) => (
-          <MessageItem key={message._id} message={message} onFeatureClick={handleFeatureClick} />
+          <MessageItem
+            key={message._id}
+            message={message}
+            onFeatureClick={handleFeatureClick}
+            onAttachedTaskClick={handleAttachedTaskClick}
+          />
         ))}
         <WorkingIndicator participants={participants} />
       </div>
@@ -523,6 +556,12 @@ export const MessageFeed = memo(function MessageFeed({
         title={featureModal.title}
         description={featureModal.description}
         techSpecs={featureModal.techSpecs}
+      />
+      {/* Attached Task Detail Modal */}
+      <AttachedTaskDetailModal
+        isOpen={selectedAttachedTask !== null}
+        task={selectedAttachedTask}
+        onClose={handleCloseAttachedTaskModal}
       />
     </div>
   );
