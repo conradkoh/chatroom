@@ -366,10 +366,10 @@ export default defineSchema({
     // Status tracking
     // Note: available statuses depend on origin (see workflows above)
     status: v.union(
-      v.literal('pending'), // Backlog: in backlog tab / Chat: ready for agent
-      v.literal('in_progress'), // Agent actively working on it
+      v.literal('backlog'), // Backlog origin: initial state, task is in backlog tab
       v.literal('queued'), // Waiting in line (hidden from agent)
-      v.literal('backlog'), // DEPRECATED: Use origin='backlog' + status='pending' instead
+      v.literal('pending'), // Ready for agent to pick up
+      v.literal('in_progress'), // Agent actively working on it
       v.literal('pending_user_review'), // Backlog only: agent done, user must confirm
       v.literal('completed'), // Finished successfully
       v.literal('closed'), // Backlog only: user closed without completing

@@ -36,24 +36,34 @@ export type TaskSection =
 
 /**
  * Workflow definitions for each origin
+ *
+ * Backlog workflow:
+ *   backlog → (user moves to chat) → queued → pending → in_progress →
+ *   pending_user_review → completed/closed OR back to queued
+ *
+ * Chat workflow:
+ *   queued → pending → in_progress → completed
+ *
+ * Note: queued→pending and pending→in_progress transitions happen automatically
+ * when the agent acknowledges tasks (task-started event).
  */
 export const TASK_WORKFLOWS = {
   backlog: {
-    initial: 'pending' as const,
+    initial: 'backlog' as const, // Starts in backlog tab
     transitions: {
-      pending: ['queued'], // User moves to chat
-      queued: ['pending'], // Becomes next in line
-      // Note: pending→in_progress happens when there's no queue
+      backlog: ['queued'], // User moves backlog item to chat
+      queued: ['pending'], // Automatic: becomes next in line
+      pending: ['in_progress'], // Automatic: agent task-started
       in_progress: ['pending_user_review'], // Agent completes
-      pending_user_review: ['completed', 'closed', 'queued'], // User decides or sends back
+      pending_user_review: ['completed', 'closed', 'queued'], // User decides or sends back for re-work
     },
     terminal: ['completed', 'closed'] as const,
   },
   chat: {
-    initial: 'queued' as const,
+    initial: 'queued' as const, // Starts in queue
     transitions: {
-      queued: ['pending'], // Becomes next in line
-      pending: ['in_progress'], // Agent starts
+      queued: ['pending'], // Automatic: becomes next in line
+      pending: ['in_progress'], // Automatic: agent task-started
       in_progress: ['completed'], // Agent finishes
     },
     terminal: ['completed'] as const,
@@ -64,10 +74,13 @@ export const TASK_WORKFLOWS = {
  * Get the UI section for a task based on its origin and status
  */
 export function getTaskSection(origin: TaskOrigin | undefined, status: TaskStatus): TaskSection {
-  // Handle deprecated statuses
+  // Backlog status - shows in backlog section
+  // This is the initial state for backlog-origin tasks (before moved to chat)
   if (status === 'backlog') {
     return 'backlog';
   }
+
+  // Handle deprecated status
   if (status === 'cancelled') {
     return 'archived';
   }
@@ -77,27 +90,19 @@ export function getTaskSection(origin: TaskOrigin | undefined, status: TaskStatu
     return 'archived';
   }
 
-  // Pending user review (backlog only)
+  // Pending user review (backlog only) - shows in pending review section
   if (status === 'pending_user_review') {
     return 'pending_review';
   }
 
-  // Active work
-  if (status === 'in_progress') {
+  // Active work - shows in current section
+  if (status === 'in_progress' || status === 'pending') {
     return 'current';
   }
 
-  // Queued
+  // Queued - shows in queued section
   if (status === 'queued') {
     return 'queued';
-  }
-
-  // Pending - depends on origin
-  if (status === 'pending') {
-    if (origin === 'backlog') {
-      return 'backlog';
-    }
-    return 'current'; // Chat tasks in pending are ready for agent
   }
 
   // Fallback
@@ -201,11 +206,13 @@ export function canSendBackForRework(origin: TaskOrigin | undefined, status: Tas
  * Check if task can be added to chat (attached to a message)
  */
 export function canAddToChat(origin: TaskOrigin | undefined, status: TaskStatus): boolean {
-  // Only backlog-origin tasks in pending state can be added to chat
+  // Only backlog-origin tasks can be added to chat
   if (origin !== 'backlog') {
     return false;
   }
 
-  // Allow adding from pending (backlog tab) or pending_user_review (for re-review)
-  return status === 'pending' || status === 'pending_user_review';
+  // Allow adding from:
+  // - 'backlog' state (task is in backlog tab, not yet moved to chat)
+  // - 'pending_user_review' state (for re-review after agent completion)
+  return status === 'backlog' || status === 'pending_user_review';
 }
