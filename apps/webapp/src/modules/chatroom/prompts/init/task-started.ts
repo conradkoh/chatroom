@@ -31,7 +31,7 @@ export function getTaskStartedSection(ctx: InitPromptContext): string {
 When you receive a user message, you MUST first acknowledge it and classify what type of request it is:
 
 \`\`\`bash
-chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<type>
+${ctx.cliEnvPrefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<type>
 \`\`\`
 
 ### Classification Types
@@ -47,7 +47,7 @@ chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<typ
 When classifying a message as \`new_feature\`, you MUST provide metadata:
 
 \`\`\`bash
-chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
+${ctx.cliEnvPrefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
   --title="<plain text title>" \\
   --description="<markdown formatted description>" \\
   --tech-specs="<markdown formatted technical specifications>"
@@ -62,7 +62,7 @@ chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_
 
 \`\`\`bash
 # Acknowledge you're starting work on a new feature request
-chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
+${ctx.cliEnvPrefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
   --title="Add user authentication" \\
   --description="Implement JWT-based authentication with login/logout flow" \\
   --tech-specs="Use bcrypt for password hashing. JWT tokens expire after 24h."
@@ -70,7 +70,7 @@ chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_
 # Now do your work...
 
 # When done, hand off appropriately based on classification
-chatroom handoff ${ctx.chatroomId} \\
+${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
   --message="<markdown formatted summary>" \\
   --next-role=${isBuilder ? 'reviewer' : 'user'}

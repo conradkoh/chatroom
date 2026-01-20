@@ -66,6 +66,7 @@ export const ReconnectModal = memo(function ReconnectModal({
         teamName,
         teamRoles,
         teamEntryPoint,
+        convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
       }),
     }));
   }, [chatroomId, teamName, teamRoles, teamEntryPoint, expiredRoles]);

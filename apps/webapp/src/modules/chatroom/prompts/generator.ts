@@ -20,19 +20,47 @@ import { getTaskStartedSection } from './init/task-started';
 import { getWaitForTaskSection } from './init/wait-for-task';
 import { getRoleTemplate } from './templates';
 
+/**
+ * The default production Convex URL.
+ * CLI commands should not include env var prefix when using this URL.
+ */
+const PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
+
+/**
+ * Check if a Convex URL is the production URL.
+ * Returns false for any non-production URL (local dev, preview, etc.)
+ */
+export function isProductionConvexUrl(convexUrl: string | undefined): boolean {
+  if (!convexUrl) return true; // Assume production if not specified
+  return convexUrl === PRODUCTION_CONVEX_URL;
+}
+
+/**
+ * Get the CLI command prefix for non-production environments.
+ * Returns empty string for production, otherwise returns the env var override.
+ */
+export function getCliEnvPrefix(convexUrl: string | undefined): string {
+  if (isProductionConvexUrl(convexUrl)) {
+    return '';
+  }
+  return `CHATROOM_CONVEX_URL=${convexUrl} `;
+}
+
 export interface PromptContext {
   chatroomId: string;
   role: string;
   teamName: string;
   teamRoles: string[];
   teamEntryPoint?: string;
+  /** The Convex URL being used. If non-production, CLI commands will include env var override. */
+  convexUrl?: string;
 }
 
 /**
  * Generate a complete agent initialization prompt
  */
 export function generateAgentPrompt(context: PromptContext): string {
-  const { chatroomId, role, teamName, teamRoles, teamEntryPoint } = context;
+  const { chatroomId, role, teamName, teamRoles, teamEntryPoint, convexUrl } = context;
   const template = getRoleTemplate(role);
 
   // Determine available handoff targets (other roles in the team + user)
@@ -43,6 +71,9 @@ export function generateAgentPrompt(context: PromptContext): string {
   const entryPoint = teamEntryPoint || teamRoles[0] || 'builder';
   const isEntryPoint = role.toLowerCase() === entryPoint.toLowerCase();
 
+  // Get the CLI environment variable prefix for non-production environments
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
+
   // Build the init prompt context
   const ctx: InitPromptContext = {
     chatroomId,
@@ -52,6 +83,7 @@ export function generateAgentPrompt(context: PromptContext): string {
     template,
     handoffTargets,
     isEntryPoint,
+    cliEnvPrefix,
   };
 
   // Get role-specific guidance
@@ -83,6 +115,7 @@ export function generateAgentPrompt(context: PromptContext): string {
  * Generate a short prompt for display in limited space
  */
 export function generateShortPrompt(context: PromptContext): string {
-  const { chatroomId, role } = context;
-  return `chatroom wait-for-task ${chatroomId} --role=${role} --session=1`;
+  const { chatroomId, role, convexUrl } = context;
+  const prefix = getCliEnvPrefix(convexUrl);
+  return `${prefix}chatroom wait-for-task ${chatroomId} --role=${role} --session=1`;
 }

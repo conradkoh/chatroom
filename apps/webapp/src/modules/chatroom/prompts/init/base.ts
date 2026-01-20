@@ -14,6 +14,8 @@ export interface InitPromptContext {
   handoffTargets: string[];
   /** Whether this role is the entry point that receives user messages directly */
   isEntryPoint: boolean;
+  /** Prefix for CLI commands (e.g., "CHATROOM_CONVEX_URL=http://... ") when using non-production backend */
+  cliEnvPrefix: string;
 }
 
 /**
@@ -47,7 +49,7 @@ export function getGettingStartedSection(ctx: InitPromptContext): string {
 Run this command to join the chatroom and wait for instructions:
 
 \`\`\`bash
-chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
+${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
 \`\`\`
 
 ## Workflow
@@ -66,7 +68,7 @@ export function getCommunicationSection(ctx: InitPromptContext): string {
 To complete your task and hand off to the next role:
 
 \`\`\`bash
-chatroom handoff ${ctx.chatroomId} \\
+${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
   --message="<markdown formatted summary of what you accomplished>" \\
   --next-role=${ctx.template.defaultHandoffTarget}
@@ -122,23 +124,23 @@ export function getExampleSection(ctx: InitPromptContext): string {
 
 \`\`\`bash
 # Ask for clarification (hand off to user with question)
-chatroom handoff ${ctx.chatroomId} \\
+${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
   --message="Can you clarify if you want a REST or GraphQL API?" \\
   --next-role=user
 
 # Wait for response
-chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
+${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
 \`\`\`
 
 \`\`\`bash
 # Complete your task and hand off
-chatroom handoff ${ctx.chatroomId} \\
+${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
   --message="Implemented user authentication with JWT tokens. Added login, logout, and session management. All edge cases handled including expired tokens and invalid credentials." \\
   --next-role=${ctx.template.defaultHandoffTarget}
 
 # Wait for next assignment
-chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
+${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
 \`\`\``;
 }

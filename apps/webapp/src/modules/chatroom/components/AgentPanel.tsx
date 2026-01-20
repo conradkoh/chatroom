@@ -391,6 +391,7 @@ export const AgentPanel = memo(function AgentPanel({
         teamName,
         teamRoles,
         teamEntryPoint,
+        convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
       });
     },
     [chatroomId, teamName, teamRoles, teamEntryPoint]

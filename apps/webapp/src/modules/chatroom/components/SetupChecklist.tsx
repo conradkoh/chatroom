@@ -43,6 +43,7 @@ export const SetupChecklist = memo(function SetupChecklist({
         teamName,
         teamRoles,
         teamEntryPoint,
+        convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
       });
     },
     [chatroomId, teamName, teamRoles, teamEntryPoint]
