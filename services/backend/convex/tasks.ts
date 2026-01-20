@@ -644,7 +644,8 @@ export const listTasks = query({
         v.literal('backlog'),
         v.literal('completed'),
         v.literal('cancelled'),
-        v.literal('active') // pending + in_progress + queued + backlog
+        v.literal('active'), // pending + in_progress + queued + backlog
+        v.literal('pending_review') // completed + backlog.status === 'started'
       )
     ),
     // Filter for backlog lifecycle status
@@ -675,6 +676,10 @@ export const listTasks = query({
             t.status === 'queued' ||
             t.status === 'backlog'
         );
+      } else if (args.statusFilter === 'pending_review') {
+        // Pending review: completed tasks with backlog.status === 'started'
+        // These are backlog tasks that have been completed but not yet marked as reviewed
+        tasks = tasks.filter((t) => t.status === 'completed' && t.backlog?.status === 'started');
       } else {
         tasks = tasks.filter((t) => t.status === args.statusFilter);
       }

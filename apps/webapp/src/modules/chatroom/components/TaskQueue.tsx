@@ -125,17 +125,15 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   }) as QueueHealth | undefined;
 
   // Query pending review tasks (completed tasks with backlog.status = started)
+  // Uses dedicated 'pending_review' statusFilter on the backend for efficiency
   const pendingReviewTasks = useSessionQuery(tasksApi.tasks.listTasks, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    statusFilter: 'completed',
+    statusFilter: 'pending_review',
     limit: 100, // Match MAX_TASK_LIST_LIMIT from backend
   }) as Task[] | undefined;
 
-  // Filter to only show tasks that are pending review (completed + backlog.status = started)
-  const filteredPendingReviewTasks = useMemo(() => {
-    if (!pendingReviewTasks) return [];
-    return pendingReviewTasks.filter((t) => t.backlog?.status === 'started');
-  }, [pendingReviewTasks]);
+  // No frontend filtering needed - backend handles pending_review filter
+  const filteredPendingReviewTasks = pendingReviewTasks ?? [];
 
   // Query archived backlog tasks (only when expanded)
   const archivedTasks = useSessionQuery(
