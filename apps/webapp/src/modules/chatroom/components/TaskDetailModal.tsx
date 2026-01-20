@@ -331,9 +331,9 @@ export function TaskDetailModal({
               </div>
 
               {/* Tab Content - min-h-[260px] ensures comfortable editing area */}
-              <div className="flex-1 overflow-hidden min-h-[260px]">
+              <div className="flex-1 flex flex-col overflow-hidden min-h-[260px]">
                 {activeTab === 'edit' ? (
-                  // Edit Tab - Full width textarea
+                  // Edit Tab - Full width textarea that fills container
                   <textarea
                     value={editedContent}
                     onChange={(e) => setEditedContent(e.target.value)}
@@ -346,7 +346,7 @@ export function TaskDetailModal({
                         }
                       }
                     }}
-                    className="w-full h-full bg-chatroom-bg-primary border-0 text-chatroom-text-primary text-sm p-4 resize-none focus:outline-none font-mono"
+                    className="flex-1 w-full bg-chatroom-bg-primary border-0 text-chatroom-text-primary text-sm p-4 resize-none focus:outline-none font-mono"
                     autoFocus
                     placeholder="Write your markdown here..."
                   />
