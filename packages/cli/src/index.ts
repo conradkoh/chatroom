@@ -281,4 +281,31 @@ backlogCommand
     }
   );
 
+// ============================================================================
+// GUIDELINES COMMANDS (auth required)
+// ============================================================================
+
+const guidelinesCommand = program
+  .command('guidelines')
+  .description('View review guidelines by type');
+
+guidelinesCommand
+  .command('view')
+  .description('View guidelines for a specific review type')
+  .requiredOption('--type <type>', 'Guideline type (coding|security|design|performance|all)')
+  .action(async (options: { type: string }) => {
+    await maybeRequireAuth();
+    const { viewGuidelines } = await import('./commands/guidelines.js');
+    await viewGuidelines(options);
+  });
+
+guidelinesCommand
+  .command('list')
+  .description('List available guideline types')
+  .action(async () => {
+    await maybeRequireAuth();
+    const { listGuidelineTypes } = await import('./commands/guidelines.js');
+    await listGuidelineTypes();
+  });
+
 program.parse();
