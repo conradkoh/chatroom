@@ -82,8 +82,9 @@ export const getGuidelines = query({
         };
 
       default: {
-        const _exhaustive: never = args.type;
-        throw new Error(`Unknown guideline type: ${args.type}`);
+        // Exhaustive check: if this errors, a new type was added but not handled
+        const exhaustiveCheck: never = args.type;
+        throw new Error(`Unknown guideline type: ${exhaustiveCheck}`);
       }
     }
   },
