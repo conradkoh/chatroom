@@ -946,3 +946,54 @@ export const getPendingTasksForRole = query({
     return tasksWithMessages;
   },
 });
+
+/**
+ * Get tasks by their IDs.
+ * Used by CLI to fetch full task details for attached tasks in messages.
+ * Requires CLI session authentication and validates chatroom access for each task.
+ */
+export const getTasksByIds = query({
+  args: {
+    sessionId: v.string(),
+    taskIds: v.array(v.id('chatroom_tasks')),
+  },
+  handler: async (ctx, args) => {
+    // Validate session
+    const session = await ctx.db
+      .query('cli_sessions')
+      .withIndex('by_session_id', (q) => q.eq('sessionId', args.sessionId))
+      .first();
+
+    if (!session || !session.isValid || !session.userId) {
+      return [];
+    }
+
+    // Fetch tasks
+    const tasks = await Promise.all(
+      args.taskIds.map(async (taskId) => {
+        const task = await ctx.db.get('chatroom_tasks', taskId);
+        if (!task) return null;
+
+        // Verify user has access to the chatroom this task belongs to
+        const participant = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', task.chatroomId))
+          .filter((q) => q.eq(q.field('userId'), session.userId))
+          .first();
+
+        if (!participant) return null;
+
+        return {
+          _id: task._id,
+          content: task.content,
+          status: task.status,
+          createdAt: task.createdAt,
+          createdBy: task.createdBy,
+          backlog: task.backlog,
+        };
+      })
+    );
+
+    return tasks.filter((t) => t !== null);
+  },
+});

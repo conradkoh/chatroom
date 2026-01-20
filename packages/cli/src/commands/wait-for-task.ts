@@ -345,6 +345,44 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
         })) as ContextWindow;
 
+        // Collect all attached task IDs from context window messages
+        const allAttachedTaskIds: Id<'chatroom_tasks'>[] = [];
+        if (
+          contextWindow.originMessage?.attachedTaskIds &&
+          contextWindow.originMessage.attachedTaskIds.length > 0
+        ) {
+          allAttachedTaskIds.push(
+            ...(contextWindow.originMessage.attachedTaskIds as Id<'chatroom_tasks'>[])
+          );
+        }
+        for (const msg of contextWindow.contextMessages) {
+          if (msg.attachedTaskIds && msg.attachedTaskIds.length > 0) {
+            allAttachedTaskIds.push(...(msg.attachedTaskIds as Id<'chatroom_tasks'>[]));
+          }
+        }
+
+        // Fetch attached task content if there are any
+        type AttachedTask = {
+          _id: Id<'chatroom_tasks'>;
+          content: string;
+          status: string;
+          createdAt: number;
+          createdBy: string;
+          backlog?: { status: string };
+        };
+        let attachedTasks: AttachedTask[] = [];
+        if (allAttachedTaskIds.length > 0) {
+          // Remove duplicates
+          const uniqueTaskIds = [...new Set(allAttachedTaskIds)];
+          attachedTasks = (await client.query(api.tasks.getTasksByIds, {
+            sessionId,
+            taskIds: uniqueTaskIds,
+          })) as AttachedTask[];
+        }
+
+        // Build a map for easy lookup
+        const attachedTasksMap = new Map(attachedTasks.map((t) => [t._id, t]));
+
         // Determine if classification is needed
         const needsClassification =
           rolePromptInfo.currentClassification === null && senderRole.toLowerCase() === 'user';
@@ -437,6 +475,17 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
                   ...(contextWindow.originMessage.attachedTaskIds &&
                     contextWindow.originMessage.attachedTaskIds.length > 0 && {
                       attachedTaskIds: contextWindow.originMessage.attachedTaskIds,
+                      // Include full task content for attached tasks
+                      attachedTasks: contextWindow.originMessage.attachedTaskIds
+                        .map((id) => attachedTasksMap.get(id as Id<'chatroom_tasks'>))
+                        .filter(Boolean)
+                        .map((t) => ({
+                          id: t!._id,
+                          content: t!.content,
+                          status: t!.status,
+                          createdBy: t!.createdBy,
+                          backlogStatus: t!.backlog?.status,
+                        })),
                     }),
                 }
               : null,
@@ -448,7 +497,20 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
               targetRole: m.targetRole,
               classification: m.classification,
               ...(m.attachedTaskIds &&
-                m.attachedTaskIds.length > 0 && { attachedTaskIds: m.attachedTaskIds }),
+                m.attachedTaskIds.length > 0 && {
+                  attachedTaskIds: m.attachedTaskIds,
+                  // Include full task content for attached tasks
+                  attachedTasks: m.attachedTaskIds
+                    .map((id) => attachedTasksMap.get(id as Id<'chatroom_tasks'>))
+                    .filter(Boolean)
+                    .map((t) => ({
+                      id: t!._id,
+                      content: t!.content,
+                      status: t!.status,
+                      createdBy: t!.createdBy,
+                      backlogStatus: t!.backlog?.status,
+                    })),
+                }),
             })),
             currentClassification: contextWindow.classification,
           },
