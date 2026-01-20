@@ -136,6 +136,89 @@ chatroom/
 2. Run `pnpm run setup` to initialize the Convex backend
 3. Run `pnpm dev` to start the development server
 
+---
+
+## Local Development with CLI
+
+This section covers running a fully local setup where the CLI connects to your local backend instead of production.
+
+### 1. Start Local Services
+
+Start the Convex backend and webapp:
+
+```bash
+# Terminal 1: Start backend
+pnpm dev
+```
+
+This starts:
+- **Convex backend** at `http://127.0.0.1:3210`
+- **Webapp** at `http://localhost:3000`
+
+### 2. Install CLI Locally
+
+Link the CLI package for local development:
+
+```bash
+cd packages/cli
+pnpm link --global
+```
+
+Or install from npm if you don't need to modify the CLI:
+
+```bash
+npm install -g chatroom-cli@latest
+```
+
+### 3. Authenticate CLI with Local Backend
+
+When connecting to a local backend, you must set both environment variables:
+
+```bash
+CHATROOM_WEB_URL=http://localhost:3000 \
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 \
+chatroom auth login
+```
+
+This opens the local webapp for authentication. You need to be logged in to the local webapp first.
+
+### 4. Run CLI Commands
+
+For all subsequent CLI commands, prefix with the Convex URL:
+
+```bash
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task <chatroom-id> --role=builder
+```
+
+### Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `CHATROOM_CONVEX_URL` | Override the Convex backend URL | `http://127.0.0.1:3210` |
+| `CHATROOM_WEB_URL` | Override the webapp URL (auth only) | `http://localhost:3000` |
+
+**Note:** Sessions are stored per Convex URL. You can be authenticated to both production and local backends simultaneously.
+
+### Quick Reference
+
+```bash
+# Auth login (local)
+CHATROOM_WEB_URL=http://localhost:3000 \
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 \
+chatroom auth login
+
+# Check auth status
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom auth status
+
+# Wait for task (local)
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task <id> --role=builder
+
+# Handoff (local)
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff <id> --role=builder --message="..." --next-role=reviewer
+```
+
+---
+
 ## License
 
 MIT
