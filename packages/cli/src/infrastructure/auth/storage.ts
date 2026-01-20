@@ -102,6 +102,9 @@ function isMultiEnvFormat(data: unknown): data is MultiEnvAuthData {
   );
 }
 
+// Production URL constant (used for legacy data migration)
+const PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
+
 /**
  * Load the stored authentication data for the current environment
  */
@@ -111,16 +114,21 @@ export function loadAuthData(): AuthData | null {
     return null;
   }
 
+  const convexUrl = getConvexUrl();
+
   // Handle new multi-environment format
   if (isMultiEnvFormat(rawData)) {
-    const convexUrl = getConvexUrl();
     return rawData.sessions[convexUrl] ?? null;
   }
 
-  // Handle legacy format - migrate to new format on next save
-  // For now, return the legacy data for the production URL only
+  // Handle legacy format - only return for production URL
+  // Legacy data predates multi-env support and was always for production
   const legacyData = rawData as LegacyAuthData;
-  return legacyData.sessionId ? legacyData : null;
+  if (legacyData.sessionId && convexUrl === PRODUCTION_CONVEX_URL) {
+    return legacyData;
+  }
+
+  return null;
 }
 
 /**
@@ -142,11 +150,10 @@ export function saveAuthData(data: AuthData): void {
   } else if (rawData && (rawData as LegacyAuthData).sessionId) {
     // Migrate legacy data - associate it with production URL
     const legacyData = rawData as LegacyAuthData;
-    const productionUrl = 'https://chatroom-cloud.duskfare.com';
     multiEnvData = {
       version: 2,
       sessions: {
-        [productionUrl]: {
+        [PRODUCTION_CONVEX_URL]: {
           sessionId: legacyData.sessionId,
           createdAt: legacyData.createdAt,
           deviceName: legacyData.deviceName,
@@ -260,12 +267,12 @@ export function getAllSessions(): { url: string; sessionId: string; createdAt?: 
     }));
   }
 
-  // Legacy format
+  // Legacy format - always associated with production URL
   const legacyData = rawData as LegacyAuthData;
   if (legacyData.sessionId) {
     return [
       {
-        url: 'https://chatroom-cloud.duskfare.com',
+        url: PRODUCTION_CONVEX_URL,
         sessionId: legacyData.sessionId,
         createdAt: legacyData.createdAt,
       },
