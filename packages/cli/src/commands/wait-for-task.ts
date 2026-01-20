@@ -2,15 +2,7 @@
  * Wait for tasks in a chatroom
  */
 
-import {
-  api,
-  type Id,
-  type Chatroom,
-  type Participant,
-  type ContextWindow,
-  type RolePromptResponse,
-  type TaskWithMessage,
-} from '../api.js';
+import { api, type Id, type Chatroom, type TaskWithMessage } from '../api.js';
 import {
   WAIT_POLL_INTERVAL_MS,
   MAX_SILENT_ERRORS,
@@ -286,17 +278,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
           expiresAt: activeUntil,
         });
 
-        // Get current chatroom state
-        const chatroomData = (await client.query(api.chatrooms.get, {
-          sessionId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        })) as Chatroom | null;
-
-        const participants = (await client.query(api.participants.list, {
-          sessionId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        })) as Participant[];
-
         // Handle interrupt (if message is interrupt type)
         if (message && message.type === 'interrupt') {
           console.log(`\n${'═'.repeat(50)}`);
@@ -308,274 +289,23 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
           process.exit(0);
         }
 
-        // Use message content if available, otherwise task content
-        const displayContent = message?.content || task.content;
-        const senderRole = message?.senderRole || task.createdBy;
-        const messageType = message?.type || 'message';
-        const targetRole = message?.targetRole;
-
-        // Print message details
-        console.log(`\n${'═'.repeat(50)}`);
-        console.log(`📨 MESSAGE RECEIVED`);
-        console.log(`${'═'.repeat(50)}`);
-        console.log(`From: ${senderRole}`);
-        console.log(`Type: ${messageType}`);
-        if (targetRole) {
-          console.log(`To: ${targetRole}`);
-        }
-        console.log(`\n📄 Content:\n${displayContent}`);
-
-        // Print chatroom state
-        console.log(`\n${'─'.repeat(50)}`);
-        console.log(`📋 CHATROOM STATE`);
-        console.log(`${'─'.repeat(50)}`);
-        console.log(`Chatroom ID: ${chatroomId}`);
-        if (chatroomData && chatroomData.teamRoles && chatroomData.teamRoles.length > 0) {
-          console.log(
-            `Team: ${chatroomData.teamName || 'Unknown'} (${chatroomData.teamRoles.join(', ')})`
-          );
-        }
-        console.log(`\nParticipants:`);
-
-        for (const p of participants) {
-          const youMarker = p.role.toLowerCase() === role.toLowerCase() ? ' (you)' : '';
-          const statusIcon = p.status === 'active' ? '🔵' : p.status === 'waiting' ? '🟢' : '⚪';
-          const availableMarker =
-            p.status === 'waiting' && p.role.toLowerCase() !== role.toLowerCase()
-              ? ' ✓ available'
-              : '';
-          console.log(`  ${statusIcon} ${p.role}${youMarker} - ${p.status}${availableMarker}`);
-        }
-
-        // Get role prompt (includes allowed roles, classification, and workflow guidance)
-        const rolePromptInfo = (await client.query(api.messages.getRolePrompt, {
+        // Get the complete task delivery prompt from backend
+        const taskDeliveryPrompt = await client.query(api.messages.getTaskDeliveryPrompt, {
           sessionId,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
-        })) as RolePromptResponse;
+          taskId: task._id,
+          messageId: message?._id,
+        });
 
-        // Get context window (latest non-follow-up message + all messages after)
-        const contextWindow = (await client.query(api.messages.getContextWindow, {
-          sessionId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        })) as ContextWindow;
+        // Print human-readable sections
+        console.log(`\n${taskDeliveryPrompt.humanReadable}`);
 
-        // Collect all attached task IDs from context window messages
-        const allAttachedTaskIds: Id<'chatroom_tasks'>[] = [];
-        if (
-          contextWindow.originMessage?.attachedTaskIds &&
-          contextWindow.originMessage.attachedTaskIds.length > 0
-        ) {
-          allAttachedTaskIds.push(
-            ...(contextWindow.originMessage.attachedTaskIds as Id<'chatroom_tasks'>[])
-          );
-        }
-        for (const msg of contextWindow.contextMessages) {
-          if (msg.attachedTaskIds && msg.attachedTaskIds.length > 0) {
-            allAttachedTaskIds.push(...(msg.attachedTaskIds as Id<'chatroom_tasks'>[]));
-          }
-        }
-
-        // Fetch attached task content if there are any
-        type AttachedTask = {
-          _id: Id<'chatroom_tasks'>;
-          content: string;
-          status: string;
-          createdAt: number;
-          createdBy: string;
-          backlog?: { status: string };
-        };
-        let attachedTasks: AttachedTask[] = [];
-        if (allAttachedTaskIds.length > 0) {
-          // Remove duplicates
-          const uniqueTaskIds = [...new Set(allAttachedTaskIds)];
-          try {
-            attachedTasks = (await client.query(api.tasks.getTasksByIds, {
-              sessionId,
-              taskIds: uniqueTaskIds,
-            })) as AttachedTask[];
-          } catch (err) {
-            // Log error but continue - attached tasks are informational
-            console.warn(
-              `⚠️  Failed to fetch attached task content: ${err instanceof Error ? err.message : 'Unknown error'}`
-            );
-          }
-        }
-
-        // Build a map for easy lookup
-        const attachedTasksMap = new Map(attachedTasks.map((t) => [t._id, t]));
-
-        // Determine if classification is needed
-        const needsClassification =
-          rolePromptInfo.currentClassification === null && senderRole.toLowerCase() === 'user';
-
-        // Print next steps
-        console.log(`\n${'─'.repeat(50)}`);
-        console.log(`📝 NEXT STEPS`);
-        console.log(`${'─'.repeat(50)}`);
-
-        // Show classification step if needed
-        if (needsClassification) {
-          console.log(`\n1️⃣ First, classify this user message:\n`);
-          console.log(`  chatroom task-started ${chatroomId} \\`);
-          console.log(`    --role=${role} \\`);
-          console.log(`    --classification=<question|new_feature|follow_up>\n`);
-          console.log(`   Options:`);
-          console.log(`     question    - User asking a question`);
-          console.log(`     new_feature - New feature request (requires review)`);
-          console.log(`     follow_up   - Follow-up to previous task\n`);
-          console.log(`2️⃣ When your task is complete, run:\n`);
-        } else {
-          console.log(`When your task is complete, run:\n`);
-        }
-
-        console.log(`  chatroom handoff ${chatroomId} \\`);
-        console.log(`    --role=${role} \\`);
-        console.log(`    --message="<summary of what you accomplished>" \\`);
-        console.log(`    --next-role=<target>\n`);
-
-        // Print reminder
-        printWaitReminder(chatroomId, role);
-
-        // Output role-specific prompt/guidance
-        console.log(`${'─'.repeat(50)}`);
-        console.log(`📋 ROLE GUIDANCE`);
-        console.log(`${'─'.repeat(50)}`);
-        console.log(rolePromptInfo.prompt);
-
-        // Output backlog commands reference (for builders who need to check backlog)
-        if (role.toLowerCase() === 'builder') {
-          console.log(`\n${'─'.repeat(50)}`);
-          console.log(`📦 BACKLOG COMMANDS`);
-          console.log(`${'─'.repeat(50)}`);
-          console.log(`If the user refers to the backlog or you need to check pending tasks:\n`);
-          console.log(`**List tasks:**`);
-          console.log(
-            `  chatroom backlog list ${chatroomId} --role=${role} [--status=<status>] [--limit=<n>]`
-          );
-          console.log(
-            `  Status: pending, in_progress, queued, backlog, completed, cancelled, active (default), all\n`
-          );
-          console.log(`**Add a task:**`);
-          console.log(
-            `  chatroom backlog add ${chatroomId} --role=${role} --content="<description>"\n`
-          );
-          console.log(`**Complete a task:**`);
-          console.log(
-            `  chatroom backlog complete ${chatroomId} --role=${role} --taskId=<id> [--force]`
-          );
-        }
-
-        // Output JSON for parsing
+        // Print JSON output
         console.log(`\n${'─'.repeat(50)}`);
         console.log(`📊 MESSAGE DATA (JSON)`);
         console.log(`${'─'.repeat(50)}`);
-
-        // Build classification commands object
-        const classificationCommands = {
-          question: `chatroom task-started ${chatroomId} --role=${role} --classification=question`,
-          new_feature: `chatroom task-started ${chatroomId} --role=${role} --classification=new_feature --title="<title>" --description="<description>" --tech-specs="<specifications>"`,
-          follow_up: `chatroom task-started ${chatroomId} --role=${role} --classification=follow_up`,
-        };
-
-        // Build context commands (always include for builder role)
-        const contextCommands =
-          role.toLowerCase() === 'builder'
-            ? [
-                `chatroom feature list ${chatroomId} --limit=5`,
-                `chatroom backlog list ${chatroomId} --role=${role}`,
-                `chatroom backlog add ${chatroomId} --role=${role} --content="<description>"`,
-                `chatroom backlog complete ${chatroomId} --role=${role} --taskId=<id>`,
-              ]
-            : undefined;
-
-        const jsonOutput = {
-          message: {
-            id: message?._id || task._id,
-            senderRole: senderRole,
-            content: displayContent,
-            type: messageType,
-          },
-          task: {
-            id: task._id,
-            status: task.status,
-            createdBy: task.createdBy,
-            queuePosition: task.queuePosition,
-          },
-          chatroom: {
-            id: chatroomId,
-            participants: participants.map((p) => ({
-              role: p.role,
-              status: p.status,
-              isYou: p.role.toLowerCase() === role.toLowerCase(),
-              availableForHandoff:
-                p.status === 'waiting' && p.role.toLowerCase() !== role.toLowerCase(),
-            })),
-          },
-          context: {
-            originMessage: contextWindow.originMessage
-              ? {
-                  id: contextWindow.originMessage._id,
-                  senderRole: contextWindow.originMessage.senderRole,
-                  content: contextWindow.originMessage.content,
-                  classification: contextWindow.originMessage.classification,
-                  ...(contextWindow.originMessage.attachedTaskIds &&
-                    contextWindow.originMessage.attachedTaskIds.length > 0 && {
-                      attachedTaskIds: contextWindow.originMessage.attachedTaskIds,
-                      // Include full task content for attached tasks
-                      attachedTasks: contextWindow.originMessage.attachedTaskIds
-                        .map((id) => attachedTasksMap.get(id as Id<'chatroom_tasks'>))
-                        .filter(Boolean)
-                        .map((t) => ({
-                          id: t!._id,
-                          content: t!.content,
-                          status: t!.status,
-                          createdBy: t!.createdBy,
-                          backlogStatus: t!.backlog?.status,
-                        })),
-                    }),
-                }
-              : null,
-            allMessages: contextWindow.contextMessages.map((m) => ({
-              id: m._id,
-              senderRole: m.senderRole,
-              content: m.content,
-              type: m.type,
-              targetRole: m.targetRole,
-              classification: m.classification,
-              ...(m.attachedTaskIds &&
-                m.attachedTaskIds.length > 0 && {
-                  attachedTaskIds: m.attachedTaskIds,
-                  // Include full task content for attached tasks
-                  attachedTasks: m.attachedTaskIds
-                    .map((id) => attachedTasksMap.get(id as Id<'chatroom_tasks'>))
-                    .filter(Boolean)
-                    .map((t) => ({
-                      id: t!._id,
-                      content: t!.content,
-                      status: t!.status,
-                      createdBy: t!.createdBy,
-                      backlogStatus: t!.backlog?.status,
-                    })),
-                }),
-            })),
-            currentClassification: contextWindow.classification,
-          },
-          instructions: {
-            taskStartedCommand: needsClassification
-              ? `chatroom task-started ${chatroomId} --role=${role} --classification=<question|new_feature|follow_up>`
-              : null,
-            taskCompleteCommand: `chatroom handoff ${chatroomId} --role=${role} --message="<summary>" --next-role=<target>`,
-            availableHandoffRoles: rolePromptInfo.availableHandoffRoles,
-            terminationRole: 'user',
-            classification: rolePromptInfo.currentClassification,
-            handoffRestriction: rolePromptInfo.restrictionReason,
-            classificationCommands,
-            contextCommands,
-          },
-        };
-
-        console.log(JSON.stringify(jsonOutput, null, 2));
+        console.log(JSON.stringify(taskDeliveryPrompt.json, null, 2));
 
         process.exit(0);
       } else {
