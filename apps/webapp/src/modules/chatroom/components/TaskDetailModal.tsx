@@ -27,13 +27,23 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
+type TaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'queued'
+  | 'backlog'
+  | 'pending_user_review'
+  | 'completed'
+  | 'closed'
+  | 'cancelled'; // deprecated
+type TaskOrigin = 'backlog' | 'chat';
 type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
 
 interface Task {
   _id: Id<'chatroom_tasks'>;
   content: string;
   status: TaskStatus;
+  origin?: TaskOrigin;
   createdAt: number;
   updatedAt: number;
   queuePosition: number;
@@ -81,6 +91,30 @@ const getStatusBadge = (status: TaskStatus) => {
       return {
         emoji: '⚪',
         label: 'Backlog',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
+    case 'pending_user_review':
+      return {
+        emoji: '🟣',
+        label: 'Review',
+        classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
+      };
+    case 'completed':
+      return {
+        emoji: '✅',
+        label: 'Completed',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
+    case 'closed':
+      return {
+        emoji: '⚫',
+        label: 'Closed',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
+    case 'cancelled':
+      return {
+        emoji: '⚫',
+        label: 'Cancelled',
         classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
       };
     default:
@@ -258,13 +292,26 @@ export function TaskDetailModal({
     return null;
   }
 
-  // Determine backlog status for showing appropriate actions
-  const isArchivedBacklog =
-    task.backlog?.status === 'complete' || task.backlog?.status === 'closed';
-  const isActiveBacklog = task.backlog && !isArchivedBacklog;
+  // Determine if this is a backlog-origin task
+  const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
 
-  // Pending review items: completed tasks with backlog.status === 'started'
-  const isPendingReview = task.status === 'completed' && task.backlog?.status === 'started';
+  // Determine backlog status for showing appropriate actions
+  // Task is archived if status is completed/closed/cancelled OR legacy backlog.status is complete/closed
+  const isArchivedBacklog =
+    task.status === 'completed' ||
+    task.status === 'closed' ||
+    task.status === 'cancelled' ||
+    task.backlog?.status === 'complete' ||
+    task.backlog?.status === 'closed';
+
+  // Active backlog: backlog-origin task that is not archived
+  const isActiveBacklog = isBacklogOrigin && !isArchivedBacklog;
+
+  // Pending review items: tasks in pending_user_review status
+  // OR legacy: completed tasks with backlog.status === 'started'
+  const isPendingReview =
+    task.status === 'pending_user_review' ||
+    (task.status === 'completed' && task.backlog?.status === 'started');
 
   const badge = getStatusBadge(task.status);
 
@@ -400,33 +447,34 @@ export function TaskDetailModal({
             ) : (
               <>
                 {/* Primary Actions - Always visible */}
-                {/* Add to chat for active backlog items and pending review items */}
-                {((task.status === 'backlog' && !isArchivedBacklog) || isPendingReview) && (
-                  <button
-                    onClick={() => {
-                      if (task) {
-                        const added = addTask({ _id: task._id, content: task.content });
-                        if (added) {
-                          onClose();
+                {/* Add to chat for backlog items and pending review items */}
+                {(task.status === 'backlog' || task.status === 'pending_user_review') &&
+                  isBacklogOrigin && (
+                    <button
+                      onClick={() => {
+                        if (task) {
+                          const added = addTask({ _id: task._id, content: task.content });
+                          if (added) {
+                            onClose();
+                          }
                         }
+                      }}
+                      disabled={isLoading || isTaskAttached(task._id) || !canAddMore}
+                      className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={
+                        isTaskAttached(task._id)
+                          ? 'Already added to chat'
+                          : !canAddMore
+                            ? `Maximum ${MAX_ATTACHMENTS} attachments`
+                            : isPendingReview
+                              ? 'Add to chat for re-review'
+                              : 'Add to chat'
                       }
-                    }}
-                    disabled={isLoading || isTaskAttached(task._id) || !canAddMore}
-                    className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={
-                      isTaskAttached(task._id)
-                        ? 'Already added to chat'
-                        : !canAddMore
-                          ? `Maximum ${MAX_ATTACHMENTS} attachments`
-                          : isPendingReview
-                            ? 'Add to chat for re-review'
-                            : 'Add to chat'
-                    }
-                  >
-                    <Plus size={12} />
-                    {isTaskAttached(task._id) ? 'Added' : 'Add to Chat'}
-                  </button>
-                )}
+                    >
+                      <Plus size={12} />
+                      {isTaskAttached(task._id) ? 'Added' : 'Add to Chat'}
+                    </button>
+                  )}
 
                 {/* Force complete for active tasks */}
                 {(task.status === 'in_progress' || task.status === 'pending') && (

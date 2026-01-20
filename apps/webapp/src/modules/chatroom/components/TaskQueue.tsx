@@ -23,7 +23,17 @@ import { compactMarkdownComponents } from './markdown-utils';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
 
-type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
+type TaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'queued'
+  | 'backlog'
+  | 'pending_user_review'
+  | 'completed'
+  | 'closed'
+  | 'cancelled'; // deprecated
+
+type TaskOrigin = 'backlog' | 'chat';
 
 type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
 
@@ -31,6 +41,7 @@ interface Task {
   _id: Id<'chatroom_tasks'>;
   content: string;
   status: TaskStatus;
+  origin?: TaskOrigin;
   createdAt: number;
   updatedAt: number;
   queuePosition: number;
@@ -45,8 +56,10 @@ interface TaskCounts {
   in_progress: number;
   queued: number;
   backlog: number;
+  pending_user_review: number;
   completed: number;
-  cancelled: number;
+  closed: number;
+  cancelled: number; // deprecated
 }
 
 interface QueueHealth {
@@ -84,6 +97,30 @@ const getStatusBadge = (status: TaskStatus) => {
       return {
         emoji: '⚪',
         label: 'Backlog',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
+    case 'pending_user_review':
+      return {
+        emoji: '🟣',
+        label: 'Review',
+        classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
+      };
+    case 'completed':
+      return {
+        emoji: '✅',
+        label: 'Completed',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
+    case 'closed':
+      return {
+        emoji: '⚫',
+        label: 'Closed',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
+    case 'cancelled':
+      return {
+        emoji: '⚫',
+        label: 'Cancelled',
         classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
       };
     default:
@@ -162,8 +199,13 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const closeBacklogTask = useSessionMutation(tasksApi.tasks.closeBacklogTask);
   const reopenBacklogTask = useSessionMutation(tasksApi.tasks.reopenBacklogTask);
 
-  // Helper to check if a task is archived (backlog.status is complete or closed)
+  // Helper to check if a task is archived (task.status is completed/closed/cancelled OR backlog.status is complete/closed)
   const isArchivedTask = useCallback((task: Task) => {
+    // Check new status field first
+    if (task.status === 'completed' || task.status === 'closed' || task.status === 'cancelled') {
+      return true;
+    }
+    // Legacy check for backlog.status
     return task.backlog?.status === 'complete' || task.backlog?.status === 'closed';
   }, []);
 

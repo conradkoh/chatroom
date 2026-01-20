@@ -6,13 +6,23 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
+type TaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'queued'
+  | 'backlog'
+  | 'pending_user_review'
+  | 'completed'
+  | 'closed'
+  | 'cancelled'; // deprecated
+type TaskOrigin = 'backlog' | 'chat';
 type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
 
 interface Task {
   _id: Id<'chatroom_tasks'>;
   content: string;
   status: TaskStatus;
+  origin?: TaskOrigin;
   createdAt: number;
   updatedAt: number;
   queuePosition: number;
@@ -50,6 +60,26 @@ const getStatusBadge = (status: TaskStatus) => {
     case 'backlog':
       return {
         label: 'Backlog',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
+    case 'pending_user_review':
+      return {
+        label: 'Review',
+        classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
+      };
+    case 'completed':
+      return {
+        label: 'Completed',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
+    case 'closed':
+      return {
+        label: 'Closed',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
+    case 'cancelled':
+      return {
+        label: 'Cancelled',
         classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
       };
     default:
