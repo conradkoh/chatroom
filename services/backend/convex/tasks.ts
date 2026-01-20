@@ -5,6 +5,7 @@ import {
   areAllAgentsReady,
   getAndIncrementQueuePosition,
   requireChatroomAccess,
+  validateSession,
 } from './lib/cliSessionAuth';
 
 /**
@@ -950,7 +951,7 @@ export const getPendingTasksForRole = query({
 /**
  * Get tasks by their IDs.
  * Used by CLI to fetch full task details for attached tasks in messages.
- * Requires CLI session authentication and validates chatroom access for each task.
+ * Requires CLI session authentication.
  */
 export const getTasksByIds = query({
   args: {
@@ -958,30 +959,17 @@ export const getTasksByIds = query({
     taskIds: v.array(v.id('chatroom_tasks')),
   },
   handler: async (ctx, args) => {
-    // Validate session
-    const session = await ctx.db
-      .query('cli_sessions')
-      .withIndex('by_session_id', (q) => q.eq('sessionId', args.sessionId))
-      .first();
-
-    if (!session || !session.isValid || !session.userId) {
+    // Validate session using the standard helper
+    const sessionResult = await validateSession(ctx, args.sessionId);
+    if (!sessionResult.valid) {
       return [];
     }
 
-    // Fetch tasks
+    // Fetch tasks - session is authenticated, tasks are accessed by ID
     const tasks = await Promise.all(
       args.taskIds.map(async (taskId) => {
         const task = await ctx.db.get('chatroom_tasks', taskId);
         if (!task) return null;
-
-        // Verify user has access to the chatroom this task belongs to
-        const participant = await ctx.db
-          .query('chatroom_participants')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', task.chatroomId))
-          .filter((q) => q.eq(q.field('userId'), session.userId))
-          .first();
-
-        if (!participant) return null;
 
         return {
           _id: task._id,
