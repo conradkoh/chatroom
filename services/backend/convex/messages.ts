@@ -100,22 +100,9 @@ async function _sendMessageHandler(
     lastActivityAt: now,
   });
 
-  // Update attached backlog tasks to 'started' status when attached to a message
-  // This matches the behavior of moveToQueue - tasks are now in progress
-  if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
-    for (const taskId of args.attachedTaskIds) {
-      const task = await ctx.db.get('chatroom_tasks', taskId);
-      // Only update tasks that are still in backlog status
-      if (task && task.status === 'backlog') {
-        await ctx.db.patch('chatroom_tasks', taskId, {
-          status: 'queued' as const,
-          updatedAt: now,
-          backlog: { status: 'started' as const },
-          sourceMessageId: messageId,
-        });
-      }
-    }
-  }
+  // Note: Attached backlog tasks remain in their current status when attached to a message.
+  // They will only be transitioned to pending_user_review when the agent hands off to user.
+  // This ensures backlog tasks are only processed through the explicit user review flow.
 
   // Auto-create task for user messages and handoff messages
   const isUserMessage = normalizedSenderRole === 'user' && args.type === 'message';
@@ -350,7 +337,30 @@ async function _handoffHandler(
     await ctx.db.patch('chatroom_participants', participant._id, { status: 'waiting' });
   }
 
-  // Step 5: Promote next queued task only if ALL agents are ready (not active)
+  // Step 5: Update attached backlog tasks to pending_user_review when handing off to user
+  // This is the ONLY place where attached backlog tasks should have their status changed
+  if (isHandoffToUser) {
+    // For each completed task, get its source message and update attached backlog tasks
+    for (const task of inProgressTasks) {
+      if (task.sourceMessageId) {
+        const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
+        if (sourceMessage?.attachedTaskIds && sourceMessage.attachedTaskIds.length > 0) {
+          for (const attachedTaskId of sourceMessage.attachedTaskIds) {
+            const attachedTask = await ctx.db.get('chatroom_tasks', attachedTaskId);
+            // Only update backlog-origin tasks that are still in backlog status
+            if (attachedTask && attachedTask.status === 'backlog') {
+              await ctx.db.patch('chatroom_tasks', attachedTaskId, {
+                status: 'pending_user_review' as const,
+                updatedAt: now,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Step 6: Promote next queued task only if ALL agents are ready (not active)
   // This ensures queued tasks are only promoted when the team is idle
   let promotedTaskId: Id<'chatroom_tasks'> | null = null;
 
@@ -538,18 +548,8 @@ export const taskStarted = mutation({
       ...(args.featureTechSpecs && { featureTechSpecs: args.featureTechSpecs }),
     });
 
-    // Update attached backlog tasks to 'started' status (only those with 'not_started')
-    if (message.attachedTaskIds && message.attachedTaskIds.length > 0) {
-      for (const taskId of message.attachedTaskIds) {
-        const task = await ctx.db.get('chatroom_tasks', taskId);
-        // Only update tasks with backlog.status === 'not_started'
-        if (task?.backlog?.status === 'not_started') {
-          await ctx.db.patch('chatroom_tasks', taskId, {
-            backlog: { status: 'started' },
-          });
-        }
-      }
-    }
+    // Note: Attached backlog tasks remain in their current status when agent acknowledges.
+    // They will only be transitioned to pending_user_review when the agent hands off to user.
 
     // For follow-ups, link to the previous non-follow-up message
     if (args.classification === 'follow_up') {

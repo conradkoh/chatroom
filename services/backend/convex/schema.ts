@@ -323,7 +323,8 @@ export default defineSchema({
 
     // Attached backlog tasks for context
     // User can attach multiple backlog tasks to a message for agent context
-    // When agent runs task-started, all attached tasks with backlog.status = 'not_started' become 'started'
+    // Attached tasks remain in 'backlog' status until agent hands off to user,
+    // at which point they transition to 'pending_user_review'
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
 
     // Message lifecycle tracking
