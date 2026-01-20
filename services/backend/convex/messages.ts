@@ -10,6 +10,7 @@ import {
   requireChatroomAccess,
 } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
+import { getCompletionStatus, type TaskOrigin } from './lib/taskWorkflows';
 import { generateRolePrompt, generateTaskStartedReminder, generateInitPrompt } from './prompts';
 
 // =============================================================================
@@ -268,13 +269,14 @@ async function _handoffHandler(
 
   const completedTaskIds: Id<'chatroom_tasks'>[] = [];
   for (const task of inProgressTasks) {
-    // Backlog-origin tasks should go to pending_user_review when handing off to user
-    // so the user can confirm completion. Chat-origin tasks complete directly.
-    const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
-    const newStatus =
-      isHandoffToUser && isBacklogOrigin
-        ? ('pending_user_review' as const)
-        : ('completed' as const);
+    // Determine the new status using the workflow definition:
+    // - When handing off to user: use workflow-defined completion status
+    //   (backlog → pending_user_review, chat → completed)
+    // - When handing off to agent: always 'completed' (a new task is created for target)
+    const taskOrigin = (task.origin || (task.backlog ? 'backlog' : 'chat')) as TaskOrigin;
+    const newStatus = isHandoffToUser
+      ? getCompletionStatus(taskOrigin, task.status)
+      : ('completed' as const);
 
     await ctx.db.patch('chatroom_tasks', task._id, {
       status: newStatus,

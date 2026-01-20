@@ -217,3 +217,38 @@ export function canAddToChat(origin: TaskOrigin | undefined, status: TaskStatus)
   // - 'pending_user_review' state (for re-review after agent completion)
   return status === 'backlog' || status === 'pending_user_review';
 }
+
+/**
+ * Get the completion status for a task when agent finishes work
+ *
+ * Uses the workflow transitions to determine the correct next status.
+ * For backlog-origin tasks: in_progress → pending_user_review
+ * For chat-origin tasks: in_progress → completed
+ *
+ * @param origin - Task origin (backlog or chat)
+ * @param currentStatus - Current task status (should be in_progress)
+ * @returns The status the task should transition to
+ */
+export function getCompletionStatus(
+  origin: TaskOrigin | undefined,
+  currentStatus: TaskStatus
+): TaskStatus {
+  // Only handle in_progress → completion transitions
+  if (currentStatus !== 'in_progress') {
+    // For other statuses, return completed as fallback
+    return 'completed';
+  }
+
+  // Get next valid statuses from workflow
+  const nextStatuses = getNextStatuses(origin, currentStatus);
+
+  // Return the first valid transition (should be the completion status)
+  // For backlog: pending_user_review
+  // For chat: completed
+  if (nextStatuses.length > 0) {
+    return nextStatuses[0]!;
+  }
+
+  // Fallback for legacy tasks without origin
+  return 'completed';
+}
