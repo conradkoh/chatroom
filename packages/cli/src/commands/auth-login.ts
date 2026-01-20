@@ -19,42 +19,18 @@ const AUTH_POLL_INTERVAL_MS = 2000;
 // Production URLs
 const PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
 const PRODUCTION_WEBAPP_URL = 'https://chatroom.duskfare.com';
-const DEFAULT_LOCAL_WEBAPP_URL = 'http://localhost:3000';
 
 interface AuthLoginOptions {
   force?: boolean;
 }
 
 /**
- * Check if a URL is a local development URL
- */
-function isLocalUrl(url: string): boolean {
-  return (
-    url.includes('localhost') ||
-    url.includes('127.0.0.1') ||
-    url.includes('0.0.0.0') ||
-    url.startsWith('http://192.168.') ||
-    url.startsWith('http://10.')
-  );
-}
-
-/**
  * Get the webapp URL for the auth page
  *
- * Priority:
- * 1. CHATROOM_WEB_URL environment variable (explicit override)
- * 2. Derived from CHATROOM_CONVEX_URL:
- *    - Production Convex URL → Production webapp URL
- *    - Local Convex URL → Default local webapp URL (http://localhost:3000)
+ * For production Convex URL, uses production webapp.
+ * For non-production Convex URL, requires CHATROOM_WEB_URL to be set explicitly.
  */
 function getWebAppUrl(): string {
-  // 1. Check explicit override
-  const webAppUrlOverride = process.env.CHATROOM_WEB_URL;
-  if (webAppUrlOverride) {
-    return webAppUrlOverride;
-  }
-
-  // 2. Derive from Convex URL
   const convexUrl = getConvexUrl();
 
   // Production Convex → Production webapp
@@ -62,13 +38,25 @@ function getWebAppUrl(): string {
     return PRODUCTION_WEBAPP_URL;
   }
 
-  // Local/dev Convex → Local webapp (default port 3000)
-  if (isLocalUrl(convexUrl)) {
-    return DEFAULT_LOCAL_WEBAPP_URL;
+  // Non-production: require explicit CHATROOM_WEB_URL
+  const webAppUrlOverride = process.env.CHATROOM_WEB_URL;
+  if (webAppUrlOverride) {
+    return webAppUrlOverride;
   }
 
-  // Unknown/preview → Assume production webapp
-  return PRODUCTION_WEBAPP_URL;
+  // Error: non-production Convex URL without CHATROOM_WEB_URL
+  console.error(`\n${'═'.repeat(50)}`);
+  console.error(`❌ CHATROOM_WEB_URL Required`);
+  console.error(`${'═'.repeat(50)}`);
+  console.error(`\nYou are using a non-production Convex backend:`);
+  console.error(`   CHATROOM_CONVEX_URL=${convexUrl}`);
+  console.error(`\nTo authenticate with a local/dev backend, you must also set`);
+  console.error(`the webapp URL where the auth page is hosted:`);
+  console.error(`\n   CHATROOM_WEB_URL=http://localhost:3000 \\`);
+  console.error(`   CHATROOM_CONVEX_URL=${convexUrl} \\`);
+  console.error(`   chatroom auth login`);
+  console.error(`\n${'═'.repeat(50)}\n`);
+  process.exit(1);
 }
 
 /**
@@ -114,7 +102,6 @@ export async function authLogin(options: AuthLoginOptions): Promise<void> {
 
   // Get the Convex URL being used
   const convexUrl = getConvexUrl();
-  const isLocal = isLocalUrl(convexUrl);
 
   console.log(`\n${'═'.repeat(50)}`);
   console.log(`🔐 CHATROOM CLI AUTHENTICATION`);
@@ -124,7 +111,7 @@ export async function authLogin(options: AuthLoginOptions): Promise<void> {
 
   // Show environment info for non-production
   if (convexUrl !== PRODUCTION_CONVEX_URL) {
-    console.log(`\n📍 Environment: ${isLocal ? 'Local Development' : 'Custom'}`);
+    console.log(`\n📍 Environment: Custom`);
     console.log(`   Convex URL: ${convexUrl}`);
   }
 
