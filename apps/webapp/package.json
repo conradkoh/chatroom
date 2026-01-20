@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:prod": "bun run scripts/dev-prod.ts",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",

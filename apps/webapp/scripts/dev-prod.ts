@@ -1,0 +1,64 @@
+#!/usr/bin/env bun
+
+/**
+ * Development server with production Convex backend
+ *
+ * Starts the Next.js dev server connected to the production Convex backend.
+ * Uses a random available port to avoid conflicts with the regular dev server.
+ *
+ * Usage:
+ *   bun run scripts/dev-prod.ts
+ *   # or via package.json:
+ *   pnpm dev:prod
+ *
+ * Environment:
+ *   NEXT_PUBLIC_CONVEX_URL is set to production backend
+ */
+
+import { spawn } from 'node:child_process';
+
+// Production Convex URL
+const PROD_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
+
+/**
+ * Find a random available port in the range 3100-3999
+ */
+function getRandomPort(): number {
+  // Use a port range that's unlikely to conflict with common services
+  // 3100-3999 avoids 3000 (default Next.js) and common dev ports
+  return Math.floor(Math.random() * 900) + 3100;
+}
+
+async function main(): Promise<void> {
+  const port = getRandomPort();
+
+  console.log('🚀 Starting development server with production backend\n');
+  console.log(`   Convex URL: ${PROD_CONVEX_URL}`);
+  console.log(`   Port: ${port}`);
+  console.log(`   URL: http://localhost:${port}\n`);
+
+  // Spawn Next.js dev server with production Convex URL
+  const child = spawn('next', ['dev', '--port', String(port)], {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_CONVEX_URL: PROD_CONVEX_URL,
+    },
+  });
+
+  // Handle process exit
+  child.on('error', (error) => {
+    console.error('❌ Failed to start dev server:', error.message);
+    process.exit(1);
+  });
+
+  child.on('exit', (code) => {
+    process.exit(code ?? 0);
+  });
+
+  // Forward signals to child process
+  process.on('SIGINT', () => child.kill('SIGINT'));
+  process.on('SIGTERM', () => child.kill('SIGTERM'));
+}
+
+main();
