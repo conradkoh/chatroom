@@ -78,7 +78,7 @@ export function AttachedTaskDetailModal({ isOpen, task, onClose }: AttachedTaskD
       />
 
       {/* Side Panel */}
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-chatroom-bg-surface border-l-2 border-chatroom-border shadow-xl flex flex-col animate-in slide-in-from-right duration-200">
+      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-chatroom-bg-primary border-l-2 border-chatroom-border shadow-xl flex flex-col animate-in slide-in-from-right duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border bg-chatroom-bg-primary">
           <div className="flex items-center gap-3">
