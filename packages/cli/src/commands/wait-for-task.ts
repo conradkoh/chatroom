@@ -17,8 +17,8 @@ import {
   DEFAULT_WAIT_TIMEOUT_MS,
   DEFAULT_ACTIVE_TIMEOUT_MS,
 } from '../config.js';
-import { getSessionId } from '../infrastructure/auth/storage.js';
-import { getConvexClient } from '../infrastructure/convex/client.js';
+import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
+import { getConvexUrl, getConvexClient } from '../infrastructure/convex/client.js';
 
 interface WaitForTaskOptions {
   role: string;
@@ -97,7 +97,22 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // Get session ID for authentication
   const sessionId = getSessionId();
   if (!sessionId) {
-    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    const otherUrls = getOtherSessionUrls();
+    const currentUrl = getConvexUrl();
+
+    console.error(`❌ Not authenticated for: ${currentUrl}`);
+
+    if (otherUrls.length > 0) {
+      console.error(`\n💡 You have sessions for other environments:`);
+      for (const url of otherUrls) {
+        console.error(`   • ${url}`);
+      }
+      console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
+      console.error(`   CHATROOM_CONVEX_URL=${otherUrls[0]} chatroom wait-for-task ...`);
+      console.error(`\n   Or to authenticate for the current environment:`);
+    }
+
+    console.error(`   chatroom auth login`);
     process.exit(1);
   }
 

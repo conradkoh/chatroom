@@ -3,9 +3,9 @@
  * Verifies CLI is authenticated before running commands
  */
 
-import { getSessionId, isAuthenticated, getAuthFilePath } from './storage.js';
+import { getSessionId, isAuthenticated, getAuthFilePath, getOtherSessionUrls } from './storage.js';
 import { api, type SessionValidation } from '../../api.js';
-import { getConvexClient } from '../convex/client.js';
+import { getConvexClient, getConvexUrl } from '../convex/client.js';
 
 export interface AuthContext {
   sessionId: string;
@@ -20,8 +20,21 @@ export interface AuthContext {
 export async function requireAuth(): Promise<AuthContext> {
   // Check local auth file first
   if (!isAuthenticated()) {
-    console.error(`\n❌ Error: Not authenticated`);
-    console.error(`\n   Please authenticate first by running:`);
+    const otherUrls = getOtherSessionUrls();
+    const currentUrl = getConvexUrl();
+
+    console.error(`\n❌ Error: Not authenticated for: ${currentUrl}`);
+
+    if (otherUrls.length > 0) {
+      console.error(`\n💡 You have sessions for other environments:`);
+      for (const url of otherUrls) {
+        console.error(`   • ${url}`);
+      }
+      console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
+      console.error(`   CHATROOM_CONVEX_URL=${otherUrls[0]} chatroom <command>`);
+      console.error(`\n   Or to authenticate for the current environment:`);
+    }
+
     console.error(`   $ chatroom auth login\n`);
     process.exit(1);
   }

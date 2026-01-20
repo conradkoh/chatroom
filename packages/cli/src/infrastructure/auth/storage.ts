@@ -244,6 +244,48 @@ export function getSessionId(): string | null {
 }
 
 /**
+ * Get all available sessions (for debugging/error messages)
+ */
+export function getAllSessions(): { url: string; sessionId: string; createdAt?: string }[] {
+  const rawData = loadRawAuthData();
+  if (!rawData) {
+    return [];
+  }
+
+  if (isMultiEnvFormat(rawData)) {
+    return Object.entries(rawData.sessions).map(([url, data]) => ({
+      url,
+      sessionId: data.sessionId,
+      createdAt: data.createdAt,
+    }));
+  }
+
+  // Legacy format
+  const legacyData = rawData as LegacyAuthData;
+  if (legacyData.sessionId) {
+    return [
+      {
+        url: 'https://chatroom-cloud.duskfare.com',
+        sessionId: legacyData.sessionId,
+        createdAt: legacyData.createdAt,
+      },
+    ];
+  }
+
+  return [];
+}
+
+/**
+ * Check if there are sessions for URLs OTHER than the current one
+ * Returns the URLs that have sessions
+ */
+export function getOtherSessionUrls(): string[] {
+  const currentUrl = getConvexUrl();
+  const allSessions = getAllSessions();
+  return allSessions.filter((s) => s.url !== currentUrl).map((s) => s.url);
+}
+
+/**
  * Get device name for auth requests
  */
 export function getDeviceName(): string {

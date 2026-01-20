@@ -13,8 +13,8 @@
 
 import { api } from '../api.js';
 import type { Id } from '../api.js';
-import { getSessionId } from '../infrastructure/auth/storage.js';
-import { getConvexClient } from '../infrastructure/convex/client.js';
+import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
+import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.js';
 
 interface HandoffOptions {
   role: string;
@@ -29,7 +29,22 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
   // Get session ID for authentication
   const sessionId = getSessionId();
   if (!sessionId) {
-    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    const otherUrls = getOtherSessionUrls();
+    const currentUrl = getConvexUrl();
+
+    console.error(`❌ Not authenticated for: ${currentUrl}`);
+
+    if (otherUrls.length > 0) {
+      console.error(`\n💡 You have sessions for other environments:`);
+      for (const url of otherUrls) {
+        console.error(`   • ${url}`);
+      }
+      console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
+      console.error(`   CHATROOM_CONVEX_URL=${otherUrls[0]} chatroom handoff ...`);
+      console.error(`\n   Or to authenticate for the current environment:`);
+    }
+
+    console.error(`   chatroom auth login`);
     process.exit(1);
   }
 
