@@ -221,11 +221,12 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     };
   }, [tasks, isArchivedTask]);
 
-  // Count archived items
+  // Count archived items using task counts from backend
+  // This ensures the count is accurate even when archived section is collapsed
   const archivedCount = useMemo(() => {
-    if (!tasks) return 0;
-    return tasks.filter((t) => isArchivedTask(t)).length + (archivedTasks?.length || 0);
-  }, [tasks, isArchivedTask, archivedTasks]);
+    if (!counts) return 0;
+    return counts.completed + counts.closed + counts.cancelled;
+  }, [counts]);
 
   // Handlers
   const handleAddTask = useCallback(async () => {
