@@ -443,6 +443,29 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
         console.log(`${'─'.repeat(50)}`);
         console.log(rolePromptInfo.prompt);
 
+        // Output backlog commands reference (for builders who need to check backlog)
+        if (role.toLowerCase() === 'builder') {
+          console.log(`\n${'─'.repeat(50)}`);
+          console.log(`📦 BACKLOG COMMANDS`);
+          console.log(`${'─'.repeat(50)}`);
+          console.log(`If the user refers to the backlog or you need to check pending tasks:\n`);
+          console.log(`**List tasks:**`);
+          console.log(
+            `  chatroom backlog list ${chatroomId} --role=${role} [--status=<status>] [--limit=<n>]`
+          );
+          console.log(
+            `  Status: pending, in_progress, queued, backlog, completed, cancelled, active (default), all\n`
+          );
+          console.log(`**Add a task:**`);
+          console.log(
+            `  chatroom backlog add ${chatroomId} --role=${role} --content="<description>"\n`
+          );
+          console.log(`**Complete a task:**`);
+          console.log(
+            `  chatroom backlog complete ${chatroomId} --role=${role} --taskId=<id> [--force]`
+          );
+        }
+
         // Output JSON for parsing
         console.log(`\n${'─'.repeat(50)}`);
         console.log(`📊 MESSAGE DATA (JSON)`);
@@ -455,12 +478,14 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
           follow_up: `chatroom task-started ${chatroomId} --role=${role} --classification=follow_up`,
         };
 
-        // Build context commands for question classification
+        // Build context commands (always include for builder role)
         const contextCommands =
-          rolePromptInfo.currentClassification === 'question'
+          role.toLowerCase() === 'builder'
             ? [
                 `chatroom feature list ${chatroomId} --limit=5`,
                 `chatroom backlog list ${chatroomId} --role=${role}`,
+                `chatroom backlog add ${chatroomId} --role=${role} --content="<description>"`,
+                `chatroom backlog complete ${chatroomId} --role=${role} --taskId=<id>`,
               ]
             : undefined;
 
