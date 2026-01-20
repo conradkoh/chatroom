@@ -25,6 +25,7 @@ import { getRoleTemplate } from './templates';
 export { getReviewGuidelines } from './guidelines';
 export { getSecurityPolicy } from './policies/security';
 export { getDesignPolicy } from './policies/design';
+export { getPerformancePolicy } from './policies/performance';
 
 export interface RolePromptContext {
   chatroomId: string;
