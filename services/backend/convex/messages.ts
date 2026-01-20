@@ -10,7 +10,7 @@ import {
   requireChatroomAccess,
 } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
-import { getCompletionStatus, type TaskOrigin } from './lib/taskWorkflows';
+import { getCompletionStatus } from './lib/taskWorkflows';
 import { generateRolePrompt, generateTaskStartedReminder, generateInitPrompt } from './prompts';
 
 // =============================================================================
@@ -48,8 +48,10 @@ async function _sendMessageHandler(
       if (task.chatroomId !== args.chatroomId) {
         throw new Error('Invalid task reference: task belongs to different chatroom.');
       }
-      if (task.backlog?.status === 'closed') {
-        throw new Error('Cannot attach closed tasks. Please select active backlog items.');
+      if (task.status === 'closed' || task.status === 'completed') {
+        throw new Error(
+          'Cannot attach closed or completed tasks. Please select active backlog items.'
+        );
       }
     }
   }
@@ -273,9 +275,8 @@ async function _handoffHandler(
     // - When handing off to user: use workflow-defined completion status
     //   (backlog → pending_user_review, chat → completed)
     // - When handing off to agent: always 'completed' (a new task is created for target)
-    const taskOrigin = (task.origin || (task.backlog ? 'backlog' : 'chat')) as TaskOrigin;
     const newStatus = isHandoffToUser
-      ? getCompletionStatus(taskOrigin, task.status)
+      ? getCompletionStatus(task.origin, task.status)
       : ('completed' as const);
 
     await ctx.db.patch('chatroom_tasks', task._id, {
@@ -741,7 +742,8 @@ export const listPaginated = query({
             .map((t) => ({
               _id: t!._id,
               content: t!.content,
-              backlogStatus: t!.backlog?.status,
+              status: t!.status,
+              origin: t!.origin,
             }));
         }
 

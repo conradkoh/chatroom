@@ -166,8 +166,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as QueueHealth | undefined;
 
-  // Query pending review tasks (completed tasks with backlog.status = started)
-  // Uses dedicated 'pending_review' statusFilter on the backend for efficiency
+  // Query pending review tasks (tasks with pending_user_review status)
   const pendingReviewTasks = useSessionQuery(tasksApi.tasks.listTasks, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     statusFilter: 'pending_review',
@@ -177,13 +176,13 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   // No frontend filtering needed - backend handles pending_review filter
   const filteredPendingReviewTasks = pendingReviewTasks ?? [];
 
-  // Query archived backlog tasks (only when expanded)
+  // Query archived tasks (only when expanded)
   const archivedTasks = useSessionQuery(
     tasksApi.tasks.listTasks,
     isArchivedExpanded
       ? {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          backlogStatusFilter: 'archived' as const,
+          statusFilter: 'archived' as const,
           limit: 100, // Match MAX_TASK_LIST_LIMIT from backend
         }
       : 'skip'
@@ -199,21 +198,14 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const closeBacklogTask = useSessionMutation(tasksApi.tasks.closeBacklogTask);
   const reopenBacklogTask = useSessionMutation(tasksApi.tasks.reopenBacklogTask);
 
-  // Categorize tasks - filter out archived from the active backlog list
+  // Categorize tasks by status
   const categorizedTasks = useMemo(() => {
     if (!tasks) return { current: [], queued: [], backlog: [] };
 
     return {
       current: tasks.filter((t) => t.status === 'pending' || t.status === 'in_progress'),
       queued: tasks.filter((t) => t.status === 'queued'),
-      // Only show active backlog items - filter out legacy archived items
-      // (tasks with status='backlog' can't have new archived statuses, only check legacy backlog.status)
-      backlog: tasks.filter(
-        (t) =>
-          t.status === 'backlog' &&
-          t.backlog?.status !== 'complete' &&
-          t.backlog?.status !== 'closed'
-      ),
+      backlog: tasks.filter((t) => t.status === 'backlog'),
     };
   }, [tasks]);
 
@@ -221,7 +213,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   // This ensures the count is accurate even when archived section is collapsed
   const archivedCount = useMemo(() => {
     if (!counts) return 0;
-    return counts.completed + counts.closed + counts.cancelled;
+    return counts.completed + counts.closed;
   }, [counts]);
 
   // Handlers
@@ -802,14 +794,6 @@ interface CompactBacklogItemProps {
 // compactMarkdownComponents is imported from markdown-utils.tsx
 
 function CompactBacklogItem({ task, onClick }: CompactBacklogItemProps) {
-  // Get backlog status indicator
-  const backlogStatusIndicator =
-    task.backlog?.status === 'started' ? (
-      <span className="flex-shrink-0 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide bg-chatroom-status-info/15 text-chatroom-status-info">
-        Started
-      </span>
-    ) : null;
-
   return (
     <div
       className="flex items-center gap-2 p-2 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group"
@@ -823,9 +807,6 @@ function CompactBacklogItem({ task, onClick }: CompactBacklogItemProps) {
         }
       }}
     >
-      {/* Backlog Status Indicator */}
-      {backlogStatusIndicator}
-
       {/* Content - 2 lines max, with simplified markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
         <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>

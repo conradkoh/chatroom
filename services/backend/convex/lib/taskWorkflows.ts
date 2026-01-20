@@ -14,15 +14,13 @@ export type TaskOrigin = 'backlog' | 'chat';
  * Task statuses - lifecycle stages
  */
 export type TaskStatus =
-  | 'pending' // Backlog: in backlog tab / Chat: ready for agent
+  | 'backlog' // Backlog only: initial state in backlog tab (before moved to chat)
   | 'queued' // Waiting in line
+  | 'pending' // Ready for agent
   | 'in_progress' // Agent working
   | 'pending_user_review' // Backlog only: agent done, user confirms
   | 'completed' // Finished
-  | 'closed' // Backlog only: user closed without completing
-  // Deprecated statuses (for migration compatibility)
-  | 'backlog' // DEPRECATED: Use origin='backlog' + status='pending'
-  | 'cancelled'; // DEPRECATED: Use 'closed'
+  | 'closed'; // Backlog only: user closed without completing
 
 /**
  * UI sections where tasks can appear
@@ -81,11 +79,6 @@ export function getTaskSection(_origin: TaskOrigin | undefined, status: TaskStat
     return 'backlog';
   }
 
-  // Handle deprecated status
-  if (status === 'cancelled') {
-    return 'archived';
-  }
-
   // Terminal states
   if (status === 'completed' || status === 'closed') {
     return 'archived';
@@ -114,18 +107,12 @@ export function getTaskSection(_origin: TaskOrigin | undefined, status: TaskStat
  * Get allowed next statuses for a task
  */
 export function getNextStatuses(origin: TaskOrigin | undefined, status: TaskStatus): TaskStatus[] {
-  // Handle deprecated statuses
-  if (status === 'backlog') {
-    // Old backlog items can be moved to queue
-    return ['queued'];
-  }
-  if (status === 'cancelled') {
-    // Terminal state
-    return [];
-  }
-
   if (!origin) {
     // Legacy task without origin - limited transitions
+    // Backlog items without origin can still be moved to queue
+    if (status === 'backlog') {
+      return ['queued'];
+    }
     return [];
   }
 
@@ -151,14 +138,9 @@ export function isValidTransition(
  * Check if a task is in a terminal state
  */
 export function isTerminalStatus(origin: TaskOrigin | undefined, status: TaskStatus): boolean {
-  // Deprecated terminal states
-  if (status === 'cancelled') {
-    return true;
-  }
-
   if (!origin) {
-    // Legacy tasks - completed is terminal
-    return status === 'completed';
+    // Legacy tasks - completed and closed are terminal
+    return status === 'completed' || status === 'closed';
   }
 
   const workflow = TASK_WORKFLOWS[origin];

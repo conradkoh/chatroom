@@ -345,7 +345,7 @@ export default defineSchema({
    * Only one task can be pending or in_progress at a time per chatroom.
    *
    * Task workflows are determined by origin:
-   * - backlog: pending → queued → pending → in_progress → pending_user_review → completed/closed
+   * - backlog: backlog → queued → pending → in_progress → pending_user_review → completed/closed
    * - chat: queued → pending → in_progress → completed
    */
   chatroom_tasks: defineTable({
@@ -362,7 +362,7 @@ export default defineSchema({
         v.literal('backlog'), // Created in backlog tab
         v.literal('chat') // Created from chat message
       )
-    ), // Optional for migration - new tasks should always have this set
+    ),
 
     // Status tracking
     // Note: available statuses depend on origin (see workflows above)
@@ -373,8 +373,7 @@ export default defineSchema({
       v.literal('in_progress'), // Agent actively working on it
       v.literal('pending_user_review'), // Backlog only: agent done, user must confirm
       v.literal('completed'), // Finished successfully
-      v.literal('closed'), // Backlog only: user closed without completing
-      v.literal('cancelled') // DEPRECATED: Use 'closed' instead
+      v.literal('closed') // Backlog only: user closed without completing
     ),
 
     // Assignment
@@ -391,20 +390,6 @@ export default defineSchema({
 
     // Queue ordering (lower = earlier in queue)
     queuePosition: v.number(),
-
-    // DEPRECATED: Backlog lifecycle tracking
-    // Use origin='backlog' + status field instead
-    // This field will be removed in a future migration
-    backlog: v.optional(
-      v.object({
-        status: v.union(
-          v.literal('not_started'), // Default - task is in backlog, work has not begun
-          v.literal('started'), // Task has been moved to queue at least once
-          v.literal('complete'), // User has confirmed the issue is resolved
-          v.literal('closed') // User has closed the task without completing
-        ),
-      })
-    ),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])

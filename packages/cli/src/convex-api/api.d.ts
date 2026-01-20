@@ -21,6 +21,7 @@ import type * as discussions from '../discussions.js';
 import type * as guidelines from '../guidelines.js';
 import type * as lib_cliSessionAuth from '../lib/cliSessionAuth.js';
 import type * as lib_hierarchy from '../lib/hierarchy.js';
+import type * as lib_taskWorkflows from '../lib/taskWorkflows.js';
 import type * as messages from '../messages.js';
 import type * as migration from '../migration.js';
 import type * as participants from '../participants.js';
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   guidelines: typeof guidelines;
   'lib/cliSessionAuth': typeof lib_cliSessionAuth;
   'lib/hierarchy': typeof lib_hierarchy;
+  'lib/taskWorkflows': typeof lib_taskWorkflows;
   messages: typeof messages;
   migration: typeof migration;
   participants: typeof participants;

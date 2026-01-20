@@ -293,25 +293,17 @@ export function TaskDetailModal({
   }
 
   // Determine if this is a backlog-origin task
-  const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
+  const isBacklogOrigin = task.origin === 'backlog';
 
   // Determine backlog status for showing appropriate actions
-  // Task is archived if status is completed/closed/cancelled OR legacy backlog.status is complete/closed
-  const isArchivedBacklog =
-    task.status === 'completed' ||
-    task.status === 'closed' ||
-    task.status === 'cancelled' ||
-    task.backlog?.status === 'complete' ||
-    task.backlog?.status === 'closed';
+  // Task is archived if status is completed or closed
+  const isArchivedBacklog = task.status === 'completed' || task.status === 'closed';
 
   // Active backlog: backlog-origin task that is not archived
   const isActiveBacklog = isBacklogOrigin && !isArchivedBacklog;
 
   // Pending review items: tasks in pending_user_review status
-  // OR legacy: completed tasks with backlog.status === 'started'
-  const isPendingReview =
-    task.status === 'pending_user_review' ||
-    (task.status === 'completed' && task.backlog?.status === 'started');
+  const isPendingReview = task.status === 'pending_user_review';
 
   const badge = getStatusBadge(task.status);
 

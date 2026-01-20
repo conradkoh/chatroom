@@ -437,14 +437,14 @@ describe('Task Workflow - Cancel Actions', () => {
       isBacklog: false,
     });
 
-    // Cancel it
+    // Cancel it - now always uses 'closed' status
     const cancelResult = await t.mutation(api.tasks.cancelTask, {
       sessionId,
       taskId: chatTask.taskId,
     });
 
     expect(cancelResult.success).toBe(true);
-    expect(cancelResult.status).toBe('cancelled');
+    expect(cancelResult.status).toBe('closed');
   });
 });
 
@@ -467,6 +467,5 @@ describe('Task Counts', () => {
     expect(typeof counts.pending_user_review).toBe('number');
     expect(typeof counts.completed).toBe('number');
     expect(typeof counts.closed).toBe('number');
-    expect(typeof counts.cancelled).toBe('number');
   });
 });

@@ -10,7 +10,7 @@ import {
 
 /**
  * Maximum number of active tasks per chatroom.
- * Active = pending + in_progress + queued + backlog (excludes completed/cancelled)
+ * Active = pending + in_progress + queued + backlog (excludes completed/closed)
  */
 const MAX_ACTIVE_TASKS = 100;
 
@@ -45,7 +45,7 @@ export const createTask = mutation({
       .query('chatroom_tasks')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .filter((q) =>
-        q.and(q.neq(q.field('status'), 'completed'), q.neq(q.field('status'), 'cancelled'))
+        q.and(q.neq(q.field('status'), 'completed'), q.neq(q.field('status'), 'closed'))
       )
       .collect();
 
@@ -80,13 +80,11 @@ export const createTask = mutation({
       createdBy: args.createdBy,
       content: args.content,
       status,
-      origin, // Always set origin field for new tasks
+      origin,
       sourceMessageId: args.sourceMessageId,
       createdAt: now,
       updatedAt: now,
       queuePosition,
-      // Initialize backlog lifecycle tracking for backlog tasks (deprecated, kept for compatibility)
-      ...(args.isBacklog && { backlog: { status: 'not_started' as const } }),
     });
 
     return { taskId, status, queuePosition, origin };
@@ -180,9 +178,7 @@ export const completeTask = mutation({
       // Determine the new status based on origin:
       // - backlog-origin tasks → pending_user_review (user must confirm completion)
       // - chat-origin tasks → completed
-      // - legacy tasks without origin → check for backlog field
-      const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
-      const newStatus = isBacklogOrigin ? 'pending_user_review' : 'completed';
+      const newStatus = task.origin === 'backlog' ? 'pending_user_review' : 'completed';
 
       await ctx.db.patch('chatroom_tasks', task._id, {
         status: newStatus,
@@ -251,7 +247,7 @@ export const completeTask = mutation({
  * Cancel a task.
  * Only allowed for pending, queued, backlog, and pending_user_review tasks.
  * If a pending task is cancelled, promotes the next queued task.
- * Uses 'closed' for backlog-origin tasks, 'cancelled' for chat-origin tasks.
+ * Uses 'closed' status for all cancelled tasks.
  * Requires CLI session authentication and chatroom access.
  */
 export const cancelTask = mutation({
@@ -277,13 +273,8 @@ export const cancelTask = mutation({
     const now = Date.now();
     const wasPending = task.status === 'pending';
 
-    // Use 'closed' for backlog-origin tasks, 'cancelled' for chat-origin tasks
-    const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
-    const newStatus = isBacklogOrigin ? ('closed' as const) : ('cancelled' as const);
-
     await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: newStatus,
-      ...(task.backlog && { backlog: { status: 'closed' as const } }),
+      status: 'closed' as const,
       updatedAt: now,
     });
 
@@ -326,7 +317,7 @@ export const cancelTask = mutation({
       }
     }
 
-    return { success: true, promoted, status: newStatus };
+    return { success: true, promoted, status: 'closed' };
   },
 });
 
@@ -488,14 +479,14 @@ export const moveToQueue = mutation({
 
     // Allow moving:
     // 1. Backlog tasks (status === 'backlog')
-    // 2. Pending review tasks (status === 'completed' && backlog.status === 'started')
+    // 2. Pending review tasks (status === 'pending_user_review')
     const isBacklogTask = task.status === 'backlog';
-    const isPendingReview = task.status === 'completed' && task.backlog?.status === 'started';
+    const isPendingReview = task.status === 'pending_user_review';
 
     if (!isBacklogTask && !isPendingReview) {
       throw new Error(
         'Can only move backlog tasks or pending review tasks to queue. ' +
-          'Pending review tasks must have status "completed" and backlog.status "started".'
+          'Task must have status "backlog" or "pending_user_review".'
       );
     }
 
@@ -534,9 +525,6 @@ export const moveToQueue = mutation({
     await ctx.db.patch('chatroom_tasks', args.taskId, {
       status: newStatus,
       updatedAt: now,
-      // Update backlog lifecycle to 'started' when moving to queue
-      backlog: { status: 'started' as const },
-      // Link task to the message
       sourceMessageId: messageId,
     });
 
@@ -558,7 +546,6 @@ export const moveToQueue = mutation({
  * Allowed for:
  * - Tasks in 'pending_user_review' status (normal flow after agent completes)
  * - Tasks in 'backlog' status (force complete from backlog tab)
- * - Legacy tasks with backlog.status that aren't already complete/closed
  * Requires CLI session authentication and chatroom access.
  */
 export const markBacklogComplete = mutation({
@@ -575,9 +562,8 @@ export const markBacklogComplete = mutation({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Task must be a backlog-origin task (or legacy with backlog field)
-    const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
-    if (!isBacklogOrigin) {
+    // Task must be a backlog-origin task
+    if (task.origin !== 'backlog') {
       throw new Error('Task is not a backlog item');
     }
 
@@ -588,17 +574,13 @@ export const markBacklogComplete = mutation({
 
     // Allow completion from pending_user_review (normal flow) or backlog (force complete)
     if (task.status !== 'pending_user_review' && task.status !== 'backlog') {
-      // For legacy compatibility, also check backlog.status
-      if (task.backlog?.status === 'complete' || task.backlog?.status === 'closed') {
-        throw new Error(`Task is already ${task.backlog.status}`);
-      }
+      throw new Error(`Cannot complete task with status: ${task.status}`);
     }
 
     // Update task to completed status
     await ctx.db.patch('chatroom_tasks', args.taskId, {
       status: 'completed' as const,
       completedAt: Date.now(),
-      ...(task.backlog && { backlog: { status: 'complete' as const } }),
       updatedAt: Date.now(),
     });
 
@@ -609,7 +591,7 @@ export const markBacklogComplete = mutation({
 /**
  * Close a backlog task without completing.
  * Used for won't fix, duplicate, or no longer relevant items.
- * Only allowed for backlog-origin tasks (or legacy tasks with backlog field).
+ * Only allowed for backlog-origin tasks.
  * Requires CLI session authentication and chatroom access.
  */
 export const closeBacklogTask = mutation({
@@ -626,9 +608,8 @@ export const closeBacklogTask = mutation({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Task must be a backlog-origin task (or legacy with backlog field)
-    const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
-    if (!isBacklogOrigin) {
+    // Task must be a backlog-origin task
+    if (task.origin !== 'backlog') {
       throw new Error('Task is not a backlog item');
     }
 
@@ -637,10 +618,9 @@ export const closeBacklogTask = mutation({
       throw new Error(`Task is already ${task.status}`);
     }
 
-    // Update task status to 'closed' (and backlog.status for compatibility)
+    // Update task status to 'closed'
     await ctx.db.patch('chatroom_tasks', args.taskId, {
       status: 'closed' as const,
-      ...(task.backlog && { backlog: { status: 'closed' as const } }),
       updatedAt: Date.now(),
     });
 
@@ -651,7 +631,7 @@ export const closeBacklogTask = mutation({
 /**
  * Reopen a completed or closed backlog task.
  * Returns the task to pending_user_review status (ready for user to review again).
- * Only allowed for backlog-origin tasks (or legacy tasks with backlog field).
+ * Only allowed for backlog-origin tasks.
  * Requires CLI session authentication and chatroom access.
  */
 export const reopenBacklogTask = mutation({
@@ -668,9 +648,8 @@ export const reopenBacklogTask = mutation({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Task must be a backlog-origin task (or legacy with backlog field)
-    const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
-    if (!isBacklogOrigin) {
+    // Task must be a backlog-origin task
+    if (task.origin !== 'backlog') {
       throw new Error('Task is not a backlog item');
     }
 
@@ -683,7 +662,6 @@ export const reopenBacklogTask = mutation({
     await ctx.db.patch('chatroom_tasks', args.taskId, {
       status: 'pending_user_review' as const,
       completedAt: undefined,
-      ...(task.backlog && { backlog: { status: 'started' as const } }),
       updatedAt: Date.now(),
     });
 
@@ -715,8 +693,7 @@ export const sendBackForRework = mutation({
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
     // Task must be a backlog-origin task
-    const isBacklogOrigin = task.origin === 'backlog' || task.backlog !== undefined;
-    if (!isBacklogOrigin) {
+    if (task.origin !== 'backlog') {
       throw new Error('Task is not a backlog item');
     }
 
@@ -787,19 +764,11 @@ export const listTasks = query({
         v.literal('queued'),
         v.literal('backlog'),
         v.literal('completed'),
-        v.literal('cancelled'), // deprecated, use 'closed'
         v.literal('closed'),
         v.literal('pending_user_review'),
         v.literal('active'), // pending + in_progress + queued + backlog
-        v.literal('pending_review'), // pending_user_review status (new) OR legacy: completed + backlog.status === 'started'
-        v.literal('archived') // completed + closed + cancelled
-      )
-    ),
-    // Filter for backlog lifecycle status (deprecated, kept for compatibility)
-    backlogStatusFilter: v.optional(
-      v.union(
-        v.literal('active'), // not_started + started (shown in main backlog list)
-        v.literal('archived') // complete + closed (hidden from main list)
+        v.literal('pending_review'), // pending_user_review status
+        v.literal('archived') // completed + closed
       )
     ),
     limit: v.optional(v.number()),
@@ -825,48 +794,17 @@ export const listTasks = query({
         );
       } else if (args.statusFilter === 'pending_review') {
         // Pending review: tasks in pending_user_review status
-        // OR legacy: completed tasks with backlog.status === 'started'
-        tasks = tasks.filter(
-          (t) =>
-            t.status === 'pending_user_review' ||
-            (t.status === 'completed' && t.backlog?.status === 'started')
-        );
+        tasks = tasks.filter((t) => t.status === 'pending_user_review');
       } else if (args.statusFilter === 'archived') {
-        // Archived: completed, closed, or cancelled tasks
-        tasks = tasks.filter(
-          (t) => t.status === 'completed' || t.status === 'closed' || t.status === 'cancelled'
-        );
+        // Archived: completed or closed tasks
+        tasks = tasks.filter((t) => t.status === 'completed' || t.status === 'closed');
       } else {
         tasks = tasks.filter((t) => t.status === args.statusFilter);
       }
     }
 
-    // Filter by backlog lifecycle status (deprecated, kept for compatibility)
-    if (args.backlogStatusFilter) {
-      if (args.backlogStatusFilter === 'active') {
-        // Active: tasks without backlog field OR with not_started/started status
-        // Also include pending_user_review (new status) as "active" for backlog
-        tasks = tasks.filter(
-          (t) =>
-            !t.backlog ||
-            t.backlog.status === 'not_started' ||
-            t.backlog.status === 'started' ||
-            t.status === 'pending_user_review'
-        );
-      } else if (args.backlogStatusFilter === 'archived') {
-        // Archived: only tasks with complete/closed status
-        tasks = tasks.filter(
-          (t) =>
-            t.backlog?.status === 'complete' ||
-            t.backlog?.status === 'closed' ||
-            t.status === 'closed' ||
-            (t.status === 'completed' && t.backlog?.status !== 'started')
-        );
-      }
-    }
-
     // Sort by queuePosition for active, by updatedAt desc for archived
-    if (args.statusFilter === 'archived' || args.backlogStatusFilter === 'archived') {
+    if (args.statusFilter === 'archived') {
       tasks.sort((a, b) => b.updatedAt - a.updatedAt);
     } else {
       tasks.sort((a, b) => a.queuePosition - b.queuePosition);
@@ -1060,7 +998,6 @@ export const getTaskCounts = query({
       pending_user_review: tasks.filter((t) => t.status === 'pending_user_review').length,
       completed: tasks.filter((t) => t.status === 'completed').length,
       closed: tasks.filter((t) => t.status === 'closed').length,
-      cancelled: tasks.filter((t) => t.status === 'cancelled').length, // deprecated
     };
   },
 });
@@ -1153,9 +1090,9 @@ export const getTasksByIds = query({
           _id: task._id,
           content: task.content,
           status: task.status,
+          origin: task.origin,
           createdAt: task.createdAt,
           createdBy: task.createdBy,
-          backlog: task.backlog,
         };
       })
     );
