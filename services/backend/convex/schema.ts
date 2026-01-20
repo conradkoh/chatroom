@@ -342,6 +342,10 @@ export default defineSchema({
    * Tasks in chatrooms for queue and backlog management.
    * Tracks task lifecycle from creation through completion.
    * Only one task can be pending or in_progress at a time per chatroom.
+   *
+   * Task workflows are determined by origin:
+   * - backlog: pending → queued → pending → in_progress → pending_user_review → completed/closed
+   * - chat: queued → pending → in_progress → completed
    */
   chatroom_tasks: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -350,14 +354,26 @@ export default defineSchema({
     // Content (plain text only)
     content: v.string(),
 
+    // Origin - where this task came from (immutable after creation)
+    // Determines which workflow/state machine applies to this task
+    origin: v.optional(
+      v.union(
+        v.literal('backlog'), // Created in backlog tab
+        v.literal('chat') // Created from chat message
+      )
+    ), // Optional for migration - new tasks should always have this set
+
     // Status tracking
+    // Note: available statuses depend on origin (see workflows above)
     status: v.union(
-      v.literal('pending'), // Ready for agent, awaiting task-started
+      v.literal('pending'), // Backlog: in backlog tab / Chat: ready for agent
       v.literal('in_progress'), // Agent actively working on it
       v.literal('queued'), // Waiting in line (hidden from agent)
-      v.literal('backlog'), // User-created future task (not auto-picked)
-      v.literal('completed'), // Finished
-      v.literal('cancelled') // Cancelled by user
+      v.literal('backlog'), // DEPRECATED: Use origin='backlog' + status='pending' instead
+      v.literal('pending_user_review'), // Backlog only: agent done, user must confirm
+      v.literal('completed'), // Finished successfully
+      v.literal('closed'), // Backlog only: user closed without completing
+      v.literal('cancelled') // DEPRECATED: Use 'closed' instead
     ),
 
     // Assignment
@@ -375,8 +391,9 @@ export default defineSchema({
     // Queue ordering (lower = earlier in queue)
     queuePosition: v.number(),
 
-    // Backlog lifecycle tracking (only for tasks that originated as backlog items)
-    // Enables tracking backlog item completion independently of task queue status
+    // DEPRECATED: Backlog lifecycle tracking
+    // Use origin='backlog' + status field instead
+    // This field will be removed in a future migration
     backlog: v.optional(
       v.object({
         status: v.union(
