@@ -94,6 +94,9 @@ const getStatusBadge = (status: TaskStatus) => {
   }
 };
 
+// Maximum number of pending review items to show in sidebar before "View More"
+const PENDING_REVIEW_PREVIEW_LIMIT = 3;
+
 export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskContent, setNewTaskContent] = useState('');
@@ -102,6 +105,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
   const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
+  const [isPendingReviewModalOpen, setIsPendingReviewModalOpen] = useState(false);
 
   // Type assertion workaround for Convex API
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -454,13 +458,27 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
               <ClipboardCheck size={12} className="text-violet-500 dark:text-violet-400" />
               <span>Pending Review ({filteredPendingReviewTasks.length})</span>
             </div>
-            {filteredPendingReviewTasks.map((task) => (
+            {/* Show only first PENDING_REVIEW_PREVIEW_LIMIT items */}
+            {filteredPendingReviewTasks.slice(0, PENDING_REVIEW_PREVIEW_LIMIT).map((task) => (
               <PendingReviewItem
                 key={task._id}
                 task={task}
                 onClick={() => handleOpenTaskDetail(task)}
               />
             ))}
+            {/* Show "View More" button when there are more items */}
+            {filteredPendingReviewTasks.length > PENDING_REVIEW_PREVIEW_LIMIT && (
+              <button
+                onClick={() => setIsPendingReviewModalOpen(true)}
+                className="w-full px-3 py-2 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-tertiary/50 transition-colors text-left flex items-center gap-2"
+              >
+                <span>
+                  View More ({filteredPendingReviewTasks.length - PENDING_REVIEW_PREVIEW_LIMIT} more
+                  items)
+                </span>
+                <ChevronRight size={12} />
+              </button>
+            )}
           </div>
         )}
 
@@ -609,6 +627,17 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
           handleOpenTaskDetail(task);
         }}
       />
+
+      {/* Pending Review Modal */}
+      {isPendingReviewModalOpen && (
+        <PendingReviewModal
+          tasks={filteredPendingReviewTasks}
+          onClose={() => setIsPendingReviewModalOpen(false)}
+          onTaskClick={(task) => {
+            handleOpenTaskDetail(task);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -951,6 +980,129 @@ function PendingReviewItem({ task, onClick }: PendingReviewItemProps) {
         size={14}
         className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
       />
+    </div>
+  );
+}
+
+// Pending Review Modal Component
+interface PendingReviewModalProps {
+  tasks: Task[];
+  onClose: () => void;
+  onTaskClick: (task: Task) => void;
+}
+
+function PendingReviewModal({ tasks, onClose, onTaskClick }: PendingReviewModalProps) {
+  // Handle Escape key
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    },
+    [onClose]
+  );
+
+  React.useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
+  // Handle backdrop click
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    },
+    [onClose]
+  );
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
+        onClick={handleBackdropClick}
+      />
+
+      {/* Modal */}
+      <div className="fixed inset-x-2 top-16 bottom-2 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[95%] md:max-w-xl md:max-h-[70vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong z-50 flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <ClipboardCheck size={16} className="text-violet-500 dark:text-violet-400" />
+            <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
+              Pending Review ({tasks.length})
+            </span>
+          </div>
+          <button
+            className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Task List */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {tasks.length === 0 ? (
+            <div className="p-8 text-center text-chatroom-text-muted text-sm">
+              No tasks pending review
+            </div>
+          ) : (
+            tasks.map((task) => (
+              <PendingReviewModalItem
+                key={task._id}
+                task={task}
+                onClick={() => onTaskClick(task)}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Pending Review Modal Item - Similar to PendingReviewItem but for modal display
+interface PendingReviewModalItemProps {
+  task: Task;
+  onClick: () => void;
+}
+
+function PendingReviewModalItem({ task, onClick }: PendingReviewModalItemProps) {
+  const relativeTime = task.updatedAt ? formatRelativeTime(task.updatedAt) : '';
+
+  return (
+    <div
+      className="flex items-start gap-3 p-3 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group border-b border-chatroom-border last:border-b-0"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      {/* Review Badge */}
+      <span className="flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400">
+        Review
+      </span>
+
+      {/* Content - with markdown */}
+      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
+        <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+          {task.content}
+        </Markdown>
+      </div>
+
+      {/* Relative Time */}
+      <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>
     </div>
   );
 }
