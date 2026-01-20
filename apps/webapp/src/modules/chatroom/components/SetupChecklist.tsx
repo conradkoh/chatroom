@@ -1,10 +1,10 @@
 'use client';
 
-import { Rocket, Check, Lightbulb, ArrowRight } from 'lucide-react';
+import { Rocket, Check, Lightbulb, ArrowRight, Terminal } from 'lucide-react';
 import React, { useMemo, useCallback, memo } from 'react';
 
 import { CopyButton } from './CopyButton';
-import { generateAgentPrompt, generateShortPrompt } from '../prompts/generator';
+import { generateAgentPrompt, isProductionConvexUrl } from '../prompts/generator';
 
 interface Participant {
   role: string;
@@ -49,20 +49,19 @@ export const SetupChecklist = memo(function SetupChecklist({
     [chatroomId, teamName, teamRoles, teamEntryPoint]
   );
 
-  // Memoize command generation (short form for copy)
-  const generateCommand = useCallback(
-    (role: string): string => {
-      return generateShortPrompt({
-        chatroomId,
-        role,
-        teamName,
-        teamRoles,
-        teamEntryPoint,
-        convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
-      });
-    },
-    [chatroomId, teamName, teamRoles, teamEntryPoint]
-  );
+  // Check if we're in a non-production environment
+  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  const isProduction = isProductionConvexUrl(convexUrl);
+
+  // Generate the auth login command with appropriate env vars
+  const authLoginCommand = useMemo(() => {
+    if (isProduction) {
+      return 'chatroom auth login';
+    }
+    // For non-production, include both CHATROOM_WEB_URL and CHATROOM_CONVEX_URL
+    const webUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+    return `CHATROOM_WEB_URL=${webUrl} \\\nCHATROOM_CONVEX_URL=${convexUrl} \\\nchatroom auth login`;
+  }, [isProduction, convexUrl]);
 
   // Get first line of prompt for preview (pure function, no need for useCallback)
   const getPromptPreview = useCallback((prompt: string): string => {
@@ -90,6 +89,37 @@ export const SetupChecklist = memo(function SetupChecklist({
           {joinedCount} of {teamRoles.length} agents ready
         </p>
       </div>
+
+      {/* Auth Login Section - shown for non-production */}
+      {!isProduction && (
+        <div className="bg-chatroom-bg-surface border-2 border-chatroom-status-warning/30 mb-6">
+          <div className="flex items-center gap-2 p-4 border-b border-chatroom-border">
+            <Terminal size={16} className="text-chatroom-status-warning" />
+            <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
+              CLI Authentication
+            </span>
+            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-chatroom-status-warning/15 text-chatroom-status-warning">
+              Local Mode
+            </span>
+          </div>
+          <div className="p-4">
+            <p className="text-xs text-chatroom-text-muted mb-3">
+              Authenticate agents with this local backend:
+            </p>
+            <div className="flex items-start gap-2 p-3 bg-chatroom-bg-primary">
+              <pre className="font-mono text-xs text-chatroom-text-secondary flex-1 whitespace-pre-wrap">
+                {authLoginCommand}
+              </pre>
+              <CopyButton
+                text={authLoginCommand}
+                label="Copy"
+                copiedLabel="Copied!"
+                variant="compact"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Instructions */}
       <div className="bg-chatroom-bg-tertiary border-l-2 border-chatroom-status-info p-4 mb-6">
@@ -145,18 +175,6 @@ export const SetupChecklist = memo(function SetupChecklist({
               {/* Step Content - only show for pending steps */}
               {!isJoined && (
                 <div className="px-4 pb-4 flex flex-col gap-3">
-                  {/* Command Preview */}
-                  <div className="flex items-center gap-2 p-3 bg-chatroom-bg-primary">
-                    <code className="font-mono text-xs text-chatroom-text-muted truncate flex-1">
-                      {generateCommand(role)}
-                    </code>
-                    <CopyButton
-                      text={generateCommand(role)}
-                      label="Copy"
-                      copiedLabel="Copied!"
-                      variant="compact"
-                    />
-                  </div>
                   {/* Prompt Preview */}
                   <div
                     className="flex justify-between items-center p-3 bg-chatroom-bg-primary cursor-pointer hover:bg-chatroom-bg-hover transition-all duration-100"
