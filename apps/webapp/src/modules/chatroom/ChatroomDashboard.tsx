@@ -567,12 +567,16 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             )}
 
             {/* Sidebar - positioned below app header on mobile */}
+            {/* On desktop: transitions width to 0 when hidden so chat fills space */}
+            {/* On mobile: uses fixed positioning with translate for overlay effect */}
             <div
               className={`
-                ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain' : 'relative'}
-                w-80 flex flex-col bg-chatroom-bg-surface backdrop-blur-xl border-l-2 border-chatroom-border-strong
-                transition-transform duration-300 ease-in-out overflow-y-auto
-                ${sidebarVisible ? 'translate-x-0' : 'translate-x-full'}
+                ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain w-80' : 'relative overflow-hidden'}
+                ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
+                ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
+                flex flex-col bg-chatroom-bg-surface backdrop-blur-xl border-l-2 border-chatroom-border-strong
+                transition-all duration-300 ease-in-out
+                ${isSmallScreen ? (sidebarVisible ? 'translate-x-0' : 'translate-x-full') : ''}
               `}
             >
               <AgentPanel
