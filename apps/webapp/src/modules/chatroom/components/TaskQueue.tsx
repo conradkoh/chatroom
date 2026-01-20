@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ChevronDown,
   Archive,
+  ClipboardCheck,
 } from 'lucide-react';
 import React, { useState, useCallback, useMemo } from 'react';
 import Markdown from 'react-markdown';
@@ -122,6 +123,19 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const queueHealth = useSessionQuery(tasksApi.tasks.checkQueueHealth, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as QueueHealth | undefined;
+
+  // Query pending review tasks (completed tasks with backlog.status = started)
+  const pendingReviewTasks = useSessionQuery(tasksApi.tasks.listTasks, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    statusFilter: 'completed',
+    limit: 50,
+  }) as Task[] | undefined;
+
+  // Filter to only show tasks that are pending review (completed + backlog.status = started)
+  const filteredPendingReviewTasks = useMemo(() => {
+    if (!pendingReviewTasks) return [];
+    return pendingReviewTasks.filter((t) => t.backlog?.status === 'started');
+  }, [pendingReviewTasks]);
 
   // Query archived backlog tasks (only when expanded)
   const archivedTasks = useSessionQuery(
@@ -430,6 +444,23 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
                 onCancelEdit={cancelEditing}
                 onEditContentChange={setEditedContent}
                 onDelete={() => handleCancelTask(task._id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Pending Review - Tasks completed by agents awaiting user confirmation */}
+        {filteredPendingReviewTasks.length > 0 && (
+          <div className="border-b border-chatroom-border">
+            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center gap-2">
+              <ClipboardCheck size={12} className="text-violet-500 dark:text-violet-400" />
+              <span>Pending Review ({filteredPendingReviewTasks.length})</span>
+            </div>
+            {filteredPendingReviewTasks.map((task) => (
+              <PendingReviewItem
+                key={task._id}
+                task={task}
+                onClick={() => handleOpenTaskDetail(task)}
               />
             ))}
           </div>
@@ -861,6 +892,67 @@ function ArchivedBacklogItem({ task, onClick }: ArchivedBacklogItemProps) {
 
       {/* Date */}
       <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{formattedDate}</span>
+    </div>
+  );
+}
+
+// Pending Review Item - for tasks awaiting user confirmation
+interface PendingReviewItemProps {
+  task: Task;
+  onClick: () => void;
+}
+
+// Helper to format relative time
+function formatRelativeTime(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function PendingReviewItem({ task, onClick }: PendingReviewItemProps) {
+  const relativeTime = formatRelativeTime(task.updatedAt);
+
+  return (
+    <div
+      className="flex items-center gap-2 p-2 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      {/* Review Badge - Purple/Violet for visual distinction */}
+      <span className="flex-shrink-0 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400">
+        Review
+      </span>
+
+      {/* Content - 2 lines max */}
+      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
+        <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+          {task.content}
+        </Markdown>
+      </div>
+
+      {/* Relative Time */}
+      <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>
+
+      {/* Arrow to indicate clickable */}
+      <ChevronRight
+        size={14}
+        className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
+      />
     </div>
   );
 }
