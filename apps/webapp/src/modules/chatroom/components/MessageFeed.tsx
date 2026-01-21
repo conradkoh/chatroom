@@ -189,6 +189,72 @@ const getClassificationBadge = (classification: Message['classification']) => {
   }
 };
 
+// Sticky Task Header - renders before user messages as a section header
+// Shows shimmer while awaiting classification, then displays task title
+interface TaskHeaderProps {
+  message: Message;
+}
+
+const TaskHeader = memo(function TaskHeader({ message }: TaskHeaderProps) {
+  // Only show for user messages
+  if (message.senderRole.toLowerCase() !== 'user') {
+    return null;
+  }
+
+  const classificationBadge = getClassificationBadge(message.classification);
+  const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
+
+  // Determine what to display:
+  // - No taskId yet: shimmer (waiting for agent to pick up)
+  // - Has taskId but no classification: shimmer (waiting for classification)
+  // - Has classification + featureTitle: show first 2 lines of title
+  // - Has classification but no featureTitle: show classification badge only
+  const isAwaitingClassification = !message.classification;
+
+  // Get display text - use featureTitle if available, otherwise first 2 lines of content
+  const getDisplayText = () => {
+    const text = message.featureTitle || message.content;
+    const lines = text.split('\n').slice(0, 2);
+    return lines.join('\n');
+  };
+
+  return (
+    <div className="sticky top-0 z-10 px-3 py-2 bg-amber-50 dark:bg-amber-950 border-b-2 border-amber-200 dark:border-amber-800 shadow-sm">
+      <div className="flex items-center gap-2">
+        {/* Left: Classification badge or shimmer */}
+        {isAwaitingClassification ? (
+          // Shimmer state - waiting for classification
+          <div className="flex items-center gap-2 flex-1">
+            <div className="h-4 w-16 bg-amber-200/50 dark:bg-amber-700/50 animate-pulse rounded" />
+            <div className="h-4 flex-1 max-w-xs bg-amber-100/50 dark:bg-amber-800/50 animate-pulse rounded" />
+          </div>
+        ) : (
+          // Classified state - show badge and content
+          <>
+            {classificationBadge && (
+              <span className={classificationBadge.className}>
+                {classificationBadge.icon}
+                {classificationBadge.label}
+              </span>
+            )}
+            <span className="flex-1 text-sm font-medium text-amber-800 dark:text-amber-200 line-clamp-2 leading-tight">
+              {getDisplayText()}
+            </span>
+          </>
+        )}
+
+        {/* Right: Status badge */}
+        {taskStatusBadge && (
+          <span className={taskStatusBadge.className}>
+            {taskStatusBadge.icon}
+            {taskStatusBadge.label}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+});
+
 interface MessageItemProps {
   message: Message;
   onFeatureClick?: (message: Message) => void;
@@ -225,16 +291,12 @@ const MessageItem = memo(function MessageItem({
   // Determine if this message involves the user (for styling)
   const userInvolved = isUserInvolved(message.senderRole, message.targetRole);
 
-  // User messages get sticky positioning so they stick at top while scrolling
-  // Each user message replaces the previous one as you scroll past it
-  const isUserMessage = message.senderRole.toLowerCase() === 'user';
-
   return (
     <div
       className={`px-4 py-3 border-b-2 border-chatroom-border transition-all duration-100 last:border-b-0 ${
-        isUserMessage
-          ? // User messages: sticky with solid background and shadow for emphasis
-            'sticky top-0 z-10 bg-gradient-to-r from-amber-50 via-yellow-50/80 to-amber-50 dark:from-amber-950/70 dark:via-yellow-950/50 dark:to-amber-950/70 shadow-md shadow-amber-100/50 dark:shadow-amber-900/30 border-l-4 border-l-amber-400 dark:border-l-amber-500'
+        userInvolved
+          ? // User-involved messages: subtle amber background
+            'bg-amber-50/30 dark:bg-amber-950/20'
           : // Other messages: transparent, hover effect
             'bg-transparent hover:bg-chatroom-accent-subtle hover:-mx-2 hover:px-6'
       }`}
@@ -534,7 +596,7 @@ export const MessageFeed = memo(function MessageFeed({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
-      {/* Scrollable message content - User messages use CSS sticky to stay at top while scrolling */}
+      {/* Scrollable message content - Task headers use CSS sticky to stay at top while scrolling */}
       <div
         className="flex-1 overflow-y-auto p-4 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
         ref={feedRef}
@@ -554,12 +616,15 @@ export const MessageFeed = memo(function MessageFeed({
           </div>
         )}
         {displayMessages.map((message) => (
-          <MessageItem
-            key={message._id}
-            message={message}
-            onFeatureClick={handleFeatureClick}
-            onAttachedTaskClick={handleAttachedTaskClick}
-          />
+          <React.Fragment key={message._id}>
+            {/* Task Header - sticky section header for user messages */}
+            <TaskHeader message={message} />
+            <MessageItem
+              message={message}
+              onFeatureClick={handleFeatureClick}
+              onAttachedTaskClick={handleAttachedTaskClick}
+            />
+          </React.Fragment>
         ))}
       </div>
       {/* Working indicator - sticky at bottom, always visible */}
