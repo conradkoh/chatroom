@@ -21,7 +21,15 @@ import {
   RotateCcw,
   ArrowRight,
 } from 'lucide-react';
-import React, { useEffect, useRef, useMemo, memo, useCallback, useState } from 'react';
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useMemo,
+  memo,
+  useCallback,
+  useState,
+} from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -557,21 +565,34 @@ export const MessageFeed = memo(function MessageFeed({
     }
   }, []);
 
-  // Auto-scroll to bottom when new messages arrive (if user was at bottom)
-  // Maintain scroll position when loading older messages (paginating up)
+  // Track if we're in a loading more state to handle scroll position
+  const wasLoadingMoreRef = useRef(false);
+
+  // Update loading state ref when status changes
   useEffect(() => {
+    wasLoadingMoreRef.current = status === 'LoadingMore';
+  }, [status]);
+
+  // CRITICAL: Use useLayoutEffect to adjust scroll position BEFORE browser paint
+  // This prevents the visual "jump" when loading older messages
+  useLayoutEffect(() => {
     if (feedRef.current) {
       const newScrollHeight = feedRef.current.scrollHeight;
       const heightDiff = newScrollHeight - prevScrollHeightRef.current;
       const messagesAdded = displayMessages.length > prevMessageCountRef.current;
 
-      if (messagesAdded) {
-        if (status === 'LoadingMore') {
+      if (messagesAdded && heightDiff > 0) {
+        // Check if this was from loading older messages (content added at top)
+        // We detect this by checking if prevScrollHeight was smaller (content was added)
+        // and the user was near the top (likely paginating up)
+        const wasNearTop = feedRef.current.scrollTop < 200;
+        const contentAddedAtTop = wasLoadingMoreRef.current || wasNearTop;
+
+        if (contentAddedAtTop) {
           // Loading older messages (paginating up) - maintain scroll position
-          // by adding the height difference to current scroll
-          if (heightDiff > 0) {
-            feedRef.current.scrollTop = feedRef.current.scrollTop + heightDiff;
-          }
+          // by adding the height difference to current scroll position IMMEDIATELY
+          // This happens synchronously before paint, so user sees no jump
+          feedRef.current.scrollTop = feedRef.current.scrollTop + heightDiff;
         } else if (isAtBottomRef.current) {
           // New message arrived and user was at bottom - scroll to bottom
           feedRef.current.scrollTop = feedRef.current.scrollHeight;
@@ -584,7 +605,7 @@ export const MessageFeed = memo(function MessageFeed({
       prevScrollHeightRef.current = newScrollHeight;
     }
     prevMessageCountRef.current = displayMessages.length;
-  }, [displayMessages.length, status]);
+  }, [displayMessages.length]);
 
   // Handle scroll: load more when near top, track if at bottom
   const handleScroll = useCallback(() => {
