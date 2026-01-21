@@ -1,10 +1,14 @@
 'use client';
 
-import { ChevronRight, CheckCircle, AlertTriangle, Clock, RefreshCw, X } from 'lucide-react';
-import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
+import { ChevronRight, CheckCircle, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import { CopyButton } from './CopyButton';
 import { generateAgentPrompt } from '../prompts/generator';
+
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 // Participant info from readiness query - includes expiration data
 interface ParticipantInfo {
@@ -66,7 +70,7 @@ const getEffectiveStatus = (
   return { status: participant.status, isExpired: false };
 };
 
-// Collapsed Agent Group Component - now opens a custom modal instead of ShadCN Dialog
+// Collapsed Agent Group Component - uses ShadCN Dialog
 interface CollapsedAgentGroupProps {
   title: string;
   agents: string[];
@@ -86,42 +90,22 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
 
   const variantClasses = {
     ready: {
-      indicator: 'bg-chatroom-status-success',
-      text: 'text-chatroom-status-success',
+      indicator: 'bg-green-500 dark:bg-green-400',
+      badge: 'default' as const,
     },
     offline: {
-      indicator: 'bg-chatroom-status-warning',
-      text: 'text-chatroom-status-warning',
+      indicator: 'bg-amber-500 dark:bg-amber-400',
+      badge: 'secondary' as const,
     },
   };
 
   const classes = variantClasses[variant];
 
-  // Handle escape key to close modal
-  useEffect(() => {
-    if (isModalOpen) {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          setIsModalOpen(false);
-        }
-      };
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isModalOpen]);
-
-  // Handle backdrop click
-  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      setIsModalOpen(false);
-    }
-  }, []);
-
   return (
     <>
-      <div className="border-b border-chatroom-border last:border-b-0">
+      <div className="border-b border-border last:border-b-0">
         <div
-          className="flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover"
+          className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-accent/50"
           role="button"
           tabIndex={0}
           aria-label={`${title} agents (${agents.length}). Click to view details.`}
@@ -133,92 +117,71 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
             }
           }}
         >
-          {/* Status Indicator */}
+          {/* Status Indicator - square per theme.md */}
           <div className={`w-2.5 h-2.5 flex-shrink-0 ${classes.indicator}`} />
           {/* Group Info */}
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
+            <div className="text-xs font-bold uppercase tracking-wider text-foreground">
               {title}
-              <span className="ml-1.5 text-chatroom-text-muted">({agents.length})</span>
+              <span className="ml-1.5 text-muted-foreground">({agents.length})</span>
             </div>
-            <div className={`text-[10px] font-bold uppercase tracking-wide ${classes.text}`}>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
               {agents.map((r) => r.toUpperCase()).join(', ')}
             </div>
           </div>
           {/* View More Indicator */}
-          <div className="text-chatroom-text-muted">
-            <ChevronRight size={14} />
-          </div>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </div>
       </div>
 
-      {/* Custom Agent Group Modal - matches TaskDetailModal pattern */}
-      {isModalOpen && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm"
-            onClick={handleBackdropClick}
-          />
-
-          {/* Modal Content */}
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-sm w-[90%] max-h-[70vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong z-[70] flex flex-col animate-in fade-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <div className={`w-2.5 h-2.5 flex-shrink-0 ${classes.indicator}`} />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-primary">
-                  {title} Agents ({agents.length})
-                </span>
-              </div>
-              <button
-                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-                onClick={() => setIsModalOpen(false)}
-                aria-label="Close"
-              >
-                <X size={20} />
-              </button>
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-sm max-h-[70vh] flex flex-col gap-0 p-0">
+          <DialogHeader className="px-4 py-3 border-b">
+            <div className="flex items-center gap-2">
+              <div className={`w-2.5 h-2.5 ${classes.indicator}`} />
+              <DialogTitle className="text-sm font-bold uppercase tracking-wider">
+                {title} Agents ({agents.length})
+              </DialogTitle>
             </div>
+          </DialogHeader>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden">
-              {agents.map((role) => {
-                const prompt = generatePrompt(role);
-                const preview = prompt.split('\n')[0]?.substring(0, 40) + '...';
+          <ScrollArea className="flex-1">
+            {agents.map((role) => {
+              const prompt = generatePrompt(role);
+              const preview = prompt.split('\n')[0]?.substring(0, 40) + '...';
 
-                return (
-                  <div
-                    key={role}
-                    className="border-b border-chatroom-border last:border-b-0 p-4 hover:bg-chatroom-bg-hover transition-colors"
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
-                        {role}
-                      </div>
-                      <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
-                    </div>
-                    <div
-                      className="text-xs text-chatroom-text-muted font-mono truncate cursor-pointer hover:text-chatroom-text-secondary"
-                      onClick={() => {
-                        onViewPrompt?.(role);
-                        setIsModalOpen(false);
-                      }}
-                      title="Click to view full prompt"
-                    >
-                      {preview}
-                    </div>
+              return (
+                <div
+                  key={role}
+                  className="border-b border-border last:border-b-0 p-4 hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-sm font-bold uppercase tracking-wider text-foreground truncate">
+                      {role}
+                    </span>
+                    <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      )}
+                  <button
+                    className="text-xs text-muted-foreground font-mono truncate w-full text-left hover:text-foreground transition-colors"
+                    onClick={() => {
+                      onViewPrompt?.(role);
+                      setIsModalOpen(false);
+                    }}
+                    title="Click to view full prompt"
+                  >
+                    {preview}
+                  </button>
+                </div>
+              );
+            })}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </>
   );
 });
 
-// Single Agent Modal Component - shows prompt and copy button for individual agents
+// Single Agent Modal Component - uses ShadCN Dialog
 interface SingleAgentModalProps {
   role: string;
   effectiveStatus: string;
@@ -236,31 +199,6 @@ const SingleAgentModal = memo(function SingleAgentModal({
   onClose,
   onViewPrompt,
 }: SingleAgentModalProps) {
-  // Handle escape key to close modal
-  useEffect(() => {
-    if (isOpen) {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          onClose();
-        }
-      };
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isOpen, onClose]);
-
-  // Handle backdrop click
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
-  if (!isOpen) return null;
-
   const statusLabel =
     effectiveStatus === 'missing'
       ? 'NOT JOINED'
@@ -274,50 +212,48 @@ const SingleAgentModal = memo(function SingleAgentModal({
 
   const indicatorClass =
     effectiveStatus === 'active'
-      ? 'bg-chatroom-status-info'
+      ? 'bg-blue-500 dark:bg-blue-400'
       : effectiveStatus === 'waiting'
-        ? 'bg-chatroom-status-success'
+        ? 'bg-green-500 dark:bg-green-400'
         : effectiveStatus === 'disconnected'
-          ? 'bg-chatroom-status-error'
-          : 'bg-chatroom-text-muted';
+          ? 'bg-red-500 dark:bg-red-400'
+          : 'bg-muted-foreground';
+
+  const badgeVariant =
+    effectiveStatus === 'active'
+      ? 'default'
+      : effectiveStatus === 'waiting'
+        ? 'secondary'
+        : effectiveStatus === 'disconnected'
+          ? 'destructive'
+          : 'outline';
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm"
-        onClick={handleBackdropClick}
-      />
-
-      {/* Modal Content */}
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-sm w-[90%] max-h-[70vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong z-[70] flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`} />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-primary">
-              {role.toUpperCase()} - {statusLabel}
-            </span>
-          </div>
-          <button
-            className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
-              Agent Prompt
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm max-h-[70vh] flex flex-col gap-0 p-0">
+        <DialogHeader className="px-4 py-3 border-b">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-2.5 h-2.5 ${indicatorClass}`} />
+              <DialogTitle className="text-sm font-bold uppercase tracking-wider">
+                {role.toUpperCase()}
+              </DialogTitle>
             </div>
+            <Badge variant={badgeVariant} className="text-xs">
+              {statusLabel}
+            </Badge>
+          </div>
+        </DialogHeader>
+
+        <div className="p-4">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <span className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Agent Prompt
+            </span>
             <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
           </div>
-          <div
-            className="text-xs text-chatroom-text-muted font-mono whitespace-pre-wrap break-words bg-chatroom-bg-tertiary p-3 max-h-[40vh] overflow-y-auto cursor-pointer hover:text-chatroom-text-secondary"
+          <button
+            className="w-full text-left text-xs text-muted-foreground font-mono whitespace-pre-wrap break-words bg-muted p-3 max-h-[40vh] overflow-y-auto hover:text-foreground transition-colors"
             onClick={() => {
               onViewPrompt?.(role);
               onClose();
@@ -325,10 +261,10 @@ const SingleAgentModal = memo(function SingleAgentModal({
             title="Click to view full prompt in viewer"
           >
             {prompt.length > 500 ? prompt.substring(0, 500) + '...' : prompt}
-          </div>
+          </button>
         </div>
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   );
 });
 

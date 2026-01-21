@@ -1,10 +1,22 @@
 'use client';
 
-import { X, RefreshCw, AlertTriangle } from 'lucide-react';
-import React, { useEffect, useCallback, memo, useMemo } from 'react';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
+import React, { useCallback, memo, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
 import { generateAgentPrompt } from '../prompts/generator';
+
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface ParticipantInfo {
   role: string;
@@ -37,25 +49,6 @@ export const ReconnectModal = memo(function ReconnectModal({
   participants: _participants, // Reserved for future use
   onViewPrompt,
 }: ReconnectModalProps) {
-  // Handle Escape key
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
-  useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, handleKeyDown]);
-
   // Generate prompts for expired roles
   const expiredRolePrompts = useMemo(() => {
     return expiredRoles.map((role) => ({
@@ -80,126 +73,87 @@ export const ReconnectModal = memo(function ReconnectModal({
     return firstLine;
   }, []);
 
-  // Handle backdrop click
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
-  if (!isOpen) {
-    return null;
-  }
-
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
-        onClick={handleBackdropClick}
-      />
-
-      {/* Modal - Mobile-first responsive positioning */}
-      <div className="fixed inset-x-2 top-16 bottom-2 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[95%] md:max-w-lg md:max-h-[85vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong z-50 flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface">
-          <div className="flex items-center gap-3">
-            <div className="text-chatroom-status-error">
-              <AlertTriangle size={20} />
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-                Agents Disconnected
-              </span>
-              <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
-                Reconnect Team
-              </span>
-            </div>
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col gap-0 p-0">
+        <DialogHeader className="px-6 pt-6 pb-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <DialogTitle className="text-lg">Agents Disconnected</DialogTitle>
           </div>
-          <button
-            className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
-        </div>
+          <DialogDescription className="text-sm">
+            The following agents have disconnected and need to be reconnected. Copy the prompt for
+            each agent and paste it into their terminal.
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {/* Instructions */}
-          <div className="bg-chatroom-bg-tertiary border-l-2 border-chatroom-status-warning p-3 mb-4">
-            <p className="text-xs text-chatroom-text-secondary">
-              The following agents have disconnected. Copy and paste the prompt for each agent to
-              reconnect them.
-            </p>
-          </div>
-
-          {/* Expired Roles */}
-          <div className="flex flex-col gap-3">
+        <ScrollArea className="flex-1 px-6">
+          <div className="flex flex-col gap-3 pb-4">
             {expiredRolePrompts.map(({ role, prompt }) => {
               const preview = getPromptPreview(prompt);
 
               return (
-                <div
+                <Card
                   key={role}
-                  className="bg-chatroom-bg-surface border-2 border-chatroom-status-error/30 hover:border-chatroom-status-error/50 transition-all duration-100"
+                  className="border-destructive/30 hover:border-destructive/50 transition-colors"
                 >
-                  {/* Role Header */}
-                  <div className="flex justify-between items-center p-3 border-b border-chatroom-border">
-                    <div className="flex items-center gap-2">
-                      <RefreshCw size={14} className="text-chatroom-status-error" />
-                      <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
-                        {role}
-                      </span>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <RefreshCw className="h-4 w-4 text-destructive" />
+                        <CardTitle className="text-sm font-bold uppercase tracking-wider">
+                          {role}
+                        </CardTitle>
+                      </div>
+                      <Badge variant="destructive" className="uppercase text-xs">
+                        Disconnected
+                      </Badge>
                     </div>
-                    <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-chatroom-status-error/15 text-chatroom-status-error">
-                      Disconnected
-                    </span>
-                  </div>
+                  </CardHeader>
 
-                  {/* Prompt Preview & Actions */}
-                  <div className="p-3 flex flex-col gap-2">
+                  <CardContent className="pt-0 flex flex-col gap-3">
                     {/* Prompt Preview */}
                     {onViewPrompt && (
-                      <div
-                        className="flex justify-between items-center p-2 bg-chatroom-bg-primary cursor-pointer hover:bg-chatroom-bg-hover transition-all duration-100"
+                      <button
+                        className="flex items-center justify-between p-2 bg-muted/50 hover:bg-muted transition-colors text-left"
                         onClick={() => onViewPrompt(role)}
                         title="Click to view full prompt"
                       >
-                        <span className="font-mono text-[10px] text-chatroom-text-muted truncate flex-1">
+                        <span className="font-mono text-xs text-muted-foreground truncate flex-1">
                           {preview}
                         </span>
-                        <span className="text-[9px] font-bold uppercase tracking-wide text-chatroom-status-info ml-2">
-                          View
-                        </span>
-                      </div>
+                        <span className="text-xs font-medium text-primary ml-2 shrink-0">View</span>
+                      </button>
                     )}
 
                     {/* Copy Button */}
                     <div className="flex justify-end">
                       <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
                     </div>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
-        </div>
+        </ScrollArea>
 
-        {/* Footer */}
-        <div className="p-4 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
-          <p className="text-[10px] text-chatroom-text-muted text-center">
-            After pasting prompts, agents will automatically reconnect when they run{' '}
-            <code className="bg-chatroom-bg-tertiary px-1 text-chatroom-status-success">
-              wait-for-task
-            </code>
-          </p>
-        </div>
-      </div>
-    </>
+        <DialogFooter className="px-6 py-4 border-t bg-muted/30">
+          <div className="w-full space-y-2 text-xs text-muted-foreground">
+            <p className="font-medium">To reconnect each agent:</p>
+            <ol className="list-decimal list-inside space-y-1 ml-2">
+              <li>Copy the prompt using the button above</li>
+              <li>Paste it into the agent&apos;s terminal</li>
+              <li>
+                Run{' '}
+                <code className="bg-background px-1.5 py-0.5 text-primary font-mono">
+                  wait-for-task
+                </code>{' '}
+                to reconnect
+              </li>
+            </ol>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 });
