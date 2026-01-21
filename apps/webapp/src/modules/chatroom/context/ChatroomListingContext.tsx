@@ -28,8 +28,10 @@ export interface ChatroomWithStatus {
   teamName?: string;
   teamRoles?: string[];
   teamEntryPoint?: string;
+  lastActivityAt?: number;
   agents: Agent[];
   chatStatus: 'ready' | 'working' | 'partial' | 'disconnected' | 'setup' | 'completed';
+  isFavorite: boolean;
   teamReadiness: TeamReadiness;
 }
 

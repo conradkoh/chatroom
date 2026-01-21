@@ -457,4 +457,17 @@ export default defineSchema({
     .index('by_sessionId', ['sessionId'])
     .index('by_userId', ['userId'])
     .index('by_userId_active', ['userId', 'isActive']),
+
+  /**
+   * User favorites for chatrooms.
+   * Tracks which chatrooms a user has marked as favorite for quick access.
+   */
+  chatroom_favorites: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.id('users'),
+    createdAt: v.number(),
+  })
+    .index('by_userId', ['userId'])
+    .index('by_userId_chatroomId', ['userId', 'chatroomId'])
+    .index('by_chatroomId', ['chatroomId']),
 });

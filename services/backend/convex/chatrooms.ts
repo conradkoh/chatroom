@@ -118,6 +118,13 @@ export const listByUserWithStatus = query({
 
     const now = Date.now();
 
+    // Fetch all favorites for this user in one query
+    const favorites = await ctx.db
+      .query('chatroom_favorites')
+      .withIndex('by_userId', (q) => q.eq('userId', sessionResult.userId))
+      .collect();
+    const favoriteIds = new Set(favorites.map((f) => f.chatroomId));
+
     // Fetch all participant data and compute statuses
     const chatroomsWithStatus = await Promise.all(
       chatrooms.map(async (chatroom) => {
@@ -183,6 +190,7 @@ export const listByUserWithStatus = query({
           ...chatroom,
           agents,
           chatStatus,
+          isFavorite: favoriteIds.has(chatroom._id),
           teamReadiness: {
             isReady: allPresent && !hasDisconnected,
             missingRoles: teamRoles.filter((r) => !presentRoles.has(r.toLowerCase())),
@@ -344,5 +352,71 @@ export const getTeamReadiness = query({
       // New field: detailed participant info with readyUntil
       participants: participantInfo,
     };
+  },
+});
+
+// ============================================================================
+// FAVORITES
+// ============================================================================
+
+/**
+ * Toggle favorite status for a chatroom.
+ * If currently favorited, removes the favorite. Otherwise, adds it.
+ * Requires session authentication and chatroom access.
+ */
+export const toggleFavorite = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Check if favorite already exists
+    const existing = await ctx.db
+      .query('chatroom_favorites')
+      .withIndex('by_userId_chatroomId', (q) =>
+        q.eq('userId', session.userId).eq('chatroomId', args.chatroomId)
+      )
+      .first();
+
+    if (existing) {
+      // Remove favorite
+      await ctx.db.delete('chatroom_favorites', existing._id);
+      return { isFavorite: false };
+    }
+
+    // Add favorite
+    await ctx.db.insert('chatroom_favorites', {
+      chatroomId: args.chatroomId,
+      userId: session.userId,
+      createdAt: Date.now(),
+    });
+    return { isFavorite: true };
+  },
+});
+
+/**
+ * Check if a chatroom is favorited by the current user.
+ * Requires session authentication.
+ */
+export const isFavorite = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const favorite = await ctx.db
+      .query('chatroom_favorites')
+      .withIndex('by_userId_chatroomId', (q) =>
+        q.eq('userId', session.userId).eq('chatroomId', args.chatroomId)
+      )
+      .first();
+
+    return { isFavorite: !!favorite };
   },
 });
