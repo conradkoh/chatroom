@@ -229,18 +229,19 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
 
   // Fixed height container for uniform sticky headers
   // Height: h-8 (32px) provides consistent height across all states
+  // Modern design: neutral grey background with colorized elements
   return (
     <button
       onClick={handleClick}
-      className="sticky top-0 z-10 w-full text-left h-8 px-2 flex items-center bg-amber-50 dark:bg-amber-950 border-b-2 border-amber-200 dark:border-amber-800 shadow-sm cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/50 transition-colors"
+      className="sticky top-0 z-10 w-full text-left h-8 px-3 flex items-center bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong backdrop-blur-sm cursor-pointer hover:bg-chatroom-bg-hover transition-colors"
     >
-      <div className="flex items-center gap-1.5 w-full min-w-0">
+      <div className="flex items-center gap-2 w-full min-w-0">
         {/* Left: Classification badge or shimmer */}
         {isAwaitingClassification ? (
           // Shimmer state - waiting for classification
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="h-4 w-16 bg-amber-200/50 dark:bg-amber-700/50 animate-pulse flex-shrink-0" />
-            <div className="h-4 flex-1 max-w-xs bg-amber-100/50 dark:bg-amber-800/50 animate-pulse" />
+            <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
+            <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
           </div>
         ) : (
           // Classified state - show badge and single-line truncated content
@@ -251,7 +252,7 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
                 {classificationBadge.label}
               </span>
             )}
-            <span className="flex-1 min-w-0 text-xs font-bold text-amber-800 dark:text-amber-200 truncate">
+            <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
               {getDisplayText()}
             </span>
           </>
