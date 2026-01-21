@@ -543,15 +543,21 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       <>
         <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
           {isSetupMode ? (
-            <div className="setup-content">
-              <SetupChecklist
-                chatroomId={chatroomId}
-                teamName={teamName}
-                teamRoles={teamRoles}
-                teamEntryPoint={teamEntryPoint}
-                participants={participants || []}
-                onViewPrompt={handleViewPrompt}
-              />
+            <div className="setup-content flex flex-col h-full overflow-hidden">
+              <div className="flex-1 overflow-y-auto">
+                <SetupChecklist
+                  chatroomId={chatroomId}
+                  teamName={teamName}
+                  teamRoles={teamRoles}
+                  teamEntryPoint={teamEntryPoint}
+                  participants={participants || []}
+                  onViewPrompt={handleViewPrompt}
+                />
+              </div>
+              {/* Backlog access during setup - collapsible at bottom */}
+              <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
+                <TaskQueue chatroomId={chatroomId} />
+              </div>
             </div>
           ) : (
             <div className="flex flex-1 overflow-hidden relative">
