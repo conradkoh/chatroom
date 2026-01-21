@@ -215,42 +215,43 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
 
   // Determine what to display:
-  // - No taskId yet: shimmer (waiting for agent to pick up)
-  // - Has taskId but no classification: shimmer (waiting for classification)
-  // - Has classification + featureTitle: show first 2 lines of title
-  // - Has classification but no featureTitle: show classification badge only
+  // - No classification yet: shimmer (waiting for classification)
+  // - Has classification: show badge and single-line truncated title
   const isAwaitingClassification = !message.classification;
 
-  // Get display text - use featureTitle if available, otherwise first 2 lines of content
+  // Get display text - use featureTitle if available, otherwise first line of content
+  // Truncated to single line for uniform header height
   const getDisplayText = () => {
     const text = message.featureTitle || message.content;
-    const lines = text.split('\n').slice(0, 2);
-    return lines.join('\n');
+    // Replace newlines with spaces for single-line display
+    return text.replace(/\n+/g, ' ').trim();
   };
 
+  // Fixed height container for uniform sticky headers
+  // Height: h-8 (32px) provides consistent height across all states
   return (
     <button
       onClick={handleClick}
-      className="sticky top-0 z-10 w-full text-left px-2 py-1.5 bg-amber-50 dark:bg-amber-950 border-b-2 border-amber-200 dark:border-amber-800 shadow-sm cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/50 transition-colors"
+      className="sticky top-0 z-10 w-full text-left h-8 px-2 flex items-center bg-amber-50 dark:bg-amber-950 border-b-2 border-amber-200 dark:border-amber-800 shadow-sm cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/50 transition-colors"
     >
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 w-full min-w-0">
         {/* Left: Classification badge or shimmer */}
         {isAwaitingClassification ? (
           // Shimmer state - waiting for classification
-          <div className="flex items-center gap-2 flex-1">
-            <div className="h-4 w-16 bg-amber-200/50 dark:bg-amber-700/50 animate-pulse rounded" />
-            <div className="h-4 flex-1 max-w-xs bg-amber-100/50 dark:bg-amber-800/50 animate-pulse rounded" />
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="h-4 w-16 bg-amber-200/50 dark:bg-amber-700/50 animate-pulse flex-shrink-0" />
+            <div className="h-4 flex-1 max-w-xs bg-amber-100/50 dark:bg-amber-800/50 animate-pulse" />
           </div>
         ) : (
-          // Classified state - show badge and content
+          // Classified state - show badge and single-line truncated content
           <>
             {classificationBadge && (
-              <span className={classificationBadge.className}>
+              <span className={`${classificationBadge.className} flex-shrink-0`}>
                 {classificationBadge.icon}
                 {classificationBadge.label}
               </span>
             )}
-            <span className="flex-1 text-sm font-medium text-amber-800 dark:text-amber-200 line-clamp-2 leading-tight">
+            <span className="flex-1 min-w-0 text-xs font-bold text-amber-800 dark:text-amber-200 truncate">
               {getDisplayText()}
             </span>
           </>
@@ -258,7 +259,7 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
 
         {/* Right: Status badge */}
         {taskStatusBadge && (
-          <span className={taskStatusBadge.className}>
+          <span className={`${taskStatusBadge.className} flex-shrink-0`}>
             {taskStatusBadge.icon}
             {taskStatusBadge.label}
           </span>
