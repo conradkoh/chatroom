@@ -1,4 +1,7 @@
-import React from 'react';
+'use client';
+
+import { Check, Copy } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
 
 /**
  * Simplified markdown components for compact display.
@@ -46,4 +49,126 @@ export const compactMarkdownComponents = {
   a: ({ children }: { children?: React.ReactNode }) => (
     <span className="underline">{children}</span>
   ),
+};
+
+/**
+ * Extract text content from React children (handles nested code elements)
+ */
+function extractTextContent(children: React.ReactNode): string {
+  if (typeof children === 'string') {
+    return children;
+  }
+  if (Array.isArray(children)) {
+    return children.map(extractTextContent).join('');
+  }
+  if (React.isValidElement(children)) {
+    // Handle code element inside pre
+    const props = children.props as { children?: React.ReactNode };
+    return extractTextContent(props.children);
+  }
+  return '';
+}
+
+/**
+ * CodeBlock component with copy button for fenced code blocks.
+ * Shows language badge and copy functionality.
+ */
+export function CodeBlock({
+  children,
+  className,
+}: {
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  // Extract language from className (e.g., "language-typescript" -> "typescript")
+  const language = className?.replace('language-', '') || '';
+
+  // Extract text content for copying
+  const textContent = extractTextContent(children);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(textContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }, [textContent]);
+
+  return (
+    <div className="relative group my-3">
+      {/* Header bar with language and copy button */}
+      <div className="flex items-center justify-between bg-chatroom-bg-tertiary border-2 border-b-0 border-chatroom-border px-3 py-1.5">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+          {language || 'code'}
+        </span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+          title={copied ? 'Copied!' : 'Copy code'}
+        >
+          {copied ? (
+            <>
+              <Check size={12} className="text-chatroom-status-success" />
+              <span className="text-chatroom-status-success">Copied</span>
+            </>
+          ) : (
+            <>
+              <Copy size={12} />
+              <span>Copy</span>
+            </>
+          )}
+        </button>
+      </div>
+      {/* Code content */}
+      <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 overflow-x-auto text-sm">
+        <code className={className}>{children}</code>
+      </pre>
+    </div>
+  );
+}
+
+/**
+ * Full markdown components with enhanced code block rendering.
+ * Includes copy button for fenced code blocks.
+ * Use with react-markdown's `components` prop.
+ */
+export const fullMarkdownComponents = {
+  // Wrap pre elements with CodeBlock for copy functionality
+  pre: ({ children }: { children?: React.ReactNode }) => {
+    // The children of pre is usually a code element
+    if (React.isValidElement(children)) {
+      const codeProps = children.props as { children?: React.ReactNode; className?: string };
+      return <CodeBlock className={codeProps.className}>{codeProps.children}</CodeBlock>;
+    }
+    // Fallback for non-code pre content
+    return (
+      <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 my-3 overflow-x-auto text-sm">
+        {children}
+      </pre>
+    );
+  },
+  // Inline code (not in pre) - keep simple styling
+  code: ({
+    children,
+    className,
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+    inline?: boolean;
+  }) => {
+    // If has language class, it's a code block (handled by pre)
+    // This handles inline code only
+    if (className?.startsWith('language-')) {
+      return <code className={className}>{children}</code>;
+    }
+    return (
+      <code className="bg-chatroom-bg-tertiary px-1.5 py-0.5 text-chatroom-status-success text-[0.9em]">
+        {children}
+      </code>
+    );
+  },
 };
