@@ -1,6 +1,6 @@
 {
   "name": "chatroom-cli",
-  "version": "1.0.44",
+  "version": "1.0.45",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {

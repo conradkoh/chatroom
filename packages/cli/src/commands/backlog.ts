@@ -6,7 +6,15 @@ import { api, type Id } from '../api.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
-type TaskStatus = 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
+type TaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'queued'
+  | 'backlog'
+  | 'completed'
+  | 'cancelled'
+  | 'pending_user_review'
+  | 'closed';
 
 interface Task {
   _id: string;
@@ -69,6 +77,8 @@ export async function listBacklog(
     'completed',
     'cancelled',
     'active',
+    'pending_review', // tasks awaiting user review
+    'archived', // completed + closed
     'all',
   ];
   const statusFilter = options.status;
@@ -100,7 +110,9 @@ export async function listBacklog(
               | 'backlog'
               | 'completed'
               | 'cancelled'
-              | 'active'),
+              | 'active'
+              | 'pending_review'
+              | 'archived'),
       limit: options.limit || 20,
     })) as Task[];
 
@@ -368,6 +380,10 @@ function getStatusEmoji(status: TaskStatus): string {
       return '✅';
     case 'cancelled':
       return '❌';
+    case 'pending_user_review':
+      return '👀';
+    case 'closed':
+      return '🔒';
     default:
       return '⚫';
   }

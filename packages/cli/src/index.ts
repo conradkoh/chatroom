@@ -240,7 +240,7 @@ backlogCommand
   .requiredOption('--role <role>', 'Your role')
   .requiredOption(
     '--status <status>',
-    'Filter by status (pending|in_progress|queued|backlog|completed|cancelled|active|all)'
+    'Filter by status (pending|in_progress|queued|backlog|completed|cancelled|active|pending_review|archived|all)'
   )
   .option('--limit <n>', 'Maximum number of tasks to show (required for --status=all)')
   .option('--full', 'Show full task content without truncation')
