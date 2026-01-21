@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { MessageSquare, MoreVertical, CheckCircle, LayoutGrid, List } from 'lucide-react';
+import { MessageSquare, MoreVertical, CheckCircle, LayoutGrid, List, Star } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import { CreateChatroomForm } from './CreateChatroomForm';
@@ -77,6 +77,18 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
     [onSelect]
   );
 
+  // Compute recently used chatrooms (top 3 by last activity, non-completed)
+  const recentlyUsed = useMemo(() => {
+    if (!chatrooms) return [];
+    return chatrooms.filter((c) => c.chatStatus !== 'completed').slice(0, 3);
+  }, [chatrooms]);
+
+  // Compute favorite chatrooms
+  const favorites = useMemo(() => {
+    if (!chatrooms) return [];
+    return chatrooms.filter((c) => c.isFavorite);
+  }, [chatrooms]);
+
   if (isLoading) {
     return (
       <div className="chatroom-root min-h-screen bg-chatroom-bg-primary text-chatroom-text-primary p-6">
@@ -137,6 +149,53 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
           + New
         </button>
       </div>
+
+      {/* Recently Used Section - Desktop: 3 cards, Mobile: horizontally scrollable */}
+      {recentlyUsed.length > 0 && activeTab === 'current' && (
+        <div className="mb-6">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+            Recently Used
+          </h2>
+          {/* Desktop: grid of 3 */}
+          <div className="hidden md:grid md:grid-cols-3 gap-4">
+            {recentlyUsed.map((chatroom) => (
+              <RecentChatroomCard key={chatroom._id} chatroom={chatroom} onSelect={onSelect} />
+            ))}
+          </div>
+          {/* Mobile: horizontal scroll showing 1.5 cards */}
+          <div className="md:hidden overflow-x-auto scrollbar-hide -mx-6 px-6">
+            <div className="flex gap-4" style={{ width: 'max-content' }}>
+              {recentlyUsed.map((chatroom) => (
+                <div key={chatroom._id} className="w-[75vw] flex-shrink-0">
+                  <RecentChatroomCard chatroom={chatroom} onSelect={onSelect} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Favorites Section */}
+      {favorites.length > 0 && activeTab === 'current' && (
+        <div className="mb-6">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3 flex items-center gap-2">
+            <Star size={12} className="text-yellow-500" fill="currentColor" />
+            Favorites
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {favorites.map((chatroom) => (
+              <ChatroomCard
+                key={chatroom._id}
+                chatroom={chatroom}
+                onSelect={onSelect}
+                activeTab={activeTab}
+                showInFavorites
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Tabs and View Toggle */}
       <div className="flex justify-between items-center mb-6 border-b-2 border-chatroom-border">
         <div className="flex gap-0">
@@ -206,10 +265,88 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
   );
 }
 
+/**
+ * Compact card for recently used chatrooms section
+ */
+interface RecentChatroomCardProps {
+  chatroom: ChatroomWithStatus;
+  onSelect: (chatroomId: string) => void;
+}
+
+const RecentChatroomCard = memo(function RecentChatroomCard({
+  chatroom,
+  onSelect,
+}: RecentChatroomCardProps) {
+  // Type assertion workaround for Convex API
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chatroomApi = api as any;
+
+  // Mutation to toggle favorite
+  const toggleFavorite = useSessionMutation(chatroomApi.chatrooms.toggleFavorite);
+
+  const handleToggleFavorite = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevent card click
+      try {
+        await toggleFavorite({
+          chatroomId: chatroom._id as Id<'chatroom_rooms'>,
+        });
+      } catch (error) {
+        console.error('Failed to toggle favorite:', error);
+      }
+    },
+    [toggleFavorite, chatroom._id]
+  );
+
+  const teamName = chatroom.teamName || 'Team';
+  const displayName = chatroom.name || teamName;
+  const { chatStatus } = chatroom;
+
+  const statusLabel =
+    chatStatus === 'ready'
+      ? 'ready'
+      : chatStatus === 'working'
+        ? 'working'
+        : chatStatus === 'setup'
+          ? 'setup'
+          : chatStatus === 'disconnected'
+            ? 'disconnected'
+            : 'idle';
+
+  return (
+    <button
+      className="bg-chatroom-bg-surface border-2 border-chatroom-border p-3 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
+      onClick={() => onSelect(chatroom._id)}
+    >
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate flex-1 mr-2">
+          {displayName}
+        </span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            onClick={handleToggleFavorite}
+            className={`w-6 h-6 flex items-center justify-center transition-all duration-100 ${
+              chatroom.isFavorite
+                ? 'text-yellow-500 hover:text-yellow-400'
+                : 'text-chatroom-text-muted hover:text-yellow-500'
+            }`}
+            title={chatroom.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Star size={12} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
+          </button>
+          <span className={getStatusBadgeClasses(chatStatus)}>{statusLabel}</span>
+        </div>
+      </div>
+      <div className="font-mono text-[9px] text-chatroom-text-muted truncate">{chatroom._id}</div>
+    </button>
+  );
+});
+
 interface ChatroomCardProps {
   chatroom: ChatroomWithStatus;
   onSelect: (chatroomId: string) => void;
   activeTab: TabType;
+  showInFavorites?: boolean;
 }
 
 const ChatroomCard = memo(function ChatroomCard({
@@ -223,6 +360,22 @@ const ChatroomCard = memo(function ChatroomCard({
 
   // Mutation to mark chatroom as complete
   const updateStatus = useSessionMutation(chatroomApi.chatrooms.updateStatus);
+  // Mutation to toggle favorite
+  const toggleFavorite = useSessionMutation(chatroomApi.chatrooms.toggleFavorite);
+
+  const handleToggleFavorite = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevent card click
+      try {
+        await toggleFavorite({
+          chatroomId: chatroom._id as Id<'chatroom_rooms'>,
+        });
+      } catch (error) {
+        console.error('Failed to toggle favorite:', error);
+      }
+    },
+    [toggleFavorite, chatroom._id]
+  );
 
   const handleMarkComplete = useCallback(
     async (e: React.MouseEvent) => {
@@ -295,6 +448,18 @@ const ChatroomCard = memo(function ChatroomCard({
             {displayName}
           </span>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Favorite Star Button */}
+            <button
+              onClick={handleToggleFavorite}
+              className={`w-7 h-7 flex items-center justify-center transition-all duration-100 ${
+                chatroom.isFavorite
+                  ? 'text-yellow-500 hover:text-yellow-400'
+                  : 'text-chatroom-text-muted hover:text-yellow-500'
+              }`}
+              title={chatroom.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <Star size={14} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
+            </button>
             <span className={getStatusBadgeClasses(chatStatus)}>{statusLabel}</span>
             {/* Action Menu - only show for non-completed chatrooms */}
             {chatStatus !== 'completed' && (
@@ -370,6 +535,22 @@ const ChatroomTable = memo(function ChatroomTable({
 
   // Mutation to mark chatroom as complete
   const updateStatus = useSessionMutation(chatroomApi.chatrooms.updateStatus);
+  // Mutation to toggle favorite
+  const toggleFavorite = useSessionMutation(chatroomApi.chatrooms.toggleFavorite);
+
+  const handleToggleFavorite = useCallback(
+    async (e: React.MouseEvent, chatroomId: string) => {
+      e.stopPropagation();
+      try {
+        await toggleFavorite({
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        });
+      } catch (error) {
+        console.error('Failed to toggle favorite:', error);
+      }
+    },
+    [toggleFavorite]
+  );
 
   const handleMarkComplete = useCallback(
     async (e: React.MouseEvent, chatroomId: string) => {
@@ -408,7 +589,8 @@ const ChatroomTable = memo(function ChatroomTable({
   return (
     <div className="border-2 border-chatroom-border overflow-hidden">
       {/* Table Header */}
-      <div className="grid grid-cols-[1fr_100px_auto_100px_40px] gap-4 px-4 py-2 bg-chatroom-bg-tertiary border-b-2 border-chatroom-border">
+      <div className="grid grid-cols-[32px_1fr_100px_auto_100px_40px] gap-4 px-4 py-2 bg-chatroom-bg-tertiary border-b-2 border-chatroom-border">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Name
         </span>
@@ -454,9 +636,31 @@ const ChatroomTable = memo(function ChatroomTable({
         return (
           <button
             key={chatroom._id}
-            className="grid grid-cols-[1fr_100px_auto_100px_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full"
+            className="grid grid-cols-[32px_1fr_100px_auto_100px_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full"
             onClick={() => onSelect(chatroom._id)}
           >
+            {/* Favorite Star */}
+            <div
+              className="flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+              }}
+              role="button"
+              tabIndex={-1}
+            >
+              <button
+                onClick={(e) => handleToggleFavorite(e, chatroom._id)}
+                className={`w-7 h-7 flex items-center justify-center transition-all duration-100 ${
+                  chatroom.isFavorite
+                    ? 'text-yellow-500 hover:text-yellow-400'
+                    : 'text-chatroom-text-muted hover:text-yellow-500'
+                }`}
+                title={chatroom.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Star size={14} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
+              </button>
+            </div>
             {/* Name */}
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
