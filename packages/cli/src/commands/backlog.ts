@@ -168,7 +168,34 @@ export async function listBacklog(
     }
 
     console.log('──────────────────────────────────────────────────');
-    console.log(`Showing ${tasks.length} task(s)`);
+    // Calculate total tasks for the current filter to show truncation info
+    let totalForFilter: number;
+    if (statusFilter === 'all') {
+      totalForFilter =
+        counts.pending +
+        counts.in_progress +
+        counts.queued +
+        counts.backlog +
+        counts.completed +
+        counts.cancelled;
+    } else if (statusFilter === 'active') {
+      totalForFilter = counts.pending + counts.in_progress + counts.queued + counts.backlog;
+    } else if (statusFilter === 'archived') {
+      totalForFilter = counts.completed + counts.cancelled;
+    } else if (statusFilter === 'pending_review') {
+      // pending_review is separate, use tasks.length as best estimate
+      totalForFilter = tasks.length;
+    } else {
+      totalForFilter = counts[statusFilter as keyof TaskCounts] ?? tasks.length;
+    }
+
+    if (tasks.length < totalForFilter) {
+      console.log(
+        `Showing ${tasks.length} of ${totalForFilter} task(s) (use --limit=N to see more)`
+      );
+    } else {
+      console.log(`Showing ${tasks.length} task(s)`);
+    }
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to list tasks: ${(error as Error).message}`);
