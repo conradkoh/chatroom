@@ -73,12 +73,12 @@ function formatDuration(ms: number): string {
 /**
  * Print the wait-for-task reminder - short but forceful.
  */
-function printWaitReminder(chatroomId: string, role: string): void {
+function printWaitReminder(chatroomId: string, role: string, session = 1): void {
   console.log(`${'─'.repeat(50)}`);
   console.log(
     `⚠️  ALWAYS run \`wait-for-task\` after handoff. If it times out, run it again immediately.`
   );
-  console.log(`    chatroom wait-for-task ${chatroomId} --role=${role} --session=1`);
+  console.log(`    chatroom wait-for-task ${chatroomId} --role=${role} --session=${session}`);
   console.log(`${'─'.repeat(50)}`);
 }
 
@@ -194,7 +194,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   const durationDisplay = formatDuration(effectiveTimeout);
   console.log(`⏳ Waiting for tasks (duration: ${durationDisplay})...`);
   console.log('');
-  printWaitReminder(chatroomId, role);
+  printWaitReminder(chatroomId, role, currentSession);
   console.log('');
 
   // Track errors for better debugging with exponential backoff
@@ -357,7 +357,9 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     console.log(`\n⚠️  IMPORTANT: You may miss messages while not waiting!`);
     console.log(`   Other agents or users may send tasks to you that will be missed.`);
     console.log(`\n🔄 IMMEDIATELY restart the wait process:`);
-    console.log(`\n   chatroom wait-for-task ${chatroomId} --role=${role} --session=1`);
+    console.log(
+      `\n   chatroom wait-for-task ${chatroomId} --role=${role} --session=${currentSession}`
+    );
     console.log(`\n${'═'.repeat(50)}`);
     process.exit(0);
   };
