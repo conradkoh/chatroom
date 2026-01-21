@@ -532,8 +532,9 @@ export const MessageFeed = memo(function MessageFeed({
             onAttachedTaskClick={handleAttachedTaskClick}
           />
         ))}
-        <WorkingIndicator participants={participants} />
       </div>
+      {/* Working indicator - sticky at bottom, always visible */}
+      <WorkingIndicator participants={participants} />
       {/* Scroll to bottom floating button - appears when user scrolls up */}
       {!isAtBottom && (
         <button
