@@ -67,6 +67,7 @@ export function buildJsonOutput(ctx: TaskDeliveryContext): TaskDeliveryJsonOutpu
   }));
 
   return {
+    currentTimestamp: ctx.currentTimestamp,
     message: {
       id: ctx.message?._id || ctx.task._id,
       senderRole: senderRole,

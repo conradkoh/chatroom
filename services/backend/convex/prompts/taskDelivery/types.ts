@@ -91,6 +91,11 @@ export interface TaskDeliveryContext {
   rolePrompt: RolePromptInfo;
   teamName: string;
   teamRoles: string[];
+  /**
+   * Current timestamp in ISO format for agent awareness of current time.
+   * Helps agents understand temporal context (e.g., "it's now 3pm").
+   */
+  currentTimestamp: string;
 }
 
 /**
@@ -131,6 +136,11 @@ export interface PromptSection {
  * This is the programmatic data agents can parse.
  */
 export interface TaskDeliveryJsonOutput {
+  /**
+   * Current timestamp in ISO format when the task was delivered.
+   * Helps agents understand the temporal context of the task.
+   */
+  currentTimestamp: string;
   message: {
     id: string;
     senderRole: string;

@@ -1536,6 +1536,7 @@ export const getTaskDeliveryPrompt = query({
       },
       teamName: chatroom.teamName || 'Team',
       teamRoles: chatroom.teamRoles || [],
+      currentTimestamp: new Date().toISOString(),
     };
 
     // Build and return the complete prompt

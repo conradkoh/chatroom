@@ -5,6 +5,23 @@
 import { doubleSeparator } from '../formatters';
 import type { PromptSection, TaskDeliveryContext } from '../types';
 
+/**
+ * Format the current timestamp into a human-readable format.
+ * Example: "Jan 22, 2026 at 2:35 PM UTC"
+ */
+function formatTimestamp(isoString: string): string {
+  const date = new Date(isoString);
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZoneName: 'short',
+  });
+}
+
 export const messageReceivedSection: PromptSection = {
   id: 'message-received',
   title: 'MESSAGE RECEIVED',
@@ -22,6 +39,7 @@ export const messageReceivedSection: PromptSection = {
       doubleSeparator(),
       `📨 MESSAGE RECEIVED`,
       doubleSeparator(),
+      `Current Time: ${formatTimestamp(ctx.currentTimestamp)}`,
       `From: ${senderRole}`,
       `Type: ${messageType}`,
     ];
