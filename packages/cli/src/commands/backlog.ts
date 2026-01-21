@@ -35,6 +35,7 @@ export async function listBacklog(
     role: string;
     status?: string;
     limit?: number;
+    full?: boolean;
   }
 ): Promise<void> {
   const client = await getConvexClient();
@@ -143,9 +144,9 @@ export async function listBacklog(
           hour12: false,
         });
 
-        console.log(
-          `#${i + 1} [${statusEmoji} ${task.status.toUpperCase()}] ${truncate(task.content, 100)}`
-        );
+        // Use full content or truncate based on --full flag
+        const displayContent = options.full ? task.content : truncate(task.content, 100);
+        console.log(`#${i + 1} [${statusEmoji} ${task.status.toUpperCase()}] ${displayContent}`);
         console.log(`   ID: ${task._id}`);
         console.log(
           `   Created: ${date}${task.assignedTo ? ` | Assigned: ${task.assignedTo}` : ''}`

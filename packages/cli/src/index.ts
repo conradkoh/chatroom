@@ -244,14 +244,19 @@ backlogCommand
     'active'
   )
   .option('--limit <n>', 'Maximum number of tasks to show', '20')
+  .option('--full', 'Show full task content without truncation')
   .action(
-    async (chatroomId: string, options: { role: string; status?: string; limit?: string }) => {
+    async (
+      chatroomId: string,
+      options: { role: string; status?: string; limit?: string; full?: boolean }
+    ) => {
       await maybeRequireAuth();
       const { listBacklog } = await import('./commands/backlog.js');
       await listBacklog(chatroomId, {
         role: options.role,
         status: options.status,
         limit: options.limit ? parseInt(options.limit, 10) : undefined,
+        full: options.full,
       });
     }
   );

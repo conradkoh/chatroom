@@ -30,7 +30,7 @@ export function buildJsonOutput(ctx: TaskDeliveryContext): TaskDeliveryJsonOutpu
     ctx.role.toLowerCase() === 'builder'
       ? [
           `chatroom feature list ${ctx.chatroomId} --limit=5`,
-          `chatroom backlog list ${ctx.chatroomId} --role=${ctx.role}`,
+          `chatroom backlog list ${ctx.chatroomId} --role=${ctx.role} --full`,
           `chatroom backlog add ${ctx.chatroomId} --role=${ctx.role} --content="<description>"`,
           `chatroom backlog complete ${ctx.chatroomId} --role=${ctx.role} --taskId=<id>`,
         ]
