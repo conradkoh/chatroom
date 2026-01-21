@@ -669,15 +669,15 @@ export const MessageFeed = memo(function MessageFeed({
           <span className="text-xs font-medium">New messages</span>
         </button>
       )}
-      {/* Status bar - working indicator (left) + message count (right) */}
-      <div className="flex items-center justify-between px-4 py-1 bg-chatroom-bg-primary border-t border-chatroom-border">
+      {/* Status bar - fixed at bottom with working indicator (left) + message count (right) */}
+      <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
         {/* Left: Working indicator (compact) - empty div maintains layout when no active agents */}
         <div className="flex-shrink-0">
           <WorkingIndicator participants={participants} compact />
         </div>
         {/* Right: Message count */}
-        <span className="text-[10px] text-chatroom-text-muted">
-          {displayMessages.length} messages loaded
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted tabular-nums">
+          {displayMessages.length} messages
         </span>
       </div>
       {/* Feature Detail Modal */}

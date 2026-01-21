@@ -35,10 +35,13 @@ export const WorkingIndicator = memo(function WorkingIndicator({
         {activeAgents.map((agent, index) => (
           <div key={agent._id || agent.role} className="flex items-center gap-1.5">
             {index > 0 && <span className="text-chatroom-text-muted">·</span>}
-            {/* Pulsing dot - modern animation */}
-            <span className="w-1 h-1 bg-chatroom-status-info animate-pulse" />
-            <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-status-info">
+            {/* Pulsing indicator - square per theme */}
+            <span className="w-2 h-2 bg-chatroom-status-info animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info">
               {agent.role}
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+              WORKING
             </span>
           </div>
         ))}
@@ -52,20 +55,20 @@ export const WorkingIndicator = memo(function WorkingIndicator({
       {activeAgents.map((agent) => (
         <div
           key={agent._id || agent.role}
-          className="flex items-center gap-3 px-4 py-3 bg-chatroom-status-info/10 border border-chatroom-status-info/20"
+          className="flex items-center gap-3 px-4 py-3 bg-chatroom-status-info/10 border-2 border-chatroom-status-info/20"
         >
-          {/* Pulsing dots - modern animation */}
-          <div className="flex gap-0.5 items-center">
-            <span className="w-1 h-1 bg-chatroom-status-info animate-pulse" />
-            <span className="w-1 h-1 bg-chatroom-status-info animate-pulse [animation-delay:150ms]" />
-            <span className="w-1 h-1 bg-chatroom-status-info animate-pulse [animation-delay:300ms]" />
+          {/* Pulsing squares - per theme guidelines */}
+          <div className="flex gap-1 items-center">
+            <span className="w-2 h-2 bg-chatroom-status-info animate-pulse" />
+            <span className="w-2 h-2 bg-chatroom-status-info animate-pulse [animation-delay:150ms]" />
+            <span className="w-2 h-2 bg-chatroom-status-info animate-pulse [animation-delay:300ms]" />
           </div>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-xs font-bold uppercase tracking-wide text-chatroom-status-info">
+            <span className="text-xs font-bold uppercase tracking-wider text-chatroom-status-info">
               {agent.role}
             </span>
-            <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-              is working...
+            <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+              WORKING
             </span>
           </div>
         </div>
