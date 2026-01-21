@@ -119,11 +119,6 @@ const getSenderClasses = (role: string) => {
   return `${base} text-chatroom-status-info`;
 };
 
-// Check if user is involved in the message (as sender or target)
-const isUserInvolved = (senderRole: string, targetRole?: string) => {
-  return senderRole.toLowerCase() === 'user' || (targetRole && targetRole.toLowerCase() === 'user');
-};
-
 // Task status badge styling - shows processing status for user messages
 // Per theme.md: use text labels with color, no emoji circles
 // Icons from Lucide with animations for active states
@@ -310,31 +305,14 @@ const MessageItem = memo(function MessageItem({
     }
   }, [message, onMessageContentClick]);
 
-  // Determine if this message involves the user (for styling)
-  const userInvolved = isUserInvolved(message.senderRole, message.targetRole);
-
   // Check if this is a user message (for truncation and duplicate removal)
   const isUserMessage = message.senderRole.toLowerCase() === 'user';
 
   return (
-    <div
-      className={`px-4 py-3 border-b-2 border-chatroom-border transition-all duration-100 last:border-b-0 ${
-        userInvolved
-          ? // User-involved messages: subtle amber background
-            'bg-amber-50/30 dark:bg-amber-950/20'
-          : // Other messages: transparent, hover effect
-            'bg-transparent hover:bg-chatroom-accent-subtle hover:-mx-2 hover:px-6'
-      }`}
-    >
+    <div className="px-4 py-3 border-b-2 border-chatroom-border transition-all duration-100 last:border-b-0 bg-transparent hover:bg-chatroom-accent-subtle">
       {/* Message Header - only show for non-user messages (user message info is in TaskHeader) */}
       {!isUserMessage && (
-        <div
-          className={`flex justify-between items-center mb-2 pb-1.5 border-b transition-colors ${
-            userInvolved
-              ? 'bg-gray-100/50 dark:bg-gray-700/30 -mx-4 px-4 py-1 border-amber-200/30 dark:border-amber-500/20'
-              : 'border-chatroom-border'
-          }`}
-        >
+        <div className="flex justify-between items-center mb-2 pb-1.5 border-b transition-colors border-chatroom-border">
           {/* Left: Type badge */}
           <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5">
             {messageTypeBadge && (
@@ -377,7 +355,7 @@ const MessageItem = memo(function MessageItem({
       {isUserMessage ? (
         <button
           onClick={handleContentClick}
-          className="w-full text-left cursor-pointer hover:bg-amber-100/30 dark:hover:bg-amber-900/30 transition-colors -mx-2 px-2 py-1 rounded"
+          className="w-full text-left cursor-pointer hover:bg-chatroom-accent-subtle transition-colors -mx-2 px-2 py-1 rounded"
         >
           <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-hidden line-clamp-2 prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:my-0 prose-p:my-0 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:hidden prose-a:text-chatroom-status-info prose-a:no-underline prose-table:hidden prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
             <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
