@@ -293,6 +293,17 @@ backlogCommand
     }
   );
 
+backlogCommand
+  .command('reopen <chatroomId>')
+  .description('Reopen a completed backlog task, returning it to pending_user_review status.')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--task-id <taskId>', 'Task ID to reopen')
+  .action(async (chatroomId: string, options: { role: string; taskId: string }) => {
+    await maybeRequireAuth();
+    const { reopenBacklog } = await import('./commands/backlog.js');
+    await reopenBacklog(chatroomId, options);
+  });
+
 // ============================================================================
 // GUIDELINES COMMANDS (auth required)
 // ============================================================================
