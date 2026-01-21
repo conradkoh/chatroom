@@ -20,6 +20,8 @@ import {
   Sparkles,
   RotateCcw,
   ArrowRight,
+  User,
+  Pin,
 } from 'lucide-react';
 import React, { useEffect, useRef, useMemo, memo, useCallback, useState } from 'react';
 import Markdown from 'react-markdown';
@@ -390,6 +392,16 @@ export const MessageFeed = memo(function MessageFeed({
   // Attached task detail modal state
   const [selectedAttachedTask, setSelectedAttachedTask] = useState<AttachedTask | null>(null);
 
+  // Sticky last user message state
+  const [isStickyMessageCollapsed, setIsStickyMessageCollapsed] = useState(false);
+
+  // Find the last user message for sticky display
+  const lastUserMessage = useMemo(() => {
+    if (!results || results.length === 0) return null;
+    // Results are in reverse chronological order, so find first user message
+    return results.find((m) => m.senderRole.toLowerCase() === 'user') || null;
+  }, [results]);
+
   // Handle feature title click - open modal with details
   const handleFeatureClick = useCallback((message: Message) => {
     if (message.featureTitle) {
@@ -522,6 +534,46 @@ export const MessageFeed = memo(function MessageFeed({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
+      {/* Sticky Last User Message - Provides context for the current conversation */}
+      {lastUserMessage && (
+        <div className="flex-shrink-0 border-b-2 border-chatroom-border-strong bg-gradient-to-r from-amber-50/50 to-yellow-50/30 dark:from-amber-950/20 dark:to-yellow-950/10">
+          <button
+            onClick={() => setIsStickyMessageCollapsed(!isStickyMessageCollapsed)}
+            className="w-full flex items-center justify-between px-4 py-2 hover:bg-amber-100/30 dark:hover:bg-amber-900/20 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Pin size={12} className="text-amber-500 dark:text-amber-400" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                Last User Message
+              </span>
+            </div>
+            {isStickyMessageCollapsed ? (
+              <ChevronDown size={14} className="text-amber-500 dark:text-amber-400" />
+            ) : (
+              <ChevronUp size={14} className="text-amber-500 dark:text-amber-400" />
+            )}
+          </button>
+          {!isStickyMessageCollapsed && (
+            <div className="px-4 pb-3">
+              <div className="text-xs text-chatroom-text-primary line-clamp-3">
+                <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+                  {lastUserMessage.content}
+                </Markdown>
+              </div>
+              <div className="flex items-center gap-2 mt-2 text-[10px] text-chatroom-text-muted">
+                <User size={10} className="text-amber-500 dark:text-amber-400" />
+                <span>
+                  {new Date(lastUserMessage._creationTime).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                  })}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {/* Scrollable message content */}
       <div
         className="flex-1 overflow-y-auto p-4 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
