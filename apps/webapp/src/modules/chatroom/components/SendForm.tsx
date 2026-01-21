@@ -59,8 +59,8 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
       textarea.style.height = 'auto';
       // Get the actual scroll height needed for content
       const scrollHeight = textarea.scrollHeight;
-      // Set to content height, capped at max (200px) with min of 36px
-      const newHeight = Math.max(36, Math.min(scrollHeight, 200));
+      // Set to content height, capped at max (200px) with min of 40px (matches button height)
+      const newHeight = Math.max(40, Math.min(scrollHeight, 200));
       textarea.style.height = `${newHeight}px`;
       // Only show overflow when content exceeds max height
       textarea.style.overflowY = scrollHeight > 200 ? 'auto' : 'hidden';
@@ -141,7 +141,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
         </div>
       )}
       {/* Input Form */}
-      <form className="flex gap-3 p-4" onSubmit={handleFormSubmit}>
+      <form className="flex items-end gap-3 p-4" onSubmit={handleFormSubmit}>
         <textarea
           ref={textareaRef}
           value={message}
@@ -150,13 +150,13 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
           placeholder="Type a message..."
           disabled={sending}
           rows={1}
-          className="flex-1 bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm px-3 py-2 resize-none max-h-[200px] overflow-hidden leading-5 placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm px-3 py-2.5 resize-none max-h-[200px] overflow-hidden leading-5 placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
         />
 
         <button
           type="submit"
           disabled={!message.trim() || sending}
-          className="bg-chatroom-accent text-chatroom-bg-primary border-0 px-6 py-3 font-bold text-xs uppercase tracking-widest cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-chatroom-accent text-chatroom-bg-primary border-2 border-chatroom-accent px-5 py-2.5 font-bold text-xs uppercase tracking-wider cursor-pointer transition-all duration-100 hover:bg-chatroom-text-secondary hover:border-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
         >
           {sending ? 'Sending...' : 'Send'}
         </button>
