@@ -648,9 +648,9 @@ export const MessageFeed = memo(function MessageFeed({
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
       {/* Scrollable message content - Task headers use CSS sticky to stay at top while scrolling */}
-      {/* Note: pt-0 ensures sticky headers stick flush to container top */}
+      {/* Note: no padding on scroll container - sticky headers stick flush to edges */}
       <div
-        className="flex-1 overflow-y-auto pt-0 px-4 pb-4 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
+        className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
         ref={feedRef}
         onScroll={handleScroll}
       >
