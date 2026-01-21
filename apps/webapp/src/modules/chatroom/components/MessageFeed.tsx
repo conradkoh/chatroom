@@ -99,11 +99,20 @@ const getMessageTypeBadge = (type: string) => {
 };
 
 // Sender role styling - plain text with color (no background)
+// User role gets special gold styling with subtle shimmer effect
 const getSenderClasses = (role: string) => {
   const base = 'font-bold text-[10px] uppercase tracking-wide';
-  if (role === 'user') return `${base} text-chatroom-status-success`;
+  if (role.toLowerCase() === 'user') {
+    // Gold/amber color with text shadow for subtle glow effect
+    return `${base} text-amber-500 dark:text-amber-400 drop-shadow-[0_0_3px_rgba(251,191,36,0.4)]`;
+  }
   if (role === 'system') return `${base} text-chatroom-status-warning`;
   return `${base} text-chatroom-status-info`;
+};
+
+// Check if user is involved in the message (as sender or target)
+const isUserInvolved = (senderRole: string, targetRole?: string) => {
+  return senderRole.toLowerCase() === 'user' || (targetRole && targetRole.toLowerCase() === 'user');
 };
 
 // Task status badge styling - shows processing status for user messages
@@ -213,10 +222,20 @@ const MessageItem = memo(function MessageItem({
     }
   }, [hasFeatureTitle, onFeatureClick, message]);
 
+  // Determine if this message involves the user (for styling)
+  const userInvolved = isUserInvolved(message.senderRole, message.targetRole);
+
   return (
     <div className="px-4 py-3 bg-transparent border-b-2 border-chatroom-border transition-all duration-100 hover:bg-chatroom-accent-subtle hover:-mx-2 hover:px-6 last:border-b-0">
       {/* Message Header - badges left, sender flow right */}
-      <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-chatroom-border">
+      {/* Lighter grey background when user is involved for visual emphasis */}
+      <div
+        className={`flex justify-between items-center mb-2 pb-1.5 border-b transition-colors ${
+          userInvolved
+            ? 'bg-gray-100/50 dark:bg-gray-700/30 -mx-4 px-4 py-1 border-amber-200/30 dark:border-amber-500/20'
+            : 'border-chatroom-border'
+        }`}
+      >
         {/* Left: Type and Classification badges */}
         <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5">
           {messageTypeBadge && (
@@ -232,15 +251,13 @@ const MessageItem = memo(function MessageItem({
             </span>
           )}
         </div>
-        {/* Right: Sender → Target */}
+        {/* Right: Sender → Target - User always rendered in gold */}
         <div className="flex items-center gap-x-1.5">
           <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
           {message.targetRole && (
             <>
               <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
-              <span className="text-chatroom-text-muted text-[10px] font-bold uppercase tracking-wide">
-                {message.targetRole}
-              </span>
+              <span className={getSenderClasses(message.targetRole)}>{message.targetRole}</span>
             </>
           )}
         </div>
