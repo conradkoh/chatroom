@@ -1542,3 +1542,115 @@ export const getTaskDeliveryPrompt = query({
     return buildTaskDeliveryPrompt(deliveryContext);
   },
 });
+
+// =============================================================================
+// SENDER ROLE BASED QUERIES - For user-centric pagination
+// =============================================================================
+
+/**
+ * List messages filtered by sender role.
+ * Uses the composite index for efficient filtering.
+ * Returns messages in descending order (newest first).
+ * Requires CLI session authentication and chatroom access.
+ */
+export const listBySenderRole = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    senderRole: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const limit = args.limit || 10;
+    const maxLimit = 50;
+
+    // Use composite index for efficient sender role filtering
+    // Index: by_chatroom_senderRole_type_createdAt
+    const messages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', args.senderRole).eq('type', 'message')
+      )
+      .order('desc')
+      .take(Math.min(limit, maxLimit));
+
+    // Enrich with task status
+    const enrichedMessages = await Promise.all(
+      messages.map(async (message) => {
+        let taskStatus: string | undefined;
+        if (message.taskId) {
+          const task = await ctx.db.get('chatroom_tasks', message.taskId);
+          taskStatus = task?.status;
+        }
+        return {
+          ...message,
+          ...(taskStatus && { taskStatus }),
+        };
+      })
+    );
+
+    return enrichedMessages;
+  },
+});
+
+/**
+ * List all messages since a given message ID (inclusive).
+ * Returns messages in ascending order (oldest first).
+ * Useful for getting context starting from a specific user message.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const listSinceMessage = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    sinceMessageId: v.id('chatroom_messages'),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Get the reference message to find its timestamp
+    const referenceMessage = await ctx.db.get('chatroom_messages', args.sinceMessageId);
+    if (!referenceMessage) {
+      throw new Error('Message not found');
+    }
+
+    // Verify message belongs to this chatroom
+    if (referenceMessage.chatroomId !== args.chatroomId) {
+      throw new Error('Message does not belong to this chatroom');
+    }
+
+    const limit = args.limit || 100;
+    const maxLimit = 500;
+
+    // Fetch all messages from reference onwards (inclusive)
+    // Using filter on _creationTime since we need >= comparison
+    const messages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .filter((q) => q.gte(q.field('_creationTime'), referenceMessage._creationTime))
+      .order('asc')
+      .take(Math.min(limit, maxLimit));
+
+    // Enrich with task status
+    const enrichedMessages = await Promise.all(
+      messages.map(async (message) => {
+        let taskStatus: string | undefined;
+        if (message.taskId) {
+          const task = await ctx.db.get('chatroom_tasks', message.taskId);
+          taskStatus = task?.status;
+        }
+        return {
+          ...message,
+          ...(taskStatus && { taskStatus }),
+        };
+      })
+    );
+
+    return enrichedMessages;
+  },
+});

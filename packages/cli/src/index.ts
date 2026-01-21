@@ -305,6 +305,72 @@ backlogCommand
   });
 
 // ============================================================================
+// MESSAGES COMMANDS (auth required)
+// ============================================================================
+
+const messagesCommand = program
+  .command('messages')
+  .description('List and filter chatroom messages');
+
+messagesCommand
+  .command('list <chatroomId>')
+  .description('List messages by sender role or since a specific message')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--sender-role <senderRole>', 'Filter by sender role (e.g., user, builder, reviewer)')
+  .option('--since-message-id <messageId>', 'Get all messages since this message ID (inclusive)')
+  .option('--limit <n>', 'Maximum number of messages to show')
+  .option('--full', 'Show full message content without truncation')
+  .action(
+    async (
+      chatroomId: string,
+      options: {
+        role: string;
+        senderRole?: string;
+        sinceMessageId?: string;
+        limit?: string;
+        full?: boolean;
+      }
+    ) => {
+      // Validate: must specify either --sender-role or --since-message-id
+      if (!options.senderRole && !options.sinceMessageId) {
+        console.error('❌ Must specify either --sender-role or --since-message-id');
+        console.error('   Examples:');
+        console.error(
+          '     chatroom messages list <id> --role=builder --sender-role=user --limit=3'
+        );
+        console.error('     chatroom messages list <id> --role=builder --since-message-id=<msgId>');
+        process.exit(1);
+      }
+
+      // Cannot use both options together
+      if (options.senderRole && options.sinceMessageId) {
+        console.error('❌ Cannot use both --sender-role and --since-message-id at the same time');
+        process.exit(1);
+      }
+
+      await maybeRequireAuth();
+
+      if (options.senderRole) {
+        const { listBySenderRole } = await import('./commands/messages.js');
+        await listBySenderRole(chatroomId, {
+          role: options.role,
+          senderRole: options.senderRole,
+          limit: options.limit ? parseInt(options.limit, 10) : 10,
+          full: options.full,
+        });
+      } else if (options.sinceMessageId) {
+        const { listSinceMessage } = await import('./commands/messages.js');
+        await listSinceMessage(chatroomId, {
+          role: options.role,
+          sinceMessageId: options.sinceMessageId,
+          limit: options.limit ? parseInt(options.limit, 10) : 100,
+          full: options.full,
+        });
+      }
+    }
+  );
+
+// ============================================================================
 // GUIDELINES COMMANDS (auth required)
 // ============================================================================
 
