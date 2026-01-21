@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { MessageSquare, MoreVertical, CheckCircle } from 'lucide-react';
+import { MessageSquare, MoreVertical, CheckCircle, LayoutGrid, List } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import { CreateChatroomForm } from './CreateChatroomForm';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 type TabType = 'current' | 'complete';
+type ViewMode = 'grid' | 'table';
 
 interface ChatroomSelectorProps {
   onSelect: (chatroomId: string) => void;
@@ -63,6 +64,7 @@ const getAgentIndicatorClasses = (
 export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('current');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   // Use context for chatroom data - single source of truth
   const { chatrooms, isLoading } = useChatroomListing();
@@ -135,40 +137,71 @@ export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
           + New
         </button>
       </div>
-      {/* Tabs */}
-      <div className="flex gap-0 mb-6 border-b-2 border-chatroom-border">
-        <button
-          className={`px-4 py-2 text-xs font-bold uppercase tracking-wide transition-all duration-100 border-b-2 -mb-0.5 ${
-            activeTab === 'current'
-              ? 'text-chatroom-accent border-chatroom-accent'
-              : 'text-chatroom-text-muted border-transparent hover:text-chatroom-text-secondary'
-          }`}
-          onClick={() => setActiveTab('current')}
-        >
-          Current
-        </button>
-        <button
-          className={`px-4 py-2 text-xs font-bold uppercase tracking-wide transition-all duration-100 border-b-2 -mb-0.5 ${
-            activeTab === 'complete'
-              ? 'text-chatroom-accent border-chatroom-accent'
-              : 'text-chatroom-text-muted border-transparent hover:text-chatroom-text-secondary'
-          }`}
-          onClick={() => setActiveTab('complete')}
-        >
-          Complete
-        </button>
+      {/* Tabs and View Toggle */}
+      <div className="flex justify-between items-center mb-6 border-b-2 border-chatroom-border">
+        <div className="flex gap-0">
+          <button
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wide transition-all duration-100 border-b-2 -mb-0.5 ${
+              activeTab === 'current'
+                ? 'text-chatroom-accent border-chatroom-accent'
+                : 'text-chatroom-text-muted border-transparent hover:text-chatroom-text-secondary'
+            }`}
+            onClick={() => setActiveTab('current')}
+          >
+            Current
+          </button>
+          <button
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wide transition-all duration-100 border-b-2 -mb-0.5 ${
+              activeTab === 'complete'
+                ? 'text-chatroom-accent border-chatroom-accent'
+                : 'text-chatroom-text-muted border-transparent hover:text-chatroom-text-secondary'
+            }`}
+            onClick={() => setActiveTab('complete')}
+          >
+            Complete
+          </button>
+        </div>
+        {/* View Toggle */}
+        <div className="flex gap-1 -mb-0.5 pb-2">
+          <button
+            className={`w-8 h-8 flex items-center justify-center transition-all duration-100 border-2 ${
+              viewMode === 'grid'
+                ? 'bg-chatroom-accent text-chatroom-bg-primary border-chatroom-accent'
+                : 'bg-transparent text-chatroom-text-muted border-chatroom-border hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
+            }`}
+            onClick={() => setViewMode('grid')}
+            title="Grid view"
+          >
+            <LayoutGrid size={14} />
+          </button>
+          <button
+            className={`w-8 h-8 flex items-center justify-center transition-all duration-100 border-2 ${
+              viewMode === 'table'
+                ? 'bg-chatroom-accent text-chatroom-bg-primary border-chatroom-accent'
+                : 'bg-transparent text-chatroom-text-muted border-chatroom-border hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
+            }`}
+            onClick={() => setViewMode('table')}
+            title="Table view"
+          >
+            <List size={14} />
+          </button>
+        </div>
       </div>
       {/* Chatroom List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {chatrooms.map((chatroom) => (
-          <ChatroomCard
-            key={chatroom._id}
-            chatroom={chatroom}
-            onSelect={onSelect}
-            activeTab={activeTab}
-          />
-        ))}
-      </div>
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {chatrooms.map((chatroom) => (
+            <ChatroomCard
+              key={chatroom._id}
+              chatroom={chatroom}
+              onSelect={onSelect}
+              activeTab={activeTab}
+            />
+          ))}
+        </div>
+      ) : (
+        <ChatroomTable chatrooms={chatrooms} onSelect={onSelect} activeTab={activeTab} />
+      )}
     </div>
   );
 }
@@ -313,6 +346,180 @@ const ChatroomCard = memo(function ChatroomCard({
         {/* Card Date */}
         <div className="text-[10px] text-chatroom-text-muted">{formattedDate}</div>
       </button>
+    </div>
+  );
+});
+
+/**
+ * Table view for chatrooms - more compact, data-dense display
+ */
+interface ChatroomTableProps {
+  chatrooms: ChatroomWithStatus[];
+  onSelect: (chatroomId: string) => void;
+  activeTab: TabType;
+}
+
+const ChatroomTable = memo(function ChatroomTable({
+  chatrooms,
+  onSelect,
+  activeTab,
+}: ChatroomTableProps) {
+  // Type assertion workaround for Convex API
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chatroomApi = api as any;
+
+  // Mutation to mark chatroom as complete
+  const updateStatus = useSessionMutation(chatroomApi.chatrooms.updateStatus);
+
+  const handleMarkComplete = useCallback(
+    async (e: React.MouseEvent, chatroomId: string) => {
+      e.stopPropagation();
+      try {
+        await updateStatus({
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          status: 'completed',
+        });
+      } catch (error) {
+        console.error('Failed to mark as complete:', error);
+      }
+    },
+    [updateStatus]
+  );
+
+  // Filter chatrooms based on active tab
+  const filteredChatrooms = useMemo(() => {
+    return chatrooms.filter((chatroom) => {
+      const shouldShow =
+        activeTab === 'current'
+          ? chatroom.chatStatus !== 'completed'
+          : chatroom.chatStatus === 'completed';
+      return shouldShow;
+    });
+  }, [chatrooms, activeTab]);
+
+  if (filteredChatrooms.length === 0) {
+    return (
+      <div className="text-center py-12 text-chatroom-text-muted">
+        No chatrooms found in this tab
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-2 border-chatroom-border overflow-hidden">
+      {/* Table Header */}
+      <div className="grid grid-cols-[1fr_100px_auto_100px_40px] gap-4 px-4 py-2 bg-chatroom-bg-tertiary border-b-2 border-chatroom-border">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+          Name
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+          Status
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+          Agents
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted text-right">
+          Created
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
+      </div>
+      {/* Table Rows */}
+      {filteredChatrooms.map((chatroom) => {
+        const teamRoles = chatroom.teamRoles || [];
+        const teamName = chatroom.teamName || 'Team';
+        const displayName = chatroom.name || teamName;
+        const agentMap = new Map(chatroom.agents.map((a) => [a.role.toLowerCase(), a]));
+
+        const statusLabel =
+          chatroom.chatStatus === 'ready'
+            ? 'ready'
+            : chatroom.chatStatus === 'working'
+              ? 'working'
+              : chatroom.chatStatus === 'completed'
+                ? 'completed'
+                : chatroom.chatStatus === 'disconnected'
+                  ? 'disconnected'
+                  : chatroom.chatStatus === 'setup'
+                    ? 'setup'
+                    : 'idle';
+
+        const formattedDate = new Date(chatroom._creationTime).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+
+        return (
+          <button
+            key={chatroom._id}
+            className="grid grid-cols-[1fr_100px_auto_100px_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full"
+            onClick={() => onSelect(chatroom._id)}
+          >
+            {/* Name */}
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary truncate">
+                {displayName}
+              </span>
+              <span className="font-mono text-[9px] text-chatroom-text-muted truncate">
+                {chatroom._id}
+              </span>
+            </div>
+            {/* Status */}
+            <div className="flex items-center">
+              <span className={getStatusBadgeClasses(chatroom.chatStatus)}>{statusLabel}</span>
+            </div>
+            {/* Agents */}
+            <div className="flex items-center gap-2 min-w-[140px]">
+              {teamRoles.map((role) => {
+                const agent = agentMap.get(role.toLowerCase());
+                const effectiveStatus = agent?.effectiveStatus || 'idle';
+                return (
+                  <div key={role} className="flex items-center gap-1">
+                    <span className={getAgentIndicatorClasses(effectiveStatus)} />
+                    <span className="text-[9px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+                      {role}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Created */}
+            <div className="flex items-center justify-end">
+              <span className="text-[10px] font-mono tabular-nums text-chatroom-text-muted">
+                {formattedDate}
+              </span>
+            </div>
+            {/* Actions */}
+            <div
+              className="flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+              }}
+              role="button"
+              tabIndex={-1}
+            >
+              {chatroom.chatStatus !== 'completed' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className="w-7 h-7 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-tertiary transition-all duration-100 cursor-pointer">
+                      <MoreVertical size={14} />
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[140px]">
+                    <DropdownMenuItem onClick={(e) => handleMarkComplete(e, chatroom._id)}>
+                      <CheckCircle size={14} className="mr-2" />
+                      Mark Complete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 });
