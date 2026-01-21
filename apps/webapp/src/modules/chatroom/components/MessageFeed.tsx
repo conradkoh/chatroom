@@ -28,6 +28,7 @@ import remarkGfm from 'remark-gfm';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
 import { compactMarkdownComponents } from './markdown-utils';
+import { MessageDetailModal } from './MessageDetailModal';
 import { WorkingIndicator } from './WorkingIndicator';
 
 import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
@@ -191,11 +192,20 @@ const getClassificationBadge = (classification: Message['classification']) => {
 
 // Sticky Task Header - renders before user messages as a section header
 // Shows shimmer while awaiting classification, then displays task title
+// Tappable to show full message details in a slide-in modal
 interface TaskHeaderProps {
   message: Message;
+  onTap?: (message: Message) => void;
 }
 
-const TaskHeader = memo(function TaskHeader({ message }: TaskHeaderProps) {
+const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps) {
+  // useCallback must be called before any conditional returns (React hooks rules)
+  const handleClick = useCallback(() => {
+    if (onTap) {
+      onTap(message);
+    }
+  }, [onTap, message]);
+
   // Only show for user messages
   if (message.senderRole.toLowerCase() !== 'user') {
     return null;
@@ -219,8 +229,11 @@ const TaskHeader = memo(function TaskHeader({ message }: TaskHeaderProps) {
   };
 
   return (
-    <div className="sticky top-0 z-10 px-3 py-2 bg-amber-50 dark:bg-amber-950 border-b-2 border-amber-200 dark:border-amber-800 shadow-sm">
-      <div className="flex items-center gap-2">
+    <button
+      onClick={handleClick}
+      className="sticky top-0 z-10 w-full text-left px-2 py-1.5 bg-amber-50 dark:bg-amber-950 border-b-2 border-amber-200 dark:border-amber-800 shadow-sm cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-900/50 transition-colors"
+    >
+      <div className="flex items-center gap-1.5">
         {/* Left: Classification badge or shimmer */}
         {isAwaitingClassification ? (
           // Shimmer state - waiting for classification
@@ -251,7 +264,7 @@ const TaskHeader = memo(function TaskHeader({ message }: TaskHeaderProps) {
           </span>
         )}
       </div>
-    </div>
+    </button>
   );
 });
 
@@ -259,6 +272,7 @@ interface MessageItemProps {
   message: Message;
   onFeatureClick?: (message: Message) => void;
   onAttachedTaskClick?: (task: AttachedTask) => void;
+  onMessageContentClick?: (message: Message) => void;
 }
 
 // Memoized message item to prevent re-renders of all messages when one changes
@@ -266,18 +280,9 @@ const MessageItem = memo(function MessageItem({
   message,
   onFeatureClick,
   onAttachedTaskClick,
+  onMessageContentClick,
 }: MessageItemProps) {
-  const classificationBadge = getClassificationBadge(message.classification);
-  const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
   const messageTypeBadge = getMessageTypeBadge(message.type);
-
-  // Only show status badge for active tasks (in_progress), not for done/completed
-  const isActiveTask =
-    message.taskStatus === 'pending' ||
-    message.taskStatus === 'in_progress' ||
-    message.taskStatus === 'queued';
-  const showStatusBadge =
-    message.senderRole.toLowerCase() === 'user' && taskStatusBadge && isActiveTask;
 
   // Check if this is a new_feature message with a title
   const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
@@ -288,8 +293,18 @@ const MessageItem = memo(function MessageItem({
     }
   }, [hasFeatureTitle, onFeatureClick, message]);
 
+  // Handle message content click for user messages
+  const handleContentClick = useCallback(() => {
+    if (message.senderRole.toLowerCase() === 'user' && onMessageContentClick) {
+      onMessageContentClick(message);
+    }
+  }, [message, onMessageContentClick]);
+
   // Determine if this message involves the user (for styling)
   const userInvolved = isUserInvolved(message.senderRole, message.targetRole);
+
+  // Check if this is a user message (for truncation and duplicate removal)
+  const isUserMessage = message.senderRole.toLowerCase() === 'user';
 
   return (
     <div
@@ -301,43 +316,38 @@ const MessageItem = memo(function MessageItem({
             'bg-transparent hover:bg-chatroom-accent-subtle hover:-mx-2 hover:px-6'
       }`}
     >
-      {/* Message Header - badges left, sender flow right */}
-      {/* Lighter grey background when user is involved for visual emphasis */}
-      <div
-        className={`flex justify-between items-center mb-2 pb-1.5 border-b transition-colors ${
-          userInvolved
-            ? 'bg-gray-100/50 dark:bg-gray-700/30 -mx-4 px-4 py-1 border-amber-200/30 dark:border-amber-500/20'
-            : 'border-chatroom-border'
-        }`}
-      >
-        {/* Left: Type and Classification badges */}
-        <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5">
-          {messageTypeBadge && (
-            <span className={messageTypeBadge.className}>
-              {messageTypeBadge.icon}
-              {messageTypeBadge.label}
-            </span>
-          )}
-          {message.senderRole.toLowerCase() === 'user' && classificationBadge && (
-            <span className={classificationBadge.className}>
-              {classificationBadge.icon}
-              {classificationBadge.label}
-            </span>
-          )}
+      {/* Message Header - only show for non-user messages (user message info is in TaskHeader) */}
+      {!isUserMessage && (
+        <div
+          className={`flex justify-between items-center mb-2 pb-1.5 border-b transition-colors ${
+            userInvolved
+              ? 'bg-gray-100/50 dark:bg-gray-700/30 -mx-4 px-4 py-1 border-amber-200/30 dark:border-amber-500/20'
+              : 'border-chatroom-border'
+          }`}
+        >
+          {/* Left: Type badge */}
+          <div className="flex items-center flex-wrap gap-y-1 gap-x-1.5">
+            {messageTypeBadge && (
+              <span className={messageTypeBadge.className}>
+                {messageTypeBadge.icon}
+                {messageTypeBadge.label}
+              </span>
+            )}
+          </div>
+          {/* Right: Sender → Target - User always rendered in gold */}
+          <div className="flex items-center gap-x-1.5">
+            <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
+            {message.targetRole && (
+              <>
+                <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
+                <span className={getSenderClasses(message.targetRole)}>{message.targetRole}</span>
+              </>
+            )}
+          </div>
         </div>
-        {/* Right: Sender → Target - User always rendered in gold */}
-        <div className="flex items-center gap-x-1.5">
-          <span className={getSenderClasses(message.senderRole)}>{message.senderRole}</span>
-          {message.targetRole && (
-            <>
-              <ArrowRight size={10} className="text-chatroom-text-muted flex-shrink-0" />
-              <span className={getSenderClasses(message.targetRole)}>{message.targetRole}</span>
-            </>
-          )}
-        </div>
-      </div>
-      {/* Feature Title - clickable link for new_feature messages */}
-      {hasFeatureTitle && (
+      )}
+      {/* Feature Title - clickable link for new_feature messages (legacy support, kept for non-user messages) */}
+      {!isUserMessage && hasFeatureTitle && (
         <button
           onClick={handleFeatureTitleClick}
           className="w-full text-left mb-2 px-3 py-2 bg-chatroom-status-warning/10 border border-chatroom-status-warning/20 hover:bg-chatroom-status-warning/20 transition-colors cursor-pointer"
@@ -353,10 +363,22 @@ const MessageItem = memo(function MessageItem({
           )}
         </button>
       )}
-      {/* Message Content */}
-      <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-pre:overflow-x-auto prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
-        <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
-      </div>
+      {/* Message Content - truncated for user messages, full for others */}
+      {isUserMessage ? (
+        <button
+          onClick={handleContentClick}
+          className="w-full text-left cursor-pointer hover:bg-amber-100/30 dark:hover:bg-amber-900/30 transition-colors -mx-2 px-2 py-1 rounded"
+        >
+          <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-hidden line-clamp-2 prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:my-0 prose-p:my-0 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:hidden prose-a:text-chatroom-status-info prose-a:no-underline prose-table:hidden prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
+            <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+          </div>
+          <span className="text-[10px] text-chatroom-text-muted mt-1 block">Tap to expand</span>
+        </button>
+      ) : (
+        <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-pre:overflow-x-auto prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
+          <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+        </div>
+      )}
       {/* Attached Backlog Tasks */}
       {message.attachedTasks && message.attachedTasks.length > 0 && (
         <div className="mt-3 pt-3 border-t border-chatroom-border">
@@ -395,22 +417,15 @@ const MessageItem = memo(function MessageItem({
           ))}
         </div>
       )}
-      {/* Message Footer - status left, timestamp right */}
-      <div className="flex justify-between items-center mt-2 pt-1.5">
-        {/* Left: Status badge (only for active tasks) */}
-        <div className="flex items-center gap-x-1.5">
-          {showStatusBadge && (
-            <span className={taskStatusBadge.className}>
-              {taskStatusBadge.icon}
-              {taskStatusBadge.label}
-            </span>
-          )}
+      {/* Message Footer - only show timestamp for non-user messages (user message status/time in TaskHeader) */}
+      {!isUserMessage && (
+        <div className="flex justify-end items-center mt-2 pt-1.5">
+          {/* Right: Timestamp */}
+          <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
+            {formatTime(message._creationTime)}
+          </span>
         </div>
-        {/* Right: Timestamp */}
-        <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
-          {formatTime(message._creationTime)}
-        </span>
-      </div>
+      )}
     </div>
   );
 });
@@ -464,6 +479,9 @@ export const MessageFeed = memo(function MessageFeed({
   // Attached task detail modal state
   const [selectedAttachedTask, setSelectedAttachedTask] = useState<AttachedTask | null>(null);
 
+  // Message detail modal state (for TaskHeader tap and message content tap)
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+
   // Handle feature title click - open modal with details
   const handleFeatureClick = useCallback((message: Message) => {
     if (message.featureTitle) {
@@ -489,6 +507,16 @@ export const MessageFeed = memo(function MessageFeed({
   // Close attached task modal
   const handleCloseAttachedTaskModal = useCallback(() => {
     setSelectedAttachedTask(null);
+  }, []);
+
+  // Handle TaskHeader tap or message content tap - open message detail modal
+  const handleMessageDetailClick = useCallback((message: Message) => {
+    setSelectedMessage(message);
+  }, []);
+
+  // Close message detail modal
+  const handleCloseMessageDetailModal = useCallback(() => {
+    setSelectedMessage(null);
   }, []);
 
   // Filter out join messages and reverse to show oldest first (query returns newest first)
@@ -617,12 +645,13 @@ export const MessageFeed = memo(function MessageFeed({
         )}
         {displayMessages.map((message) => (
           <React.Fragment key={message._id}>
-            {/* Task Header - sticky section header for user messages */}
-            <TaskHeader message={message} />
+            {/* Task Header - sticky section header for user messages, tappable */}
+            <TaskHeader message={message} onTap={handleMessageDetailClick} />
             <MessageItem
               message={message}
               onFeatureClick={handleFeatureClick}
               onAttachedTaskClick={handleAttachedTaskClick}
+              onMessageContentClick={handleMessageDetailClick}
             />
           </React.Fragment>
         ))}
@@ -657,6 +686,12 @@ export const MessageFeed = memo(function MessageFeed({
         isOpen={selectedAttachedTask !== null}
         task={selectedAttachedTask}
         onClose={handleCloseAttachedTaskModal}
+      />
+      {/* Message Detail Modal - for TaskHeader and message content taps */}
+      <MessageDetailModal
+        isOpen={selectedMessage !== null}
+        message={selectedMessage}
+        onClose={handleCloseMessageDetailModal}
       />
     </div>
   );
