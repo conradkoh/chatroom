@@ -97,6 +97,18 @@ export default tool({
       .describe(
         "How long to wait for tasks before timing out (e.g., '1m', '5m', '30s', '1h'). Default is 10 minutes. After timeout, you'll need to restart with the next session number."
       ),
+    webUrl: tool.schema
+      .string()
+      .optional()
+      .describe(
+        "Override the web URL for local development (e.g., 'http://localhost:6249'). If not provided, uses the default production URL or environment variable CHATROOM_WEB_URL."
+      ),
+    convexUrl: tool.schema
+      .string()
+      .optional()
+      .describe(
+        "Override the Convex backend URL for local development (e.g., 'https://wonderful-raven-192.convex.cloud'). If not provided, uses the default production URL or environment variable CHATROOM_CONVEX_URL."
+      ),
   },
   async execute(args) {
     // Check chatroom installation and authentication
@@ -131,11 +143,23 @@ After logging in, try this command again.\`;
       cmdArgs.push('--duration', args.duration);
     }
 
+    // Build environment variables for local development
+    const env: Record<string, string> = { ...process.env };
+    
+    if (args.webUrl) {
+      env.CHATROOM_WEB_URL = args.webUrl;
+    }
+    
+    if (args.convexUrl) {
+      env.CHATROOM_CONVEX_URL = args.convexUrl;
+    }
+
     // Execute the wait-for-task command
     // This is a long-running operation that polls for tasks
     const proc = Bun.spawn(['chatroom', ...cmdArgs], { 
       stdout: 'pipe',
       stderr: 'pipe',
+      env,
     });
 
     // Capture both stdout and stderr
@@ -209,9 +233,13 @@ Location: ${toolPath}
 The following command is now available in OpenCode:
   • wait-for-task - Join chatroom and wait for tasks (no more timeouts!)
 
-To use in OpenCode, the tool will automatically check for:
+The tool will automatically check for:
   ✓ Chatroom CLI installation
   ✓ Authentication status
+
+For local development, you can pass custom URLs:
+  • webUrl - Override CHATROOM_WEB_URL (e.g., 'http://localhost:6249')
+  • convexUrl - Override CHATROOM_CONVEX_URL (e.g., 'https://your-dev.convex.cloud')
 
 If you're not authenticated, run:
   chatroom auth login`;
