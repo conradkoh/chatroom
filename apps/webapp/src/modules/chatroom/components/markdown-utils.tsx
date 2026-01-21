@@ -124,8 +124,8 @@ export function CodeBlock({
         </button>
       </div>
       {/* Code content */}
-      <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 overflow-x-auto text-sm">
-        <code className={className}>{children}</code>
+      <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 overflow-x-auto text-sm text-chatroom-text-primary">
+        <code className={`${className || ''} text-chatroom-text-primary`}>{children}</code>
       </pre>
     </div>
   );
@@ -146,7 +146,7 @@ export const fullMarkdownComponents = {
     }
     // Fallback for non-code pre content
     return (
-      <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 my-3 overflow-x-auto text-sm">
+      <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 my-3 overflow-x-auto text-sm text-chatroom-text-primary">
         {children}
       </pre>
     );
