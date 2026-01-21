@@ -51,11 +51,15 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
   const sendMessage = useSessionMutation(chatroomApi.messages.send);
 
   // Auto-resize textarea based on content
+  // Use a stable base height to prevent layout shift
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+      // Reset to minimum height to get accurate scrollHeight
+      textarea.style.height = '40px';
+      // Set to content height, capped at max
+      const newHeight = Math.max(40, Math.min(textarea.scrollHeight, 200));
+      textarea.style.height = `${newHeight}px`;
     }
   }, [message]);
 
@@ -142,7 +146,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
           placeholder="Type a message..."
           disabled={sending}
           rows={1}
-          className="flex-1 bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm p-3 resize-none min-h-[44px] max-h-[200px] overflow-y-auto placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm px-3 py-2.5 resize-none min-h-[40px] max-h-[200px] overflow-y-auto leading-normal placeholder:text-chatroom-text-muted placeholder:leading-normal focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
         />
 
         <button

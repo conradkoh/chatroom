@@ -679,22 +679,25 @@ export const MessageFeed = memo(function MessageFeed({
           </React.Fragment>
         ))}
       </div>
-      {/* Working indicator - sticky at bottom, always visible */}
-      <WorkingIndicator participants={participants} />
       {/* Scroll to bottom floating button - appears when user scrolls up */}
       {!isAtBottom && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent rounded-full shadow-lg hover:bg-chatroom-accent/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent rounded-full shadow-lg hover:bg-chatroom-accent/90 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
           aria-label="Scroll to bottom"
         >
           <ChevronDown size={16} />
           <span className="text-xs font-medium">New messages</span>
         </button>
       )}
-      {/* Sticky message counter - always visible at bottom */}
-      <div className="px-4 py-1 text-[10px] text-chatroom-text-muted text-right bg-chatroom-bg-primary border-t border-chatroom-border">
-        {displayMessages.length} messages loaded
+      {/* Status bar - working indicator (left) + message count (right) */}
+      <div className="flex items-center justify-between px-4 py-1 bg-chatroom-bg-primary border-t border-chatroom-border">
+        {/* Left: Working indicator (compact) */}
+        <WorkingIndicator participants={participants} compact />
+        {/* Right: Message count */}
+        <span className="text-[10px] text-chatroom-text-muted">
+          {displayMessages.length} messages loaded
+        </span>
       </div>
       {/* Feature Detail Modal */}
       <FeatureDetailModal
