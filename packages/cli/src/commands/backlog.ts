@@ -144,7 +144,7 @@ export async function listBacklog(
         });
 
         console.log(
-          `#${i + 1} [${statusEmoji} ${task.status.toUpperCase()}] ${truncate(task.content, 50)}`
+          `#${i + 1} [${statusEmoji} ${task.status.toUpperCase()}] ${truncate(task.content, 100)}`
         );
         console.log(`   ID: ${task._id}`);
         console.log(
