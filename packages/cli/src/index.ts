@@ -397,4 +397,19 @@ guidelinesCommand
     await listGuidelineTypes();
   });
 
+// ============================================================================
+// OPENCODE COMMANDS (no auth required)
+// ============================================================================
+
+const opencodeCommand = program.command('opencode').description('OpenCode integration tools');
+
+opencodeCommand
+  .command('install')
+  .description('Install chatroom as an OpenCode tool')
+  .option('--force', 'Overwrite existing tool installation')
+  .action(async (options: { force?: boolean }) => {
+    const { installTool } = await import('./commands/opencode-install.js');
+    await installTool({ checkExisting: !options.force });
+  });
+
 program.parse();
