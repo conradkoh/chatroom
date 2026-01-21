@@ -5,6 +5,14 @@
  * command interfaces that avoid timeout issues with long-running bash commands.
  *
  * The tool is installed to ~/.config/opencode/tool/chatroom.ts
+ *
+ * IMPORTANT: All tools in this file should include the following optional parameters
+ * to support local development:
+ *   - webUrl: Override the web URL (CHATROOM_WEB_URL)
+ *   - convexUrl: Override the Convex backend URL (CHATROOM_CONVEX_URL)
+ *
+ * These parameters allow agents to connect to local development servers instead of
+ * production when testing or developing.
  */
 
 export interface ToolInstallOptions {
@@ -42,8 +50,9 @@ export async function installTool(options: ToolInstallOptions = {}): Promise<Too
   const homeDir = os.homedir();
   const toolDir = path.join(homeDir, '.config', 'opencode', 'tool');
   const toolPath = path.join(toolDir, 'chatroom.ts');
+  const handoffToolPath = path.join(toolDir, 'chatroom-handoff.ts');
 
-  // Generate the tool content
+  // Generate the wait-for-task tool content
   const toolContent = `import { tool } from "@opencode-ai/plugin";
 
 /**
@@ -183,24 +192,183 @@ After logging in, try this command again.\`;
 });
 `;
 
+  // Generate the handoff tool content
+  const handoffToolContent = `import { tool } from "@opencode-ai/plugin";
+
+/**
+ * Chatroom Handoff Tool
+ *
+ * IMPORTANT: All chatroom tools should include the following optional parameters
+ * to support local development:
+ *   - webUrl: Override the web URL (CHATROOM_WEB_URL)
+ *   - convexUrl: Override the Convex backend URL (CHATROOM_CONVEX_URL)
+ *
+ * These parameters allow agents to connect to local development servers instead of
+ * production when testing or developing.
+ */
+
+/**
+ * Check if chatroom CLI is installed and authenticated
+ */
+async function checkChatroomStatus(): Promise<{ installed: boolean; authenticated: boolean; error?: string }> {
   try {
-    // Check if tool already exists
+    // Check if chatroom is installed
+    const versionProc = Bun.spawn(['chatroom', '--version'], { stdout: 'pipe', stderr: 'pipe' });
+    await versionProc.exited;
+    if (versionProc.exitCode !== 0) {
+      return { installed: false, authenticated: false, error: 'Chatroom CLI not found' };
+    }
+
+    // Check authentication status
+    const authProc = Bun.spawn(['chatroom', 'auth', 'status'], { stdout: 'pipe', stderr: 'pipe' });
+    const authOutput = await new Response(authProc.stdout).text();
+    await authProc.exited;
+    
+    const authenticated = authProc.exitCode === 0 && authOutput.includes('✅');
+    
+    return { installed: true, authenticated };
+  } catch (error) {
+    return { installed: false, authenticated: false, error: String(error) };
+  }
+}
+
+export default tool({
+  description:
+    "Complete your task and hand off to the next role in a multi-agent chatroom. Use this to pass work to another agent (reviewer, architect, etc.) or back to the user. The message should summarize what you accomplished and any relevant context for the next agent.",
+  args: {
+    chatroomId: tool.schema
+      .string()
+      .describe(
+        "The chatroom ID to hand off in. This is a unique identifier provided when the chatroom is created (e.g., 'jn7fmvz7sd76z5wwgj1m7ty6vd7z81x2')."
+      ),
+    role: tool.schema
+      .string()
+      .describe(
+        "Your role in the chatroom (e.g., 'builder', 'reviewer', 'architect'). This identifies who is performing the handoff."
+      ),
+    message: tool.schema
+      .string()
+      .describe(
+        "A markdown-formatted summary of what you accomplished. Include relevant details like files changed, decisions made, and any context the next agent needs."
+      ),
+    nextRole: tool.schema
+      .string()
+      .describe(
+        "The role to hand off to (e.g., 'reviewer', 'user', 'architect'). Use 'user' to return control to the user."
+      ),
+    webUrl: tool.schema
+      .string()
+      .optional()
+      .describe(
+        "Override the web URL for local development (e.g., 'http://localhost:6249'). If not provided, uses the default production URL or environment variable CHATROOM_WEB_URL."
+      ),
+    convexUrl: tool.schema
+      .string()
+      .optional()
+      .describe(
+        "Override the Convex backend URL for local development (e.g., 'https://wonderful-raven-192.convex.cloud'). If not provided, uses the default production URL or environment variable CHATROOM_CONVEX_URL."
+      ),
+  },
+  async execute(args) {
+    // Check chatroom installation and authentication
+    const status = await checkChatroomStatus();
+
+    if (!status.installed) {
+      return \`Error: Chatroom CLI is not installed.
+
+Please install the chatroom CLI globally:
+  npm install -g @chatroom/cli@latest
+
+(Adapt the command for your preferred package manager)\`;
+    }
+
+    if (!status.authenticated) {
+      return \`Error: Chatroom CLI is not authenticated.
+
+Please authenticate the CLI:
+  chatroom auth login
+
+After logging in, try this command again.\`;
+    }
+
+    // Build command arguments
+    const cmdArgs = [
+      'handoff',
+      args.chatroomId,
+      '--role', args.role,
+      '--message', args.message,
+      '--next-role', args.nextRole,
+    ];
+
+    // Build environment variables for local development
+    const env: Record<string, string> = { ...process.env };
+    
+    if (args.webUrl) {
+      env.CHATROOM_WEB_URL = args.webUrl;
+    }
+    
+    if (args.convexUrl) {
+      env.CHATROOM_CONVEX_URL = args.convexUrl;
+    }
+
+    // Execute the handoff command
+    const proc = Bun.spawn(['chatroom', ...cmdArgs], { 
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env,
+    });
+
+    // Capture both stdout and stderr
+    const [stdout, stderr] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+
+    // Wait for the process to complete
+    await proc.exited;
+
+    // Combine output
+    const output = [stdout, stderr].filter(s => s.trim()).join('\\n\\n');
+
+    if (proc.exitCode !== 0) {
+      return \`Error: Command failed with exit code \${proc.exitCode}\\n\\n\${output}\`;
+    }
+
+    return output.trim();
+  },
+});
+`;
+
+  try {
+    // Check if tools already exist
     if (checkExisting) {
+      const existingFiles: string[] = [];
       try {
         await fs.access(toolPath);
-        const message = `Tool already exists at: ${toolPath}
+        existingFiles.push(toolPath);
+      } catch {
+        // Tool doesn't exist
+      }
+      try {
+        await fs.access(handoffToolPath);
+        existingFiles.push(handoffToolPath);
+      } catch {
+        // Tool doesn't exist
+      }
 
-To reinstall, delete the existing file first:
-  rm ${toolPath}
+      if (existingFiles.length > 0) {
+        const message = `Tools already exist at:
+${existingFiles.map((f) => `  • ${f}`).join('\n')}
 
-Then run this command again.`;
+To reinstall, delete the existing files first:
+${existingFiles.map((f) => `  rm ${f}`).join('\n')}
+
+Then run this command again, or use --force to overwrite.`;
         console.log(message);
         return {
           success: false,
           message,
         };
-      } catch {
-        // Tool doesn't exist, continue with installation
       }
     }
 
@@ -223,21 +391,25 @@ After installation, run this command again.`;
     // Create directory if it doesn't exist
     await fs.mkdir(toolDir, { recursive: true });
 
-    // Write the tool file
+    // Write both tool files
     await fs.writeFile(toolPath, toolContent, 'utf-8');
+    await fs.writeFile(handoffToolPath, handoffToolContent, 'utf-8');
 
-    const message = `✅ Installed chatroom OpenCode tool successfully!
+    const message = `✅ Installed chatroom OpenCode tools successfully!
 
-Location: ${toolPath}
+Locations:
+  • ${toolPath}
+  • ${handoffToolPath}
 
-The following command is now available in OpenCode:
-  • wait-for-task - Join chatroom and wait for tasks (no more timeouts!)
+The following commands are now available in OpenCode:
+  • chatroom (wait-for-task) - Join chatroom and wait for tasks (no more timeouts!)
+  • chatroom-handoff - Complete your task and hand off to the next role
 
-The tool will automatically check for:
+Both tools will automatically check for:
   ✓ Chatroom CLI installation
   ✓ Authentication status
 
-For local development, you can pass custom URLs:
+For local development, you can pass custom URLs to any tool:
   • webUrl - Override CHATROOM_WEB_URL (e.g., 'http://localhost:6249')
   • convexUrl - Override CHATROOM_CONVEX_URL (e.g., 'https://your-dev.convex.cloud')
 
