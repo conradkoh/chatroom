@@ -238,24 +238,31 @@ backlogCommand
   .command('list <chatroomId>')
   .description('List tasks in a chatroom')
   .requiredOption('--role <role>', 'Your role')
-  .option(
+  .requiredOption(
     '--status <status>',
-    'Filter by status (pending|in_progress|queued|backlog|active|all)',
-    'active'
+    'Filter by status (pending|in_progress|queued|backlog|completed|cancelled|active|all)'
   )
-  .option('--limit <n>', 'Maximum number of tasks to show', '20')
+  .option('--limit <n>', 'Maximum number of tasks to show (required for --status=all)')
   .option('--full', 'Show full task content without truncation')
   .action(
     async (
       chatroomId: string,
-      options: { role: string; status?: string; limit?: string; full?: boolean }
+      options: { role: string; status: string; limit?: string; full?: boolean }
     ) => {
+      // Validate: --status=all requires --limit
+      if (options.status === 'all' && !options.limit) {
+        console.error('❌ When using --status=all, you must specify --limit=<n>');
+        console.error(
+          '   Example: chatroom backlog list <id> --role=builder --status=all --limit=50'
+        );
+        process.exit(1);
+      }
       await maybeRequireAuth();
       const { listBacklog } = await import('./commands/backlog.js');
       await listBacklog(chatroomId, {
         role: options.role,
         status: options.status,
-        limit: options.limit ? parseInt(options.limit, 10) : undefined,
+        limit: options.limit ? parseInt(options.limit, 10) : 20,
         full: options.full,
       });
     }

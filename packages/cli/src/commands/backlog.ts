@@ -33,7 +33,7 @@ export async function listBacklog(
   chatroomId: string,
   options: {
     role: string;
-    status?: string;
+    status: string;
     limit?: number;
     full?: boolean;
   }
@@ -71,10 +71,10 @@ export async function listBacklog(
     'active',
     'all',
   ];
-  const statusFilter = options.status || 'active';
-  if (!validStatuses.includes(statusFilter)) {
+  const statusFilter = options.status;
+  if (!statusFilter || !validStatuses.includes(statusFilter)) {
     console.error(
-      `❌ Invalid status: ${statusFilter}. Must be one of: ${validStatuses.join(', ')}`
+      `❌ Invalid or missing status: ${statusFilter || '(none)'}. Must be one of: ${validStatuses.join(', ')}`
     );
     process.exit(1);
   }

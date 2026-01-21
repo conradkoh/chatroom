@@ -18,8 +18,8 @@ export const backlogCommandsSection: PromptSection = {
     const lines: string[] = [
       `If the user refers to the backlog or you need to check pending tasks:\n`,
       `**List tasks:**`,
-      `  chatroom backlog list ${ctx.chatroomId} --role=${ctx.role} --full [--status=<status>] [--limit=<n>]`,
-      `  Status: pending, in_progress, queued, backlog, completed, cancelled, active (default), all\n`,
+      `  chatroom backlog list ${ctx.chatroomId} --role=${ctx.role} --status=active --full [--limit=<n>]`,
+      `  Status: pending, in_progress, queued, backlog, completed, cancelled, active, all (requires --limit)\n`,
       `**Add a task:**`,
       `  chatroom backlog add ${ctx.chatroomId} --role=${ctx.role} --content="<description>"\n`,
       `**Complete a task:**`,
