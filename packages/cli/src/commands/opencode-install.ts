@@ -153,7 +153,7 @@ After logging in, try this command again.\`;
     }
 
     // Build environment variables for local development
-    const env: Record<string, string> = { ...process.env };
+    const env: Record<string, string | undefined> = { ...process.env };
     
     if (args.webUrl) {
       env.CHATROOM_WEB_URL = args.webUrl;
@@ -301,7 +301,7 @@ After logging in, try this command again.\`;
     ];
 
     // Build environment variables for local development
-    const env: Record<string, string> = { ...process.env };
+    const env: Record<string, string | undefined> = { ...process.env };
     
     if (args.webUrl) {
       env.CHATROOM_WEB_URL = args.webUrl;
