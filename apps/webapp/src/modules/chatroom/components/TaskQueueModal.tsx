@@ -139,6 +139,7 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
   }, [tasks, searchQuery]);
 
   // Group tasks by status
+  // Backlog items sorted by createdAt descending (newest first) for better visibility
   const groupedTasks = useMemo(() => {
     const groups: Record<string, Task[]> = {
       current: [],
@@ -155,6 +156,9 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
         groups.backlog.push(task);
       }
     }
+
+    // Sort backlog by createdAt descending (newest first)
+    groups.backlog.sort((a, b) => b.createdAt - a.createdAt);
 
     return groups;
   }, [filteredTasks]);

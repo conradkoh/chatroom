@@ -199,13 +199,19 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const reopenBacklogTask = useSessionMutation(tasksApi.tasks.reopenBacklogTask);
 
   // Categorize tasks by status
+  // Backlog items sorted by createdAt descending (newest first) for better visibility
   const categorizedTasks = useMemo(() => {
     if (!tasks) return { current: [], queued: [], backlog: [] };
+
+    // Filter backlog tasks and sort by createdAt descending (newest first)
+    const backlogTasks = tasks
+      .filter((t) => t.status === 'backlog')
+      .sort((a, b) => b.createdAt - a.createdAt);
 
     return {
       current: tasks.filter((t) => t.status === 'pending' || t.status === 'in_progress'),
       queued: tasks.filter((t) => t.status === 'queued'),
-      backlog: tasks.filter((t) => t.status === 'backlog'),
+      backlog: backlogTasks,
     };
   }, [tasks]);
 
