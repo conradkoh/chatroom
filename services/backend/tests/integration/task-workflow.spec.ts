@@ -469,3 +469,94 @@ describe('Task Counts', () => {
     expect(typeof counts.closed).toBe('number');
   });
 });
+
+describe('Task Workflow - Race Conditions', () => {
+  test('startTask throws error when no pending task exists (race condition handling)', async () => {
+    const { sessionId } = await createTestSession('test-race-no-pending');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Try to start a task when none exists - simulates race where another agent claimed it
+    await expect(
+      t.mutation(api.tasks.startTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      })
+    ).rejects.toThrow('No pending task to start');
+  });
+
+  test('second startTask call fails when task already in_progress', async () => {
+    const { sessionId } = await createTestSession('test-race-double-start');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Create a pending task
+    await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'Race condition test task',
+      createdBy: 'user',
+      isBacklog: false,
+    });
+
+    // First agent starts the task
+    const result = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    expect(result.taskId).toBeDefined();
+
+    // Second agent tries to start - should fail
+    await expect(
+      t.mutation(api.tasks.startTask, {
+        sessionId,
+        chatroomId,
+        role: 'reviewer', // Different role trying to claim
+      })
+    ).rejects.toThrow('No pending task to start');
+  });
+
+  test('task start and message claim are independent operations', async () => {
+    const { sessionId } = await createTestSession('test-task-message-lifecycle');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Create a task via message (simulates user sending message)
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      content: 'Please implement feature X',
+      senderRole: 'user',
+      type: 'message',
+    });
+    expect(messageId).toBeDefined();
+
+    // Verify a pending task was created
+    const pendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    expect(pendingTasks.length).toBe(1);
+
+    // Start the task
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    expect(startResult.taskId).toBeDefined();
+
+    // Verify task is now in_progress
+    const tasks = await t.query(api.tasks.listTasks, {
+      sessionId,
+      chatroomId,
+      statusFilter: 'in_progress',
+    });
+    expect(tasks.length).toBe(1);
+    expect(tasks[0]?.status).toBe('in_progress');
+    expect(tasks[0]?.assignedTo).toBe('builder');
+  });
+});
