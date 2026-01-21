@@ -20,17 +20,8 @@ import { spawn } from 'node:child_process';
 // Production Convex URL
 const PROD_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
 
-/**
- * Find a random available port in the range 3100-3999
- */
-function getRandomPort(): number {
-  // Use a port range that's unlikely to conflict with common services
-  // 3100-3999 avoids 3000 (default Next.js) and common dev ports
-  return Math.floor(Math.random() * 900) + 3100;
-}
-
 async function main(): Promise<void> {
-  const port = getRandomPort();
+  const port = 3530;
 
   console.log('🚀 Starting development server with production backend\n');
   console.log(`   Convex URL: ${PROD_CONVEX_URL}`);
