@@ -41,6 +41,35 @@ export const join = mutation({
       )
       .unique();
 
+    // IMPORTANT: State recovery must happen BEFORE updating the participant status
+    // Check if agent was previously active (indicating a crash/restart)
+    const wasActive = existing && existing.status === 'active';
+
+    if (wasActive) {
+      // Agent was previously active - recover any in_progress tasks they were working on
+      const orphanedTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+        )
+        .filter((q) => q.eq(q.field('assignedTo'), args.role))
+        .collect();
+
+      const now = Date.now();
+      for (const task of orphanedTasks) {
+        await ctx.db.patch('chatroom_tasks', task._id, {
+          status: 'pending',
+          assignedTo: undefined,
+          startedAt: undefined,
+          updatedAt: now,
+        });
+        console.warn(
+          `[State Recovery] chatroomId=${args.chatroomId} role=${args.role} taskId=${task._id} ` +
+            `action=reset_to_pending reason=agent_rejoined`
+        );
+      }
+    }
+
     let participantId;
     if (existing) {
       // Update status to waiting and refresh readyUntil, clear activeUntil

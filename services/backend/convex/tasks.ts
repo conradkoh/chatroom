@@ -1,12 +1,13 @@
 import { v } from 'convex/values';
 
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
 import {
   areAllAgentsReady,
   getAndIncrementQueuePosition,
   requireChatroomAccess,
   validateSession,
 } from './lib/cliSessionAuth';
+import { recoverOrphanedTasks } from './lib/taskRecovery';
 
 /**
  * Maximum number of active tasks per chatroom.
@@ -806,6 +807,49 @@ export const patchTask = mutation({
 });
 
 /**
+ * Reset a stuck in_progress task back to pending.
+ * Used for manual recovery when an agent crashes without completing.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const resetStuckTask = mutation({
+  args: {
+    sessionId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+
+    // Only allow resetting in_progress tasks
+    if (task.status !== 'in_progress') {
+      throw new Error(
+        `Cannot reset task with status: ${task.status}. Only in_progress tasks can be reset.`
+      );
+    }
+
+    const now = Date.now();
+    await ctx.db.patch('chatroom_tasks', args.taskId, {
+      status: 'pending',
+      assignedTo: undefined,
+      startedAt: undefined,
+      updatedAt: now,
+    });
+
+    console.warn(
+      `[Manual Reset] chatroomId=${task.chatroomId} taskId=${args.taskId} ` +
+        `previousAssignee=${task.assignedTo || 'unknown'} action=reset_to_pending`
+    );
+
+    return { success: true, previousAssignee: task.assignedTo };
+  },
+});
+
+/**
  * List tasks in a chatroom.
  * Optionally filter by status.
  * Backlog tasks are sorted by priority descending (higher = first), then by createdAt descending.
@@ -1185,5 +1229,64 @@ export const getTaskLimits = query({
       maxActiveTasks: MAX_ACTIVE_TASKS,
       maxTaskListLimit: MAX_TASK_LIST_LIMIT,
     };
+  },
+});
+
+/**
+ * Internal mutation to clean up stale agents.
+ * Called by cron job every 2 minutes.
+ * Detects agents that have exceeded their timeout without disconnecting.
+ * Resets them to idle and recovers any orphaned tasks.
+ */
+export const cleanupStaleAgents = internalMutation({
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // Only query participants that could be stale (active or waiting status)
+    // This avoids scanning idle participants unnecessarily
+    const activeParticipants = await ctx.db
+      .query('chatroom_participants')
+      .filter((q) => q.eq(q.field('status'), 'active'))
+      .collect();
+
+    const waitingParticipants = await ctx.db
+      .query('chatroom_participants')
+      .filter((q) => q.eq(q.field('status'), 'waiting'))
+      .collect();
+
+    const candidateParticipants = [...activeParticipants, ...waitingParticipants];
+
+    let cleanedCount = 0;
+    const affectedTasks: string[] = [];
+
+    for (const p of candidateParticipants) {
+      const isStaleActive = p.status === 'active' && p.activeUntil && now > p.activeUntil;
+      const isStaleWaiting = p.status === 'waiting' && p.readyUntil && now > p.readyUntil;
+
+      if (isStaleActive || isStaleWaiting) {
+        // Reset participant to idle
+        await ctx.db.patch('chatroom_participants', p._id, {
+          status: 'idle',
+          readyUntil: undefined,
+          activeUntil: undefined,
+        });
+
+        // If was active, recover their orphaned tasks using shared helper
+        if (isStaleActive) {
+          const recovered = await recoverOrphanedTasks(ctx, p.chatroomId, p.role);
+          affectedTasks.push(...recovered);
+        }
+
+        cleanedCount++;
+      }
+    }
+
+    // Summary log (one per run, includes affected task IDs)
+    if (cleanedCount > 0) {
+      console.warn(
+        `[Stale Cleanup] Cleaned ${cleanedCount} participants, recovered ${affectedTasks.length} tasks. ` +
+          `taskIds=${affectedTasks.join(',') || 'none'}`
+      );
+    }
   },
 });

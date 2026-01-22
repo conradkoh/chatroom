@@ -356,6 +356,11 @@ async function _handoffHandler(
 
   // Step 5: Update attached backlog tasks to pending_user_review when handing off to user
   // This is the ONLY place where attached backlog tasks should have their status changed
+  // Use whitelist approach: only transition specific statuses, not "everything except completed/closed"
+  // This avoids accidentally flipping cancelled/archived tasks
+  const TRANSITIONABLE_STATUSES = ['backlog', 'queued', 'pending', 'in_progress'] as const;
+  type TransitionableStatus = (typeof TRANSITIONABLE_STATUSES)[number];
+
   if (isHandoffToUser) {
     // For each completed task, get its source message and update attached backlog tasks
     for (const task of inProgressTasks) {
@@ -364,12 +369,20 @@ async function _handoffHandler(
         if (sourceMessage?.attachedTaskIds && sourceMessage.attachedTaskIds.length > 0) {
           for (const attachedTaskId of sourceMessage.attachedTaskIds) {
             const attachedTask = await ctx.db.get('chatroom_tasks', attachedTaskId);
-            // Only update backlog-origin tasks that are still in backlog status
-            if (attachedTask && attachedTask.status === 'backlog') {
+            // Only update backlog-origin tasks in transitionable statuses
+            if (
+              attachedTask &&
+              attachedTask.origin === 'backlog' &&
+              TRANSITIONABLE_STATUSES.includes(attachedTask.status as TransitionableStatus)
+            ) {
               await ctx.db.patch('chatroom_tasks', attachedTaskId, {
                 status: 'pending_user_review' as const,
                 updatedAt: now,
               });
+              console.warn(
+                `[Attached Task Update] chatroomId=${task.chatroomId} taskId=${attachedTaskId} ` +
+                  `from=${attachedTask.status} to=pending_user_review`
+              );
             }
           }
         }

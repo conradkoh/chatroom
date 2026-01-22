@@ -389,6 +389,17 @@ backlogCommand
     }
   );
 
+backlogCommand
+  .command('reset-task <chatroomId>')
+  .description('Reset a stuck in_progress task back to pending')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--task-id <taskId>', 'Task ID to reset')
+  .action(async (chatroomId: string, options: { role: string; taskId: string }) => {
+    await maybeRequireAuth();
+    const { resetBacklog } = await import('./commands/backlog.js');
+    await resetBacklog(chatroomId, options);
+  });
+
 // ============================================================================
 // MESSAGES COMMANDS (auth required)
 // ============================================================================

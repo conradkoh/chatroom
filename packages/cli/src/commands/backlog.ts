@@ -499,6 +499,44 @@ export async function patchBacklog(
   }
 }
 
+/**
+ * Reset a stuck in_progress task back to pending.
+ */
+export async function resetBacklog(
+  chatroomId: string,
+  options: {
+    role: string;
+    taskId: string;
+  }
+): Promise<void> {
+  const client = await getConvexClient();
+
+  // Get session ID for authentication
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    process.exit(1);
+  }
+
+  try {
+    const result = await client.mutation(api.tasks.resetStuckTask, {
+      sessionId,
+      taskId: options.taskId as Id<'chatroom_tasks'>,
+    });
+
+    console.log('');
+    console.log('✅ Task reset to pending');
+    console.log(`   ID: ${options.taskId}`);
+    if (result.previousAssignee) {
+      console.log(`   Previous assignee: ${result.previousAssignee}`);
+    }
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to reset task: ${(error as Error).message}`);
+    process.exit(1);
+  }
+}
+
 function getStatusEmoji(status: TaskStatus): string {
   switch (status) {
     case 'pending':
