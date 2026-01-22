@@ -16,6 +16,7 @@ export {
   type Message,
   type Task,
   type TaskWithMessage,
+  type Artifact,
   type AllowedHandoffRoles,
   type ContextWindow,
   type RolePromptResponse,

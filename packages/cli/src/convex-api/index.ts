@@ -37,6 +37,7 @@ export interface Message {
   taskOriginMessageId?: Id<'chatroom_messages'>;
   taskId?: Id<'chatroom_tasks'>;
   attachedTaskIds?: Id<'chatroom_tasks'>[];
+  attachedArtifactIds?: Id<'chatroom_artifacts'>[];
   _creationTime?: number;
 }
 
@@ -58,6 +59,22 @@ export interface Task {
 export interface TaskWithMessage {
   task: Task;
   message: Message | null;
+}
+
+export interface Artifact {
+  _id: Id<'chatroom_artifacts'>;
+  chatroomId: Id<'chatroom_rooms'>;
+  artifactGroupId: string;
+  filename: string;
+  description?: string;
+  mimeType: string;
+  content: string;
+  version: number;
+  isLatest: boolean;
+  previousVersionId?: Id<'chatroom_artifacts'>;
+  createdBy: string;
+  createdAt: number;
+  _creationTime?: number;
 }
 
 export interface AllowedHandoffRoles {
