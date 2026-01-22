@@ -2,6 +2,7 @@
  * NEXT STEPS section - shows what commands to run next.
  */
 
+import { HANDOFF_DIR } from '../../config';
 import { formatReminder } from '../formatters';
 import type { PromptSection, TaskDeliveryContext } from '../types';
 
@@ -33,9 +34,11 @@ export const nextStepsSection: PromptSection = {
       lines.push(`When your task is complete, run:\n`);
     }
 
+    lines.push(`  # Write message to file first:`);
+    lines.push(`  # mkdir -p ${HANDOFF_DIR} && echo "<summary>" > ${HANDOFF_DIR}/message.md`);
     lines.push(`  chatroom handoff ${ctx.chatroomId} \\`);
     lines.push(`    --role=${ctx.role} \\`);
-    lines.push(`    --message="<summary of what you accomplished>" \\`);
+    lines.push(`    --message-file="${HANDOFF_DIR}/message.md" \\`);
     lines.push(`    --next-role=<target>\n`);
 
     lines.push(formatReminder(ctx.chatroomId, ctx.role));

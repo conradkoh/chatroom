@@ -154,7 +154,12 @@ For complex reviews, you can break the review into phases:
 
 To continue to the next phase, hand off to yourself:
 \`\`\`bash
-chatroom handoff ${ctx.chatroomId} --role=reviewer --message="Phase 1 complete: <findings>. Continuing to Phase 2." --next-role=reviewer
+# Write message to file with unique ID first
+mkdir -p .chatroom/tmp/handoff
+MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+echo "Phase 1 complete: <findings>. Continuing to Phase 2." > "$MSG_FILE"
+
+chatroom handoff ${ctx.chatroomId} --role=reviewer --message-file="$MSG_FILE" --next-role=reviewer
 \`\`\``);
 
   return sections.join('\n\n');
@@ -233,9 +238,11 @@ function getCommandsSection(ctx: RolePromptContext): string {
 
 **Complete task and hand off:**
 \`\`\`
+# Write message to file first:
+# mkdir -p .chatroom/tmp/handoff && echo "<summary>" > .chatroom/tmp/handoff/message.md
 chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
-  --message="<summary>" \\
+  --message-file=".chatroom/tmp/handoff/message.md" \\
   --next-role=<target>
 \`\`\`
 
@@ -264,9 +271,11 @@ export function generateTaskStartedReminder(
       case 'question':
         return `You can respond directly to the user when done.`;
       case 'new_feature':
-        return `When complete, hand off to reviewer for approval:
+        return `When complete, write your summary to a file and hand off to reviewer for approval:
 \`\`\`
-chatroom handoff ${chatroomId} --role=builder --message="<summary>" --next-role=reviewer
+mkdir -p .chatroom/tmp/handoff && MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+echo "<summary>" > "$MSG_FILE"
+chatroom handoff ${chatroomId} --role=builder --message-file="$MSG_FILE" --next-role=reviewer
 \`\`\``;
       case 'follow_up':
         return `Continue from where you left off. Same workflow rules as the original task apply.`;

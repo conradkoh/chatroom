@@ -2,6 +2,8 @@
  * Role-specific guidance sections for agent initialization prompts.
  */
 
+import { getHandoffFileSnippet } from '../config';
+
 /**
  * Generate role-specific guidance based on the role
  */
@@ -74,8 +76,7 @@ You receive handoffs from the builder containing completed work. You do NOT rece
 
 **If changes are needed:**
 \`\`\`bash
-mkdir -p .chatroom/tmp/handoff
-MSG_FILE=".chatroom/tmp/handoff/feedback-$(date +%s%N).md"
+${getHandoffFileSnippet('feedback')}
 echo "Please address:
 1. Issue one
 2. Issue two" > "$MSG_FILE"
@@ -88,8 +89,7 @@ chatroom handoff <chatroom-id> \\
 
 **If work is approved:**
 \`\`\`bash
-mkdir -p .chatroom/tmp/handoff
-MSG_FILE=".chatroom/tmp/handoff/approval-$(date +%s%N).md"
+${getHandoffFileSnippet('approval')}
 echo "APPROVED. Code is clean, tests pass, and requirements are met." > "$MSG_FILE"
 
 chatroom handoff <chatroom-id> \\

@@ -4,6 +4,7 @@
  * but it builds the JSON payload for programmatic parsing.
  */
 
+import { HANDOFF_DIR } from '../../config';
 import type { TaskDeliveryContext, TaskDeliveryJsonOutput, AttachedTask } from '../types';
 
 /**
@@ -18,10 +19,10 @@ export function buildJsonOutput(ctx: TaskDeliveryContext): TaskDeliveryJsonOutpu
   const needsClassification =
     ctx.rolePrompt.currentClassification === null && senderRole.toLowerCase() === 'user';
 
-  // Build classification commands
+  // Build classification commands (note: new_feature uses file-based input)
   const classificationCommands = {
     question: `chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=question`,
-    new_feature: `chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature --title="<title>" --description="<description>" --tech-specs="<specifications>"`,
+    new_feature: `chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature --title="<title>" --description-file="<path>" --tech-specs-file="<path>"`,
     follow_up: `chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=follow_up`,
   };
 
@@ -31,7 +32,7 @@ export function buildJsonOutput(ctx: TaskDeliveryContext): TaskDeliveryJsonOutpu
       ? [
           `chatroom feature list ${ctx.chatroomId} --limit=5`,
           `chatroom backlog list ${ctx.chatroomId} --role=${ctx.role} --status=active --full`,
-          `chatroom backlog add ${ctx.chatroomId} --role=${ctx.role} --content="<description>"`,
+          `chatroom backlog add ${ctx.chatroomId} --role=${ctx.role} --content-file="${HANDOFF_DIR}/task.md"`,
           `chatroom backlog complete ${ctx.chatroomId} --role=${ctx.role} --taskId=<id>`,
         ]
       : undefined;
@@ -99,7 +100,7 @@ export function buildJsonOutput(ctx: TaskDeliveryContext): TaskDeliveryJsonOutpu
       taskStartedCommand: needsClassification
         ? `chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<question|new_feature|follow_up>`
         : null,
-      taskCompleteCommand: `chatroom handoff ${ctx.chatroomId} --role=${ctx.role} --message="<summary>" --next-role=<target>`,
+      taskCompleteCommand: `chatroom handoff ${ctx.chatroomId} --role=${ctx.role} --message-file="${HANDOFF_DIR}/message.md" --next-role=<target>`,
       availableHandoffRoles: ctx.rolePrompt.availableHandoffRoles,
       terminationRole: 'user',
       classification: ctx.rolePrompt.currentClassification,

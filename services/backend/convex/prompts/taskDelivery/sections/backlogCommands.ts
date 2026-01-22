@@ -3,6 +3,7 @@
  * Only rendered for builder role.
  */
 
+import { HANDOFF_DIR } from '../../config';
 import type { PromptSection, TaskDeliveryContext } from '../types';
 
 export const backlogCommandsSection: PromptSection = {
@@ -21,8 +22,8 @@ export const backlogCommandsSection: PromptSection = {
       `  chatroom backlog list ${ctx.chatroomId} --role=${ctx.role} --status=active --full [--limit=<n>]`,
       `  Status: active (default), pending, in_progress, queued, backlog, completed, cancelled, pending_review, archived, all (requires --limit)\n`,
       `**Add a task:**`,
-      `  mkdir -p .chatroom/tmp/handoff`,
-      `  TASK_FILE=".chatroom/tmp/handoff/task-$(date +%s%N).md"`,
+      `  mkdir -p ${HANDOFF_DIR}`,
+      `  TASK_FILE="${HANDOFF_DIR}/task-$(date +%s%N).md"`,
       `  echo "Task description here" > "$TASK_FILE"`,
       `  chatroom backlog add ${ctx.chatroomId} --role=${ctx.role} --content-file="$TASK_FILE"\n`,
       `**Complete a task:**`,

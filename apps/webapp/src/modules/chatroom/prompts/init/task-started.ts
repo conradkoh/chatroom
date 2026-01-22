@@ -3,6 +3,7 @@
  * Explains the classification system and workflow.
  */
 
+import { getHandoffFileSnippet, getMultiFileSnippet } from '../config';
 import type { InitPromptContext } from './base';
 
 /**
@@ -48,15 +49,17 @@ When classifying a message as \`new_feature\`, you MUST provide metadata via fil
 
 \`\`\`bash
 # Write description and tech specs to files with unique IDs
-mkdir -p .chatroom/tmp/handoff
-UNIQUE_ID=$(date +%s%N)
-echo "Implement JWT-based authentication with login/logout flow" > ".chatroom/tmp/handoff/description-$UNIQUE_ID.md"
-echo "Use bcrypt for password hashing. JWT tokens expire after 24h." > ".chatroom/tmp/handoff/tech-specs-$UNIQUE_ID.md"
+${getMultiFileSnippet([
+  { prefix: 'description', varName: 'DESC_FILE' },
+  { prefix: 'tech-specs', varName: 'SPECS_FILE' },
+])}
+echo "Implement JWT-based authentication with login/logout flow" > "$DESC_FILE"
+echo "Use bcrypt for password hashing. JWT tokens expire after 24h." > "$SPECS_FILE"
 
 ${ctx.cliEnvPrefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
   --title="Add user authentication" \\
-  --description-file=".chatroom/tmp/handoff/description-$UNIQUE_ID.md" \\
-  --tech-specs-file=".chatroom/tmp/handoff/tech-specs-$UNIQUE_ID.md"
+  --description-file="$DESC_FILE" \\
+  --tech-specs-file="$SPECS_FILE"
 \`\`\`
 
 **Format Requirements:**
@@ -68,8 +71,7 @@ ${ctx.cliEnvPrefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --
 
 \`\`\`bash
 # Write your handoff message to a file with unique ID
-mkdir -p .chatroom/tmp/handoff
-MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+${getHandoffFileSnippet('message')}
 echo "## Implementation Complete
 
 Added user authentication with:

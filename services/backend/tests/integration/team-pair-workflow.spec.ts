@@ -126,42 +126,44 @@ describe('Pair Team Workflow', () => {
       // Snapshot the full prompt for review
       // WET: Full prompt is inline for visibility during code review
       expect(builderPrompt.prompt).toMatchInlineSnapshot(`
-"## Your Role: BUILDER
+        "## Your Role: BUILDER
 
-You are the implementer responsible for writing code and building solutions.
+        You are the implementer responsible for writing code and building solutions.
 
-### Workflow
+        ### Workflow
 
-1. Receive task (from user or reviewer handoff)
-2. Implement the requested changes
-3. Commit your work with clear messages
-4. Hand off to reviewer with a summary
+        1. Receive task (from user or reviewer handoff)
+        2. Implement the requested changes
+        3. Commit your work with clear messages
+        4. Hand off to reviewer with a summary
 
-### Current Task: NEW FEATURE
-New functionality request. MUST go through reviewer before returning to user.
+        ### Current Task: NEW FEATURE
+        New functionality request. MUST go through reviewer before returning to user.
 
-### Handoff Options
-Available targets: reviewer
+        ### Handoff Options
+        Available targets: reviewer
 
-⚠️ **Restriction:** new_feature requests must be reviewed before returning to user
+        ⚠️ **Restriction:** new_feature requests must be reviewed before returning to user
 
-### Commands
+        ### Commands
 
-**Complete task and hand off:**
-\`\`\`
-chatroom handoff ${chatroomId} \\
-  --role=builder \\
-  --message="<summary>" \\
-  --next-role=<target>
-\`\`\`
+        **Complete task and hand off:**
+        \`\`\`
+        # Write message to file first:
+        # mkdir -p .chatroom/tmp/handoff && echo "<summary>" > .chatroom/tmp/handoff/message.md
+        chatroom handoff 10002;chatroom_rooms \\
+          --role=builder \\
+          --message-file=".chatroom/tmp/handoff/message.md" \\
+          --next-role=<target>
+        \`\`\`
 
-**Always run after handoff:**
-\`\`\`
-chatroom wait-for-task ${chatroomId} --role=builder --session=1
-\`\`\`
+        **Always run after handoff:**
+        \`\`\`
+        chatroom wait-for-task 10002;chatroom_rooms --role=builder --session=1
+        \`\`\`
 
-**⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
-`);
+        **⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
+      `);
 
       // ========================================
       // STEP 4: Builder tries to hand off directly to user - SHOULD FAIL
@@ -227,74 +229,81 @@ chatroom wait-for-task ${chatroomId} --role=builder --session=1
       // Snapshot reviewer's prompt
       // WET: Full prompt inline for visibility
       expect(reviewerPrompt.prompt).toMatchInlineSnapshot(`
-"## Your Role: REVIEWER
+        "## Your Role: REVIEWER
 
-You are the quality guardian responsible for reviewing and validating code changes.
+        You are the quality guardian responsible for reviewing and validating code changes.
 
-### Workflow
+        ### Workflow
 
-**Important: Do NOT run task-started** - the task is already classified by the builder.
+        **Important: Do NOT run task-started** - the task is already classified by the builder.
 
-**Phase 1: Understand the Request**
-First, read the ORIGINAL user request below to understand what should have been built.
+        **Phase 1: Understand the Request**
+        First, read the ORIGINAL user request below to understand what should have been built.
 
-**Phase 2: Run Verification Commands**
-\`\`\`bash
-pnpm typecheck    # Check for TypeScript errors
-pnpm lint:fix     # Check for linting issues
-git status        # View uncommitted changes
-git diff          # View detailed changes
-git log --oneline -5  # View recent commits
-\`\`\`
+        **Phase 2: Run Verification Commands**
+        \`\`\`bash
+        pnpm typecheck    # Check for TypeScript errors
+        pnpm lint:fix     # Check for linting issues
+        git status        # View uncommitted changes
+        git diff          # View detailed changes
+        git log --oneline -5  # View recent commits
+        \`\`\`
 
-**Phase 3: Review Against Checklist**
-- [ ] TypeScript: No errors, no \`any\` types, proper typing
-- [ ] Code quality: No hacks/shortcuts, proper patterns
-- [ ] Requirements: ALL original requirements addressed
-- [ ] Guidelines: Follows codebase conventions (check AGENTS.md, etc.)
-- [ ] Design: Uses design system (semantic colors, existing components)
-- [ ] Security: No obvious vulnerabilities
+        **Phase 3: Review Against Checklist**
+        - [ ] TypeScript: No errors, no \`any\` types, proper typing
+        - [ ] Code quality: No hacks/shortcuts, proper patterns
+        - [ ] Requirements: ALL original requirements addressed
+        - [ ] Guidelines: Follows codebase conventions (check AGENTS.md, etc.)
+        - [ ] Design: Uses design system (semantic colors, existing components)
+        - [ ] Security: No obvious vulnerabilities
 
-**Phase 4: Decision**
-- **Changes needed** → Provide specific feedback, hand to builder
-- **Approved** → Confirm requirements met, hand to user
+        **Phase 4: Decision**
+        - **Changes needed** → Provide specific feedback, hand to builder
+        - **Approved** → Confirm requirements met, hand to user
 
-### Multi-Phase Review
+        ### Multi-Phase Review
 
-For complex reviews, you can break the review into phases:
+        For complex reviews, you can break the review into phases:
 
-1. **Phase 1**: TypeScript and linting verification
-2. **Phase 2**: Code quality and patterns review
-3. **Phase 3**: Requirements and design compliance
+        1. **Phase 1**: TypeScript and linting verification
+        2. **Phase 2**: Code quality and patterns review
+        3. **Phase 3**: Requirements and design compliance
 
-To continue to the next phase, hand off to yourself:
-\`\`\`bash
-chatroom handoff ${chatroomId} --role=reviewer --message="Phase 1 complete: <findings>. Continuing to Phase 2." --next-role=reviewer
-\`\`\`
+        To continue to the next phase, hand off to yourself:
+        \`\`\`bash
+        # Write message to file with unique ID first
+        mkdir -p .chatroom/tmp/handoff
+        MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+        echo "Phase 1 complete: <findings>. Continuing to Phase 2." > "$MSG_FILE"
 
-### Current Task: NEW FEATURE
-New functionality request. MUST go through reviewer before returning to user.
+        chatroom handoff 10002;chatroom_rooms --role=reviewer --message-file="$MSG_FILE" --next-role=reviewer
+        \`\`\`
 
-### Handoff Options
-Available targets: builder, user
+        ### Current Task: NEW FEATURE
+        New functionality request. MUST go through reviewer before returning to user.
 
-### Commands
+        ### Handoff Options
+        Available targets: builder, user
 
-**Complete task and hand off:**
-\`\`\`
-chatroom handoff ${chatroomId} \\
-  --role=reviewer \\
-  --message="<summary>" \\
-  --next-role=<target>
-\`\`\`
+        ### Commands
 
-**Always run after handoff:**
-\`\`\`
-chatroom wait-for-task ${chatroomId} --role=reviewer --session=1
-\`\`\`
+        **Complete task and hand off:**
+        \`\`\`
+        # Write message to file first:
+        # mkdir -p .chatroom/tmp/handoff && echo "<summary>" > .chatroom/tmp/handoff/message.md
+        chatroom handoff 10002;chatroom_rooms \\
+          --role=reviewer \\
+          --message-file=".chatroom/tmp/handoff/message.md" \\
+          --next-role=<target>
+        \`\`\`
 
-**⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
-`);
+        **Always run after handoff:**
+        \`\`\`
+        chatroom wait-for-task 10002;chatroom_rooms --role=reviewer --session=1
+        \`\`\`
+
+        **⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
+      `);
 
       // ========================================
       // STEP 8: Reviewer approves and hands off to user
@@ -422,40 +431,42 @@ chatroom wait-for-task ${chatroomId} --role=reviewer --session=1
 
       // Snapshot the question prompt
       expect(builderPrompt.prompt).toMatchInlineSnapshot(`
-"## Your Role: BUILDER
+        "## Your Role: BUILDER
 
-You are the implementer responsible for writing code and building solutions.
+        You are the implementer responsible for writing code and building solutions.
 
-### Workflow
+        ### Workflow
 
-1. Receive task (from user or reviewer handoff)
-2. Implement the requested changes
-3. Commit your work with clear messages
-4. Hand off to reviewer with a summary
+        1. Receive task (from user or reviewer handoff)
+        2. Implement the requested changes
+        3. Commit your work with clear messages
+        4. Hand off to reviewer with a summary
 
-### Current Task: QUESTION
-User is asking a question. Can respond directly after answering.
+        ### Current Task: QUESTION
+        User is asking a question. Can respond directly after answering.
 
-### Handoff Options
-Available targets: reviewer, user
+        ### Handoff Options
+        Available targets: reviewer, user
 
-### Commands
+        ### Commands
 
-**Complete task and hand off:**
-\`\`\`
-chatroom handoff ${chatroomId} \\
-  --role=builder \\
-  --message="<summary>" \\
-  --next-role=<target>
-\`\`\`
+        **Complete task and hand off:**
+        \`\`\`
+        # Write message to file first:
+        # mkdir -p .chatroom/tmp/handoff && echo "<summary>" > .chatroom/tmp/handoff/message.md
+        chatroom handoff 10023;chatroom_rooms \\
+          --role=builder \\
+          --message-file=".chatroom/tmp/handoff/message.md" \\
+          --next-role=<target>
+        \`\`\`
 
-**Always run after handoff:**
-\`\`\`
-chatroom wait-for-task ${chatroomId} --role=builder --session=1
-\`\`\`
+        **Always run after handoff:**
+        \`\`\`
+        chatroom wait-for-task 10023;chatroom_rooms --role=builder --session=1
+        \`\`\`
 
-**⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
-`);
+        **⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
+      `);
 
       // Builder hands off directly to user (should succeed)
       const handoffResult = await t.mutation(api.messages.handoff, {

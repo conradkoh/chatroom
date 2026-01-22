@@ -3,6 +3,7 @@
  * These are the common sections that apply to all roles.
  */
 
+import { getHandoffFileSnippet } from '../config';
 import type { RoleTemplate } from '../templates';
 
 export interface InitPromptContext {
@@ -61,14 +62,14 @@ chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
  * Generate the communication section
  */
 export function getCommunicationSection(ctx: InitPromptContext): string {
+  const fileSnippet = getHandoffFileSnippet('message');
   return `## Communicating in the Chatroom
 
 To complete your task and hand off to the next role:
 
 \`\`\`bash
 # Write your message to a file with unique ID, then hand off
-mkdir -p .chatroom/tmp/handoff
-MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+${fileSnippet}
 echo "Your handoff message here" > "$MSG_FILE"
 
 chatroom handoff ${ctx.chatroomId} \\
@@ -123,12 +124,12 @@ When you receive a message, the JSON output includes a \`context\` section with:
  * Generate the example usage section
  */
 export function getExampleSection(ctx: InitPromptContext): string {
+  const fileSnippet = getHandoffFileSnippet('message');
   return `## Example Usage
 
 \`\`\`bash
 # Ask for clarification (hand off to user with question)
-mkdir -p .chatroom/tmp/handoff
-MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+${fileSnippet}
 echo "Can you clarify if you want a REST or GraphQL API?" > "$MSG_FILE"
 
 chatroom handoff ${ctx.chatroomId} \\
@@ -142,8 +143,7 @@ chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
 
 \`\`\`bash
 # Complete your task and hand off
-mkdir -p .chatroom/tmp/handoff
-MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+${fileSnippet}
 echo "## Summary
 
 Implemented feature X with:
