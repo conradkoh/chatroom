@@ -981,7 +981,7 @@ export const getLatestForRole = query({
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .order('desc')
-      .take(200);
+      .take(50); // Reduced from 200 to 50 for performance
 
     // Reverse to get chronological order
     const messages = recentMessages.reverse();

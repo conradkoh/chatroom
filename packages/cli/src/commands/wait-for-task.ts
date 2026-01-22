@@ -199,6 +199,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
   // Track errors for better debugging with exponential backoff
   let consecutiveErrors = 0;
+  let consecutiveEmptyPolls = 0;
   let currentPollInterval = WAIT_POLL_INTERVAL_MS;
   let pollTimeout: ReturnType<typeof setTimeout>;
 
@@ -235,6 +236,28 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
       // Get the oldest pending task (first in array)
       const taskWithMessage = pendingTasks.length > 0 ? pendingTasks[0] : null;
+
+      // Implement adaptive polling for empty results
+      if (pendingTasks.length === 0) {
+        consecutiveEmptyPolls++;
+
+        // Exponentially increase polling interval for empty results (max 60 seconds)
+        const maxEmptyInterval = 60000; // 60 seconds
+        currentPollInterval = Math.min(
+          WAIT_POLL_INTERVAL_MS * Math.pow(1.5, Math.min(consecutiveEmptyPolls - 1, 8)),
+          maxEmptyInterval
+        );
+
+        if (consecutiveEmptyPolls % 5 === 0) {
+          console.log(
+            `🔄 No tasks found, increasing poll interval to ${currentPollInterval / 1000}s`
+          );
+        }
+      } else {
+        // Reset when we find tasks
+        consecutiveEmptyPolls = 0;
+        currentPollInterval = WAIT_POLL_INTERVAL_MS;
+      }
 
       if (taskWithMessage) {
         const { task, message } = taskWithMessage;
