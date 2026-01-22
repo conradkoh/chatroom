@@ -33,7 +33,7 @@ export function buildJsonOutput(ctx: TaskDeliveryContext): TaskDeliveryJsonOutpu
           `chatroom feature list ${ctx.chatroomId} --limit=5`,
           `chatroom backlog list ${ctx.chatroomId} --role=${ctx.role} --status=active --full`,
           `chatroom backlog add ${ctx.chatroomId} --role=${ctx.role} --content-file="${HANDOFF_DIR}/task.md"`,
-          `chatroom backlog complete ${ctx.chatroomId} --role=${ctx.role} --taskId=<id>`,
+          `chatroom backlog complete ${ctx.chatroomId} --role=${ctx.role} --task-id=<id>`,
         ]
       : undefined;
 

@@ -33,7 +33,7 @@ export const backlogCommandsSection: PromptSection = {
       `  - value: low = nice-to-have, high = critical/high-impact`,
       `  - priority: numeric (higher = more important, sorted descending)\n`,
       `**Complete a task:**`,
-      `  chatroom backlog complete ${ctx.chatroomId} --role=${ctx.role} --taskId=<id> [--force]`,
+      `  chatroom backlog complete ${ctx.chatroomId} --role=${ctx.role} --task-id=<id> [--force]`,
     ];
 
     return lines.join('\n');
