@@ -33,6 +33,7 @@ import React, {
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
 import { compactMarkdownComponents, fullMarkdownComponents } from './markdown-utils';
@@ -68,6 +69,8 @@ interface Message {
   featureTechSpecs?: string;
   // Attached backlog tasks for context
   attachedTasks?: AttachedTask[];
+  // Attached artifacts
+  attachedArtifacts?: ArtifactMeta[];
 }
 
 interface AttachedTask {
@@ -406,6 +409,10 @@ const MessageItem = memo(function MessageItem({
             </button>
           ))}
         </div>
+      )}
+      {/* Attached Artifacts */}
+      {message.attachedArtifacts && message.attachedArtifacts.length > 0 && (
+        <AttachedArtifacts artifacts={message.attachedArtifacts} />
       )}
       {/* Message Footer - only show timestamp for non-user messages (user message status/time in TaskHeader) */}
       {!isUserMessage && (

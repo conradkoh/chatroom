@@ -765,10 +765,31 @@ export const listPaginated = query({
             }));
         }
 
+        // Fetch attached artifact details if message has attached artifacts
+        let attachedArtifacts:
+          | { _id: string; filename: string; description?: string; mimeType?: string }[]
+          | undefined;
+        if (message.attachedArtifactIds && message.attachedArtifactIds.length > 0) {
+          const artifacts = await Promise.all(
+            message.attachedArtifactIds.map((artifactId) =>
+              ctx.db.get('chatroom_artifacts', artifactId)
+            )
+          );
+          attachedArtifacts = artifacts
+            .filter((a) => a !== null)
+            .map((a) => ({
+              _id: a!._id,
+              filename: a!.filename,
+              description: a!.description,
+              mimeType: a!.mimeType,
+            }));
+        }
+
         return {
           ...message,
           ...(taskStatus && { taskStatus }),
           ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
+          ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
         };
       })
     );
