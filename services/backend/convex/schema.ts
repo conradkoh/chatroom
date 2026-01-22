@@ -327,6 +327,10 @@ export default defineSchema({
     // at which point they transition to 'pending_user_review'
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
 
+    // Attached artifacts for context
+    // Agents can attach multiple artifacts to handoffs for reference
+    attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+
     // Message lifecycle tracking
     // acknowledgedAt: When an agent received and started working on this message
     acknowledgedAt: v.optional(v.number()),
@@ -479,4 +483,35 @@ export default defineSchema({
     .index('by_userId', ['userId'])
     .index('by_userId_chatroomId', ['userId', 'chatroomId'])
     .index('by_chatroomId', ['chatroomId']),
+
+  /**
+   * Artifacts for chatroom collaboration.
+   * Stores versioned documents that can be attached to handoffs.
+   */
+  chatroom_artifacts: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+
+    // Artifact identity (stable across versions)
+    artifactGroupId: v.string(), // UUID linking all versions
+
+    // Artifact metadata
+    filename: v.string(),
+    description: v.optional(v.string()),
+    mimeType: v.string(),
+
+    // Content
+    content: v.string(),
+
+    // Version tracking
+    version: v.number(), // 1, 2, 3...
+    isLatest: v.boolean(), // true for current version
+    previousVersionId: v.optional(v.id('chatroom_artifacts')),
+
+    // Tracking
+    createdBy: v.string(),
+    createdAt: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_group_latest', ['artifactGroupId', 'isLatest'])
+    .index('by_chatroom_and_filename_latest', ['chatroomId', 'filename', 'isLatest']),
 });
