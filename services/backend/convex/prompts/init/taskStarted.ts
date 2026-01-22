@@ -44,45 +44,42 @@ chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<typ
 
 ### New Feature Classification
 
-When classifying a message as \`new_feature\`, you MUST provide metadata:
+When classifying a message as \`new_feature\`, you MUST provide metadata via files:
 
 \`\`\`bash
-# Option 1: Inline (for short content)
-chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
-  --title="<plain text title>" \\
-  --description="<markdown formatted description>" \\
-  --tech-specs="<markdown formatted technical specifications>"
+# Write description and tech specs to files
+echo "Implement JWT-based authentication with login/logout flow" > /tmp/description.md
+echo "Use bcrypt for password hashing. JWT tokens expire after 24h." > /tmp/tech-specs.md
 
-# Option 2: Using files (recommended for complex content)
 chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
-  --title="<plain text title>" \\
+  --title="Add user authentication" \\
   --description-file=/tmp/description.md \\
   --tech-specs-file=/tmp/tech-specs.md
 \`\`\`
 
 **Format Requirements:**
 - \`--title\`: Plain text only (no markdown)
-- \`--description\` / \`--description-file\`: Markdown formatted
-- \`--tech-specs\` / \`--tech-specs-file\`: Markdown formatted
+- \`--description-file\`: Path to file with markdown formatted description
+- \`--tech-specs-file\`: Path to file with markdown formatted technical specifications
 
 ### Example
 
 \`\`\`bash
-# Acknowledge you're starting work on a new feature request
-chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
-  --title="Add user authentication" \\
-  --description="Implement JWT-based authentication with login/logout flow" \\
-  --tech-specs="Use bcrypt for password hashing. JWT tokens expire after 24h."
+# Write your handoff message to a file
+echo "## Implementation Complete
 
-# Now do your work...
+Added user authentication with:
+- JWT tokens
+- Password hashing
+- Session management" > /tmp/handoff.md
 
-# When done, hand off appropriately based on classification
+# Hand off to next role
 chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
-  --message="<markdown formatted summary>" \\
+  --message-file=/tmp/handoff.md \\
   --next-role=${isBuilder ? 'reviewer' : 'user'}
 \`\`\`
 
-**Note:** For multiline content in description/tech-specs, you can use either inline markdown formatting or write to a file and use \`--description-file\` / \`--tech-specs-file\`.
+**Note:** All content is passed via files to avoid shell escape sequence issues.
 ${roleSpecificNote}`;
 }

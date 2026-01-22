@@ -146,10 +146,14 @@ program
     'Message classification: question, new_feature, or follow_up'
   )
   .option('--title <title>', 'Feature title (required for new_feature)')
-  .option('--description <description>', 'Feature description (required for new_feature)')
-  .option('--description-file <path>', 'Path to file containing feature description')
-  .option('--tech-specs <specs>', 'Technical specifications (required for new_feature)')
-  .option('--tech-specs-file <path>', 'Path to file containing technical specifications')
+  .option(
+    '--description-file <path>',
+    'Path to file containing feature description (required for new_feature)'
+  )
+  .option(
+    '--tech-specs-file <path>',
+    'Path to file containing technical specifications (required for new_feature)'
+  )
   .action(
     async (
       chatroomId: string,
@@ -157,9 +161,7 @@ program
         role: string;
         classification: string;
         title?: string;
-        description?: string;
         descriptionFile?: string;
-        techSpecs?: string;
         techSpecsFile?: string;
       }
     ) => {
@@ -174,14 +176,18 @@ program
         process.exit(1);
       }
 
-      // Resolve content from inline or file options
-      const { resolveContent } = await import('./utils/file-content.js');
+      // Read content from files
+      const { readFileContent } = await import('./utils/file-content.js');
       let description: string | undefined;
       let techSpecs: string | undefined;
 
       try {
-        description = resolveContent(options.description, options.descriptionFile, 'description');
-        techSpecs = resolveContent(options.techSpecs, options.techSpecsFile, 'tech-specs');
+        if (options.descriptionFile) {
+          description = readFileContent(options.descriptionFile, 'description-file');
+        }
+        if (options.techSpecsFile) {
+          techSpecs = readFileContent(options.techSpecsFile, 'tech-specs-file');
+        }
       } catch (err) {
         console.error(`❌ ${(err as Error).message}`);
         process.exit(1);
@@ -202,35 +208,33 @@ program
   .command('handoff <chatroomId>')
   .description('Complete your task and hand off to the next role')
   .requiredOption('--role <role>', 'Your role')
-  .option('--message <message>', 'Completion message/summary')
-  .option('--message-file <path>', 'Path to file containing completion message')
+  .requiredOption('--message-file <path>', 'Path to file containing completion message')
   .requiredOption('--next-role <nextRole>', 'Role to hand off to')
   .action(
     async (
       chatroomId: string,
       options: {
         role: string;
-        message?: string;
-        messageFile?: string;
+        messageFile: string;
         nextRole: string;
       }
     ) => {
       await maybeRequireAuth();
 
-      // Resolve content from inline or file options
-      const { resolveContent } = await import('./utils/file-content.js');
-      let message: string | undefined;
+      // Read content from file
+      const { readFileContent } = await import('./utils/file-content.js');
+      let message: string;
 
       try {
-        message = resolveContent(options.message, options.messageFile, 'message');
+        message = readFileContent(options.messageFile, 'message-file');
       } catch (err) {
         console.error(`❌ ${(err as Error).message}`);
         process.exit(1);
       }
 
-      // Validate that message is provided (either inline or from file)
+      // Validate that message is not empty
       if (!message || message.trim().length === 0) {
-        console.error('❌ Must specify either --message or --message-file');
+        console.error('❌ Message file is empty');
         process.exit(1);
       }
 
@@ -310,36 +314,30 @@ backlogCommand
   .command('add <chatroomId>')
   .description('Add a task to the backlog')
   .requiredOption('--role <role>', 'Your role (creator)')
-  .option('--content <content>', 'Task content/description')
-  .option('--content-file <path>', 'Path to file containing task content')
-  .action(
-    async (
-      chatroomId: string,
-      options: { role: string; content?: string; contentFile?: string }
-    ) => {
-      await maybeRequireAuth();
+  .requiredOption('--content-file <path>', 'Path to file containing task content')
+  .action(async (chatroomId: string, options: { role: string; contentFile: string }) => {
+    await maybeRequireAuth();
 
-      // Resolve content from inline or file options
-      const { resolveContent } = await import('./utils/file-content.js');
-      let content: string | undefined;
+    // Read content from file
+    const { readFileContent } = await import('./utils/file-content.js');
+    let content: string;
 
-      try {
-        content = resolveContent(options.content, options.contentFile, 'content');
-      } catch (err) {
-        console.error(`❌ ${(err as Error).message}`);
-        process.exit(1);
-      }
-
-      // Validate that content is provided (either inline or from file)
-      if (!content || content.trim().length === 0) {
-        console.error('❌ Must specify either --content or --content-file');
-        process.exit(1);
-      }
-
-      const { addBacklog } = await import('./commands/backlog.js');
-      await addBacklog(chatroomId, { role: options.role, content });
+    try {
+      content = readFileContent(options.contentFile, 'content-file');
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
     }
-  );
+
+    // Validate that content is not empty
+    if (!content || content.trim().length === 0) {
+      console.error('❌ Content file is empty');
+      process.exit(1);
+    }
+
+    const { addBacklog } = await import('./commands/backlog.js');
+    await addBacklog(chatroomId, { role: options.role, content });
+  });
 
 backlogCommand
   .command('complete <chatroomId>')

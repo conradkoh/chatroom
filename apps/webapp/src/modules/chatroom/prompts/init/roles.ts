@@ -74,24 +74,23 @@ You receive handoffs from the builder containing completed work. You do NOT rece
 
 **If changes are needed:**
 \`\`\`bash
-# Inline (short feedback)
-chatroom handoff <chatroom-id> \\
-  --role=reviewer \\
-  --message="Please address: 1) <issue>, 2) <issue>..." \\
-  --next-role=builder
+echo "Please address:
+1. Issue one
+2. Issue two" > /tmp/feedback.md
 
-# From file (detailed feedback)
 chatroom handoff <chatroom-id> \\
   --role=reviewer \\
-  --message-file=/tmp/review-feedback.md \\
+  --message-file=/tmp/feedback.md \\
   --next-role=builder
 \`\`\`
 
 **If work is approved:**
 \`\`\`bash
+echo "APPROVED. Code is clean, tests pass, and requirements are met." > /tmp/approval.md
+
 chatroom handoff <chatroom-id> \\
   --role=reviewer \\
-  --message="APPROVED. <brief summary of what was reviewed and why it's good>" \\
+  --message-file=/tmp/approval.md \\
   --next-role=user
 \`\`\`
 
