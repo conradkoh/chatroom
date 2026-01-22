@@ -15,36 +15,25 @@ import { api } from '../api.js';
 import type { Id } from '../api.js';
 import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.js';
+import { formatError, formatAuthError, formatChatroomIdError } from '../utils/error-formatting.js';
 
 interface HandoffOptions {
   role: string;
   message: string;
   nextRole: string;
+  attachedArtifactIds?: string[];
 }
 
 export async function handoff(chatroomId: string, options: HandoffOptions): Promise<void> {
   const client = await getConvexClient();
-  const { role, message, nextRole } = options;
+  const { role, message, nextRole, attachedArtifactIds = [] } = options;
 
   // Get session ID for authentication
   const sessionId = getSessionId();
   if (!sessionId) {
     const otherUrls = getOtherSessionUrls();
     const currentUrl = getConvexUrl();
-
-    console.error(`❌ Not authenticated for: ${currentUrl}`);
-
-    if (otherUrls.length > 0) {
-      console.error(`\n💡 You have sessions for other environments:`);
-      for (const url of otherUrls) {
-        console.error(`   • ${url}`);
-      }
-      console.error(`\n   To use a different environment, set CHATROOM_CONVEX_URL:`);
-      console.error(`   CHATROOM_CONVEX_URL=${otherUrls[0]} chatroom handoff ...`);
-      console.error(`\n   Or to authenticate for the current environment:`);
-    }
-
-    console.error(`   chatroom auth login`);
+    formatAuthError(currentUrl, otherUrls);
     process.exit(1);
   }
 
@@ -55,16 +44,35 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
     chatroomId.length < 20 ||
     chatroomId.length > 40
   ) {
-    console.error(
-      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
-    );
+    formatChatroomIdError(chatroomId);
     process.exit(1);
+  }
+
+  // Validate artifact IDs if provided
+  if (attachedArtifactIds.length > 0) {
+    try {
+      const areValid = await client.query(api.artifacts.validateArtifactIds, {
+        sessionId,
+        artifactIds: attachedArtifactIds as Id<'chatroom_artifacts'>[],
+      });
+
+      if (!areValid) {
+        formatError('One or more artifacts not found', [
+          'Please create artifacts first:',
+          `chatroom artifact create ${chatroomId} --from-file=... --filename=...`,
+        ]);
+        process.exit(1);
+      }
+    } catch (error) {
+      formatError('Failed to validate artifacts', [String(error)]);
+      process.exit(1);
+    }
   }
 
   // Use atomic handoff mutation - performs all operations in one transaction:
   // - Validates handoff is allowed (classification rules for user handoff)
   // - Completes all in_progress tasks
-  // - Sends the handoff message
+  // - Sends the handoff message with artifact attachments
   // - Creates a task for target agent (if not user)
   // - Updates sender's participant status to waiting
   // - Promotes next queued task to pending
@@ -77,6 +85,10 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
     senderRole: role,
     content: message,
     targetRole: nextRole,
+    attachedArtifactIds:
+      attachedArtifactIds.length > 0
+        ? (attachedArtifactIds as Id<'chatroom_artifacts'>[])
+        : undefined,
   })) as {
     success: boolean;
     error?: {
@@ -106,6 +118,14 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
 
   console.log(`✅ Task completed and handed off to ${nextRole}`);
   console.log(`📋 Summary: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`);
+
+  // Show attached artifacts if any
+  if (attachedArtifactIds.length > 0) {
+    console.log(`📎 Attached artifacts: ${attachedArtifactIds.length}`);
+    attachedArtifactIds.forEach((id) => {
+      console.log(`   • ${id}`);
+    });
+  }
 
   // Check if handing off to user (workflow completion)
   if (nextRole.toLowerCase() === 'user') {

@@ -210,6 +210,14 @@ program
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--message-file <path>', 'Path to file containing completion message')
   .requiredOption('--next-role <nextRole>', 'Role to hand off to')
+  .option(
+    '--attach-artifact <artifactId>',
+    'Attach artifact to handoff (can be used multiple times)',
+    (value: string, previous: string[]) => {
+      return previous ? [...previous, value] : [value];
+    },
+    []
+  )
   .action(
     async (
       chatroomId: string,
@@ -217,6 +225,7 @@ program
         role: string;
         messageFile: string;
         nextRole: string;
+        attachArtifact?: string[];
       }
     ) => {
       await maybeRequireAuth();
@@ -239,7 +248,12 @@ program
       }
 
       const { handoff } = await import('./commands/handoff.js');
-      await handoff(chatroomId, { role: options.role, message, nextRole: options.nextRole });
+      await handoff(chatroomId, {
+        role: options.role,
+        message,
+        nextRole: options.nextRole,
+        attachedArtifactIds: options.attachArtifact || [],
+      });
     }
   );
 
@@ -491,6 +505,66 @@ guidelinesCommand
     await maybeRequireAuth();
     const { listGuidelineTypes } = await import('./commands/guidelines.js');
     await listGuidelineTypes();
+  });
+
+// ============================================================================
+// ARTIFACT COMMANDS (auth required)
+// ============================================================================
+
+const artifactCommand = program.command('artifact').description('Manage artifacts for handoffs');
+
+artifactCommand
+  .command('create <chatroomId>')
+  .description('Create a new artifact from a file')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--from-file <path>', 'Path to file containing artifact content')
+  .requiredOption('--filename <filename>', 'Display filename for the artifact')
+  .option('--description <description>', 'Optional description of the artifact')
+  .action(
+    async (
+      chatroomId: string,
+      options: {
+        role: string;
+        fromFile: string;
+        filename: string;
+        description?: string;
+      }
+    ) => {
+      await maybeRequireAuth();
+      const { createArtifact } = await import('./commands/artifact.js');
+      await createArtifact(chatroomId, options);
+    }
+  );
+
+artifactCommand
+  .command('view <chatroomId> <artifactId>')
+  .description('View a single artifact')
+  .requiredOption('--role <role>', 'Your role')
+  .action(async (chatroomId: string, artifactId: string, options: { role: string }) => {
+    await maybeRequireAuth();
+    const { viewArtifact } = await import('./commands/artifact.js');
+    await viewArtifact(chatroomId, { role: options.role, artifactId });
+  });
+
+artifactCommand
+  .command('view-many <chatroomId>')
+  .description('View multiple artifacts')
+  .requiredOption('--role <role>', 'Your role')
+  .option(
+    '--artifact <artifactId>',
+    'Artifact ID to view (can be used multiple times)',
+    (value: string, previous: string[]) => {
+      return previous ? [...previous, value] : [value];
+    },
+    []
+  )
+  .action(async (chatroomId: string, options: { role: string; artifact?: string[] }) => {
+    await maybeRequireAuth();
+    const { viewManyArtifacts } = await import('./commands/artifact.js');
+    await viewManyArtifacts(chatroomId, {
+      role: options.role,
+      artifactIds: options.artifact || [],
+    });
   });
 
 // ============================================================================
