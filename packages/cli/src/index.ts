@@ -258,33 +258,6 @@ program
   );
 
 // ============================================================================
-// FEATURE COMMANDS (auth required)
-// ============================================================================
-
-const featureCommand = program.command('feature').description('Browse and inspect features');
-
-featureCommand
-  .command('list <chatroomId>')
-  .description('List features in a chatroom')
-  .option('--limit <n>', 'Maximum number of features to show', '10')
-  .action(async (chatroomId: string, options: { limit?: string }) => {
-    await maybeRequireAuth();
-    const { listFeatures } = await import('./commands/feature.js');
-    await listFeatures(chatroomId, {
-      limit: options.limit ? parseInt(options.limit, 10) : undefined,
-    });
-  });
-
-featureCommand
-  .command('inspect <chatroomId> <messageId>')
-  .description('Inspect a specific feature')
-  .action(async (chatroomId: string, messageId: string) => {
-    await maybeRequireAuth();
-    const { inspectFeature } = await import('./commands/feature.js');
-    await inspectFeature(chatroomId, messageId);
-  });
-
-// ============================================================================
 // BACKLOG COMMANDS (auth required)
 // ============================================================================
 
