@@ -6,6 +6,7 @@ import './globals.css';
 import { ConvexClientProvider } from '@/app/ConvexClientProvider';
 import { Navigation } from '@/components/Navigation';
 import { Toaster } from '@/components/ui/sonner';
+import { getAppTitle } from '@/lib/environment';
 import { AppInfoProvider } from '@/modules/app/AppInfoProvider';
 import { AuthProvider } from '@/modules/auth/AuthProvider';
 import { HeaderPortalProvider } from '@/modules/header/HeaderPortalProvider';
@@ -28,15 +29,15 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: process.env.NODE_ENV === 'development' ? 'Chatroom (Local)' : 'Chatroom',
+  title: getAppTitle(),
   description: 'Chatroom',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: process.env.NODE_ENV === 'development' ? 'Chatroom (Local)' : 'Chatroom',
+    title: getAppTitle(),
   },
-  applicationName: process.env.NODE_ENV === 'development' ? 'Chatroom (Local)' : 'Chatroom',
+  applicationName: getAppTitle(),
   formatDetection: {
     telephone: false,
   },
