@@ -101,12 +101,8 @@ program
   .requiredOption('--role <role>', 'Role to join as (e.g., builder, reviewer)')
   .option('--timeout <ms>', 'Optional timeout in milliseconds (deprecated, use --duration)')
   .option('--duration <duration>', 'How long to wait (e.g., "1m", "5m", "30s")')
-  .option('--session <n>', 'Current session number (for tracking progress)', '1')
   .action(
-    async (
-      chatroomId: string,
-      options: { role: string; timeout?: string; duration?: string; session?: string }
-    ) => {
+    async (chatroomId: string, options: { role: string; timeout?: string; duration?: string }) => {
       await maybeRequireAuth();
       const { waitForTask, parseDuration } = await import('./commands/wait-for-task.js');
 
@@ -125,14 +121,10 @@ program
         timeoutMs = parseInt(options.timeout, 10);
       }
 
-      // Parse session number (default to 1)
-      const sessionNumber = options.session ? parseInt(options.session, 10) : 1;
-
       await waitForTask(chatroomId, {
         role: options.role,
         timeout: timeoutMs,
         duration: options.duration,
-        session: sessionNumber,
       });
     }
   );

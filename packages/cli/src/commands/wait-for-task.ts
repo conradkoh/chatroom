@@ -16,7 +16,6 @@ interface WaitForTaskOptions {
   timeout?: number;
   duration?: string;
   silent?: boolean;
-  session?: number;
 }
 
 /**
@@ -72,18 +71,18 @@ function formatDuration(ms: number): string {
 /**
  * Print the wait-for-task reminder - short but forceful.
  */
-function printWaitReminder(chatroomId: string, role: string, session = 1): void {
+function printWaitReminder(chatroomId: string, role: string): void {
   console.log(`${'─'.repeat(50)}`);
   console.log(
     `⚠️  ALWAYS run \`wait-for-task\` after handoff. If it times out, run it again immediately.`
   );
-  console.log(`    chatroom wait-for-task ${chatroomId} --role=${role} --session=${session}`);
+  console.log(`    chatroom wait-for-task ${chatroomId} --role=${role}`);
   console.log(`${'─'.repeat(50)}`);
 }
 
 export async function waitForTask(chatroomId: string, options: WaitForTaskOptions): Promise<void> {
   const client = await getConvexClient();
-  const { role, timeout, duration, silent } = options;
+  const { role, timeout, silent } = options;
 
   // Get session ID for authentication
   const sessionId = getSessionId();
@@ -155,45 +154,33 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     console.log(`✅ Joined chatroom as "${role}"`);
   }
 
-  // Session tracking for finite but long task framing
-  const currentSession = options.session || 1;
-
-  // Warn if session not provided (helps agents track session progress)
-  if (!options.session) {
-    console.warn(
-      '⚠️  Warning: --session not provided (defaulting to 1). Use the command shown in CLI output after session completes for accurate tracking.'
-    );
-  }
-
   // On first session, fetch and display the full initialization prompt from backend
-  if (currentSession === 1) {
-    try {
-      const initPromptResult = (await client.query(api.messages.getInitPrompt, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-      })) as { prompt: string } | null;
+  try {
+    const initPromptResult = (await client.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+    })) as { prompt: string } | null;
 
-      if (initPromptResult?.prompt) {
-        console.log('');
-        console.log('═'.repeat(50));
-        console.log('📋 AGENT INITIALIZATION PROMPT');
-        console.log('═'.repeat(50));
-        console.log('');
-        console.log(initPromptResult.prompt);
-        console.log('');
-        console.log('═'.repeat(50));
-        console.log('');
-      }
-    } catch {
-      // Fallback - init prompt not critical, continue without it
+    if (initPromptResult?.prompt) {
+      console.log('');
+      console.log('═'.repeat(50));
+      console.log('📋 AGENT INITIALIZATION PROMPT');
+      console.log('═'.repeat(50));
+      console.log('');
+      console.log(initPromptResult.prompt);
+      console.log('');
+      console.log('═'.repeat(50));
+      console.log('');
     }
+  } catch {
+    // Fallback - init prompt not critical, continue without it
   }
 
   const durationDisplay = formatDuration(effectiveTimeout);
   console.log(`⏳ Waiting for tasks (duration: ${durationDisplay})...`);
   console.log('');
-  printWaitReminder(chatroomId, role, currentSession);
+  printWaitReminder(chatroomId, role);
   console.log('');
 
   // Track if we've already processed a task (prevent duplicate processing)
@@ -201,23 +188,12 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   let unsubscribe: (() => void) | null = null;
 
   // Set up timeout - now always has a default value
-  const TOTAL_SESSIONS = 1000000;
-  const nextSession = currentSession + 1;
-  const sessionsRemaining = TOTAL_SESSIONS - currentSession;
-
   const timeoutHandle = setTimeout(() => {
     if (unsubscribe) unsubscribe();
-    const durationDisplay = duration || formatDuration(effectiveTimeout);
-    const nextCommand = `chatroom wait-for-task ${chatroomId} --role=${role}${duration ? ` --duration="${duration}"` : ''} --session=${nextSession}`;
     console.log(`\n${'─'.repeat(50)}`);
-    console.log(
-      `⏱️  COMPLETED WAIT SESSION #${currentSession} (${durationDisplay}) - ${sessionsRemaining.toLocaleString()} sessions remaining`
-    );
+    console.log(`The connection to the server was closed. Please run the command:`);
+    console.log(`chatroom wait-for-task ${chatroomId} --role=${role}`);
     console.log(`${'─'.repeat(50)}`);
-    console.log(`\n   ✅ Wait session completed successfully. No tasks received this session.`);
-    console.log(`\n⚠️  Continue to the next session by running:\n`);
-    console.log(`   ${nextCommand}`);
-    console.log(`\n${'─'.repeat(50)}`);
     process.exit(0); // Exit with 0 since this is expected behavior
   }, effectiveTimeout);
 
@@ -279,12 +255,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     // Handle interrupt (if message is interrupt type)
     if (message && message.type === 'interrupt') {
-      console.log(`\n${'═'.repeat(50)}`);
-      console.log(`⚠️  INTERRUPT RECEIVED`);
-      console.log(`${'═'.repeat(50)}`);
-      console.log(`Message: ${message.content}`);
-      console.log(`\nAll agents have been reset to idle state.`);
-      console.log(`Rejoin the chatroom to continue participating.`);
+      console.log(`\n${'─'.repeat(50)}`);
+      console.log(`The connection to the server was closed. Please run the command:`);
+      console.log(`chatroom wait-for-task ${chatroomId} --role=${role}`);
+      console.log(`${'─'.repeat(50)}`);
       process.exit(0);
     }
 
@@ -299,12 +273,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     // Print human-readable sections
     console.log(`\n${taskDeliveryPrompt.humanReadable}`);
-
-    // Print JSON output
-    console.log(`\n${'─'.repeat(50)}`);
-    console.log(`📊 MESSAGE DATA (JSON)`);
-    console.log(`${'─'.repeat(50)}`);
-    console.log(JSON.stringify(taskDeliveryPrompt.json, null, 2));
 
     process.exit(0);
   };
@@ -327,23 +295,13 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   );
 
   // Handle interrupt signals - These are UNEXPECTED terminations that require immediate restart
-  const handleSignal = (signal: string) => {
+  const handleSignal = (_signal: string) => {
     if (unsubscribe) unsubscribe();
     clearTimeout(timeoutHandle);
-    console.log(`\n${'═'.repeat(50)}`);
-    console.log(`🚨 UNEXPECTED TERMINATION: ${signal} received`);
-    console.log(`${'═'.repeat(50)}`);
-    console.log(`\n❌ The wait-for-task process was killed unexpectedly.`);
-    console.log(
-      `   This was NOT a normal timeout - the process was terminated by an external signal.`
-    );
-    console.log(`\n⚠️  IMPORTANT: You may miss messages while not waiting!`);
-    console.log(`   Other agents or users may send tasks to you that will be missed.`);
-    console.log(`\n🔄 IMMEDIATELY restart the wait process:`);
-    console.log(
-      `\n   chatroom wait-for-task ${chatroomId} --role=${role} --session=${currentSession}`
-    );
-    console.log(`\n${'═'.repeat(50)}`);
+    console.log(`\n${'─'.repeat(50)}`);
+    console.log(`The connection to the server was closed. Please run the command:`);
+    console.log(`chatroom wait-for-task ${chatroomId} --role=${role}`);
+    console.log(`${'─'.repeat(50)}`);
     process.exit(0);
   };
 
