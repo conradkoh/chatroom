@@ -40,6 +40,17 @@ export async function listFeatures(
     limit?: number;
   }
 ): Promise<void> {
+  // Show deprecation warning
+  console.log('⚠️  DEPRECATION WARNING:');
+  console.log(
+    '   The `chatroom feature list` command is deprecated and will be removed in a future version.'
+  );
+  console.log('   Features are now managed through the task system and backlog.');
+  console.log('   Use `chatroom backlog list` instead to see all tasks including features.');
+  console.log('');
+  console.log('   This command will continue to work temporarily but will be removed.');
+  console.log('');
+
   const client = await getConvexClient();
 
   // Get session ID for authentication

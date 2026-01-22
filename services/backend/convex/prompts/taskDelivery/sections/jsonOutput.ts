@@ -30,7 +30,6 @@ export function buildJsonOutput(ctx: TaskDeliveryContext): TaskDeliveryJsonOutpu
   const contextCommands =
     ctx.role.toLowerCase() === 'builder'
       ? [
-          `chatroom feature list ${ctx.chatroomId} --limit=5`,
           `chatroom backlog list ${ctx.chatroomId} --role=${ctx.role} --status=active --full`,
           `chatroom backlog add ${ctx.chatroomId} --role=${ctx.role} --content-file="${HANDOFF_DIR}/task.md"`,
           `chatroom backlog complete ${ctx.chatroomId} --role=${ctx.role} --task-id=<id>`,
