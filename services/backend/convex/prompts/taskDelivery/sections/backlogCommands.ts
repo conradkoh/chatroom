@@ -22,8 +22,9 @@ export const backlogCommandsSection: PromptSection = {
       `  Status: active (default), pending, in_progress, queued, backlog, completed, cancelled, pending_review, archived, all (requires --limit)\n`,
       `**Add a task:**`,
       `  mkdir -p .chatroom/tmp/handoff`,
-      `  echo "Task description here" > .chatroom/tmp/handoff/task.md`,
-      `  chatroom backlog add ${ctx.chatroomId} --role=${ctx.role} --content-file=.chatroom/tmp/handoff/task.md\n`,
+      `  TASK_FILE=".chatroom/tmp/handoff/task-$(date +%s%N).md"`,
+      `  echo "Task description here" > "$TASK_FILE"`,
+      `  chatroom backlog add ${ctx.chatroomId} --role=${ctx.role} --content-file="$TASK_FILE"\n`,
       `**Complete a task:**`,
       `  chatroom backlog complete ${ctx.chatroomId} --role=${ctx.role} --taskId=<id> [--force]`,
     ];

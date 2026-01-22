@@ -47,15 +47,16 @@ chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<typ
 When classifying a message as \`new_feature\`, you MUST provide metadata via files:
 
 \`\`\`bash
-# Write description and tech specs to files
+# Write description and tech specs to files with unique IDs
 mkdir -p .chatroom/tmp/handoff
-echo "Implement JWT-based authentication with login/logout flow" > .chatroom/tmp/handoff/description.md
-echo "Use bcrypt for password hashing. JWT tokens expire after 24h." > .chatroom/tmp/handoff/tech-specs.md
+UNIQUE_ID=$(date +%s%N)
+echo "Implement JWT-based authentication with login/logout flow" > ".chatroom/tmp/handoff/description-$UNIQUE_ID.md"
+echo "Use bcrypt for password hashing. JWT tokens expire after 24h." > ".chatroom/tmp/handoff/tech-specs-$UNIQUE_ID.md"
 
 chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
   --title="Add user authentication" \\
-  --description-file=.chatroom/tmp/handoff/description.md \\
-  --tech-specs-file=.chatroom/tmp/handoff/tech-specs.md
+  --description-file=".chatroom/tmp/handoff/description-$UNIQUE_ID.md" \\
+  --tech-specs-file=".chatroom/tmp/handoff/tech-specs-$UNIQUE_ID.md"
 \`\`\`
 
 **Format Requirements:**
@@ -66,19 +67,20 @@ chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_
 ### Example
 
 \`\`\`bash
-# Write your handoff message to a file
+# Write your handoff message to a file with unique ID
 mkdir -p .chatroom/tmp/handoff
+MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
 echo "## Implementation Complete
 
 Added user authentication with:
 - JWT tokens
 - Password hashing
-- Session management" > .chatroom/tmp/handoff/message.md
+- Session management" > "$MSG_FILE"
 
 # Hand off to next role
 chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
-  --message-file=.chatroom/tmp/handoff/message.md \\
+  --message-file="$MSG_FILE" \\
   --next-role=${isBuilder ? 'reviewer' : 'user'}
 \`\`\`
 

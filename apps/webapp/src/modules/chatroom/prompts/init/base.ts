@@ -68,13 +68,14 @@ export function getCommunicationSection(ctx: InitPromptContext): string {
 To complete your task and hand off to the next role:
 
 \`\`\`bash
-# Write your message to a file, then hand off
+# Write your message to a file with unique ID, then hand off
 mkdir -p .chatroom/tmp/handoff
-echo "Your handoff message here" > .chatroom/tmp/handoff/message.md
+MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+echo "Your handoff message here" > "$MSG_FILE"
 
 ${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
-  --message-file=.chatroom/tmp/handoff/message.md \\
+  --message-file="$MSG_FILE" \\
   --next-role=${ctx.template.defaultHandoffTarget}
 \`\`\`
 
@@ -129,11 +130,12 @@ export function getExampleSection(ctx: InitPromptContext): string {
 \`\`\`bash
 # Ask for clarification (hand off to user with question)
 mkdir -p .chatroom/tmp/handoff
-echo "Can you clarify if you want a REST or GraphQL API?" > .chatroom/tmp/handoff/message.md
+MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+echo "Can you clarify if you want a REST or GraphQL API?" > "$MSG_FILE"
 
 ${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
-  --message-file=.chatroom/tmp/handoff/message.md \\
+  --message-file="$MSG_FILE" \\
   --next-role=user
 
 # Wait for response
@@ -143,15 +145,16 @@ ${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} -
 \`\`\`bash
 # Complete your task and hand off
 mkdir -p .chatroom/tmp/handoff
+MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
 echo "## Summary
 
 Implemented feature X with:
 - Component A
-- Component B" > .chatroom/tmp/handoff/message.md
+- Component B" > "$MSG_FILE"
 
 ${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
-  --message-file=.chatroom/tmp/handoff/message.md \\
+  --message-file="$MSG_FILE" \\
   --next-role=${ctx.template.defaultHandoffTarget}
 
 # Wait for next assignment

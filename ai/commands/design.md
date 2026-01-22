@@ -26,10 +26,11 @@ newlines and $variables" --next-role=reviewer
 
 Require:
 ```bash
-# Easy for AI models - just write to a file
+# Easy for AI models - just write to a file with unique ID
 mkdir -p .chatroom/tmp/handoff
-echo "Complex content here" > .chatroom/tmp/handoff/message.md
-chatroom handoff <id> --role=builder --message-file=.chatroom/tmp/handoff/message.md --next-role=reviewer
+MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+echo "Complex content here" > "$MSG_FILE"
+chatroom handoff <id> --role=builder --message-file="$MSG_FILE" --next-role=reviewer
 ```
 
 ### Affected Commands
@@ -66,17 +67,32 @@ system permission prompts that occur when writing to `/tmp/` on some systems.
 mkdir -p .chatroom/tmp/handoff
 ```
 
-### File Naming Convention
+### Unique File IDs
 
-Agents should use predictable file names in `.chatroom/tmp/handoff/`:
+To prevent conflicts when multiple agents write files simultaneously, file names
+include a unique timestamp-based ID using `$(date +%s%N)`:
 
 ```bash
-.chatroom/tmp/handoff/message.md      # For handoff messages
-.chatroom/tmp/handoff/description.md  # For feature descriptions
-.chatroom/tmp/handoff/tech-specs.md   # For technical specifications
-.chatroom/tmp/handoff/task.md         # For backlog task content
-.chatroom/tmp/handoff/feedback.md     # For review feedback
-.chatroom/tmp/handoff/approval.md     # For approval messages
+# Generate a unique file name
+MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+echo "Content here" > "$MSG_FILE"
+chatroom handoff <id> --message-file="$MSG_FILE" --next-role=...
+```
+
+The `%s%N` format produces a nanosecond-precision timestamp (e.g., `1737514800123456789`),
+making collisions extremely unlikely even with parallel execution.
+
+### File Naming Convention
+
+Agents should use these patterns with unique IDs in `.chatroom/tmp/handoff/`:
+
+```bash
+.chatroom/tmp/handoff/message-<unique-id>.md      # For handoff messages
+.chatroom/tmp/handoff/description-<unique-id>.md  # For feature descriptions
+.chatroom/tmp/handoff/tech-specs-<unique-id>.md   # For technical specifications
+.chatroom/tmp/handoff/task-<unique-id>.md         # For backlog task content
+.chatroom/tmp/handoff/feedback-<unique-id>.md     # For review feedback
+.chatroom/tmp/handoff/approval-<unique-id>.md     # For approval messages
 ```
 
 **Note:** The `.chatroom/` directory should be added to `.gitignore` to avoid committing temporary files.
@@ -85,6 +101,7 @@ Agents should use predictable file names in `.chatroom/tmp/handoff/`:
 
 - v1.0.50: File-only content input (January 2026)
 - v1.0.51: Changed from `/tmp/` to `.chatroom/tmp/handoff/` (January 2026)
+- v1.0.52: Added unique ID suffix to prevent file conflicts (January 2026)
 
 ### Migration
 

@@ -75,24 +75,26 @@ You receive handoffs from the builder containing completed work. You do NOT rece
 **If changes are needed:**
 \`\`\`bash
 mkdir -p .chatroom/tmp/handoff
+MSG_FILE=".chatroom/tmp/handoff/feedback-$(date +%s%N).md"
 echo "Please address:
 1. Issue one
-2. Issue two" > .chatroom/tmp/handoff/feedback.md
+2. Issue two" > "$MSG_FILE"
 
 chatroom handoff <chatroom-id> \\
   --role=reviewer \\
-  --message-file=.chatroom/tmp/handoff/feedback.md \\
+  --message-file="$MSG_FILE" \\
   --next-role=builder
 \`\`\`
 
 **If work is approved:**
 \`\`\`bash
 mkdir -p .chatroom/tmp/handoff
-echo "APPROVED. Code is clean, tests pass, and requirements are met." > .chatroom/tmp/handoff/approval.md
+MSG_FILE=".chatroom/tmp/handoff/approval-$(date +%s%N).md"
+echo "APPROVED. Code is clean, tests pass, and requirements are met." > "$MSG_FILE"
 
 chatroom handoff <chatroom-id> \\
   --role=reviewer \\
-  --message-file=.chatroom/tmp/handoff/approval.md \\
+  --message-file="$MSG_FILE" \\
   --next-role=user
 \`\`\`
 
