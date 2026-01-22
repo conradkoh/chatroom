@@ -74,9 +74,16 @@ You receive handoffs from the builder containing completed work. You do NOT rece
 
 **If changes are needed:**
 \`\`\`bash
+# Inline (short feedback)
 chatroom handoff <chatroom-id> \\
   --role=reviewer \\
   --message="Please address: 1) <issue>, 2) <issue>..." \\
+  --next-role=builder
+
+# From file (detailed feedback)
+chatroom handoff <chatroom-id> \\
+  --role=reviewer \\
+  --message-file=/tmp/review-feedback.md \\
   --next-role=builder
 \`\`\`
 

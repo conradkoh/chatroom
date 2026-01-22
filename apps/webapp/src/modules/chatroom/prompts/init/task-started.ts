@@ -47,16 +47,23 @@ ${ctx.cliEnvPrefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --
 When classifying a message as \`new_feature\`, you MUST provide metadata:
 
 \`\`\`bash
+# Option 1: Inline (for short content)
 ${ctx.cliEnvPrefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
   --title="<plain text title>" \\
   --description="<markdown formatted description>" \\
   --tech-specs="<markdown formatted technical specifications>"
+
+# Option 2: Using files (recommended for complex content)
+${ctx.cliEnvPrefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
+  --title="<plain text title>" \\
+  --description-file=/tmp/description.md \\
+  --tech-specs-file=/tmp/tech-specs.md
 \`\`\`
 
 **Format Requirements:**
 - \`--title\`: Plain text only (no markdown)
-- \`--description\`: Markdown formatted
-- \`--tech-specs\`: Markdown formatted
+- \`--description\` / \`--description-file\`: Markdown formatted
+- \`--tech-specs\` / \`--tech-specs-file\`: Markdown formatted
 
 ### Example
 
@@ -76,6 +83,6 @@ ${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --next-role=${isBuilder ? 'reviewer' : 'user'}
 \`\`\`
 
-**Note:** For multiline content in description/tech-specs, use markdown formatting within the string (e.g., bullet points with \`- item\` or numbered lists with \`1. item\`). The content will be rendered as markdown in the UI.
+**Note:** For multiline content in description/tech-specs, you can use either inline markdown formatting or write to a file and use \`--description-file\` / \`--tech-specs-file\`.
 ${roleSpecificNote}`;
 }

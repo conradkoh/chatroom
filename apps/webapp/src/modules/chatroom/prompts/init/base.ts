@@ -68,9 +68,16 @@ export function getCommunicationSection(ctx: InitPromptContext): string {
 To complete your task and hand off to the next role:
 
 \`\`\`bash
+# Option 1: Inline message (for short content)
 ${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
-  --message="<markdown formatted summary of what you accomplished>" \\
+  --message="<summary>" \\
+  --next-role=${ctx.template.defaultHandoffTarget}
+
+# Option 2: Message from file (recommended for long messages)
+${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
+  --role=${ctx.role} \\
+  --message-file=/tmp/handoff-message.md \\
   --next-role=${ctx.template.defaultHandoffTarget}
 \`\`\`
 
@@ -134,13 +141,27 @@ ${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} -
 \`\`\`
 
 \`\`\`bash
-# Complete your task and hand off
+# Complete your task and hand off (inline message)
 ${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
-  --message="Implemented user authentication with JWT tokens. Added login, logout, and session management. All edge cases handled including expired tokens and invalid credentials." \\
+  --message="Implemented user authentication with JWT tokens." \\
   --next-role=${ctx.template.defaultHandoffTarget}
 
 # Wait for next assignment
 ${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
+\`\`\`
+
+\`\`\`bash
+# Using file for complex message (recommended for long content)
+echo "## Summary
+
+Implemented feature X with:
+- Component A
+- Component B" > /tmp/handoff.md
+
+${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
+  --role=${ctx.role} \\
+  --message-file=/tmp/handoff.md \\
+  --next-role=${ctx.template.defaultHandoffTarget}
 \`\`\``;
 }
