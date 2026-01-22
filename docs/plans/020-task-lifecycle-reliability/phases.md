@@ -217,12 +217,11 @@ Add `resetBacklog` function.
 Add `backlog reset-task` subcommand.
 
 ```typescript
-// NOTE: Use --taskId for consistency with other CLI commands (per reviewer feedback)
 backlogCommand
   .command('reset-task <chatroomId>')
   .description('Reset a stuck in_progress task back to pending')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--taskId <taskId>', 'Task ID to reset')
+  .requiredOption('--task-id <taskId>', 'Task ID to reset')
   .action(async (chatroomId, options) => {
     await maybeRequireAuth();
     const { resetBacklog } = await import('./commands/backlog.js');

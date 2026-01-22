@@ -73,4 +73,4 @@
 - [ ] Add `resetStuckTask` mutation to force-reset an `in_progress` task to `pending`
 - [ ] Clear `assignedTo` and `startedAt` when resetting
 - [ ] Add audit log entry when manual reset occurs
-- [ ] Expose via CLI: `chatroom backlog reset-task --taskId=<id>`
+- [ ] Expose via CLI: `chatroom backlog reset-task --task-id=<id>`

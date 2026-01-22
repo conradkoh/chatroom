@@ -349,7 +349,7 @@ New file: `services/backend/convex/crons.ts` for scheduled cleanup.
 
 ### CLI Integration
 
-New command: `chatroom backlog reset-task <chatroomId> --role=<role> --taskId=<id>`
+New command: `chatroom backlog reset-task <chatroomId> --role=<role> --task-id=<id>`
 
 ### Logging
 
