@@ -22,7 +22,7 @@ export const create = mutation({
     filename: v.string(),
     description: v.optional(v.string()),
     content: v.string(),
-    mimeType: v.string(),
+    mimeType: v.optional(v.string()), // Defaults to 'text/markdown'
   },
   handler: async (ctx, args) => {
     const artifactGroupId = generateArtifactGroupId();
@@ -32,7 +32,7 @@ export const create = mutation({
       artifactGroupId,
       filename: args.filename,
       description: args.description,
-      mimeType: args.mimeType,
+      mimeType: args.mimeType ?? 'text/markdown',
       content: args.content,
       version: 1,
       isLatest: true,

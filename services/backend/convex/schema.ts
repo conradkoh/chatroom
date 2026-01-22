@@ -497,7 +497,7 @@ export default defineSchema({
     // Artifact metadata
     filename: v.string(),
     description: v.optional(v.string()),
-    mimeType: v.string(),
+    mimeType: v.optional(v.string()), // Defaults to 'text/markdown' in mutations
 
     // Content
     content: v.string(),
