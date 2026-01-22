@@ -150,10 +150,10 @@ describe('Pair Team Workflow', () => {
         **Complete task and hand off:**
         \`\`\`
         # Write message to file first:
-        # mkdir -p .chatroom/tmp/handoff && echo "<summary>" > .chatroom/tmp/handoff/message.md
+        # mkdir -p tmp/chatroom && echo "<summary>" > tmp/chatroom/message.md
         chatroom handoff 10002;chatroom_rooms \\
           --role=builder \\
-          --message-file=".chatroom/tmp/handoff/message.md" \\
+          --message-file="tmp/chatroom/message.md" \\
           --next-role=<target>
         \`\`\`
 
@@ -272,8 +272,8 @@ describe('Pair Team Workflow', () => {
         To continue to the next phase, hand off to yourself:
         \`\`\`bash
         # Write message to file with unique ID first
-        mkdir -p .chatroom/tmp/handoff
-        MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+        mkdir -p tmp/chatroom
+        MSG_FILE="tmp/chatroom/message-$(date +%s%N).md"
         echo "Phase 1 complete: <findings>. Continuing to Phase 2." > "$MSG_FILE"
 
         chatroom handoff 10002;chatroom_rooms --role=reviewer --message-file="$MSG_FILE" --next-role=reviewer
@@ -290,10 +290,10 @@ describe('Pair Team Workflow', () => {
         **Complete task and hand off:**
         \`\`\`
         # Write message to file first:
-        # mkdir -p .chatroom/tmp/handoff && echo "<summary>" > .chatroom/tmp/handoff/message.md
+        # mkdir -p tmp/chatroom && echo "<summary>" > tmp/chatroom/message.md
         chatroom handoff 10002;chatroom_rooms \\
           --role=reviewer \\
-          --message-file=".chatroom/tmp/handoff/message.md" \\
+          --message-file="tmp/chatroom/message.md" \\
           --next-role=<target>
         \`\`\`
 
@@ -453,10 +453,10 @@ describe('Pair Team Workflow', () => {
         **Complete task and hand off:**
         \`\`\`
         # Write message to file first:
-        # mkdir -p .chatroom/tmp/handoff && echo "<summary>" > .chatroom/tmp/handoff/message.md
+        # mkdir -p tmp/chatroom && echo "<summary>" > tmp/chatroom/message.md
         chatroom handoff 10023;chatroom_rooms \\
           --role=builder \\
-          --message-file=".chatroom/tmp/handoff/message.md" \\
+          --message-file="tmp/chatroom/message.md" \\
           --next-role=<target>
         \`\`\`
 

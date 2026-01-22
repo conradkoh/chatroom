@@ -5,8 +5,10 @@
 
 /**
  * The base directory for handoff files (relative to working directory).
+ * Uses tmp/chatroom instead of .chatroom to avoid "dot file protection"
+ * which some systems have enabled to prevent agents from modifying dotfiles.
  */
-export const HANDOFF_DIR = '.chatroom/tmp/handoff';
+export const HANDOFF_DIR = 'tmp/chatroom';
 
 /**
  * Generates a bash snippet to create the handoff directory and a unique file path.

@@ -6,6 +6,7 @@
  * to combat context rot in long conversations.
  */
 
+import { HANDOFF_DIR, getHandoffFileSnippet } from './config';
 import {
   type InitPromptContext,
   getHeaderSection,
@@ -155,8 +156,7 @@ For complex reviews, you can break the review into phases:
 To continue to the next phase, hand off to yourself:
 \`\`\`bash
 # Write message to file with unique ID first
-mkdir -p .chatroom/tmp/handoff
-MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+${getHandoffFileSnippet('message')}
 echo "Phase 1 complete: <findings>. Continuing to Phase 2." > "$MSG_FILE"
 
 chatroom handoff ${ctx.chatroomId} --role=reviewer --message-file="$MSG_FILE" --next-role=reviewer
@@ -239,10 +239,10 @@ function getCommandsSection(ctx: RolePromptContext): string {
 **Complete task and hand off:**
 \`\`\`
 # Write message to file first:
-# mkdir -p .chatroom/tmp/handoff && echo "<summary>" > .chatroom/tmp/handoff/message.md
+# mkdir -p ${HANDOFF_DIR} && echo "<summary>" > ${HANDOFF_DIR}/message.md
 chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
-  --message-file=".chatroom/tmp/handoff/message.md" \\
+  --message-file="${HANDOFF_DIR}/message.md" \\
   --next-role=<target>
 \`\`\`
 
@@ -273,7 +273,7 @@ export function generateTaskStartedReminder(
       case 'new_feature':
         return `When complete, write your summary to a file and hand off to reviewer for approval:
 \`\`\`
-mkdir -p .chatroom/tmp/handoff && MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+mkdir -p ${HANDOFF_DIR} && MSG_FILE="${HANDOFF_DIR}/message-$(date +%s%N).md"
 echo "<summary>" > "$MSG_FILE"
 chatroom handoff ${chatroomId} --role=builder --message-file="$MSG_FILE" --next-role=reviewer
 \`\`\``;

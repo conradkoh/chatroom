@@ -27,8 +27,8 @@ newlines and $variables" --next-role=reviewer
 Require:
 ```bash
 # Easy for AI models - just write to a file with unique ID
-mkdir -p .chatroom/tmp/handoff
-MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+mkdir -p tmp/chatroom
+MSG_FILE="tmp/chatroom/message-$(date +%s%N).md"
 echo "Complex content here" > "$MSG_FILE"
 chatroom handoff <id> --role=builder --message-file="$MSG_FILE" --next-role=reviewer
 ```
@@ -59,12 +59,13 @@ chatroom handoff <id> --role=builder --message-file="$MSG_FILE" --next-role=revi
 
 ### File Location
 
-Files are written to `.chatroom/tmp/handoff/` in the working directory. This avoids
-system permission prompts that occur when writing to `/tmp/` on some systems.
+Files are written to `tmp/chatroom/` in the working directory. This location:
+- Avoids system permission prompts that occur when writing to `/tmp/`
+- Avoids "dot file protection" that some systems have for dotfiles/dotfolders
 
 ```bash
 # Always create the directory first
-mkdir -p .chatroom/tmp/handoff
+mkdir -p tmp/chatroom
 ```
 
 ### Unique File IDs
@@ -74,7 +75,7 @@ include a unique timestamp-based ID using `$(date +%s%N)`:
 
 ```bash
 # Generate a unique file name
-MSG_FILE=".chatroom/tmp/handoff/message-$(date +%s%N).md"
+MSG_FILE="tmp/chatroom/message-$(date +%s%N).md"
 echo "Content here" > "$MSG_FILE"
 chatroom handoff <id> --message-file="$MSG_FILE" --next-role=...
 ```
@@ -84,24 +85,26 @@ making collisions extremely unlikely even with parallel execution.
 
 ### File Naming Convention
 
-Agents should use these patterns with unique IDs in `.chatroom/tmp/handoff/`:
+Agents should use these patterns with unique IDs in `tmp/chatroom/`:
 
 ```bash
-.chatroom/tmp/handoff/message-<unique-id>.md      # For handoff messages
-.chatroom/tmp/handoff/description-<unique-id>.md  # For feature descriptions
-.chatroom/tmp/handoff/tech-specs-<unique-id>.md   # For technical specifications
-.chatroom/tmp/handoff/task-<unique-id>.md         # For backlog task content
-.chatroom/tmp/handoff/feedback-<unique-id>.md     # For review feedback
-.chatroom/tmp/handoff/approval-<unique-id>.md     # For approval messages
+tmp/chatroom/message-<unique-id>.md      # For handoff messages
+tmp/chatroom/description-<unique-id>.md  # For feature descriptions
+tmp/chatroom/tech-specs-<unique-id>.md   # For technical specifications
+tmp/chatroom/task-<unique-id>.md         # For backlog task content
+tmp/chatroom/feedback-<unique-id>.md     # For review feedback
+tmp/chatroom/approval-<unique-id>.md     # For approval messages
 ```
 
-**Note:** The `.chatroom/` directory should be added to `.gitignore` to avoid committing temporary files.
+**Note:** The `tmp/` directory should be added to `.gitignore` to avoid committing temporary files.
 
 ### Implementation Date
 
 - v1.0.50: File-only content input (January 2026)
 - v1.0.51: Changed from `/tmp/` to `.chatroom/tmp/handoff/` (January 2026)
 - v1.0.52: Added unique ID suffix to prevent file conflicts (January 2026)
+- v1.0.53: Centralized config with helper functions (January 2026)
+- v1.0.54: Changed to `tmp/chatroom/` to avoid dot file protection (January 2026)
 
 ### Migration
 
