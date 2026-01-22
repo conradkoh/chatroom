@@ -9,6 +9,7 @@
  */
 
 import type * as appinfo from "../appinfo.js";
+import type * as artifacts from "../artifacts.js";
 import type * as attendance from "../attendance.js";
 import type * as auth from "../auth.js";
 import type * as auth_google from "../auth/google.js";
@@ -16,16 +17,19 @@ import type * as chatrooms from "../chatrooms.js";
 import type * as checklists from "../checklists.js";
 import type * as cleanupTasks from "../cleanupTasks.js";
 import type * as cliAuth from "../cliAuth.js";
+import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
 import type * as discussions from "../discussions.js";
 import type * as guidelines from "../guidelines.js";
 import type * as lib_cliSessionAuth from "../lib/cliSessionAuth.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
+import type * as lib_taskRecovery from "../lib/taskRecovery.js";
 import type * as lib_taskWorkflows from "../lib/taskWorkflows.js";
 import type * as messages from "../messages.js";
 import type * as migration from "../migration.js";
 import type * as participants from "../participants.js";
 import type * as presentations from "../presentations.js";
+import type * as prompts_config from "../prompts/config.js";
 import type * as prompts_generator from "../prompts/generator.js";
 import type * as prompts_guidelines_index from "../prompts/guidelines/index.js";
 import type * as prompts_guidelines_review from "../prompts/guidelines/review.js";
@@ -62,6 +66,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   appinfo: typeof appinfo;
+  artifacts: typeof artifacts;
   attendance: typeof attendance;
   auth: typeof auth;
   "auth/google": typeof auth_google;
@@ -69,16 +74,19 @@ declare const fullApi: ApiFromModules<{
   checklists: typeof checklists;
   cleanupTasks: typeof cleanupTasks;
   cliAuth: typeof cliAuth;
+  crons: typeof crons;
   crypto: typeof crypto;
   discussions: typeof discussions;
   guidelines: typeof guidelines;
   "lib/cliSessionAuth": typeof lib_cliSessionAuth;
   "lib/hierarchy": typeof lib_hierarchy;
+  "lib/taskRecovery": typeof lib_taskRecovery;
   "lib/taskWorkflows": typeof lib_taskWorkflows;
   messages: typeof messages;
   migration: typeof migration;
   participants: typeof participants;
   presentations: typeof presentations;
+  "prompts/config": typeof prompts_config;
   "prompts/generator": typeof prompts_generator;
   "prompts/guidelines/index": typeof prompts_guidelines_index;
   "prompts/guidelines/review": typeof prompts_guidelines_review;

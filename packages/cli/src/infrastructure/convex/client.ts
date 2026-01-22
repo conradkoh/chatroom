@@ -1,4 +1,4 @@
-import { ConvexHttpClient } from 'convex/browser';
+import { ConvexHttpClient, ConvexClient } from 'convex/browser';
 
 /**
  * The default Convex URL for the chatroom cloud service.
@@ -17,6 +17,7 @@ export function getConvexUrl(): string {
 export const CONVEX_URL = DEFAULT_CONVEX_URL;
 
 let client: ConvexHttpClient | null = null;
+let wsClient: ConvexClient | null = null;
 let cachedUrl: string | null = null;
 
 /**
@@ -39,9 +40,34 @@ export async function getConvexClient(): Promise<ConvexHttpClient> {
 }
 
 /**
+ * Get a singleton Convex WebSocket client instance.
+ * This client supports real-time subscriptions via onUpdate.
+ * The client is lazily initialized on first use.
+ */
+export async function getConvexWsClient(): Promise<ConvexClient> {
+  const url = getConvexUrl();
+
+  // Reset client if URL has changed
+  if (wsClient && cachedUrl !== url) {
+    await wsClient.close();
+    wsClient = null;
+  }
+
+  if (!wsClient) {
+    cachedUrl = url;
+    wsClient = new ConvexClient(url);
+  }
+  return wsClient;
+}
+
+/**
  * Reset the client (useful for testing or reconnection)
  */
 export function resetConvexClient(): void {
   client = null;
+  if (wsClient) {
+    wsClient.close();
+    wsClient = null;
+  }
   cachedUrl = null;
 }
