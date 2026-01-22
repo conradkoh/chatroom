@@ -390,6 +390,15 @@ export default defineSchema({
 
     // Queue ordering (lower = earlier in queue)
     queuePosition: v.number(),
+
+    // Scoring fields for backlog prioritization (set by agents or users)
+    // Complexity: low = easy to implement, high = complex/risky
+    complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    // Value: low = nice-to-have, high = critical/high-impact
+    value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    // Priority: numeric priority for flexible ordering (higher = more important)
+    // Used as primary sort key for backlog tasks
+    priority: v.optional(v.number()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])

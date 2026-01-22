@@ -364,6 +364,31 @@ backlogCommand
     await reopenBacklog(chatroomId, options);
   });
 
+backlogCommand
+  .command('patch-task <chatroomId>')
+  .description('Update task scoring fields (complexity, value, priority)')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--task-id <taskId>', 'Task ID to patch')
+  .option('--complexity <level>', 'Complexity level (low|medium|high)')
+  .option('--value <level>', 'Value level (low|medium|high)')
+  .option('--priority <n>', 'Priority number (higher = more important)')
+  .action(
+    async (
+      chatroomId: string,
+      options: {
+        role: string;
+        taskId: string;
+        complexity?: string;
+        value?: string;
+        priority?: string;
+      }
+    ) => {
+      await maybeRequireAuth();
+      const { patchBacklog } = await import('./commands/backlog.js');
+      await patchBacklog(chatroomId, options);
+    }
+  );
+
 // ============================================================================
 // MESSAGES COMMANDS (auth required)
 // ============================================================================

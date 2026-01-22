@@ -749,8 +749,67 @@ export const sendBackForRework = mutation({
 });
 
 /**
+ * Patch a task's scoring fields (complexity, value, priority).
+ * Idempotent - accepts all requests regardless of task status.
+ * Designed for agents to score backlog tasks for prioritization.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const patchTask = mutation({
+  args: {
+    sessionId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+    complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    priority: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+
+    // Build patch object with only provided fields
+    const patch: {
+      complexity?: 'low' | 'medium' | 'high';
+      value?: 'low' | 'medium' | 'high';
+      priority?: number;
+      updatedAt: number;
+    } = {
+      updatedAt: Date.now(),
+    };
+
+    if (args.complexity !== undefined) {
+      patch.complexity = args.complexity;
+    }
+    if (args.value !== undefined) {
+      patch.value = args.value;
+    }
+    if (args.priority !== undefined) {
+      patch.priority = args.priority;
+    }
+
+    await ctx.db.patch('chatroom_tasks', args.taskId, patch);
+
+    return {
+      success: true,
+      taskId: args.taskId,
+      updated: {
+        complexity: args.complexity,
+        value: args.value,
+        priority: args.priority,
+      },
+    };
+  },
+});
+
+/**
  * List tasks in a chatroom.
  * Optionally filter by status.
+ * Backlog tasks are sorted by priority descending (higher = first), then by createdAt descending.
+ * Tasks without priority sort to the end.
  * Requires CLI session authentication and chatroom access.
  */
 export const listTasks = query({
@@ -803,10 +862,23 @@ export const listTasks = query({
       }
     }
 
-    // Sort by queuePosition for active, by updatedAt desc for archived
+    // Sort based on filter type
     if (args.statusFilter === 'archived') {
+      // Archived: sort by updatedAt descending
       tasks.sort((a, b) => b.updatedAt - a.updatedAt);
+    } else if (args.statusFilter === 'backlog') {
+      // Backlog: sort by priority descending (higher first), then by createdAt descending
+      // Tasks without priority sort to the end
+      tasks.sort((a, b) => {
+        const aPriority = a.priority ?? -Infinity;
+        const bPriority = b.priority ?? -Infinity;
+        if (aPriority !== bPriority) {
+          return bPriority - aPriority; // Higher priority first
+        }
+        return b.createdAt - a.createdAt; // Newer first as tiebreaker
+      });
     } else {
+      // Default: sort by queuePosition for active queue items
       tasks.sort((a, b) => a.queuePosition - b.queuePosition);
     }
 

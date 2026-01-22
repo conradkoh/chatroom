@@ -393,6 +393,112 @@ export async function reopenBacklog(
   }
 }
 
+/**
+ * Patch a task's scoring fields (complexity, value, priority).
+ * Idempotent - can be called multiple times with same or different values.
+ */
+export async function patchBacklog(
+  chatroomId: string,
+  options: {
+    role: string;
+    taskId: string;
+    complexity?: string;
+    value?: string;
+    priority?: string;
+  }
+): Promise<void> {
+  const client = await getConvexClient();
+
+  // Get session ID for authentication
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    process.exit(1);
+  }
+
+  // Validate chatroom ID format
+  if (
+    !chatroomId ||
+    typeof chatroomId !== 'string' ||
+    chatroomId.length < 20 ||
+    chatroomId.length > 40
+  ) {
+    console.error(
+      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
+    );
+    process.exit(1);
+  }
+
+  // Validate task ID
+  if (!options.taskId || options.taskId.trim().length === 0) {
+    console.error(`❌ Task ID is required`);
+    process.exit(1);
+  }
+
+  // Validate at least one field is provided
+  if (
+    options.complexity === undefined &&
+    options.value === undefined &&
+    options.priority === undefined
+  ) {
+    console.error(`❌ At least one of --complexity, --value, or --priority is required`);
+    process.exit(1);
+  }
+
+  // Validate complexity if provided
+  const validComplexity = ['low', 'medium', 'high'];
+  if (options.complexity !== undefined && !validComplexity.includes(options.complexity)) {
+    console.error(
+      `❌ Invalid complexity: ${options.complexity}. Must be one of: ${validComplexity.join(', ')}`
+    );
+    process.exit(1);
+  }
+
+  // Validate value if provided
+  const validValue = ['low', 'medium', 'high'];
+  if (options.value !== undefined && !validValue.includes(options.value)) {
+    console.error(`❌ Invalid value: ${options.value}. Must be one of: ${validValue.join(', ')}`);
+    process.exit(1);
+  }
+
+  // Parse and validate priority if provided
+  let priorityNum: number | undefined;
+  if (options.priority !== undefined) {
+    priorityNum = parseInt(options.priority, 10);
+    if (isNaN(priorityNum)) {
+      console.error(`❌ Invalid priority: ${options.priority}. Must be a number.`);
+      process.exit(1);
+    }
+  }
+
+  try {
+    await client.mutation(api.tasks.patchTask, {
+      sessionId,
+      taskId: options.taskId as Id<'chatroom_tasks'>,
+      complexity: options.complexity as 'low' | 'medium' | 'high' | undefined,
+      value: options.value as 'low' | 'medium' | 'high' | undefined,
+      priority: priorityNum,
+    });
+
+    console.log('');
+    console.log('✅ Task updated');
+    console.log(`   ID: ${options.taskId}`);
+    if (options.complexity !== undefined) {
+      console.log(`   Complexity: ${options.complexity}`);
+    }
+    if (options.value !== undefined) {
+      console.log(`   Value: ${options.value}`);
+    }
+    if (priorityNum !== undefined) {
+      console.log(`   Priority: ${priorityNum}`);
+    }
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to patch task: ${(error as Error).message}`);
+    process.exit(1);
+  }
+}
+
 function getStatusEmoji(status: TaskStatus): string {
   switch (status) {
     case 'pending':

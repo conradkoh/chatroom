@@ -26,6 +26,12 @@ export const backlogCommandsSection: PromptSection = {
       `  TASK_FILE="${HANDOFF_DIR}/task-$(date +%s%N).md"`,
       `  echo "Task description here" > "$TASK_FILE"`,
       `  chatroom backlog add ${ctx.chatroomId} --role=${ctx.role} --content-file="$TASK_FILE"\n`,
+      `**Score a task (for prioritization):**`,
+      `  chatroom backlog patch-task ${ctx.chatroomId} --role=${ctx.role} --task-id=<id> \\`,
+      `    [--complexity=<low|medium|high>] [--value=<low|medium|high>] [--priority=<n>]`,
+      `  - complexity: low = easy, high = complex/risky`,
+      `  - value: low = nice-to-have, high = critical/high-impact`,
+      `  - priority: numeric (higher = more important, sorted descending)\n`,
       `**Complete a task:**`,
       `  chatroom backlog complete ${ctx.chatroomId} --role=${ctx.role} --taskId=<id> [--force]`,
     ];

@@ -49,6 +49,10 @@ interface Task {
   backlog?: {
     status: BacklogStatus;
   };
+  // Scoring fields for prioritization
+  complexity?: 'low' | 'medium' | 'high';
+  value?: 'low' | 'medium' | 'high';
+  priority?: number;
 }
 
 interface TaskCounts {
@@ -199,14 +203,22 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const reopenBacklogTask = useSessionMutation(tasksApi.tasks.reopenBacklogTask);
 
   // Categorize tasks by status
-  // Backlog items sorted by createdAt descending (newest first) for better visibility
+  // Backlog items sorted by priority descending (higher first), then by createdAt descending
+  // Tasks without priority sort to the end
   const categorizedTasks = useMemo(() => {
     if (!tasks) return { current: [], queued: [], backlog: [] };
 
-    // Filter backlog tasks and sort by createdAt descending (newest first)
+    // Filter backlog tasks and sort by priority descending, then createdAt descending
     const backlogTasks = tasks
       .filter((t) => t.status === 'backlog')
-      .sort((a, b) => b.createdAt - a.createdAt);
+      .sort((a, b) => {
+        const aPriority = a.priority ?? -Infinity;
+        const bPriority = b.priority ?? -Infinity;
+        if (aPriority !== bPriority) {
+          return bPriority - aPriority; // Higher priority first
+        }
+        return b.createdAt - a.createdAt; // Newer first as tiebreaker
+      });
 
     return {
       current: tasks.filter((t) => t.status === 'pending' || t.status === 'in_progress'),
@@ -799,7 +811,26 @@ interface CompactBacklogItemProps {
 
 // compactMarkdownComponents is imported from markdown-utils.tsx
 
+// Scoring badge helper for complexity/value
+function getScoringBadge(type: 'complexity' | 'value', level: 'low' | 'medium' | 'high') {
+  const colors = {
+    low: 'bg-green-500/15 text-green-600 dark:text-green-400',
+    medium: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
+    high: 'bg-red-500/15 text-red-600 dark:text-red-400',
+  };
+  const labels = {
+    complexity: { low: 'C:L', medium: 'C:M', high: 'C:H' },
+    value: { low: 'V:L', medium: 'V:M', high: 'V:H' },
+  };
+  return {
+    label: labels[type][level],
+    classes: colors[level],
+  };
+}
+
 function CompactBacklogItem({ task, onClick }: CompactBacklogItemProps) {
+  const hasScoring = task.complexity || task.value || task.priority !== undefined;
+
   return (
     <div
       className="flex items-center gap-2 p-2 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group"
@@ -813,6 +844,31 @@ function CompactBacklogItem({ task, onClick }: CompactBacklogItemProps) {
         }
       }}
     >
+      {/* Scoring badges */}
+      {hasScoring && (
+        <div className="flex-shrink-0 flex items-center gap-1">
+          {task.priority !== undefined && (
+            <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
+              P:{task.priority}
+            </span>
+          )}
+          {task.complexity && (
+            <span
+              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', task.complexity).classes}`}
+            >
+              {getScoringBadge('complexity', task.complexity).label}
+            </span>
+          )}
+          {task.value && (
+            <span
+              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', task.value).classes}`}
+            >
+              {getScoringBadge('value', task.value).label}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Content - 2 lines max, with simplified markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
         <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
