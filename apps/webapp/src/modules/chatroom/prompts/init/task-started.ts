@@ -48,13 +48,14 @@ When classifying a message as \`new_feature\`, you MUST provide metadata via fil
 
 \`\`\`bash
 # Write description and tech specs to files
-echo "Implement JWT-based authentication with login/logout flow" > /tmp/description.md
-echo "Use bcrypt for password hashing. JWT tokens expire after 24h." > /tmp/tech-specs.md
+mkdir -p .chatroom/tmp/handoff
+echo "Implement JWT-based authentication with login/logout flow" > .chatroom/tmp/handoff/description.md
+echo "Use bcrypt for password hashing. JWT tokens expire after 24h." > .chatroom/tmp/handoff/tech-specs.md
 
 ${ctx.cliEnvPrefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
   --title="Add user authentication" \\
-  --description-file=/tmp/description.md \\
-  --tech-specs-file=/tmp/tech-specs.md
+  --description-file=.chatroom/tmp/handoff/description.md \\
+  --tech-specs-file=.chatroom/tmp/handoff/tech-specs.md
 \`\`\`
 
 **Format Requirements:**
@@ -66,17 +67,18 @@ ${ctx.cliEnvPrefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --
 
 \`\`\`bash
 # Write your handoff message to a file
+mkdir -p .chatroom/tmp/handoff
 echo "## Implementation Complete
 
 Added user authentication with:
 - JWT tokens
 - Password hashing
-- Session management" > /tmp/handoff.md
+- Session management" > .chatroom/tmp/handoff/message.md
 
 # Hand off to next role
 ${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --role=${ctx.role} \\
-  --message-file=/tmp/handoff.md \\
+  --message-file=.chatroom/tmp/handoff/message.md \\
   --next-role=${isBuilder ? 'reviewer' : 'user'}
 \`\`\`
 

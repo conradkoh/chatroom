@@ -27,8 +27,9 @@ newlines and $variables" --next-role=reviewer
 Require:
 ```bash
 # Easy for AI models - just write to a file
-echo "Complex content here" > /tmp/handoff.md
-chatroom handoff <id> --role=builder --message-file=/tmp/handoff.md --next-role=reviewer
+mkdir -p .chatroom/tmp/handoff
+echo "Complex content here" > .chatroom/tmp/handoff/message.md
+chatroom handoff <id> --role=builder --message-file=.chatroom/tmp/handoff/message.md --next-role=reviewer
 ```
 
 ### Affected Commands
@@ -55,22 +56,35 @@ chatroom handoff <id> --role=builder --message-file=/tmp/handoff.md --next-role=
 3. **Debuggable** - Files can be inspected to verify content
 4. **Consistent** - All content follows the same pattern
 
-### File Naming Convention
+### File Location
 
-Agents should use predictable file names in `/tmp/`:
+Files are written to `.chatroom/tmp/handoff/` in the working directory. This avoids
+system permission prompts that occur when writing to `/tmp/` on some systems.
 
 ```bash
-/tmp/handoff.md          # For handoff messages
-/tmp/description.md      # For feature descriptions
-/tmp/tech-specs.md       # For technical specifications
-/tmp/content.md          # For backlog task content
-/tmp/feedback.md         # For review feedback
-/tmp/approval.md         # For approval messages
+# Always create the directory first
+mkdir -p .chatroom/tmp/handoff
 ```
+
+### File Naming Convention
+
+Agents should use predictable file names in `.chatroom/tmp/handoff/`:
+
+```bash
+.chatroom/tmp/handoff/message.md      # For handoff messages
+.chatroom/tmp/handoff/description.md  # For feature descriptions
+.chatroom/tmp/handoff/tech-specs.md   # For technical specifications
+.chatroom/tmp/handoff/task.md         # For backlog task content
+.chatroom/tmp/handoff/feedback.md     # For review feedback
+.chatroom/tmp/handoff/approval.md     # For approval messages
+```
+
+**Note:** The `.chatroom/` directory should be added to `.gitignore` to avoid committing temporary files.
 
 ### Implementation Date
 
-Implemented in CLI version 1.0.50 (January 2026).
+- v1.0.50: File-only content input (January 2026)
+- v1.0.51: Changed from `/tmp/` to `.chatroom/tmp/handoff/` (January 2026)
 
 ### Migration
 
