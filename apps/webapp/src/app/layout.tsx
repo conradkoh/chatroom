@@ -28,15 +28,15 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Chatroom',
+  title: process.env.NODE_ENV === 'development' ? 'Chatroom (Local)' : 'Chatroom',
   description: 'Chatroom',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Chatroom',
+    title: process.env.NODE_ENV === 'development' ? 'Chatroom (Local)' : 'Chatroom',
   },
-  applicationName: 'Chatroom',
+  applicationName: process.env.NODE_ENV === 'development' ? 'Chatroom (Local)' : 'Chatroom',
   formatDetection: {
     telephone: false,
   },
