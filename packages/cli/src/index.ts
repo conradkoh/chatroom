@@ -137,6 +137,14 @@ program
     '--classification <type>',
     'Message classification: question, new_feature, or follow_up'
   )
+  .option(
+    '--message-id <messageId>',
+    'Specific message ID to classify (optional, will find latest if not provided)'
+  )
+  .option(
+    '--task-id <taskId>',
+    'Task ID to find the associated message (optional, mutually exclusive with --message-id)'
+  )
   .option('--title <title>', 'Feature title (required for new_feature)')
   .option(
     '--description-file <path>',
@@ -152,12 +160,24 @@ program
       options: {
         role: string;
         classification: string;
+        messageId?: string;
+        taskId?: string;
         title?: string;
         descriptionFile?: string;
         techSpecsFile?: string;
       }
     ) => {
       await maybeRequireAuth();
+
+      // Validate that only one of messageId or taskId is provided
+      if (options.messageId && options.taskId) {
+        console.error('❌ Cannot specify both --message-id and --task-id. Use one or the other.');
+        console.error('   --message-id: Classify a specific message by its ID');
+        console.error('   --task-id: Classify the message associated with a task');
+        console.error('   If neither is provided, will find the latest unclassified message');
+        process.exit(1);
+      }
+
       const validClassifications = ['question', 'new_feature', 'follow_up'];
       if (!validClassifications.includes(options.classification)) {
         console.error(
@@ -189,6 +209,8 @@ program
       await taskStarted(chatroomId, {
         role: options.role,
         classification: options.classification as 'question' | 'new_feature' | 'follow_up',
+        messageId: options.messageId,
+        taskId: options.taskId,
         title: options.title,
         description,
         techSpecs,

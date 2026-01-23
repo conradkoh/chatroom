@@ -261,7 +261,9 @@ chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 export function generateTaskStartedReminder(
   role: string,
   classification: 'question' | 'new_feature' | 'follow_up',
-  chatroomId: string
+  chatroomId: string,
+  messageId?: string,
+  taskId?: string
 ): string {
   const normalizedRole = role.toLowerCase();
 
@@ -269,16 +271,26 @@ export function generateTaskStartedReminder(
   if (normalizedRole === 'builder') {
     switch (classification) {
       case 'question':
-        return `You can respond directly to the user when done.`;
+        return `You can respond directly to the user when done.
+        
+💡 You're working on:
+${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
       case 'new_feature':
         return `When complete, write your summary to a file and hand off to reviewer for approval:
+
 \`\`\`
 mkdir -p ${HANDOFF_DIR} && MSG_FILE="${HANDOFF_DIR}/message-$(date +%s%N).md"
 echo "<summary>" > "$MSG_FILE"
 chatroom handoff ${chatroomId} --role=builder --message-file="$MSG_FILE" --next-role=reviewer
-\`\`\``;
+\`\`\`
+
+💡 You're working on:
+${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
       case 'follow_up':
-        return `Continue from where you left off. Same workflow rules as the original task apply.`;
+        return `Continue from where you left off. Same workflow rules as the original task apply.
+        
+💡 You're working on:
+${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
     }
   }
 

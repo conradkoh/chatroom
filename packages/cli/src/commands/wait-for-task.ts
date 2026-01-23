@@ -271,6 +271,33 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       messageId: message?._id,
     });
 
+    // Display explicit task and message IDs for clarity
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`🆔 TASK INFORMATION`);
+    console.log(`${'='.repeat(60)}`);
+    console.log(`Task ID: ${task._id}`);
+    if (message) {
+      console.log(`Message ID: ${message._id}`);
+    }
+    console.log(`\n📋 NEXT STEPS`);
+    console.log(`${'='.repeat(60)}`);
+
+    // Show the exact command to run with explicit IDs
+    if (message) {
+      console.log(`To acknowledge and classify this message, run:`);
+      console.log(
+        `chatroom task-started ${chatroomId} --role=${role} --classification=<type> --message-id=${message._id}`
+      );
+    } else {
+      console.log(`To acknowledge and classify the task, run:`);
+      console.log(
+        `chatroom task-started ${chatroomId} --role=${role} --classification=<type> --task-id=${task._id}`
+      );
+    }
+
+    console.log(`\nClassification types: question, new_feature, follow_up`);
+    console.log(`${'='.repeat(60)}`);
+
     // Print human-readable sections
     console.log(`\n${taskDeliveryPrompt.humanReadable}`);
 

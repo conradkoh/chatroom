@@ -613,7 +613,12 @@ export const taskStarted = mutation({
     }
 
     // Generate a focused reminder for this role + classification
-    const reminder = generateTaskStartedReminder(args.role, args.classification, args.chatroomId);
+    const reminder = generateTaskStartedReminder(
+      args.role,
+      args.classification,
+      args.chatroomId,
+      args.messageId.toString()
+    );
 
     return { success: true, classification: args.classification, reminder };
   },
