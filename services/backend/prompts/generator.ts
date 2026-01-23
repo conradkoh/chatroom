@@ -224,30 +224,67 @@ export function generateTaskStartedReminder(
   chatroomId: string,
   messageId?: string,
   taskId?: string,
-  convexUrl?: string
+  convexUrl?: string,
+  teamRoles: string[] = []
 ): string {
   const normalizedRole = role.toLowerCase();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
+  const messageFile = generateFilename('handoff', { type: 'md' });
+
+  // Detect if this is a pair team (builder + reviewer)
+  const isPairTeam =
+    teamRoles.length === 2 &&
+    teamRoles.some((r) => r.toLowerCase() === 'builder') &&
+    teamRoles.some((r) => r.toLowerCase() === 'reviewer');
 
   // Builder-specific reminders
   if (normalizedRole === 'builder') {
-    const messageFile = generateFilename('handoff', { type: 'md' });
-    const handoffCmd = handoffCommand({
-      chatroomId,
-      role: 'builder',
-      nextRole: 'reviewer',
-      messageFile,
-      cliEnvPrefix,
-    });
+    if (isPairTeam) {
+      // Pair team: explicit handoff instructions based on classification
+      switch (classification) {
+        case 'question': {
+          const handoffToUserCmd = handoffCommand({
+            chatroomId,
+            role: 'builder',
+            nextRole: 'user',
+            messageFile,
+            cliEnvPrefix,
+          });
+          return `✅ Task acknowledged as QUESTION.
 
-    switch (classification) {
-      case 'question':
-        return `You can respond directly to the user when done.
-        
+**Next steps:**
+1. Answer the user's question
+2. When done, hand off directly to user:
+
+\`\`\`bash
+# Create handoff message
+mkdir -p ${HANDOFF_DIR}
+cat > ${messageFile} << 'EOF'
+## Answer
+[Your answer here]
+EOF
+
+# Hand off to user
+${handoffToUserCmd}
+\`\`\`
+
 💡 You're working on:
 ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
-      case 'new_feature':
-        return `When complete, write your summary to a file and hand off to reviewer for approval:
+        }
+        case 'new_feature': {
+          const handoffToReviewerCmd = handoffCommand({
+            chatroomId,
+            role: 'builder',
+            nextRole: 'reviewer',
+            messageFile,
+            cliEnvPrefix,
+          });
+          return `✅ Task acknowledged as NEW FEATURE.
+
+**Next steps:**
+1. Implement the feature
+2. Commit your changes
+3. MUST hand off to reviewer for approval:
 
 \`\`\`bash
 # Create handoff message
@@ -263,15 +300,46 @@ cat > ${messageFile} << 'EOF'
 - [How to test the feature]
 EOF
 
-# Hand off to reviewer
-${handoffCmd}
+# Hand off to reviewer (REQUIRED for new_feature)
+${handoffToReviewerCmd}
 \`\`\`
 
 💡 You're working on:
 ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
-      case 'follow_up':
-        return `Continue from where you left off. Same workflow rules as the original task apply.
-        
+        }
+        case 'follow_up': {
+          return `✅ Task acknowledged as FOLLOW UP.
+
+**Next steps:**
+Follow-up inherits the workflow rules from the original task:
+- If original was a QUESTION → hand off to user when done
+- If original was a NEW FEATURE → hand off to reviewer when done
+
+💡 You're working on:
+${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+        }
+      }
+    } else {
+      // Generic builder reminder (no specific team structure)
+      const handoffCmd = handoffCommand({
+        chatroomId,
+        role: 'builder',
+        nextRole: '<target>',
+        messageFile,
+        cliEnvPrefix,
+      });
+      return `You can proceed with your work and hand off when complete.
+
+\`\`\`bash
+# Example handoff
+mkdir -p ${HANDOFF_DIR}
+cat > ${messageFile} << 'EOF'
+## Summary
+[Your summary]
+EOF
+${handoffCmd}
+\`\`\`
+
 💡 You're working on:
 ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
     }

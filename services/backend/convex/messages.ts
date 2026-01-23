@@ -550,8 +550,8 @@ export const taskStarted = mutation({
     convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    // Validate session and check chatroom access
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Get the task to acknowledge
     const task = await ctx.db.get('chatroom_tasks', args.taskId);
@@ -637,7 +637,8 @@ export const taskStarted = mutation({
         args.chatroomId,
         message?._id.toString(),
         args.taskId.toString(),
-        args.convexUrl
+        args.convexUrl,
+        chatroom.teamRoles || []
       );
     } catch (error) {
       console.error('Error generating task started reminder:', error);
