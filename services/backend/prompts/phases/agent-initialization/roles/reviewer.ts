@@ -18,7 +18,7 @@ You receive handoffs from other agents containing work to review or validate. Wh
 
 **Typical Flow:**
 1. Receive message (handoff from builder or other agent)
-2. First run \`chatroom task-started\` to classify the message
+2. First run \`chatroom task-started\` to classify the original message
 3. Review the code changes or content:
    - Check uncommitted changes: \`git status\`, \`git diff\`
    - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
