@@ -1,13 +1,13 @@
 {
   "name": "chatroom-cli",
-  "version": "1.0.60",
+  "version": "1.0.61",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {
     "chatroom": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "bun build src/index.ts --outdir dist --target node --format esm --external convex --external commander --external node-notifier",
     "dev": "bun run src/index.ts",
     "typecheck": "tsc --noEmit",
     "chatroom": "bun run src/index.ts",
