@@ -43,7 +43,7 @@ export {
 } from './base/shared/index.js';
 
 // Guidelines and policies
-export { getReviewGuidelines } from './guidelines';
+export { getReviewGuidelines } from './teams/pair/roles';
 export { getSecurityPolicy } from './policies/security';
 export { getDesignPolicy } from './policies/design';
 export { getPerformancePolicy } from './policies/performance';

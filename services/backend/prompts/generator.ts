@@ -16,7 +16,7 @@ import { getRoleTemplate } from './templates';
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed
-export { getReviewGuidelines } from './guidelines';
+export { getReviewGuidelines } from './teams/pair/roles';
 export { getSecurityPolicy } from './policies/security';
 export { getDesignPolicy } from './policies/design';
 export { getPerformancePolicy } from './policies/performance';

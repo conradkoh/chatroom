@@ -12,11 +12,12 @@ import {
 } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { getCompletionStatus } from './lib/taskWorkflows';
-import {
-  buildTaskDeliveryPrompt,
-  type TaskDeliveryContext,
-  type TaskDeliveryPromptResponse,
-} from '../prompts/taskDelivery';
+
+// Types for task delivery prompt response
+interface TaskDeliveryPromptResponse {
+  humanReadable: string;
+  json: any;
+}
 
 // =============================================================================
 // SHARED HANDLERS - Internal functions that contain the actual logic
@@ -1517,7 +1518,7 @@ export const getTaskDeliveryPrompt = query({
     }
 
     // Build context for prompt generation
-    const deliveryContext: TaskDeliveryContext = {
+    const deliveryContext = {
       chatroomId: args.chatroomId,
       role: args.role,
       task: {
@@ -1593,7 +1594,10 @@ export const getTaskDeliveryPrompt = query({
     };
 
     // Build and return the complete prompt
-    return buildTaskDeliveryPrompt(deliveryContext);
+    return {
+      humanReadable: rolePromptText,
+      json: deliveryContext,
+    };
   },
 });
 
