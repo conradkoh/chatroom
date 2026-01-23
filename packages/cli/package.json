@@ -7,7 +7,7 @@
     "chatroom": "./dist/index.js"
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "build": "npm run typecheck && bun build src/index.ts --outdir dist --target node --format esm",
     "dev": "bun run src/index.ts",
     "typecheck": "tsc --noEmit",
     "chatroom": "bun run src/index.ts",

@@ -111,7 +111,6 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
       console.error('```');
       console.error(
         handoffCommand({
-          type: 'command',
           chatroomId,
           role,
           nextRole: result.error.suggestedTarget,
@@ -140,5 +139,5 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
 
   // Remind agent to run wait-for-task manually
   console.log(`\n⏳ Now run wait-for-task to wait for your next assignment:`);
-  console.log(`   ${waitForTaskCommand({ type: 'command', chatroomId, role })}`);
+  console.log(`   ${waitForTaskCommand({ chatroomId, role })}`);
 }
