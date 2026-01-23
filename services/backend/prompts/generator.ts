@@ -7,7 +7,7 @@
  */
 
 import { getTaskStartedPrompt } from './cli-commands/index.js';
-import { HANDOFF_DIR, getHandoffFileSnippet } from './config';
+import { HANDOFF_DIR } from './config';
 import {
   type InitPromptContext,
   getHeaderSection,
@@ -63,14 +63,9 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   sections.push(`## Your Role: ${template.title.toUpperCase()}`);
   sections.push(template.description);
 
-  // Workflow section (role-specific)
-  if (normalizedRole === 'builder') {
-    sections.push(getBuilderWorkflow(ctx, isEntryPoint));
-  } else if (normalizedRole === 'reviewer') {
-    sections.push(getReviewerWorkflow(ctx));
-  } else {
-    sections.push(getGenericWorkflow(ctx, template));
-  }
+  // Role-specific guidance (replaces hardcoded workflow system)
+  const otherRoles = ctx.teamRoles.filter((r) => r.toLowerCase() !== ctx.role.toLowerCase());
+  sections.push(getRoleSpecificGuidance(ctx.role, otherRoles, isEntryPoint));
 
   // Current task context
   if (ctx.currentClassification) {
@@ -84,119 +79,6 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   sections.push(getCommandsSection(ctx));
 
   return sections.join('\n\n');
-}
-
-function getBuilderWorkflow(ctx: RolePromptContext, isEntryPoint: boolean): string {
-  let workflow = `### Workflow
-
-1. Receive task (from user or reviewer handoff)
-2. Implement the requested changes
-3. Commit your work with clear messages
-4. Hand off to reviewer with a summary`;
-
-  if (isEntryPoint && !ctx.currentClassification) {
-    workflow += `
-
-**IMPORTANT: Classify the task first!**
-Since you're the entry point, run task-started to classify this message:
-
-${getTaskStartedPrompt(ctx)}`;
-  }
-
-  return workflow;
-}
-
-function getReviewerWorkflow(ctx: RolePromptContext): string {
-  const sections: string[] = [];
-
-  // Core workflow
-  sections.push(`### Workflow
-
-**Important:** Task already acknowledged - The builder already ran \`task-started\` to classify this task, so you can focus on the work itself.
-
-**Phase 1: Understand the Request**
-First, read the ORIGINAL user request below to understand what should have been built.
-
-**Phase 2: Run Verification Commands**
-\`\`\`bash
-pnpm typecheck    # Check for TypeScript errors
-pnpm lint:fix     # Check for linting issues
-git status        # View uncommitted changes
-git diff          # View detailed changes
-git log --oneline -5  # View recent commits
-\`\`\`
-
-**Phase 3: Review Against Checklist**
-- [ ] TypeScript: No errors, no \`any\` types, proper typing
-- [ ] Code quality: No hacks/shortcuts, proper patterns
-- [ ] Requirements: ALL original requirements addressed
-- [ ] Guidelines: Follows codebase conventions (check AGENTS.md, etc.)
-- [ ] Design: Uses design system (semantic colors, existing components)
-- [ ] Security: No obvious vulnerabilities
-
-**Phase 4: Decision**
-- **Changes needed** → Provide specific feedback, hand to builder
-- **Approved** → Confirm requirements met, hand to user`);
-
-  // Inject user context if available
-  if (ctx.userContext) {
-    sections.push(getUserContextSection(ctx.userContext));
-  }
-
-  // Multi-phase review option
-  sections.push(`### Multi-Phase Review
-
-For complex reviews, you can break the review into phases:
-
-1. **Phase 1**: TypeScript and linting verification
-2. **Phase 2**: Code quality and patterns review
-3. **Phase 3**: Requirements and design compliance
-
-To continue to the next phase, hand off to yourself:
-\`\`\`bash
-# Write message to file with unique ID first
-${getHandoffFileSnippet('message')}
-echo "Phase 1 complete: <findings>. Continuing to Phase 2." > "$MSG_FILE"
-
-chatroom handoff ${ctx.chatroomId} --role=reviewer --message-file="$MSG_FILE" --next-role=reviewer
-\`\`\``);
-
-  return sections.join('\n\n');
-}
-
-/**
- * Generate the user context section for reviewers
- */
-function getUserContextSection(userContext: NonNullable<RolePromptContext['userContext']>): string {
-  const parts: string[] = ['### Original User Request\n'];
-  parts.push('**IMPORTANT: Verify the implementation matches this original request:**\n');
-  parts.push(`> ${userContext.originalRequest.split('\n').join('\n> ')}`);
-
-  if (userContext.featureTitle) {
-    parts.push(`\n**Feature Title:** ${userContext.featureTitle}`);
-  }
-
-  if (userContext.featureDescription) {
-    parts.push(`\n**Description:**\n${userContext.featureDescription}`);
-  }
-
-  if (userContext.techSpecs) {
-    parts.push(`\n**Technical Specifications:**\n${userContext.techSpecs}`);
-  }
-
-  return parts.join('\n');
-}
-
-function getGenericWorkflow(
-  _ctx: RolePromptContext,
-  template: ReturnType<typeof getRoleTemplate>
-): string {
-  return `### Workflow
-
-1. Receive and understand the task
-2. Complete your responsibilities:
-${template.responsibilities.map((r) => `   - ${r}`).join('\n')}
-3. Hand off to the next role when done`;
 }
 
 function getClassificationContext(
