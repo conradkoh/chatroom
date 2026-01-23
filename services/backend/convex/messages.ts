@@ -1,6 +1,7 @@
 import { paginationOptsValidator } from 'convex/server';
 import { v } from 'convex/values';
 
+import { generateRolePrompt, generateTaskStartedReminder, generateInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
@@ -11,12 +12,11 @@ import {
 } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { getCompletionStatus } from './lib/taskWorkflows';
-import { generateRolePrompt, generateTaskStartedReminder, generateInitPrompt } from './prompts';
 import {
   buildTaskDeliveryPrompt,
   type TaskDeliveryContext,
   type TaskDeliveryPromptResponse,
-} from './prompts/taskDelivery';
+} from '../prompts/taskDelivery';
 
 // =============================================================================
 // SHARED HANDLERS - Internal functions that contain the actual logic
