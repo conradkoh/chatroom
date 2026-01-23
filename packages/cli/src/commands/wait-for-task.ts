@@ -8,6 +8,7 @@ import {
 } from '@workspace/backend/prompts/base/cli/index.js';
 import { taskStartedCommand } from '@workspace/backend/prompts/base/cli/task-started/command.js';
 import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
+import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
 import { api, type Id, type Chatroom, type TaskWithMessage } from '../api.js';
 import { DEFAULT_WAIT_TIMEOUT_MS, DEFAULT_ACTIVE_TIMEOUT_MS } from '../config.js';
@@ -63,13 +64,16 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   const client = await getConvexClient();
   const { role, timeout, silent } = options;
 
+  // Get Convex URL and CLI env prefix for generating commands
+  const convexUrl = getConvexUrl();
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
+
   // Get session ID for authentication
   const sessionId = getSessionId();
   if (!sessionId) {
     const otherUrls = getOtherSessionUrls();
-    const currentUrl = getConvexUrl();
 
-    console.error(`❌ Not authenticated for: ${currentUrl}`);
+    console.error(`❌ Not authenticated for: ${convexUrl}`);
 
     if (otherUrls.length > 0) {
       console.error(`\n💡 You have sessions for other environments:`);
@@ -135,10 +139,12 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
   // On first session, fetch and display the full initialization prompt from backend
   try {
+    const convexUrl = getConvexUrl();
     const initPromptResult = (await client.query(api.messages.getInitPrompt, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
+      convexUrl,
     })) as { prompt: string } | null;
 
     if (initPromptResult?.prompt) {
@@ -169,7 +175,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (unsubscribe) unsubscribe();
     console.log(`\n${'─'.repeat(50)}`);
     console.log(`The connection to the server was closed. Please run the command:`);
-    console.log(waitForTaskCommand({ chatroomId, role }));
+    console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
     console.log(`${'─'.repeat(50)}`);
     process.exit(0); // Exit with 0 since this is expected behavior
   }, effectiveTimeout);
@@ -234,7 +240,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (message && message.type === 'interrupt') {
       console.log(`\n${'─'.repeat(50)}`);
       console.log(`The connection to the server was closed. Please run the command:`);
-      console.log(waitForTaskCommand({ chatroomId, role }));
+      console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
       console.log(`${'─'.repeat(50)}`);
       process.exit(0);
     }
@@ -246,6 +252,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       role,
       taskId: task._id,
       messageId: message?._id,
+      convexUrl,
     });
 
     // Display explicit task and message IDs for clarity
@@ -269,6 +276,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
         role,
         taskId: task._id,
         classification: 'question',
+        cliEnvPrefix,
       }).replace(
         '--origin-message-classification=question',
         '--origin-message-classification=<type>'
@@ -292,6 +300,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
           title: '<title>',
           description: '<description>',
           techSpecs: '<tech-specs>',
+          cliEnvPrefix,
         })
       );
     } else {
@@ -356,7 +365,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     clearTimeout(timeoutHandle);
     console.log(`\n${'─'.repeat(50)}`);
     console.log(`The connection to the server was closed. Please run the command:`);
-    console.log(waitForTaskCommand({ chatroomId, role }));
+    console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
     console.log(`${'─'.repeat(50)}`);
     process.exit(0);
   };

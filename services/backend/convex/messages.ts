@@ -547,6 +547,7 @@ export const taskStarted = mutation({
     featureTitle: v.optional(v.string()),
     featureDescription: v.optional(v.string()),
     featureTechSpecs: v.optional(v.string()),
+    convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access (chatroom not needed)
@@ -635,7 +636,8 @@ export const taskStarted = mutation({
         args.originMessageClassification,
         args.chatroomId,
         message?._id.toString(),
-        args.taskId.toString()
+        args.taskId.toString(),
+        args.convexUrl
       );
     } catch (error) {
       console.error('Error generating task started reminder:', error);
@@ -1249,6 +1251,7 @@ export const getRolePrompt = query({
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
+    convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
@@ -1310,6 +1313,7 @@ export const getRolePrompt = query({
       availableHandoffRoles,
       canHandoffToUser,
       restrictionReason,
+      convexUrl: args.convexUrl,
     });
 
     return {
@@ -1332,6 +1336,7 @@ export const getInitPrompt = query({
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
+    convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -1343,6 +1348,7 @@ export const getInitPrompt = query({
       teamName: chatroom.teamName || 'Team',
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,
+      convexUrl: args.convexUrl,
     });
 
     return { prompt };
@@ -1363,6 +1369,7 @@ export const getTaskDeliveryPrompt = query({
     role: v.string(),
     taskId: v.id('chatroom_tasks'),
     messageId: v.optional(v.id('chatroom_messages')),
+    convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<TaskDeliveryPromptResponse> => {
     // Validate session and check chatroom access
@@ -1433,6 +1440,7 @@ export const getTaskDeliveryPrompt = query({
       availableHandoffRoles,
       canHandoffToUser,
       restrictionReason,
+      convexUrl: args.convexUrl,
     });
 
     // Get context window (reuse getContextWindow logic)

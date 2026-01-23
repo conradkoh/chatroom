@@ -15,7 +15,7 @@ import { getWaitForTaskReminder } from './base/cli/wait-for-task/reminder.js';
 import { getBuilderGuidance as getTeamBuilderGuidance } from './teams/pair/prompts/builder.js';
 import { getReviewerGuidance as getTeamReviewerGuidance } from './teams/pair/prompts/reviewer.js';
 import { getRoleTemplate } from './templates';
-import { HANDOFF_DIR, generateFilename } from './utils/config.js';
+import { HANDOFF_DIR, generateFilename, getCliEnvPrefix } from './utils/index.js';
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed
@@ -74,6 +74,7 @@ export interface RolePromptContext {
   availableHandoffRoles: string[];
   canHandoffToUser: boolean;
   restrictionReason?: string | null;
+  convexUrl?: string; // Optional Convex URL for env var prefix generation
   // User context for reviewers - the original request that needs to be validated
   userContext?: {
     originalRequest: string;
@@ -159,17 +160,20 @@ function getHandoffSection(ctx: RolePromptContext): string {
 function getCommandsSection(ctx: RolePromptContext): string {
   // Generate unique filename for handoff
   const messageFile = generateFilename('handoff', { type: 'md' });
+  const cliEnvPrefix = getCliEnvPrefix(ctx.convexUrl);
 
   const handoffCmd = handoffCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     nextRole: '<target>',
     messageFile,
+    cliEnvPrefix,
   });
 
   const waitCmd = waitForTaskCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
+    cliEnvPrefix,
   });
 
   return `### Commands
@@ -219,9 +223,11 @@ export function generateTaskStartedReminder(
   classification: 'question' | 'new_feature' | 'follow_up',
   chatroomId: string,
   messageId?: string,
-  taskId?: string
+  taskId?: string,
+  convexUrl?: string
 ): string {
   const normalizedRole = role.toLowerCase();
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   // Builder-specific reminders
   if (normalizedRole === 'builder') {
@@ -231,6 +237,7 @@ export function generateTaskStartedReminder(
       role: 'builder',
       nextRole: 'reviewer',
       messageFile,
+      cliEnvPrefix,
     });
 
     switch (classification) {
@@ -292,6 +299,7 @@ export interface InitPromptInput {
   teamName: string;
   teamRoles: string[];
   teamEntryPoint?: string;
+  convexUrl?: string; // Optional Convex URL for env var prefix generation
 }
 
 /**
@@ -299,8 +307,9 @@ export interface InitPromptInput {
  * This is the full prompt shown when an agent first joins the chatroom.
  */
 export function generateInitPrompt(input: InitPromptInput): string {
-  const { chatroomId, role, teamName, teamRoles, teamEntryPoint } = input;
+  const { chatroomId, role, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
   const template = getRoleTemplate(role);
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   // Determine available handoff targets (other roles in the team + user)
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
@@ -320,6 +329,7 @@ export function generateInitPrompt(input: InitPromptInput): string {
     availableHandoffRoles: handoffTargets,
     canHandoffToUser: true,
     restrictionReason: null,
+    convexUrl,
   };
 
   const guidance =
@@ -329,6 +339,7 @@ export function generateInitPrompt(input: InitPromptInput): string {
   const waitCmd = waitForTaskCommand({
     chatroomId,
     role,
+    cliEnvPrefix,
   });
 
   const sections: string[] = [];

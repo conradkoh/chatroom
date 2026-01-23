@@ -3,6 +3,7 @@
  */
 
 import { taskStartedCommand } from '@workspace/backend/prompts/base/cli/task-started/command.js';
+import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
 import { api } from '../api.js';
 import type { Id } from '../api.js';
@@ -23,13 +24,16 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   const client = await getConvexClient();
   const { role, originMessageClassification, title, description, techSpecs, taskId } = options;
 
+  // Get Convex URL and CLI env prefix for generating commands
+  const convexUrl = getConvexUrl();
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
+
   // Get session ID for authentication
   const sessionId = getSessionId();
   if (!sessionId) {
     const otherUrls = getOtherSessionUrls();
-    const currentUrl = getConvexUrl();
 
-    console.error(`❌ Not authenticated for: ${currentUrl}`);
+    console.error(`❌ Not authenticated for: ${convexUrl}`);
 
     if (otherUrls.length > 0) {
       console.error(`\n💡 You have sessions for other environments:`);
@@ -85,6 +89,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
           title: 'Feature title',
           description: 'What this feature does',
           techSpecs: 'How to implement it',
+          cliEnvPrefix,
         })}`
       );
       process.exit(1);
@@ -106,6 +111,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
         role: '<role>',
         taskId: '<task-id>',
         classification: 'question',
+        cliEnvPrefix,
       })}`
     );
     process.exit(1);
@@ -138,6 +144,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       role,
       taskId: taskId as Id<'chatroom_tasks'>,
       originMessageClassification,
+      convexUrl: getConvexUrl(),
       // Include feature metadata if provided (validated above for new_feature)
       ...(title && { featureTitle: title.trim() }),
       ...(description && { featureDescription: description.trim() }),

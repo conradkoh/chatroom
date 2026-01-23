@@ -13,6 +13,7 @@
 
 import { handoffCommand } from '@workspace/backend/prompts/base/cli/handoff/command.js';
 import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
+import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
 import { api } from '../api.js';
 import type { Id } from '../api.js';
@@ -105,6 +106,8 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
 
   // Check for handoff restriction errors
   if (!result.success && result.error) {
+    const convexUrl = getConvexUrl();
+    const cliEnvPrefix = getCliEnvPrefix(convexUrl);
     console.error(`\n❌ ERROR: ${result.error.message}`);
     if (result.error.suggestedTarget) {
       console.error(`\n💡 Try this instead:`);
@@ -114,6 +117,7 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
           chatroomId,
           role,
           nextRole: result.error.suggestedTarget,
+          cliEnvPrefix,
         })
       );
       console.error('```');
@@ -138,6 +142,8 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
   }
 
   // Remind agent to run wait-for-task manually
+  const convexUrl = getConvexUrl();
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   console.log(`\n⏳ Now run wait-for-task to wait for your next assignment:`);
-  console.log(`   ${waitForTaskCommand({ chatroomId, role })}`);
+  console.log(`   ${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}`);
 }
