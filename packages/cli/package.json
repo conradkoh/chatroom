@@ -7,11 +7,9 @@
     "chatroom": "./dist/index.js"
   },
   "scripts": {
-    "sync": "bun ../../scripts/sync-cli-api.ts",
-    "prebuild": "npm run sync",
     "build": "tsc",
     "dev": "bun run src/index.ts",
-    "typecheck": "npm run sync && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "chatroom": "bun run src/index.ts",
     "prepublishOnly": "npm run build"
   },
@@ -24,6 +22,7 @@
     "@types/bun": "latest",
     "@types/node": "^20.0.0",
     "@types/node-notifier": "^8.0.5",
+    "@workspace/backend": "workspace:*",
     "typescript": "^5.0.0"
   },
   "keywords": [

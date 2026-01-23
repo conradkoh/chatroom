@@ -52,7 +52,7 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
   if (attachedArtifactIds.length > 0) {
     try {
       const areValid = await client.query(api.artifacts.validateArtifactIds, {
-        sessionId,
+        sessionId: sessionId as any, // SessionId branded type from convex-helpers
         artifactIds: attachedArtifactIds as Id<'chatroom_artifacts'>[],
       });
 
@@ -78,17 +78,15 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
   // - Promotes next queued task to pending
   //
   // Note: We use sendHandoff here for backward compatibility with deployed backend.
-  // Once backend is deployed with the new 'handoff' mutation, this can be changed to api.messages.handoff
+  // Send handoff mutation
+  // TODO: Artifact attachment is not yet supported by backend's sendHandoff
+  // If artifacts need to be included, they should be uploaded separately
   const result = (await client.mutation(api.messages.sendHandoff, {
-    sessionId,
+    sessionId: sessionId as any, // SessionId branded type from convex-helpers
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     senderRole: role,
     content: message,
     targetRole: nextRole,
-    attachedArtifactIds:
-      attachedArtifactIds.length > 0
-        ? (attachedArtifactIds as Id<'chatroom_artifacts'>[])
-        : undefined,
   })) as {
     success: boolean;
     error?: {

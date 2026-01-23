@@ -30,8 +30,9 @@ interface TaskCounts {
   in_progress: number;
   queued: number;
   backlog: number;
+  pending_user_review: number;
   completed: number;
-  cancelled: number;
+  closed: number;
 }
 
 /**
@@ -98,7 +99,7 @@ export async function listBacklog(
 
     // Get tasks with filter
     const tasks = (await client.query(api.tasks.listTasks, {
-      sessionId,
+      sessionId: sessionId as any, // SessionId branded type from convex-helpers
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       statusFilter:
         statusFilter === 'all'
@@ -109,7 +110,8 @@ export async function listBacklog(
               | 'queued'
               | 'backlog'
               | 'completed'
-              | 'cancelled'
+              | 'pending_user_review'
+              | 'closed'
               | 'active'
               | 'pending_review'
               | 'archived'),
@@ -176,12 +178,13 @@ export async function listBacklog(
         counts.in_progress +
         counts.queued +
         counts.backlog +
+        counts.pending_user_review +
         counts.completed +
-        counts.cancelled;
+        counts.closed;
     } else if (statusFilter === 'active') {
       totalForFilter = counts.pending + counts.in_progress + counts.queued + counts.backlog;
     } else if (statusFilter === 'archived') {
-      totalForFilter = counts.completed + counts.cancelled;
+      totalForFilter = counts.completed + counts.closed;
     } else if (statusFilter === 'pending_review') {
       // pending_review is separate, use tasks.length as best estimate
       totalForFilter = tasks.length;

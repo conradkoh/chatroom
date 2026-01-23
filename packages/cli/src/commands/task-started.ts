@@ -100,7 +100,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   }
 
   // Use explicit task ID
-  const tasks = (await client.query(api.tasks.list, {
+  const tasks = (await client.query(api.tasks.listTasks, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     limit: 1000, // Get more tasks to find the specific one
@@ -121,10 +121,10 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   // Call the taskStarted mutation
   try {
     const result = (await client.mutation(api.messages.taskStarted, {
-      sessionId,
+      sessionId: sessionId as any, // SessionId branded type from convex-helpers
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
-      taskId,
+      taskId: taskId as Id<'chatroom_tasks'>,
       originMessageClassification,
       // Include feature metadata if provided (validated above for new_feature)
       ...(title && { featureTitle: title.trim() }),
