@@ -2,7 +2,8 @@
  * Main CLI prompt for the task-started command.
  */
 
-import { getClassificationGuidance } from './classification';
+import { getClassificationGuidance } from './classification/index.js';
+import { taskStartedCommand } from './command.js';
 
 /**
  * Generate the main CLI prompt for task-started command
@@ -12,7 +13,21 @@ export function getTaskStartedPrompt(ctx: {
   role: string;
   cliEnvPrefix?: string;
 }): string {
-  const prefix = ctx.cliEnvPrefix || '';
+  // Use command generator for the example
+  const exampleCmd = taskStartedCommand({
+    type: 'command',
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+    taskId: '<task-id>',
+    classification: 'question', // Placeholder shown with all options below
+    cliEnvPrefix: ctx.cliEnvPrefix,
+  });
+
+  // Show format with classification options
+  const cmdFormat = exampleCmd.replace(
+    '--origin-message-classification=question',
+    '--origin-message-classification=<question|new_feature|follow_up>'
+  );
 
   return `
 ## Task Classification
@@ -20,7 +35,7 @@ export function getTaskStartedPrompt(ctx: {
 When you receive a user message, you MUST first acknowledge it and classify what type of request it is:
 
 \`\`\`bash
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=<question|new_feature|follow_up> --task-id=<taskId>
+${cmdFormat}
 \`\`\`
 
 ### Classification Types

@@ -3,6 +3,7 @@
  */
 
 import { getHandoffFileSnippet } from '../../../shared/config.js';
+import { taskStartedCommand } from '../command.js';
 
 /**
  * Generate new feature classification guidance
@@ -12,7 +13,31 @@ export function getNewFeatureClassificationGuidance(ctx: {
   role: string;
   cliEnvPrefix?: string;
 }): string {
-  const prefix = ctx.cliEnvPrefix || '';
+  const cmdCtx = { cliEnvPrefix: ctx.cliEnvPrefix };
+
+  // Inline metadata example
+  const inlineCmd = taskStartedCommand({
+    type: 'command',
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+    taskId: '<task-id>',
+    classification: 'new_feature',
+    title: 'Add user authentication',
+    description: 'Implement JWT login/logout flow',
+    techSpecs: 'Use bcrypt, 24h expiry, secure cookies',
+    ...cmdCtx,
+  });
+
+  // File-based metadata example (base command without file args)
+  const fileBasedCmd = taskStartedCommand({
+    type: 'command',
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+    taskId: '<task-id>',
+    classification: 'new_feature',
+    title: 'Add user authentication',
+    ...cmdCtx,
+  });
 
   return `
 ### New Feature Classification
@@ -35,11 +60,7 @@ For \`new_feature\` classification, you MUST provide:
 
 **Option 1: Inline Metadata (short descriptions)**
 \`\`\`bash
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=new_feature \\
-  --message-id=<messageId> \\
-  --title="Add user authentication" \\
-  --description="Implement JWT login/logout flow" \\
-  --tech-specs="Use bcrypt, 24h expiry, secure cookies"
+${inlineCmd}
 \`\`\`
 
 **Option 2: File-based Metadata (recommended for complex features)**
@@ -53,9 +74,7 @@ echo "Implement JWT-based authentication with login/logout flow" > "$DESC_FILE"
 echo "Use bcrypt for password hashing. JWT tokens expire after 24h" > "$SPECS_FILE"
 
 # Run command with files
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=new_feature \\
-  --message-id=<messageId> \\
-  --title="Add user authentication" \\
+${fileBasedCmd} \\
   --description-file="$DESC_FILE" \\
   --tech-specs-file="$SPECS_FILE"
 \`\`\`

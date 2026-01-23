@@ -2,8 +2,9 @@
  * CLI-specific prompts for the task-started command
  */
 
-import { getClassificationGuidance } from './classification';
-import { getTaskStartedPrompt } from './main-prompt';
+import { getClassificationGuidance } from './classification/index.js';
+import { taskStartedCommand } from './command.js';
+import { getTaskStartedPrompt } from './main-prompt.js';
 
 /**
  * Generate usage examples for task-started
@@ -13,7 +14,60 @@ export function getTaskStartedExamples(ctx: {
   role: string;
   cliEnvPrefix?: string;
 }): string {
-  const prefix = ctx.cliEnvPrefix || '';
+  const cmdCtx = { cliEnvPrefix: ctx.cliEnvPrefix };
+
+  // Commands with actual chatroomId/role but placeholder taskId
+  const questionCmd = taskStartedCommand({
+    type: 'command',
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+    taskId: '<task-id>',
+    classification: 'question',
+    ...cmdCtx,
+  });
+
+  const followUpCmd = taskStartedCommand({
+    type: 'command',
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+    taskId: '<task-id>',
+    classification: 'follow_up',
+    ...cmdCtx,
+  });
+
+  const newFeatureInlineCmd = taskStartedCommand({
+    type: 'command',
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+    taskId: '<task-id>',
+    classification: 'new_feature',
+    title: 'Add user authentication',
+    description: 'Implement JWT login/logout',
+    techSpecs: 'Use bcrypt, 24h expiry',
+    ...cmdCtx,
+  });
+
+  const newFeatureFileCmd = taskStartedCommand({
+    type: 'command',
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+    taskId: '<task-id>',
+    classification: 'new_feature',
+    title: 'Add user authentication',
+    ...cmdCtx,
+  });
+
+  const errorExampleCmd = taskStartedCommand({
+    type: 'command',
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+    taskId: '<task-id>',
+    classification: 'new_feature',
+    title: 'Feature title',
+    description: 'What this feature does',
+    techSpecs: 'How to implement it',
+    ...cmdCtx,
+  });
 
   return `
 ## Task-Started Examples
@@ -21,25 +75,19 @@ export function getTaskStartedExamples(ctx: {
 ### Basic Classification
 \`\`\`bash
 # Classify a question
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=question --task-id=<taskId>
+${questionCmd}
 
 # Classify a follow_up
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=follow_up --task-id=<taskId>
+${followUpCmd}
 \`\`\`
 
 ### New Feature Classification
 \`\`\`bash
 # With inline metadata (short descriptions)
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=new_feature \\
-  --task-id=<taskId> \\
-  --title="Add user authentication" \\
-  --description="Implement JWT login/logout" \\
-  --tech-specs="Use bcrypt, 24h expiry"
+${newFeatureInlineCmd}
 
 # With file-based metadata (recommended for long descriptions)
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=new_feature \\
-  --task-id=<taskId> \\
-  --title="Add user authentication" \\
+${newFeatureFileCmd} \\
   --description-file="feature-desc.md" \\
   --tech-specs-file="tech-specs.md"
 \`\`\`
@@ -49,10 +97,7 @@ ${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-mes
 # Missing required fields (new_feature)
 ❌ Missing required fields: title, description, techSpecs
 # Example:
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=new_feature --task-id=<taskId> \\
-  --title="Feature title" \\
-  --description="What this feature does" \\
-  --tech-specs="How to implement it"
+${errorExampleCmd}
 
 # Invalid task ID
 ❌ Task with ID "invalid_id" not found in this chatroom
@@ -69,10 +114,10 @@ export function getTaskStartedValidation(): string {
 ## Task-Started Validation
 
 ### Required Parameters
-- \`--chatroomId\`: The chatroom ID (positional argument)
+- \`<chatroom-id>\`: The chatroom ID (positional argument)
 - \`--role\`: Your role (builder, reviewer, etc.)
-- \`--origin-message-classification\`: Original message type (question, new_feature, follow_up)
 - \`--task-id\`: The specific task ID to acknowledge
+- \`--origin-message-classification\`: Original message type (question, new_feature, follow_up)
 
 ### Conditional Requirements
 For \`--origin-message-classification=new_feature\`, you must also provide:
@@ -98,4 +143,4 @@ For \`--origin-message-classification=new_feature\`, you must also provide:
 }
 
 // Re-export main functions
-export { getTaskStartedPrompt, getClassificationGuidance };
+export { getTaskStartedPrompt, getClassificationGuidance, taskStartedCommand };

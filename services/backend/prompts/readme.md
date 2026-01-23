@@ -1,110 +1,83 @@
-# Prompts System
+# Prompts
 
-A clean, maintainable structure for agent prompts with team-based customization support.
+Agent prompt generation system.
 
-## Structure
+## Folder Structure
 
 ```
 prompts/
-├── base/                   # Base prompts (shared by all teams)
-│   ├── cli/                # CLI-specific prompts
+├── types/              # Shared types
+│   └── cli.ts          # CLI command generator types
+├── base/               # Base prompts (shared by all teams)
+│   ├── cli/            # CLI command prompts
 │   │   ├── task-started/
+│   │   │   ├── command.ts       # Command generator
+│   │   │   ├── main-prompt.ts   # Main prompt content
+│   │   │   ├── classification/  # Classification-specific guidance
+│   │   │   └── index.ts         # Exports
 │   │   ├── handoff/
 │   │   └── wait-for-task/
-│   ├── roles/              # Agent role definitions
-│   │   ├── builder.ts       # Builder role guidance
-│   │   ├── reviewer.ts      # Reviewer role guidance
-│   │   └── index.ts
-│   ├── workflows/          # Workflow definitions
-│   │   ├── pair.ts          # Pair team workflow
-│   │   └── index.ts
-│   └── shared/             # Shared utilities
-│       ├── config.ts
-│       ├── types.ts
-│       └── formatters.ts
-├── teams/                  # Team-specific customizations
-│   ├── pair/               # Pair team (builder + reviewer)
-│   │   ├── config.ts        # Team configuration
-│   │   ├── workflow.ts      # Pair workflow logic
-│   │   └── prompts/
-│   │       ├── builder.ts   # Builder-specific overrides
-│   │       ├── reviewer.ts  # Reviewer-specific overrides
-│   │       └── index.ts
-│   └── index.ts
-├── generator.ts            # Team-aware prompt generator
-├── index.ts               # Main exports
-└── README.md
+│   ├── roles/          # Role definitions (builder, reviewer)
+│   ├── workflows/      # Workflow definitions
+│   └── shared/         # Shared utilities
+├── teams/              # Team-specific customizations
+│   └── pair/           # Pair team (builder + reviewer)
+└── generator.ts        # Prompt generator
 ```
 
 ## Key Concepts
 
-### **Base Prompts**
+### Command Generators
 
-- Shared prompts used by all teams
-- Common role definitions (builder, reviewer)
-- CLI command prompts
-- Shared utilities and types
-
-### **Team Customization**
-
-- Teams can override base prompts
-- Team-specific workflow logic
-- Role-specific guidance for team context
-
-### **Pair Team**
-
-- Default team configuration
-- Builder + Reviewer roles
-- Established handoff workflow
-
-## Usage
-
-### **Base Prompts**
+Each CLI command has a `command.ts` file that generates command strings. This ensures:
+- **Single source of truth** for command format
+- **Type safety** via discriminated unions
+- **No drift** between prompts and actual CLI
 
 ```typescript
-import { getBaseBuilderGuidance } from "./base/roles/builder.js";
-```
+// prompts/base/cli/task-started/command.ts
 
-### **Team-Specific Prompts**
+import type { TaskStartedParams } from '../../../types/cli.js';
 
-```typescript
-import { getBuilderGuidance } from "./teams/pair/prompts/builder.js";
-```
-
-### **Generator Logic**
-
-```typescript
-// Automatically detects team and applies appropriate prompts
-export function getRolePrompt(
-  chatroomId: string,
-  role: string,
-  ctx: RolePromptContext,
-) {
-  const teamName = "pair"; // Currently only pair team
-  const teamPrompt = getTeamRolePrompt(teamName, role, ctx);
-  return teamPrompt || getBaseRolePrompt(role, ctx);
+export function taskStartedCommand(params: TaskStartedParams): string {
+  if (params.type === 'example') {
+    return `chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> ...`;
+  }
+  // type === 'command' - use actual values
+  return `chatroom task-started ${params.chatroomId} --role=${params.role} --task-id=${params.taskId} ...`;
 }
 ```
 
-## Team Configuration
+### Discriminated Unions
 
-### **Pair Team**
+Command params use discriminated unions with `type` field:
 
 ```typescript
-export const pairTeamConfig = {
-  name: "pair",
-  roles: ["builder", "reviewer"],
-  entryPoint: "builder",
-  workflow: "pair",
-};
+// types/cli.ts
+
+type TaskStartedParams =
+  | { type: 'example'; classification?: MessageClassification }  // Placeholders
+  | { type: 'command'; chatroomId: string; role: string; ... }   // Real values
 ```
 
-### **Workflow Rules**
+### Usage
 
-- Builder → Reviewer (for code changes)
-- Reviewer → User (for approval)
-- Builder → User (for simple questions)
+```typescript
+import { taskStartedCommand } from './base/cli/task-started/command.js';
 
-## Migration Notes
+// Example with placeholders
+taskStartedCommand({ type: 'example' })
+// → "chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> ..."
 
-This structure replaces the legacy `init/` and `phases/` directories with a cleaner, more maintainable organization.
+// Command with real values
+taskStartedCommand({ type: 'command', chatroomId: 'abc', role: 'builder', taskId: 'xyz', classification: 'question' })
+// → "chatroom task-started abc --role=builder --task-id=xyz --origin-message-classification=question"
+```
+
+## Guidelines
+
+1. **All CLI commands in prompts must use command generators** - Never hardcode command strings
+2. **Colocate command.ts with its command folder** - `cli/<command-name>/command.ts`
+3. **Types go in prompts/types/** - Shared across all command generators
+4. **Use `type: 'example'` for documentation** - Shows placeholders
+5. **Use `type: 'command'` for actual prompts** - Uses real values from context

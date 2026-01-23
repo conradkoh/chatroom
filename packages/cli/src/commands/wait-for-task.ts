@@ -252,10 +252,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (message) {
       console.log(`To acknowledge and classify this message, run:`);
       console.log(
-        `chatroom task-started ${chatroomId} --role=${role} --origin-message-classification=<type> --message-id=${message._id}`
+        `chatroom task-started ${chatroomId} --role=${role} --task-id=${task._id} --origin-message-classification=<type>`
       );
     } else {
-      console.log(`No message found to classify. Use --message-id to specify a message.`);
+      console.log(`No message found to classify. Use --task-id to specify a task.`);
     }
 
     console.log(`\nClassification types: question, new_feature, follow_up`);
