@@ -6,6 +6,7 @@
  * to combat context rot in long conversations.
  */
 
+import { getTaskStartedPrompt } from './cli/index.js';
 import { HANDOFF_DIR, getHandoffFileSnippet } from './config';
 import {
   type InitPromptContext,
@@ -18,7 +19,6 @@ import {
   getExampleSection,
   getRoleSpecificGuidance,
   getWaitForTaskSection,
-  getTaskStartedSection,
 } from './init';
 import { getRoleTemplate } from './templates';
 // Guidelines and policies are exported for external use
@@ -99,9 +99,8 @@ function getBuilderWorkflow(ctx: RolePromptContext, isEntryPoint: boolean): stri
 
 **IMPORTANT: Classify the task first!**
 Since you're the entry point, run task-started to classify this message:
-\`\`\`
-chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<question|new_feature|follow_up>
-\`\`\``;
+
+${getTaskStartedPrompt(ctx)}`;
   }
 
   return workflow;
@@ -348,7 +347,7 @@ export function generateInitPrompt(input: InitPromptInput): string {
     getHeaderSection(ctx),
     getResponsibilitiesSection(ctx),
     getGettingStartedSection(ctx),
-    isEntryPoint ? getTaskStartedSection(ctx) : '',
+    isEntryPoint ? getTaskStartedPrompt(ctx) : '',
     getCommunicationSection(ctx),
     getHandoffOptionsSection(ctx),
     roleSpecificGuidance,
