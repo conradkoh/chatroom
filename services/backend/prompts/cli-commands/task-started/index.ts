@@ -21,24 +21,24 @@ export function getTaskStartedExamples(ctx: {
 ### Basic Classification
 \`\`\`bash
 # Classify a question
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=question --message-id=<messageId>
+${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=question --task-id=<taskId>
 
 # Classify a follow_up
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=follow_up --message-id=<messageId>
+${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=follow_up --task-id=<taskId>
 \`\`\`
 
 ### New Feature Classification
 \`\`\`bash
 # With inline metadata (short descriptions)
 ${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
-  --message-id=<messageId> \\
+  --task-id=<taskId> \\
   --title="Add user authentication" \\
   --description="Implement JWT login/logout" \\
   --tech-specs="Use bcrypt, 24h expiry"
 
 # With file-based metadata (recommended for long descriptions)
 ${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
-  --message-id=<messageId> \\
+  --task-id=<taskId> \\
   --title="Add user authentication" \\
   --description-file="feature-desc.md" \\
   --tech-specs-file="tech-specs.md"
@@ -49,14 +49,14 @@ ${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classifica
 # Missing required fields (new_feature)
 ❌ Missing required fields: title, description, techSpecs
 # Example:
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature --message-id=<messageId> \\
+${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature --task-id=<taskId> \\
   --title="Feature title" \\
   --description="What this feature does" \\
   --tech-specs="How to implement it"
 
-# Invalid message ID
-❌ Message with ID "invalid_id" not found in this chatroom
-# Verify the message ID is correct and you have access to this chatroom
+# Invalid task ID
+❌ Task with ID "invalid_id" not found in this chatroom
+# Verify the task ID is correct and you have access to this chatroom
 \`\`\`
 `;
 }
@@ -72,7 +72,7 @@ export function getTaskStartedValidation(): string {
 - \`--chatroomId\`: The chatroom ID (positional argument)
 - \`--role\`: Your role (builder, reviewer, etc.)
 - \`--classification\`: Message type (question, new_feature, follow_up)
-- \`--message-id\`: The specific message ID to classify
+- \`--task-id\`: The specific task ID to acknowledge
 
 ### Conditional Requirements
 For \`--classification=new_feature\`, you must also provide:
@@ -81,18 +81,18 @@ For \`--classification=new_feature\`, you must also provide:
 - \`--tech-specs\`: Technical specifications (required)
 
 ### Validation Rules
-1. **Message ID must exist**: The message must be in the specified chatroom
-2. **Message must be unclassified**: Cannot re-classify already classified messages
-3. **Message must be from user**: Can only classify user messages, not agent messages
+1. **Task ID must exist**: The task must be in the specified chatroom
+2. **Task must have associated message**: Task must be linked to a message
+3. **Classification rules**: User messages can be classified; handoff messages are acknowledged
 4. **Complete metadata**: All required fields must be present for new_feature
 
 ### Common Errors and Solutions
 
 | Error | Cause | Solution |
 |-------|--------|----------|
-| "Message not found" | Invalid message ID | Use \`wait-for-task\` to get correct message ID |
-| "Already classified" | Message was already classified | Use a different, unclassified message |
-| "Can only classify user messages" | Trying to classify agent message | Only user messages can be classified |
+| "Task not found" | Invalid task ID | Use \`wait-for-task\` to get correct task ID |
+| "Associated message not found" | Task not linked to message | Ensure task was created properly |
+| "Cannot classify user messages" | Wrong task type | Only new tasks can be classified |
 | "Missing required fields" | Incomplete new_feature metadata | Provide title, description, and tech-specs |
 `;
 }

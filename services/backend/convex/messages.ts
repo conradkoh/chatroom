@@ -539,8 +539,8 @@ export const taskStarted = mutation({
       v.literal('new_feature'),
       v.literal('follow_up')
     ),
-    // Require messageId for task-started
-    messageId: v.id('chatroom_messages'),
+    // Require taskId for task-started (for consistency)
+    taskId: v.id('chatroom_tasks'),
     // Feature metadata (optional for backward compatibility, required by CLI for new_feature)
     featureTitle: v.optional(v.string()),
     featureDescription: v.optional(v.string()),
@@ -550,40 +550,52 @@ export const taskStarted = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Get the message to update
-    const message = await ctx.db.get('chatroom_messages', args.messageId);
+    // Get the task to acknowledge
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Verify the task belongs to this chatroom
+    if (task.chatroomId !== args.chatroomId) {
+      throw new Error('Task does not belong to this chatroom');
+    }
+
+    // Get the associated message
+    if (!task.sourceMessageId) {
+      throw new Error('Task must have an associated message');
+    }
+    const message = await ctx.db.get('chatroom_messages', task.sourceMessageId);
     if (!message) {
-      throw new Error('Message not found');
+      throw new Error('Associated message not found');
     }
 
-    // Verify the message belongs to this chatroom
-    if (message.chatroomId !== args.chatroomId) {
-      throw new Error('Message does not belong to this chatroom');
+    // Only allow classification of user messages (for new tasks)
+    if (message.senderRole.toLowerCase() !== 'user' && task.status === 'pending') {
+      throw new Error('Can only classify user messages for new tasks');
     }
 
-    // Only allow classification of user messages
-    if (message.senderRole.toLowerCase() !== 'user') {
-      throw new Error('Can only classify user messages');
-    }
-
-    // Don't allow re-classification
-    if (message.classification) {
-      throw new Error('Message is already classified');
-    }
-
-    // Update the message with classification and feature metadata
-    await ctx.db.patch('chatroom_messages', args.messageId, {
-      classification: args.classification,
-      ...(args.featureTitle && { featureTitle: args.featureTitle }),
-      ...(args.featureDescription && { featureDescription: args.featureDescription }),
-      ...(args.featureTechSpecs && { featureTechSpecs: args.featureTechSpecs }),
+    // Update the task status to in_progress
+    await ctx.db.patch('chatroom_tasks', args.taskId, {
+      status: 'in_progress',
+      updatedAt: Date.now(),
     });
+
+    // Update the message with classification and feature metadata (only for new tasks)
+    if (task.status === 'pending' && !message.classification) {
+      await ctx.db.patch('chatroom_messages', message._id, {
+        classification: args.classification,
+        ...(args.featureTitle && { featureTitle: args.featureTitle }),
+        ...(args.featureDescription && { featureDescription: args.featureDescription }),
+        ...(args.featureTechSpecs && { featureTechSpecs: args.featureTechSpecs }),
+      });
+    }
 
     // Note: Attached backlog tasks remain in their current status when agent acknowledges.
     // They will only be transitioned to pending_user_review when the agent hands off to user.
 
     // For follow-ups, link to the previous non-follow-up message
-    if (args.classification === 'follow_up') {
+    if (args.classification === 'follow_up' && message) {
       // Find the most recent non-follow-up user message (optimized with limit)
       const recentMessages = await ctx.db
         .query('chatroom_messages')
@@ -595,7 +607,7 @@ export const taskStarted = mutation({
       let originMessage = null;
       for (const msg of recentMessages) {
         if (
-          msg._id !== args.messageId &&
+          msg._id !== message._id &&
           msg.senderRole.toLowerCase() === 'user' &&
           msg.classification &&
           msg.classification !== 'follow_up'
@@ -607,7 +619,7 @@ export const taskStarted = mutation({
 
       if (originMessage) {
         // Link this follow-up to the original message
-        await ctx.db.patch('chatroom_messages', args.messageId, {
+        await ctx.db.patch('chatroom_messages', message._id, {
           taskOriginMessageId: originMessage._id,
         });
       }
@@ -618,7 +630,8 @@ export const taskStarted = mutation({
       args.role,
       args.classification,
       args.chatroomId,
-      args.messageId.toString()
+      message?.toString(),
+      args.taskId.toString()
     );
 
     return { success: true, classification: args.classification, reminder };

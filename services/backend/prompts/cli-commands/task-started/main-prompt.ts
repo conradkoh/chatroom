@@ -20,7 +20,7 @@ export function getTaskStartedPrompt(ctx: {
 When you receive a user message, you MUST first acknowledge it and classify what type of request it is:
 
 \`\`\`bash
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<question|new_feature|follow_up> --message-id=<messageId>
+${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<question|new_feature|follow_up> --task-id=<taskId>
 \`\`\`
 
 ### Classification Types
@@ -39,8 +39,8 @@ ${getClassificationGuidance('follow_up')}
 
 ### Important Notes
 
-- **Always use --message-id**: You must specify the exact message ID to classify
-- **One message per task-started**: Each command classifies exactly one message
+- **Always use --task-id**: You must specify the exact task ID to acknowledge
+- **One task per task-started**: Each command acknowledges exactly one task
 - **Classification determines workflow**: Your classification affects available handoff options
 - **Feature metadata required**: For new_feature, title, description, and tech specs are mandatory
 

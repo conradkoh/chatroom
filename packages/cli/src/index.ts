@@ -137,7 +137,7 @@ program
     '--classification <type>',
     'Message classification: question, new_feature, or follow_up'
   )
-  .requiredOption('--message-id <messageId>', 'Message ID to classify')
+  .requiredOption('--task-id <taskId>', 'Task ID to acknowledge')
   .option('--title <title>', 'Feature title (required for new_feature)')
   .option(
     '--description-file <path>',
@@ -153,7 +153,7 @@ program
       options: {
         role: string;
         classification: string;
-        messageId: string;
+        taskId: string;
         title?: string;
         descriptionFile?: string;
         techSpecsFile?: string;
@@ -192,7 +192,7 @@ program
       await taskStarted(chatroomId, {
         role: options.role,
         classification: options.classification as 'question' | 'new_feature' | 'follow_up',
-        messageId: options.messageId,
+        taskId: options.taskId,
         title: options.title,
         description,
         techSpecs,

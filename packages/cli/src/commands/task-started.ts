@@ -3,14 +3,14 @@
  */
 
 import { api } from '../api.js';
-import type { Id, Message } from '../api.js';
+import type { Id } from '../api.js';
 import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.js';
 
 interface TaskStartedOptions {
   role: string;
   classification: 'question' | 'new_feature' | 'follow_up';
-  messageId: string;
+  taskId: string;
   // Feature metadata (required for new_feature classification)
   title?: string;
   description?: string;
@@ -19,7 +19,7 @@ interface TaskStartedOptions {
 
 export async function taskStarted(chatroomId: string, options: TaskStartedOptions): Promise<void> {
   const client = await getConvexClient();
-  const { role, classification, title, description, techSpecs, messageId } = options;
+  const { role, classification, title, description, techSpecs, taskId } = options;
 
   // Get session ID for authentication
   const sessionId = getSessionId();
@@ -84,29 +84,37 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     }
   }
 
-  // Find the target message to classify
-  let targetMessage: Message | null = null;
+  // Find the target task to acknowledge
+  let targetTask: {
+    _id: string;
+    content: string;
+    status: string;
+  } | null = null;
 
-  if (!messageId) {
-    console.error(`❌ --message-id is required for task-started`);
+  if (!taskId) {
+    console.error(`❌ --task-id is required for task-started`);
     console.error(
-      `   Usage: chatroom task-started <chatroomId> --role=<role> --classification=<type> --message-id=<messageId>`
+      `   Usage: chatroom task-started <chatroomId> --role=<role> --classification=<type> --task-id=<taskId>`
     );
     process.exit(1);
   }
 
-  // Use explicit message ID
-  const messages = (await client.query(api.messages.list, {
+  // Use explicit task ID
+  const tasks = (await client.query(api.tasks.list, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    limit: 1000, // Get more messages to find the specific one
-  })) as Message[];
+    limit: 1000, // Get more tasks to find the specific one
+  })) as {
+    _id: string;
+    content: string;
+    status: string;
+  }[];
 
-  targetMessage = messages.find((msg) => msg._id === messageId) || null;
+  targetTask = tasks.find((task) => task._id === taskId) || null;
 
-  if (!targetMessage) {
-    console.error(`❌ Message with ID "${messageId}" not found in this chatroom`);
-    console.error(`   Verify the message ID is correct and you have access to this chatroom`);
+  if (!targetTask) {
+    console.error(`❌ Task with ID "${taskId}" not found in this chatroom`);
+    console.error(`   Verify the task ID is correct and you have access to this chatroom`);
     process.exit(1);
   }
 
@@ -116,7 +124,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
-      messageId: targetMessage._id,
+      taskId,
       classification,
       // Include feature metadata if provided (validated above for new_feature)
       ...(title && { featureTitle: title.trim() }),
@@ -127,7 +135,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     console.log(`✅ Task acknowledged and classified`);
     console.log(`   Classification: ${classification}`);
     console.log(
-      `   Message: "${targetMessage.content.substring(0, 80)}${targetMessage.content.length > 80 ? '...' : ''}"`
+      `   Task: ${targetTask.content.substring(0, 80)}${targetTask.content.length > 80 ? '...' : ''}`
     );
 
     // Display the focused reminder from the backend

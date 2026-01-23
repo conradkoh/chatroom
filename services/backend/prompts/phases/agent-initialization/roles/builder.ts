@@ -12,10 +12,7 @@ export function getBuilderGuidance(isEntryPoint: boolean): string {
 As the entry point, you receive user messages directly. When you receive a user message:
 1. First run \`chatroom task-started\` with the specific message ID to classify it (question, new_feature, or follow_up)
 2. Then do your work
-3. Hand off to reviewer for code changes, or directly to user for questions
-
-**IMPORTANT: Classify the task first!**
-Since you're the entry point, run task-started to classify this message.`
+3. Hand off to reviewer for code changes, or directly to user for questions`
     : '';
 
   return `

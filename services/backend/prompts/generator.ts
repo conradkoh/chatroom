@@ -175,9 +175,15 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
     }
   }
 
-  // Reviewer should not call task-started (they receive pre-classified tasks)
-  // But provide a fallback just in case
+  // Reviewer should run task-started to acknowledge receipt
   if (normalizedRole === 'reviewer') {
+    // Check if the task involves reviewing completed work
+    if (taskId) {
+      return `Review the completed work. If the user's goal is met, hand off to user. If not, provide specific feedback and hand off to builder.
+
+💡 You're reviewing:
+Task ID: ${taskId}`;
+    }
     return `Review the work and approve or request changes.`;
   }
 
