@@ -7,7 +7,7 @@
     "chatroom": "./dist/index.js"
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target node --format esm --external convex --external commander --external node-notifier",
+    "build": "bun build src/index.ts --outdir dist --target node --format esm --external convex --external commander",
     "dev": "bun run src/index.ts",
     "typecheck": "tsc --noEmit",
     "chatroom": "bun run src/index.ts",
@@ -15,13 +15,11 @@
   },
   "dependencies": {
     "commander": "^14.0.0",
-    "convex": "^1.31.0",
-    "node-notifier": "^10.0.0"
+    "convex": "^1.31.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^20.0.0",
-    "@types/node-notifier": "^8.0.5",
     "@workspace/backend": "workspace:*",
     "typescript": "^5.0.0"
   },
