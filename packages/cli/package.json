@@ -7,11 +7,11 @@
     "chatroom": "./dist/index.js"
   },
   "scripts": {
-    "build": "npm run typecheck && bun build src/index.ts --outdir dist --target node --format esm",
+    "build": "bun run typecheck && bun build src/index.ts --outdir dist --target node --format esm",
     "dev": "bun run src/index.ts",
     "typecheck": "tsc --noEmit",
     "chatroom": "bun run src/index.ts",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "bun run build"
   },
   "dependencies": {
     "commander": "^14.0.0",
