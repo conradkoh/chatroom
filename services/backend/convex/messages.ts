@@ -534,7 +534,7 @@ export const taskStarted = mutation({
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    classification: v.union(
+    originMessageClassification: v.union(
       v.literal('question'),
       v.literal('new_feature'),
       v.literal('follow_up')
@@ -584,7 +584,7 @@ export const taskStarted = mutation({
     // Update the message with classification and feature metadata (only for new tasks)
     if (task.status === 'pending' && !message.classification) {
       await ctx.db.patch('chatroom_messages', message._id, {
-        classification: args.classification,
+        classification: args.originMessageClassification,
         ...(args.featureTitle && { featureTitle: args.featureTitle }),
         ...(args.featureDescription && { featureDescription: args.featureDescription }),
         ...(args.featureTechSpecs && { featureTechSpecs: args.featureTechSpecs }),
@@ -595,7 +595,7 @@ export const taskStarted = mutation({
     // They will only be transitioned to pending_user_review when the agent hands off to user.
 
     // For follow-ups, link to the previous non-follow-up message
-    if (args.classification === 'follow_up' && message) {
+    if (args.originMessageClassification === 'follow_up' && message) {
       // Find the most recent non-follow-up user message (optimized with limit)
       const recentMessages = await ctx.db
         .query('chatroom_messages')
@@ -628,13 +628,13 @@ export const taskStarted = mutation({
     // Generate a focused reminder for this role + classification
     const reminder = generateTaskStartedReminder(
       args.role,
-      args.classification,
+      args.originMessageClassification,
       args.chatroomId,
       message?.toString(),
       args.taskId.toString()
     );
 
-    return { success: true, classification: args.classification, reminder };
+    return { success: true, classification: args.originMessageClassification, reminder };
   },
 });
 

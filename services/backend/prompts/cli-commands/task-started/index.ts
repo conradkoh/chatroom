@@ -21,23 +21,23 @@ export function getTaskStartedExamples(ctx: {
 ### Basic Classification
 \`\`\`bash
 # Classify a question
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=question --task-id=<taskId>
+${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=question --task-id=<taskId>
 
 # Classify a follow_up
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=follow_up --task-id=<taskId>
+${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=follow_up --task-id=<taskId>
 \`\`\`
 
 ### New Feature Classification
 \`\`\`bash
 # With inline metadata (short descriptions)
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
+${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=new_feature \\
   --task-id=<taskId> \\
   --title="Add user authentication" \\
   --description="Implement JWT login/logout" \\
   --tech-specs="Use bcrypt, 24h expiry"
 
 # With file-based metadata (recommended for long descriptions)
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
+${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=new_feature \\
   --task-id=<taskId> \\
   --title="Add user authentication" \\
   --description-file="feature-desc.md" \\
@@ -49,7 +49,7 @@ ${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classifica
 # Missing required fields (new_feature)
 ❌ Missing required fields: title, description, techSpecs
 # Example:
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature --task-id=<taskId> \\
+${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=new_feature --task-id=<taskId> \\
   --title="Feature title" \\
   --description="What this feature does" \\
   --tech-specs="How to implement it"
@@ -71,11 +71,11 @@ export function getTaskStartedValidation(): string {
 ### Required Parameters
 - \`--chatroomId\`: The chatroom ID (positional argument)
 - \`--role\`: Your role (builder, reviewer, etc.)
-- \`--classification\`: Message type (question, new_feature, follow_up)
+- \`--origin-message-classification\`: Original message type (question, new_feature, follow_up)
 - \`--task-id\`: The specific task ID to acknowledge
 
 ### Conditional Requirements
-For \`--classification=new_feature\`, you must also provide:
+For \`--origin-message-classification=new_feature\`, you must also provide:
 - \`--title\`: Feature title (required)
 - \`--description\`: Feature description (required)
 - \`--tech-specs\`: Technical specifications (required)

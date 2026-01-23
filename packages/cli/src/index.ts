@@ -134,8 +134,8 @@ program
   .description('Acknowledge a task and classify the user message')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption(
-    '--classification <type>',
-    'Message classification: question, new_feature, or follow_up'
+    '--origin-message-classification <type>',
+    'Original message classification: question, new_feature, or follow_up'
   )
   .requiredOption('--task-id <taskId>', 'Task ID to acknowledge')
   .option('--title <title>', 'Feature title (required for new_feature)')
@@ -152,7 +152,7 @@ program
       chatroomId: string,
       options: {
         role: string;
-        classification: string;
+        originMessageClassification: string;
         taskId: string;
         title?: string;
         descriptionFile?: string;
@@ -162,13 +162,31 @@ program
       await maybeRequireAuth();
 
       const validClassifications = ['question', 'new_feature', 'follow_up'];
-      if (!validClassifications.includes(options.classification)) {
+      if (!validClassifications.includes(options.originMessageClassification)) {
         console.error(
           `❌ Invalid classification: ${
-            options.classification
+            options.originMessageClassification
           }. Must be one of: ${validClassifications.join(', ')}`
         );
         process.exit(1);
+      }
+
+      // Validate new_feature requirements
+      if (options.originMessageClassification === 'new_feature') {
+        if (!options.title) {
+          console.error('❌ Title is required for new_feature classification');
+          process.exit(1);
+        }
+        if (!options.descriptionFile) {
+          console.error('❌ Description file is required for new_feature classification');
+          process.exit(1);
+        }
+        if (!options.techSpecsFile) {
+          console.error(
+            '❌ Technical specifications file is required for new_feature classification'
+          );
+          process.exit(1);
+        }
       }
 
       // Read content from files
@@ -191,7 +209,10 @@ program
       const { taskStarted } = await import('./commands/task-started.js');
       await taskStarted(chatroomId, {
         role: options.role,
-        classification: options.classification as 'question' | 'new_feature' | 'follow_up',
+        originMessageClassification: options.originMessageClassification as
+          | 'question'
+          | 'new_feature'
+          | 'follow_up',
         taskId: options.taskId,
         title: options.title,
         description,

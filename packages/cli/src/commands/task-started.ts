@@ -9,7 +9,7 @@ import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.j
 
 interface TaskStartedOptions {
   role: string;
-  classification: 'question' | 'new_feature' | 'follow_up';
+  originMessageClassification: 'question' | 'new_feature' | 'follow_up';
   taskId: string;
   // Feature metadata (required for new_feature classification)
   title?: string;
@@ -19,7 +19,7 @@ interface TaskStartedOptions {
 
 export async function taskStarted(chatroomId: string, options: TaskStartedOptions): Promise<void> {
   const client = await getConvexClient();
-  const { role, classification, title, description, techSpecs, taskId } = options;
+  const { role, originMessageClassification, title, description, techSpecs, taskId } = options;
 
   // Get session ID for authentication
   const sessionId = getSessionId();
@@ -56,8 +56,8 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     process.exit(1);
   }
 
-  // Validate feature metadata for new_feature classification
-  if (classification === 'new_feature') {
+  // Validate new_feature requirements
+  if (originMessageClassification === 'new_feature') {
     const missingFields: string[] = [];
     if (!title || title.trim().length === 0) {
       missingFields.push('--title');
@@ -125,7 +125,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
       taskId,
-      classification,
+      originMessageClassification,
       // Include feature metadata if provided (validated above for new_feature)
       ...(title && { featureTitle: title.trim() }),
       ...(description && { featureDescription: description.trim() }),
@@ -133,7 +133,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     })) as { success: boolean; classification: string; reminder: string };
 
     console.log(`✅ Task acknowledged and classified`);
-    console.log(`   Classification: ${classification}`);
+    console.log(`   Classification: ${originMessageClassification}`);
     console.log(
       `   Task: ${targetTask.content.substring(0, 80)}${targetTask.content.length > 80 ? '...' : ''}`
     );
