@@ -15,6 +15,9 @@ export const {
   getClassificationGuidance,
 } = taskStarted;
 
+// Re-export wait-for-task functions
+export { getWaitForTaskReminder, getWaitForTaskGuidance } from './wait-for-task/reminder.js';
+
 // Handoff CLI prompts (to be implemented)
 // export {
 //   getHandoffPrompt,

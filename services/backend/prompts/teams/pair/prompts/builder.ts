@@ -2,7 +2,7 @@
  * Builder role-specific guidance for pair team
  */
 
-import { getBuilderGuidance as getBaseBuilderGuidance } from '../../../base/roles/builder.js';
+import { getBuilderGuidance as getBaseBuilderGuidance } from '../../../base/cli/roles/builder.js';
 
 export function getBuilderGuidance(ctx: {
   role: string;

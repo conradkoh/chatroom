@@ -12,6 +12,3 @@ export type { PromptContext } from './generator';
 // Role templates
 export { getRoleTemplate, ROLE_TEMPLATES } from './templates';
 export type { RoleTemplate } from './templates';
-
-// Init prompt sections (for customization)
-export * from './init';

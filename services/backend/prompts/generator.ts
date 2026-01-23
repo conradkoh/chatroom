@@ -8,13 +8,14 @@
 
 import { handoffCommand } from './base/cli/handoff/command.js';
 import { getTaskStartedPrompt } from './base/cli/index.js';
+import { getBuilderGuidance as getBaseBuilderGuidance } from './base/cli/roles/builder.js';
+import { getReviewerGuidance as getBaseReviewerGuidance } from './base/cli/roles/reviewer.js';
 import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
-import { getBuilderGuidance as getBaseBuilderGuidance } from './base/roles/builder.js';
-import { getReviewerGuidance as getBaseReviewerGuidance } from './base/roles/reviewer.js';
-import { HANDOFF_DIR, generateFilename } from './base/shared/config.js';
+import { getWaitForTaskReminder } from './base/cli/wait-for-task/reminder.js';
 import { getBuilderGuidance as getTeamBuilderGuidance } from './teams/pair/prompts/builder.js';
 import { getReviewerGuidance as getTeamReviewerGuidance } from './teams/pair/prompts/reviewer.js';
 import { getRoleTemplate } from './templates';
+import { HANDOFF_DIR, generateFilename } from './utils/config.js';
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed
@@ -206,7 +207,7 @@ ${handoffCmd}
 ${waitCmd}
 \`\`\`
 
-**⚠️ Stay available for messages:** If \`wait-for-task\` stops, restart it immediately to remain reachable`;
+${getWaitForTaskReminder()}`;
 }
 
 /**

@@ -34,13 +34,13 @@ export {
   getBuilderGuidance as getBaseBuilderGuidance,
   getReviewerGuidance as getBaseReviewerGuidance,
   getRoleSpecificGuidance,
-} from './base/roles/index.js';
+} from './base/cli/roles/index.js';
 
 // Shared utilities
 export {
   HANDOFF_DIR,
   getHandoffFileSnippet,
-} from './base/shared/index.js';
+} from './utils/index.js';
 
 // Guidelines and policies
 export { getReviewGuidelines } from './teams/pair/roles';

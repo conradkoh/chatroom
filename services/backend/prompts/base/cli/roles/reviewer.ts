@@ -2,9 +2,9 @@
  * Reviewer role-specific guidance for agent initialization prompts.
  */
 
-import { handoffCommand } from '../cli/handoff/command.js';
-import { taskStartedCommand } from '../cli/task-started/command.js';
-import { HANDOFF_DIR, generateFilename } from '../shared/config.js';
+import { HANDOFF_DIR, generateFilename } from '../../../utils/config.js';
+import { handoffCommand } from '../handoff/command.js';
+import { taskStartedCommand } from '../task-started/command.js';
 
 /**
  * Generate reviewer-specific guidance

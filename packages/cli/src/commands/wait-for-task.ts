@@ -2,6 +2,10 @@
  * Wait for tasks in a chatroom
  */
 
+import {
+  getWaitForTaskGuidance,
+  getWaitForTaskReminder,
+} from '@workspace/backend/prompts/base/cli/index.js';
 import { taskStartedCommand } from '@workspace/backend/prompts/base/cli/task-started/command.js';
 import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
 
@@ -141,6 +145,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       console.log('');
       console.log('═'.repeat(50));
       console.log('📋 AGENT INITIALIZATION PROMPT');
+      console.log('═'.repeat(50));
+      console.log('');
+      console.log(getWaitForTaskGuidance());
+      console.log('');
       console.log('═'.repeat(50));
       console.log('');
       console.log(initPromptResult.prompt);
@@ -316,6 +324,11 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     // Print human-readable sections
     console.log(`\n${taskDeliveryPrompt.humanReadable}`);
+
+    // Add reminder about wait-for-task
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(getWaitForTaskReminder());
+    console.log(`${'='.repeat(60)}`);
 
     process.exit(0);
   };

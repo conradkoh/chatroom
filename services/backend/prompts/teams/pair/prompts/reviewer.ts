@@ -2,7 +2,7 @@
  * Reviewer role-specific guidance for pair team
  */
 
-import { getReviewerGuidance as getBaseReviewerGuidance } from '../../../base/roles/reviewer.js';
+import { getReviewerGuidance as getBaseReviewerGuidance } from '../../../base/cli/roles/reviewer.js';
 
 export function getReviewerGuidance(ctx: {
   role: string;

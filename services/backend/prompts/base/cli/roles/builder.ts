@@ -2,7 +2,7 @@
  * Builder role-specific guidance for agent initialization prompts.
  */
 
-import { taskStartedCommand } from '../cli/task-started/command.js';
+import { taskStartedCommand } from '../task-started/command.js';
 
 /**
  * Generate builder-specific guidance
