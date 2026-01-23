@@ -122,9 +122,17 @@ function buildNextSteps(ctx: TaskDeliveryContext): string {
       `Please infer the task from the message addressed to you and acknowledge it using the command:`
     );
     lines.push(``);
-    lines.push(
-      `> chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<question|new_feature|follow_up>`
-    );
+
+    // Include message ID if available
+    if (ctx.message) {
+      lines.push(
+        `> chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<question|new_feature|follow_up> --message-id=${ctx.message._id}`
+      );
+    } else {
+      lines.push(
+        `> chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<question|new_feature|follow_up>`
+      );
+    }
     lines.push(``);
     lines.push(
       `After that, follow the user's instructions. Remember that the user is in the chatroom, and may not be able to see what you are saying if you don't send it to him.`

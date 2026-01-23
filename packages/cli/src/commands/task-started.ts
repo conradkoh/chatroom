@@ -11,7 +11,6 @@ interface TaskStartedOptions {
   role: string;
   classification: 'question' | 'new_feature' | 'follow_up';
   messageId?: string;
-  taskId?: string;
   // Feature metadata (required for new_feature classification)
   title?: string;
   description?: string;
@@ -20,7 +19,7 @@ interface TaskStartedOptions {
 
 export async function taskStarted(chatroomId: string, options: TaskStartedOptions): Promise<void> {
   const client = await getConvexClient();
-  const { role, classification, title, description, techSpecs, messageId, taskId } = options;
+  const { role, classification, title, description, techSpecs, messageId } = options;
 
   // Get session ID for authentication
   const sessionId = getSessionId();
@@ -103,42 +102,8 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       console.error(`   Verify the message ID is correct and you have access to this chatroom`);
       process.exit(1);
     }
-  } else if (taskId) {
-    // Find message associated with task ID
-    const tasks = await client.query(api.tasks.getTasksByIds, {
-      sessionId,
-      taskIds: [taskId as Id<'chatroom_tasks'>],
-    });
-
-    if (!tasks || tasks.length === 0) {
-      console.error(`❌ Task with ID "${taskId}" not found`);
-      console.error(`   Verify the task ID is correct and you have access to this chatroom`);
-      process.exit(1);
-    }
-
-    const task = tasks[0];
-    if (!task.sourceMessageId) {
-      console.error(`❌ Task "${taskId}" has no associated user message`);
-      console.error(`   This task may have been created from the backlog`);
-      process.exit(1);
-    }
-
-    // Get the specific message
-    const messages = (await client.query(api.messages.list, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      limit: 1000,
-    })) as Message[];
-
-    targetMessage = messages.find((msg) => msg._id === task.sourceMessageId) || null;
-
-    if (!targetMessage) {
-      console.error(`❌ Associated message not found for task "${taskId}"`);
-      console.error(`   Message ID: ${task.sourceMessageId}`);
-      process.exit(1);
-    }
   } else {
-    // Original behavior: find the most recent unclassified user message
+    // Find the most recent unclassified user message (original behavior)
     const messages = (await client.query(api.messages.list, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -161,9 +126,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     if (!targetMessage) {
       console.error(`❌ No unclassified user message found to acknowledge`);
       console.error(`   All user messages may already be classified.`);
-      console.error(`   Use --message-id or --task-id to classify a specific message.`);
-      console.error(`   Or use --message-id=<msgId> for a specific message.`);
-      console.error(`   Or use --task-id=<taskId> for a task's associated message.`);
+      console.error(`   Use --message-id=<msgId> to classify a specific message.`);
       process.exit(1);
     }
   }

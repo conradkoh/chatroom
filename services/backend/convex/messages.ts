@@ -534,12 +534,13 @@ export const taskStarted = mutation({
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    messageId: v.id('chatroom_messages'),
     classification: v.union(
       v.literal('question'),
       v.literal('new_feature'),
       v.literal('follow_up')
     ),
+    // Accept optional messageId - if provided, use it directly
+    messageId: v.optional(v.id('chatroom_messages')),
     // Feature metadata (optional for backward compatibility, required by CLI for new_feature)
     featureTitle: v.optional(v.string()),
     featureDescription: v.optional(v.string()),
@@ -548,6 +549,11 @@ export const taskStarted = mutation({
   handler: async (ctx, args) => {
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Validate that messageId is provided
+    if (!args.messageId) {
+      throw new Error('messageId is required for task-started');
+    }
 
     // Get the message to update
     const message = await ctx.db.get('chatroom_messages', args.messageId);
