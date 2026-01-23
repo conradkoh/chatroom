@@ -1,10 +1,10 @@
 'use client';
 
+import { generateAgentPrompt } from '@workspace/backend/prompts/base/webapp';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 import React, { useCallback, memo, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
-import { generateAgentPrompt } from '../prompts/generator';
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

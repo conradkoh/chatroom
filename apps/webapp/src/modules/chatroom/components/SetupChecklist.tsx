@@ -1,10 +1,10 @@
 'use client';
 
+import { generateAgentPrompt, isProductionConvexUrl } from '@workspace/backend/prompts/base/webapp';
 import { Rocket, Check, Lightbulb, ArrowRight, Terminal } from 'lucide-react';
 import React, { useMemo, useCallback, memo } from 'react';
 
 import { CopyButton } from './CopyButton';
-import { generateAgentPrompt, isProductionConvexUrl } from '../prompts/generator';
 
 interface Participant {
   role: string;

@@ -12,6 +12,7 @@ import {
 } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { getCompletionStatus } from './lib/taskWorkflows';
+import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 
 // Types for task delivery prompt response
 interface TaskDeliveryPromptResponse {
@@ -1606,6 +1607,42 @@ export const getTaskDeliveryPrompt = query({
     return {
       humanReadable: `${rolePromptText}\n\n${reminderMessage}`,
       json: deliveryContext,
+    };
+  },
+});
+
+/**
+ * Get a simplified display prompt for webapp UI.
+ * This is used by the webapp dashboard to show agent setup instructions.
+ * Does NOT require authentication - public query for UI display.
+ */
+export const getWebappDisplayPrompt = query({
+  args: {
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    convexUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Fetch chatroom (no auth required for display purposes)
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) {
+      throw new Error('Chatroom not found');
+    }
+
+    // Generate the webapp display prompt
+    const prompt = generateWebappPrompt({
+      chatroomId: args.chatroomId,
+      role: args.role,
+      teamName: chatroom.teamName || 'Team',
+      teamRoles: chatroom.teamRoles || [],
+      teamEntryPoint: chatroom.teamEntryPoint,
+      convexUrl: args.convexUrl,
+    });
+
+    return {
+      prompt,
+      teamName: chatroom.teamName || 'Team',
+      teamRoles: chatroom.teamRoles || [],
     };
   },
 });
