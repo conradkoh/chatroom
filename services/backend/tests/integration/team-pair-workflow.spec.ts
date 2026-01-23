@@ -159,7 +159,7 @@ describe('Pair Team Workflow', () => {
 
         **Always run after handoff:**
         \`\`\`
-        chatroom wait-for-task 10002;chatroom_rooms --role=builder --session=1
+        chatroom wait-for-task 10002;chatroom_rooms --role=builder
         \`\`\`
 
         **⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
@@ -299,7 +299,7 @@ describe('Pair Team Workflow', () => {
 
         **Always run after handoff:**
         \`\`\`
-        chatroom wait-for-task 10002;chatroom_rooms --role=reviewer --session=1
+        chatroom wait-for-task 10002;chatroom_rooms --role=reviewer
         \`\`\`
 
         **⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"
@@ -462,7 +462,7 @@ describe('Pair Team Workflow', () => {
 
         **Always run after handoff:**
         \`\`\`
-        chatroom wait-for-task 10023;chatroom_rooms --role=builder --session=1
+        chatroom wait-for-task 10023;chatroom_rooms --role=builder
         \`\`\`
 
         **⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**"

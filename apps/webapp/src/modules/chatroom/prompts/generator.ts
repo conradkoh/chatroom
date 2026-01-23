@@ -117,5 +117,5 @@ export function generateAgentPrompt(context: PromptContext): string {
 export function generateShortPrompt(context: PromptContext): string {
   const { chatroomId, role, convexUrl } = context;
   const prefix = getCliEnvPrefix(convexUrl);
-  return `${prefix}chatroom wait-for-task ${chatroomId} --role=${role} --session=1`;
+  return `${prefix}chatroom wait-for-task ${chatroomId} --role=${role}`;
 }

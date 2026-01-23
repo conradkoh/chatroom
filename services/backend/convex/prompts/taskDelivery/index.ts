@@ -55,7 +55,7 @@ function buildCommandReference(ctx: TaskDeliveryContext): string {
   lines.push(``);
   lines.push(`**Wait for tasks:**`);
   lines.push(`\`\`\`bash`);
-  lines.push(`chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1`);
+  lines.push(`chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}`);
   lines.push(`\`\`\``);
 
   return lines.join('\n');
@@ -134,7 +134,7 @@ function buildNextSteps(ctx: TaskDeliveryContext): string {
 
   const defaultTarget = ctx.rolePrompt.availableHandoffRoles[0] || 'user';
   const handoffCommand = `chatroom handoff ${ctx.chatroomId} --role=${ctx.role} --message-file="${HANDOFF_DIR}/message.md" --next-role=${defaultTarget}`;
-  const waitCommand = `chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1`;
+  const waitCommand = `chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}`;
 
   lines.push(`## Next Steps`);
   lines.push(`1. Hand off to the next individual to start work by running \`${handoffCommand}\``);

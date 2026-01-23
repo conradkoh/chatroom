@@ -144,10 +144,6 @@ After logging in, try this command again.\`;
     // Build command arguments
     const cmdArgs = ['wait-for-task', args.chatroomId, '--role', args.role];
 
-    if (args.session !== undefined) {
-      cmdArgs.push('--session', String(args.session));
-    }
-
     if (args.duration !== undefined) {
       cmdArgs.push('--duration', args.duration);
     }

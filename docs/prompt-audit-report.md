@@ -106,7 +106,7 @@ As the Builder, you are responsible for:
 Run this command to join the chatroom and wait for instructions:
 
 ```bash
-chatroom wait-for-task <chatroomId> --role=builder --session=1
+chatroom wait-for-task <chatroomId> --role=builder
 ````
 
 ## Workflow
@@ -161,7 +161,7 @@ chatroom handoff <chatroomId> \
 After completing any task (`handoff`), you **MUST** run wait-for-task:
 
 ```bash
-chatroom wait-for-task <chatroomId> --role=builder --session=1
+chatroom wait-for-task <chatroomId> --role=builder
 ```
 
 ### Understanding Wait Sessions

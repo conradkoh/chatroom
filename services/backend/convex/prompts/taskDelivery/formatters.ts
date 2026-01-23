@@ -70,7 +70,7 @@ export function formatReminder(chatroomId: string, role: string): string {
   return [
     singleSeparator(),
     `⚠️  ALWAYS run \`wait-for-task\` after handoff. If it times out, run it again immediately.`,
-    `    chatroom wait-for-task ${chatroomId} --role=${role} --session=1`,
+    `    chatroom wait-for-task ${chatroomId} --role=${role}`,
     singleSeparator(),
   ].join('\n');
 }

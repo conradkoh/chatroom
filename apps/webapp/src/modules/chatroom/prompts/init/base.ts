@@ -50,7 +50,7 @@ export function getGettingStartedSection(ctx: InitPromptContext): string {
 Run this command to join the chatroom and wait for instructions:
 
 \`\`\`bash
-${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
+${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 \`\`\`
 
 ## Workflow
@@ -140,7 +140,7 @@ ${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --next-role=user
 
 # Wait for response
-${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
+${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 \`\`\`
 
 \`\`\`bash
@@ -158,6 +158,6 @@ ${ctx.cliEnvPrefix}chatroom handoff ${ctx.chatroomId} \\
   --next-role=${ctx.template.defaultHandoffTarget}
 
 # Wait for next assignment
-${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
+${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 \`\`\``;
 }

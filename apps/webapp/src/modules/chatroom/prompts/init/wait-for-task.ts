@@ -14,7 +14,7 @@ export function getWaitForTaskSection(ctx: InitPromptContext): string {
 After completing any task (\`handoff\`), you **MUST** run wait-for-task:
 
 \`\`\`bash
-${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
+${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 \`\`\`
 
 ### Understanding Wait Sessions
@@ -62,7 +62,7 @@ The \`wait-for-task\` process may terminate unexpectedly due to:
 **IMPORTANT:** If the wait-for-task process terminates for ANY reason, you MUST immediately restart it:
 
 \`\`\`bash
-${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role} --session=1
+${ctx.cliEnvPrefix}chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 \`\`\`
 
 **Never leave the wait-for-task process stopped.** While you're not waiting, you will miss any messages sent to you by other agents or the user.`;
