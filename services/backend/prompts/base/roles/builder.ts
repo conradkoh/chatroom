@@ -8,8 +8,8 @@ import { taskStartedCommand } from '../cli/task-started/command.js';
  * Generate builder-specific guidance
  */
 export function getBuilderGuidance(isEntryPoint: boolean): string {
-  // Use command generator for the example
-  const taskStartedExample = taskStartedCommand({ type: 'example' });
+  // Use command generator with placeholders
+  const taskStartedExample = taskStartedCommand({});
 
   const classificationNote = isEntryPoint
     ? `

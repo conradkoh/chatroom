@@ -18,7 +18,6 @@ export function getTaskStartedExamples(ctx: {
 
   // Commands with actual chatroomId/role but placeholder taskId
   const questionCmd = taskStartedCommand({
-    type: 'command',
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -27,7 +26,6 @@ export function getTaskStartedExamples(ctx: {
   });
 
   const followUpCmd = taskStartedCommand({
-    type: 'command',
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -36,7 +34,6 @@ export function getTaskStartedExamples(ctx: {
   });
 
   const newFeatureInlineCmd = taskStartedCommand({
-    type: 'command',
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -48,7 +45,6 @@ export function getTaskStartedExamples(ctx: {
   });
 
   const newFeatureFileCmd = taskStartedCommand({
-    type: 'command',
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -58,7 +54,6 @@ export function getTaskStartedExamples(ctx: {
   });
 
   const errorExampleCmd = taskStartedCommand({
-    type: 'command',
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',

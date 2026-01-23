@@ -13,9 +13,8 @@ export function getTaskStartedPrompt(ctx: {
   role: string;
   cliEnvPrefix?: string;
 }): string {
-  // Use command generator for the example
+  // Use command generator with placeholders
   const exampleCmd = taskStartedCommand({
-    type: 'command',
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',

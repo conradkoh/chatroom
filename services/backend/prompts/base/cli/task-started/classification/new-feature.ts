@@ -17,7 +17,6 @@ export function getNewFeatureClassificationGuidance(ctx: {
 
   // Inline metadata example
   const inlineCmd = taskStartedCommand({
-    type: 'command',
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -30,7 +29,6 @@ export function getNewFeatureClassificationGuidance(ctx: {
 
   // File-based metadata example (base command without file args)
   const fileBasedCmd = taskStartedCommand({
-    type: 'command',
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',

@@ -157,7 +157,6 @@ function getHandoffSection(ctx: RolePromptContext): string {
 
 function getCommandsSection(ctx: RolePromptContext): string {
   const handoffCmd = handoffCommand({
-    type: 'command',
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     nextRole: '<target>',
@@ -165,7 +164,6 @@ function getCommandsSection(ctx: RolePromptContext): string {
   });
 
   const waitCmd = waitForTaskCommand({
-    type: 'command',
     chatroomId: ctx.chatroomId,
     role: ctx.role,
   });
@@ -203,7 +201,6 @@ export function generateTaskStartedReminder(
   // Builder-specific reminders
   if (normalizedRole === 'builder') {
     const handoffCmd = handoffCommand({
-      type: 'command',
       chatroomId,
       role: 'builder',
       nextRole: 'reviewer',
@@ -292,7 +289,6 @@ export function generateInitPrompt(input: InitPromptInput): string {
     getBaseRoleGuidance(role, otherRoles, isEntryPoint);
 
   const waitCmd = waitForTaskCommand({
-    type: 'command',
     chatroomId,
     role,
   });

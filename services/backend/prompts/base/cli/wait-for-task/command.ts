@@ -8,30 +8,25 @@ import type { WaitForTaskParams } from '../../../types/cli.js';
 
 /**
  * Generate a wait-for-task command string.
+ * Accepts optional values and uses placeholders for any missing values.
  *
  * @example
- * // Example with placeholders
- * waitForTaskCommand({ type: 'example' })
+ * // Command with placeholders
+ * waitForTaskCommand({})
  * // → "chatroom wait-for-task <chatroom-id> --role=<role>"
  *
  * @example
  * // Command with real values
  * waitForTaskCommand({
- *   type: 'command',
  *   chatroomId: 'abc123',
  *   role: 'builder'
  * })
  * // → "chatroom wait-for-task abc123 --role=builder"
  */
-export function waitForTaskCommand(params: WaitForTaskParams): string {
+export function waitForTaskCommand(params: WaitForTaskParams = {}): string {
   const prefix = params.cliEnvPrefix || '';
-
-  if (params.type === 'example') {
-    return `${prefix}chatroom wait-for-task <chatroom-id> --role=<role>`;
-  }
-
-  // type === 'command'
-  const { chatroomId, role } = params;
+  const chatroomId = params.chatroomId || '<chatroom-id>';
+  const role = params.role || '<role>';
 
   return `${prefix}chatroom wait-for-task ${chatroomId} --role=${role}`;
 }

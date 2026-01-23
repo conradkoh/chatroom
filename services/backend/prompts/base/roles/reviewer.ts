@@ -12,16 +12,12 @@ import { getHandoffFileSnippet } from '../shared/config.js';
 export function getReviewerGuidance(otherRoles: string[]): string {
   const hasBuilder = otherRoles.some((r) => r.toLowerCase() === 'builder');
 
-  // Use command generators for examples (with placeholder chatroom-id)
-  const taskStartedExample = taskStartedCommand({ type: 'example' });
+  // Use command generators with placeholders
+  const taskStartedExample = taskStartedCommand({});
 
-  const feedbackHandoffCmd = handoffCommand({
-    type: 'example',
-  }).replace('--next-role=<target>', '--next-role=builder');
+  const feedbackHandoffCmd = handoffCommand({ nextRole: 'builder' });
 
-  const approvalHandoffCmd = handoffCommand({
-    type: 'example',
-  }).replace('--next-role=<target>', '--next-role=user');
+  const approvalHandoffCmd = handoffCommand({ nextRole: 'user' });
 
   return `
 ## Reviewer Workflow
