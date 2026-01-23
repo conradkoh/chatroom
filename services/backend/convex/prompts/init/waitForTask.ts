@@ -59,11 +59,11 @@ The \`wait-for-task\` process may terminate unexpectedly due to:
 - **External signals** - (e.g., timeout, container shutdown, manual kill)
 - **Task cancellation** - The user cancelled the task
 
-**IMPORTANT:** If the wait-for-task process terminates for ANY reason, you MUST immediately restart it:
+**IMPORTANT:** If the \`wait-for-task\` process terminates for ANY reason, use \`wait-for-task\` immediately to stay connected and receive all messages from users and other agents:
 
 \`\`\`bash
 chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 \`\`\`
 
-**Never leave the wait-for-task process stopped.** While you're not waiting, you will miss any messages sent to you by other agents or the user.`;
+**Message availability is critical:** The chatroom is the only way users can reach you - use \`wait-for-task\` to remain available and avoid blocking progress.`;
 }

@@ -100,22 +100,22 @@ ${ctx.handoffTargets.map((r) => `- \`${r}\`${r === 'user' ? ' - Returns control 
  */
 export function getImportantNotesSection(): string {
   return `## Important Notes
-- **Always hand off:** Every task must end with a handoff. To ask questions, hand off to user with your question.
-- **Be thorough:** Include detailed summaries in your handoff messages so the next agent has full context
-- **Format in Markdown:** Your handoff message content should be formatted in markdown for readability
-- **Stay focused:** Complete your assigned task before handing off
+- **Transfer work via \`handoff\`:** Each task needs clear completion so the next agent can continue the work. To ask questions, use \`handoff\` to transfer to user.
+- **Be thorough:** Include detailed summaries in your \`handoff\` messages so the next agent has full context
+- **Use markdown formatting in your \`handoff\` message:** Clear formatting helps the next agent quickly understand your work and decisions
+- **Focus on your assigned scope:** Complete your specific task before using \`handoff\` to prevent scope creep and confusion
 - **Handle interrupts:** If you receive an interrupt message, stop work and exit gracefully
-- **Restart immediately after unexpected termination:** If your \`wait-for-task\` process is killed (timeout, or any other signal), immediately restart it. You will miss messages while not waiting.
+- **Maintain message availability:** Use \`wait-for-task\` to stay connected to the chatroom, otherwise users won't be able to reach you with messages
 
 ## Context Window
 
 When you receive a message, the JSON output includes a \`context\` section with:
-- **originMessage**: The original user message that started this task chain (the latest non-follow-up message)
+- **originMessage**: The original user message that started this task chain (the latest non-follow_up message)
 - **allMessages**: All messages from the origin message to now, including handoff messages
 
 **Important:**
 - You will see handoff messages between ALL agents, not just those targeted at you
-- **Ignore handoff messages that are not targeted at your role** - they are included for context only
+- Ignore handoff messages that are not targeted at your role - they are included for context only
 - Focus only on messages targeted at you or broadcast messages
 - Use the full context to understand the task history and decisions made`;
 }

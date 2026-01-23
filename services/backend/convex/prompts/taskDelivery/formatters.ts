@@ -69,7 +69,7 @@ export function composeSections(sections: PromptSection[], ctx: TaskDeliveryCont
 export function formatReminder(chatroomId: string, role: string): string {
   return [
     singleSeparator(),
-    `⚠️  ALWAYS run \`wait-for-task\` after handoff. If it times out, run it again immediately.`,
+    `⚠️  Stay available after \`handoff\`: Use \`wait-for-task\` to continue receiving the next assignment. If it times out, run it again immediately.`,
     `    chatroom wait-for-task ${chatroomId} --role=${role}`,
     singleSeparator(),
   ].join('\n');

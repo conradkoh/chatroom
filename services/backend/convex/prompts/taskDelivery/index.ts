@@ -139,7 +139,7 @@ function buildNextSteps(ctx: TaskDeliveryContext): string {
   lines.push(`## Next Steps`);
   lines.push(`1. Hand off to the next individual to start work by running \`${handoffCommand}\``);
   lines.push(
-    `2. Run \`${waitCommand}\` to wait for the next message. Remember: the user can only speak via the chatroom and receive info from there, so you need to always be waiting for tasks from the chatroom and sending your responses there.`
+    `2. Run \`${waitCommand}\` to wait for the next message. Use \`wait-for-task\` to stay available: The chatroom is where users and other agents can reach you with messages and responses`
   );
 
   return lines.join('\n');

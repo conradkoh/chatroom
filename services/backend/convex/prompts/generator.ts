@@ -113,7 +113,7 @@ function getReviewerWorkflow(ctx: RolePromptContext): string {
   // Core workflow
   sections.push(`### Workflow
 
-**Important: Do NOT run task-started** - the task is already classified by the builder.
+**Important:** Task already acknowledged - The builder already ran \`task-started\` to classify this task, so you can focus on the work itself.
 
 **Phase 1: Understand the Request**
 First, read the ORIGINAL user request below to understand what should have been built.
@@ -246,12 +246,12 @@ chatroom handoff ${ctx.chatroomId} \\
   --next-role=<target>
 \`\`\`
 
-**Always run after handoff:**
+**Continue receiving messages after \`handoff\`:**
 \`\`\`
 chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 \`\`\`
 
-**⚠️ If wait-for-task is killed unexpectedly (timeout, etc.), immediately restart it!**`;
+**⚠️ Stay available for messages:** If \`wait-for-task\` stops, restart it immediately to remain reachable`;
 }
 
 /**

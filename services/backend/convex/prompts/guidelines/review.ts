@@ -31,9 +31,7 @@ If code is hard to extend, hard to understand, or creates mess - it should be re
    Compare the work against the ORIGINAL user request, not just the handoff summary.
 
 2. **Code Quality Over Speed**
-   No shortcuts, hacks, or workarounds that create technical debt.
-   Proper typing, proper patterns, proper error handling.
-   **Reject messy code. Propose refactors. Quality is non-negotiable.**
+   Maintain code quality: Use \`handoff\` to reject messy code that creates technical debt and slows future development.
 
 3. **Codebase Consistency**
    New code should follow existing patterns and conventions.
@@ -45,8 +43,7 @@ If code is hard to extend, hard to understand, or creates mess - it should be re
    If something seems off, investigate. Trust but verify.
 
 5. **Be Direct and Specific**
-   Don't be vague. Don't be polite at the expense of clarity.
-   If something is wrong, say exactly what and why.
+   Be specific and clear in your \`handoff\` message: Vague feedback leads to confusion and rework. If something is wrong, say exactly what and why.
    If a refactor is needed, propose the exact approach.
 `;
 
@@ -108,7 +105,7 @@ git show HEAD
 
 ### Phase 4: Decision
 
-**Your feedback must be SPECIFIC and ACTIONABLE. Never vague or general.**
+**Your feedback must be SPECIFIC and ACTIONABLE. Include clear guidance in your \`handoff\` message to help the builder make the right changes.**
 
 **If changes are needed:**
 - State EXACTLY what is wrong (file, line, code snippet)
@@ -124,8 +121,8 @@ Example of GOOD feedback:
 > This hides type errors. Change to: \`task: Task\` using the imported Task type."
 
 **If the code is a mess - REJECT IT:**
-- Don't approve messy code that "works"
-- Propose the refactor approach explicitly
+- Use \`handoff\` to reject messy code that "works"
+- Propose the refactor approach explicitly in your \`handoff\` message
 - Large refactors are acceptable if they improve maintainability
 - The goal is code that can be built upon, not just code that runs
 
@@ -179,7 +176,7 @@ Different AI tools use different guideline file locations. Check any that exist:
 export const REJECTION_GUIDANCE = `
 ## When to Reject or Request Refactors
 
-**Don't be afraid to reject code.** The goal is a maintainable codebase.
+**Use \`handoff\` to maintain code quality:** The goal is a maintainable codebase.
 
 ### Reject When:
 
