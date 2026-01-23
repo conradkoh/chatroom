@@ -254,36 +254,35 @@ export function generateInitPrompt(input: InitPromptInput): string {
   const entryPoint = teamEntryPoint || teamRoles[0] || 'builder';
   const isEntryPoint = role.toLowerCase() === entryPoint.toLowerCase();
 
-  // Build the init prompt context
-  const ctx: InitPromptContext = {
+  const roleCtx: RolePromptContext = {
     chatroomId,
     role,
     teamName,
     teamRoles,
-    template,
-    handoffTargets,
-    isEntryPoint,
+    teamEntryPoint,
+    currentClassification: null,
+    availableHandoffRoles: handoffTargets,
+    canHandoffToUser: true,
+    restrictionReason: null,
   };
 
-  // Get role-specific guidance
-  const roleSpecificGuidance = getRoleSpecificGuidance(role, otherRoles, isEntryPoint);
+  const guidance =
+    getTeamRoleGuidance(role, teamRoles, isEntryPoint) ??
+    getBaseRoleGuidance(role, otherRoles, isEntryPoint);
 
-  // Compose the prompt from sections
-  // Only include task-started section for entry-point roles
-  const sections = [
-    getHeaderSection(ctx),
-    getResponsibilitiesSection(ctx),
-    getGettingStartedSection(ctx),
-    isEntryPoint ? getTaskStartedPrompt(ctx) : '',
-    getCommunicationSection(ctx),
-    getHandoffOptionsSection(ctx),
-    roleSpecificGuidance,
-    getImportantNotesSection(),
-    getWaitForTaskSection(ctx),
-    getExampleSection(ctx),
-  ];
+  const sections: string[] = [];
+  sections.push(`# ${teamName} Team`);
+  sections.push(`## Your Role: ${template.title.toUpperCase()}`);
+  sections.push(template.description);
+  if (isEntryPoint) {
+    sections.push(getTaskStartedPrompt({ chatroomId, role }));
+  }
+  sections.push(guidance);
+  sections.push(getCommandsSection(roleCtx));
+  sections.push(
+    `### Next\n\nRun:\n\n\`\`\`bash\nchatroom wait-for-task ${chatroomId} --role=${role}\n\`\`\``
+  );
 
-  // Filter out empty sections and join with double newlines
   return sections
     .filter((s) => s.trim())
     .join('\n\n')
