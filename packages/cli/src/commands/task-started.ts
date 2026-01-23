@@ -75,7 +75,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       console.error('');
       console.error('   Example:');
       console.error(
-        `   chatroom task-started ${chatroomId} --role=${role} --classification=new_feature \\`
+        `   chatroom task-started ${chatroomId} --role=${role} --origin-message-classification=new_feature \\`
       );
       console.error(`     --title="Feature title" \\`);
       console.error(`     --description="What this feature does" \\`);
@@ -94,7 +94,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   if (!taskId) {
     console.error(`❌ --task-id is required for task-started`);
     console.error(
-      `   Usage: chatroom task-started <chatroomId> --role=<role> --classification=<type> --task-id=<taskId>`
+      `   Usage: chatroom task-started <chatroomId> --role=<role> --origin-message-classification=<type> --task-id=<taskId>`
     );
     process.exit(1);
   }

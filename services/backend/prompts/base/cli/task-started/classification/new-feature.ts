@@ -35,7 +35,7 @@ For \`new_feature\` classification, you MUST provide:
 
 **Option 1: Inline Metadata (short descriptions)**
 \`\`\`bash
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
+${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=new_feature \\
   --message-id=<messageId> \\
   --title="Add user authentication" \\
   --description="Implement JWT login/logout flow" \\
@@ -53,7 +53,7 @@ echo "Implement JWT-based authentication with login/logout flow" > "$DESC_FILE"
 echo "Use bcrypt for password hashing. JWT tokens expire after 24h" > "$SPECS_FILE"
 
 # Run command with files
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
+${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --origin-message-classification=new_feature \\
   --message-id=<messageId> \\
   --title="Add user authentication" \\
   --description-file="$DESC_FILE" \\

@@ -52,34 +52,6 @@ export function parseDuration(duration: string): number | null {
   }
 }
 
-/**
- * Format milliseconds into a human-readable duration string.
- */
-function formatDuration(ms: number): string {
-  if (ms >= 60 * 60 * 1000) {
-    const hours = Math.round((ms / (60 * 60 * 1000)) * 10) / 10;
-    return `${hours}h`;
-  }
-  if (ms >= 60 * 1000) {
-    const minutes = Math.round((ms / (60 * 1000)) * 10) / 10;
-    return `${minutes}m`;
-  }
-  const seconds = Math.round((ms / 1000) * 10) / 10;
-  return `${seconds}s`;
-}
-
-/**
- * Print the wait-for-task reminder - short but forceful.
- */
-function printWaitReminder(chatroomId: string, role: string): void {
-  console.log(`${'─'.repeat(50)}`);
-  console.log(
-    `⚠️  ALWAYS run \`wait-for-task\` after handoff. If it times out, run it again immediately.`
-  );
-  console.log(`    chatroom wait-for-task ${chatroomId} --role=${role}`);
-  console.log(`${'─'.repeat(50)}`);
-}
-
 export async function waitForTask(chatroomId: string, options: WaitForTaskOptions): Promise<void> {
   const client = await getConvexClient();
   const { role, timeout, silent } = options;
@@ -176,12 +148,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   } catch {
     // Fallback - init prompt not critical, continue without it
   }
-
-  const durationDisplay = formatDuration(effectiveTimeout);
-  console.log(`⏳ Waiting for tasks (duration: ${durationDisplay})...`);
-  console.log('');
-  printWaitReminder(chatroomId, role);
-  console.log('');
 
   // Track if we've already processed a task (prevent duplicate processing)
   let taskProcessed = false;
@@ -286,7 +252,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (message) {
       console.log(`To acknowledge and classify this message, run:`);
       console.log(
-        `chatroom task-started ${chatroomId} --role=${role} --classification=<type> --message-id=${message._id}`
+        `chatroom task-started ${chatroomId} --role=${role} --origin-message-classification=<type> --message-id=${message._id}`
       );
     } else {
       console.log(`No message found to classify. Use --message-id to specify a message.`);
