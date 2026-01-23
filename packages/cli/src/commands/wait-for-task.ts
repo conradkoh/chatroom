@@ -335,7 +335,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // SIGINT: Ctrl+C or interrupt signal
   process.on('SIGINT', () => handleSignal('SIGINT'));
 
-  // SIGTERM: Graceful termination (e.g., container shutdown, AI agent timeout)
+  // SIGTERM: Graceful termination (e.g., container shutdown, timeout)
   process.on('SIGTERM', () => handleSignal('SIGTERM'));
 
   // SIGHUP: Hang up signal (terminal closed)

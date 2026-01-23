@@ -251,7 +251,7 @@ chatroom handoff ${ctx.chatroomId} \\
 chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
 \`\`\`
 
-**⚠️ If wait-for-task is killed unexpectedly (SIGTERM, timeout, etc.), immediately restart it!**`;
+**⚠️ If wait-for-task is killed unexpectedly (timeout, etc.), immediately restart it!**`;
 }
 
 /**

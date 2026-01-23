@@ -56,7 +56,7 @@ When you see "COMPLETED WAIT SESSION":
 ### Handling Unexpected Terminations
 
 The \`wait-for-task\` process may terminate unexpectedly due to:
-- **SIGTERM/SIGINT/SIGHUP** - External signals (e.g., timeout, container shutdown, manual kill)
+- **External signals** - (e.g., timeout, container shutdown, manual kill)
 - **Task cancellation** - The user cancelled the task
 
 **IMPORTANT:** If the wait-for-task process terminates for ANY reason, you MUST immediately restart it:
