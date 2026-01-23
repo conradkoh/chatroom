@@ -6,27 +6,60 @@
  * to combat context rot in long conversations.
  */
 
-import { getTaskStartedPrompt } from './cli-commands/index.js';
-import { HANDOFF_DIR } from './config';
-import {
-  type InitPromptContext,
-  getHeaderSection,
-  getResponsibilitiesSection,
-  getGettingStartedSection,
-  getCommunicationSection,
-  getHandoffOptionsSection,
-  getImportantNotesSection,
-  getExampleSection,
-  getRoleSpecificGuidance,
-  getWaitForTaskSection,
-} from './init';
+import { getTaskStartedPrompt } from './base/cli/index.js';
+import { getBuilderGuidance as getBaseBuilderGuidance } from './base/roles/builder.js';
+import { getReviewerGuidance as getBaseReviewerGuidance } from './base/roles/reviewer.js';
+import { HANDOFF_DIR } from './base/shared/config.js';
+import { getBuilderGuidance as getTeamBuilderGuidance } from './teams/pair/prompts/builder.js';
+import { getReviewerGuidance as getTeamReviewerGuidance } from './teams/pair/prompts/reviewer.js';
 import { getRoleTemplate } from './templates';
+
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed
 export { getReviewGuidelines } from './guidelines';
 export { getSecurityPolicy } from './policies/security';
 export { getDesignPolicy } from './policies/design';
 export { getPerformancePolicy } from './policies/performance';
+
+/**
+ * Get team-specific role guidance
+ */
+function getTeamRoleGuidance(
+  role: string,
+  teamRoles: string[],
+  isEntryPoint: boolean
+): string | null {
+  const normalizedRole = role.toLowerCase();
+
+  try {
+    if (normalizedRole === 'builder') {
+      return getTeamBuilderGuidance({ role, teamRoles, isEntryPoint });
+    }
+    if (normalizedRole === 'reviewer') {
+      return getTeamReviewerGuidance({ role, teamRoles, isEntryPoint });
+    }
+  } catch {
+    // Fall back to base guidance
+  }
+
+  return null;
+}
+
+/**
+ * Get base role guidance
+ */
+function getBaseRoleGuidance(role: string, otherRoles: string[], isEntryPoint: boolean): string {
+  const normalizedRole = role.toLowerCase();
+
+  if (normalizedRole === 'builder') {
+    return getBaseBuilderGuidance(isEntryPoint);
+  }
+  if (normalizedRole === 'reviewer') {
+    return getBaseReviewerGuidance(otherRoles);
+  }
+
+  return '';
+}
 
 export interface RolePromptContext {
   chatroomId: string;
@@ -63,9 +96,15 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   sections.push(`## Your Role: ${template.title.toUpperCase()}`);
   sections.push(template.description);
 
-  // Role-specific guidance (replaces hardcoded workflow system)
-  const otherRoles = ctx.teamRoles.filter((r) => r.toLowerCase() !== ctx.role.toLowerCase());
-  sections.push(getRoleSpecificGuidance(ctx.role, otherRoles, isEntryPoint));
+  // Role-specific guidance (team-aware)
+  const teamGuidance = getTeamRoleGuidance(ctx.role, ctx.teamRoles, isEntryPoint);
+  if (teamGuidance) {
+    sections.push(teamGuidance);
+  } else {
+    // Fall back to base guidance
+    const otherRoles = ctx.teamRoles.filter((r) => r.toLowerCase() !== ctx.role.toLowerCase());
+    sections.push(getBaseRoleGuidance(ctx.role, otherRoles, isEntryPoint));
+  }
 
   // Current task context
   if (ctx.currentClassification) {
