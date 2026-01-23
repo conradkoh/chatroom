@@ -2,7 +2,7 @@
  * New feature classification guidance for CLI task-started command.
  */
 
-import { getHandoffFileSnippet } from '../../../config';
+import { getHandoffFileSnippet } from '../../../shared/config.js';
 
 /**
  * Generate new feature classification guidance

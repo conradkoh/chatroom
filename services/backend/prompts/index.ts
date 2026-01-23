@@ -19,4 +19,31 @@ export {
   getTaskStartedExamples,
   getTaskStartedValidation,
   getClassificationGuidance,
-} from './cli-commands/index.js';
+} from './base/cli/index.js';
+
+// Team configurations
+export {
+  pairTeamConfig,
+  getPairWorkflow,
+  getBuilderGuidance as getTeamBuilderGuidance,
+  getReviewerGuidance as getTeamReviewerGuidance,
+} from './teams/pair/index.js';
+
+// Base prompts
+export {
+  getBuilderGuidance as getBaseBuilderGuidance,
+  getReviewerGuidance as getBaseReviewerGuidance,
+  getRoleSpecificGuidance,
+} from './base/roles/index.js';
+
+// Shared utilities
+export {
+  HANDOFF_DIR,
+  getHandoffFileSnippet,
+} from './base/shared/index.js';
+
+// Guidelines and policies
+export { getReviewGuidelines } from './guidelines';
+export { getSecurityPolicy } from './policies/security';
+export { getDesignPolicy } from './policies/design';
+export { getPerformancePolicy } from './policies/performance';

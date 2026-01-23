@@ -2,7 +2,7 @@
  * Reviewer role-specific guidance for agent initialization prompts.
  */
 
-import { getHandoffFileSnippet } from '../../../config';
+import { getHandoffFileSnippet } from '../shared/config.js';
 
 /**
  * Generate reviewer-specific guidance

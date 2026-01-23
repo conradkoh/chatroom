@@ -1,5 +1,5 @@
 /**
- * Follow-up classification guidance for CLI task-started command.
+ * Follow-up classification guidance for CLI task-started command
  */
 
 /**
@@ -47,6 +47,6 @@ export function getFollowUpClassificationGuidance(): string {
 - Acknowledge the user's feedback
 - Explain your approach to addressing their concerns
 - Test thoroughly to ensure you didn't break existing functionality
-- Document any side effects or considerations
+- Documentations
 `;
 }
