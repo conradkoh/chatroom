@@ -2,15 +2,20 @@
  * Builder role-specific guidance for agent initialization prompts.
  */
 
+import { taskStartedCommand } from '../cli/task-started/command.js';
+
 /**
  * Generate builder-specific guidance
  */
 export function getBuilderGuidance(isEntryPoint: boolean): string {
+  // Use command generator for the example
+  const taskStartedExample = taskStartedCommand({ type: 'example' });
+
   const classificationNote = isEntryPoint
     ? `
 **Classification (Entry Point Role):**
 As the entry point, you receive user messages directly. When you receive a user message:
-1. First run \`chatroom task-started\` with the specific task ID to classify the original message (question, new_feature, or follow_up)
+1. First run \`${taskStartedExample}\` to classify the original message (question, new_feature, or follow_up)
 2. Then do your work
 3. Hand off to reviewer for code changes, or directly to user for questions`
     : '';

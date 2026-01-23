@@ -11,12 +11,11 @@ prompts/
 ├── base/               # Base prompts (shared by all teams)
 │   ├── cli/            # CLI command prompts
 │   │   ├── task-started/
-│   │   │   ├── command.ts       # Command generator
-│   │   │   ├── main-prompt.ts   # Main prompt content
-│   │   │   ├── classification/  # Classification-specific guidance
-│   │   │   └── index.ts         # Exports
+│   │   │   └── command.ts       # Command generator
 │   │   ├── handoff/
+│   │   │   └── command.ts       # Command generator
 │   │   └── wait-for-task/
+│   │       └── command.ts       # Command generator
 │   ├── roles/          # Role definitions (builder, reviewer)
 │   ├── workflows/      # Workflow definitions
 │   └── shared/         # Shared utilities
@@ -25,30 +24,50 @@ prompts/
 └── generator.ts        # Prompt generator
 ```
 
-## Key Concepts
-
-### Command Generators
+## Command Generators
 
 Each CLI command has a `command.ts` file that generates command strings. This ensures:
 - **Single source of truth** for command format
 - **Type safety** via discriminated unions
 - **No drift** between prompts and actual CLI
 
+### Available Commands
+
+| Command | Generator | Description |
+|---------|-----------|-------------|
+| `task-started` | `base/cli/task-started/command.ts` | Acknowledge and classify a task |
+| `handoff` | `base/cli/handoff/command.ts` | Complete task and hand off to next role |
+| `wait-for-task` | `base/cli/wait-for-task/command.ts` | Wait for incoming tasks |
+
+### Usage
+
 ```typescript
-// prompts/base/cli/task-started/command.ts
+import { taskStartedCommand } from './base/cli/task-started/command.js';
+import { handoffCommand } from './base/cli/handoff/command.js';
+import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
 
-import type { TaskStartedParams } from '../../../types/cli.js';
+// Examples with placeholders (for documentation)
+taskStartedCommand({ type: 'example' })
+// → "chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> ..."
 
-export function taskStartedCommand(params: TaskStartedParams): string {
-  if (params.type === 'example') {
-    return `chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> ...`;
-  }
-  // type === 'command' - use actual values
-  return `chatroom task-started ${params.chatroomId} --role=${params.role} --task-id=${params.taskId} ...`;
-}
+handoffCommand({ type: 'example' })
+// → "chatroom handoff <chatroom-id> --role=<role> --message-file=<message-file> --next-role=<target>"
+
+waitForTaskCommand({ type: 'example' })
+// → "chatroom wait-for-task <chatroom-id> --role=<role>"
+
+// Commands with real values (for actual prompts)
+taskStartedCommand({ 
+  type: 'command', 
+  chatroomId: 'abc', 
+  role: 'builder', 
+  taskId: 'xyz', 
+  classification: 'question' 
+})
+// → "chatroom task-started abc --role=builder --task-id=xyz --origin-message-classification=question"
 ```
 
-### Discriminated Unions
+## Discriminated Unions
 
 Command params use discriminated unions with `type` field:
 
@@ -58,20 +77,6 @@ Command params use discriminated unions with `type` field:
 type TaskStartedParams =
   | { type: 'example'; classification?: MessageClassification }  // Placeholders
   | { type: 'command'; chatroomId: string; role: string; ... }   // Real values
-```
-
-### Usage
-
-```typescript
-import { taskStartedCommand } from './base/cli/task-started/command.js';
-
-// Example with placeholders
-taskStartedCommand({ type: 'example' })
-// → "chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> ..."
-
-// Command with real values
-taskStartedCommand({ type: 'command', chatroomId: 'abc', role: 'builder', taskId: 'xyz', classification: 'question' })
-// → "chatroom task-started abc --role=builder --task-id=xyz --origin-message-classification=question"
 ```
 
 ## Guidelines

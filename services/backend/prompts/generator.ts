@@ -6,7 +6,9 @@
  * to combat context rot in long conversations.
  */
 
+import { handoffCommand } from './base/cli/handoff/command.js';
 import { getTaskStartedPrompt } from './base/cli/index.js';
+import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
 import { getBuilderGuidance as getBaseBuilderGuidance } from './base/roles/builder.js';
 import { getReviewerGuidance as getBaseReviewerGuidance } from './base/roles/reviewer.js';
 import { HANDOFF_DIR } from './base/shared/config.js';
@@ -154,21 +156,32 @@ function getHandoffSection(ctx: RolePromptContext): string {
 }
 
 function getCommandsSection(ctx: RolePromptContext): string {
+  const handoffCmd = handoffCommand({
+    type: 'command',
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+    nextRole: '<target>',
+    messageFile: `${HANDOFF_DIR}/message.md`,
+  });
+
+  const waitCmd = waitForTaskCommand({
+    type: 'command',
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+  });
+
   return `### Commands
 
 **Complete task and hand off:**
 \`\`\`
 # Write message to file first:
 # mkdir -p ${HANDOFF_DIR} && echo "<summary>" > ${HANDOFF_DIR}/message.md
-chatroom handoff ${ctx.chatroomId} \\
-  --role=${ctx.role} \\
-  --message-file="${HANDOFF_DIR}/message.md" \\
-  --next-role=<target>
+${handoffCmd}
 \`\`\`
 
 **Continue receiving messages after \`handoff\`:**
 \`\`\`
-chatroom wait-for-task ${ctx.chatroomId} --role=${ctx.role}
+${waitCmd}
 \`\`\`
 
 **⚠️ Stay available for messages:** If \`wait-for-task\` stops, restart it immediately to remain reachable`;
@@ -189,6 +202,14 @@ export function generateTaskStartedReminder(
 
   // Builder-specific reminders
   if (normalizedRole === 'builder') {
+    const handoffCmd = handoffCommand({
+      type: 'command',
+      chatroomId,
+      role: 'builder',
+      nextRole: 'reviewer',
+      messageFile: '$MSG_FILE',
+    });
+
     switch (classification) {
       case 'question':
         return `You can respond directly to the user when done.
@@ -201,7 +222,7 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
 \`\`\`
 mkdir -p ${HANDOFF_DIR} && MSG_FILE="${HANDOFF_DIR}/message-$(date +%s%N).md"
 echo "<summary>" > "$MSG_FILE"
-chatroom handoff ${chatroomId} --role=builder --message-file="$MSG_FILE" --next-role=reviewer
+${handoffCmd}
 \`\`\`
 
 💡 You're working on:
@@ -270,6 +291,12 @@ export function generateInitPrompt(input: InitPromptInput): string {
     getTeamRoleGuidance(role, teamRoles, isEntryPoint) ??
     getBaseRoleGuidance(role, otherRoles, isEntryPoint);
 
+  const waitCmd = waitForTaskCommand({
+    type: 'command',
+    chatroomId,
+    role,
+  });
+
   const sections: string[] = [];
   sections.push(`# ${teamName} Team`);
   sections.push(`## Your Role: ${template.title.toUpperCase()}`);
@@ -279,9 +306,7 @@ export function generateInitPrompt(input: InitPromptInput): string {
   }
   sections.push(guidance);
   sections.push(getCommandsSection(roleCtx));
-  sections.push(
-    `### Next\n\nRun:\n\n\`\`\`bash\nchatroom wait-for-task ${chatroomId} --role=${role}\n\`\`\``
-  );
+  sections.push(`### Next\n\nRun:\n\n\`\`\`bash\n${waitCmd}\n\`\`\``);
 
   return sections
     .filter((s) => s.trim())

@@ -2,6 +2,8 @@
  * Reviewer role-specific guidance for agent initialization prompts.
  */
 
+import { handoffCommand } from '../cli/handoff/command.js';
+import { taskStartedCommand } from '../cli/task-started/command.js';
 import { getHandoffFileSnippet } from '../shared/config.js';
 
 /**
@@ -9,6 +11,18 @@ import { getHandoffFileSnippet } from '../shared/config.js';
  */
 export function getReviewerGuidance(otherRoles: string[]): string {
   const hasBuilder = otherRoles.some((r) => r.toLowerCase() === 'builder');
+
+  // Use command generators for examples (with placeholder chatroom-id)
+  const taskStartedExample = taskStartedCommand({ type: 'example' });
+
+  const feedbackHandoffCmd = handoffCommand({
+    type: 'example',
+  }).replace('--next-role=<target>', '--next-role=builder');
+
+  const approvalHandoffCmd = handoffCommand({
+    type: 'example',
+  }).replace('--next-role=<target>', '--next-role=user');
+
   return `
 ## Reviewer Workflow
 
@@ -18,7 +32,7 @@ You receive handoffs from other agents containing work to review or validate. Wh
 
 **Typical Flow:**
 1. Receive message (handoff from builder or other agent)
-2. First run \`chatroom task-started\` to classify the original message
+2. First run \`${taskStartedExample}\` to classify the original message
 3. Review the code changes or content:
    - Check uncommitted changes: \`git status\`, \`git diff\`
    - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
@@ -33,10 +47,7 @@ echo "Please address:
 1. Issue one
 2. Issue two" > "$MSG_FILE"
 
-chatroom handoff <chatroom-id> \\
-  --role=reviewer \\
-  --message-file="$MSG_FILE" \\
-  --next-role=builder
+${feedbackHandoffCmd}
 \`\`\`
 
 **If work is approved:**
@@ -44,10 +55,7 @@ chatroom handoff <chatroom-id> \\
 ${getHandoffFileSnippet('approval')}
 echo "APPROVED. Code is clean, tests pass, and requirements are met." > "$MSG_FILE"
 
-chatroom handoff <chatroom-id> \\
-  --role=reviewer \\
-  --message-file="$MSG_FILE" \\
-  --next-role=user
+${approvalHandoffCmd}
 \`\`\`
 
 **Review Checklist:**
