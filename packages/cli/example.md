@@ -119,13 +119,13 @@ When you receive a user message, you MUST first acknowledge it and classify what
 
 ```bash
 # Use explicit message ID (recommended - provided by wait-for-task)
-chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --classification=<type> --message-id=<messageId>
+chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --origin-message-classification=<type> --message-id=<messageId>
 
 # Or use task ID if no message ID is available
-chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --classification=<type> --task-id=<taskId>
+chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --origin-message-classification=<type> --task-id=<taskId>
 
 # Legacy fallback (finds latest unclassified message - not recommended)
-chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --classification=<type>
+chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --origin-message-classification=<type>
 ```
 
 ### Classification Types
@@ -149,7 +149,7 @@ SPECS_FILE="tmp/chatroom/tech-specs-$UNIQUE_ID.md"
 echo "Implement JWT-based authentication with login/logout flow" > "$DESC_FILE"
 echo "Use bcrypt for password hashing. JWT tokens expire after 24h." > "$SPECS_FILE"
 
-chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --classification=new_feature \
+chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --origin-message-classification=new_feature \
   --message-id=<messageId> \
   --title="Add user authentication" \
   --description-file="$DESC_FILE" \
@@ -373,7 +373,6 @@ chatroom wait-for-task jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder
 ⏳ Waiting for tasks (duration: 10m)...
 
 ──────────────────────────────────────────────────
-⚠️ ALWAYS run `wait-for-task` after handoff. If it times out, run it again immediately.
 chatroom wait-for-task jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder
 ──────────────────────────────────────────────────
 
@@ -463,7 +462,7 @@ The user is asking you to review something. Please proceed with the review proce
 1. Hand off to the next individual to start work by running `chatroom handoff jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --message-file="tmp/chatroom/message.md" --next-role=reviewer`
 2. Run `chatroom wait-for-task jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder` to wait for the next message. Remember: the user can only speak via the chatroom and receive info from there, so you need to always be waiting for tasks from the chatroom and sending your responses there.
    %  
-   conradkoh@Mac chatroom % CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --classification=question
+   conradkoh@Mac chatroom % CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --origin-message-classification=question
    ❌ No unclassified user message found to acknowledge
    All user messages may already be classified.
    Use --message-id or --task-id to classify a specific message.
@@ -562,13 +561,13 @@ When you receive a user message, you MUST first acknowledge it and classify what
 
 ```bash
 # Use explicit message ID (recommended - provided by wait-for-task)
-chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --classification=<type> --message-id=<messageId>
+chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --origin-message-classification=<type> --message-id=<messageId>
 
 # Or use task ID if no message ID is available
-chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --classification=<type> --task-id=<taskId>
+chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --origin-message-classification=<type> --task-id=<taskId>
 
 # Legacy fallback (finds latest unclassified message - not recommended)
-chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --classification=<type>
+chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --origin-message-classification=<type>
 ```
 
 ### Classification Types
@@ -592,7 +591,7 @@ SPECS_FILE="tmp/chatroom/tech-specs-$UNIQUE_ID.md"
 echo "Implement JWT-based authentication with login/logout flow" > "$DESC_FILE"
 echo "Use bcrypt for password hashing. JWT tokens expire after 24h." > "$SPECS_FILE"
 
-chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --classification=new_feature \
+chatroom task-started jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder --origin-message-classification=new_feature \
   --message-id=<messageId> \
   --title="Add user authentication" \
   --description-file="$DESC_FILE" \
@@ -816,7 +815,6 @@ chatroom wait-for-task jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder
 ⏳ Waiting for tasks (duration: 10m)...
 
 ──────────────────────────────────────────────────
-⚠️ ALWAYS run `wait-for-task` after handoff. If it times out, run it again immediately.
 chatroom wait-for-task jx7f2bjgr49hw338mytn1vz2857zsgx4 --role=builder
 ──────────────────────────────────────────────────
 
