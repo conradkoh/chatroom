@@ -123,15 +123,18 @@ function buildNextSteps(ctx: TaskDeliveryContext): string {
     );
     lines.push(``);
 
-    // Include message ID if available
+    // Always include message ID - it should always be available for classification
     if (ctx.message) {
       lines.push(
         `> chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<question|new_feature|follow_up> --message-id=${ctx.message._id}`
       );
     } else {
+      // This should not happen in normal flow, but provide fallback
       lines.push(
-        `> chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<question|new_feature|follow_up>`
+        `> chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<question|new_feature|follow_up> --message-id=<messageId>`
       );
+      lines.push(``);
+      lines.push(`Note: You must replace <messageId> with the actual message ID`);
     }
     lines.push(``);
     lines.push(

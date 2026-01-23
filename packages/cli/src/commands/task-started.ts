@@ -10,7 +10,7 @@ import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.j
 interface TaskStartedOptions {
   role: string;
   classification: 'question' | 'new_feature' | 'follow_up';
-  messageId?: string;
+  messageId: string;
   // Feature metadata (required for new_feature classification)
   title?: string;
   description?: string;
@@ -87,48 +87,27 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   // Find the target message to classify
   let targetMessage: Message | null = null;
 
-  if (messageId) {
-    // Use explicit message ID
-    const messages = (await client.query(api.messages.list, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      limit: 1000, // Get more messages to find the specific one
-    })) as Message[];
+  if (!messageId) {
+    console.error(`❌ --message-id is required for task-started`);
+    console.error(
+      `   Usage: chatroom task-started <chatroomId> --role=<role> --classification=<type> --message-id=<messageId>`
+    );
+    process.exit(1);
+  }
 
-    targetMessage = messages.find((msg) => msg._id === messageId) || null;
+  // Use explicit message ID
+  const messages = (await client.query(api.messages.list, {
+    sessionId,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    limit: 1000, // Get more messages to find the specific one
+  })) as Message[];
 
-    if (!targetMessage) {
-      console.error(`❌ Message with ID "${messageId}" not found in this chatroom`);
-      console.error(`   Verify the message ID is correct and you have access to this chatroom`);
-      process.exit(1);
-    }
-  } else {
-    // Find the most recent unclassified user message (original behavior)
-    const messages = (await client.query(api.messages.list, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      limit: 50,
-    })) as Message[];
+  targetMessage = messages.find((msg) => msg._id === messageId) || null;
 
-    // Find the most recent unclassified user message
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      if (
-        msg.senderRole.toLowerCase() === 'user' &&
-        msg.type === 'message' &&
-        !msg.classification
-      ) {
-        targetMessage = msg;
-        break;
-      }
-    }
-
-    if (!targetMessage) {
-      console.error(`❌ No unclassified user message found to acknowledge`);
-      console.error(`   All user messages may already be classified.`);
-      console.error(`   Use --message-id=<msgId> to classify a specific message.`);
-      process.exit(1);
-    }
+  if (!targetMessage) {
+    console.error(`❌ Message with ID "${messageId}" not found in this chatroom`);
+    console.error(`   Verify the message ID is correct and you have access to this chatroom`);
+    process.exit(1);
   }
 
   // Call the taskStarted mutation

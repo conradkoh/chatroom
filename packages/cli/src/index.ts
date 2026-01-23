@@ -137,10 +137,7 @@ program
     '--classification <type>',
     'Message classification: question, new_feature, or follow_up'
   )
-  .option(
-    '--message-id <messageId>',
-    'Specific message ID to classify (optional, will find latest if not provided)'
-  )
+  .requiredOption('--message-id <messageId>', 'Message ID to classify')
   .option('--title <title>', 'Feature title (required for new_feature)')
   .option(
     '--description-file <path>',
@@ -156,7 +153,7 @@ program
       options: {
         role: string;
         classification: string;
-        messageId?: string;
+        messageId: string;
         title?: string;
         descriptionFile?: string;
         techSpecsFile?: string;
