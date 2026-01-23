@@ -161,7 +161,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (unsubscribe) unsubscribe();
     console.log(`\n${'─'.repeat(50)}`);
     console.log(`The connection to the server was closed. Please run the command:`);
-    console.log(waitForTaskCommand({ type: 'command', chatroomId, role }));
+    console.log(waitForTaskCommand({ chatroomId, role }));
     console.log(`${'─'.repeat(50)}`);
     process.exit(0); // Exit with 0 since this is expected behavior
   }, effectiveTimeout);
@@ -226,7 +226,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (message && message.type === 'interrupt') {
       console.log(`\n${'─'.repeat(50)}`);
       console.log(`The connection to the server was closed. Please run the command:`);
-      console.log(waitForTaskCommand({ type: 'command', chatroomId, role }));
+      console.log(waitForTaskCommand({ chatroomId, role }));
       console.log(`${'─'.repeat(50)}`);
       process.exit(0);
     }
@@ -253,18 +253,38 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     // Show the exact command to run with explicit IDs
     if (message) {
-      console.log(`To acknowledge and classify this message, run:`);
+      console.log(`To acknowledge and classify this message, run:\n`);
+
+      // Show basic command structure
+      const baseCmd = taskStartedCommand({
+        chatroomId,
+        role,
+        taskId: task._id,
+        classification: 'question',
+      }).replace(
+        '--origin-message-classification=question',
+        '--origin-message-classification=<type>'
+      );
+      console.log(baseCmd);
+
+      // Show classification-specific requirements
+      console.log(`\n📝 Classification Requirements:`);
+      console.log(`   • question: No additional fields required`);
+      console.log(`   • follow_up: No additional fields required`);
+      console.log(`   • new_feature: REQUIRES --title, --description, --tech-specs`);
+
+      // Show complete new_feature example
+      console.log(`\n💡 Example for new_feature:`);
       console.log(
         taskStartedCommand({
-          type: 'command',
           chatroomId,
           role,
           taskId: task._id,
-          classification: 'question',
-        }).replace(
-          '--origin-message-classification=question',
-          '--origin-message-classification=<type>'
-        )
+          classification: 'new_feature',
+          title: '<title>',
+          description: '<description>',
+          techSpecs: '<tech-specs>',
+        })
       );
     } else {
       console.log(`No message found to classify. Use --task-id to specify a task.`);
@@ -272,6 +292,27 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     console.log(`\nClassification types: question, new_feature, follow_up`);
     console.log(`${'='.repeat(60)}`);
+
+    // Print pinned section with primary user directive
+    const originMessage = taskDeliveryPrompt.json?.contextWindow?.originMessage;
+    if (originMessage && originMessage.senderRole.toLowerCase() === 'user') {
+      console.log(`\n## 📍 Pinned`);
+      console.log(`### Primary User Directive`);
+      console.log(`<user-message>`);
+      console.log(originMessage.content);
+      console.log(`</user-message>`);
+
+      // Show inferred task status
+      const existingClassification = originMessage.classification;
+      if (existingClassification) {
+        console.log(`\n### Inferred Task`);
+        console.log(`Classification: ${existingClassification}`);
+      } else {
+        console.log(`\n### Inferred Task`);
+        console.log(`Not created yet. Run \`chatroom task-started …\` to specify task.`);
+      }
+      console.log(`${'='.repeat(60)}`);
+    }
 
     // Print human-readable sections
     console.log(`\n${taskDeliveryPrompt.humanReadable}`);
@@ -302,7 +343,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     clearTimeout(timeoutHandle);
     console.log(`\n${'─'.repeat(50)}`);
     console.log(`The connection to the server was closed. Please run the command:`);
-    console.log(waitForTaskCommand({ type: 'command', chatroomId, role }));
+    console.log(waitForTaskCommand({ chatroomId, role }));
     console.log(`${'─'.repeat(50)}`);
     process.exit(0);
   };

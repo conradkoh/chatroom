@@ -156,7 +156,24 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     }
   } catch (error) {
     const err = error as Error;
-    console.error(`❌ Failed to acknowledge task: ${err.message}`);
+    console.error(`❌ Failed to acknowledge task`);
+    console.error(`   Error: ${err.message}`);
+
+    // Try to extract more details from the error if available
+    if ('stack' in err && err.stack) {
+      const stackLines = err.stack.split('\n').slice(0, 5);
+      console.error(`   Stack trace:`);
+      stackLines.forEach((line) => console.error(`     ${line}`));
+    }
+
+    // Check if this is a Convex error with more details
+    if (typeof error === 'object' && error !== null) {
+      const errObj = error as any;
+      if (errObj.data) {
+        console.error(`   Server details:`, JSON.stringify(errObj.data, null, 2));
+      }
+    }
+
     process.exit(1);
   }
 }

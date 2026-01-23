@@ -627,13 +627,20 @@ export const taskStarted = mutation({
     }
 
     // Generate a focused reminder for this role + classification
-    const reminder = generateTaskStartedReminder(
-      args.role,
-      args.originMessageClassification,
-      args.chatroomId,
-      message?.toString(),
-      args.taskId.toString()
-    );
+    let reminder = '';
+    try {
+      reminder = generateTaskStartedReminder(
+        args.role,
+        args.originMessageClassification,
+        args.chatroomId,
+        message?._id.toString(),
+        args.taskId.toString()
+      );
+    } catch (error) {
+      console.error('Error generating task started reminder:', error);
+      // Provide a fallback reminder
+      reminder = `Task acknowledged. Classification: ${args.originMessageClassification}. You can now proceed with your work.`;
+    }
 
     return { success: true, classification: args.originMessageClassification, reminder };
   },
