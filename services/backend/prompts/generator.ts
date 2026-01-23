@@ -6,7 +6,7 @@
  * to combat context rot in long conversations.
  */
 
-import { getTaskStartedPrompt } from './cli/index.js';
+import { getTaskStartedPrompt } from './cli-commands/index.js';
 import { HANDOFF_DIR, getHandoffFileSnippet } from './config';
 import {
   type InitPromptContext,

@@ -8,8 +8,12 @@
 import * as taskStarted from './task-started/index.js';
 
 // Re-export task-started functions
-export const { getTaskStartedPrompt, getTaskStartedExamples, getTaskStartedValidation } =
-  taskStarted;
+export const {
+  getTaskStartedPrompt,
+  getTaskStartedExamples,
+  getTaskStartedValidation,
+  getClassificationGuidance,
+} = taskStarted;
 
 // Handoff CLI prompts (to be implemented)
 // export {

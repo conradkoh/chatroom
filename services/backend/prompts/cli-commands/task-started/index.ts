@@ -2,76 +2,8 @@
  * CLI-specific prompts for the task-started command
  */
 
-import { getHandoffFileSnippet } from '../../config';
-
-/**
- * Generate the main CLI prompt for task-started command
- */
-export function getTaskStartedPrompt(ctx: {
-  chatroomId: string;
-  role: string;
-  cliEnvPrefix?: string;
-}): string {
-  const prefix = ctx.cliEnvPrefix || '';
-
-  return `
-## Task Classification
-
-When you receive a user message, you MUST first acknowledge it and classify what type of request it is:
-
-\`\`\`bash
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=<type> --message-id=<messageId>
-\`\`\`
-
-### Classification Types
-
-| Type | Description | When to Use |
-|------|-------------|-------------|
-| **question** | User needs clarification or has a question | When user is asking for information |
-| **new_feature** | User wants new functionality implemented | When user requests new features |
-| **follow_up** | User is responding to previous work | When user provides feedback or additional requirements |
-
-### New Feature Classification
-
-For **new_feature** classification, you must provide additional details:
-
-\`\`\`bash
-# Create description and tech specs files
-${getHandoffFileSnippet('description')}
-${getHandoffFileSnippet('techSpecs')}
-
-# Then run task-started with metadata
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
-  --title="Feature title" \\
-  --description-file="$DESC_FILE" \\
-  --tech-specs-file="$SPECS_FILE"
-\`\`\`
-
-**Example:**
-\`\`\`bash
-# Create files
-echo "Implement JWT-based authentication with login/logout flow" > "$DESC_FILE"
-echo "Use bcrypt for password hashing. JWT tokens expire after 24h." > "$SPECS_FILE"
-
-# Run command
-${prefix}chatroom task-started ${ctx.chatroomId} --role=${ctx.role} --classification=new_feature \\
-  --title="Add user authentication" \\
-  --description-file="$DESC_FILE" \\
-  --tech-specs-file="$SPECS_FILE"
-\`\`\`
-
-### Important Notes
-
-- **Always use --message-id**: You must specify the exact message ID to classify
-- **One message per task-started**: Each command classifies exactly one message
-- **Classification determines workflow**: Your classification affects available handoff options
-- **Feature metadata required**: For new_feature, title, description, and tech specs are mandatory
-
-### After Classification
-
-Once you run \`task-started\`, you'll receive a focused reminder with specific next steps based on your role and classification type.
-`;
-}
+import { getClassificationGuidance } from './classification';
+import { getTaskStartedPrompt } from './main-prompt';
 
 /**
  * Generate usage examples for task-started
@@ -164,3 +96,6 @@ For \`--classification=new_feature\`, you must also provide:
 | "Missing required fields" | Incomplete new_feature metadata | Provide title, description, and tech-specs |
 `;
 }
+
+// Re-export main functions
+export { getTaskStartedPrompt, getClassificationGuidance };

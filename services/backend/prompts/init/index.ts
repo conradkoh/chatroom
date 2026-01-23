@@ -3,5 +3,5 @@
  */
 
 export * from './base';
-export * from './roles';
 export * from './waitForTask';
+export * from '../phases/agent-initialization/roles/index.js';

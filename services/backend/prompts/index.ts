@@ -18,4 +18,5 @@ export {
   getTaskStartedPrompt,
   getTaskStartedExamples,
   getTaskStartedValidation,
-} from './cli/index.js';
+  getClassificationGuidance,
+} from './cli-commands/index.js';
