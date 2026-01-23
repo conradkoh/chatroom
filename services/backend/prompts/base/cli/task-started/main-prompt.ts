@@ -39,11 +39,16 @@ ${cmdFormat}
 
 ### Classification Types
 
-| Type | Description | When to Use |
-|------|-------------|-------------|
-| **question** | User needs clarification or has a question | When user is asking for information |
-| **new_feature** | User wants new functionality implemented | When user requests new features |
-| **follow_up** | User is responding to previous work | When user provides feedback or additional requirements |
+| Type | Description | When to Use | Required Fields |
+|------|-------------|-------------|-----------------|
+| **question** | User needs clarification or has a question | When user is asking for information | task-id, classification |
+| **new_feature** | User wants new functionality implemented | When user requests new features | task-id, classification, **title**, **description**, **tech-specs** |
+| **follow_up** | User is responding to previous work | When user provides feedback or additional requirements | task-id, classification |
+
+⚠️ **IMPORTANT**: \`new_feature\` classification requires three additional fields:
+- \`--title\`: Clear, concise feature title
+- \`--description\`: What the feature does and why it's needed  
+- \`--tech-specs\`: Technical implementation details
 
 ${getClassificationGuidance('question')}
 

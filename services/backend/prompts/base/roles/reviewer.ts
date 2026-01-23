@@ -4,7 +4,7 @@
 
 import { handoffCommand } from '../cli/handoff/command.js';
 import { taskStartedCommand } from '../cli/task-started/command.js';
-import { getHandoffFileSnippet } from '../shared/config.js';
+import { HANDOFF_DIR, generateFilename } from '../shared/config.js';
 
 /**
  * Generate reviewer-specific guidance
@@ -15,9 +15,12 @@ export function getReviewerGuidance(otherRoles: string[]): string {
   // Use command generators with placeholders
   const taskStartedExample = taskStartedCommand({});
 
-  const feedbackHandoffCmd = handoffCommand({ nextRole: 'builder' });
+  // Generate unique filenames for different handoff scenarios
+  const feedbackFile = generateFilename('feedback', { type: 'md' });
+  const approvalFile = generateFilename('approval', { type: 'md' });
 
-  const approvalHandoffCmd = handoffCommand({ nextRole: 'user' });
+  const feedbackHandoffCmd = handoffCommand({ nextRole: 'builder', messageFile: feedbackFile });
+  const approvalHandoffCmd = handoffCommand({ nextRole: 'user', messageFile: approvalFile });
 
   return `
 ## Reviewer Workflow
@@ -38,19 +41,42 @@ You receive handoffs from other agents containing work to review or validate. Wh
 
 **If changes are needed:**
 \`\`\`bash
-${getHandoffFileSnippet('feedback')}
-echo "Please address:
-1. Issue one
-2. Issue two" > "$MSG_FILE"
+# Create the handoff directory
+mkdir -p ${HANDOFF_DIR}
 
+# Write detailed feedback
+cat > ${feedbackFile} << 'EOF'
+## Issues Found
+
+Please address:
+1. [Issue one with details]
+2. [Issue two with details]
+
+## Suggestions
+- [Specific recommendation]
+EOF
+
+# Hand back to builder
 ${feedbackHandoffCmd}
 \`\`\`
 
 **If work is approved:**
 \`\`\`bash
-${getHandoffFileSnippet('approval')}
-echo "APPROVED. Code is clean, tests pass, and requirements are met." > "$MSG_FILE"
+# Create the handoff directory
+mkdir -p ${HANDOFF_DIR}
 
+# Write approval message
+cat > ${approvalFile} << 'EOF'
+## APPROVED ✅
+
+The code is clean, tests pass, and requirements are met.
+
+## Summary
+- [What was reviewed]
+- [Key points verified]
+EOF
+
+# Hand off to user
 ${approvalHandoffCmd}
 \`\`\`
 

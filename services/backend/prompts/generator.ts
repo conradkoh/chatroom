@@ -11,7 +11,7 @@ import { getTaskStartedPrompt } from './base/cli/index.js';
 import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
 import { getBuilderGuidance as getBaseBuilderGuidance } from './base/roles/builder.js';
 import { getReviewerGuidance as getBaseReviewerGuidance } from './base/roles/reviewer.js';
-import { HANDOFF_DIR } from './base/shared/config.js';
+import { HANDOFF_DIR, generateFilename } from './base/shared/config.js';
 import { getBuilderGuidance as getTeamBuilderGuidance } from './teams/pair/prompts/builder.js';
 import { getReviewerGuidance as getTeamReviewerGuidance } from './teams/pair/prompts/reviewer.js';
 import { getRoleTemplate } from './templates';
@@ -156,11 +156,14 @@ function getHandoffSection(ctx: RolePromptContext): string {
 }
 
 function getCommandsSection(ctx: RolePromptContext): string {
+  // Generate unique filename for handoff
+  const messageFile = generateFilename('handoff', { type: 'md' });
+
   const handoffCmd = handoffCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     nextRole: '<target>',
-    messageFile: `${HANDOFF_DIR}/message.md`,
+    messageFile,
   });
 
   const waitCmd = waitForTaskCommand({
@@ -171,9 +174,30 @@ function getCommandsSection(ctx: RolePromptContext): string {
   return `### Commands
 
 **Complete task and hand off:**
-\`\`\`
-# Write message to file first:
-# mkdir -p ${HANDOFF_DIR} && echo "<summary>" > ${HANDOFF_DIR}/message.md
+
+Handoff workflow (3 steps):
+1. Create the handoff directory: \`mkdir -p ${HANDOFF_DIR}\`
+2. Write your handoff message to a file: \`echo "<summary>" > ${messageFile}\`
+3. Run the handoff command: \`${handoffCmd}\`
+
+Full example:
+\`\`\`bash
+# Step 1: Create directory
+mkdir -p ${HANDOFF_DIR}
+
+# Step 2: Write handoff message (be specific and detailed)
+cat > ${messageFile} << 'EOF'
+## Summary
+[Your summary here]
+
+## Changes Made
+- [List key changes]
+
+## Testing
+- [How to test]
+EOF
+
+# Step 3: Hand off to next role
 ${handoffCmd}
 \`\`\`
 
@@ -200,11 +224,12 @@ export function generateTaskStartedReminder(
 
   // Builder-specific reminders
   if (normalizedRole === 'builder') {
+    const messageFile = generateFilename('handoff', { type: 'md' });
     const handoffCmd = handoffCommand({
       chatroomId,
       role: 'builder',
       nextRole: 'reviewer',
-      messageFile: '$MSG_FILE',
+      messageFile,
     });
 
     switch (classification) {
@@ -216,9 +241,21 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
       case 'new_feature':
         return `When complete, write your summary to a file and hand off to reviewer for approval:
 
-\`\`\`
-mkdir -p ${HANDOFF_DIR} && MSG_FILE="${HANDOFF_DIR}/message-$(date +%s%N).md"
-echo "<summary>" > "$MSG_FILE"
+\`\`\`bash
+# Create handoff message
+mkdir -p ${HANDOFF_DIR}
+cat > ${messageFile} << 'EOF'
+## Summary
+[Describe what you implemented]
+
+## Changes Made
+- [List key changes]
+
+## Testing
+- [How to test the feature]
+EOF
+
+# Hand off to reviewer
 ${handoffCmd}
 \`\`\`
 

@@ -78,7 +78,6 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       console.error('   Example:');
       console.error(
         `   ${taskStartedCommand({
-          type: 'command',
           chatroomId,
           role,
           taskId: '<task-id>',
@@ -103,7 +102,6 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     console.error(`❌ --task-id is required for task-started`);
     console.error(
       `   Usage: ${taskStartedCommand({
-        type: 'command',
         chatroomId: '<chatroomId>',
         role: '<role>',
         taskId: '<task-id>',

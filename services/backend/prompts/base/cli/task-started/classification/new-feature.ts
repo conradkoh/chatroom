@@ -2,7 +2,7 @@
  * New feature classification guidance for CLI task-started command.
  */
 
-import { getHandoffFileSnippet } from '../../../shared/config.js';
+import { HANDOFF_DIR } from '../../../shared/config.js';
 import { taskStartedCommand } from '../command.js';
 
 /**
@@ -48,15 +48,15 @@ export function getNewFeatureClassificationGuidance(ctx: {
 - May involve multiple files or components
 - Always requires review before delivery
 
-**Required Metadata:**
-For \`new_feature\` classification, you MUST provide:
+**⚠️ REQUIRED METADATA:**
+For \`new_feature\` classification, you MUST provide all three fields:
 - \`--title\`: Clear, concise feature title
 - \`--description\`: What the feature does and why it's needed
 - \`--tech-specs\`: Technical implementation details
 
 **Implementation Options:**
 
-**Option 1: Inline Metadata (short descriptions)**
+**Option 1: Inline Metadata (recommended for short descriptions)**
 \`\`\`bash
 ${inlineCmd}
 \`\`\`
@@ -64,12 +64,22 @@ ${inlineCmd}
 **Option 2: File-based Metadata (recommended for complex features)**
 \`\`\`bash
 # Create description and tech specs files
-${getHandoffFileSnippet('description')}
-${getHandoffFileSnippet('techSpecs')}
+mkdir -p ${HANDOFF_DIR}
+DESC_FILE="${HANDOFF_DIR}/description-$(date +%s%N).md"
+SPECS_FILE="${HANDOFF_DIR}/techspecs-$(date +%s%N).md"
 
 # Write detailed content
-echo "Implement JWT-based authentication with login/logout flow" > "$DESC_FILE"
-echo "Use bcrypt for password hashing. JWT tokens expire after 24h" > "$SPECS_FILE"
+cat > "$DESC_FILE" << 'EOF'
+Implement JWT-based authentication with login/logout flow.
+Users can securely authenticate and maintain session state.
+EOF
+
+cat > "$SPECS_FILE" << 'EOF'
+- Use bcrypt for password hashing
+- JWT tokens expire after 24h
+- Store tokens in secure HTTP-only cookies
+- Implement refresh token mechanism
+EOF
 
 # Run command with files
 ${fileBasedCmd} \\
@@ -85,7 +95,7 @@ ${fileBasedCmd} \\
 - "Add email notifications"
 
 **Workflow:**
-1. Classify as \`new_feature\` with complete metadata
+1. Classify as \`new_feature\` with complete metadata (title, description, tech-specs)
 2. Implement the requested changes
 3. Test the implementation
 4. **MUST hand off to \`reviewer\`** (cannot skip review)
