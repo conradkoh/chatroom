@@ -960,4 +960,91 @@ describe('Pair Team Workflow', () => {
       expect(result.reminder).toContain('original task');
     });
   });
+
+  describe('wait-for-task background warnings', () => {
+    test('initial prompt includes warning not to run wait-for-task in background', async () => {
+      // Setup
+      const { sessionId } = await createTestSession('test-init-background-warning');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+      // Get the initialization prompt for builder
+      const initPrompt = await t.query(api.messages.getInitPrompt, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      expect(initPrompt.prompt).toBeDefined();
+
+      // The init prompt includes the wait-for-task reminder from getWaitForTaskReminder()
+      // which emphasizes running in foreground to stay connected
+      expect(initPrompt.prompt).toContain('wait-for-task');
+
+      // Check that it mentions running in foreground
+      expect(initPrompt.prompt).toContain('foreground');
+
+      // Check for the critical availability message
+      expect(initPrompt.prompt).toContain('Message availability');
+      expect(initPrompt.prompt).toContain('stay connected');
+      expect(initPrompt.prompt).toContain('team cannot reach you');
+
+      // The init prompt should warn about proper usage
+      // Note: The detailed warning with & and nohup is in getWaitForTaskGuidance()
+      // which is printed by the CLI, not included in the backend init prompt
+      const hasProperUsageWarning =
+        initPrompt.prompt.toLowerCase().includes('foreground') ||
+        initPrompt.prompt.toLowerCase().includes('availability');
+
+      expect(hasProperUsageWarning).toBe(true);
+    });
+
+    test('task delivery prompt includes reminder not to run wait-for-task in background', async () => {
+      // Setup
+      const { sessionId } = await createTestSession('test-task-background-warning');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+      // User sends a message - this automatically creates a task for builder
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'user',
+        content: 'Please implement feature X',
+        type: 'message',
+      });
+
+      // Get the pending tasks for builder
+      const pendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      expect(pendingTasks.length).toBeGreaterThan(0);
+      const taskId = pendingTasks[0].task._id;
+
+      // Get task delivery prompt
+      const taskPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+        taskId,
+      });
+
+      expect(taskPrompt.humanReadable).toBeDefined();
+
+      // Verify the prompt contains warning about wait-for-task
+      expect(taskPrompt.humanReadable).toContain('wait-for-task');
+
+      // Check for reminder about message availability and/or backgrounding
+      const hasWaitForTaskReminder =
+        taskPrompt.humanReadable.includes('Message availability') ||
+        taskPrompt.humanReadable.includes('stay connected') ||
+        taskPrompt.humanReadable.includes('foreground') ||
+        taskPrompt.humanReadable.includes('background');
+
+      expect(hasWaitForTaskReminder).toBe(true);
+    });
+  });
 });
