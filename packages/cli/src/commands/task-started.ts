@@ -2,6 +2,8 @@
  * Acknowledge a task has started and classify the user message
  */
 
+import { taskStartedCommand } from '@workspace/backend/prompts/base/cli/task-started/command.js';
+
 import { api } from '../api.js';
 import type { Id } from '../api.js';
 import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
@@ -75,11 +77,17 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       console.error('');
       console.error('   Example:');
       console.error(
-        `   chatroom task-started ${chatroomId} --role=${role} --origin-message-classification=new_feature \\`
+        `   ${taskStartedCommand({
+          type: 'command',
+          chatroomId,
+          role,
+          taskId: '<task-id>',
+          classification: 'new_feature',
+          title: 'Feature title',
+          description: 'What this feature does',
+          techSpecs: 'How to implement it',
+        })}`
       );
-      console.error(`     --title="Feature title" \\`);
-      console.error(`     --description="What this feature does" \\`);
-      console.error(`     --tech-specs="How to implement it"`);
       process.exit(1);
     }
   }
@@ -94,7 +102,13 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   if (!taskId) {
     console.error(`❌ --task-id is required for task-started`);
     console.error(
-      `   Usage: chatroom task-started <chatroomId> --role=<role> --origin-message-classification=<type> --task-id=<taskId>`
+      `   Usage: ${taskStartedCommand({
+        type: 'command',
+        chatroomId: '<chatroomId>',
+        role: '<role>',
+        taskId: '<task-id>',
+        classification: 'question',
+      })}`
     );
     process.exit(1);
   }

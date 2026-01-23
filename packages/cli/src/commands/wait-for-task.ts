@@ -2,6 +2,9 @@
  * Wait for tasks in a chatroom
  */
 
+import { taskStartedCommand } from '@workspace/backend/prompts/base/cli/task-started/command.js';
+import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
+
 import { api, type Id, type Chatroom, type TaskWithMessage } from '../api.js';
 import { DEFAULT_WAIT_TIMEOUT_MS, DEFAULT_ACTIVE_TIMEOUT_MS } from '../config.js';
 import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
@@ -158,7 +161,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (unsubscribe) unsubscribe();
     console.log(`\n${'─'.repeat(50)}`);
     console.log(`The connection to the server was closed. Please run the command:`);
-    console.log(`chatroom wait-for-task ${chatroomId} --role=${role}`);
+    console.log(waitForTaskCommand({ type: 'command', chatroomId, role }));
     console.log(`${'─'.repeat(50)}`);
     process.exit(0); // Exit with 0 since this is expected behavior
   }, effectiveTimeout);
@@ -223,7 +226,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (message && message.type === 'interrupt') {
       console.log(`\n${'─'.repeat(50)}`);
       console.log(`The connection to the server was closed. Please run the command:`);
-      console.log(`chatroom wait-for-task ${chatroomId} --role=${role}`);
+      console.log(waitForTaskCommand({ type: 'command', chatroomId, role }));
       console.log(`${'─'.repeat(50)}`);
       process.exit(0);
     }
@@ -252,7 +255,16 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (message) {
       console.log(`To acknowledge and classify this message, run:`);
       console.log(
-        `chatroom task-started ${chatroomId} --role=${role} --task-id=${task._id} --origin-message-classification=<type>`
+        taskStartedCommand({
+          type: 'command',
+          chatroomId,
+          role,
+          taskId: task._id,
+          classification: 'question',
+        }).replace(
+          '--origin-message-classification=question',
+          '--origin-message-classification=<type>'
+        )
       );
     } else {
       console.log(`No message found to classify. Use --task-id to specify a task.`);
@@ -290,7 +302,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     clearTimeout(timeoutHandle);
     console.log(`\n${'─'.repeat(50)}`);
     console.log(`The connection to the server was closed. Please run the command:`);
-    console.log(`chatroom wait-for-task ${chatroomId} --role=${role}`);
+    console.log(waitForTaskCommand({ type: 'command', chatroomId, role }));
     console.log(`${'─'.repeat(50)}`);
     process.exit(0);
   };

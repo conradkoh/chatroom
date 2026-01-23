@@ -11,6 +11,9 @@
  * 6. Promotes the next queued task to pending
  */
 
+import { handoffCommand } from '@workspace/backend/prompts/base/cli/handoff/command.js';
+import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
+
 import { api } from '../api.js';
 import type { Id } from '../api.js';
 import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
@@ -107,7 +110,12 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
       console.error(`\n💡 Try this instead:`);
       console.error('```');
       console.error(
-        `chatroom handoff ${chatroomId} --role=${role} --message="<summary>" --next-role=${result.error.suggestedTarget}`
+        handoffCommand({
+          type: 'command',
+          chatroomId,
+          role,
+          nextRole: result.error.suggestedTarget,
+        })
       );
       console.error('```');
     }
@@ -132,5 +140,5 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
 
   // Remind agent to run wait-for-task manually
   console.log(`\n⏳ Now run wait-for-task to wait for your next assignment:`);
-  console.log(`   chatroom wait-for-task ${chatroomId} --role=${role}`);
+  console.log(`   ${waitForTaskCommand({ type: 'command', chatroomId, role })}`);
 }
