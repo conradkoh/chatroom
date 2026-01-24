@@ -9,6 +9,7 @@ export function getReviewerGuidance(ctx: {
   role: string;
   teamRoles: string[];
   isEntryPoint: boolean;
+  convexUrl?: string;
 }): string {
   const hasBuilder = ctx.teamRoles.some((r) => r.toLowerCase() === 'builder');
 
@@ -24,7 +25,7 @@ export function getReviewerGuidance(ctx: {
  - Focus on code quality and requirements
  - Provide constructive feedback to builder
  
- ${getBaseReviewerGuidance(ctx.teamRoles)}
+ ${getBaseReviewerGuidance(ctx.teamRoles, ctx.convexUrl)}
  
  ${getAvailablePolicies()}
  

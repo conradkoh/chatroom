@@ -30,16 +30,17 @@ export { getPerformancePolicy } from './policies/performance';
 function getTeamRoleGuidance(
   role: string,
   teamRoles: string[],
-  isEntryPoint: boolean
+  isEntryPoint: boolean,
+  convexUrl?: string
 ): string | null {
   const normalizedRole = role.toLowerCase();
 
   try {
     if (normalizedRole === 'builder') {
-      return getTeamBuilderGuidance({ role, teamRoles, isEntryPoint });
+      return getTeamBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
     }
     if (normalizedRole === 'reviewer') {
-      return getTeamReviewerGuidance({ role, teamRoles, isEntryPoint });
+      return getTeamReviewerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
     }
   } catch {
     // Fall back to base guidance
@@ -51,14 +52,19 @@ function getTeamRoleGuidance(
 /**
  * Get base role guidance
  */
-function getBaseRoleGuidance(role: string, otherRoles: string[], isEntryPoint: boolean): string {
+function getBaseRoleGuidance(
+  role: string,
+  otherRoles: string[],
+  isEntryPoint: boolean,
+  convexUrl?: string
+): string {
   const normalizedRole = role.toLowerCase();
 
   if (normalizedRole === 'builder') {
-    return getBaseBuilderGuidance(isEntryPoint);
+    return getBaseBuilderGuidance(isEntryPoint, convexUrl);
   }
   if (normalizedRole === 'reviewer') {
-    return getBaseReviewerGuidance(otherRoles);
+    return getBaseReviewerGuidance(otherRoles, convexUrl);
   }
 
   return '';
@@ -101,13 +107,13 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   sections.push(template.description);
 
   // Role-specific guidance (team-aware)
-  const teamGuidance = getTeamRoleGuidance(ctx.role, ctx.teamRoles, isEntryPoint);
+  const teamGuidance = getTeamRoleGuidance(ctx.role, ctx.teamRoles, isEntryPoint, ctx.convexUrl);
   if (teamGuidance) {
     sections.push(teamGuidance);
   } else {
     // Fall back to base guidance
     const otherRoles = ctx.teamRoles.filter((r) => r.toLowerCase() !== ctx.role.toLowerCase());
-    sections.push(getBaseRoleGuidance(ctx.role, otherRoles, isEntryPoint));
+    sections.push(getBaseRoleGuidance(ctx.role, otherRoles, isEntryPoint, ctx.convexUrl));
   }
 
   // Current task context
@@ -349,8 +355,8 @@ export function generateInitPrompt(input: InitPromptInput): string {
   };
 
   const guidance =
-    getTeamRoleGuidance(role, teamRoles, isEntryPoint) ??
-    getBaseRoleGuidance(role, otherRoles, isEntryPoint);
+    getTeamRoleGuidance(role, teamRoles, isEntryPoint, convexUrl) ??
+    getBaseRoleGuidance(role, otherRoles, isEntryPoint, convexUrl);
 
   const waitCmd = waitForTaskCommand({
     chatroomId,

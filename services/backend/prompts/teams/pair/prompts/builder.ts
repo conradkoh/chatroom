@@ -8,6 +8,7 @@ export function getBuilderGuidance(ctx: {
   role: string;
   teamRoles: string[];
   isEntryPoint: boolean;
+  convexUrl?: string;
 }): string {
   const hasReviewer = ctx.teamRoles.some((r) => r.toLowerCase() === 'reviewer');
 
@@ -21,7 +22,7 @@ export function getBuilderGuidance(ctx: {
  - Focus on implementation, let reviewer handle quality checks
  - Hand off to reviewer for all code changes
  
- ${getBaseBuilderGuidance(ctx.isEntryPoint)}
+ ${getBaseBuilderGuidance(ctx.isEntryPoint, ctx.convexUrl)}
  
  **Pair Team Handoff Rules:**
  - **After code changes** → Hand off to reviewer

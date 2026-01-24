@@ -2,20 +2,22 @@
  * Reviewer role-specific guidance for agent initialization prompts.
  */
 
+import { getCliEnvPrefix } from '../../../utils/env.js';
 import { handoffCommand } from '../handoff/command.js';
 import { taskStartedCommand } from '../task-started/command.js';
 
 /**
  * Generate reviewer-specific guidance
  */
-export function getReviewerGuidance(otherRoles: string[]): string {
+export function getReviewerGuidance(otherRoles: string[], convexUrl?: string): string {
   const hasBuilder = otherRoles.some((r) => r.toLowerCase() === 'builder');
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
-  // Use command generators with placeholders
-  const taskStartedExample = taskStartedCommand({});
+  // Use command generators with env prefix
+  const taskStartedExample = taskStartedCommand({ cliEnvPrefix });
 
-  const feedbackHandoffCmd = handoffCommand({ nextRole: 'builder' });
-  const approvalHandoffCmd = handoffCommand({ nextRole: 'user' });
+  const feedbackHandoffCmd = handoffCommand({ nextRole: 'builder', cliEnvPrefix });
+  const approvalHandoffCmd = handoffCommand({ nextRole: 'user', cliEnvPrefix });
 
   return `
 ## Reviewer Workflow
