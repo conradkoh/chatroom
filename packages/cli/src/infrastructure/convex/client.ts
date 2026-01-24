@@ -13,6 +13,15 @@ export function getConvexUrl(): string {
   return process.env.CHATROOM_CONVEX_URL || DEFAULT_CONVEX_URL;
 }
 
+/**
+ * Check if Convex client logging should be enabled.
+ * Defaults to false to keep CLI output clean.
+ * Set CHATROOM_ENABLE_CLIENT_LOGGING=true to enable backend logs streaming to CLI.
+ */
+export function isClientLoggingEnabled(): boolean {
+  return process.env.CHATROOM_ENABLE_CLIENT_LOGGING === 'true';
+}
+
 // For backwards compatibility - use getConvexUrl() instead
 export const CONVEX_URL = DEFAULT_CONVEX_URL;
 
@@ -34,8 +43,9 @@ export async function getConvexClient(): Promise<ConvexHttpClient> {
 
   if (!client) {
     cachedUrl = url;
+    const enableLogging = isClientLoggingEnabled();
     client = new ConvexHttpClient(url, {
-      logger: false, // Disable backend logs from streaming to CLI
+      logger: enableLogging,
     });
   }
   return client;
@@ -57,8 +67,9 @@ export async function getConvexWsClient(): Promise<ConvexClient> {
 
   if (!wsClient) {
     cachedUrl = url;
+    const enableLogging = isClientLoggingEnabled();
     wsClient = new ConvexClient(url, {
-      logger: false, // Disable backend logs from streaming to CLI
+      logger: enableLogging,
     });
   }
   return wsClient;
