@@ -7,7 +7,7 @@
  */
 
 import { handoffCommand } from './base/cli/handoff/command.js';
-import { getTaskStartedPrompt } from './base/cli/index.js';
+import { getTaskStartedPrompt, getContextGainingGuidance } from './base/cli/index.js';
 import { getBuilderGuidance as getBaseBuilderGuidance } from './base/cli/roles/builder.js';
 import { getReviewerGuidance as getBaseReviewerGuidance } from './base/cli/roles/reviewer.js';
 import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
@@ -362,6 +362,10 @@ export function generateInitPrompt(input: InitPromptInput): string {
   sections.push(`# ${teamName} Team`);
   sections.push(`## Your Role: ${template.title.toUpperCase()}`);
   sections.push(template.description);
+
+  // Add context-gaining guidance for agents joining mid-conversation
+  sections.push(getContextGainingGuidance({ chatroomId, role, convexUrl }));
+
   if (isEntryPoint) {
     sections.push(getTaskStartedPrompt({ chatroomId, role }));
   }

@@ -18,6 +18,9 @@ export const {
 // Re-export wait-for-task functions
 export { getWaitForTaskReminder, getWaitForTaskGuidance } from './wait-for-task/reminder.js';
 
+// Re-export context-gaining functions
+export { getContextGainingGuidance } from './context/gaining.js';
+
 // Handoff CLI prompts (to be implemented)
 // export {
 //   getHandoffPrompt,
