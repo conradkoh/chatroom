@@ -274,7 +274,10 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
 
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
-  const hasProgress = message.latestProgress && message.taskStatus === 'in_progress';
+  // Show progress if we have any latestProgress data (not just when in_progress)
+  const hasProgress = !!message.latestProgress;
+  // Track if task is actively in progress for animations
+  const isTaskActive = message.taskStatus === 'in_progress';
 
   // Determine what to display:
   // - No classification yet: shimmer (waiting for classification)
@@ -290,7 +293,9 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
   };
 
   // Check if progress is "fresh" (within last 30 seconds) for pulse animation
-  const isProgressFresh = hasProgress && Date.now() - message.latestProgress!._creationTime < 30000;
+  // Only animate if task is still active
+  const isProgressFresh =
+    hasProgress && isTaskActive && Date.now() - message.latestProgress!._creationTime < 30000;
 
   // Dynamic height: h-8 when no progress, auto when progress is shown
   // Modern design: neutral grey background with colorized elements
@@ -334,7 +339,7 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
         </div>
       </button>
 
-      {/* Inline progress row - only shown when task is in_progress with progress */}
+      {/* Inline progress row - shown when task has any progress history */}
       {hasProgress && (
         <>
           <button
