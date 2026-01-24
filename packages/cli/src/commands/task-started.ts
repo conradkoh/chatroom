@@ -143,6 +143,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       sessionId: sessionId as any,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
+      taskId: taskId as Id<'chatroom_tasks'>, // Pass the specific task ID
     });
   } catch (error) {
     const err = error as Error;

@@ -153,22 +153,48 @@ export const startTask = mutation({
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
+    taskId: v.optional(v.id('chatroom_tasks')), // Optional: specific task to start
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Find the acknowledged task assigned to this role
-    const acknowledgedTask = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
-      )
-      .filter((q) => q.eq(q.field('assignedTo'), args.role))
-      .first();
+    let acknowledgedTask;
 
-    if (!acknowledgedTask) {
-      throw new Error('No acknowledged task to start for this role');
+    if (args.taskId) {
+      // Start a specific task (used by task-started command)
+      acknowledgedTask = await ctx.db.get('chatroom_tasks', args.taskId);
+
+      if (!acknowledgedTask) {
+        throw new Error(`Task ${args.taskId} not found`);
+      }
+
+      if (acknowledgedTask.chatroomId !== args.chatroomId) {
+        throw new Error('Task does not belong to this chatroom');
+      }
+
+      if (acknowledgedTask.status !== 'acknowledged') {
+        throw new Error(
+          `Task must be acknowledged to start (current status: ${acknowledgedTask.status})`
+        );
+      }
+
+      if (acknowledgedTask.assignedTo !== args.role) {
+        throw new Error(`Task is assigned to ${acknowledgedTask.assignedTo}, not ${args.role}`);
+      }
+    } else {
+      // Find any acknowledged task for this role (legacy behavior)
+      acknowledgedTask = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+        )
+        .filter((q) => q.eq(q.field('assignedTo'), args.role))
+        .first();
+
+      if (!acknowledgedTask) {
+        throw new Error('No acknowledged task to start for this role');
+      }
     }
 
     // Transition: acknowledged → in_progress using FSM
