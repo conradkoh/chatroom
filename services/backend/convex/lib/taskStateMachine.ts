@@ -129,6 +129,14 @@ const TRANSITIONS: TransitionRule[] = [
     clearFields: [],
   },
 
+  {
+    from: 'in_progress',
+    to: 'pending_user_review',
+    trigger: 'completeTask',
+    setFields: {},
+    clearFields: [],
+  },
+
   // ==========================================================================
   // BACKLOG FLOW: backlog → backlog_acknowledged → pending_user_review → completed
   // ==========================================================================

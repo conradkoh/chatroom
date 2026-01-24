@@ -167,7 +167,13 @@ describe('Task Workflow - Backlog Origin', () => {
         taskId: backlogTask.taskId,
       });
 
-      // Start the task
+      // Claim and start the task (FSM workflow)
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
       await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
@@ -210,7 +216,13 @@ describe('Task Workflow - Backlog Origin', () => {
         isBacklog: false,
       });
 
-      // Start the task
+      // Claim and start the task (FSM workflow)
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
       await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
@@ -258,6 +270,12 @@ describe('Task Workflow - Backlog Origin', () => {
       await t.mutation(api.tasks.moveToQueue, {
         sessionId,
         taskId: backlogTask.taskId,
+      });
+
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
       });
 
       await t.mutation(api.tasks.startTask, {
@@ -312,6 +330,12 @@ describe('Task Workflow - Backlog Origin', () => {
         taskId: backlogTask.taskId,
       });
 
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
       await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
@@ -361,6 +385,12 @@ describe('Task Workflow - Backlog Origin', () => {
       await t.mutation(api.tasks.moveToQueue, {
         sessionId,
         taskId: backlogTask.taskId,
+      });
+
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
       });
 
       await t.mutation(api.tasks.startTask, {
@@ -471,23 +501,23 @@ describe('Task Counts', () => {
 });
 
 describe('Task Workflow - Race Conditions', () => {
-  test('startTask throws error when no pending task exists (race condition handling)', async () => {
-    const { sessionId } = await createTestSession('test-race-no-pending');
+  test('startTask throws error when no acknowledged task exists (FSM workflow)', async () => {
+    const { sessionId } = await createTestSession('test-race-no-acknowledged');
     const chatroomId = await createPairTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-    // Try to start a task when none exists - simulates race where another agent claimed it
+    // Try to start a task when none is acknowledged - simulates race where another agent claimed it
     await expect(
       t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
       })
-    ).rejects.toThrow('No pending task to start');
+    ).rejects.toThrow('No acknowledged task to start for this role');
   });
 
-  test('second startTask call fails when task already in_progress', async () => {
-    const { sessionId } = await createTestSession('test-race-double-start');
+  test('second claimTask call fails when task already acknowledged', async () => {
+    const { sessionId } = await createTestSession('test-race-double-claim');
     const chatroomId = await createPairTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
@@ -500,22 +530,22 @@ describe('Task Workflow - Race Conditions', () => {
       isBacklog: false,
     });
 
-    // First agent starts the task
-    const result = await t.mutation(api.tasks.startTask, {
+    // First agent claims the task
+    const result = await t.mutation(api.tasks.claimTask, {
       sessionId,
       chatroomId,
       role: 'builder',
     });
     expect(result.taskId).toBeDefined();
 
-    // Second agent tries to start - should fail
+    // Second agent tries to claim - should fail
     await expect(
-      t.mutation(api.tasks.startTask, {
+      t.mutation(api.tasks.claimTask, {
         sessionId,
         chatroomId,
         role: 'reviewer', // Different role trying to claim
       })
-    ).rejects.toThrow('No pending task to start');
+    ).rejects.toThrow('No pending task to claim');
   });
 
   test('task start and message claim are independent operations', async () => {
@@ -541,7 +571,13 @@ describe('Task Workflow - Race Conditions', () => {
     });
     expect(pendingTasks.length).toBe(1);
 
-    // Start the task
+    // Claim and start the task (FSM workflow)
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
     const startResult = await t.mutation(api.tasks.startTask, {
       sessionId,
       chatroomId,
