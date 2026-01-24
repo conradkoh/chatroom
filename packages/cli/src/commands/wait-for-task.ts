@@ -176,7 +176,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     console.log(`\n${'─'.repeat(50)}`);
     console.log(`NOTE TO ${role.toUpperCase()} AGENT:`);
     console.log(
-      `Session timeout reached. Reconnect immediately to stay available for incoming tasks, otherwise users and other agents cannot reach you.`
+      `Session timeout reached (this is normal and expected). Reconnect immediately to stay available for incoming tasks, otherwise users and other agents cannot reach you.`
     );
     console.log(`\nRun this command now:`);
     console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));

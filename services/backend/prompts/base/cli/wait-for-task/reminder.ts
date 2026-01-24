@@ -22,5 +22,12 @@ export function getWaitForTaskReminder(): string {
 export function getWaitForTaskGuidance(): string {
   return `Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
-Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgrounding) - backgrounded processes cannot receive tasks`;
+Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgrounding) - backgrounded processes cannot receive tasks
+
+⏱️  HOW WAIT-FOR-TASK WORKS:
+• While wait-for-task runs, you remain "frozen" - the tool continues executing while you wait
+• The command may timeout before a task arrives. This is normal and expected behavior
+• The shell host enforces timeouts to ensure agents remain responsive and can pick up new jobs
+• When wait-for-task terminates (timeout or after task completion), restart it immediately
+• Restarting quickly ensures users and other agents don't have to wait for your availability`;
 }
