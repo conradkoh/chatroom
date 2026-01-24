@@ -83,7 +83,13 @@ export function getTaskSection(_origin: TaskOrigin | undefined, status: TaskStat
   }
 
   // Active work - shows in current section
-  if (status === 'in_progress' || status === 'pending') {
+  // Includes acknowledged states (agent has claimed but not started)
+  if (
+    status === 'in_progress' ||
+    status === 'pending' ||
+    status === 'acknowledged' ||
+    status === 'backlog_acknowledged'
+  ) {
     return 'current';
   }
 

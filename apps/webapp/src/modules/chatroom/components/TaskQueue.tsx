@@ -25,9 +25,11 @@ import { TaskQueueModal } from './TaskQueueModal';
 
 type TaskStatus =
   | 'pending'
+  | 'acknowledged'
   | 'in_progress'
   | 'queued'
   | 'backlog'
+  | 'backlog_acknowledged'
   | 'pending_user_review'
   | 'completed'
   | 'closed'
@@ -83,6 +85,13 @@ const getStatusBadge = (status: TaskStatus) => {
       return {
         emoji: '🟢',
         label: 'Pending',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
+    case 'acknowledged':
+    case 'backlog_acknowledged':
+      return {
+        emoji: '🟢',
+        label: 'Claimed',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
     case 'in_progress':
@@ -221,7 +230,13 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
       });
 
     return {
-      current: tasks.filter((t) => t.status === 'pending' || t.status === 'in_progress'),
+      current: tasks.filter(
+        (t) =>
+          t.status === 'pending' ||
+          t.status === 'acknowledged' ||
+          t.status === 'in_progress' ||
+          t.status === 'backlog_acknowledged'
+      ),
       queued: tasks.filter((t) => t.status === 'queued'),
       backlog: backlogTasks,
     };

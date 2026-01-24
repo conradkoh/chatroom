@@ -8,9 +8,11 @@ import remarkGfm from 'remark-gfm';
 
 type TaskStatus =
   | 'pending'
+  | 'acknowledged'
   | 'in_progress'
   | 'queued'
   | 'backlog'
+  | 'backlog_acknowledged'
   | 'pending_user_review'
   | 'completed'
   | 'closed'
