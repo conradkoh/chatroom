@@ -122,20 +122,14 @@ export async function readContext(
         }
       }
 
-      // Show message content (first 3 lines)
-      const lines = message.content.split('\n');
-      const preview = lines.slice(0, 3).join('\n');
-      const hasMore = lines.length > 3;
+      // Show full message content
       console.log(`   Content:`);
       console.log(
-        preview
+        message.content
           .split('\n')
           .map((l) => `      ${l}`)
           .join('\n')
       );
-      if (hasMore) {
-        console.log(`      ... (${lines.length - 3} more lines)`);
-      }
     }
 
     console.log('\n' + '═'.repeat(60));
