@@ -12,6 +12,7 @@ import {
   Loader2,
   Timer,
   CheckCircle2,
+  Check,
   XCircle,
   Archive,
   ArrowRightLeft,
@@ -352,7 +353,7 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
                 className={`flex-shrink-0 text-chatroom-status-info ${isProgressFresh ? 'animate-spin' : ''}`}
               />
             ) : (
-              <CheckCircle2 size={12} className="flex-shrink-0 text-chatroom-status-success" />
+              <Check size={12} className="flex-shrink-0 text-chatroom-status-success" />
             )}
             <span
               className={`text-[11px] text-chatroom-text-secondary truncate flex-1 ${isProgressFresh ? 'animate-pulse' : ''}`}
