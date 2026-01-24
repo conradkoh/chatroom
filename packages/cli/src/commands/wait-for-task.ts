@@ -274,8 +274,11 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     console.log(`\n📋 NEXT STEPS`);
     console.log(`${'='.repeat(60)}`);
 
-    // Show the exact command to run with explicit IDs
-    if (message) {
+    // Only show task-started instructions for user messages (entry point classification)
+    // Handoff messages from other agents don't need classification
+    const isUserMessage = message && message.senderRole.toLowerCase() === 'user';
+
+    if (isUserMessage) {
       console.log(`To acknowledge and classify this message, run:\n`);
 
       // Show basic command structure
@@ -311,11 +314,17 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
           cliEnvPrefix,
         })
       );
+
+      console.log(`\nClassification types: question, new_feature, follow_up`);
+    } else if (message) {
+      console.log(`Task handed off from ${message.senderRole}.`);
+      console.log(
+        `The original user message was already classified - you can start work immediately.`
+      );
     } else {
-      console.log(`No message found to classify. Use --task-id to specify a task.`);
+      console.log(`No message found. Task ID: ${task._id}`);
     }
 
-    console.log(`\nClassification types: question, new_feature, follow_up`);
     console.log(`${'='.repeat(60)}`);
 
     // Print pinned section with primary user directive
