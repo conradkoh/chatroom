@@ -25,9 +25,24 @@ export function getContextGainingGuidance(options: ContextGainingOptions): strin
 
 You are joining a conversation and you may not have full context. The goal of context-gaining is to understand the request from the user, so that they feel there is continuity in the conversation.
 
-### User Perspective
+### Quick Context Check
 
-The user's perspective is important because it is the ground truth to the question "What is the objective?". The user's foremost concern is what has been communicated via the chat.
+**Read context for your role (RECOMMENDED):**
+
+\`\`\`bash
+${cliEnvPrefix}chatroom context read ${chatroomId} --role=${role}
+\`\`\`
+
+This provides everything you need in one command:
+- Origin message and classification (question/new_feature/follow_up)
+- Full conversation history from origin forward
+- Task information for each message (IDs, status, attachments)
+- Number of pending tasks waiting for your role
+- Clear view of what work is available for you
+
+### Detailed Message Queries
+
+If you need more specific message filtering after reading context:
 
 **Get recent user messages:**
 
@@ -35,21 +50,11 @@ The user's perspective is important because it is the ground truth to the questi
 ${cliEnvPrefix}chatroom messages list ${chatroomId} --role=${role} --sender-role=user --limit=5 --full
 \`\`\`
 
-This shows the last 5 user messages with full content, including:
-- Original requests and feature descriptions
-- Follow-up questions and clarifications
-- Feedback on delivered work
-
 **Get conversation flow since a specific message:**
 
 \`\`\`bash
 ${cliEnvPrefix}chatroom messages list ${chatroomId} --role=${role} --since-message-id=<message-id> --full
 \`\`\`
-
-This shows all messages since a specific point, useful for understanding:
-- The complete conversation thread
-- Task handoffs between agents
-- Classification (question, new_feature, follow_up)
 
 ### Code Perspective
 
