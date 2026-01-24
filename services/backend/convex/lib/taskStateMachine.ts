@@ -243,6 +243,14 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   {
+    from: 'in_progress',
+    to: 'closed',
+    trigger: 'cancelTask',
+    setFields: {},
+    clearFields: [],
+  },
+
+  {
     from: 'queued',
     to: 'closed',
     trigger: 'cancelTask',
@@ -309,11 +317,41 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   // ==========================================================================
-  // FORCE COMPLETION: pending/in_progress → completed
+  // FORCE COMPLETION: pending/acknowledged/in_progress/backlog/queued → completed
   // ==========================================================================
 
   {
     from: 'pending',
+    to: 'completed',
+    trigger: 'completeTaskById',
+    setFields: {
+      completedAt: 'NOW',
+    },
+    clearFields: [],
+  },
+
+  {
+    from: 'acknowledged',
+    to: 'completed',
+    trigger: 'completeTaskById',
+    setFields: {
+      completedAt: 'NOW',
+    },
+    clearFields: [],
+  },
+
+  {
+    from: 'in_progress',
+    to: 'completed',
+    trigger: 'completeTaskById',
+    setFields: {
+      completedAt: 'NOW',
+    },
+    clearFields: [],
+  },
+
+  {
+    from: 'queued',
     to: 'completed',
     trigger: 'completeTaskById',
     setFields: {

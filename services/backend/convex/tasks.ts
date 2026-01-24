@@ -306,7 +306,8 @@ export const completeTask = mutation({
 
 /**
  * Cancel a task.
- * Only allowed for pending, queued, backlog, and pending_user_review tasks.
+ * Allowed for pending, acknowledged, queued, backlog, backlog_acknowledged, pending_user_review, and in_progress tasks.
+ * For in_progress tasks, requires force: true to prevent accidental cancellation.
  * If a pending task is cancelled, promotes the next queued task.
  * Uses 'closed' status for all cancelled tasks.
  * Requires CLI session authentication and chatroom access.
@@ -315,6 +316,7 @@ export const cancelTask = mutation({
   args: {
     sessionId: v.string(),
     taskId: v.id('chatroom_tasks'),
+    force: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const task = await ctx.db.get('chatroom_tasks', args.taskId);
@@ -325,21 +327,47 @@ export const cancelTask = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Only allow cancellation of pending, queued, backlog, and pending_user_review tasks (not in_progress)
-    const allowedStatuses = ['pending', 'queued', 'backlog', 'pending_user_review'];
+    // Allow cancellation of most task statuses except completed/closed
+    // For in_progress tasks, require force flag to prevent accidental cancellation
+    const allowedStatuses = [
+      'pending',
+      'acknowledged',
+      'queued',
+      'backlog',
+      'backlog_acknowledged',
+      'pending_user_review',
+      'in_progress',
+    ];
     if (!allowedStatuses.includes(task.status)) {
       throw new Error(`Cannot cancel task with status: ${task.status}`);
     }
 
+    // For in_progress tasks, require force flag
+    if (task.status === 'in_progress' && !args.force) {
+      throw new Error(
+        `Task is in_progress. This task is currently being worked on. ` +
+          `Use --force to cancel an active task.`
+      );
+    }
+
     const wasPending = task.status === 'pending';
+    const wasInProgress = task.status === 'in_progress';
 
     // Use FSM for transition
 
     await transitionTask(ctx, args.taskId, 'closed', 'cancelTask');
 
-    // If we cancelled a pending task, promote the next queued task only if all agents are ready
+    // Log force cancellation for in_progress tasks
+    if (wasInProgress) {
+      console.warn(
+        `[Force Cancel] Task ${args.taskId} force-cancelled from in_progress. ` +
+          `Content: "${task.content.substring(0, 50)}${task.content.length > 50 ? '...' : ''}"`
+      );
+    }
+
+    // If we cancelled a pending or in_progress task, promote the next queued task only if all agents are ready
     let promoted = null;
-    if (wasPending) {
+    if (wasPending || wasInProgress) {
       const allAgentsReady = await areAllAgentsReady(ctx, task.chatroomId);
 
       if (allAgentsReady) {
@@ -359,7 +387,7 @@ export const cancelTask = mutation({
 
           // Log the automatic promotion
           console.warn(
-            `[Queue Promotion] Auto-promoted task ${nextTask._id} after cancellation of pending task ${args.taskId}. ` +
+            `[Queue Promotion] Auto-promoted task ${nextTask._id} after cancellation of ${task.status} task ${args.taskId}. ` +
               `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
           );
 
@@ -367,7 +395,7 @@ export const cancelTask = mutation({
         }
       } else {
         console.warn(
-          `[Queue Promotion Deferred] Cancelled pending task ${args.taskId} but some agents are still active. ` +
+          `[Queue Promotion Deferred] Cancelled ${task.status} task ${args.taskId} but some agents are still active. ` +
             `Queue promotion deferred until all agents are ready.`
         );
       }
