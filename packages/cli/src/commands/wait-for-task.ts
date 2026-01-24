@@ -174,11 +174,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   const timeoutHandle = setTimeout(() => {
     if (unsubscribe) unsubscribe();
     console.log(`\n${'─'.repeat(50)}`);
-    console.log(`NOTE TO ${role.toUpperCase()} AGENT:`);
-    console.log(
-      `Session timeout reached (this is normal and expected). Reconnect immediately to stay available for incoming tasks, otherwise users and other agents cannot reach you.`
-    );
-    console.log(`\nRun this command now:`);
+    console.log(`⚠️  RECONNECTION REQUIRED\n`);
+    console.log(`Why: Session timeout reached (normal and expected behavior)`);
+    console.log(`Impact: You are no longer listening for tasks`);
+    console.log(`Action: Run this command immediately to resume availability\n`);
     console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
     console.log(`${'─'.repeat(50)}`);
     process.exit(0); // Exit with 0 since this is expected behavior
@@ -243,11 +242,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     // Handle interrupt (if message is interrupt type)
     if (message && message.type === 'interrupt') {
       console.log(`\n${'─'.repeat(50)}`);
-      console.log(`NOTE TO ${role.toUpperCase()} AGENT:`);
-      console.log(
-        `Interrupt received. Reconnect immediately to stay available for incoming tasks, otherwise users and other agents cannot reach you.`
-      );
-      console.log(`\nRun this command now:`);
+      console.log(`⚠️  RECONNECTION REQUIRED\n`);
+      console.log(`Why: Interrupt message received from team`);
+      console.log(`Impact: You are no longer listening for tasks`);
+      console.log(`Action: Run this command immediately to resume availability\n`);
       console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
       console.log(`${'─'.repeat(50)}`);
       process.exit(0);
@@ -390,11 +388,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (unsubscribe) unsubscribe();
     clearTimeout(timeoutHandle);
     console.log(`\n${'─'.repeat(50)}`);
-    console.log(`NOTE TO ${role.toUpperCase()} AGENT:`);
-    console.log(
-      `Process interrupted. Reconnect immediately to stay available for incoming tasks, otherwise users and other agents cannot reach you.`
-    );
-    console.log(`\nRun this command now:`);
+    console.log(`⚠️  RECONNECTION REQUIRED\n`);
+    console.log(`Why: Process interrupted (unexpected termination)`);
+    console.log(`Impact: You are no longer listening for tasks`);
+    console.log(`Action: Run this command immediately to resume availability\n`);
     console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
     console.log(`${'─'.repeat(50)}`);
     process.exit(0);
