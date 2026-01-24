@@ -110,10 +110,6 @@ async function _sendMessageHandler(
     lastActivityAt: now,
   });
 
-  // Note: Attached backlog tasks remain in their current status when attached to a message.
-  // They will only be transitioned to pending_user_review when the agent hands off to user.
-  // This ensures backlog tasks are only processed through the explicit user review flow.
-
   // Auto-create task for user messages and handoff messages
   const isUserMessage = normalizedSenderRole === 'user' && args.type === 'message';
   const isHandoffToAgent =
@@ -160,10 +156,47 @@ async function _sendMessageHandler(
       updatedAt: now,
       queuePosition,
       assignedTo,
+      // Store attached backlog tasks on the main task
+      ...(args.attachedTaskIds &&
+        args.attachedTaskIds.length > 0 && {
+          attachedTaskIds: args.attachedTaskIds,
+        }),
     });
 
     // Update message with taskId reference
     await ctx.db.patch('chatroom_messages', messageId, { taskId });
+
+    // Bidirectional tracking: Update attached backlog tasks
+    if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
+      const { transitionTask } = await import('./lib/taskStateMachine');
+
+      for (const attachedTaskId of args.attachedTaskIds) {
+        const attachedTask = await ctx.db.get('chatroom_tasks', attachedTaskId);
+        if (!attachedTask) continue;
+
+        // Add this task to the backlog task's parentTaskIds
+        const existingParents = attachedTask.parentTaskIds || [];
+        await ctx.db.patch('chatroom_tasks', attachedTaskId, {
+          parentTaskIds: [...existingParents, taskId],
+          updatedAt: now,
+        });
+
+        // Transition backlog task: backlog → backlog_acknowledged
+        if (attachedTask.status === 'backlog') {
+          try {
+            await transitionTask(ctx, attachedTaskId, 'backlog_acknowledged', 'attachToMessage', {
+              parentTaskIds: [...existingParents, taskId],
+            });
+          } catch (error) {
+            // Log but don't fail - task attachment can be retried
+            console.error(
+              `Failed to transition backlog task ${attachedTaskId} to backlog_acknowledged:`,
+              error
+            );
+          }
+        }
+      }
+    }
   }
 
   return messageId;

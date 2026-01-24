@@ -522,11 +522,14 @@ export const moveToQueue = mutation({
       attachedTaskIds: [args.taskId],
     });
 
-    // Update task with new status and link to the message
+    // Update task with new status and link to the message using FSM
+    const { transitionTask } = await import('./lib/taskStateMachine');
+    await transitionTask(ctx, args.taskId, newStatus as any, 'moveToQueue');
+
+    // Update sourceMessageId separately (not part of FSM transition)
     await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: newStatus,
-      updatedAt: now,
       sourceMessageId: messageId,
+      updatedAt: now,
     });
 
     // Link message to task
@@ -738,9 +741,12 @@ export const sendBackForRework = mutation({
       });
     }
 
-    // Update task status back to queue
+    // Update task status back to queue using FSM
+    const { transitionTask } = await import('./lib/taskStateMachine');
+    await transitionTask(ctx, args.taskId, newStatus as any, 'sendBackForRework');
+
+    // Update sourceMessageId separately (not part of FSM transition)
     await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: newStatus,
       sourceMessageId: messageId || task.sourceMessageId,
       updatedAt: now,
     });
