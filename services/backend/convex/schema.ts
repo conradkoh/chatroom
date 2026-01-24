@@ -299,7 +299,8 @@ export default defineSchema({
       v.literal('message'),
       v.literal('handoff'),
       v.literal('interrupt'),
-      v.literal('join')
+      v.literal('join'),
+      v.literal('progress')
     ),
     // Classification of user messages (set via task-started command)
     // Used to determine allowed handoff paths and context window

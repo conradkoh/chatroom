@@ -591,6 +591,71 @@ export const handoff = mutation({
 });
 
 /**
+ * Report progress on the current task without completing it.
+ * Used by agents to provide status updates during long-running operations.
+ *
+ * This is a lightweight operation that:
+ * 1. Validates session and chatroom access
+ * 2. Validates the sender role is in the team
+ * 3. Creates a progress message visible in the webapp
+ *
+ * Progress messages do NOT:
+ * - Create tasks
+ * - Change task status
+ * - Trigger handoffs or queue processing
+ *
+ * Requires CLI session authentication and chatroom access.
+ */
+export const reportProgress = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    senderRole: v.string(),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Validate senderRole to prevent impersonation
+    const normalizedSenderRole = args.senderRole.toLowerCase();
+    const teamRoles = chatroom.teamRoles || [];
+    const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
+    if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
+      throw new ConvexError({
+        code: 'INVALID_ROLE',
+        message: `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ') || 'user'}`,
+      });
+    }
+
+    // Validate content is not empty
+    if (!args.content || args.content.trim().length === 0) {
+      throw new ConvexError({
+        code: 'INVALID_CONTENT',
+        message: 'Progress message content cannot be empty',
+      });
+    }
+
+    // Create the progress message
+    const messageId = await ctx.db.insert('chatroom_messages', {
+      chatroomId: args.chatroomId,
+      senderRole: args.senderRole,
+      content: args.content,
+      type: 'progress',
+      // No targetRole - progress messages are visible to all but don't route
+    });
+
+    // Update chatroom's lastActivityAt for sorting by recent activity
+    const now = Date.now();
+    await ctx.db.patch('chatroom_rooms', args.chatroomId, {
+      lastActivityAt: now,
+    });
+
+    return { success: true, messageId };
+  },
+});
+
+/**
  * Mark a task as started and classify the user message.
  * Called by agents when they begin working on a user message.
  * Sets the classification which determines allowed handoff paths.

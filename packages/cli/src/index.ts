@@ -253,6 +253,60 @@ program
     }
   );
 
+program
+  .command('report-progress <chatroomId>')
+  .description('Report progress on current task (does not complete the task)')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--message <message>', 'Progress message (alternative to stdin)')
+  .action(
+    async (
+      chatroomId: string,
+      options: {
+        role: string;
+        message?: string;
+      }
+    ) => {
+      await maybeRequireAuth();
+
+      let message: string;
+
+      // Primary: use --message flag if provided
+      if (options.message && options.message.trim().length > 0) {
+        message = options.message;
+      } else {
+        // Fallback: read from stdin using the decoder
+        const { decode } = await import('./utils/serialization/decode/index.js');
+        const stdinContent = await readStdin();
+
+        if (!stdinContent.trim()) {
+          console.error('❌ No message provided');
+          console.error('   Use --message="your message" or pipe content via stdin');
+          process.exit(1);
+        }
+
+        try {
+          const result = decode(stdinContent, { singleParam: 'message' });
+          message = result.message;
+        } catch (err) {
+          console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+          process.exit(1);
+        }
+      }
+
+      // Validate that message is not empty
+      if (!message || message.trim().length === 0) {
+        console.error('❌ Progress message cannot be empty');
+        process.exit(1);
+      }
+
+      const { reportProgress } = await import('./commands/report-progress.js');
+      await reportProgress(chatroomId, {
+        role: options.role,
+        message,
+      });
+    }
+  );
+
 // ============================================================================
 // BACKLOG COMMANDS (auth required)
 // ============================================================================
