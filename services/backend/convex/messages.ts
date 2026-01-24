@@ -1,5 +1,5 @@
 import { paginationOptsValidator } from 'convex/server';
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { generateRolePrompt, generateTaskStartedReminder, generateInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
@@ -18,7 +18,8 @@ import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/web
 // Types for task delivery prompt response
 interface TaskDeliveryPromptResponse {
   humanReadable: string;
-  json: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  json: any; // Dynamic JSON structure from prompt generator
 }
 
 // =============================================================================
@@ -49,17 +50,22 @@ async function _sendMessageHandler(
     for (const taskId of args.attachedTaskIds) {
       const task = await ctx.db.get('chatroom_tasks', taskId);
       if (!task) {
-        throw new Error(
-          'One or more attached tasks no longer exist. Please refresh and try again.'
-        );
+        throw new ConvexError({
+          code: 'TASK_NOT_FOUND',
+          message: 'One or more attached tasks no longer exist. Please refresh and try again.',
+        });
       }
       if (task.chatroomId !== args.chatroomId) {
-        throw new Error('Invalid task reference: task belongs to different chatroom.');
+        throw new ConvexError({
+          code: 'INVALID_TASK',
+          message: 'Invalid task reference: task belongs to different chatroom.',
+        });
       }
       if (task.status === 'closed' || task.status === 'completed') {
-        throw new Error(
-          'Cannot attach closed or completed tasks. Please select active backlog items.'
-        );
+        throw new ConvexError({
+          code: 'INVALID_TASK_STATUS',
+          message: 'Cannot attach closed or completed tasks. Please select active backlog items.',
+        });
       }
     }
   }
@@ -72,9 +78,10 @@ async function _sendMessageHandler(
     const teamRoles = chatroom.teamRoles || [];
     const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
     if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
-      throw new Error(
-        `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ') || 'user'}`
-      );
+      throw new ConvexError({
+        code: 'INVALID_ROLE',
+        message: `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ') || 'user'}`,
+      });
     }
   }
 
@@ -246,17 +253,42 @@ async function _handoffHandler(
     targetRole: string;
   }
 ) {
-  // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
-  const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+  // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
+  let chatroom;
+  try {
+    const result = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    chatroom = result.chatroom;
+  } catch (error) {
+    // Convert generic Error to structured error response
+    return {
+      success: false,
+      error: {
+        code: 'AUTH_FAILED',
+        message: error instanceof Error ? error.message : 'Authentication failed',
+      },
+      messageId: null,
+      completedTaskIds: [],
+      newTaskId: null,
+      promotedTaskId: null,
+    };
+  }
 
   // Validate senderRole
   const normalizedSenderRole = args.senderRole.toLowerCase();
   const teamRoles = chatroom.teamRoles || [];
   const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
   if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
-    throw new Error(
-      `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ')}`
-    );
+    return {
+      success: false,
+      error: {
+        code: 'INVALID_ROLE',
+        message: `Invalid senderRole: "${args.senderRole}" is not in team configuration. Allowed roles: ${teamRoles.join(', ')}`,
+      },
+      messageId: null,
+      completedTaskIds: [],
+      newTaskId: null,
+      promotedTaskId: null,
+    };
   }
 
   const normalizedTargetRole = args.targetRole.toLowerCase();
@@ -586,33 +618,49 @@ export const taskStarted = mutation({
     // Get the task to acknowledge
     const task = await ctx.db.get('chatroom_tasks', args.taskId);
     if (!task) {
-      throw new Error('Task not found');
+      throw new ConvexError({
+        code: 'TASK_NOT_FOUND',
+        message: 'Task not found',
+      });
     }
 
     // Verify the task belongs to this chatroom
     if (task.chatroomId !== args.chatroomId) {
-      throw new Error('Task does not belong to this chatroom');
+      throw new ConvexError({
+        code: 'INVALID_TASK',
+        message: 'Task does not belong to this chatroom',
+      });
     }
 
     // Get the associated message
     if (!task.sourceMessageId) {
-      throw new Error('Task must have an associated message');
+      throw new ConvexError({
+        code: 'INVALID_TASK',
+        message: 'Task must have an associated message',
+      });
     }
     const message = await ctx.db.get('chatroom_messages', task.sourceMessageId);
     if (!message) {
-      throw new Error('Associated message not found');
+      throw new ConvexError({
+        code: 'MESSAGE_NOT_FOUND',
+        message: 'Associated message not found',
+      });
     }
 
     // Only allow classification of user messages
     if (message.senderRole.toLowerCase() !== 'user') {
-      throw new Error('Can only classify user messages');
+      throw new ConvexError({
+        code: 'INVALID_MESSAGE',
+        message: 'Can only classify user messages',
+      });
     }
 
     // Verify task is in progress (startTask should have been called first)
     if (task.status !== 'in_progress') {
-      throw new Error(
-        `Task must be in_progress to classify (current status: ${task.status}). Call startTask first.`
-      );
+      throw new ConvexError({
+        code: 'INVALID_TASK_STATUS',
+        message: `Task must be in_progress to classify (current status: ${task.status}). Call startTask first.`,
+      });
     }
 
     // Update the message with classification and feature metadata (only if not already classified)
@@ -1203,17 +1251,26 @@ export const inspectFeature = query({
     // Get the feature message
     const message = await ctx.db.get('chatroom_messages', args.messageId);
     if (!message) {
-      throw new Error('Message not found');
+      throw new ConvexError({
+        code: 'MESSAGE_NOT_FOUND',
+        message: 'Message not found',
+      });
     }
 
     // Verify it belongs to this chatroom
     if (message.chatroomId !== args.chatroomId) {
-      throw new Error('Message does not belong to this chatroom');
+      throw new ConvexError({
+        code: 'INVALID_MESSAGE',
+        message: 'Message does not belong to this chatroom',
+      });
     }
 
     // Verify it's a feature
     if (message.classification !== 'new_feature' || !message.featureTitle) {
-      throw new Error('Message is not a feature');
+      throw new ConvexError({
+        code: 'INVALID_MESSAGE',
+        message: 'Message is not a feature',
+      });
     }
 
     // Get all messages in the chatroom to find the thread
@@ -1225,7 +1282,10 @@ export const inspectFeature = query({
     // Find the index of this message
     const messageIndex = allMessages.findIndex((m) => m._id === args.messageId);
     if (messageIndex === -1) {
-      throw new Error('Message not found in chatroom');
+      throw new ConvexError({
+        code: 'MESSAGE_NOT_FOUND',
+        message: 'Message not found in chatroom',
+      });
     }
 
     // Get all messages after this one until the next non-follow-up user message
@@ -1410,7 +1470,10 @@ export const getTaskDeliveryPrompt = query({
     // Fetch the task
     const task = await ctx.db.get('chatroom_tasks', args.taskId);
     if (!task) {
-      throw new Error('Task not found');
+      throw new ConvexError({
+        code: 'TASK_NOT_FOUND',
+        message: 'Task not found',
+      });
     }
 
     // Fetch the message if provided
@@ -1666,7 +1729,10 @@ export const getWebappDisplayPrompt = query({
     // Fetch chatroom (no auth required for display purposes)
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom) {
-      throw new Error('Chatroom not found');
+      throw new ConvexError({
+        code: 'CHATROOM_NOT_FOUND',
+        message: 'Chatroom not found',
+      });
     }
 
     // Generate the webapp display prompt
@@ -1760,12 +1826,18 @@ export const listSinceMessage = query({
     // Get the reference message to find its timestamp
     const referenceMessage = await ctx.db.get('chatroom_messages', args.sinceMessageId);
     if (!referenceMessage) {
-      throw new Error('Message not found');
+      throw new ConvexError({
+        code: 'MESSAGE_NOT_FOUND',
+        message: 'Message not found',
+      });
     }
 
     // Verify message belongs to this chatroom
     if (referenceMessage.chatroomId !== args.chatroomId) {
-      throw new Error('Message does not belong to this chatroom');
+      throw new ConvexError({
+        code: 'INVALID_MESSAGE',
+        message: 'Message does not belong to this chatroom',
+      });
     }
 
     const limit = args.limit || 100;

@@ -14,6 +14,7 @@
 import { handoffCommand } from '@workspace/backend/prompts/base/cli/handoff/command.js';
 import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
+import { ConvexError } from 'convex/values';
 
 import { api } from '../api.js';
 import type { Id } from '../api.js';
@@ -56,6 +57,7 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
   if (attachedArtifactIds.length > 0) {
     try {
       const areValid = await client.query(api.artifacts.validateArtifactIds, {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         sessionId: sessionId as any, // SessionId branded type from convex-helpers
         artifactIds: attachedArtifactIds as Id<'chatroom_artifacts'>[],
       });
@@ -85,24 +87,65 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
   // Send handoff mutation
   // TODO: Artifact attachment is not yet supported by backend's sendHandoff
   // If artifacts need to be included, they should be uploaded separately
-  const result = (await client.mutation(api.messages.sendHandoff, {
-    sessionId: sessionId as any, // SessionId branded type from convex-helpers
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    senderRole: role,
-    content: message,
-    targetRole: nextRole,
-  })) as {
-    success: boolean;
-    error?: {
-      code: string;
-      message: string;
-      suggestedTarget?: string;
-    } | null;
-    messageId: string | null;
-    completedTaskIds: string[];
-    newTaskId: string | null;
-    promotedTaskId: string | null;
-  };
+  let result;
+  try {
+    result = (await client.mutation(api.messages.sendHandoff, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sessionId: sessionId as any, // SessionId branded type from convex-helpers
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      senderRole: role,
+      content: message,
+      targetRole: nextRole,
+    })) as {
+      success: boolean;
+      error?: {
+        code: string;
+        message: string;
+        suggestedTarget?: string;
+      } | null;
+      messageId: string | null;
+      completedTaskIds: string[];
+      newTaskId: string | null;
+      promotedTaskId: string | null;
+    };
+  } catch (error) {
+    // Handle ConvexError (application errors) and unexpected errors
+    console.error(`\n❌ ERROR: Handoff failed`);
+
+    if (error instanceof ConvexError) {
+      // Application error - show structured error data
+      const errorData = error.data as { code?: string; message?: string };
+      console.error(`\n${errorData.message || 'An unexpected error occurred'}`);
+
+      // Log full error for debugging
+      if (process.env.CHATROOM_DEBUG === 'true') {
+        console.error('\n🔍 Debug Info:');
+        console.error(JSON.stringify(errorData, null, 2));
+      }
+
+      // Show suggestion based on error code
+      const convexUrl = getConvexUrl();
+      if (errorData.code === 'AUTH_FAILED') {
+        console.error('\n💡 Try authenticating again:');
+        console.error(`   chatroom auth ${convexUrl}`);
+      } else if (errorData.code === 'INVALID_ROLE') {
+        console.error('\n💡 Check your team configuration and use a valid role');
+      }
+    } else {
+      // Unexpected error
+      console.error(`\n${error instanceof Error ? error.message : String(error)}`);
+
+      // Log full error for debugging
+      if (process.env.CHATROOM_DEBUG === 'true') {
+        console.error('\n🔍 Debug Info:');
+        console.error(error);
+      }
+    }
+
+    console.error('\n📚 Need help? Check the docs or run:');
+    console.error(`   chatroom handoff --help`);
+    process.exit(1);
+  }
 
   // Check for handoff restriction errors
   if (!result.success && result.error) {

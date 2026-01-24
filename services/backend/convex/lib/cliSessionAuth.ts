@@ -11,6 +11,8 @@
  * The validation tries CLI sessions first, then falls back to web sessions.
  */
 
+import { ConvexError } from 'convex/values';
+
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 
@@ -168,13 +170,19 @@ export async function requireChatroomAccess(
   // Validate session (tries CLI session, then web session)
   const sessionResult = await validateSession(ctx, sessionId);
   if (!sessionResult.valid) {
-    throw new Error(`Authentication failed: ${sessionResult.reason}`);
+    throw new ConvexError({
+      code: 'AUTH_FAILED',
+      message: `Authentication failed: ${sessionResult.reason}`,
+    });
   }
 
   // Check chatroom access - now returns the chatroom document
   const accessResult = await checkChatroomAccess(ctx, chatroomId, sessionResult.userId);
   if (!accessResult.hasAccess) {
-    throw new Error(accessResult.reason);
+    throw new ConvexError({
+      code: 'ACCESS_DENIED',
+      message: accessResult.reason,
+    });
   }
 
   return {
