@@ -5,7 +5,7 @@
  * the conversation history and code changes to provide continuity.
  */
 
-import { getCliEnvPrefix } from '../utils/index.js';
+import { getCliEnvPrefix } from '../../../utils/index.js';
 
 export interface ContextGainingOptions {
   chatroomId: string;
