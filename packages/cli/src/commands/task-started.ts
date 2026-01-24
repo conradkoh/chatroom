@@ -136,7 +136,22 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     process.exit(1);
   }
 
-  // Call the taskStarted mutation
+  // First, start the task (transition: acknowledged → in_progress)
+  // This must happen before classification
+  try {
+    await client.mutation(api.tasks.startTask, {
+      sessionId: sessionId as any,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+    });
+  } catch (error) {
+    const err = error as Error;
+    console.error(`❌ Failed to start task`);
+    console.error(`   Error: ${err.message}`);
+    process.exit(1);
+  }
+
+  // Now classify the message (requires task to be in_progress)
   try {
     const result = (await client.mutation(api.messages.taskStarted, {
       sessionId: sessionId as any, // SessionId branded type from convex-helpers
