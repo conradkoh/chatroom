@@ -62,6 +62,16 @@ export interface WaitForTaskParams extends CommandContext {
 }
 
 // ============================================================================
+// report-progress command types
+// ============================================================================
+
+export interface ReportProgressParams extends CommandContext {
+  chatroomId?: string;
+  role?: string;
+  message?: string;
+}
+
+// ============================================================================
 // Role guidance parameter types
 // ============================================================================
 

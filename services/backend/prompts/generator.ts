@@ -8,6 +8,7 @@
 
 import { handoffCommand } from './base/cli/handoff/command.js';
 import { getTaskStartedPrompt, getContextGainingGuidance } from './base/cli/index.js';
+import { reportProgressCommand } from './base/cli/report-progress/command.js';
 import { getBuilderGuidance as getBaseBuilderGuidance } from './base/cli/roles/builder.js';
 import { getReviewerGuidance as getBaseReviewerGuidance } from './base/cli/roles/reviewer.js';
 import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
@@ -178,6 +179,13 @@ function getCommandsSection(ctx: RolePromptContext): string {
     cliEnvPrefix,
   });
 
+  const progressCmd = reportProgressCommand({
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+    message: 'Working on tests...',
+    cliEnvPrefix,
+  });
+
   return `### Commands
 
 **Complete task and hand off:**
@@ -190,6 +198,14 @@ Replace \`[Your message here]\` with:
 - **Summary**: Brief description of what was done
 - **Changes Made**: Key changes (bullets)
 - **Testing**: How to verify the work
+
+**Report progress without completing task (optional):**
+
+\`\`\`bash
+${progressCmd}
+\`\`\`
+
+Use this to send status updates during long-running tasks. Progress messages are visible in the webapp but do not complete your task or trigger handoffs.
 
 **Continue receiving messages after \`handoff\`:**
 \`\`\`

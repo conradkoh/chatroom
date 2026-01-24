@@ -215,6 +215,14 @@ describe('Pair Team Workflow', () => {
         - **Changes Made**: Key changes (bullets)
         - **Testing**: How to verify the work
 
+        **Report progress without completing task (optional):**
+
+        \`\`\`bash
+        chatroom report-progress 10002;chatroom_rooms --role=builder --message="Working on tests..."
+        \`\`\`
+
+        Use this to send status updates during long-running tasks. Progress messages are visible in the webapp but do not complete your task or trigger handoffs.
+
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
         chatroom wait-for-task 10002;chatroom_rooms --role=builder
@@ -436,6 +444,14 @@ describe('Pair Team Workflow', () => {
         - **Summary**: Brief description of what was done
         - **Changes Made**: Key changes (bullets)
         - **Testing**: How to verify the work
+
+        **Report progress without completing task (optional):**
+
+        \`\`\`bash
+        chatroom report-progress 10002;chatroom_rooms --role=reviewer --message="Working on tests..."
+        \`\`\`
+
+        Use this to send status updates during long-running tasks. Progress messages are visible in the webapp but do not complete your task or trigger handoffs.
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
@@ -660,6 +676,14 @@ describe('Pair Team Workflow', () => {
         - **Summary**: Brief description of what was done
         - **Changes Made**: Key changes (bullets)
         - **Testing**: How to verify the work
+
+        **Report progress without completing task (optional):**
+
+        \`\`\`bash
+        chatroom report-progress 10023;chatroom_rooms --role=builder --message="Working on tests..."
+        \`\`\`
+
+        Use this to send status updates during long-running tasks. Progress messages are visible in the webapp but do not complete your task or trigger handoffs.
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
