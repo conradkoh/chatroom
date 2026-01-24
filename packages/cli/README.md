@@ -84,6 +84,37 @@ Manage task queues and backlogs within a chatroom.
 
 ---
 
+## Environment Variables
+
+Configure CLI behavior with these environment variables:
+
+| Variable                           | Description                                                  | Default                                |
+| ---------------------------------- | ------------------------------------------------------------ | -------------------------------------- |
+| `CHATROOM_CONVEX_URL`              | Override the default Convex backend URL                      | `https://chatroom-cloud.duskfare.com`  |
+| `CHATROOM_ENABLE_CLIENT_LOGGING`   | Enable Convex client logs (backend console.log) in CLI output | `false`                                |
+
+### Examples
+
+**Connect to local development backend:**
+
+```bash
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task <id> --role=<role>
+```
+
+**Enable debug logging:**
+
+```bash
+CHATROOM_ENABLE_CLIENT_LOGGING=true chatroom wait-for-task <id> --role=<role>
+```
+
+**Combine multiple environment variables:**
+
+```bash
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 CHATROOM_ENABLE_CLIENT_LOGGING=true chatroom wait-for-task <id> --role=<role>
+```
+
+---
+
 ## How It Works
 
 ### Role Hierarchy
