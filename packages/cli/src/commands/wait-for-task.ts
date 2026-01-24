@@ -369,7 +369,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // Use websocket subscription instead of polling
   // This is more efficient - we only receive updates when data changes
   const wsClient = await getConvexWsClient();
-  unsubscribe = wsClient.onUpdate(
+  const subscription = wsClient.onUpdate(
     api.tasks.getPendingTasksForRole,
     {
       sessionId,
@@ -382,6 +382,17 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       });
     }
   );
+  unsubscribe = subscription;
+
+  // IMPORTANT: Check for existing pending tasks immediately
+  // The onUpdate callback fires "soon after" registration, not immediately
+  // This ensures pending tasks are processed right away without delay
+  const currentPendingTasks = subscription.getCurrentValue();
+  if (currentPendingTasks && currentPendingTasks.length > 0) {
+    handlePendingTasks(currentPendingTasks).catch((error) => {
+      console.error(`❌ Error processing initial task: ${(error as Error).message}`);
+    });
+  }
 
   // Handle interrupt signals - These are UNEXPECTED terminations that require immediate restart
   const handleSignal = (_signal: string) => {
