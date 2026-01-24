@@ -19,6 +19,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { BacklogCreateModal } from './BacklogCreateModal';
 import { compactMarkdownComponents } from './markdown-utils';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
@@ -149,8 +150,7 @@ const getStatusBadge = (status: TaskStatus) => {
 const PENDING_REVIEW_PREVIEW_LIMIT = 3;
 
 export function TaskQueue({ chatroomId }: TaskQueueProps) {
-  const [isAddingTask, setIsAddingTask] = useState(false);
-  const [newTaskContent, setNewTaskContent] = useState('');
+  const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -250,22 +250,17 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   }, [counts]);
 
   // Handlers
-  const handleAddTask = useCallback(async () => {
-    if (!newTaskContent.trim()) return;
-
-    try {
+  const handleAddTask = useCallback(
+    async (content: string) => {
       await createTask({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        content: newTaskContent.trim(),
+        content,
         createdBy: 'user',
         isBacklog: true,
       });
-      setNewTaskContent('');
-      setIsAddingTask(false);
-    } catch (error) {
-      console.error('Failed to create task:', error);
-    }
-  }, [createTask, chatroomId, newTaskContent]);
+    },
+    [createTask, chatroomId]
+  );
 
   const handleEditTask = useCallback(
     async (taskId: string) => {
@@ -529,59 +524,14 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         <div className="border-b border-chatroom-border">
           <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
             <span>Backlog ({categorizedTasks.backlog.length})</span>
-            {!isAddingTask && (
-              <button
-                onClick={() => setIsAddingTask(true)}
-                className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
-                title="Add to backlog"
-              >
-                <Plus size={14} />
-              </button>
-            )}
+            <button
+              onClick={() => setIsBacklogCreateModalOpen(true)}
+              className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
+              title="Add to backlog"
+            >
+              <Plus size={14} />
+            </button>
           </div>
-
-          {/* Add Task Form */}
-          {isAddingTask && (
-            <div className="p-3 border-b border-chatroom-border bg-chatroom-bg-hover">
-              <textarea
-                value={newTaskContent}
-                onChange={(e) => setNewTaskContent(e.target.value)}
-                onKeyDown={(e) => {
-                  // Cmd+Enter or Ctrl+Enter to add
-                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                    e.preventDefault();
-                    if (newTaskContent.trim()) {
-                      handleAddTask();
-                    }
-                  }
-                }}
-                placeholder="Enter task description..."
-                className="w-full bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary text-xs p-2 resize-none focus:outline-none focus:border-chatroom-accent"
-                rows={2}
-                autoFocus
-              />
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={handleAddTask}
-                  disabled={!newTaskContent.trim()}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Check size={12} />
-                  Add
-                </button>
-                <button
-                  onClick={() => {
-                    setIsAddingTask(false);
-                    setNewTaskContent('');
-                  }}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary"
-                >
-                  <X size={12} />
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Compact Backlog Items - Show first 3 */}
           {categorizedTasks.backlog.slice(0, 3).map((task) => (
@@ -600,7 +550,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
             />
           )}
 
-          {categorizedTasks.backlog.length === 0 && !isAddingTask && (
+          {categorizedTasks.backlog.length === 0 && (
             <div className="p-3 text-center text-chatroom-text-muted text-xs">No backlog items</div>
           )}
         </div>
@@ -678,6 +628,13 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
           }}
         />
       )}
+
+      {/* Backlog Create Modal */}
+      <BacklogCreateModal
+        isOpen={isBacklogCreateModalOpen}
+        onClose={() => setIsBacklogCreateModalOpen(false)}
+        onSubmit={handleAddTask}
+      />
     </div>
   );
 }
