@@ -463,6 +463,22 @@ messagesCommand
   );
 
 // ============================================================================
+// CONTEXT COMMANDS (auth required)
+// ============================================================================
+
+const contextCommand = program.command('context').description('Get chatroom context and state');
+
+contextCommand
+  .command('read <chatroomId>')
+  .description('Read context for your role (conversation history, tasks, status)')
+  .requiredOption('--role <role>', 'Your role')
+  .action(async (chatroomId: string, options: { role: string }) => {
+    await maybeRequireAuth();
+    const { readContext } = await import('./commands/context.js');
+    await readContext(chatroomId, options);
+  });
+
+// ============================================================================
 // GUIDELINES COMMANDS (auth required)
 // ============================================================================
 

@@ -1798,3 +1798,118 @@ export const listSinceMessage = query({
     return enrichedMessages;
   },
 });
+
+/**
+ * Get context for a specific role.
+ * Returns conversation history with task information, pending tasks count,
+ * and the origin message classification.
+ *
+ * This provides agents with a comprehensive view of:
+ * - Recent chat history (from origin message forward)
+ * - Task information attached to each message
+ * - Number of pending tasks waiting for this role
+ * - Origin message and classification type
+ *
+ * Requires CLI session authentication and chatroom access.
+ */
+export const getContextForRole = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Get context window (origin message + all messages since)
+    const contextWindow = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .order('desc')
+      .take(200);
+
+    const messages = contextWindow.reverse();
+
+    // Find origin message (latest non-follow-up user message)
+    let originMessage: (typeof messages)[0] | null = null;
+    let originIndex = -1;
+
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (
+        msg.senderRole.toLowerCase() === 'user' &&
+        msg.type === 'message' &&
+        msg.classification !== 'follow_up' &&
+        msg.acknowledgedAt !== undefined
+      ) {
+        originMessage = msg;
+        originIndex = i;
+        break;
+      }
+    }
+
+    // Get messages from origin forward
+    const contextMessages = originIndex >= 0 ? messages.slice(originIndex) : messages;
+
+    // Enrich messages with task information
+    const enrichedMessages = await Promise.all(
+      contextMessages.map(async (message) => {
+        let taskStatus: string | undefined;
+        let attachedTaskIds: string[] | undefined;
+
+        // Get task status for this message
+        if (message.taskId) {
+          const task = await ctx.db.get('chatroom_tasks', message.taskId);
+          taskStatus = task?.status;
+        }
+
+        // Get attached task IDs
+        if (message.attachedTaskIds && message.attachedTaskIds.length > 0) {
+          attachedTaskIds = message.attachedTaskIds.map((id) => id.toString());
+        }
+
+        return {
+          _id: message._id.toString(),
+          _creationTime: message._creationTime,
+          senderRole: message.senderRole,
+          content: message.content,
+          type: message.type,
+          classification: message.classification,
+          featureTitle: message.featureTitle,
+          taskId: message.taskId?.toString(),
+          taskStatus,
+          attachedTaskIds,
+        };
+      })
+    );
+
+    // Count pending tasks for this role
+    const allPendingTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+      )
+      .collect();
+
+    const pendingTasks = allPendingTasks.filter((task) => task.assignedTo === args.role);
+
+    return {
+      messages: enrichedMessages,
+      originMessage: originMessage
+        ? {
+            _id: originMessage._id.toString(),
+            _creationTime: originMessage._creationTime,
+            senderRole: originMessage.senderRole,
+            content: originMessage.content,
+            type: originMessage.type,
+            classification: originMessage.classification,
+            featureTitle: originMessage.featureTitle,
+            taskId: originMessage.taskId?.toString(),
+          }
+        : null,
+      classification: originMessage?.classification || null,
+      pendingTasksForRole: pendingTasks.length,
+    };
+  },
+});
