@@ -215,13 +215,13 @@ describe('Pair Team Workflow', () => {
         - **Changes Made**: Key changes (bullets)
         - **Testing**: How to verify the work
 
-        **Report progress without completing task (optional):**
+        **Report progress on current task:**
 
         \`\`\`bash
         chatroom report-progress 10002;chatroom_rooms --role=builder --message="Working on tests..."
         \`\`\`
 
-        Use this to send status updates during long-running tasks. Progress messages are visible in the webapp but do not complete your task or trigger handoffs.
+        Send status updates during your work to keep the team informed. Progress is shown inline with the task in the webapp. Reports do not complete your task or trigger handoffs.
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
@@ -445,13 +445,13 @@ describe('Pair Team Workflow', () => {
         - **Changes Made**: Key changes (bullets)
         - **Testing**: How to verify the work
 
-        **Report progress without completing task (optional):**
+        **Report progress on current task:**
 
         \`\`\`bash
         chatroom report-progress 10002;chatroom_rooms --role=reviewer --message="Working on tests..."
         \`\`\`
 
-        Use this to send status updates during long-running tasks. Progress messages are visible in the webapp but do not complete your task or trigger handoffs.
+        Send status updates during your work to keep the team informed. Progress is shown inline with the task in the webapp. Reports do not complete your task or trigger handoffs.
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
@@ -677,13 +677,13 @@ describe('Pair Team Workflow', () => {
         - **Changes Made**: Key changes (bullets)
         - **Testing**: How to verify the work
 
-        **Report progress without completing task (optional):**
+        **Report progress on current task:**
 
         \`\`\`bash
         chatroom report-progress 10023;chatroom_rooms --role=builder --message="Working on tests..."
         \`\`\`
 
-        Use this to send status updates during long-running tasks. Progress messages are visible in the webapp but do not complete your task or trigger handoffs.
+        Send status updates during your work to keep the team informed. Progress is shown inline with the task in the webapp. Reports do not complete your task or trigger handoffs.
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`

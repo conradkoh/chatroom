@@ -199,13 +199,13 @@ Replace \`[Your message here]\` with:
 - **Changes Made**: Key changes (bullets)
 - **Testing**: How to verify the work
 
-**Report progress without completing task (optional):**
+**Report progress on current task:**
 
 \`\`\`bash
 ${progressCmd}
 \`\`\`
 
-Use this to send status updates during long-running tasks. Progress messages are visible in the webapp but do not complete your task or trigger handoffs.
+Send status updates during your work to keep the team informed. Progress is shown inline with the task in the webapp. Reports do not complete your task or trigger handoffs.
 
 **Continue receiving messages after \`handoff\`:**
 \`\`\`
@@ -249,11 +249,18 @@ export function generateTaskStartedReminder(
             nextRole: 'user',
             cliEnvPrefix,
           });
+          const progressCmd = reportProgressCommand({
+            chatroomId,
+            role: 'builder',
+            message: 'Researching...',
+            cliEnvPrefix,
+          });
           return `✅ Task acknowledged as QUESTION.
 
 **Next steps:**
-1. Answer the user's question
-2. When done, hand off directly to user:
+1. Send a progress update: \`${progressCmd}\`
+2. Answer the user's question
+3. When done, hand off directly to user:
 
 \`\`\`bash
 ${handoffToUserCmd}
@@ -269,12 +276,19 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
             nextRole: 'reviewer',
             cliEnvPrefix,
           });
+          const progressCmd = reportProgressCommand({
+            chatroomId,
+            role: 'builder',
+            message: 'Starting implementation...',
+            cliEnvPrefix,
+          });
           return `✅ Task acknowledged as NEW FEATURE.
 
 **Next steps:**
-1. Implement the feature
-2. Commit your changes
-3. MUST hand off to reviewer for approval:
+1. Send a progress update: \`${progressCmd}\`
+2. Implement the feature (send updates as you go)
+3. Commit your changes
+4. MUST hand off to reviewer for approval:
 
 \`\`\`bash
 ${handoffToReviewerCmd}
@@ -284,12 +298,20 @@ ${handoffToReviewerCmd}
 ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
         }
         case 'follow_up': {
+          const progressCmd = reportProgressCommand({
+            chatroomId,
+            role: 'builder',
+            message: 'Continuing work...',
+            cliEnvPrefix,
+          });
           return `✅ Task acknowledged as FOLLOW UP.
 
 **Next steps:**
-Follow-up inherits the workflow rules from the original task:
-- If original was a QUESTION → hand off to user when done
-- If original was a NEW FEATURE → hand off to reviewer when done
+1. Send a progress update: \`${progressCmd}\`
+2. Complete the follow-up work (send updates as you go)
+3. Follow-up inherits the workflow rules from the original task:
+   - If original was a QUESTION → hand off to user when done
+   - If original was a NEW FEATURE → hand off to reviewer when done
 
 💡 You're working on:
 ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
