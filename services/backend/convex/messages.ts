@@ -310,21 +310,21 @@ async function _handoffHandler(
     .collect();
 
   const completedTaskIds: Id<'chatroom_tasks'>[] = [];
+  const { transitionTask } = await import('./lib/taskStateMachine');
+
   for (const task of inProgressTasks) {
     // Determine the new status using the workflow definition:
     // - When handing off to user: use workflow-defined completion status
     //   (backlog → pending_user_review, chat → completed)
     // - When handing off to agent: always 'completed' (a new task is created for target)
-    const newStatus = isHandoffToUser
-      ? getCompletionStatus(task.origin, task.status)
-      : ('completed' as const);
+    const newStatus: 'pending_user_review' | 'completed' = isHandoffToUser
+      ? (getCompletionStatus(task.origin, task.status) as 'pending_user_review' | 'completed')
+      : 'completed';
 
-    await ctx.db.patch('chatroom_tasks', task._id, {
-      status: newStatus,
-      // Only set completedAt for tasks that are actually completed
-      ...(newStatus === 'completed' && { completedAt: now }),
-      updatedAt: now,
-    });
+    // Use FSM for transition
+    // Use appropriate trigger based on context
+    const trigger = isHandoffToUser ? 'completeTask' : 'completeTask';
+    await transitionTask(ctx, task._id, newStatus, trigger);
     completedTaskIds.push(task._id);
 
     // Set completedAt on the source message (lifecycle tracking) - only for completed tasks
@@ -410,10 +410,12 @@ async function _handoffHandler(
               attachedTask.origin === 'backlog' &&
               TRANSITIONABLE_STATUSES.includes(attachedTask.status as TransitionableStatus)
             ) {
-              await ctx.db.patch('chatroom_tasks', attachedTaskId, {
-                status: 'pending_user_review' as const,
-                updatedAt: now,
-              });
+              await transitionTask(
+                ctx,
+                attachedTaskId,
+                'pending_user_review',
+                'parentTaskAcknowledged'
+              );
               console.warn(
                 `[Attached Task Update] chatroomId=${task.chatroomId} taskId=${attachedTaskId} ` +
                   `from=${attachedTask.status} to=pending_user_review`
@@ -447,10 +449,7 @@ async function _handoffHandler(
       if (queuedTasks.length > 0) {
         queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
         const nextTask = queuedTasks[0];
-        await ctx.db.patch('chatroom_tasks', nextTask._id, {
-          status: 'pending',
-          updatedAt: now,
-        });
+        await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
         promotedTaskId = nextTask._id;
         console.warn(
           `[handoff] Promoted queued task ${nextTask._id} to pending (all agents ready after handoff to user)`

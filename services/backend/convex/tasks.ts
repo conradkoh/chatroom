@@ -209,21 +209,21 @@ export const completeTask = mutation({
       return { completed: false, completedCount: 0, promoted: null, pendingReview: [] };
     }
 
-    const now = Date.now();
     const pendingReview: string[] = [];
+
+    // Load FSM once for all transitions
+    const { transitionTask } = await import('./lib/taskStateMachine');
 
     // Complete ALL in_progress tasks based on their origin
     for (const task of inProgressTasks) {
       // Determine the new status based on origin:
       // - backlog-origin tasks → pending_user_review (user must confirm completion)
       // - chat-origin tasks → completed
-      const newStatus = task.origin === 'backlog' ? 'pending_user_review' : 'completed';
+      const newStatus: 'pending_user_review' | 'completed' =
+        task.origin === 'backlog' ? 'pending_user_review' : 'completed';
 
-      await ctx.db.patch('chatroom_tasks', task._id, {
-        status: newStatus,
-        ...(newStatus === 'completed' && { completedAt: now }),
-        updatedAt: now,
-      });
+      // Use FSM for transition
+      await transitionTask(ctx, task._id, newStatus, 'completeTask');
 
       if (newStatus === 'pending_user_review') {
         pendingReview.push(task._id);
@@ -256,10 +256,7 @@ export const completeTask = mutation({
       const nextTask = queuedTasks[0];
 
       if (nextTask) {
-        await ctx.db.patch('chatroom_tasks', nextTask._id, {
-          status: 'pending',
-          updatedAt: now,
-        });
+        await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
         return {
           completed: true,
           completedCount: inProgressTasks.length,
@@ -309,13 +306,11 @@ export const cancelTask = mutation({
       throw new Error(`Cannot cancel task with status: ${task.status}`);
     }
 
-    const now = Date.now();
     const wasPending = task.status === 'pending';
 
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'closed' as const,
-      updatedAt: now,
-    });
+    // Use FSM for transition
+    const { transitionTask } = await import('./lib/taskStateMachine');
+    await transitionTask(ctx, args.taskId, 'closed', 'cancelTask');
 
     // If we cancelled a pending task, promote the next queued task only if all agents are ready
     let promoted = null;
@@ -335,10 +330,7 @@ export const cancelTask = mutation({
           queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
           const nextTask = queuedTasks[0];
 
-          await ctx.db.patch('chatroom_tasks', nextTask._id, {
-            status: 'pending',
-            updatedAt: now,
-          });
+          await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
 
           // Log the automatic promotion
           console.warn(
@@ -381,8 +373,6 @@ export const completeTaskById = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    const now = Date.now();
-
     // For pending/in_progress tasks, require force flag
     if (task.status === 'pending' || task.status === 'in_progress') {
       if (!args.force) {
@@ -392,12 +382,9 @@ export const completeTaskById = mutation({
         );
       }
 
-      // Complete the task
-      await ctx.db.patch('chatroom_tasks', args.taskId, {
-        status: 'completed',
-        completedAt: now,
-        updatedAt: now,
-      });
+      // Use FSM for transition
+      const { transitionTask } = await import('./lib/taskStateMachine');
+      await transitionTask(ctx, args.taskId, 'completed', 'completeTaskById');
 
       // Log force completion
       console.warn(
@@ -422,10 +409,7 @@ export const completeTaskById = mutation({
           queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
           const nextTask = queuedTasks[0];
 
-          await ctx.db.patch('chatroom_tasks', nextTask._id, {
-            status: 'pending',
-            updatedAt: now,
-          });
+          await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
 
           console.warn(
             `[Queue Promotion] Auto-promoted task ${nextTask._id} after force-completing ${args.taskId}. ` +
@@ -451,11 +435,8 @@ export const completeTaskById = mutation({
       );
     }
 
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'completed',
-      completedAt: now,
-      updatedAt: now,
-    });
+    const { transitionTask } = await import('./lib/taskStateMachine');
+    await transitionTask(ctx, args.taskId, 'completed', 'completeTaskById');
 
     return { success: true, taskId: args.taskId, promoted: null, wasForced: false };
   },
@@ -540,7 +521,7 @@ export const moveToQueue = mutation({
 
     // If no pending/in_progress, this becomes pending
     // Otherwise, it goes to the queue
-    const newStatus = activeTasks.length > 0 ? 'queued' : 'pending';
+    const newStatus: 'queued' | 'pending' = activeTasks.length > 0 ? 'queued' : 'pending';
 
     const now = Date.now();
 
@@ -562,7 +543,7 @@ export const moveToQueue = mutation({
 
     // Update task with new status and link to the message using FSM
     const { transitionTask } = await import('./lib/taskStateMachine');
-    await transitionTask(ctx, args.taskId, newStatus as any, 'moveToQueue');
+    await transitionTask(ctx, args.taskId, newStatus, 'moveToQueue');
 
     // Update sourceMessageId separately (not part of FSM transition)
     await ctx.db.patch('chatroom_tasks', args.taskId, {
@@ -619,12 +600,9 @@ export const markBacklogComplete = mutation({
       throw new Error(`Cannot complete task with status: ${task.status}`);
     }
 
-    // Update task to completed status
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'completed' as const,
-      completedAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    // Use FSM for transition
+    const { transitionTask } = await import('./lib/taskStateMachine');
+    await transitionTask(ctx, args.taskId, 'completed', 'markBacklogComplete');
 
     return { success: true };
   },
@@ -660,11 +638,9 @@ export const closeBacklogTask = mutation({
       throw new Error(`Task is already ${task.status}`);
     }
 
-    // Update task status to 'closed'
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'closed' as const,
-      updatedAt: Date.now(),
-    });
+    // Use FSM for transition
+    const { transitionTask } = await import('./lib/taskStateMachine');
+    await transitionTask(ctx, args.taskId, 'closed', 'cancelTask');
 
     return { success: true };
   },
@@ -700,12 +676,9 @@ export const reopenBacklogTask = mutation({
       throw new Error(`Task is ${task.status}, not completed or closed`);
     }
 
-    // Reopen to pending_user_review (user can then review or send back)
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'pending_user_review' as const,
-      completedAt: undefined,
-      updatedAt: Date.now(),
-    });
+    // Use FSM for transition
+    const { transitionTask } = await import('./lib/taskStateMachine');
+    await transitionTask(ctx, args.taskId, 'pending_user_review', 'reopenBacklogTask');
 
     return { success: true };
   },
@@ -758,7 +731,7 @@ export const sendBackForRework = mutation({
       .collect();
 
     // Determine new status: queued if active task exists, pending otherwise
-    const newStatus = activeTasks.length > 0 ? 'queued' : 'pending';
+    const newStatus: 'queued' | 'pending' = activeTasks.length > 0 ? 'queued' : 'pending';
 
     // If feedback provided, create a message from user
     let messageId = null;
@@ -781,7 +754,7 @@ export const sendBackForRework = mutation({
 
     // Update task status back to queue using FSM
     const { transitionTask } = await import('./lib/taskStateMachine');
-    await transitionTask(ctx, args.taskId, newStatus as any, 'sendBackForRework');
+    await transitionTask(ctx, args.taskId, newStatus, 'sendBackForRework');
 
     // Update sourceMessageId separately (not part of FSM transition)
     await ctx.db.patch('chatroom_tasks', args.taskId, {
@@ -876,13 +849,9 @@ export const resetStuckTask = mutation({
       );
     }
 
-    const now = Date.now();
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'pending',
-      assignedTo: undefined,
-      startedAt: undefined,
-      updatedAt: now,
-    });
+    // Use FSM for transition
+    const { transitionTask } = await import('./lib/taskStateMachine');
+    await transitionTask(ctx, args.taskId, 'pending', 'resetStuckTask');
 
     console.warn(
       `[Manual Reset] chatroomId=${task.chatroomId} taskId=${args.taskId} ` +
@@ -1067,11 +1036,9 @@ export const promoteNextTask = mutation({
     queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
     const nextTask = queuedTasks[0];
 
-    const now = Date.now();
-    await ctx.db.patch('chatroom_tasks', nextTask._id, {
-      status: 'pending',
-      updatedAt: now,
-    });
+    // Use FSM for transition
+    const { transitionTask } = await import('./lib/taskStateMachine');
+    await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
 
     // Log the promotion
     console.warn(
