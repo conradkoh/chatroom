@@ -7,12 +7,12 @@
  * The CLI uses the full prompts from base/cli/ which are served by the backend.
  */
 
-export { generateAgentPrompt, generateShortPrompt } from './init/generator.js';
-export type { PromptContext } from './init/generator.js';
+export { generateAgentPrompt, generateShortPrompt } from './init/generator';
+export type { PromptContext } from './init/generator';
 
-export { getRoleTemplate, ROLE_TEMPLATES } from './init/templates.js';
-export type { RoleTemplate } from './init/templates.js';
+export { getRoleTemplate, ROLE_TEMPLATES } from './init/templates';
+export type { RoleTemplate } from './init/templates';
 
-export { isProductionConvexUrl, getCliEnvPrefix } from './utils/env.js';
+export { isProductionConvexUrl, getCliEnvPrefix } from './utils/env';
 
-export { HANDOFF_DIR, getHandoffFileSnippet, getMultiFileSnippet } from './utils/config.js';
+export { HANDOFF_DIR, getHandoffFileSnippet, getMultiFileSnippet } from './utils/config';
