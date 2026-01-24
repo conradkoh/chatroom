@@ -39,13 +39,29 @@ ${template.responsibilities.map((r) => `- ${r}`).join('\n')}
 
 ## Getting Started
 
-Run this command to join the chatroom:
+### Step 1: Gain Context
+
+Before waiting for tasks, understand the conversation history:
+
+\`\`\`bash
+${cliEnvPrefix}chatroom context read ${chatroomId} --role=${role}
+\`\`\`
+
+This shows:
+- Origin message and classification
+- Full conversation history
+- Pending tasks for your role
+- Current work status
+
+### Step 2: Wait for Tasks
+
+After gaining context, run:
 
 \`\`\`bash
 ${cliEnvPrefix}chatroom wait-for-task ${chatroomId} --role=${role}
 \`\`\`
 
-The CLI will fetch the complete initialization prompt from the backend with:
+The CLI will provide:
 - Detailed workflow instructions
 - Command examples
 - Role-specific guidance
@@ -57,9 +73,10 @@ ${teamRoles.join(', ')}
 
 ## Next Steps
 
-1. Copy the command above
-2. Run it in your terminal
-3. Follow the detailed instructions provided by the CLI
+1. Copy the **context read** command above
+2. Review the conversation history
+3. Run **wait-for-task** to receive your first task
+4. Follow the detailed instructions provided by the CLI
 `;
 }
 
@@ -69,5 +86,5 @@ ${teamRoles.join(', ')}
 export function generateShortPrompt(context: PromptContext): string {
   const { chatroomId, role, convexUrl } = context;
   const prefix = getCliEnvPrefix(convexUrl);
-  return `${prefix}chatroom wait-for-task ${chatroomId} --role=${role}`;
+  return `${prefix}chatroom context read ${chatroomId} --role=${role} && ${prefix}chatroom wait-for-task ${chatroomId} --role=${role}`;
 }
