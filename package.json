@@ -14,7 +14,7 @@
     "lint:fix": "eslint . --fix",
     "format": "biome format .",
     "format:fix": "biome format --write --no-errors-on-unmatched",
-    "typecheck": "nx run-many --target=typecheck --projects=@workspace/webapp,@workspace/backend",
+    "typecheck": "nx run-many --target=typecheck --projects=@workspace/webapp,@workspace/backend,@workspace/cli",
     "typecheck:scripts": "tsc --project scripts/tsconfig.json",
     "prepare": "husky"
   },
