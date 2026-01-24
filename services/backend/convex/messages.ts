@@ -14,6 +14,9 @@ import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
 import { getCompletionStatus } from './lib/taskWorkflows';
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
+import { getConfig } from '../prompts/config/index.js';
+
+const config = getConfig();
 
 // Types for task delivery prompt response
 interface TaskDeliveryPromptResponse {
@@ -1405,7 +1408,7 @@ export const getRolePrompt = query({
       availableHandoffRoles,
       canHandoffToUser,
       restrictionReason,
-      convexUrl: args.convexUrl,
+      convexUrl: config.getConvexURLWithFallback(args.convexUrl),
     });
 
     return {
@@ -1440,7 +1443,7 @@ export const getInitPrompt = query({
       teamName: chatroom.teamName || 'Team',
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,
-      convexUrl: args.convexUrl,
+      convexUrl: config.getConvexURLWithFallback(args.convexUrl),
     });
 
     return { prompt };
@@ -1535,7 +1538,7 @@ export const getTaskDeliveryPrompt = query({
       availableHandoffRoles,
       canHandoffToUser,
       restrictionReason,
-      convexUrl: args.convexUrl,
+      convexUrl: config.getConvexURLWithFallback(args.convexUrl),
     });
 
     // Get context window (reuse getContextWindow logic)

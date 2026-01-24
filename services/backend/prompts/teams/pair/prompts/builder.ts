@@ -3,13 +3,9 @@
  */
 
 import { getBuilderGuidance as getBaseBuilderGuidance } from '../../../base/cli/roles/builder.js';
+import type { BuilderGuidanceParams } from '../../../types/cli.js';
 
-export function getBuilderGuidance(ctx: {
-  role: string;
-  teamRoles: string[];
-  isEntryPoint: boolean;
-  convexUrl?: string;
-}): string {
+export function getBuilderGuidance(ctx: BuilderGuidanceParams): string {
   const hasReviewer = ctx.teamRoles.some((r) => r.toLowerCase() === 'reviewer');
 
   return `
@@ -22,7 +18,7 @@ export function getBuilderGuidance(ctx: {
  - Focus on implementation, let reviewer handle quality checks
  - Hand off to reviewer for all code changes
  
- ${getBaseBuilderGuidance(ctx.isEntryPoint, ctx.convexUrl)}
+ ${getBaseBuilderGuidance(ctx)}
  
  **Pair Team Handoff Rules:**
  - **After code changes** → Hand off to reviewer

@@ -5,20 +5,15 @@
  * the conversation history and code changes to provide continuity.
  */
 
+import type { ContextGainingParams } from '../../../types/cli.js';
 import { getCliEnvPrefix } from '../../../utils/index.js';
-
-export interface ContextGainingOptions {
-  chatroomId: string;
-  role: string;
-  convexUrl?: string;
-}
 
 /**
  * Get context-gaining guidance for agents joining a conversation.
  * Provides instructions for understanding both user perspective and code changes.
  */
-export function getContextGainingGuidance(options: ContextGainingOptions): string {
-  const { chatroomId, role, convexUrl } = options;
+export function getContextGainingGuidance(params: ContextGainingParams): string {
+  const { chatroomId, role, convexUrl } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   return `## Gaining Context

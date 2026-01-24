@@ -1,20 +1,26 @@
 /**
  * Environment utilities for generating CLI command prefixes
+ *
+ * Re-exports from config layer for backward compatibility.
+ * Prefer importing from '../config/index.js' directly.
  */
+
+import { getConfig } from '../config/index.js';
+
+const config = getConfig();
 
 /**
  * The default production Convex URL.
  * CLI commands should not include env var prefix when using this URL.
  */
-const PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
+export const PRODUCTION_CONVEX_URL = config.getConvexURL();
 
 /**
  * Check if a Convex URL is the production URL.
  * Returns false for any non-production URL (local dev, preview, etc.)
  */
 export function isProductionConvexUrl(convexUrl: string | undefined): boolean {
-  if (!convexUrl) return true; // Assume production if not specified
-  return convexUrl === PRODUCTION_CONVEX_URL;
+  return config.isProductionConvexURL(convexUrl);
 }
 
 /**
@@ -30,8 +36,21 @@ export function isProductionConvexUrl(convexUrl: string | undefined): boolean {
  * // → ''
  */
 export function getCliEnvPrefix(convexUrl: string | undefined): string {
-  if (isProductionConvexUrl(convexUrl)) {
-    return '';
-  }
-  return `CHATROOM_CONVEX_URL=${convexUrl} `;
+  return config.getCliEnvPrefix(convexUrl);
+}
+
+/**
+ * Get convexUrl with production fallback.
+ * Returns the provided URL or defaults to production URL if not provided.
+ *
+ * @example
+ * getConvexUrlWithFallback('http://127.0.0.1:3210')
+ * // → 'http://127.0.0.1:3210'
+ *
+ * @example
+ * getConvexUrlWithFallback(undefined)
+ * // → 'https://chatroom-cloud.duskfare.com'
+ */
+export function getConvexUrlWithFallback(convexUrl: string | undefined): string {
+  return config.getConvexURLWithFallback(convexUrl);
 }

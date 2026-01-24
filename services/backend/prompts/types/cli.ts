@@ -11,7 +11,16 @@
 export type MessageClassification = 'question' | 'new_feature' | 'follow_up';
 
 /**
- * Base context shared by all command params
+ * Base interface for all prompt parameters that involve CLI command generation.
+ * Ensures convexUrl is always provided for proper environment variable prefix handling.
+ */
+export interface BasePromptParams {
+  /** Required Convex URL for generating correct environment variable prefix */
+  convexUrl: string;
+}
+
+/**
+ * Base context shared by all command params (legacy - kept for backward compatibility)
  */
 export interface CommandContext {
   /** Optional CLI environment prefix (e.g., for env vars) */
@@ -50,4 +59,34 @@ export interface HandoffParams extends CommandContext {
 export interface WaitForTaskParams extends CommandContext {
   chatroomId?: string;
   role?: string;
+}
+
+// ============================================================================
+// Role guidance parameter types
+// ============================================================================
+
+/**
+ * Parameters for builder guidance generation
+ */
+export interface BuilderGuidanceParams extends BasePromptParams {
+  role: string;
+  teamRoles: string[];
+  isEntryPoint: boolean;
+}
+
+/**
+ * Parameters for reviewer guidance generation
+ */
+export interface ReviewerGuidanceParams extends BasePromptParams {
+  role: string;
+  teamRoles: string[];
+  isEntryPoint: boolean;
+}
+
+/**
+ * Parameters for context-gaining guidance
+ */
+export interface ContextGainingParams extends BasePromptParams {
+  chatroomId: string;
+  role: string;
 }

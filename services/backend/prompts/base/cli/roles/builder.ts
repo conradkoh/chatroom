@@ -2,13 +2,15 @@
  * Builder role-specific guidance for agent initialization prompts.
  */
 
+import type { BuilderGuidanceParams } from '../../../types/cli.js';
 import { getCliEnvPrefix } from '../../../utils/env.js';
 import { taskStartedCommand } from '../task-started/command.js';
 
 /**
  * Generate builder-specific guidance
  */
-export function getBuilderGuidance(isEntryPoint: boolean, convexUrl?: string): string {
+export function getBuilderGuidance(params: BuilderGuidanceParams): string {
+  const { isEntryPoint, convexUrl } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   // Use command generator with env prefix
   const taskStartedExample = taskStartedCommand({ cliEnvPrefix });

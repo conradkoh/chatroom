@@ -31,7 +31,7 @@ function getTeamRoleGuidance(
   role: string,
   teamRoles: string[],
   isEntryPoint: boolean,
-  convexUrl?: string
+  convexUrl: string
 ): string | null {
   const normalizedRole = role.toLowerCase();
 
@@ -54,17 +54,17 @@ function getTeamRoleGuidance(
  */
 function getBaseRoleGuidance(
   role: string,
-  otherRoles: string[],
+  teamRoles: string[],
   isEntryPoint: boolean,
-  convexUrl?: string
+  convexUrl: string
 ): string {
   const normalizedRole = role.toLowerCase();
 
   if (normalizedRole === 'builder') {
-    return getBaseBuilderGuidance(isEntryPoint, convexUrl);
+    return getBaseBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
   }
   if (normalizedRole === 'reviewer') {
-    return getBaseReviewerGuidance(otherRoles, convexUrl);
+    return getBaseReviewerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
   }
 
   return '';
@@ -80,7 +80,7 @@ export interface RolePromptContext {
   availableHandoffRoles: string[];
   canHandoffToUser: boolean;
   restrictionReason?: string | null;
-  convexUrl?: string; // Optional Convex URL for env var prefix generation
+  convexUrl: string; // Required Convex URL for env var prefix generation
   // User context for reviewers - the original request that needs to be validated
   userContext?: {
     originalRequest: string;
@@ -112,8 +112,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
     sections.push(teamGuidance);
   } else {
     // Fall back to base guidance
-    const otherRoles = ctx.teamRoles.filter((r) => r.toLowerCase() !== ctx.role.toLowerCase());
-    sections.push(getBaseRoleGuidance(ctx.role, otherRoles, isEntryPoint, ctx.convexUrl));
+    sections.push(getBaseRoleGuidance(ctx.role, ctx.teamRoles, isEntryPoint, ctx.convexUrl));
   }
 
   // Current task context
@@ -321,7 +320,7 @@ export interface InitPromptInput {
   teamName: string;
   teamRoles: string[];
   teamEntryPoint?: string;
-  convexUrl?: string; // Optional Convex URL for env var prefix generation
+  convexUrl: string; // Required Convex URL for env var prefix generation
 }
 
 /**
@@ -356,7 +355,7 @@ export function generateInitPrompt(input: InitPromptInput): string {
 
   const guidance =
     getTeamRoleGuidance(role, teamRoles, isEntryPoint, convexUrl) ??
-    getBaseRoleGuidance(role, otherRoles, isEntryPoint, convexUrl);
+    getBaseRoleGuidance(role, teamRoles, isEntryPoint, convexUrl);
 
   const waitCmd = waitForTaskCommand({
     chatroomId,

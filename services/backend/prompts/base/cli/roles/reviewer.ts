@@ -2,6 +2,7 @@
  * Reviewer role-specific guidance for agent initialization prompts.
  */
 
+import type { ReviewerGuidanceParams } from '../../../types/cli.js';
 import { getCliEnvPrefix } from '../../../utils/env.js';
 import { handoffCommand } from '../handoff/command.js';
 import { taskStartedCommand } from '../task-started/command.js';
@@ -9,8 +10,9 @@ import { taskStartedCommand } from '../task-started/command.js';
 /**
  * Generate reviewer-specific guidance
  */
-export function getReviewerGuidance(otherRoles: string[], convexUrl?: string): string {
-  const hasBuilder = otherRoles.some((r) => r.toLowerCase() === 'builder');
+export function getReviewerGuidance(params: ReviewerGuidanceParams): string {
+  const { teamRoles, convexUrl } = params;
+  const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   // Use command generators with env prefix

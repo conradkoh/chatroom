@@ -1,29 +1,36 @@
 /**
  * Environment utilities for webapp prompts
+ *
+ * Re-exports from config layer to avoid duplication.
+ * Uses the centralized configuration from prompts/config.
  */
+
+import { getConfig } from '../../../config/index.js';
+
+const config = getConfig();
 
 /**
  * The default production Convex URL.
- * CLI commands should not include env var prefix when using this URL.
  */
-const PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
+export const PRODUCTION_CONVEX_URL = config.getConvexURL();
 
 /**
  * Check if a Convex URL is the production URL.
- * Returns false for any non-production URL (local dev, preview, etc.)
  */
 export function isProductionConvexUrl(convexUrl: string | undefined): boolean {
-  if (!convexUrl) return true; // Assume production if not specified
-  return convexUrl === PRODUCTION_CONVEX_URL;
+  return config.isProductionConvexURL(convexUrl);
 }
 
 /**
  * Get the CLI command prefix for non-production environments.
- * Returns empty string for production, otherwise returns the env var override.
  */
 export function getCliEnvPrefix(convexUrl: string | undefined): string {
-  if (isProductionConvexUrl(convexUrl)) {
-    return '';
-  }
-  return `CHATROOM_CONVEX_URL=${convexUrl} `;
+  return config.getCliEnvPrefix(convexUrl);
+}
+
+/**
+ * Get convexUrl with production fallback.
+ */
+export function getConvexUrlWithFallback(convexUrl: string | undefined): string {
+  return config.getConvexURLWithFallback(convexUrl);
 }

@@ -10,18 +10,18 @@ import { getReviewerGuidance } from './reviewer';
  */
 export function getRoleSpecificGuidance(
   role: string,
-  otherRoles: string[],
+  teamRoles: string[],
   isEntryPoint: boolean,
-  convexUrl?: string
+  convexUrl: string
 ): string {
   const normalizedRole = role.toLowerCase();
 
   if (normalizedRole === 'builder') {
-    return getBuilderGuidance(isEntryPoint, convexUrl);
+    return getBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
   }
 
   if (normalizedRole === 'reviewer') {
-    return getReviewerGuidance(otherRoles, convexUrl);
+    return getReviewerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
   }
 
   return '';
