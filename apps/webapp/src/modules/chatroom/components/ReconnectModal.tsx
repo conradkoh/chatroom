@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { generateAgentPrompt } from '@/lib/prompts';
+import { usePrompts } from '@/contexts/PromptsContext';
 
 interface ParticipantInfo {
   role: string;
@@ -41,28 +41,23 @@ interface ReconnectModalProps {
 export const ReconnectModal = memo(function ReconnectModal({
   isOpen,
   onClose,
-  chatroomId,
-  teamName,
-  teamRoles,
-  teamEntryPoint,
+  chatroomId: _chatroomId,
+  teamName: _teamName,
+  teamRoles: _teamRoles,
+  teamEntryPoint: _teamEntryPoint,
   expiredRoles,
   participants: _participants, // Reserved for future use
   onViewPrompt,
 }: ReconnectModalProps) {
+  const { getAgentPrompt } = usePrompts();
+
   // Generate prompts for expired roles
   const expiredRolePrompts = useMemo(() => {
     return expiredRoles.map((role) => ({
       role,
-      prompt: generateAgentPrompt({
-        chatroomId,
-        role,
-        teamName,
-        teamRoles,
-        teamEntryPoint,
-        convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
-      }),
+      prompt: getAgentPrompt(role) || '',
     }));
-  }, [chatroomId, teamName, teamRoles, teamEntryPoint, expiredRoles]);
+  }, [expiredRoles, getAgentPrompt]);
 
   // Get first line of prompt for preview
   const getPromptPreview = useCallback((prompt: string): string => {

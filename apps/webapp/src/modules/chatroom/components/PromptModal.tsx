@@ -8,22 +8,22 @@ import remarkGfm from 'remark-gfm';
 import { CopyButton } from './CopyButton';
 import { fullMarkdownComponents } from './markdown-utils';
 
+import { usePrompts } from '@/contexts/PromptsContext';
+
 interface PromptModalProps {
   isOpen: boolean;
   onClose: () => void;
   role: string;
-  prompt: string;
 }
 
 type ViewMode = 'preview' | 'raw';
 
-export const PromptModal = memo(function PromptModal({
-  isOpen,
-  onClose,
-  role,
-  prompt,
-}: PromptModalProps) {
+export const PromptModal = memo(function PromptModal({ isOpen, onClose, role }: PromptModalProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('preview');
+  const { getAgentPrompt } = usePrompts();
+
+  // Get the prompt for this role from context
+  const prompt = getAgentPrompt(role) || '';
 
   // Handle Escape key
   const handleKeyDown = useCallback(
