@@ -169,9 +169,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
 
     console.log(`✅ Task acknowledged and classified`);
     console.log(`   Classification: ${originMessageClassification}`);
-    console.log(
-      `   Task: ${targetTask.content.substring(0, 80)}${targetTask.content.length > 80 ? '...' : ''}`
-    );
+    console.log(`   Task: ${targetTask.content}`);
 
     // Display the focused reminder from the backend
     if (result.reminder) {

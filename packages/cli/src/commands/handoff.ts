@@ -169,8 +169,7 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
   }
 
   console.log(`✅ Task completed and handed off to ${nextRole}`);
-  console.log(`📋 Summary: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`);
-
+  console.log(`📋 Summary: ${message}`);
   // Show attached artifacts if any
   if (attachedArtifactIds.length > 0) {
     console.log(`📎 Attached artifacts: ${attachedArtifactIds.length}`);

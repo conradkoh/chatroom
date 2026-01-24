@@ -158,8 +158,8 @@ export async function listBacklog(
           hour12: false,
         });
 
-        // Use full content or truncate based on --full flag
-        const displayContent = options.full ? task.content : truncate(task.content, 100);
+        // Show full content by default (--full flag kept for backward compatibility)
+        const displayContent = task.content;
         console.log(`#${i + 1} [${statusEmoji} ${task.status.toUpperCase()}] ${displayContent}`);
         console.log(`   ID: ${task._id}`);
         console.log(
@@ -561,9 +561,4 @@ function getStatusEmoji(status: TaskStatus): string {
     default:
       return '⚫';
   }
-}
-
-function truncate(str: string, maxLength: number): string {
-  if (str.length <= maxLength) return str;
-  return str.slice(0, maxLength - 3) + '...';
 }
