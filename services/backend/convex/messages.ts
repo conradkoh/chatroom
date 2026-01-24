@@ -11,6 +11,7 @@ import {
   requireChatroomAccess,
 } from './lib/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
+import { transitionTask } from './lib/taskStateMachine';
 import { getCompletionStatus } from './lib/taskWorkflows';
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 
@@ -168,8 +169,6 @@ async function _sendMessageHandler(
 
     // Bidirectional tracking: Update attached backlog tasks
     if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
-      const { transitionTask } = await import('./lib/taskStateMachine');
-
       for (const attachedTaskId of args.attachedTaskIds) {
         const attachedTask = await ctx.db.get('chatroom_tasks', attachedTaskId);
         if (!attachedTask) continue;
@@ -310,7 +309,6 @@ async function _handoffHandler(
     .collect();
 
   const completedTaskIds: Id<'chatroom_tasks'>[] = [];
-  const { transitionTask } = await import('./lib/taskStateMachine');
 
   for (const task of inProgressTasks) {
     // Determine the new status using the workflow definition:

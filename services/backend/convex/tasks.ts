@@ -8,6 +8,7 @@ import {
   validateSession,
 } from './lib/cliSessionAuth';
 import { recoverOrphanedTasks } from './lib/taskRecovery';
+import { transitionTask } from './lib/taskStateMachine';
 
 /**
  * Maximum number of active tasks per chatroom.
@@ -123,7 +124,6 @@ export const claimTask = mutation({
     const now = Date.now();
 
     // Transition: pending → acknowledged using FSM
-    const { transitionTask } = await import('./lib/taskStateMachine');
     await transitionTask(ctx, pendingTask._id, 'acknowledged', 'claimTask', {
       assignedTo: args.role,
     });
@@ -172,7 +172,7 @@ export const startTask = mutation({
     }
 
     // Transition: acknowledged → in_progress using FSM
-    const { transitionTask } = await import('./lib/taskStateMachine');
+
     await transitionTask(ctx, acknowledgedTask._id, 'in_progress', 'startTask');
 
     return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
@@ -212,7 +212,6 @@ export const completeTask = mutation({
     const pendingReview: string[] = [];
 
     // Load FSM once for all transitions
-    const { transitionTask } = await import('./lib/taskStateMachine');
 
     // Complete ALL in_progress tasks based on their origin
     for (const task of inProgressTasks) {
@@ -309,7 +308,7 @@ export const cancelTask = mutation({
     const wasPending = task.status === 'pending';
 
     // Use FSM for transition
-    const { transitionTask } = await import('./lib/taskStateMachine');
+
     await transitionTask(ctx, args.taskId, 'closed', 'cancelTask');
 
     // If we cancelled a pending task, promote the next queued task only if all agents are ready
@@ -383,7 +382,7 @@ export const completeTaskById = mutation({
       }
 
       // Use FSM for transition
-      const { transitionTask } = await import('./lib/taskStateMachine');
+
       await transitionTask(ctx, args.taskId, 'completed', 'completeTaskById');
 
       // Log force completion
@@ -435,7 +434,6 @@ export const completeTaskById = mutation({
       );
     }
 
-    const { transitionTask } = await import('./lib/taskStateMachine');
     await transitionTask(ctx, args.taskId, 'completed', 'completeTaskById');
 
     return { success: true, taskId: args.taskId, promoted: null, wasForced: false };
@@ -542,7 +540,7 @@ export const moveToQueue = mutation({
     });
 
     // Update task with new status and link to the message using FSM
-    const { transitionTask } = await import('./lib/taskStateMachine');
+
     await transitionTask(ctx, args.taskId, newStatus, 'moveToQueue');
 
     // Update sourceMessageId separately (not part of FSM transition)
@@ -601,7 +599,7 @@ export const markBacklogComplete = mutation({
     }
 
     // Use FSM for transition
-    const { transitionTask } = await import('./lib/taskStateMachine');
+
     await transitionTask(ctx, args.taskId, 'completed', 'markBacklogComplete');
 
     return { success: true };
@@ -639,7 +637,7 @@ export const closeBacklogTask = mutation({
     }
 
     // Use FSM for transition
-    const { transitionTask } = await import('./lib/taskStateMachine');
+
     await transitionTask(ctx, args.taskId, 'closed', 'cancelTask');
 
     return { success: true };
@@ -677,7 +675,7 @@ export const reopenBacklogTask = mutation({
     }
 
     // Use FSM for transition
-    const { transitionTask } = await import('./lib/taskStateMachine');
+
     await transitionTask(ctx, args.taskId, 'pending_user_review', 'reopenBacklogTask');
 
     return { success: true };
@@ -753,7 +751,7 @@ export const sendBackForRework = mutation({
     }
 
     // Update task status back to queue using FSM
-    const { transitionTask } = await import('./lib/taskStateMachine');
+
     await transitionTask(ctx, args.taskId, newStatus, 'sendBackForRework');
 
     // Update sourceMessageId separately (not part of FSM transition)
@@ -850,7 +848,7 @@ export const resetStuckTask = mutation({
     }
 
     // Use FSM for transition
-    const { transitionTask } = await import('./lib/taskStateMachine');
+
     await transitionTask(ctx, args.taskId, 'pending', 'resetStuckTask');
 
     console.warn(
@@ -1037,7 +1035,7 @@ export const promoteNextTask = mutation({
     const nextTask = queuedTasks[0];
 
     // Use FSM for transition
-    const { transitionTask } = await import('./lib/taskStateMachine');
+
     await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
 
     // Log the promotion
