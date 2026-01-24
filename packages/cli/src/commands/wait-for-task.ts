@@ -334,6 +334,15 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       console.log(`### Primary User Directive`);
       console.log(`<user-message>`);
       console.log(originMessage.content);
+
+      // Show attached tasks if available
+      if (originMessage.attachedTasks && originMessage.attachedTasks.length > 0) {
+        console.log(`\nATTACHED BACKLOG (${originMessage.attachedTasks.length})`);
+        for (const attachedTask of originMessage.attachedTasks) {
+          console.log(`${attachedTask.content}`);
+        }
+      }
+
       console.log(`</user-message>`);
 
       // Show inferred task status
