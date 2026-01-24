@@ -205,7 +205,7 @@ Replace \`[Your message here]\` with:
 ${progressCmd}
 \`\`\`
 
-Send status updates during your work to keep the team informed. Progress is shown inline with the task in the webapp. Reports do not complete your task or trigger handoffs.
+Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
 **Continue receiving messages after \`handoff\`:**
 \`\`\`
@@ -276,17 +276,11 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
             nextRole: 'reviewer',
             cliEnvPrefix,
           });
-          const progressCmd = reportProgressCommand({
-            chatroomId,
-            role: 'builder',
-            message: 'Starting implementation...',
-            cliEnvPrefix,
-          });
           return `✅ Task acknowledged as NEW FEATURE.
 
 **Next steps:**
-1. Send a progress update: \`${progressCmd}\`
-2. Implement the feature (send updates as you go)
+1. Implement the feature
+2. Send \`report-progress\` at milestones (e.g., after major changes, when blocked)
 3. Commit your changes
 4. MUST hand off to reviewer for approval:
 
@@ -298,17 +292,11 @@ ${handoffToReviewerCmd}
 ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
         }
         case 'follow_up': {
-          const progressCmd = reportProgressCommand({
-            chatroomId,
-            role: 'builder',
-            message: 'Continuing work...',
-            cliEnvPrefix,
-          });
           return `✅ Task acknowledged as FOLLOW UP.
 
 **Next steps:**
-1. Send a progress update: \`${progressCmd}\`
-2. Complete the follow-up work (send updates as you go)
+1. Complete the follow-up work
+2. Send \`report-progress\` at milestones for visibility
 3. Follow-up inherits the workflow rules from the original task:
    - If original was a QUESTION → hand off to user when done
    - If original was a NEW FEATURE → hand off to reviewer when done
