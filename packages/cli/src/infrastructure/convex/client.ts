@@ -34,7 +34,9 @@ export async function getConvexClient(): Promise<ConvexHttpClient> {
 
   if (!client) {
     cachedUrl = url;
-    client = new ConvexHttpClient(url);
+    client = new ConvexHttpClient(url, {
+      logger: false, // Disable backend logs from streaming to CLI
+    });
   }
   return client;
 }
@@ -55,7 +57,9 @@ export async function getConvexWsClient(): Promise<ConvexClient> {
 
   if (!wsClient) {
     cachedUrl = url;
-    wsClient = new ConvexClient(url);
+    wsClient = new ConvexClient(url, {
+      logger: false, // Disable backend logs from streaming to CLI
+    });
   }
   return wsClient;
 }
