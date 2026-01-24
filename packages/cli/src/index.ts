@@ -68,19 +68,6 @@ authCommand
   });
 
 // ============================================================================
-// INIT COMMAND (no auth required)
-// ============================================================================
-
-program
-  .command('init')
-  .description('Initialize configuration file (.chatroom/chatroom.jsonc)')
-  .option('-f, --force', 'Overwrite existing configuration')
-  .action(async (options: { force?: boolean }) => {
-    const { initConfig } = await import('./commands/init.js');
-    await initConfig(options);
-  });
-
-// ============================================================================
 // UPDATE COMMAND (no auth required)
 // ============================================================================
 

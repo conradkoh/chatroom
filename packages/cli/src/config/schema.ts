@@ -22,13 +22,11 @@ export interface TeamDefinition {
  * Configuration for prompt overrides
  */
 export interface PromptsConfig {
-  /** Path to custom init prompt file (replaces entire init prompt) */
-  initPrompt?: string;
   /** System reminder configuration */
   systemReminders?: {
     /** Whether system reminders are enabled (default: true) */
     enabled?: boolean;
-    /** Path to custom wait reminder file */
+    /** Custom reminder file path */
     waitReminder?: string;
   };
 }
