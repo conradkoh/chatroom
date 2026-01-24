@@ -6,8 +6,8 @@
  * This is kept for backward compatibility with UI components.
  */
 
-import { getRoleTemplate } from './templates.js';
-import { getCliEnvPrefix } from '../utils/env.js';
+import { getRoleTemplate } from './templates';
+import { getCliEnvPrefix } from '../utils/env';
 
 export interface PromptContext {
   chatroomId: string;
