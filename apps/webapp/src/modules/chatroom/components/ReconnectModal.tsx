@@ -1,6 +1,5 @@
 'use client';
 
-import { generateAgentPrompt } from '@workspace/backend/prompts/base/webapp';
 import { RefreshCw, AlertTriangle } from 'lucide-react';
 import React, { useCallback, memo, useMemo } from 'react';
 
@@ -17,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { generateAgentPrompt } from '@/lib/prompts';
 
 interface ParticipantInfo {
   role: string;

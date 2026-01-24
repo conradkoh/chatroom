@@ -1,6 +1,5 @@
 'use client';
 
-import { generateAgentPrompt } from '@workspace/backend/prompts/base/webapp';
 import { ChevronRight, CheckCircle, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo } from 'react';
 
@@ -9,6 +8,7 @@ import { CopyButton } from './CopyButton';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { generateAgentPrompt } from '@/lib/prompts';
 
 // Participant info from readiness query - includes expiration data
 interface ParticipantInfo {

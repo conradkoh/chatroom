@@ -2,7 +2,6 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { generateAgentPrompt } from '@workspace/backend/prompts/base/webapp';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ArrowLeft,
@@ -33,6 +32,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { generateAgentPrompt } from '@/lib/prompts';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 interface ChatroomDashboardProps {
