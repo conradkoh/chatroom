@@ -346,10 +346,14 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
             onClick={handleProgressClick}
             className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-chatroom-bg-hover transition-colors cursor-pointer border-t border-chatroom-border/50"
           >
-            <Loader2
-              size={12}
-              className={`flex-shrink-0 text-chatroom-status-info ${isProgressFresh ? 'animate-spin' : ''}`}
-            />
+            {isTaskActive ? (
+              <Loader2
+                size={12}
+                className={`flex-shrink-0 text-chatroom-status-info ${isProgressFresh ? 'animate-spin' : ''}`}
+              />
+            ) : (
+              <CheckCircle2 size={12} className="flex-shrink-0 text-chatroom-status-success" />
+            )}
             <span
               className={`text-[11px] text-chatroom-text-secondary truncate flex-1 ${isProgressFresh ? 'animate-pulse' : ''}`}
             >
