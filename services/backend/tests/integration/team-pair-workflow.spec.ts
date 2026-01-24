@@ -72,14 +72,14 @@ describe('Pair Team Workflow', () => {
       // ========================================
       // STEP 1: User sends a message (automatically routed to builder)
       // ========================================
-      const userMessageId = await t.mutation(api.messages.sendMessage, {
+      const _userMessageId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
         content: 'Add a new login page with OAuth support',
         type: 'message',
       });
-      expect(userMessageId).toBeDefined();
+      expect(_userMessageId).toBeDefined();
 
       // Verify a pending task was created for builder
       const builderPendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
@@ -91,9 +91,15 @@ describe('Pair Team Workflow', () => {
       expect(builderPendingTasks[0].task.status).toBe('pending');
 
       // ========================================
-      // STEP 2: Builder starts task and classifies as new_feature
+      // STEP 2: Builder claims, starts task and classifies as new_feature
       // ========================================
-      await t.mutation(api.tasks.startTask, {
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const startResult = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
@@ -103,8 +109,8 @@ describe('Pair Team Workflow', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: userMessageId,
-        classification: 'new_feature',
+        taskId: startResult.taskId,
+        originMessageClassification: 'new_feature',
       });
 
       // ========================================
@@ -131,18 +137,25 @@ describe('Pair Team Workflow', () => {
         You are the implementer responsible for writing code and building solutions.
 
 
+         ## Builder Workflow
+         
+         You are the implementer responsible for writing code and building solutions.
+         
+         **Pair Team Context:**
+         - You work with a reviewer who will check your code
+         - Focus on implementation, let reviewer handle quality checks
+         - Hand off to reviewer for all code changes
+         
+         
         ## Builder Workflow
 
         You are responsible for implementing code changes based on requirements.
 
         **Classification (Entry Point Role):**
         As the entry point, you receive user messages directly. When you receive a user message:
-        1. First run \`chatroom task-started\` with the specific message ID to classify it (question, new_feature, or follow_up)
+        1. First run \`chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
         2. Then do your work
         3. Hand off to reviewer for code changes, or directly to user for questions
-
-        **IMPORTANT: Classify the task first!**
-        Since you're the entry point, run task-started to classify this message.
 
         **Typical Flow:**
         1. Receive task (from user or handoff from reviewer)
@@ -171,6 +184,13 @@ describe('Pair Team Workflow', () => {
         - Keep the working directory clean between commits
         - Use \`git status\`, \`git diff\` to review changes before committing
 
+         
+         **Pair Team Handoff Rules:**
+         - **After code changes** → Hand off to reviewer
+         - **For simple questions** → Can hand off directly to user
+         - **For new_feature classification** → MUST hand off to reviewer (cannot skip review)
+         
+         
 
         ### Current Task: NEW FEATURE
         New functionality request. MUST go through reviewer before returning to user.
@@ -183,21 +203,24 @@ describe('Pair Team Workflow', () => {
         ### Commands
 
         **Complete task and hand off:**
+
+        \`\`\`bash
+        chatroom handoff 10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+        [Your message here]
+        EOF
         \`\`\`
-        # Write message to file first:
-        # mkdir -p tmp/chatroom && echo "<summary>" > tmp/chatroom/message.md
-        chatroom handoff 10002;chatroom_rooms \\
-          --role=builder \\
-          --message-file="tmp/chatroom/message.md" \\
-          --next-role=<target>
-        \`\`\`
+
+        Replace \`[Your message here]\` with:
+        - **Summary**: Brief description of what was done
+        - **Changes Made**: Key changes (bullets)
+        - **Testing**: How to verify the work
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
         chatroom wait-for-task 10002;chatroom_rooms --role=builder
         \`\`\`
 
-        **⚠️ Stay available for messages:** If \`wait-for-task\` stops, restart it immediately to remain reachable"
+        Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you"
       `);
 
       // ========================================
@@ -242,6 +265,12 @@ describe('Pair Team Workflow', () => {
       expect(reviewerPendingTasks[0].task.status).toBe('pending');
 
       // Start the task as reviewer
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'reviewer',
+      });
+
       await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
@@ -269,6 +298,18 @@ describe('Pair Team Workflow', () => {
         You are the quality guardian responsible for reviewing and validating code changes.
 
 
+         ## Reviewer Workflow
+         
+         You receive handoffs from other agents containing work to review or validate. When you receive any message, you MUST first acknowledge it.
+         
+         **Important: DO run task-started** - Every message you receive needs to be acknowledged, even handoffs.
+         
+         **Pair Team Context:**
+         - You work with a builder who implements code
+         - Focus on code quality and requirements
+         - Provide constructive feedback to builder
+         
+         
         ## Reviewer Workflow
 
         You receive handoffs from other agents containing work to review or validate. When you receive any message, you MUST first acknowledge it and classify what type of request it is:
@@ -277,7 +318,7 @@ describe('Pair Team Workflow', () => {
 
         **Typical Flow:**
         1. Receive message (handoff from builder or other agent)
-        2. First run \`chatroom task-started\` to classify the message
+        2. First run \`chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message
         3. Review the code changes or content:
            - Check uncommitted changes: \`git status\`, \`git diff\`
            - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
@@ -287,29 +328,25 @@ describe('Pair Team Workflow', () => {
 
         **If changes are needed:**
         \`\`\`bash
-        mkdir -p tmp/chatroom
-        MSG_FILE="tmp/chatroom/feedback-$(date +%s%N).md"
-        echo "Please address:
-        1. Issue one
-        2. Issue two" > "$MSG_FILE"
-
-        chatroom handoff <chatroom-id> \\
-          --role=reviewer \\
-          --message-file="$MSG_FILE" \\
-          --next-role=builder
+        chatroom handoff <chatroom-id> --role=<role> --next-role=builder << 'EOF'
+        [Your message here]
+        EOF
         \`\`\`
+
+        Replace \`[Your message here]\` with your detailed feedback:
+        - **Issues Found**: List specific problems
+        - **Suggestions**: Provide actionable recommendations
 
         **If work is approved:**
         \`\`\`bash
-        mkdir -p tmp/chatroom
-        MSG_FILE="tmp/chatroom/approval-$(date +%s%N).md"
-        echo "APPROVED. Code is clean, tests pass, and requirements are met." > "$MSG_FILE"
-
-        chatroom handoff <chatroom-id> \\
-          --role=reviewer \\
-          --message-file="$MSG_FILE" \\
-          --next-role=user
+        chatroom handoff <chatroom-id> --role=<role> --next-role=user << 'EOF'
+        [Your message here]
+        EOF
         \`\`\`
+
+        Replace \`[Your message here]\` with:
+        - **APPROVED ✅**: Clear approval statement
+        - **Summary**: What was reviewed and verified
 
         **Review Checklist:**
         - [ ] Code correctness and functionality
@@ -335,6 +372,49 @@ describe('Pair Team Workflow', () => {
         - Suggest solutions when possible
         - Maintain a collaborative and constructive tone
 
+         
+         
+        ## Available Review Policies
+
+        These policies should be applied when reviewing code to ensure high quality:
+
+        ### 1. Security Policy
+        **Focus:** Authentication, authorization, input validation, data handling, and API security.
+
+        **Key Areas:**
+        - Authentication & authorization checks
+        - Input validation and sanitization (SQL injection, XSS, path traversal)
+        - Secrets management and PII handling
+        - API security (rate limiting, CORS, error messages)
+        - Common vulnerabilities (injection attacks, broken access control, cryptographic issues)
+
+        ### 2. Design Policy
+        **Focus:** Design system compliance, UI/UX patterns, accessibility, and consistency.
+
+        **Key Areas:**
+        - Design system compliance (tokens, component patterns, reusability)
+        - Color usage (semantic colors, dark mode support)
+        - Component patterns (structure, TypeScript props, accessibility, responsive design)
+        - Typography and spacing following design system
+        - UX considerations (loading states, error states, interactive feedback)
+
+        ### 3. Performance Policy
+        **Focus:** Frontend and backend optimization, efficient resource usage.
+
+        **Key Areas:**
+        - Frontend: React optimization (useMemo, useCallback, React.memo), bundle size, rendering
+        - Backend: Database queries (indexes, N+1 patterns), API design, memory management
+        - Platform-specific: Next.js (Server/Client Components), Convex (query indexing), Core Web Vitals
+        - Scalability considerations
+
+        **Note:** Apply these policies based on the type of changes being reviewed. Not all policies may be relevant for every review.
+
+         
+         **Pair Team Handoff Rules:**
+         - If the user's goal is met → hand off to user
+         - If changes are needed → hand off to builder with specific feedback
+         
+         
 
         ### Current Task: NEW FEATURE
         New functionality request. MUST go through reviewer before returning to user.
@@ -345,21 +425,24 @@ describe('Pair Team Workflow', () => {
         ### Commands
 
         **Complete task and hand off:**
+
+        \`\`\`bash
+        chatroom handoff 10002;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+        [Your message here]
+        EOF
         \`\`\`
-        # Write message to file first:
-        # mkdir -p tmp/chatroom && echo "<summary>" > tmp/chatroom/message.md
-        chatroom handoff 10002;chatroom_rooms \\
-          --role=reviewer \\
-          --message-file="tmp/chatroom/message.md" \\
-          --next-role=<target>
-        \`\`\`
+
+        Replace \`[Your message here]\` with:
+        - **Summary**: Brief description of what was done
+        - **Changes Made**: Key changes (bullets)
+        - **Testing**: How to verify the work
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
         chatroom wait-for-task 10002;chatroom_rooms --role=reviewer
         \`\`\`
 
-        **⚠️ Stay available for messages:** If \`wait-for-task\` stops, restart it immediately to remain reachable"
+        Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you"
       `);
 
       // ========================================
@@ -415,7 +498,13 @@ describe('Pair Team Workflow', () => {
         type: 'message',
       });
 
-      // Start the task but DON'T classify yet
+      // Claim and start the task but DON'T classify yet
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
       await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
@@ -432,11 +521,11 @@ describe('Pair Team Workflow', () => {
       // Should show classification instructions since no classification yet
       expect(builderPromptBeforeClassification.currentClassification).toBeNull();
 
-      // Prompt should include classification instructions from new role guidance
+      // Prompt should include general classification instructions for entry point roles
       expect(builderPromptBeforeClassification.prompt).toContain(
-        'IMPORTANT: Classify the task first!'
+        'Classification (Entry Point Role)'
       );
-      // Note: The CLI command is now in the task-started CLI prompt, not directly in role guidance
+      expect(builderPromptBeforeClassification.prompt).toContain('task-started');
     });
   });
 
@@ -448,7 +537,7 @@ describe('Pair Team Workflow', () => {
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User asks a question
-      const userMessageId = await t.mutation(api.messages.sendMessage, {
+      const _userMessageId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -456,8 +545,14 @@ describe('Pair Team Workflow', () => {
         type: 'message',
       });
 
-      // Builder starts task
-      await t.mutation(api.tasks.startTask, {
+      // Builder claims and starts task
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const startResult = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
@@ -468,8 +563,8 @@ describe('Pair Team Workflow', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: userMessageId,
-        classification: 'question',
+        taskId: startResult.taskId,
+        originMessageClassification: 'question',
       });
 
       // Verify builder CAN hand off directly to user for questions
@@ -490,18 +585,25 @@ describe('Pair Team Workflow', () => {
         You are the implementer responsible for writing code and building solutions.
 
 
+         ## Builder Workflow
+         
+         You are the implementer responsible for writing code and building solutions.
+         
+         **Pair Team Context:**
+         - You work with a reviewer who will check your code
+         - Focus on implementation, let reviewer handle quality checks
+         - Hand off to reviewer for all code changes
+         
+         
         ## Builder Workflow
 
         You are responsible for implementing code changes based on requirements.
 
         **Classification (Entry Point Role):**
         As the entry point, you receive user messages directly. When you receive a user message:
-        1. First run \`chatroom task-started\` with the specific message ID to classify it (question, new_feature, or follow_up)
+        1. First run \`chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
         2. Then do your work
         3. Hand off to reviewer for code changes, or directly to user for questions
-
-        **IMPORTANT: Classify the task first!**
-        Since you're the entry point, run task-started to classify this message.
 
         **Typical Flow:**
         1. Receive task (from user or handoff from reviewer)
@@ -530,6 +632,13 @@ describe('Pair Team Workflow', () => {
         - Keep the working directory clean between commits
         - Use \`git status\`, \`git diff\` to review changes before committing
 
+         
+         **Pair Team Handoff Rules:**
+         - **After code changes** → Hand off to reviewer
+         - **For simple questions** → Can hand off directly to user
+         - **For new_feature classification** → MUST hand off to reviewer (cannot skip review)
+         
+         
 
         ### Current Task: QUESTION
         User is asking a question. Can respond directly after answering.
@@ -540,21 +649,24 @@ describe('Pair Team Workflow', () => {
         ### Commands
 
         **Complete task and hand off:**
+
+        \`\`\`bash
+        chatroom handoff 10023;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+        [Your message here]
+        EOF
         \`\`\`
-        # Write message to file first:
-        # mkdir -p tmp/chatroom && echo "<summary>" > tmp/chatroom/message.md
-        chatroom handoff 10023;chatroom_rooms \\
-          --role=builder \\
-          --message-file="tmp/chatroom/message.md" \\
-          --next-role=<target>
-        \`\`\`
+
+        Replace \`[Your message here]\` with:
+        - **Summary**: Brief description of what was done
+        - **Changes Made**: Key changes (bullets)
+        - **Testing**: How to verify the work
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
         chatroom wait-for-task 10023;chatroom_rooms --role=builder
         \`\`\`
 
-        **⚠️ Stay available for messages:** If \`wait-for-task\` stops, restart it immediately to remain reachable"
+        Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you"
       `);
 
       // Builder hands off directly to user (should succeed)
@@ -578,7 +690,7 @@ describe('Pair Team Workflow', () => {
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends initial new_feature request
-      const originalMessageId = await t.mutation(api.messages.sendMessage, {
+      const _originalMessageId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -586,7 +698,13 @@ describe('Pair Team Workflow', () => {
         type: 'message',
       });
 
-      await t.mutation(api.tasks.startTask, {
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const startResult1 = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
@@ -596,8 +714,8 @@ describe('Pair Team Workflow', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: originalMessageId,
-        classification: 'new_feature',
+        taskId: startResult1.taskId,
+        originMessageClassification: 'new_feature',
       });
 
       // Builder completes and hands off to reviewer
@@ -610,6 +728,12 @@ describe('Pair Team Workflow', () => {
       });
 
       // Reviewer approves
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'reviewer',
+      });
+
       await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
@@ -625,7 +749,7 @@ describe('Pair Team Workflow', () => {
       });
 
       // User sends a follow-up message
-      const followUpMessageId = await t.mutation(api.messages.sendMessage, {
+      const _followUpMessageId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -633,7 +757,13 @@ describe('Pair Team Workflow', () => {
         type: 'message',
       });
 
-      await t.mutation(api.tasks.startTask, {
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const startResult2 = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
@@ -644,8 +774,8 @@ describe('Pair Team Workflow', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: followUpMessageId,
-        classification: 'follow_up',
+        taskId: startResult2.taskId,
+        originMessageClassification: 'follow_up',
       });
 
       // Verify builder prompt shows follow-up context
@@ -669,7 +799,7 @@ describe('Pair Team Workflow', () => {
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends initial message
-      const userMsgId = await t.mutation(api.messages.sendMessage, {
+      const _userMsgId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -677,7 +807,13 @@ describe('Pair Team Workflow', () => {
         type: 'message',
       });
 
-      await t.mutation(api.tasks.startTask, {
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const startResult = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
@@ -687,8 +823,8 @@ describe('Pair Team Workflow', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: userMsgId,
-        classification: 'new_feature',
+        taskId: startResult.taskId,
+        originMessageClassification: 'new_feature',
       });
 
       // Builder hands off
@@ -729,7 +865,7 @@ describe('Pair Team Workflow', () => {
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends message, builder handles it
-      const userMsgId = await t.mutation(api.messages.sendMessage, {
+      const _userMsgId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -737,7 +873,13 @@ describe('Pair Team Workflow', () => {
         type: 'message',
       });
 
-      await t.mutation(api.tasks.startTask, {
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const builderStart = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
@@ -747,8 +889,8 @@ describe('Pair Team Workflow', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: userMsgId,
-        classification: 'new_feature',
+        taskId: builderStart.taskId,
+        originMessageClassification: 'new_feature',
       });
 
       await t.mutation(api.messages.handoff, {
@@ -760,6 +902,12 @@ describe('Pair Team Workflow', () => {
       });
 
       // Reviewer starts review
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'reviewer',
+      });
+
       await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
@@ -786,7 +934,7 @@ describe('Pair Team Workflow', () => {
       });
 
       expect(builderTasks).toHaveLength(1);
-      expect(builderTasks[0].message!.content).toBe(
+      expect(builderTasks[0].task.content).toBe(
         'Please add system preference detection for dark mode'
       );
     });
@@ -798,7 +946,7 @@ describe('Pair Team Workflow', () => {
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // Complete flow to get to reviewer
-      const userMsgId = await t.mutation(api.messages.sendMessage, {
+      const _userMsgId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -806,7 +954,13 @@ describe('Pair Team Workflow', () => {
         type: 'message',
       });
 
-      await t.mutation(api.tasks.startTask, {
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const builderStart = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
@@ -816,8 +970,8 @@ describe('Pair Team Workflow', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: userMsgId,
-        classification: 'new_feature',
+        taskId: builderStart.taskId,
+        originMessageClassification: 'new_feature',
       });
 
       await t.mutation(api.messages.handoff, {
@@ -826,6 +980,12 @@ describe('Pair Team Workflow', () => {
         senderRole: 'builder',
         content: 'Done',
         targetRole: 'reviewer',
+      });
+
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'reviewer',
       });
 
       await t.mutation(api.tasks.startTask, {
@@ -855,7 +1015,7 @@ describe('Pair Team Workflow', () => {
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends message
-      const userMsgId = await t.mutation(api.messages.sendMessage, {
+      const _userMsgId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -863,7 +1023,13 @@ describe('Pair Team Workflow', () => {
         type: 'message',
       });
 
-      await t.mutation(api.tasks.startTask, {
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const startResult = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
@@ -874,8 +1040,8 @@ describe('Pair Team Workflow', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: userMsgId,
-        classification: 'new_feature',
+        taskId: startResult.taskId,
+        originMessageClassification: 'new_feature',
       });
 
       expect(result.success).toBe(true);
@@ -892,7 +1058,7 @@ describe('Pair Team Workflow', () => {
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User asks a question
-      const userMsgId = await t.mutation(api.messages.sendMessage, {
+      const _userMsgId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -900,7 +1066,13 @@ describe('Pair Team Workflow', () => {
         type: 'message',
       });
 
-      await t.mutation(api.tasks.startTask, {
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const startResult = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
@@ -911,14 +1083,14 @@ describe('Pair Team Workflow', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: userMsgId,
-        classification: 'question',
+        taskId: startResult.taskId,
+        originMessageClassification: 'question',
       });
 
       expect(result.success).toBe(true);
       expect(result.classification).toBe('question');
       expect(result.reminder).toBeDefined();
-      expect(result.reminder).toContain('directly to the user');
+      expect(result.reminder).toContain('directly to user');
       // Should NOT mention reviewer for questions
       expect(result.reminder).not.toContain('reviewer');
     });
@@ -930,7 +1102,7 @@ describe('Pair Team Workflow', () => {
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends message
-      const userMsgId = await t.mutation(api.messages.sendMessage, {
+      const _userMsgId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -938,7 +1110,13 @@ describe('Pair Team Workflow', () => {
         type: 'message',
       });
 
-      await t.mutation(api.tasks.startTask, {
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const startResult = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
@@ -949,14 +1127,14 @@ describe('Pair Team Workflow', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: userMsgId,
-        classification: 'follow_up',
+        taskId: startResult.taskId,
+        originMessageClassification: 'follow_up',
       });
 
       expect(result.success).toBe(true);
       expect(result.classification).toBe('follow_up');
       expect(result.reminder).toBeDefined();
-      expect(result.reminder).toContain('Continue');
+      expect(result.reminder).toContain('Follow-up inherits');
       expect(result.reminder).toContain('original task');
     });
   });

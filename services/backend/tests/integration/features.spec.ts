@@ -64,7 +64,7 @@ describe('Features System', () => {
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends a message
-      const userMessageId = await t.mutation(api.messages.sendMessage, {
+      const _userMessageId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -72,8 +72,14 @@ describe('Features System', () => {
         type: 'message',
       });
 
-      // Builder starts task and classifies with feature metadata
-      await t.mutation(api.tasks.startTask, {
+      // Builder claims and starts task (FSM workflow)
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const startResult = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
@@ -83,8 +89,8 @@ describe('Features System', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: userMessageId,
-        classification: 'new_feature',
+        taskId: startResult.taskId,
+        originMessageClassification: 'new_feature',
         featureTitle: 'Dark Mode Support',
         featureDescription: 'Add a toggle to switch between light and dark themes',
         featureTechSpecs: 'Use CSS custom properties for theming, store preference in localStorage',
@@ -101,7 +107,7 @@ describe('Features System', () => {
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends a question
-      const userMessageId = await t.mutation(api.messages.sendMessage, {
+      const _userMessageId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
@@ -109,8 +115,14 @@ describe('Features System', () => {
         type: 'message',
       });
 
-      // Builder starts task and classifies as question (no metadata needed)
-      await t.mutation(api.tasks.startTask, {
+      // Builder claims and starts task (FSM workflow)
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+
+      const startResult = await t.mutation(api.tasks.startTask, {
         sessionId,
         chatroomId,
         role: 'builder',
@@ -120,8 +132,8 @@ describe('Features System', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: userMessageId,
-        classification: 'question',
+        taskId: startResult.taskId,
+        originMessageClassification: 'question',
         // No feature metadata
       });
 
@@ -138,20 +150,25 @@ describe('Features System', () => {
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // Create first feature
-      const msg1 = await t.mutation(api.messages.sendMessage, {
+      const _msg1 = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
         content: 'First feature request',
         type: 'message',
       });
-      await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
+      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+      const start1 = await t.mutation(api.tasks.startTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
       await t.mutation(api.messages.taskStarted, {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: msg1,
-        classification: 'new_feature',
+        taskId: start1.taskId,
+        originMessageClassification: 'new_feature',
         featureTitle: 'Feature One',
         featureDescription: 'Description of feature one',
         featureTechSpecs: 'Tech specs for feature one',
@@ -165,6 +182,7 @@ describe('Features System', () => {
         content: 'Done with feature one, please review',
         targetRole: 'reviewer',
       });
+      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'reviewer' });
       await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'reviewer' });
       await t.mutation(api.messages.handoff, {
         sessionId,
@@ -175,20 +193,25 @@ describe('Features System', () => {
       });
 
       // Create second feature
-      const msg2 = await t.mutation(api.messages.sendMessage, {
+      const _msg2 = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         senderRole: 'user',
         content: 'Second feature request',
         type: 'message',
       });
-      await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
+      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+      const start2 = await t.mutation(api.tasks.startTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
       await t.mutation(api.messages.taskStarted, {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: msg2,
-        classification: 'new_feature',
+        taskId: start2.taskId,
+        originMessageClassification: 'new_feature',
         featureTitle: 'Feature Two',
         featureDescription:
           'Description of feature two that is longer than 100 characters so we can verify truncation works correctly in the preview text',
@@ -244,13 +267,18 @@ describe('Features System', () => {
         content: 'Add user authentication',
         type: 'message',
       });
-      await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
+      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+      const startResult = await t.mutation(api.tasks.startTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
       await t.mutation(api.messages.taskStarted, {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: userMessageId,
-        classification: 'new_feature',
+        taskId: startResult.taskId,
+        originMessageClassification: 'new_feature',
         featureTitle: 'User Authentication',
         featureDescription: 'Add login/logout functionality',
         featureTechSpecs: 'Use JWT tokens, store in httpOnly cookies',
@@ -266,6 +294,7 @@ describe('Features System', () => {
       });
 
       // Reviewer responds
+      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'reviewer' });
       await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'reviewer' });
       await t.mutation(api.messages.handoff, {
         sessionId,
@@ -308,13 +337,18 @@ describe('Features System', () => {
         content: 'How do I run tests?',
         type: 'message',
       });
-      await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
+      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+      const startResult = await t.mutation(api.tasks.startTask, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
       await t.mutation(api.messages.taskStarted, {
         sessionId,
         chatroomId,
         role: 'builder',
-        messageId: userMessageId,
-        classification: 'question',
+        taskId: startResult.taskId,
+        originMessageClassification: 'question',
       });
 
       // Try to inspect as feature - should fail

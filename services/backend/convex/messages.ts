@@ -605,17 +605,20 @@ export const taskStarted = mutation({
       throw new Error('Associated message not found');
     }
 
-    // Only allow classification of user messages (for new tasks)
-    if (message.senderRole.toLowerCase() !== 'user' && task.status === 'pending') {
-      throw new Error('Can only classify user messages for new tasks');
+    // Only allow classification of user messages
+    if (message.senderRole.toLowerCase() !== 'user') {
+      throw new Error('Can only classify user messages');
     }
 
-    // Transition task: acknowledged → in_progress using FSM
-    const { transitionTask } = await import('./lib/taskStateMachine');
-    await transitionTask(ctx, args.taskId, 'in_progress', 'startTask');
+    // Verify task is in progress (startTask should have been called first)
+    if (task.status !== 'in_progress') {
+      throw new Error(
+        `Task must be in_progress to classify (current status: ${task.status}). Call startTask first.`
+      );
+    }
 
-    // Update the message with classification and feature metadata (only for new tasks)
-    if (task.status === 'acknowledged' && !message.classification) {
+    // Update the message with classification and feature metadata (only if not already classified)
+    if (!message.classification) {
       await ctx.db.patch('chatroom_messages', message._id, {
         classification: args.originMessageClassification,
         ...(args.featureTitle && { featureTitle: args.featureTitle }),
