@@ -1148,7 +1148,15 @@ export const getPendingTasksForRole = query({
       .collect();
 
     // Filter for tasks assigned to this role or user-created tasks routed to entry point
+    // IMPORTANT: Also exclude tasks that have already been started (have startedAt set)
+    // This prevents duplicate task delivery when agent reconnects
     const relevantTasks = pendingTasks.filter((task) => {
+      // Skip tasks that have already been started - they shouldn't be in pending state
+      // but include this check as a safety measure against task state inconsistencies
+      if (task.startedAt !== undefined) {
+        return false;
+      }
+
       // If task has explicit assignment, check it matches
       if (task.assignedTo) {
         return task.assignedTo.toLowerCase() === normalizedRole;

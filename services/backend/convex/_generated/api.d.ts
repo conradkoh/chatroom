@@ -24,6 +24,7 @@ import type * as guidelines from "../guidelines.js";
 import type * as lib_cliSessionAuth from "../lib/cliSessionAuth.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
 import type * as lib_taskRecovery from "../lib/taskRecovery.js";
+import type * as lib_taskStateMachine from "../lib/taskStateMachine.js";
 import type * as lib_taskWorkflows from "../lib/taskWorkflows.js";
 import type * as messages from "../messages.js";
 import type * as migration from "../migration.js";
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   "lib/cliSessionAuth": typeof lib_cliSessionAuth;
   "lib/hierarchy": typeof lib_hierarchy;
   "lib/taskRecovery": typeof lib_taskRecovery;
+  "lib/taskStateMachine": typeof lib_taskStateMachine;
   "lib/taskWorkflows": typeof lib_taskWorkflows;
   messages: typeof messages;
   migration: typeof migration;

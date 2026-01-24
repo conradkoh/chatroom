@@ -374,7 +374,9 @@ export default defineSchema({
       v.literal('backlog'), // Backlog origin: initial state, task is in backlog tab
       v.literal('queued'), // Waiting in line (hidden from agent)
       v.literal('pending'), // Ready for agent to pick up
+      v.literal('acknowledged'), // Agent claimed task via wait-for-task, not yet started
       v.literal('in_progress'), // Agent actively working on it
+      v.literal('backlog_acknowledged'), // Backlog task attached to message, visible to agent
       v.literal('pending_user_review'), // Backlog only: agent done, user must confirm
       v.literal('completed'), // Finished successfully
       v.literal('closed') // Backlog only: user closed without completing
@@ -386,9 +388,14 @@ export default defineSchema({
     // Link to source message (for auto-created tasks from user messages)
     sourceMessageId: v.optional(v.id('chatroom_messages')),
 
+    // Backlog attachment tracking (bidirectional)
+    attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Backlog tasks attached to this task
+    parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Tasks this backlog item is attached to
+
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
+    acknowledgedAt: v.optional(v.number()), // When agent claimed task via wait-for-task
     startedAt: v.optional(v.number()), // When task-started was called
     completedAt: v.optional(v.number()), // When task-complete was called
 
