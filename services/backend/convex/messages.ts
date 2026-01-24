@@ -611,14 +611,12 @@ export const taskStarted = mutation({
       throw new Error('Can only classify user messages for new tasks');
     }
 
-    // Update the task status to in_progress
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'in_progress',
-      updatedAt: Date.now(),
-    });
+    // Transition task: acknowledged → in_progress using FSM
+    const { transitionTask } = await import('./lib/taskStateMachine');
+    await transitionTask(ctx, args.taskId, 'in_progress', 'startTask');
 
     // Update the message with classification and feature metadata (only for new tasks)
-    if (task.status === 'pending' && !message.classification) {
+    if (task.status === 'acknowledged' && !message.classification) {
       await ctx.db.patch('chatroom_messages', message._id, {
         classification: args.originMessageClassification,
         ...(args.featureTitle && { featureTitle: args.featureTitle }),

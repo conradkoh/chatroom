@@ -93,11 +93,12 @@ export const createTask = mutation({
 });
 
 /**
- * Start working on a task.
- * Finds the pending task and transitions it to in_progress.
+ * Claim a pending task (acknowledge it without starting work yet).
+ * Transitions: pending → acknowledged
+ * This is called by wait-for-task to reserve a task for an agent.
  * Requires CLI session authentication and chatroom access.
  */
-export const startTask = mutation({
+export const claimTask = mutation({
   args: {
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
@@ -116,15 +117,15 @@ export const startTask = mutation({
       .first();
 
     if (!pendingTask) {
-      throw new Error('No pending task to start');
+      throw new Error('No pending task to claim');
     }
 
     const now = Date.now();
-    await ctx.db.patch('chatroom_tasks', pendingTask._id, {
-      status: 'in_progress',
+
+    // Transition: pending → acknowledged using FSM
+    const { transitionTask } = await import('./lib/taskStateMachine');
+    await transitionTask(ctx, pendingTask._id, 'acknowledged', 'claimTask', {
       assignedTo: args.role,
-      startedAt: now,
-      updatedAt: now,
     });
 
     // Set acknowledgedAt on the source message (if not already set)
@@ -138,6 +139,43 @@ export const startTask = mutation({
     }
 
     return { taskId: pendingTask._id, content: pendingTask.content };
+  },
+});
+
+/**
+ * Start working on an acknowledged task.
+ * Transitions: acknowledged → in_progress
+ * This is called when agent begins actual work (sends task-started message).
+ * Requires CLI session authentication and chatroom access.
+ */
+export const startTask = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access (chatroom not needed)
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Find the acknowledged task assigned to this role
+    const acknowledgedTask = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+      )
+      .filter((q) => q.eq(q.field('assignedTo'), args.role))
+      .first();
+
+    if (!acknowledgedTask) {
+      throw new Error('No acknowledged task to start for this role');
+    }
+
+    // Transition: acknowledged → in_progress using FSM
+    const { transitionTask } = await import('./lib/taskStateMachine');
+    await transitionTask(ctx, acknowledgedTask._id, 'in_progress', 'startTask');
+
+    return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
   },
 });
 
@@ -1154,15 +1192,8 @@ export const getPendingTasksForRole = query({
       .collect();
 
     // Filter for tasks assigned to this role or user-created tasks routed to entry point
-    // IMPORTANT: Also exclude tasks that have already been started (have startedAt set)
-    // This prevents duplicate task delivery when agent reconnects
+    // Status is now the single source of truth - no need to check timestamps
     const relevantTasks = pendingTasks.filter((task) => {
-      // Skip tasks that have already been started - they shouldn't be in pending state
-      // but include this check as a safety measure against task state inconsistencies
-      if (task.startedAt !== undefined) {
-        return false;
-      }
-
       // If task has explicit assignment, check it matches
       if (task.assignedTo) {
         return task.assignedTo.toLowerCase() === normalizedRole;

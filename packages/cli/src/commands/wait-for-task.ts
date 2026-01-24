@@ -195,17 +195,17 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     const { task, message } = taskWithMessage;
 
-    // Start the task (transition to in_progress)
-    // This is atomic and handles race conditions - only one agent can start a task
+    // Claim the task (transition: pending → acknowledged)
+    // This is atomic and handles race conditions - only one agent can claim a task
     try {
-      await client.mutation(api.tasks.startTask, {
+      await client.mutation(api.tasks.claimTask, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
       });
-    } catch (_startError) {
-      // Task was already started by another agent, subscription will update with new state
-      console.log(`🔄 Task already started by another agent, continuing to wait...`);
+    } catch (_claimError) {
+      // Task was already claimed by another agent, subscription will update with new state
+      console.log(`🔄 Task already claimed by another agent, continuing to wait...`);
       return;
     }
 
