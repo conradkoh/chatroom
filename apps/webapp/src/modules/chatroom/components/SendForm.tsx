@@ -87,6 +87,8 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
       if (attachedTasks.length > 0) {
         clearTasks();
       }
+      // Refocus the textarea after successful send
+      textareaRef.current?.focus();
     } catch (error) {
       console.error('Failed to send message:', error);
     } finally {
