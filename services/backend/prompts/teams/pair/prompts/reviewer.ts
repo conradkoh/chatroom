@@ -3,6 +3,7 @@
  */
 
 import { getReviewerGuidance as getBaseReviewerGuidance } from '../../../base/cli/roles/reviewer.js';
+import { getAvailablePolicies } from '../../../policies/index.js';
 
 export function getReviewerGuidance(ctx: {
   role: string;
@@ -24,6 +25,8 @@ export function getReviewerGuidance(ctx: {
  - Provide constructive feedback to builder
  
  ${getBaseReviewerGuidance(ctx.teamRoles)}
+ 
+ ${getAvailablePolicies()}
  
  **Pair Team Handoff Rules:**
  - If the user's goal is met → hand off to user
