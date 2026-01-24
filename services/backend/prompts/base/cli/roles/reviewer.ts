@@ -16,11 +16,15 @@ export function getReviewerGuidance(otherRoles: string[]): string {
   const taskStartedExample = taskStartedCommand({});
 
   // Generate unique filenames for different handoff scenarios
-  const feedbackFile = generateFilename('feedback', { type: 'md' });
-  const approvalFile = generateFilename('approval', { type: 'md' });
+  const { varName: feedbackFileVar, filePath: feedbackFilePath } = generateFilename('feedback', {
+    type: 'md',
+  });
+  const { varName: approvalFileVar, filePath: approvalFilePath } = generateFilename('approval', {
+    type: 'md',
+  });
 
-  const feedbackHandoffCmd = handoffCommand({ nextRole: 'builder', messageFile: feedbackFile });
-  const approvalHandoffCmd = handoffCommand({ nextRole: 'user', messageFile: approvalFile });
+  const feedbackHandoffCmd = handoffCommand({ nextRole: 'builder', messageFile: feedbackFilePath });
+  const approvalHandoffCmd = handoffCommand({ nextRole: 'user', messageFile: approvalFilePath });
 
   return `
 ## Reviewer Workflow
@@ -41,11 +45,12 @@ You receive handoffs from other agents containing work to review or validate. Wh
 
 **If changes are needed:**
 \`\`\`bash
-# Create the handoff directory
-mkdir -p ${HANDOFF_DIR}
+# Set unique filename (evaluate once)
+${feedbackFileVar}=$(date +%s%N)
 
-# Write detailed feedback
-cat > ${feedbackFile} << 'EOF'
+# Create the handoff directory and write detailed feedback
+mkdir -p ${HANDOFF_DIR}
+cat > ${feedbackFilePath} << 'EOF'
 ## Issues Found
 
 Please address:
@@ -62,11 +67,12 @@ ${feedbackHandoffCmd}
 
 **If work is approved:**
 \`\`\`bash
-# Create the handoff directory
-mkdir -p ${HANDOFF_DIR}
+# Set unique filename (evaluate once)
+${approvalFileVar}=$(date +%s%N)
 
-# Write approval message
-cat > ${approvalFile} << 'EOF'
+# Create the handoff directory and write approval message
+mkdir -p ${HANDOFF_DIR}
+cat > ${approvalFilePath} << 'EOF'
 ## APPROVED ✅
 
 The code is clean, tests pass, and requirements are met.

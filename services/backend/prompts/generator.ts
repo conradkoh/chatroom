@@ -159,14 +159,16 @@ function getHandoffSection(ctx: RolePromptContext): string {
 
 function getCommandsSection(ctx: RolePromptContext): string {
   // Generate unique filename for handoff
-  const messageFile = generateFilename('handoff', { type: 'md' });
+  const { varName: handoffFileVar, filePath: handoffFilePath } = generateFilename('handoff', {
+    type: 'md',
+  });
   const cliEnvPrefix = getCliEnvPrefix(ctx.convexUrl);
 
   const handoffCmd = handoffCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     nextRole: '<target>',
-    messageFile,
+    messageFile: handoffFilePath,
     cliEnvPrefix,
   });
 
@@ -181,17 +183,18 @@ function getCommandsSection(ctx: RolePromptContext): string {
 **Complete task and hand off:**
 
 Handoff workflow (3 steps):
-1. Create the handoff directory: \`mkdir -p ${HANDOFF_DIR}\`
-2. Write your handoff message to a file: \`echo "<summary>" > ${messageFile}\`
-3. Run the handoff command: \`${handoffCmd}\`
+1. Set unique filename: \`${handoffFileVar}=$(date +%s%N)\`
+2. Write your handoff message to a file
+3. Run the handoff command
 
 Full example:
 \`\`\`bash
-# Step 1: Create directory
-mkdir -p ${HANDOFF_DIR}
+# Step 1: Set unique filename (evaluate once)
+${handoffFileVar}=$(date +%s%N)
 
-# Step 2: Write handoff message (be specific and detailed)
-cat > ${messageFile} << 'EOF'
+# Step 2: Create directory and write handoff message (be specific and detailed)
+mkdir -p ${HANDOFF_DIR}
+cat > ${handoffFilePath} << 'EOF'
 ## Summary
 [Your summary here]
 
@@ -229,7 +232,9 @@ export function generateTaskStartedReminder(
 ): string {
   const normalizedRole = role.toLowerCase();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  const messageFile = generateFilename('handoff', { type: 'md' });
+  const { varName: handoffFileVar, filePath: handoffFilePath } = generateFilename('handoff', {
+    type: 'md',
+  });
 
   // Detect if this is a pair team (builder + reviewer)
   const isPairTeam =
@@ -247,7 +252,7 @@ export function generateTaskStartedReminder(
             chatroomId,
             role: 'builder',
             nextRole: 'user',
-            messageFile,
+            messageFile: handoffFilePath,
             cliEnvPrefix,
           });
           return `✅ Task acknowledged as QUESTION.
@@ -257,9 +262,12 @@ export function generateTaskStartedReminder(
 2. When done, hand off directly to user:
 
 \`\`\`bash
+# Set unique filename (evaluate once)
+${handoffFileVar}=$(date +%s%N)
+
 # Create handoff message
 mkdir -p ${HANDOFF_DIR}
-cat > ${messageFile} << 'EOF'
+cat > ${handoffFilePath} << 'EOF'
 ## Answer
 [Your answer here]
 EOF
@@ -276,7 +284,7 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
             chatroomId,
             role: 'builder',
             nextRole: 'reviewer',
-            messageFile,
+            messageFile: handoffFilePath,
             cliEnvPrefix,
           });
           return `✅ Task acknowledged as NEW FEATURE.
@@ -287,9 +295,12 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
 3. MUST hand off to reviewer for approval:
 
 \`\`\`bash
+# Set unique filename (evaluate once)
+${handoffFileVar}=$(date +%s%N)
+
 # Create handoff message
 mkdir -p ${HANDOFF_DIR}
-cat > ${messageFile} << 'EOF'
+cat > ${handoffFilePath} << 'EOF'
 ## Summary
 [Describe what you implemented]
 
@@ -325,15 +336,18 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
         chatroomId,
         role: 'builder',
         nextRole: '<target>',
-        messageFile,
+        messageFile: handoffFilePath,
         cliEnvPrefix,
       });
       return `You can proceed with your work and hand off when complete.
 
 \`\`\`bash
+# Set unique filename (evaluate once)
+${handoffFileVar}=$(date +%s%N)
+
 # Example handoff
 mkdir -p ${HANDOFF_DIR}
-cat > ${messageFile} << 'EOF'
+cat > ${handoffFilePath} << 'EOF'
 ## Summary
 [Your summary]
 EOF
