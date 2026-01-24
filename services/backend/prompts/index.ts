@@ -36,6 +36,9 @@ export {
   getRoleSpecificGuidance,
 } from './base/cli/roles/index.js';
 
+// Shared prompt components
+export { getContextGainingGuidance } from './base/context-gaining.js';
+
 // Shared utilities
 export {
   HANDOFF_DIR,
