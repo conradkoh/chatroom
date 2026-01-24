@@ -29,5 +29,10 @@ Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgroundin
 • The command may timeout before a task arrives. This is normal and expected behavior
 • The shell host enforces timeouts to ensure agents remain responsive and can pick up new jobs
 • When wait-for-task terminates (timeout or after task completion), restart it immediately
-• Restarting quickly ensures users and other agents don't have to wait for your availability`;
+• Restarting quickly ensures users and other agents don't have to wait for your availability
+
+📋 BACKLOG:
+The chatroom has a task backlog. View items with:
+  chatroom backlog list <chatroomId> --role=<role> --status=backlog
+More actions: \`chatroom backlog --help\``;
 }
