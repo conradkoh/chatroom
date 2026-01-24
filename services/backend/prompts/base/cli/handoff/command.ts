@@ -2,18 +2,20 @@
  * Command generator for handoff CLI command.
  *
  * Single source of truth for all handoff command examples and actual commands.
+ *
+ * Now uses stdin (HERE documents) instead of file-based approach.
  */
 
 import type { HandoffParams } from '../../../types/cli.js';
 
 /**
- * Generate a handoff command string.
- * Accepts optional values and uses placeholders for any missing values.
+ * Generate a handoff command string using stdin.
+ * Returns a bash command that uses HERE document for message input.
  *
  * @example
  * // Command with placeholders
  * handoffCommand({})
- * // → "chatroom handoff <chatroom-id> --role=<role> --message-file=<message-file> --next-role=<target>"
+ * // → "chatroom handoff <chatroom-id> --role=<role> --next-role=<target> << 'EOF'\n[Your message here]\nEOF"
  *
  * @example
  * // Command with real values
@@ -21,29 +23,15 @@ import type { HandoffParams } from '../../../types/cli.js';
  *   chatroomId: 'abc123',
  *   role: 'builder',
  *   nextRole: 'reviewer',
- *   messageFile: 'tmp/chatroom/message.md'
  * })
- * // → "chatroom handoff abc123 --role=builder --message-file=\"tmp/chatroom/message.md\" --next-role=reviewer"
- *
- * @example
- * // Command with mix of values and placeholders
- * handoffCommand({
- *   chatroomId: 'abc123',
- *   role: 'builder',
- *   nextRole: '<target>',
- * })
- * // → "chatroom handoff abc123 --role=builder --message-file=<message-file> --next-role=<target>"
+ * // → "chatroom handoff abc123 --role=builder --next-role=reviewer << 'EOF'\n[Your message here]\nEOF"
  */
 export function handoffCommand(params: HandoffParams = {}): string {
   const prefix = params.cliEnvPrefix || '';
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';
   const nextRole = params.nextRole || '<target>';
-  const messageFile = params.messageFile || '<message-file>';
 
-  const msgFileArg = params.messageFile
-    ? `--message-file="${messageFile}"`
-    : `--message-file=${messageFile}`;
-
-  return `${prefix}chatroom handoff ${chatroomId} --role=${role} ${msgFileArg} --next-role=${nextRole}`;
+  // Modern approach: stdin using HERE document
+  return `${prefix}chatroom handoff ${chatroomId} --role=${role} --next-role=${nextRole} << 'EOF'\n[Your message here]\nEOF`;
 }

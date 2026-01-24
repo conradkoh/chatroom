@@ -2,13 +2,14 @@
  * Command generator for task-started CLI command.
  *
  * Single source of truth for all task-started command examples and actual commands.
+ * Now uses stdin with ---PARAM--- delimiters for new_feature classification.
  */
 
 import type { TaskStartedParams } from '../../../types/cli.js';
 
 /**
  * Generate a task-started command string.
- * Accepts optional values and uses placeholders for any missing values.
+ * For new_feature classification, uses stdin with structured format.
  *
  * @example
  * // Command with placeholders
@@ -16,12 +17,7 @@ import type { TaskStartedParams } from '../../../types/cli.js';
  * // → "chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>"
  *
  * @example
- * // Command with specific classification placeholder
- * taskStartedCommand({ classification: 'new_feature' })
- * // → "chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=new_feature"
- *
- * @example
- * // Command with real values
+ * // Command for question classification
  * taskStartedCommand({
  *   chatroomId: 'abc123',
  *   role: 'builder',
@@ -29,6 +25,16 @@ import type { TaskStartedParams } from '../../../types/cli.js';
  *   classification: 'question'
  * })
  * // → "chatroom task-started abc123 --role=builder --task-id=task456 --origin-message-classification=question"
+ *
+ * @example
+ * // Command for new_feature classification (uses stdin)
+ * taskStartedCommand({
+ *   chatroomId: 'abc123',
+ *   role: 'builder',
+ *   taskId: 'task456',
+ *   classification: 'new_feature'
+ * })
+ * // → "chatroom task-started abc123 --role=builder --task-id=task456 --origin-message-classification=new_feature << 'EOF'\n---TITLE---\n[Feature title]\n---DESCRIPTION---\n[Feature description]\n---TECH_SPECS---\n[Technical specifications]\nEOF"
  */
 export function taskStartedCommand(params: TaskStartedParams = {}): string {
   const prefix = params.cliEnvPrefix || '';
@@ -37,14 +43,23 @@ export function taskStartedCommand(params: TaskStartedParams = {}): string {
   const taskId = params.taskId || '<task-id>';
   const classification = params.classification || '<question|new_feature|follow_up>';
 
-  let cmd = `${prefix}chatroom task-started ${chatroomId} --role=${role} --task-id=${taskId} --origin-message-classification=${classification}`;
+  const baseCmd = `${prefix}chatroom task-started ${chatroomId} --role=${role} --task-id=${taskId} --origin-message-classification=${classification}`;
 
-  // Add feature metadata for new_feature classification
-  if (params.classification === 'new_feature') {
-    if (params.title) cmd += ` \\\n  --title="${params.title}"`;
-    if (params.description) cmd += ` \\\n  --description="${params.description}"`;
-    if (params.techSpecs) cmd += ` \\\n  --tech-specs="${params.techSpecs}"`;
+  // For new_feature, use stdin with structured format
+  if (params.classification === 'new_feature' || classification === 'new_feature') {
+    const title = params.title || '[Feature title]';
+    const description = params.description || '[Feature description]';
+    const techSpecs = params.techSpecs || '[Technical specifications]';
+
+    return `${baseCmd} << 'EOF'
+---TITLE---
+${title}
+---DESCRIPTION---
+${description}
+---TECH_SPECS---
+${techSpecs}
+EOF`;
   }
 
-  return cmd;
+  return baseCmd;
 }

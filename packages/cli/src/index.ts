@@ -8,6 +8,7 @@
 
 import { Command } from 'commander';
 
+import { readStdin } from './utils/stdin.js';
 import { getVersion } from './version.js';
 
 const program = new Command();
@@ -138,15 +139,6 @@ program
     'Original message classification: question, new_feature, or follow_up'
   )
   .requiredOption('--task-id <taskId>', 'Task ID to acknowledge')
-  .option('--title <title>', 'Feature title (required for new_feature)')
-  .option(
-    '--description-file <path>',
-    'Path to file containing feature description (required for new_feature)'
-  )
-  .option(
-    '--tech-specs-file <path>',
-    'Path to file containing technical specifications (required for new_feature)'
-  )
   .action(
     async (
       chatroomId: string,
@@ -154,9 +146,6 @@ program
         role: string;
         originMessageClassification: string;
         taskId: string;
-        title?: string;
-        descriptionFile?: string;
-        techSpecsFile?: string;
       }
     ) => {
       await maybeRequireAuth();
@@ -171,39 +160,42 @@ program
         process.exit(1);
       }
 
-      // Validate new_feature requirements
-      if (options.originMessageClassification === 'new_feature') {
-        if (!options.title) {
-          console.error('❌ Title is required for new_feature classification');
-          process.exit(1);
-        }
-        if (!options.descriptionFile) {
-          console.error('❌ Description file is required for new_feature classification');
-          process.exit(1);
-        }
-        if (!options.techSpecsFile) {
-          console.error(
-            '❌ Technical specifications file is required for new_feature classification'
-          );
-          process.exit(1);
-        }
-      }
-
-      // Read content from files
-      const { readFileContent } = await import('./utils/file-content.js');
+      let title: string | undefined;
       let description: string | undefined;
       let techSpecs: string | undefined;
 
-      try {
-        if (options.descriptionFile) {
-          description = readFileContent(options.descriptionFile, 'description-file');
+      // For new_feature, read structured stdin
+      if (options.originMessageClassification === 'new_feature') {
+        const stdinContent = await readStdin();
+
+        if (!stdinContent.trim()) {
+          console.error(
+            '❌ Stdin is empty. For new_feature classification, provide:\n---TITLE---\n[title]\n---DESCRIPTION---\n[description]\n---TECH_SPECS---\n[specs]'
+          );
+          process.exit(1);
         }
-        if (options.techSpecsFile) {
-          techSpecs = readFileContent(options.techSpecsFile, 'tech-specs-file');
+
+        try {
+          const { decode } = await import('./utils/serialization/decode/index.js');
+          const result = decode(stdinContent, {
+            expectedParams: ['TITLE', 'DESCRIPTION', 'TECH_SPECS'],
+          });
+
+          title = result.TITLE;
+          description = result.DESCRIPTION;
+          techSpecs = result.TECH_SPECS;
+        } catch (err) {
+          console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+          process.exit(1);
         }
-      } catch (err) {
-        console.error(`❌ ${(err as Error).message}`);
-        process.exit(1);
+
+        // Validate all required fields are present
+        if (!title || !description || !techSpecs) {
+          console.error(
+            '❌ Missing required fields for new_feature classification. All of TITLE, DESCRIPTION, and TECH_SPECS are required.'
+          );
+          process.exit(1);
+        }
       }
 
       const { taskStarted } = await import('./commands/task-started.js');
@@ -214,7 +206,7 @@ program
           | 'new_feature'
           | 'follow_up',
         taskId: options.taskId,
-        title: options.title,
+        title,
         description,
         techSpecs,
       });
@@ -225,7 +217,6 @@ program
   .command('handoff <chatroomId>')
   .description('Complete your task and hand off to the next role')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--message-file <path>', 'Path to file containing completion message')
   .requiredOption('--next-role <nextRole>', 'Role to hand off to')
   .option(
     '--attach-artifact <artifactId>',
@@ -240,27 +231,28 @@ program
       chatroomId: string,
       options: {
         role: string;
-        messageFile: string;
         nextRole: string;
         attachArtifact?: string[];
       }
     ) => {
       await maybeRequireAuth();
 
-      // Read content from file
-      const { readFileContent } = await import('./utils/file-content.js');
-      let message: string;
+      // Read message from stdin
+      const { decode } = await import('./utils/serialization/decode/index.js');
+      const stdinContent = await readStdin();
 
+      let message: string;
       try {
-        message = readFileContent(options.messageFile, 'message-file');
+        const result = decode(stdinContent, { singleParam: 'message' });
+        message = result.message;
       } catch (err) {
-        console.error(`❌ ${(err as Error).message}`);
+        console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
         process.exit(1);
       }
 
       // Validate that message is not empty
       if (!message || message.trim().length === 0) {
-        console.error('❌ Message file is empty');
+        console.error('❌ Message is empty');
         process.exit(1);
       }
 

@@ -2,7 +2,6 @@
  * Reviewer role-specific guidance for agent initialization prompts.
  */
 
-import { HANDOFF_DIR, generateFilename } from '../../../utils/config.js';
 import { handoffCommand } from '../handoff/command.js';
 import { taskStartedCommand } from '../task-started/command.js';
 
@@ -15,16 +14,8 @@ export function getReviewerGuidance(otherRoles: string[]): string {
   // Use command generators with placeholders
   const taskStartedExample = taskStartedCommand({});
 
-  // Generate unique filenames for different handoff scenarios
-  const { varName: feedbackFileVar, filePath: feedbackFilePath } = generateFilename('feedback', {
-    type: 'md',
-  });
-  const { varName: approvalFileVar, filePath: approvalFilePath } = generateFilename('approval', {
-    type: 'md',
-  });
-
-  const feedbackHandoffCmd = handoffCommand({ nextRole: 'builder', messageFile: feedbackFilePath });
-  const approvalHandoffCmd = handoffCommand({ nextRole: 'user', messageFile: approvalFilePath });
+  const feedbackHandoffCmd = handoffCommand({ nextRole: 'builder' });
+  const approvalHandoffCmd = handoffCommand({ nextRole: 'user' });
 
   return `
 ## Reviewer Workflow
@@ -45,46 +36,21 @@ You receive handoffs from other agents containing work to review or validate. Wh
 
 **If changes are needed:**
 \`\`\`bash
-# Set unique filename (evaluate once)
-${feedbackFileVar}=$(date +%s%N)
-
-# Create the handoff directory and write detailed feedback
-mkdir -p ${HANDOFF_DIR}
-cat > ${feedbackFilePath} << 'EOF'
-## Issues Found
-
-Please address:
-1. [Issue one with details]
-2. [Issue two with details]
-
-## Suggestions
-- [Specific recommendation]
-EOF
-
-# Hand back to builder
 ${feedbackHandoffCmd}
 \`\`\`
 
+Replace \`[Your message here]\` with your detailed feedback:
+- **Issues Found**: List specific problems
+- **Suggestions**: Provide actionable recommendations
+
 **If work is approved:**
 \`\`\`bash
-# Set unique filename (evaluate once)
-${approvalFileVar}=$(date +%s%N)
-
-# Create the handoff directory and write approval message
-mkdir -p ${HANDOFF_DIR}
-cat > ${approvalFilePath} << 'EOF'
-## APPROVED ✅
-
-The code is clean, tests pass, and requirements are met.
-
-## Summary
-- [What was reviewed]
-- [Key points verified]
-EOF
-
-# Hand off to user
 ${approvalHandoffCmd}
 \`\`\`
+
+Replace \`[Your message here]\` with:
+- **APPROVED ✅**: Clear approval statement
+- **Summary**: What was reviewed and verified
 
 **Review Checklist:**
 - [ ] Code correctness and functionality

@@ -5,8 +5,8 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "nx run-many --target=test --projects=@workspace/webapp,@workspace/backend",
-    "test:watch": "nx run-many --target=test:watch --projects=@workspace/webapp,@workspace/backend",
+    "test": "nx run-many --target=test --projects=@workspace/webapp,@workspace/backend,@workspace/cli",
+    "test:watch": "nx run-many --target=test:watch --projects=@workspace/webapp,@workspace/backend,@workspace/cli",
     "dev": "nx run @workspace/webapp:dev",
     "setup": "node scripts/setup.js",
     "cleanup-tmp": "node scripts/cleanup-tmp.ts",

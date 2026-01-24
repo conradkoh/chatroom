@@ -15,7 +15,7 @@ import { getWaitForTaskReminder } from './base/cli/wait-for-task/reminder.js';
 import { getBuilderGuidance as getTeamBuilderGuidance } from './teams/pair/prompts/builder.js';
 import { getReviewerGuidance as getTeamReviewerGuidance } from './teams/pair/prompts/reviewer.js';
 import { getRoleTemplate } from './templates';
-import { HANDOFF_DIR, generateFilename, getCliEnvPrefix } from './utils/index.js';
+import { getCliEnvPrefix } from './utils/index.js';
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed
@@ -158,17 +158,12 @@ function getHandoffSection(ctx: RolePromptContext): string {
 }
 
 function getCommandsSection(ctx: RolePromptContext): string {
-  // Generate unique filename for handoff
-  const { varName: handoffFileVar, filePath: handoffFilePath } = generateFilename('handoff', {
-    type: 'md',
-  });
   const cliEnvPrefix = getCliEnvPrefix(ctx.convexUrl);
 
   const handoffCmd = handoffCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     nextRole: '<target>',
-    messageFile: handoffFilePath,
     cliEnvPrefix,
   });
 
@@ -182,32 +177,14 @@ function getCommandsSection(ctx: RolePromptContext): string {
 
 **Complete task and hand off:**
 
-Handoff workflow (3 steps):
-1. Set unique filename: \`${handoffFileVar}=$(date +%s%N)\`
-2. Write your handoff message to a file
-3. Run the handoff command
-
-Full example:
 \`\`\`bash
-# Step 1: Set unique filename (evaluate once)
-${handoffFileVar}=$(date +%s%N)
-
-# Step 2: Create directory and write handoff message (be specific and detailed)
-mkdir -p ${HANDOFF_DIR}
-cat > ${handoffFilePath} << 'EOF'
-## Summary
-[Your summary here]
-
-## Changes Made
-- [List key changes]
-
-## Testing
-- [How to test]
-EOF
-
-# Step 3: Hand off to next role
 ${handoffCmd}
 \`\`\`
+
+Replace \`[Your message here]\` with:
+- **Summary**: Brief description of what was done
+- **Changes Made**: Key changes (bullets)
+- **Testing**: How to verify the work
 
 **Continue receiving messages after \`handoff\`:**
 \`\`\`
@@ -232,9 +209,6 @@ export function generateTaskStartedReminder(
 ): string {
   const normalizedRole = role.toLowerCase();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  const { varName: handoffFileVar, filePath: handoffFilePath } = generateFilename('handoff', {
-    type: 'md',
-  });
 
   // Detect if this is a pair team (builder + reviewer)
   const isPairTeam =
@@ -252,7 +226,6 @@ export function generateTaskStartedReminder(
             chatroomId,
             role: 'builder',
             nextRole: 'user',
-            messageFile: handoffFilePath,
             cliEnvPrefix,
           });
           return `✅ Task acknowledged as QUESTION.
@@ -262,17 +235,6 @@ export function generateTaskStartedReminder(
 2. When done, hand off directly to user:
 
 \`\`\`bash
-# Set unique filename (evaluate once)
-${handoffFileVar}=$(date +%s%N)
-
-# Create handoff message
-mkdir -p ${HANDOFF_DIR}
-cat > ${handoffFilePath} << 'EOF'
-## Answer
-[Your answer here]
-EOF
-
-# Hand off to user
 ${handoffToUserCmd}
 \`\`\`
 
@@ -284,7 +246,6 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
             chatroomId,
             role: 'builder',
             nextRole: 'reviewer',
-            messageFile: handoffFilePath,
             cliEnvPrefix,
           });
           return `✅ Task acknowledged as NEW FEATURE.
@@ -295,23 +256,6 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
 3. MUST hand off to reviewer for approval:
 
 \`\`\`bash
-# Set unique filename (evaluate once)
-${handoffFileVar}=$(date +%s%N)
-
-# Create handoff message
-mkdir -p ${HANDOFF_DIR}
-cat > ${handoffFilePath} << 'EOF'
-## Summary
-[Describe what you implemented]
-
-## Changes Made
-- [List key changes]
-
-## Testing
-- [How to test the feature]
-EOF
-
-# Hand off to reviewer (REQUIRED for new_feature)
 ${handoffToReviewerCmd}
 \`\`\`
 
@@ -336,21 +280,11 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
         chatroomId,
         role: 'builder',
         nextRole: '<target>',
-        messageFile: handoffFilePath,
         cliEnvPrefix,
       });
       return `You can proceed with your work and hand off when complete.
 
 \`\`\`bash
-# Set unique filename (evaluate once)
-${handoffFileVar}=$(date +%s%N)
-
-# Example handoff
-mkdir -p ${HANDOFF_DIR}
-cat > ${handoffFilePath} << 'EOF'
-## Summary
-[Your summary]
-EOF
 ${handoffCmd}
 \`\`\`
 

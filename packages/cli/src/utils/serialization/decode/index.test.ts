@@ -242,7 +242,7 @@ describe('formatDecodeError', () => {
 
     const formatted = formatDecodeError(error);
     expect(formatted).toContain('💡 Workaround');
-    expect(formatted).toContain('rephrase');
+    expect(formatted).toContain('Rephrase');
   });
 
   it('should format invalid format error with example', () => {

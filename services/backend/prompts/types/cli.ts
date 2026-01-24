@@ -41,7 +41,6 @@ export interface HandoffParams extends CommandContext {
   chatroomId?: string;
   role?: string;
   nextRole?: string;
-  messageFile?: string;
 }
 
 // ============================================================================

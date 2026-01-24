@@ -10,6 +10,8 @@
     "build": "bun run typecheck && bun build src/index.ts --outdir dist --target node --format esm",
     "dev": "bun run src/index.ts",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "chatroom": "bun run src/index.ts",
     "prepublishOnly": "bun run build"
   },
@@ -21,7 +23,9 @@
     "@types/bun": "latest",
     "@types/node": "^20.0.0",
     "@workspace/backend": "workspace:*",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vite": "^6.3.5",
+    "vitest": "^4.0.6"
   },
   "keywords": [
     "cli",
