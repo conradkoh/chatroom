@@ -636,13 +636,23 @@ export const reportProgress = mutation({
       });
     }
 
-    // Create the progress message
+    // Find the current in-progress task for this role to link the progress message
+    const inProgressTask = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+      )
+      .filter((q) => q.eq(q.field('assignedTo'), args.senderRole))
+      .first();
+
+    // Create the progress message linked to the task (if found)
     const messageId = await ctx.db.insert('chatroom_messages', {
       chatroomId: args.chatroomId,
       senderRole: args.senderRole,
       content: args.content,
       type: 'progress',
-      // No targetRole - progress messages are visible to all but don't route
+      // Link to the in-progress task for inline rendering
+      ...(inProgressTask && { taskId: inProgressTask._id }),
     });
 
     // Update chatroom's lastActivityAt for sorting by recent activity
@@ -963,11 +973,33 @@ export const listPaginated = query({
             }));
         }
 
+        // Fetch latest progress message for tasks (for inline progress display)
+        let latestProgress:
+          | { content: string; senderRole: string; _creationTime: number }
+          | undefined;
+        if (message.taskId) {
+          const progressMessages = await ctx.db
+            .query('chatroom_messages')
+            .withIndex('by_taskId', (q) => q.eq('taskId', message.taskId))
+            .filter((q) => q.eq(q.field('type'), 'progress'))
+            .order('desc')
+            .take(1);
+          if (progressMessages.length > 0) {
+            const latest = progressMessages[0];
+            latestProgress = {
+              content: latest.content,
+              senderRole: latest.senderRole,
+              _creationTime: latest._creationTime,
+            };
+          }
+        }
+
         return {
           ...message,
           ...(taskStatus && { taskStatus }),
           ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
           ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
+          ...(latestProgress && { latestProgress }),
         };
       })
     );
@@ -976,6 +1008,45 @@ export const listPaginated = query({
       ...result,
       page: enrichedPage,
     };
+  },
+});
+
+/**
+ * Get all progress messages for a specific task.
+ * Returns progress messages in chronological order (oldest first) for timeline display.
+ * Used when user expands the inline progress to see full history.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const getProgressForTask = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Verify task belongs to this chatroom
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task || task.chatroomId !== args.chatroomId) {
+      return [];
+    }
+
+    // Fetch all progress messages for this task, ordered chronologically
+    const progressMessages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_taskId', (q) => q.eq('taskId', args.taskId))
+      .filter((q) => q.eq(q.field('type'), 'progress'))
+      .order('asc')
+      .collect();
+
+    return progressMessages.map((msg) => ({
+      _id: msg._id,
+      content: msg.content,
+      senderRole: msg.senderRole,
+      _creationTime: msg._creationTime,
+    }));
   },
 });
 

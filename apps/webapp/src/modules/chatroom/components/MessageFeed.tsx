@@ -38,6 +38,7 @@ import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
 import { compactMarkdownComponents, fullMarkdownComponents } from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
+import { ProgressTimelineModal } from './ProgressTimelineModal';
 import { WorkingIndicator } from './WorkingIndicator';
 
 import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
@@ -71,6 +72,12 @@ interface Message {
   attachedTasks?: AttachedTask[];
   // Attached artifacts
   attachedArtifacts?: ArtifactMeta[];
+  // Latest progress message for inline display
+  latestProgress?: {
+    content: string;
+    senderRole: string;
+    _creationTime: number;
+  };
 }
 
 interface AttachedTask {
@@ -198,19 +205,31 @@ const getClassificationBadge = (classification: Message['classification']) => {
 
 // Sticky Task Header - renders before user messages as a section header
 // Shows shimmer while awaiting classification, then displays task title
+// Now includes inline progress display with expandable timeline
 // Tappable to show full message details in a slide-in modal
 interface TaskHeaderProps {
   message: Message;
   onTap?: (message: Message) => void;
+  onProgressClick?: (message: Message) => void;
 }
 
-const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps) {
+const TaskHeader = memo(function TaskHeader({ message, onTap, onProgressClick }: TaskHeaderProps) {
   // useCallback must be called before any conditional returns (React hooks rules)
   const handleClick = useCallback(() => {
     if (onTap) {
       onTap(message);
     }
   }, [onTap, message]);
+
+  const handleProgressClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevent triggering the header click
+      if (onProgressClick) {
+        onProgressClick(message);
+      }
+    },
+    [onProgressClick, message]
+  );
 
   // Only show for user messages
   if (message.senderRole.toLowerCase() !== 'user') {
@@ -219,6 +238,7 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
 
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
+  const hasProgress = message.latestProgress && message.taskStatus === 'in_progress';
 
   // Determine what to display:
   // - No classification yet: shimmer (waiting for classification)
@@ -233,46 +253,70 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
     return text.replace(/\n+/g, ' ').trim();
   };
 
-  // Fixed height container for uniform sticky headers
-  // Height: h-8 (32px) provides consistent height across all states
+  // Check if progress is "fresh" (within last 30 seconds) for pulse animation
+  const isProgressFresh = hasProgress && Date.now() - message.latestProgress!._creationTime < 30000;
+
+  // Dynamic height: h-8 when no progress, auto when progress is shown
   // Modern design: neutral grey background with colorized elements
   return (
-    <button
-      onClick={handleClick}
-      className="sticky top-0 z-10 w-full text-left h-8 px-3 flex items-center bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong backdrop-blur-sm cursor-pointer hover:bg-chatroom-bg-hover transition-colors"
-    >
-      <div className="flex items-center gap-2 w-full min-w-0">
-        {/* Left: Classification badge or shimmer */}
-        {isAwaitingClassification ? (
-          // Shimmer state - waiting for classification
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
-            <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
-          </div>
-        ) : (
-          // Classified state - show badge and single-line truncated content
-          <>
-            {classificationBadge && (
-              <span className={`${classificationBadge.className} flex-shrink-0`}>
-                {classificationBadge.icon}
-                {classificationBadge.label}
+    <div className="sticky top-0 z-10 w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong backdrop-blur-sm">
+      {/* Main header row - clickable */}
+      <button
+        onClick={handleClick}
+        className="w-full text-left h-8 px-3 flex items-center cursor-pointer hover:bg-chatroom-bg-hover transition-colors"
+      >
+        <div className="flex items-center gap-2 w-full min-w-0">
+          {/* Left: Classification badge or shimmer */}
+          {isAwaitingClassification ? (
+            // Shimmer state - waiting for classification
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
+              <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
+            </div>
+          ) : (
+            // Classified state - show badge and single-line truncated content
+            <>
+              {classificationBadge && (
+                <span className={`${classificationBadge.className} flex-shrink-0`}>
+                  {classificationBadge.icon}
+                  {classificationBadge.label}
+                </span>
+              )}
+              <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
+                {getDisplayText()}
               </span>
-            )}
-            <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
-              {getDisplayText()}
-            </span>
-          </>
-        )}
+            </>
+          )}
 
-        {/* Right: Status badge */}
-        {taskStatusBadge && (
-          <span className={`${taskStatusBadge.className} flex-shrink-0`}>
-            {taskStatusBadge.icon}
-            {taskStatusBadge.label}
+          {/* Right: Status badge */}
+          {taskStatusBadge && (
+            <span className={`${taskStatusBadge.className} flex-shrink-0`}>
+              {taskStatusBadge.icon}
+              {taskStatusBadge.label}
+            </span>
+          )}
+        </div>
+      </button>
+
+      {/* Inline progress row - only shown when task is in_progress with progress */}
+      {hasProgress && (
+        <button
+          onClick={handleProgressClick}
+          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-chatroom-bg-hover transition-colors cursor-pointer border-t border-chatroom-border/50"
+        >
+          <Loader2
+            size={12}
+            className={`flex-shrink-0 text-chatroom-status-info ${isProgressFresh ? 'animate-spin' : ''}`}
+          />
+          <span
+            className={`text-[11px] text-chatroom-text-secondary truncate flex-1 ${isProgressFresh ? 'animate-pulse' : ''}`}
+          >
+            {message.latestProgress!.content}
           </span>
-        )}
-      </div>
-    </button>
+          <ChevronRight size={12} className="flex-shrink-0 text-chatroom-text-muted" />
+        </button>
+      )}
+    </div>
   );
 });
 
@@ -479,6 +523,9 @@ export const MessageFeed = memo(function MessageFeed({
   // Message detail modal state (for TaskHeader tap and message content tap)
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
 
+  // Progress timeline modal state
+  const [progressTimelineMessage, setProgressTimelineMessage] = useState<Message | null>(null);
+
   // Handle feature title click - open modal with details
   const handleFeatureClick = useCallback((message: Message) => {
     if (message.featureTitle) {
@@ -516,9 +563,20 @@ export const MessageFeed = memo(function MessageFeed({
     setSelectedMessage(null);
   }, []);
 
-  // Filter out join messages and reverse to show oldest first (query returns newest first)
+  // Handle progress click - open progress timeline modal
+  const handleProgressClick = useCallback((message: Message) => {
+    setProgressTimelineMessage(message);
+  }, []);
+
+  // Close progress timeline modal
+  const handleCloseProgressTimelineModal = useCallback(() => {
+    setProgressTimelineMessage(null);
+  }, []);
+
+  // Filter out join messages and progress messages, reverse to show oldest first
+  // Progress messages are now shown inline in TaskHeader instead of the main feed
   const displayMessages = useMemo(() => {
-    const filtered = (results || []).filter((m) => m.type !== 'join');
+    const filtered = (results || []).filter((m) => m.type !== 'join' && m.type !== 'progress');
     // Reverse because paginated query returns newest first, but we want oldest at top
     return [...filtered].reverse();
   }, [results]);
@@ -657,7 +715,11 @@ export const MessageFeed = memo(function MessageFeed({
         {displayMessages.map((message) => (
           <React.Fragment key={message._id}>
             {/* Task Header - sticky section header for user messages, tappable */}
-            <TaskHeader message={message} onTap={handleMessageDetailClick} />
+            <TaskHeader
+              message={message}
+              onTap={handleMessageDetailClick}
+              onProgressClick={handleProgressClick}
+            />
             <MessageItem
               message={message}
               onFeatureClick={handleFeatureClick}
@@ -708,6 +770,14 @@ export const MessageFeed = memo(function MessageFeed({
         isOpen={selectedMessage !== null}
         message={selectedMessage}
         onClose={handleCloseMessageDetailModal}
+      />
+      {/* Progress Timeline Modal - for viewing full progress history */}
+      <ProgressTimelineModal
+        isOpen={progressTimelineMessage !== null}
+        chatroomId={chatroomId}
+        taskId={progressTimelineMessage?.taskId ?? null}
+        taskTitle={progressTimelineMessage?.featureTitle || progressTimelineMessage?.content}
+        onClose={handleCloseProgressTimelineModal}
       />
     </div>
   );
