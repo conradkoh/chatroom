@@ -10,9 +10,9 @@ import { taskStartedCommand } from './command.js';
 export function getTaskStartedPrompt(ctx: {
   chatroomId: string;
   role: string;
-  cliEnvPrefix?: string;
+  cliEnvPrefix: string;
 }): string {
-  const cliEnvPrefix = ctx.cliEnvPrefix || '';
+  const cliEnvPrefix = ctx.cliEnvPrefix;
 
   // Generate commands for each classification type
   const questionCmd = taskStartedCommand({

@@ -14,7 +14,7 @@ import type { HandoffParams } from '../../../types/cli.js';
  *
  * @example
  * // Command with placeholders
- * handoffCommand({})
+ * handoffCommand({ cliEnvPrefix: '' })
  * // → "chatroom handoff <chatroom-id> --role=<role> --next-role=<target> << 'EOF'\n[Your message here]\nEOF"
  *
  * @example
@@ -26,7 +26,7 @@ import type { HandoffParams } from '../../../types/cli.js';
  * })
  * // → "chatroom handoff abc123 --role=builder --next-role=reviewer << 'EOF'\n[Your message here]\nEOF"
  */
-export function handoffCommand(params: HandoffParams = {}): string {
+export function handoffCommand(params: HandoffParams): string {
   const prefix = params.cliEnvPrefix || '';
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';

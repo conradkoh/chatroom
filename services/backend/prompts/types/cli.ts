@@ -20,11 +20,12 @@ export interface BasePromptParams {
 }
 
 /**
- * Base context shared by all command params (legacy - kept for backward compatibility)
+ * Base context shared by all command params.
+ * cliEnvPrefix is required to ensure commands work correctly in all environments.
  */
 export interface CommandContext {
-  /** Optional CLI environment prefix (e.g., for env vars) */
-  cliEnvPrefix?: string;
+  /** CLI environment prefix for non-production environments (empty string for production) */
+  cliEnvPrefix: string;
 }
 
 // ============================================================================

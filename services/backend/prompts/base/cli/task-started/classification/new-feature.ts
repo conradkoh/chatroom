@@ -11,9 +11,9 @@ import { taskStartedCommand } from '../command.js';
 export function getNewFeatureClassificationGuidance(ctx: {
   chatroomId: string;
   role: string;
-  cliEnvPrefix?: string;
+  cliEnvPrefix: string;
 }): string {
-  const cmdCtx = { cliEnvPrefix: ctx.cliEnvPrefix };
+  const { cliEnvPrefix } = ctx;
 
   // Inline metadata example
   const inlineCmd = taskStartedCommand({
@@ -24,7 +24,7 @@ export function getNewFeatureClassificationGuidance(ctx: {
     title: 'Add user authentication',
     description: 'Implement JWT login/logout flow',
     techSpecs: 'Use bcrypt, 24h expiry, secure cookies',
-    ...cmdCtx,
+    cliEnvPrefix,
   });
 
   // File-based metadata example (base command without file args)
@@ -34,7 +34,7 @@ export function getNewFeatureClassificationGuidance(ctx: {
     taskId: '<task-id>',
     classification: 'new_feature',
     title: 'Add user authentication',
-    ...cmdCtx,
+    cliEnvPrefix,
   });
 
   return `

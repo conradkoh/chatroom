@@ -13,7 +13,7 @@ import type { TaskStartedParams } from '../../../types/cli.js';
  *
  * @example
  * // Command with placeholders
- * taskStartedCommand({})
+ * taskStartedCommand({ cliEnvPrefix: '' })
  * // → "chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>"
  *
  * @example
@@ -36,7 +36,7 @@ import type { TaskStartedParams } from '../../../types/cli.js';
  * })
  * // → "chatroom task-started abc123 --role=builder --task-id=task456 --origin-message-classification=new_feature << 'EOF'\n---TITLE---\n[Feature title]\n---DESCRIPTION---\n[Feature description]\n---TECH_SPECS---\n[Technical specifications]\nEOF"
  */
-export function taskStartedCommand(params: TaskStartedParams = {}): string {
+export function taskStartedCommand(params: TaskStartedParams): string {
   const prefix = params.cliEnvPrefix || '';
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';

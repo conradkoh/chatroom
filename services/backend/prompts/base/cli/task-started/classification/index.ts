@@ -11,23 +11,17 @@ import { getQuestionClassificationGuidance } from './question';
  */
 export function getClassificationGuidance(
   classification: 'question' | 'new_feature' | 'follow_up',
-  ctx?: {
+  ctx: {
     chatroomId: string;
     role: string;
-    cliEnvPrefix?: string;
+    cliEnvPrefix: string;
   }
 ): string {
   switch (classification) {
     case 'question':
       return getQuestionClassificationGuidance();
     case 'new_feature':
-      return getNewFeatureClassificationGuidance(
-        ctx || {
-          chatroomId: '',
-          role: '',
-          cliEnvPrefix: '',
-        }
-      );
+      return getNewFeatureClassificationGuidance(ctx);
     case 'follow_up':
       return getFollowUpClassificationGuidance();
     default:

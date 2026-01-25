@@ -261,21 +261,21 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       User is asking for information or clarification.
 
       \`\`\`bash
-      chatroom task-started 10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=question
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started 10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=question
       \`\`\`
 
       #### Follow Up
       User is responding to previous work or providing feedback.
 
       \`\`\`bash
-      chatroom task-started 10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=follow_up
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started 10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=follow_up
       \`\`\`
 
       #### New Feature
       User wants new functionality. Requires title, description, and tech specs.
 
       \`\`\`bash
-      chatroom task-started 10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started 10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       [Feature title]
       ---DESCRIPTION---

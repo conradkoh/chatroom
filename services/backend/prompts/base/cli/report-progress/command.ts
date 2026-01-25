@@ -12,7 +12,7 @@ import type { ReportProgressParams } from '../../../types/cli.js';
  *
  * @example
  * // Command with placeholders
- * reportProgressCommand({})
+ * reportProgressCommand({ cliEnvPrefix: '' })
  * // → "chatroom report-progress <chatroom-id> --role=<role> --message=\"<status message>\""
  *
  * @example
@@ -24,7 +24,7 @@ import type { ReportProgressParams } from '../../../types/cli.js';
  * })
  * // → "chatroom report-progress abc123 --role=builder --message=\"Running tests...\""
  */
-export function reportProgressCommand(params: ReportProgressParams = {}): string {
+export function reportProgressCommand(params: ReportProgressParams): string {
   const prefix = params.cliEnvPrefix || '';
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';

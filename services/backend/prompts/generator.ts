@@ -398,7 +398,7 @@ export function generateInitPrompt(input: InitPromptInput): string {
   sections.push(getContextGainingGuidance({ chatroomId, role, convexUrl }));
 
   if (isEntryPoint) {
-    sections.push(getTaskStartedPrompt({ chatroomId, role }));
+    sections.push(getTaskStartedPrompt({ chatroomId, role, cliEnvPrefix }));
   }
   sections.push(guidance);
   sections.push(getCommandsSection(roleCtx));

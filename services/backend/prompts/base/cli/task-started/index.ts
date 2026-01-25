@@ -12,9 +12,9 @@ import { getTaskStartedPrompt } from './main-prompt.js';
 export function getTaskStartedExamples(ctx: {
   chatroomId: string;
   role: string;
-  cliEnvPrefix?: string;
+  cliEnvPrefix: string;
 }): string {
-  const cmdCtx = { cliEnvPrefix: ctx.cliEnvPrefix };
+  const { cliEnvPrefix } = ctx;
 
   // Commands with actual chatroomId/role but placeholder taskId
   const questionCmd = taskStartedCommand({
@@ -22,7 +22,7 @@ export function getTaskStartedExamples(ctx: {
     role: ctx.role,
     taskId: '<task-id>',
     classification: 'question',
-    ...cmdCtx,
+    cliEnvPrefix,
   });
 
   const followUpCmd = taskStartedCommand({
@@ -30,7 +30,7 @@ export function getTaskStartedExamples(ctx: {
     role: ctx.role,
     taskId: '<task-id>',
     classification: 'follow_up',
-    ...cmdCtx,
+    cliEnvPrefix,
   });
 
   const newFeatureInlineCmd = taskStartedCommand({
@@ -41,7 +41,7 @@ export function getTaskStartedExamples(ctx: {
     title: 'Add user authentication',
     description: 'Implement JWT login/logout',
     techSpecs: 'Use bcrypt, 24h expiry',
-    ...cmdCtx,
+    cliEnvPrefix,
   });
 
   const newFeatureFileCmd = taskStartedCommand({
@@ -50,7 +50,7 @@ export function getTaskStartedExamples(ctx: {
     taskId: '<task-id>',
     classification: 'new_feature',
     title: 'Add user authentication',
-    ...cmdCtx,
+    cliEnvPrefix,
   });
 
   const errorExampleCmd = taskStartedCommand({
@@ -61,7 +61,7 @@ export function getTaskStartedExamples(ctx: {
     title: 'Feature title',
     description: 'What this feature does',
     techSpecs: 'How to implement it',
-    ...cmdCtx,
+    cliEnvPrefix,
   });
 
   return `

@@ -5,13 +5,14 @@
 export interface TaskCompleteParams {
   chatroomId?: string;
   role?: string;
-  cliEnvPrefix?: string;
+  /** CLI environment prefix for non-production environments (empty string for production) */
+  cliEnvPrefix: string;
 }
 
 /**
  * Generate a task-complete command string.
  */
-export function taskCompleteCommand(params: TaskCompleteParams = {}): string {
+export function taskCompleteCommand(params: TaskCompleteParams): string {
   const prefix = params.cliEnvPrefix || '';
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';

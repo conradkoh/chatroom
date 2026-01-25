@@ -10,8 +10,8 @@ import { describe, expect, test } from 'vitest';
 import { handoffCommand } from '../../prompts/base/cli/handoff/command';
 
 describe('Handoff Command', () => {
-  test('generates handoff command with placeholders when no params provided', () => {
-    const command = handoffCommand();
+  test('generates handoff command with placeholders when minimal params provided', () => {
+    const command = handoffCommand({ cliEnvPrefix: '' });
 
     // Should use placeholder values
     expect(command).toContain('<chatroom-id>');
@@ -53,6 +53,7 @@ describe('Handoff Command', () => {
       chatroomId: 'test-123',
       role: 'reviewer',
       nextRole: 'user',
+      cliEnvPrefix: '',
     });
 
     // Should use HERE document, not file path

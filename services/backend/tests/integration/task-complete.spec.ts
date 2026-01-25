@@ -10,8 +10,8 @@ import { describe, expect, test } from 'vitest';
 import { taskCompleteCommand } from '../../prompts/base/cli/task-complete/command';
 
 describe('Task-Complete Command', () => {
-  test('generates task-complete command with placeholders when no params provided', () => {
-    const command = taskCompleteCommand();
+  test('generates task-complete command with placeholders when minimal params provided', () => {
+    const command = taskCompleteCommand({ cliEnvPrefix: '' });
 
     // Should use placeholder values
     expect(command).toContain('<chatroom-id>');
@@ -42,6 +42,7 @@ describe('Task-Complete Command', () => {
     const command = taskCompleteCommand({
       chatroomId: 'simple-test',
       role: 'reviewer',
+      cliEnvPrefix: '',
     });
 
     // Should NOT contain HERE document or file input
