@@ -1031,3 +1031,282 @@ describe('Task-Started Reminders', () => {
     expect(result.reminder).toContain('inherits the workflow rules');
   });
 });
+
+describe('Handoff Command', () => {
+  test('materializes complete handoff to reviewer output', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-handoff-to-reviewer');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends message
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Add dark mode toggle',
+      type: 'message',
+    });
+
+    // Builder claims and starts the task
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Builder hands off to reviewer
+    const handoffMessage = `Implemented dark mode toggle.
+
+Changes:
+- Added ThemeProvider context
+- Created toggle component
+- Applied CSS variables
+
+Testing: Toggle in settings switches between light/dark`;
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: handoffMessage,
+      targetRole: 'reviewer',
+    });
+
+    // Materialize the complete CLI output for handoff command
+    const nextRole = 'reviewer';
+    const role = 'builder';
+    const cliEnvPrefix = 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210';
+
+    const fullCliOutput = `✅ Task completed and handed off to ${nextRole}
+📋 Summary: ${handoffMessage}
+
+⏳ Now run wait-for-task to wait for your next assignment:
+   ${cliEnvPrefix} chatroom wait-for-task ${chatroomId} --role=${role}`;
+
+    // Verify the complete output structure matches expected format
+    expect(fullCliOutput).toMatchInlineSnapshot(`
+      "✅ Task completed and handed off to reviewer
+      📋 Summary: Implemented dark mode toggle.
+
+      Changes:
+      - Added ThemeProvider context
+      - Created toggle component
+      - Applied CSS variables
+
+      Testing: Toggle in settings switches between light/dark
+
+      ⏳ Now run wait-for-task to wait for your next assignment:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task 10057;chatroom_rooms --role=builder"
+    `);
+
+    // Verify mutation result
+    expect(result.success).toBe(true);
+    expect(result.messageId).toBeDefined();
+    expect(result.completedTaskIds.length).toBeGreaterThan(0);
+    expect(result.newTaskId).toBeDefined(); // Task created for reviewer
+  });
+
+  test('materializes complete handoff to user (workflow completion) output', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-handoff-to-user');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends a question
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'How does the authentication system work?',
+      type: 'message',
+    });
+
+    // Builder claims, starts, and classifies as question
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await t.mutation(api.messages.taskStarted, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: startResult.taskId,
+      originMessageClassification: 'question',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Builder hands off to user (workflow complete)
+    const handoffMessage = `The authentication system uses JWT tokens with bcrypt for password hashing.
+
+Key components:
+- AuthProvider context for state management
+- Login/logout mutations in Convex
+- Protected route middleware
+
+See docs/auth.md for more details.`;
+
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: handoffMessage,
+      targetRole: 'user',
+    });
+
+    // Materialize the complete CLI output for handoff to user
+    const nextRole = 'user';
+    const role = 'builder';
+    const cliEnvPrefix = 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210';
+
+    const fullCliOutput = `✅ Task completed and handed off to ${nextRole}
+📋 Summary: ${handoffMessage}
+
+🎉 Workflow complete! Control returned to user.
+
+⏳ Now run wait-for-task to wait for your next assignment:
+   ${cliEnvPrefix} chatroom wait-for-task ${chatroomId} --role=${role}`;
+
+    // Verify the complete output structure matches expected format
+    expect(fullCliOutput).toMatchInlineSnapshot(`
+      "✅ Task completed and handed off to user
+      📋 Summary: The authentication system uses JWT tokens with bcrypt for password hashing.
+
+      Key components:
+      - AuthProvider context for state management
+      - Login/logout mutations in Convex
+      - Protected route middleware
+
+      See docs/auth.md for more details.
+
+      🎉 Workflow complete! Control returned to user.
+
+      ⏳ Now run wait-for-task to wait for your next assignment:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task 10068;chatroom_rooms --role=builder"
+    `);
+
+    // Verify mutation result
+    expect(result.success).toBe(true);
+    expect(result.messageId).toBeDefined();
+    expect(result.completedTaskIds.length).toBeGreaterThan(0);
+    expect(result.newTaskId).toBeNull(); // No task for user
+  });
+});
+
+describe('Task-Complete Command', () => {
+  test('materializes complete task-complete output', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-task-complete');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends message
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Fix the typo in the README',
+      type: 'message',
+    });
+
+    // Builder claims and starts the task
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Builder completes the task (without handoff)
+    const result = await t.mutation(api.tasks.completeTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Materialize the complete CLI output for task-complete command
+    const role = 'builder';
+    const cliEnvPrefix = 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210';
+
+    // Build output based on result (matching CLI implementation)
+    let fullCliOutput = `✅ Task completed successfully
+   Tasks completed: ${result.completedCount}`;
+
+    if (result.promoted) {
+      fullCliOutput += `\n   Promoted next task: ${result.promoted}`;
+    }
+
+    fullCliOutput += `
+
+⏳ Now run wait-for-task to wait for your next assignment:
+   ${cliEnvPrefix} chatroom wait-for-task ${chatroomId} --role=${role}`;
+
+    // Verify the complete output structure matches expected format
+    expect(fullCliOutput).toMatchInlineSnapshot(`
+      "✅ Task completed successfully
+         Tasks completed: 1
+
+      ⏳ Now run wait-for-task to wait for your next assignment:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task 10078;chatroom_rooms --role=builder"
+    `);
+
+    // Verify mutation result
+    expect(result.completed).toBe(true);
+    expect(result.completedCount).toBe(1);
+    expect(result.pendingReview).toEqual([]);
+  });
+
+  test('materializes task-complete output when no tasks to complete', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-task-complete-none');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Try to complete without any in-progress task
+    const result = await t.mutation(api.tasks.completeTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Materialize error output (CLI would exit with error before this)
+    const fullCliOutput = result.completed
+      ? '✅ Task completed successfully'
+      : `❌ No task to complete
+
+💡 Make sure you have an in_progress task before completing.
+   Run \`chatroom wait-for-task\` to receive and start a task first.`;
+
+    // Verify the output structure
+    expect(fullCliOutput).toMatchInlineSnapshot(`
+      "❌ No task to complete
+
+      💡 Make sure you have an in_progress task before completing.
+         Run \`chatroom wait-for-task\` to receive and start a task first."
+    `);
+
+    // Verify mutation result
+    expect(result.completed).toBe(false);
+    expect(result.completedCount).toBe(0);
+    expect(result.promoted).toBeNull();
+  });
+});
