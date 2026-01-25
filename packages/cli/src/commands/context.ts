@@ -96,7 +96,7 @@ export async function readContext(
         ? ` [${message.classification.toUpperCase()}]`
         : '';
 
-      console.log(`\n🔹 ID: ${message._id}`);
+      console.log(`\n🔹 Message ID: ${message._id}`);
       console.log(`   Time: ${timestamp}`);
       console.log(`   From: ${message.senderRole}`);
       console.log(`   Type: ${message.type}${classificationBadge}`);
