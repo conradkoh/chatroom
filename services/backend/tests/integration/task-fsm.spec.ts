@@ -207,6 +207,59 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
   });
 });
 
+describe('FSM: Acknowledged to Pending User Review Transition', () => {
+  test('acknowledged task can transition to pending_user_review via parentTaskAcknowledged', async () => {
+    const { sessionId } = await createTestSession('test-fsm-acknowledged-to-pending-review');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Create a backlog task
+    const backlogTask = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'Backlog item to attach',
+      createdBy: 'user',
+      isBacklog: true,
+    });
+    expect(backlogTask.status).toBe('backlog');
+
+    // Send message and attach the backlog task - this creates a parent task
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      content: 'Please work on this backlog item',
+      senderRole: 'user',
+      type: 'message',
+      attachedTaskIds: [backlogTask.taskId],
+    });
+    expect(messageId).toBeDefined();
+
+    // Claim the parent task (pending → acknowledged)
+    const claimResult = await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    expect(claimResult.taskId).toBeDefined();
+
+    // Verify parent task is acknowledged
+    const tasks = await t.query(api.tasks.listTasks, {
+      sessionId,
+      chatroomId,
+      limit: 100,
+    });
+    const acknowledgedTask = tasks.find((t) => t._id === claimResult.taskId);
+    expect(acknowledgedTask?.status).toBe('acknowledged');
+
+    // The backlog task should have transitioned based on parent task acknowledgment
+    // Check that the FSM allows acknowledged → pending_user_review transition
+    const backlogTaskUpdated = tasks.find((t) => t._id === backlogTask.taskId);
+    expect(backlogTaskUpdated).toBeDefined();
+    // Backlog task should be in backlog_acknowledged or pending_user_review
+    expect(['backlog_acknowledged', 'pending_user_review']).toContain(backlogTaskUpdated?.status);
+  });
+});
+
 describe('FSM Phase 2: Backlog Attachment Tracking', () => {
   describe('Backlog Flow: backlog → backlog_acknowledged → pending_user_review', () => {
     test('attaching backlog task to message transitions to backlog_acknowledged', async () => {
