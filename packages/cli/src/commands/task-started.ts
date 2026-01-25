@@ -120,6 +120,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   // Fetch the specific task by ID directly
   targetTask = (await client.query(api.tasks.getTask, {
     sessionId,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
     taskId: taskId as Id<'chatroom_tasks'>,
   })) as {
     _id: string;

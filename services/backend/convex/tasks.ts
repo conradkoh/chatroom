@@ -1293,23 +1293,26 @@ export const getTasksByIds = query({
 /**
  * Get a single task by ID.
  * Used by CLI to fetch task details efficiently without listing all tasks.
- * Requires CLI session authentication.
+ * Requires CLI session authentication and validates task belongs to specified chatroom.
  */
 export const getTask = query({
   args: {
     sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
     taskId: v.id('chatroom_tasks'),
   },
   handler: async (ctx, args) => {
-    // Validate session using the standard helper
-    const sessionResult = await validateSession(ctx, args.sessionId);
-    if (!sessionResult.valid) {
-      return null;
-    }
+    // Validate session and chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Fetch the task directly by ID
     const task = await ctx.db.get('chatroom_tasks', args.taskId);
     if (!task) {
+      return null;
+    }
+
+    // Verify task belongs to the specified chatroom
+    if (task.chatroomId !== args.chatroomId) {
       return null;
     }
 
