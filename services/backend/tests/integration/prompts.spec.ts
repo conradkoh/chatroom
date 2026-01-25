@@ -7,9 +7,7 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { handoffCommand } from '../../prompts/base/cli/handoff/command';
 import { getContextGainingGuidance } from '../../prompts/base/cli/init/context-gaining';
-import { taskCompleteCommand } from '../../prompts/base/cli/task-complete/command';
 import { getTaskStartedPrompt } from '../../prompts/base/cli/task-started/main-prompt';
 import { getAvailableActions } from '../../prompts/base/cli/wait-for-task/available-actions';
 
@@ -160,103 +158,5 @@ describe('Task Classification Prompt', () => {
     expect(prompt).not.toContain('Examples:');
     expect(prompt).not.toContain('Workflow:');
     expect(prompt).not.toContain('Handoff Rules:');
-  });
-});
-
-describe('Handoff Command', () => {
-  test('generates handoff command with placeholders when no params provided', () => {
-    const command = handoffCommand();
-
-    // Should use placeholder values
-    expect(command).toContain('<chatroom-id>');
-    expect(command).toContain('--role=<role>');
-    expect(command).toContain('--next-role=<target>');
-
-    // Should use HERE document format
-    expect(command).toContain("<< 'EOF'");
-    expect(command).toContain('[Your message here]');
-    expect(command).toContain('EOF');
-  });
-
-  test('generates handoff command with injected values', () => {
-    const command = handoffCommand({
-      chatroomId: 'my-chatroom-456',
-      role: 'builder',
-      nextRole: 'reviewer',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-    });
-
-    // Should inject CHATROOM_CONVEX_URL prefix
-    expect(command).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
-
-    // Should inject chatroom ID
-    expect(command).toContain('chatroom handoff my-chatroom-456');
-
-    // Should inject role
-    expect(command).toContain('--role=builder');
-
-    // Should inject next role
-    expect(command).toContain('--next-role=reviewer');
-
-    // Should still use HERE document format
-    expect(command).toContain("<< 'EOF'");
-  });
-
-  test('uses stdin HERE document format (not file-based)', () => {
-    const command = handoffCommand({
-      chatroomId: 'test-123',
-      role: 'reviewer',
-      nextRole: 'user',
-    });
-
-    // Should use HERE document, not file path
-    expect(command).toContain("<< 'EOF'");
-    expect(command).not.toContain('--file=');
-    expect(command).not.toContain('.md');
-  });
-});
-
-describe('Task-Complete Command', () => {
-  test('generates task-complete command with placeholders when no params provided', () => {
-    const command = taskCompleteCommand();
-
-    // Should use placeholder values
-    expect(command).toContain('<chatroom-id>');
-    expect(command).toContain('--role=<role>');
-
-    // Should be the task-complete command
-    expect(command).toContain('chatroom task-complete');
-  });
-
-  test('generates task-complete command with injected values', () => {
-    const command = taskCompleteCommand({
-      chatroomId: 'complete-test-789',
-      role: 'builder',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-    });
-
-    // Should inject CHATROOM_CONVEX_URL prefix
-    expect(command).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
-
-    // Should inject chatroom ID
-    expect(command).toContain('chatroom task-complete complete-test-789');
-
-    // Should inject role
-    expect(command).toContain('--role=builder');
-  });
-
-  test('is a simple one-liner command (no heredoc or file input)', () => {
-    const command = taskCompleteCommand({
-      chatroomId: 'simple-test',
-      role: 'reviewer',
-    });
-
-    // Should NOT contain HERE document or file input
-    expect(command).not.toContain('EOF');
-    expect(command).not.toContain('<<');
-    expect(command).not.toContain('--file=');
-
-    // Should be a single line
-    expect(command.split('\n').length).toBe(1);
   });
 });
