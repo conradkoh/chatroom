@@ -117,18 +117,15 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     process.exit(1);
   }
 
-  // Use explicit task ID
-  const tasks = (await client.query(api.tasks.listTasks, {
+  // Fetch the specific task by ID directly
+  targetTask = (await client.query(api.tasks.getTask, {
     sessionId,
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    limit: 1000, // Get more tasks to find the specific one
+    taskId: taskId as Id<'chatroom_tasks'>,
   })) as {
     _id: string;
     content: string;
     status: string;
-  }[];
-
-  targetTask = tasks.find((task) => task._id === taskId) || null;
+  } | null;
 
   if (!targetTask) {
     console.error(`❌ Task with ID "${taskId}" not found in this chatroom`);

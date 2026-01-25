@@ -1291,6 +1291,40 @@ export const getTasksByIds = query({
 });
 
 /**
+ * Get a single task by ID.
+ * Used by CLI to fetch task details efficiently without listing all tasks.
+ * Requires CLI session authentication.
+ */
+export const getTask = query({
+  args: {
+    sessionId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    // Validate session using the standard helper
+    const sessionResult = await validateSession(ctx, args.sessionId);
+    if (!sessionResult.valid) {
+      return null;
+    }
+
+    // Fetch the task directly by ID
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      return null;
+    }
+
+    return {
+      _id: task._id,
+      content: task.content,
+      status: task.status,
+      origin: task.origin,
+      createdAt: task.createdAt,
+      createdBy: task.createdBy,
+    };
+  },
+});
+
+/**
  * Get task system limits.
  * Returns the configured limits for task operations.
  * This allows clients to use the same limits as the server.
