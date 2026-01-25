@@ -794,3 +794,240 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
     expect(updatedPrompt.json.rolePrompt.currentClassification).toBe('new_feature');
   });
 });
+
+describe('Task-Started Reminders', () => {
+  test('materializes complete task-started reminder for new_feature classification', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-task-started-new-feature');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends message
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Add dark mode toggle to the application',
+      type: 'message',
+    });
+
+    // Builder claims and starts the task
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Classify as new_feature
+    const result = await t.mutation(api.messages.taskStarted, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: startResult.taskId,
+      originMessageClassification: 'new_feature',
+      featureTitle: 'Dark Mode Toggle',
+      featureDescription: 'Add a toggle in settings for dark/light mode',
+      featureTechSpecs: 'Use React Context + CSS variables',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Materialize the complete CLI output for task-started command
+    const classification = 'new_feature';
+
+    const fullCliOutput = `✅ Task acknowledged and classified
+   Classification: ${classification}
+   Task: Add dark mode toggle to the application
+
+💡 ${result.reminder}`;
+
+    // Verify the complete reminder structure matches expected format
+    // The inline snapshot will materialize the full message for human review in the test file
+    expect(fullCliOutput).toMatchInlineSnapshot(`
+      "✅ Task acknowledged and classified
+         Classification: new_feature
+         Task: Add dark mode toggle to the application
+
+      💡 ✅ Task acknowledged as NEW FEATURE.
+
+      **Next steps:**
+      1. Implement the feature
+      2. Send \`report-progress\` at milestones (e.g., after major changes, when blocked)
+      3. Commit your changes
+      4. MUST hand off to reviewer for approval:
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff 10030;chatroom_rooms --role=builder --next-role=reviewer << 'EOF'
+      [Your message here]
+      EOF
+      \`\`\`
+
+      💡 You're working on:
+      Message ID: 10035;chatroom_messages"
+    `);
+
+    // Verify reminder structure
+    expect(result.success).toBe(true);
+    expect(result.classification).toBe('new_feature');
+    expect(result.reminder).toBeDefined();
+    expect(result.reminder).toContain('NEW FEATURE');
+    expect(result.reminder).toContain('hand off to reviewer');
+  });
+
+  test('materializes complete task-started reminder for question classification', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-task-started-question');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends message
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'How does the authentication system work?',
+      type: 'message',
+    });
+
+    // Builder claims and starts the task
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Classify as question
+    const result = await t.mutation(api.messages.taskStarted, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: startResult.taskId,
+      originMessageClassification: 'question',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Materialize the complete CLI output for task-started command
+    const classification = 'question';
+
+    const fullCliOutput = `✅ Task acknowledged and classified
+   Classification: ${classification}
+   Task: How does the authentication system work?
+
+💡 ${result.reminder}`;
+
+    // Verify the complete reminder structure matches expected format
+    expect(fullCliOutput).toMatchInlineSnapshot(`
+      "✅ Task acknowledged and classified
+         Classification: question
+         Task: How does the authentication system work?
+
+      💡 ✅ Task acknowledged as QUESTION.
+
+      **Next steps:**
+      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress 10039;chatroom_rooms --role=builder --message="Researching..."\`
+      2. Answer the user's question
+      3. When done, hand off directly to user:
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff 10039;chatroom_rooms --role=builder --next-role=user << 'EOF'
+      [Your message here]
+      EOF
+      \`\`\`
+
+      💡 You're working on:
+      Message ID: 10044;chatroom_messages"
+    `);
+
+    // Verify reminder structure
+    expect(result.success).toBe(true);
+    expect(result.classification).toBe('question');
+    expect(result.reminder).toBeDefined();
+    expect(result.reminder).toContain('QUESTION');
+    expect(result.reminder).toContain('hand off directly to user');
+  });
+
+  test('materializes complete task-started reminder for follow_up classification', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-task-started-follow-up');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends follow-up message
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Can you also add filtering?',
+      type: 'message',
+    });
+
+    // Builder claims and starts the task
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Classify as follow_up
+    const result = await t.mutation(api.messages.taskStarted, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: startResult.taskId,
+      originMessageClassification: 'follow_up',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Materialize the complete CLI output for task-started command
+    const classification = 'follow_up';
+
+    const fullCliOutput = `✅ Task acknowledged and classified
+   Classification: ${classification}
+   Task: Can you also add filtering?
+
+💡 ${result.reminder}`;
+
+    // Verify the complete reminder structure matches expected format
+    expect(fullCliOutput).toMatchInlineSnapshot(`
+      "✅ Task acknowledged and classified
+         Classification: follow_up
+         Task: Can you also add filtering?
+
+      💡 ✅ Task acknowledged as FOLLOW UP.
+
+      **Next steps:**
+      1. Complete the follow-up work
+      2. Send \`report-progress\` at milestones for visibility
+      3. Follow-up inherits the workflow rules from the original task:
+         - If original was a QUESTION → hand off to user when done
+         - If original was a NEW FEATURE → hand off to reviewer when done
+
+      💡 You're working on:
+      Message ID: 10053;chatroom_messages"
+    `);
+
+    // Verify reminder structure
+    expect(result.success).toBe(true);
+    expect(result.classification).toBe('follow_up');
+    expect(result.reminder).toBeDefined();
+    expect(result.reminder).toContain('FOLLOW UP');
+    expect(result.reminder).toContain('inherits the workflow rules');
+  });
+});
