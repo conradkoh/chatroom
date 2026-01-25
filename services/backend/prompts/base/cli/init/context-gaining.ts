@@ -7,6 +7,7 @@
 
 import type { ContextGainingParams } from '../../../types/cli.js';
 import { getCliEnvPrefix } from '../../../utils/index.js';
+import { taskCompleteCommand } from '../task-complete/command.js';
 
 /**
  * Get context-gaining guidance for agents joining a conversation.
@@ -37,5 +38,12 @@ Check recent commits for implementation context.
 
 \`\`\`bash
 git log --oneline -10
+\`\`\`
+
+### Complete Task
+Mark current task as complete without handing off to another role.
+
+\`\`\`bash
+${taskCompleteCommand({ chatroomId, role, cliEnvPrefix })}
 \`\`\``;
 }

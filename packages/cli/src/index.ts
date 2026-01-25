@@ -201,6 +201,29 @@ program
   );
 
 program
+  .command('task-complete <chatroomId>')
+  .description('Complete the current task without handing off to another role')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--message <message>', 'Optional completion note')
+  .action(
+    async (
+      chatroomId: string,
+      options: {
+        role: string;
+        message?: string;
+      }
+    ) => {
+      await maybeRequireAuth();
+
+      const { taskComplete } = await import('./commands/task-complete.js');
+      await taskComplete(chatroomId, {
+        role: options.role,
+        message: options.message,
+      });
+    }
+  );
+
+program
   .command('handoff <chatroomId>')
   .description('Complete your task and hand off to the next role')
   .requiredOption('--role <role>', 'Your role')
