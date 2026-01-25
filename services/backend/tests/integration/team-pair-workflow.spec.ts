@@ -221,7 +221,7 @@ describe('Pair Team Workflow', () => {
         chatroom report-progress 10002;chatroom_rooms --role=builder --message="Working on tests..."
         \`\`\`
 
-        Send status updates during your work to keep the team informed. Progress is shown inline with the task in the webapp. Reports do not complete your task or trigger handoffs.
+        Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
@@ -451,7 +451,7 @@ describe('Pair Team Workflow', () => {
         chatroom report-progress 10002;chatroom_rooms --role=reviewer --message="Working on tests..."
         \`\`\`
 
-        Send status updates during your work to keep the team informed. Progress is shown inline with the task in the webapp. Reports do not complete your task or trigger handoffs.
+        Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
@@ -683,7 +683,7 @@ describe('Pair Team Workflow', () => {
         chatroom report-progress 10023;chatroom_rooms --role=builder --message="Working on tests..."
         \`\`\`
 
-        Send status updates during your work to keep the team informed. Progress is shown inline with the task in the webapp. Reports do not complete your task or trigger handoffs.
+        Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
