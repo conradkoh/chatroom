@@ -116,6 +116,103 @@ describe('Wait-for-Task Full Prompt', () => {
       convexUrl: 'http://127.0.0.1:3210',
     });
 
+    // ===== OUTPUT COMPLETE CLI MESSAGE FOR REVIEW =====
+    // This materializes the exact message structure sent from server to wait-for-task command
+
+    const taskId = startResult.taskId;
+    const messageId = userMessageId;
+    const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
+    const existingClassification = originMessage?.classification;
+
+    const fullCliMessage = `
+
+══════════════════════════════════════════════════
+📋 AGENT INITIALIZATION PROMPT
+══════════════════════════════════════════════════
+
+Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgrounding) - backgrounded processes cannot receive tasks
+
+⏱️  HOW WAIT-FOR-TASK WORKS:
+• While wait-for-task runs, you remain "frozen" - the tool continues executing while you wait
+• The command may timeout before a task arrives. This is normal and expected behavior
+• The shell host enforces timeouts to ensure agents remain responsive and can pick up new jobs
+• When wait-for-task terminates (timeout or after task completion), restart it immediately
+• Restarting quickly ensures users and other agents don't have to wait for your availability
+
+📋 BACKLOG:
+The chatroom has a task backlog. View items with:
+  chatroom backlog list <chatroomId> --role=<role> --status=backlog
+More actions: \`chatroom backlog --help\`
+
+══════════════════════════════════════════════════
+
+${initPrompt?.prompt || 'NO INIT PROMPT GENERATED'}
+
+══════════════════════════════════════════════════
+
+
+============================================================
+🆔 TASK INFORMATION
+============================================================
+Task ID: ${taskId}
+Message ID: ${messageId}
+
+📋 NEXT STEPS
+============================================================
+To acknowledge and classify this message, run:
+
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started ${chatroomId} --role=builder --task-id=${taskId} --origin-message-classification=<type>
+
+📝 Classification Requirements:
+   • question: No additional fields required
+   • follow_up: No additional fields required
+   • new_feature: REQUIRES --title, --description, --tech-specs
+
+💡 Example for new_feature:
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started ${chatroomId} --role=builder --task-id=${taskId} --origin-message-classification=new_feature << 'EOF'
+---TITLE---
+<title>
+---DESCRIPTION---
+<description>
+---TECH_SPECS---
+<tech-specs>
+EOF
+
+Classification types: question, new_feature, follow_up
+============================================================
+
+## 📍 Pinned
+### Primary User Directive
+<user-message>
+${originMessage?.content || 'NO CONTENT'}
+${
+  originMessage?.attachedTasks && originMessage.attachedTasks.length > 0
+    ? `
+ATTACHED BACKLOG (${originMessage.attachedTasks.length})
+${originMessage.attachedTasks.map((t) => t.content).join('\n\n')}`
+    : ''
+}
+</user-message>
+
+### Inferred Task
+${existingClassification ? `Classification: ${existingClassification}` : `Not created yet. Run \`chatroom task-started …\` to specify task.`}
+============================================================
+
+${taskDeliveryPrompt.humanReadable}
+
+============================================================
+Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+============================================================
+`;
+
+    console.log('\n' + '='.repeat(80));
+    console.log('COMPLETE WAIT-FOR-TASK MESSAGE (as shown to agent)');
+    console.log('='.repeat(80));
+    console.log(fullCliMessage);
+    console.log('='.repeat(80));
+
     // ===== VERIFY INIT PROMPT =====
     expect(initPrompt).toBeDefined();
     expect(initPrompt?.prompt).toBeDefined();
