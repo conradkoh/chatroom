@@ -13,6 +13,7 @@ import {
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
 import { getCompletionStatus } from './lib/taskWorkflows';
+import { getAvailableActions } from '../prompts/base/cli/wait-for-task/available-actions.js';
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
 
@@ -1846,8 +1847,15 @@ export const getTaskDeliveryPrompt = query({
     // Build and return the complete prompt
     const reminderMessage = `Remember to listen for new messages using \`wait-for-task\` after handoff. Otherwise your team might get stuck not be able to reach you.\n\n    chatroom wait-for-task ${args.chatroomId} --role=${args.role}`;
 
+    // Get available actions for this task delivery
+    const availableActionsText = getAvailableActions({
+      chatroomId: args.chatroomId,
+      role: args.role,
+      convexUrl: config.getConvexURLWithFallback(args.convexUrl),
+    });
+
     return {
-      humanReadable: `${rolePromptText}\n\n${reminderMessage}`,
+      humanReadable: `${availableActionsText}\n\n${rolePromptText}\n\n${reminderMessage}`,
       json: deliveryContext,
     };
   },

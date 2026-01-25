@@ -9,20 +9,24 @@ import { describe, expect, test } from 'vitest';
 
 import { getContextGainingGuidance } from '../../prompts/base/cli/init/context-gaining';
 import { getTaskStartedPrompt } from '../../prompts/base/cli/task-started/main-prompt';
+import { getAvailableActions } from '../../prompts/base/cli/wait-for-task/available-actions';
 
 describe('Context Gaining Prompt', () => {
-  test('generates concise Available Actions format', () => {
+  test('generates Getting Started format with basic commands', () => {
     const guidance = getContextGainingGuidance({
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    // Should use Available Actions header
-    expect(guidance).toContain('## Available Actions');
+    // Should use Getting Started header (not Available Actions)
+    expect(guidance).toContain('## Getting Started');
 
-    // Should have Gain Context section
-    expect(guidance).toContain('### Gain Context');
+    // Should have Read Context section
+    expect(guidance).toContain('### Read Context');
+
+    // Should have Wait for Tasks section
+    expect(guidance).toContain('### Wait for Tasks');
 
     // Should inject CHATROOM_CONVEX_URL properly
     expect(guidance).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
@@ -35,16 +39,46 @@ describe('Context Gaining Prompt', () => {
     expect(guidance).not.toContain('When to Gain Context');
   });
 
-  test('includes List Messages and View Code Changes actions', () => {
+  test('includes wait-for-task command', () => {
     const guidance = getContextGainingGuidance({
       chatroomId: 'abc123',
       role: 'reviewer',
       convexUrl: 'http://localhost:3000',
     });
 
-    expect(guidance).toContain('### List Messages');
-    expect(guidance).toContain('### View Code Changes');
-    expect(guidance).toContain('git log --oneline -10');
+    expect(guidance).toContain('chatroom wait-for-task abc123 --role=reviewer');
+  });
+});
+
+describe('Available Actions (Task Delivery)', () => {
+  test('generates Available Actions format with all actions', () => {
+    const actions = getAvailableActions({
+      chatroomId: 'test-chatroom-123',
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Should use Available Actions header
+    expect(actions).toContain('## Available Actions');
+
+    // Should have all action sections
+    expect(actions).toContain('### Gain Context');
+    expect(actions).toContain('### List Messages');
+    expect(actions).toContain('### View Code Changes');
+    expect(actions).toContain('### Complete Task');
+
+    // Should inject CHATROOM_CONVEX_URL properly
+    expect(actions).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
+  });
+
+  test('includes git log command', () => {
+    const actions = getAvailableActions({
+      chatroomId: 'abc123',
+      role: 'reviewer',
+      convexUrl: 'http://localhost:3000',
+    });
+
+    expect(actions).toContain('git log --oneline -10');
   });
 });
 
