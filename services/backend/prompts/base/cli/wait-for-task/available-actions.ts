@@ -50,5 +50,14 @@ Mark current task as complete without handing off to another role.
 
 \`\`\`bash
 ${taskCompleteCommand({ chatroomId, role, cliEnvPrefix })}
-\`\`\``;
+\`\`\`
+
+### Backlog
+The chatroom has a task backlog. View items with:
+
+\`\`\`bash
+${cliEnvPrefix}chatroom backlog list ${chatroomId} --role=${role} --status=backlog
+\`\`\`
+
+More actions: \`chatroom backlog --help\``;
 }
