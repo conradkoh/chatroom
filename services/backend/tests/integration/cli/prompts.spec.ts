@@ -7,10 +7,10 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { getContextGainingGuidance } from '../../prompts/base/cli/init/context-gaining';
-import { getTaskStartedPrompt } from '../../prompts/base/cli/task-started/main-prompt';
-import { getAvailableActions } from '../../prompts/base/cli/wait-for-task/available-actions';
-import { getConfig } from '../../prompts/config/index';
+import { getContextGainingGuidance } from '../../../prompts/base/cli/init/context-gaining';
+import { getTaskStartedPrompt } from '../../../prompts/base/cli/task-started/main-prompt';
+import { getAvailableActions } from '../../../prompts/base/cli/wait-for-task/available-actions';
+import { getConfig } from '../../../prompts/config/index';
 
 // Test URLs for different environments
 const TEST_LOCAL_CONVEX_URL = 'http://127.0.0.1:3210';

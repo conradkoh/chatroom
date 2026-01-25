@@ -7,8 +7,8 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { handoffCommand } from '../../prompts/base/cli/handoff/command';
-import { getConfig } from '../../prompts/config/index';
+import { handoffCommand } from '../../../prompts/base/cli/handoff/command';
+import { getConfig } from '../../../prompts/config/index';
 
 // Test URLs for different environments
 const TEST_LOCAL_CONVEX_URL = 'http://127.0.0.1:3210';
