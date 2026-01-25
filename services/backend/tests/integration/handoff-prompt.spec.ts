@@ -8,10 +8,17 @@
 import { describe, expect, test } from 'vitest';
 
 import { handoffCommand } from '../../prompts/base/cli/handoff/command';
+import { getConfig } from '../../prompts/config/index';
+
+// Test URLs for different environments
+const TEST_LOCAL_CONVEX_URL = 'http://127.0.0.1:3210';
+const TEST_PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
 
 describe('Handoff Command', () => {
   test('generates handoff command with placeholders when minimal params provided', () => {
-    const command = handoffCommand({ cliEnvPrefix: '' });
+    // Use production URL which returns empty prefix
+    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_PRODUCTION_CONVEX_URL);
+    const command = handoffCommand({ cliEnvPrefix });
 
     // Should use placeholder values
     expect(command).toContain('<chatroom-id>');
@@ -25,11 +32,13 @@ describe('Handoff Command', () => {
   });
 
   test('generates handoff command with injected values', () => {
+    // Use local URL which returns the env prefix
+    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
     const command = handoffCommand({
       chatroomId: 'my-chatroom-456',
       role: 'builder',
       nextRole: 'reviewer',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      cliEnvPrefix,
     });
 
     // Should inject CHATROOM_CONVEX_URL prefix
@@ -49,11 +58,13 @@ describe('Handoff Command', () => {
   });
 
   test('uses stdin HERE document format (not file-based)', () => {
+    // Use production URL which returns empty prefix
+    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_PRODUCTION_CONVEX_URL);
     const command = handoffCommand({
       chatroomId: 'test-123',
       role: 'reviewer',
       nextRole: 'user',
-      cliEnvPrefix: '',
+      cliEnvPrefix,
     });
 
     // Should use HERE document, not file path

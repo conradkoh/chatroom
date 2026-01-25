@@ -10,6 +10,12 @@ import { describe, expect, test } from 'vitest';
 import { getContextGainingGuidance } from '../../prompts/base/cli/init/context-gaining';
 import { getTaskStartedPrompt } from '../../prompts/base/cli/task-started/main-prompt';
 import { getAvailableActions } from '../../prompts/base/cli/wait-for-task/available-actions';
+import { getConfig } from '../../prompts/config/index';
+
+// Test URLs for different environments
+const TEST_LOCAL_CONVEX_URL = 'http://127.0.0.1:3210';
+const TEST_LOCALHOST_CONVEX_URL = 'http://localhost:3210';
+const TEST_PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
 
 describe('Context Gaining Prompt', () => {
   test('generates Getting Started format with basic commands', () => {
@@ -85,10 +91,11 @@ describe('Available Actions (Task Delivery)', () => {
 
 describe('Task Classification Prompt', () => {
   test('generates concise Classify Task format with all classification types', () => {
+    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
     const prompt = getTaskStartedPrompt({
       chatroomId: 'test-chatroom-456',
       role: 'builder',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      cliEnvPrefix,
     });
 
     // Should have Classify Task header
@@ -101,10 +108,11 @@ describe('Task Classification Prompt', () => {
   });
 
   test('injects CHATROOM_CONVEX_URL prefix correctly', () => {
+    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCAL_CONVEX_URL);
     const prompt = getTaskStartedPrompt({
       chatroomId: 'my-chatroom',
       role: 'builder',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      cliEnvPrefix,
     });
 
     // All commands should have the env prefix
@@ -112,10 +120,11 @@ describe('Task Classification Prompt', () => {
   });
 
   test('new_feature command uses EOF format for metadata', () => {
+    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_LOCALHOST_CONVEX_URL);
     const prompt = getTaskStartedPrompt({
       chatroomId: 'feature-chatroom',
       role: 'builder',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://localhost:3210 ',
+      cliEnvPrefix,
     });
 
     // New feature should use heredoc format
@@ -127,10 +136,12 @@ describe('Task Classification Prompt', () => {
   });
 
   test('question and follow_up commands are simple one-liners', () => {
+    // Use production URL which returns empty prefix
+    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_PRODUCTION_CONVEX_URL);
     const prompt = getTaskStartedPrompt({
       chatroomId: 'simple-chatroom',
       role: 'reviewer',
-      cliEnvPrefix: '',
+      cliEnvPrefix,
     });
 
     // Question command should be a simple command without heredoc
@@ -145,10 +156,12 @@ describe('Task Classification Prompt', () => {
   });
 
   test('is concise without verbose classification guidance', () => {
+    // Use production URL which returns empty prefix
+    const cliEnvPrefix = getConfig().getCliEnvPrefix(TEST_PRODUCTION_CONVEX_URL);
     const prompt = getTaskStartedPrompt({
       chatroomId: 'concise-test',
       role: 'builder',
-      cliEnvPrefix: '',
+      cliEnvPrefix,
     });
 
     // Should NOT contain verbose guidance sections
