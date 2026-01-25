@@ -934,7 +934,7 @@ export const listTasks = query({
         v.literal('completed'),
         v.literal('closed'),
         v.literal('pending_user_review'),
-        v.literal('active'), // pending + in_progress + queued + backlog
+        v.literal('active'), // pending + acknowledged + in_progress + queued + backlog + backlog_acknowledged
         v.literal('pending_review'), // pending_user_review status
         v.literal('archived') // completed + closed
       )
@@ -956,9 +956,11 @@ export const listTasks = query({
         tasks = tasks.filter(
           (t) =>
             t.status === 'pending' ||
+            t.status === 'acknowledged' ||
             t.status === 'in_progress' ||
             t.status === 'queued' ||
-            t.status === 'backlog'
+            t.status === 'backlog' ||
+            t.status === 'backlog_acknowledged'
         );
       } else if (args.statusFilter === 'pending_review') {
         // Pending review: tasks in pending_user_review status
@@ -1171,9 +1173,11 @@ export const getTaskCounts = query({
 
     return {
       pending: tasks.filter((t) => t.status === 'pending').length,
+      acknowledged: tasks.filter((t) => t.status === 'acknowledged').length,
       in_progress: tasks.filter((t) => t.status === 'in_progress').length,
       queued: tasks.filter((t) => t.status === 'queued').length,
       backlog: tasks.filter((t) => t.status === 'backlog').length,
+      backlog_acknowledged: tasks.filter((t) => t.status === 'backlog_acknowledged').length,
       pending_user_review: tasks.filter((t) => t.status === 'pending_user_review').length,
       completed: tasks.filter((t) => t.status === 'completed').length,
       closed: tasks.filter((t) => t.status === 'closed').length,

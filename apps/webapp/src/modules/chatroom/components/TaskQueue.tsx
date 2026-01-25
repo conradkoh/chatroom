@@ -60,9 +60,11 @@ interface Task {
 
 interface TaskCounts {
   pending: number;
+  acknowledged: number;
   in_progress: number;
   queued: number;
   backlog: number;
+  backlog_acknowledged: number;
   pending_user_review: number;
   completed: number;
   closed: number;
@@ -413,7 +415,14 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   // Calculate active total
   const activeTotal = useMemo(() => {
     if (!counts) return 0;
-    return counts.pending + counts.in_progress + counts.queued + counts.backlog;
+    return (
+      counts.pending +
+      counts.acknowledged +
+      counts.in_progress +
+      counts.queued +
+      counts.backlog +
+      counts.backlog_acknowledged
+    );
   }, [counts]);
 
   if (tasks === undefined) {
