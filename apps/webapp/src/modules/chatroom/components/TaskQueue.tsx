@@ -14,6 +14,8 @@ import {
   ChevronDown,
   Archive,
   ClipboardCheck,
+  MoreHorizontal,
+  XCircle,
 } from 'lucide-react';
 import React, { useState, useCallback, useMemo } from 'react';
 import Markdown from 'react-markdown';
@@ -23,6 +25,13 @@ import { BacklogCreateModal } from './BacklogCreateModal';
 import { compactMarkdownComponents } from './markdown-utils';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 type TaskStatus =
   | 'pending'
@@ -416,6 +425,35 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     [reopenBacklogTask]
   );
 
+  // Batch close all claimed tasks
+  const handleCloseAllClaimed = useCallback(async () => {
+    if (!categorizedTasks.current) return;
+
+    // Filter for acknowledged and backlog_acknowledged tasks
+    const claimedTasks = categorizedTasks.current.filter(
+      (t) => t.status === 'acknowledged' || t.status === 'backlog_acknowledged'
+    );
+
+    if (claimedTasks.length === 0) {
+      console.log('No claimed tasks to close');
+      return;
+    }
+
+    // Close all claimed tasks
+    try {
+      await Promise.all(
+        claimedTasks.map((task) =>
+          cancelTask({
+            taskId: task._id as Id<'chatroom_tasks'>,
+          })
+        )
+      );
+      console.log(`Closed ${claimedTasks.length} claimed tasks`);
+    } catch (error) {
+      console.error('Failed to close all claimed tasks:', error);
+    }
+  }, [categorizedTasks.current, cancelTask]);
+
   // Calculate active total
   const activeTotal = useMemo(() => {
     if (!counts) return 0;
@@ -472,8 +510,27 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         {/* Current Task */}
         {categorizedTasks.current.length > 0 && (
           <div className="border-b border-chatroom-border">
-            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary">
-              Current ({categorizedTasks.current.length})
+            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
+              <span>Current ({categorizedTasks.current.length})</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors p-1"
+                    title="Actions"
+                  >
+                    <MoreHorizontal size={14} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[160px]">
+                  <DropdownMenuItem
+                    onClick={handleCloseAllClaimed}
+                    className="flex items-center gap-2 cursor-pointer text-chatroom-status-error"
+                  >
+                    <XCircle size={14} />
+                    Close All Claimed
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             {/* Show only first CURRENT_TASKS_PREVIEW_LIMIT items */}
             {categorizedTasks.current.slice(0, CURRENT_TASKS_PREVIEW_LIMIT).map((task) => (
