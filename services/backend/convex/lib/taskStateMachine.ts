@@ -193,6 +193,14 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   {
+    from: 'acknowledged',
+    to: 'pending_user_review',
+    trigger: 'parentTaskAcknowledged',
+    setFields: {},
+    clearFields: [],
+  },
+
+  {
     from: 'pending_user_review',
     to: 'completed',
     trigger: 'markBacklogComplete',
