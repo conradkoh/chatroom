@@ -478,7 +478,10 @@ export function TaskDetailModal({
                   )}
 
                 {/* Force complete for active tasks */}
-                {(task.status === 'in_progress' || task.status === 'pending') && (
+                {(task.status === 'in_progress' ||
+                  task.status === 'pending' ||
+                  task.status === 'acknowledged' ||
+                  task.status === 'backlog_acknowledged') && (
                   <button
                     onClick={handleForceComplete}
                     disabled={isLoading}

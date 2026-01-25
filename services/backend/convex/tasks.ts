@@ -426,8 +426,13 @@ export const completeTaskById = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // For pending/in_progress tasks, require force flag
-    if (task.status === 'pending' || task.status === 'in_progress') {
+    // For active tasks (pending, in_progress, acknowledged, backlog_acknowledged), require force flag
+    if (
+      task.status === 'pending' ||
+      task.status === 'in_progress' ||
+      task.status === 'acknowledged' ||
+      task.status === 'backlog_acknowledged'
+    ) {
       if (!args.force) {
         throw new Error(
           `Task is ${task.status}. Use --force to complete an active task. ` +
@@ -484,7 +489,7 @@ export const completeTaskById = mutation({
     // For backlog and queued tasks, complete normally (no promotion needed)
     if (task.status !== 'backlog' && task.status !== 'queued') {
       throw new Error(
-        `Cannot complete task with status: ${task.status}. Only backlog, queued, pending, and in_progress tasks can be completed.`
+        `Cannot complete task with status: ${task.status}. Only backlog, queued, pending, in_progress, acknowledged, and backlog_acknowledged tasks can be completed.`
       );
     }
 
