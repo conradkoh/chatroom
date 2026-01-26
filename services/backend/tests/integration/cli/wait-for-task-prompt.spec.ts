@@ -124,7 +124,13 @@ describe('Wait-for-Task Full Prompt', () => {
     const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
     const existingClassification = originMessage?.classification;
 
+    // Note: Timestamps will vary, so we use placeholders in expected output
     const fullCliMessage = `
+[TIMESTAMP] ⏳ Connecting to chatroom as "builder"...
+[TIMESTAMP] ✅ Connected. Waiting for task...
+
+<!-- REFERENCE: Agent Initialization
+
 ══════════════════════════════════════════════════
 📋 AGENT INITIALIZATION PROMPT
 ══════════════════════════════════════════════════
@@ -150,7 +156,9 @@ More actions: \`chatroom backlog --help\`
 ${initPrompt?.prompt || 'NO INIT PROMPT GENERATED'}
 
 ══════════════════════════════════════════════════
+-->
 
+[TIMESTAMP] 📨 Task received!
 
 ============================================================
 🆔 TASK INFORMATION
@@ -210,6 +218,11 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
     // The inline snapshot will materialize the full message for human review in the test file
     expect(fullCliMessage).toMatchInlineSnapshot(`
       "
+      [TIMESTAMP] ⏳ Connecting to chatroom as "builder"...
+      [TIMESTAMP] ✅ Connected. Waiting for task...
+
+      <!-- REFERENCE: Agent Initialization
+
       ══════════════════════════════════════════════════
       📋 AGENT INITIALIZATION PROMPT
       ══════════════════════════════════════════════════
@@ -380,7 +393,9 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       \`\`\`
 
       ══════════════════════════════════════════════════
+      -->
 
+      [TIMESTAMP] 📨 Task received!
 
       ============================================================
       🆔 TASK INFORMATION

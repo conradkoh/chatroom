@@ -133,8 +133,11 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     readyUntil,
   });
 
+  // Log initial connection with timestamp
+  const connectionTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
   if (!silent) {
-    console.log(`✅ Joined chatroom as "${role}"`);
+    console.log(`[${connectionTime}] ⏳ Connecting to chatroom as "${role}"...`);
   }
 
   // On first session, fetch and display the full initialization prompt from backend
@@ -148,6 +151,12 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     })) as { prompt: string } | null;
 
     if (initPromptResult?.prompt) {
+      // Log successful connection with timestamp
+      const connectedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.log(`[${connectedTime}] ✅ Connected. Waiting for task...\n`);
+
+      // Wrap reference content in HTML comments for LLM skimming
+      console.log('<!-- REFERENCE: Agent Initialization');
       console.log('');
       console.log('═'.repeat(50));
       console.log('📋 AGENT INITIALIZATION PROMPT');
@@ -160,6 +169,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       console.log(initPromptResult.prompt);
       console.log('');
       console.log('═'.repeat(50));
+      console.log('-->');
       console.log('');
     }
   } catch {
@@ -261,8 +271,12 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       convexUrl,
     });
 
+    // Log task received with timestamp
+    const taskReceivedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    console.log(`\n[${taskReceivedTime}] 📨 Task received!\n`);
+
     // Display explicit task and message IDs for clarity
-    console.log(`\n${'='.repeat(60)}`);
+    console.log(`${'='.repeat(60)}`);
     console.log(`🆔 TASK INFORMATION`);
     console.log(`${'='.repeat(60)}`);
     console.log(`Task ID: ${task._id}`);
