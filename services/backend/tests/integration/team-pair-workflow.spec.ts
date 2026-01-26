@@ -159,7 +159,7 @@ Test technical specifications`,
 
         **Classification (Entry Point Role):**
         As the entry point, you receive user messages directly. When you receive a user message:
-        1. First run \`chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+        1. First run \`chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
         2. Then do your work
         3. Hand off to reviewer for code changes, or directly to user for questions
 
@@ -211,7 +211,7 @@ Test technical specifications`,
         **Complete task and hand off:**
 
         \`\`\`bash
-        chatroom handoff 10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+        chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
         [Your message here]
         EOF
         \`\`\`
@@ -224,14 +224,16 @@ Test technical specifications`,
         **Report progress on current task:**
 
         \`\`\`bash
-        chatroom report-progress 10002;chatroom_rooms --role=builder --message="Working on tests..."
+        chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+        [Your progress message here]
+        EOF
         \`\`\`
 
         Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom wait-for-task 10002;chatroom_rooms --role=builder
+        chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
         \`\`\`
 
         Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you"
@@ -332,7 +334,7 @@ Test technical specifications`,
 
         **Typical Flow:**
         1. Receive message (handoff from builder or other agent)
-        2. First run \`chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message
+        2. First run \`chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message
         3. Review the code changes or content:
            - Check uncommitted changes: \`git status\`, \`git diff\`
            - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
@@ -342,7 +344,7 @@ Test technical specifications`,
 
         **If changes are needed:**
         \`\`\`bash
-        chatroom handoff <chatroom-id> --role=<role> --next-role=builder << 'EOF'
+        chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=builder << 'EOF'
         [Your message here]
         EOF
         \`\`\`
@@ -353,7 +355,7 @@ Test technical specifications`,
 
         **If work is approved:**
         \`\`\`bash
-        chatroom handoff <chatroom-id> --role=<role> --next-role=user << 'EOF'
+        chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=user << 'EOF'
         [Your message here]
         EOF
         \`\`\`
@@ -441,7 +443,7 @@ Test technical specifications`,
         **Complete task and hand off:**
 
         \`\`\`bash
-        chatroom handoff 10002;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+        chatroom handoff --chatroom-id=10002;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
         [Your message here]
         EOF
         \`\`\`
@@ -454,14 +456,16 @@ Test technical specifications`,
         **Report progress on current task:**
 
         \`\`\`bash
-        chatroom report-progress 10002;chatroom_rooms --role=reviewer --message="Working on tests..."
+        chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=reviewer << 'EOF'
+        [Your progress message here]
+        EOF
         \`\`\`
 
         Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom wait-for-task 10002;chatroom_rooms --role=reviewer
+        chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=reviewer
         \`\`\`
 
         Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you"
@@ -623,7 +627,7 @@ Test technical specifications`,
 
         **Classification (Entry Point Role):**
         As the entry point, you receive user messages directly. When you receive a user message:
-        1. First run \`chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+        1. First run \`chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
         2. Then do your work
         3. Hand off to reviewer for code changes, or directly to user for questions
 
@@ -673,7 +677,7 @@ Test technical specifications`,
         **Complete task and hand off:**
 
         \`\`\`bash
-        chatroom handoff 10023;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+        chatroom handoff --chatroom-id=10023;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
         [Your message here]
         EOF
         \`\`\`
@@ -686,14 +690,16 @@ Test technical specifications`,
         **Report progress on current task:**
 
         \`\`\`bash
-        chatroom report-progress 10023;chatroom_rooms --role=builder --message="Working on tests..."
+        chatroom report-progress --chatroom-id=10023;chatroom_rooms --role=builder << 'EOF'
+        [Your progress message here]
+        EOF
         \`\`\`
 
         Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom wait-for-task 10023;chatroom_rooms --role=builder
+        chatroom wait-for-task --chatroom-id=10023;chatroom_rooms --role=builder
         \`\`\`
 
         Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you"
