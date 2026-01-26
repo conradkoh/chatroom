@@ -1222,6 +1222,217 @@ See docs/auth.md for more details.`;
   });
 });
 
+describe('Wait-for-Task Error Prompts', () => {
+  test('materializes complete timeout reconnection prompt', () => {
+    // This test validates the timeout prompt shown to agents when wait-for-task times out
+    const chatroomId = 'jx750h696te75x67z5q6cbwkph7zvm2x';
+    const role = 'reviewer';
+    const cliEnvPrefix = 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210';
+
+    // Simulate the exact prompt shown when timeout occurs
+    const timeoutTime = '2026-01-26 11:30:45'; // Example timestamp
+    const fullTimeoutPrompt = `
+──────────────────────────────────────────────────
+⚠️  RECONNECTION REQUIRED
+
+[${timeoutTime}] Why: Session timeout reached (normal and expected behavior)
+Impact: You are no longer listening for tasks
+Action: Run this command immediately to resume availability
+
+${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
+──────────────────────────────────────────────────
+`;
+
+    // Verify the complete prompt matches expected format
+    expect(fullTimeoutPrompt).toMatchInlineSnapshot(`
+      "
+      ──────────────────────────────────────────────────
+      ⚠️  RECONNECTION REQUIRED
+
+      [2026-01-26 11:30:45] Why: Session timeout reached (normal and expected behavior)
+      Impact: You are no longer listening for tasks
+      Action: Run this command immediately to resume availability
+
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=jx750h696te75x67z5q6cbwkph7zvm2x --role=reviewer
+      ──────────────────────────────────────────────────
+      "
+    `);
+
+    // Verify key components are present
+    expect(fullTimeoutPrompt).toContain('RECONNECTION REQUIRED');
+    expect(fullTimeoutPrompt).toContain('Session timeout reached');
+    expect(fullTimeoutPrompt).toContain('normal and expected behavior');
+    expect(fullTimeoutPrompt).toContain('You are no longer listening for tasks');
+    expect(fullTimeoutPrompt).toContain('Run this command immediately');
+    expect(fullTimeoutPrompt).toContain(cliEnvPrefix);
+    expect(fullTimeoutPrompt).toContain(
+      `chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`
+    );
+    expect(fullTimeoutPrompt).toContain(`[${timeoutTime}]`);
+  });
+
+  test('materializes complete interrupt signal reconnection prompt', () => {
+    // This test validates the prompt shown when process receives interrupt signal (SIGINT, SIGTERM, SIGHUP)
+    const chatroomId = 'jx750h696te75x67z5q6cbwkph7zvm2x';
+    const role = 'reviewer';
+    const cliEnvPrefix = 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210';
+
+    // Simulate the exact prompt shown when signal interrupt occurs
+    const signalTime = '2026-01-26 11:35:22'; // Example timestamp
+    const fullSignalPrompt = `
+──────────────────────────────────────────────────
+⚠️  RECONNECTION REQUIRED
+
+[${signalTime}] Why: Process interrupted (unexpected termination)
+Impact: You are no longer listening for tasks
+Action: Run this command immediately to resume availability
+
+${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
+──────────────────────────────────────────────────
+`;
+
+    // Verify the complete prompt matches expected format
+    expect(fullSignalPrompt).toMatchInlineSnapshot(`
+      "
+      ──────────────────────────────────────────────────
+      ⚠️  RECONNECTION REQUIRED
+
+      [2026-01-26 11:35:22] Why: Process interrupted (unexpected termination)
+      Impact: You are no longer listening for tasks
+      Action: Run this command immediately to resume availability
+
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=jx750h696te75x67z5q6cbwkph7zvm2x --role=reviewer
+      ──────────────────────────────────────────────────
+      "
+    `);
+
+    // Verify key components are present
+    expect(fullSignalPrompt).toContain('RECONNECTION REQUIRED');
+    expect(fullSignalPrompt).toContain('Process interrupted');
+    expect(fullSignalPrompt).toContain('unexpected termination');
+    expect(fullSignalPrompt).toContain('You are no longer listening for tasks');
+    expect(fullSignalPrompt).toContain('Run this command immediately');
+    expect(fullSignalPrompt).toContain(cliEnvPrefix);
+    expect(fullSignalPrompt).toContain(
+      `chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`
+    );
+    expect(fullSignalPrompt).toContain(`[${signalTime}]`);
+  });
+
+  test('materializes complete interrupt message reconnection prompt', () => {
+    // This test validates the prompt shown when an interrupt message is received from team
+    const chatroomId = 'jx750h696te75x67z5q6cbwkph7zvm2x';
+    const role = 'reviewer';
+    const cliEnvPrefix = 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210';
+
+    // Simulate the exact prompt shown when interrupt message is received
+    const interruptTime = '2026-01-26 11:40:15'; // Example timestamp
+    const fullInterruptPrompt = `
+──────────────────────────────────────────────────
+⚠️  RECONNECTION REQUIRED
+
+[${interruptTime}] Why: Interrupt message received from team
+Impact: You are no longer listening for tasks
+Action: Run this command immediately to resume availability
+
+${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
+──────────────────────────────────────────────────
+`;
+
+    // Verify the complete prompt matches expected format
+    expect(fullInterruptPrompt).toMatchInlineSnapshot(`
+      "
+      ──────────────────────────────────────────────────
+      ⚠️  RECONNECTION REQUIRED
+
+      [2026-01-26 11:40:15] Why: Interrupt message received from team
+      Impact: You are no longer listening for tasks
+      Action: Run this command immediately to resume availability
+
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=jx750h696te75x67z5q6cbwkph7zvm2x --role=reviewer
+      ──────────────────────────────────────────────────
+      "
+    `);
+
+    // Verify key components are present
+    expect(fullInterruptPrompt).toContain('RECONNECTION REQUIRED');
+    expect(fullInterruptPrompt).toContain('Interrupt message received from team');
+    expect(fullInterruptPrompt).toContain('You are no longer listening for tasks');
+    expect(fullInterruptPrompt).toContain('Run this command immediately');
+    expect(fullInterruptPrompt).toContain(cliEnvPrefix);
+    expect(fullInterruptPrompt).toContain(
+      `chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`
+    );
+    expect(fullInterruptPrompt).toContain(`[${interruptTime}]`);
+  });
+
+  test('all reconnection prompts follow consistent format', () => {
+    // Verify that all reconnection prompts follow the same structure
+    const chatroomId = 'test123';
+    const role = 'builder';
+    const cliEnvPrefix = 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210';
+    const timestamp = '2026-01-26 12:00:00';
+
+    const prompts = [
+      {
+        name: 'Timeout',
+        prompt: `
+──────────────────────────────────────────────────
+⚠️  RECONNECTION REQUIRED
+
+[${timestamp}] Why: Session timeout reached (normal and expected behavior)
+Impact: You are no longer listening for tasks
+Action: Run this command immediately to resume availability
+
+${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
+──────────────────────────────────────────────────
+`,
+      },
+      {
+        name: 'Signal Interrupt',
+        prompt: `
+──────────────────────────────────────────────────
+⚠️  RECONNECTION REQUIRED
+
+[${timestamp}] Why: Process interrupted (unexpected termination)
+Impact: You are no longer listening for tasks
+Action: Run this command immediately to resume availability
+
+${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
+──────────────────────────────────────────────────
+`,
+      },
+      {
+        name: 'Team Interrupt',
+        prompt: `
+──────────────────────────────────────────────────
+⚠️  RECONNECTION REQUIRED
+
+[${timestamp}] Why: Interrupt message received from team
+Impact: You are no longer listening for tasks
+Action: Run this command immediately to resume availability
+
+${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
+──────────────────────────────────────────────────
+`,
+      },
+    ];
+
+    // All prompts should have consistent structure
+    for (const { name, prompt } of prompts) {
+      expect(prompt, `${name} prompt should have header`).toContain('RECONNECTION REQUIRED');
+      expect(prompt, `${name} prompt should have timestamp`).toContain(`[${timestamp}]`);
+      expect(prompt, `${name} prompt should have Why`).toContain('Why:');
+      expect(prompt, `${name} prompt should have Impact`).toContain('Impact:');
+      expect(prompt, `${name} prompt should have Action`).toContain('Action:');
+      expect(prompt, `${name} prompt should have command`).toContain('chatroom wait-for-task');
+      expect(prompt, `${name} prompt should have chatroom ID`).toContain(chatroomId);
+      expect(prompt, `${name} prompt should have role`).toContain(role);
+      expect(prompt, `${name} prompt should have env prefix`).toContain(cliEnvPrefix);
+    }
+  });
+});
+
 describe('Task-Complete Command', () => {
   test('materializes complete task-complete output', async () => {
     // ===== SETUP =====

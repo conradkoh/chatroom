@@ -183,9 +183,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // Set up timeout - now always has a default value
   const timeoutHandle = setTimeout(() => {
     if (unsubscribe) unsubscribe();
+    const timeoutTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
     console.log(`\n${'─'.repeat(50)}`);
     console.log(`⚠️  RECONNECTION REQUIRED\n`);
-    console.log(`Why: Session timeout reached (normal and expected behavior)`);
+    console.log(`[${timeoutTime}] Why: Session timeout reached (normal and expected behavior)`);
     console.log(`Impact: You are no longer listening for tasks`);
     console.log(`Action: Run this command immediately to resume availability\n`);
     console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
@@ -251,9 +252,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     // Handle interrupt (if message is interrupt type)
     if (message && message.type === 'interrupt') {
+      const interruptTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
       console.log(`\n${'─'.repeat(50)}`);
       console.log(`⚠️  RECONNECTION REQUIRED\n`);
-      console.log(`Why: Interrupt message received from team`);
+      console.log(`[${interruptTime}] Why: Interrupt message received from team`);
       console.log(`Impact: You are no longer listening for tasks`);
       console.log(`Action: Run this command immediately to resume availability\n`);
       console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
@@ -401,9 +403,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   const handleSignal = (_signal: string) => {
     if (unsubscribe) unsubscribe();
     clearTimeout(timeoutHandle);
+    const signalTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
     console.log(`\n${'─'.repeat(50)}`);
     console.log(`⚠️  RECONNECTION REQUIRED\n`);
-    console.log(`Why: Process interrupted (unexpected termination)`);
+    console.log(`[${signalTime}] Why: Process interrupted (unexpected termination)`);
     console.log(`Impact: You are no longer listening for tasks`);
     console.log(`Action: Run this command immediately to resume availability\n`);
     console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
