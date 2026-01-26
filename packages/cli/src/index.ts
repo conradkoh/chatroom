@@ -119,8 +119,9 @@ program
   );
 
 program
-  .command('task-started <chatroomId>')
+  .command('task-started')
   .description('Acknowledge a task and classify the user message')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption(
     '--origin-message-classification <type>',
@@ -128,14 +129,12 @@ program
   )
   .requiredOption('--task-id <taskId>', 'Task ID to acknowledge')
   .action(
-    async (
-      chatroomId: string,
-      options: {
-        role: string;
-        originMessageClassification: string;
-        taskId: string;
-      }
-    ) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      originMessageClassification: string;
+      taskId: string;
+    }) => {
       await maybeRequireAuth();
 
       const validClassifications = ['question', 'new_feature', 'follow_up'];
@@ -187,7 +186,7 @@ program
       }
 
       const { taskStarted } = await import('./commands/task-started.js');
-      await taskStarted(chatroomId, {
+      await taskStarted(options.chatroomId, {
         role: options.role,
         originMessageClassification: options.originMessageClassification as
           | 'question'
@@ -202,31 +201,25 @@ program
   );
 
 program
-  .command('task-complete <chatroomId>')
+  .command('task-complete')
   .description('Complete the current task without handing off to another role')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .option('--message <message>', 'Optional completion note')
-  .action(
-    async (
-      chatroomId: string,
-      options: {
-        role: string;
-        message?: string;
-      }
-    ) => {
-      await maybeRequireAuth();
+  .action(async (options: { chatroomId: string; role: string; message?: string }) => {
+    await maybeRequireAuth();
 
-      const { taskComplete } = await import('./commands/task-complete.js');
-      await taskComplete(chatroomId, {
-        role: options.role,
-        message: options.message,
-      });
-    }
-  );
+    const { taskComplete } = await import('./commands/task-complete.js');
+    await taskComplete(options.chatroomId, {
+      role: options.role,
+      message: options.message,
+    });
+  });
 
 program
-  .command('handoff <chatroomId>')
+  .command('handoff')
   .description('Complete your task and hand off to the next role')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--next-role <nextRole>', 'Role to hand off to')
   .option(
@@ -238,14 +231,12 @@ program
     []
   )
   .action(
-    async (
-      chatroomId: string,
-      options: {
-        role: string;
-        nextRole: string;
-        attachArtifact?: string[];
-      }
-    ) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      nextRole: string;
+      attachArtifact?: string[];
+    }) => {
       await maybeRequireAuth();
 
       // Read message from stdin
@@ -268,7 +259,7 @@ program
       }
 
       const { handoff } = await import('./commands/handoff.js');
-      await handoff(chatroomId, {
+      await handoff(options.chatroomId, {
         role: options.role,
         message,
         nextRole: options.nextRole,
@@ -278,58 +269,51 @@ program
   );
 
 program
-  .command('report-progress <chatroomId>')
+  .command('report-progress')
   .description('Report progress on current task (does not complete the task)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .option('--message <message>', 'Progress message (alternative to stdin)')
-  .action(
-    async (
-      chatroomId: string,
-      options: {
-        role: string;
-        message?: string;
-      }
-    ) => {
-      await maybeRequireAuth();
+  .action(async (options: { chatroomId: string; role: string; message?: string }) => {
+    await maybeRequireAuth();
 
-      let message: string;
+    let message: string;
 
-      // Primary: use --message flag if provided
-      if (options.message && options.message.trim().length > 0) {
-        message = options.message;
-      } else {
-        // Fallback: read from stdin using the decoder
-        const { decode } = await import('./utils/serialization/decode/index.js');
-        const stdinContent = await readStdin();
+    // Primary: use --message flag if provided
+    if (options.message && options.message.trim().length > 0) {
+      message = options.message;
+    } else {
+      // Fallback: read from stdin using the decoder
+      const { decode } = await import('./utils/serialization/decode/index.js');
+      const stdinContent = await readStdin();
 
-        if (!stdinContent.trim()) {
-          console.error('❌ No message provided');
-          console.error('   Use --message="your message" or pipe content via stdin');
-          process.exit(1);
-        }
-
-        try {
-          const result = decode(stdinContent, { singleParam: 'message' });
-          message = result.message;
-        } catch (err) {
-          console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
-          process.exit(1);
-        }
-      }
-
-      // Validate that message is not empty
-      if (!message || message.trim().length === 0) {
-        console.error('❌ Progress message cannot be empty');
+      if (!stdinContent.trim()) {
+        console.error('❌ No message provided');
+        console.error('   Use --message="your message" or pipe content via stdin');
         process.exit(1);
       }
 
-      const { reportProgress } = await import('./commands/report-progress.js');
-      await reportProgress(chatroomId, {
-        role: options.role,
-        message,
-      });
+      try {
+        const result = decode(stdinContent, { singleParam: 'message' });
+        message = result.message;
+      } catch (err) {
+        console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+        process.exit(1);
+      }
     }
-  );
+
+    // Validate that message is not empty
+    if (!message || message.trim().length === 0) {
+      console.error('❌ Progress message cannot be empty');
+      process.exit(1);
+    }
+
+    const { reportProgress } = await import('./commands/report-progress.js');
+    await reportProgress(options.chatroomId, {
+      role: options.role,
+      message,
+    });
+  });
 
 // ============================================================================
 // BACKLOG COMMANDS (auth required)
