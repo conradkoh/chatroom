@@ -14,8 +14,10 @@ import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
 import { getCompletionStatus } from './lib/taskWorkflows';
 import { getAvailableActions } from '../prompts/base/cli/wait-for-task/available-actions.js';
+import { waitForTaskCommand } from '../prompts/base/cli/wait-for-task/command.js';
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
+import { getCliEnvPrefix } from '../prompts/utils/index.js';
 
 const config = getConfig();
 
@@ -1845,7 +1847,13 @@ export const getTaskDeliveryPrompt = query({
     };
 
     // Build and return the complete prompt
-    const reminderMessage = `Remember to listen for new messages using \`wait-for-task\` after handoff. Otherwise your team might get stuck not be able to reach you.\n\n    chatroom wait-for-task ${args.chatroomId} --role=${args.role}`;
+    const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
+    const waitCommand = waitForTaskCommand({
+      chatroomId: args.chatroomId,
+      role: args.role,
+      cliEnvPrefix,
+    });
+    const reminderMessage = `Remember to listen for new messages using \`wait-for-task\` after handoff. Otherwise your team might get stuck not be able to reach you.\n\n    ${waitCommand}`;
 
     // Get available actions for this task delivery
     const availableActionsText = getAvailableActions({
