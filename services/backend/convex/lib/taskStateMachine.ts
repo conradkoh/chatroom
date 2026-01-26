@@ -579,8 +579,10 @@ export async function transitionTask(
   // Execute atomic update
   await ctx.db.patch('chatroom_tasks', taskId, patch);
 
-  // Log transition for auditing
-  console.log(
-    `[FSM] Task ${taskId} transitioned: ${currentStatus} → ${newStatus} (trigger: ${trigger})`
-  );
+  // Log transition for auditing (suppress during testing)
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(
+      `[FSM] Task ${taskId} transitioned: ${currentStatus} → ${newStatus} (trigger: ${trigger})`
+    );
+  }
 }

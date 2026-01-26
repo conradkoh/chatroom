@@ -444,11 +444,13 @@ export const completeTaskById = mutation({
 
       await transitionTask(ctx, args.taskId, 'completed', 'completeTaskById');
 
-      // Log force completion
-      console.warn(
-        `[Force Complete] Task ${args.taskId} force-completed from ${task.status}. ` +
-          `Content: "${task.content.substring(0, 50)}${task.content.length > 50 ? '...' : ''}"`
-      );
+      // Log force completion (suppress during testing)
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(
+          `[Force Complete] Task ${args.taskId} force-completed from ${task.status}. ` +
+            `Content: "${task.content.substring(0, 50)}${task.content.length > 50 ? '...' : ''}"`
+        );
+      }
 
       // Auto-promote the next queued task only if all agents are ready
       let promoted = null;
@@ -914,10 +916,13 @@ export const resetStuckTask = mutation({
 
     await transitionTask(ctx, args.taskId, 'pending', 'resetStuckTask');
 
-    console.warn(
-      `[Manual Reset] chatroomId=${task.chatroomId} taskId=${args.taskId} ` +
-        `previousAssignee=${task.assignedTo || 'unknown'} action=reset_to_pending`
-    );
+    // Log manual reset (suppress during testing)
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(
+        `[Manual Reset] chatroomId=${task.chatroomId} taskId=${args.taskId} ` +
+          `previousAssignee=${task.assignedTo || 'unknown'} action=reset_to_pending`
+      );
+    }
 
     return { success: true, previousAssignee: task.assignedTo };
   },
