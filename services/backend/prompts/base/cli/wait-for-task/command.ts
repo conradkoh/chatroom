@@ -13,7 +13,7 @@ import type { WaitForTaskParams } from '../../../types/cli.js';
  * @example
  * // Command with placeholders
  * waitForTaskCommand({ cliEnvPrefix: '' })
- * // → "chatroom wait-for-task <chatroom-id> --role=<role>"
+ * // → "chatroom wait-for-task --chatroom-id <chatroom-id> --role=<role>"
  *
  * @example
  * // Command with real values
@@ -21,12 +21,12 @@ import type { WaitForTaskParams } from '../../../types/cli.js';
  *   chatroomId: 'abc123',
  *   role: 'builder'
  * })
- * // → "chatroom wait-for-task abc123 --role=builder"
+ * // → "chatroom wait-for-task --chatroom-id abc123 --role=builder"
  */
 export function waitForTaskCommand(params: WaitForTaskParams): string {
   const prefix = params.cliEnvPrefix || '';
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';
 
-  return `${prefix}chatroom wait-for-task ${chatroomId} --role=${role}`;
+  return `${prefix}chatroom wait-for-task --chatroom-id ${chatroomId} --role=${role}`;
 }

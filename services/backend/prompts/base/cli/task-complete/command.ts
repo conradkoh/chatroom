@@ -17,5 +17,5 @@ export function taskCompleteCommand(params: TaskCompleteParams): string {
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';
 
-  return `${prefix}chatroom task-complete ${chatroomId} --role=${role}`;
+  return `${prefix}chatroom task-complete --chatroom-id ${chatroomId} --role=${role}`;
 }

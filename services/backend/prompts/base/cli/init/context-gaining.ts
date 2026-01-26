@@ -26,13 +26,13 @@ export function getContextGainingGuidance(params: ContextGainingParams): string 
 View the conversation history and pending tasks for your role.
 
 \`\`\`bash
-${cliEnvPrefix}chatroom context read ${chatroomId} --role=${role}
+${cliEnvPrefix}chatroom context read --chatroom-id ${chatroomId} --role=${role}
 \`\`\`
 
 ### Wait for Tasks
 Listen for incoming tasks assigned to your role.
 
 \`\`\`bash
-${cliEnvPrefix}chatroom wait-for-task ${chatroomId} --role=${role}
+${cliEnvPrefix}chatroom wait-for-task --chatroom-id ${chatroomId} --role=${role}
 \`\`\``;
 }

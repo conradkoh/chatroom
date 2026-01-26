@@ -33,6 +33,6 @@ Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgroundin
 
 📋 BACKLOG:
 The chatroom has a task backlog. View items with:
-  chatroom backlog list <chatroomId> --role=<role> --status=backlog
+  chatroom backlog list --chatroom-id <chatroomId> --role=<role> --status=backlog
 More actions: \`chatroom backlog --help\``;
 }
