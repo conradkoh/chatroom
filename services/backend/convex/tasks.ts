@@ -1437,6 +1437,7 @@ export const getTaskLimits = query({
  * Resets them to idle and recovers any orphaned tasks.
  */
 export const cleanupStaleAgents = internalMutation({
+  args: {},
   handler: async (ctx) => {
     const now = Date.now();
 
