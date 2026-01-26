@@ -10,6 +10,14 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["config/**/*", "modules/**/*", "prompts/**/*", "test.setup.ts", "vitest.config.mts"],
+  "include": [
+    "config/**/*",
+    "modules/**/*",
+    "prompts/**/*",
+    "utils/**/*",
+    "tests/**/*",
+    "test.setup.ts",
+    "vitest.config.mts"
+  ],
   "exclude": ["convex", "node_modules", "dist"]
 }
