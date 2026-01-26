@@ -15,7 +15,7 @@ import type { HandoffParams } from '../../../types/cli.js';
  * @example
  * // Command with placeholders
  * handoffCommand({ cliEnvPrefix: '' })
- * // → "chatroom handoff --chatroom-id <chatroom-id> --role=<role> --next-role=<target> << 'EOF'\n[Your message here]\nEOF"
+ * // → "chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=<target> << 'EOF'\n[Your message here]\nEOF"
  *
  * @example
  * // Command with real values
@@ -24,7 +24,7 @@ import type { HandoffParams } from '../../../types/cli.js';
  *   role: 'builder',
  *   nextRole: 'reviewer',
  * })
- * // → "chatroom handoff --chatroom-id abc123 --role=builder --next-role=reviewer << 'EOF'\n[Your message here]\nEOF"
+ * // → "chatroom handoff --chatroom-id=abc123 --role=builder --next-role=reviewer << 'EOF'\n[Your message here]\nEOF"
  */
 export function handoffCommand(params: HandoffParams): string {
   const prefix = params.cliEnvPrefix || '';
@@ -33,5 +33,5 @@ export function handoffCommand(params: HandoffParams): string {
   const nextRole = params.nextRole || '<target>';
 
   // Modern approach: stdin using HERE document
-  return `${prefix}chatroom handoff --chatroom-id ${chatroomId} --role=${role} --next-role=${nextRole} << 'EOF'\n[Your message here]\nEOF`;
+  return `${prefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=${nextRole} << 'EOF'\n[Your message here]\nEOF`;
 }

@@ -28,14 +28,14 @@ export function getAvailableActions(params: AvailableActionsParams): string {
 View the latest relevant chat history. Use when starting a new session or when context is unclear.
 
 \`\`\`bash
-${cliEnvPrefix}chatroom context read --chatroom-id ${chatroomId} --role=${role}
+${cliEnvPrefix}chatroom context read --chatroom-id=${chatroomId} --role=${role}
 \`\`\`
 
 ### List Messages
 Query specific messages with filters.
 
 \`\`\`bash
-${cliEnvPrefix}chatroom messages list --chatroom-id ${chatroomId} --role=${role} --sender-role=user --limit=5 --full
+${cliEnvPrefix}chatroom messages list --chatroom-id=${chatroomId} --role=${role} --sender-role=user --limit=5 --full
 \`\`\`
 
 ### View Code Changes
@@ -56,7 +56,7 @@ ${taskCompleteCommand({ chatroomId, role, cliEnvPrefix })}
 The chatroom has a task backlog. View items with:
 
 \`\`\`bash
-${cliEnvPrefix}chatroom backlog list --chatroom-id ${chatroomId} --role=${role} --status=backlog
+${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog
 \`\`\`
 
 More actions: \`chatroom backlog --help\``;

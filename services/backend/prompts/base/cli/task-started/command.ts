@@ -14,7 +14,7 @@ import type { TaskStartedParams } from '../../../types/cli.js';
  * @example
  * // Command with placeholders
  * taskStartedCommand({ cliEnvPrefix: '' })
- * // → "chatroom task-started --chatroom-id <chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>"
+ * // → "chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>"
  *
  * @example
  * // Command for question classification
@@ -24,7 +24,7 @@ import type { TaskStartedParams } from '../../../types/cli.js';
  *   taskId: 'task456',
  *   classification: 'question'
  * })
- * // → "chatroom task-started --chatroom-id abc123 --role=builder --task-id=task456 --origin-message-classification=question"
+ * // → "chatroom task-started --chatroom-id=abc123 --role=builder --task-id=task456 --origin-message-classification=question"
  *
  * @example
  * // Command for new_feature classification (uses stdin)
@@ -34,7 +34,7 @@ import type { TaskStartedParams } from '../../../types/cli.js';
  *   taskId: 'task456',
  *   classification: 'new_feature'
  * })
- * // → "chatroom task-started --chatroom-id abc123 --role=builder --task-id=task456 --origin-message-classification=new_feature << 'EOF'\n---TITLE---\n[Feature title]\n---DESCRIPTION---\n[Feature description]\n---TECH_SPECS---\n[Technical specifications]\nEOF"
+ * // → "chatroom task-started --chatroom-id=abc123 --role=builder --task-id=task456 --origin-message-classification=new_feature << 'EOF'\n---TITLE---\n[Feature title]\n---DESCRIPTION---\n[Feature description]\n---TECH_SPECS---\n[Technical specifications]\nEOF"
  */
 export function taskStartedCommand(params: TaskStartedParams): string {
   const prefix = params.cliEnvPrefix || '';
@@ -43,7 +43,7 @@ export function taskStartedCommand(params: TaskStartedParams): string {
   const taskId = params.taskId || '<task-id>';
   const classification = params.classification || '<question|new_feature|follow_up>';
 
-  const baseCmd = `${prefix}chatroom task-started --chatroom-id ${chatroomId} --role=${role} --task-id=${taskId} --origin-message-classification=${classification}`;
+  const baseCmd = `${prefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=${taskId} --origin-message-classification=${classification}`;
 
   // For new_feature, use stdin with structured format
   if (params.classification === 'new_feature' || classification === 'new_feature') {

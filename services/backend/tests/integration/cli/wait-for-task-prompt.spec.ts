@@ -142,7 +142,7 @@ Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgroundin
 
 📋 BACKLOG:
 The chatroom has a task backlog. View items with:
-  chatroom backlog list --chatroom-id <chatroomId> --role=<role> --status=backlog
+  chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
 More actions: \`chatroom backlog --help\`
 
 ══════════════════════════════════════════════════
@@ -162,7 +162,7 @@ Message ID: ${messageId}
 ============================================================
 To acknowledge and classify this message, run:
 
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id ${chatroomId} --role=builder --task-id=${taskId} --origin-message-classification=<type>
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=${chatroomId} --role=builder --task-id=${taskId} --origin-message-classification=<type>
 
 📝 Classification Requirements:
    • question: No additional fields required
@@ -170,7 +170,7 @@ CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id ${
    • new_feature: REQUIRES --title, --description, --tech-specs
 
 💡 Example for new_feature:
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id ${chatroomId} --role=builder --task-id=${taskId} --origin-message-classification=new_feature << 'EOF'
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=${chatroomId} --role=builder --task-id=${taskId} --origin-message-classification=new_feature << 'EOF'
 ---TITLE---
 <title>
 ---DESCRIPTION---
@@ -227,7 +227,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       📋 BACKLOG:
       The chatroom has a task backlog. View items with:
-        chatroom backlog list --chatroom-id <chatroomId> --role=<role> --status=backlog
+        chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
       More actions: \`chatroom backlog --help\`
 
       ══════════════════════════════════════════════════
@@ -244,14 +244,14 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       View the conversation history and pending tasks for your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id 10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=builder
       \`\`\`
 
       ### Wait for Tasks
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id 10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
       \`\`\`
 
       ### Classify Task
@@ -261,21 +261,21 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       User is asking for information or clarification.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id 10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=question
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=question
       \`\`\`
 
       #### Follow Up
       User is responding to previous work or providing feedback.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id 10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=follow_up
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=follow_up
       \`\`\`
 
       #### New Feature
       User wants new functionality. Requires title, description, and tech specs.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id 10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       [Feature title]
       ---DESCRIPTION---
@@ -302,7 +302,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       **Classification (Entry Point Role):**
       As the entry point, you receive user messages directly. When you receive a user message:
-      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id <chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
       2. Then do your work
       3. Hand off to reviewer for code changes, or directly to user for questions
 
@@ -346,7 +346,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id 10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
       [Your message here]
       EOF
       \`\`\`
@@ -359,14 +359,14 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id 10002;chatroom_rooms --role=builder --message="Working on tests..."
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder --message="Working on tests..."
       \`\`\`
 
       Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id 10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
       \`\`\`
 
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -376,7 +376,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id 10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
       \`\`\`
 
       ══════════════════════════════════════════════════
@@ -392,7 +392,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       ============================================================
       To acknowledge and classify this message, run:
 
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id 10002;chatroom_rooms --role=builder --task-id=10009;chatroom_tasks --origin-message-classification=<type>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10009;chatroom_tasks --origin-message-classification=<type>
 
       📝 Classification Requirements:
          • question: No additional fields required
@@ -400,7 +400,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
          • new_feature: REQUIRES --title, --description, --tech-specs
 
       💡 Example for new_feature:
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id 10002;chatroom_rooms --role=builder --task-id=10009;chatroom_tasks --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10009;chatroom_tasks --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       <title>
       ---DESCRIPTION---
@@ -433,14 +433,14 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       View the latest relevant chat history. Use when starting a new session or when context is unclear.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id 10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=builder
       \`\`\`
 
       ### List Messages
       Query specific messages with filters.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id 10002;chatroom_rooms --role=builder --sender-role=user --limit=5 --full
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=10002;chatroom_rooms --role=builder --sender-role=user --limit=5 --full
       \`\`\`
 
       ### View Code Changes
@@ -454,14 +454,14 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       Mark current task as complete without handing off to another role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id 10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=10002;chatroom_rooms --role=builder
       \`\`\`
 
       ### Backlog
       The chatroom has a task backlog. View items with:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id 10002;chatroom_rooms --role=builder --status=backlog
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10002;chatroom_rooms --role=builder --status=backlog
       \`\`\`
 
       More actions: \`chatroom backlog --help\`
@@ -487,7 +487,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       **Classification (Entry Point Role):**
       As the entry point, you receive user messages directly. When you receive a user message:
-      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id <chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
       2. Then do your work
       3. Hand off to reviewer for code changes, or directly to user for questions
 
@@ -534,7 +534,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id 10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
       [Your message here]
       EOF
       \`\`\`
@@ -547,21 +547,21 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id 10002;chatroom_rooms --role=builder --message="Working on tests..."
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder --message="Working on tests..."
       \`\`\`
 
       Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id 10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
       \`\`\`
 
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
       Remember to listen for new messages using \`wait-for-task\` after handoff. Otherwise your team might get stuck not be able to reach you.
 
-          chatroom wait-for-task --chatroom-id 10002;chatroom_rooms --role=builder
+          chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
 
       ============================================================
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -613,7 +613,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
     // Should have backlog section with commands
     expect(humanPrompt).toContain('The chatroom has a task backlog');
-    expect(humanPrompt).toContain(`chatroom backlog list --chatroom-id ${chatroomId}`);
+    expect(humanPrompt).toContain(`chatroom backlog list --chatroom-id=${chatroomId}`);
     expect(humanPrompt).toContain('chatroom backlog --help');
 
     // Should have role prompt
@@ -862,7 +862,7 @@ describe('Task-Started Reminders', () => {
       4. MUST hand off to reviewer for approval:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id 10030;chatroom_rooms --role=builder --next-role=reviewer << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10030;chatroom_rooms --role=builder --next-role=reviewer << 'EOF'
       [Your message here]
       EOF
       \`\`\`
@@ -935,12 +935,12 @@ describe('Task-Started Reminders', () => {
       💡 ✅ Task acknowledged as QUESTION.
 
       **Next steps:**
-      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id 10039;chatroom_rooms --role=builder --message="Researching..."\`
+      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10039;chatroom_rooms --role=builder --message="Researching..."\`
       2. Answer the user's question
       3. When done, hand off directly to user:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id 10039;chatroom_rooms --role=builder --next-role=user << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10039;chatroom_rooms --role=builder --next-role=user << 'EOF'
       [Your message here]
       EOF
       \`\`\`
@@ -1088,7 +1088,7 @@ Testing: Toggle in settings switches between light/dark`;
 📋 Summary: ${handoffMessage}
 
 ⏳ Now run wait-for-task to wait for your next assignment:
-   ${cliEnvPrefix} chatroom wait-for-task --chatroom-id ${chatroomId} --role=${role}`;
+   ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`;
 
     // Verify the complete output structure matches expected format
     expect(fullCliOutput).toMatchInlineSnapshot(`
@@ -1103,7 +1103,7 @@ Testing: Toggle in settings switches between light/dark`;
       Testing: Toggle in settings switches between light/dark
 
       ⏳ Now run wait-for-task to wait for your next assignment:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id 10057;chatroom_rooms --role=builder"
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10057;chatroom_rooms --role=builder"
     `);
 
     // Verify mutation result
@@ -1179,7 +1179,7 @@ See docs/auth.md for more details.`;
 🎉 Workflow complete! Control returned to user.
 
 ⏳ Now run wait-for-task to wait for your next assignment:
-   ${cliEnvPrefix} chatroom wait-for-task --chatroom-id ${chatroomId} --role=${role}`;
+   ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`;
 
     // Verify the complete output structure matches expected format
     expect(fullCliOutput).toMatchInlineSnapshot(`
@@ -1196,7 +1196,7 @@ See docs/auth.md for more details.`;
       🎉 Workflow complete! Control returned to user.
 
       ⏳ Now run wait-for-task to wait for your next assignment:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id 10068;chatroom_rooms --role=builder"
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10068;chatroom_rooms --role=builder"
     `);
 
     // Verify mutation result
@@ -1258,7 +1258,7 @@ describe('Task-Complete Command', () => {
     fullCliOutput += `
 
 ⏳ Now run wait-for-task to wait for your next assignment:
-   ${cliEnvPrefix} chatroom wait-for-task --chatroom-id ${chatroomId} --role=${role}`;
+   ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`;
 
     // Verify the complete output structure matches expected format
     expect(fullCliOutput).toMatchInlineSnapshot(`
@@ -1266,7 +1266,7 @@ describe('Task-Complete Command', () => {
          Tasks completed: 1
 
       ⏳ Now run wait-for-task to wait for your next assignment:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id 10078;chatroom_rooms --role=builder"
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=builder"
     `);
 
     // Verify mutation result
