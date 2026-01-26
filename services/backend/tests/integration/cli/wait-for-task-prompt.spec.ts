@@ -791,9 +791,12 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       role: 'builder',
       taskId: startResult.taskId,
       originMessageClassification: 'new_feature',
-      featureTitle: 'User Authentication',
-      featureDescription: 'Add login/logout functionality',
-      featureTechSpecs: 'Use JWT tokens, bcrypt for passwords',
+      rawStdin: `---TITLE---
+User Authentication
+---DESCRIPTION---
+Add login/logout functionality
+---TECH_SPECS---
+Use JWT tokens, bcrypt for passwords`,
     });
 
     // Get updated prompt
@@ -846,9 +849,12 @@ describe('Task-Started Reminders', () => {
       role: 'builder',
       taskId: startResult.taskId,
       originMessageClassification: 'new_feature',
-      featureTitle: 'Dark Mode Toggle',
-      featureDescription: 'Add a toggle in settings for dark/light mode',
-      featureTechSpecs: 'Use React Context + CSS variables',
+      rawStdin: `---TITLE---
+Dark Mode Toggle
+---DESCRIPTION---
+Add a toggle in settings for dark/light mode
+---TECH_SPECS---
+Use React Context + CSS variables`,
       convexUrl: 'http://127.0.0.1:3210',
     });
 

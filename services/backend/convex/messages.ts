@@ -692,13 +692,6 @@ export const taskStarted = mutation({
     // This is the preferred format - backend decodes stdin directly
     rawStdin: v.optional(v.string()),
 
-    // ⚠️ DEPRECATED: Individual feature metadata fields (backward compatibility only)
-    // TODO Phase 5: Remove after CLI migration complete (delete in cleanup phase)
-    // These are kept for backward compatibility but should not be used by new code
-    featureTitle: v.optional(v.string()),
-    featureDescription: v.optional(v.string()),
-    featureTechSpecs: v.optional(v.string()),
-
     convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -754,11 +747,19 @@ export const taskStarted = mutation({
     }
 
     // Parse raw stdin for new_feature classification (Requirement #4: backend parsing)
-    let featureTitle = args.featureTitle;
-    let featureDescription = args.featureDescription;
-    let featureTechSpecs = args.featureTechSpecs;
+    let featureTitle: string | undefined;
+    let featureDescription: string | undefined;
+    let featureTechSpecs: string | undefined;
 
-    if (args.originMessageClassification === 'new_feature' && args.rawStdin) {
+    if (args.originMessageClassification === 'new_feature') {
+      if (!args.rawStdin) {
+        throw new ConvexError({
+          code: 'MISSING_STDIN',
+          message:
+            'new_feature classification requires rawStdin with TITLE, DESCRIPTION, and TECH_SPECS',
+        });
+      }
+
       try {
         const { decodeStructured } = await import('../utils/stdin-decoder.js');
         const parsed = decodeStructured(args.rawStdin, ['TITLE', 'DESCRIPTION', 'TECH_SPECS']);

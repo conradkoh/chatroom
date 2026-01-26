@@ -41,7 +41,7 @@ describe('Task-Complete Command', () => {
     expect(command).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
     // Should inject chatroom ID
-    expect(command).toContain('chatroom task-complete complete-test-789');
+    expect(command).toContain('--chatroom-id=complete-test-789');
 
     // Should inject role
     expect(command).toContain('--role=builder');

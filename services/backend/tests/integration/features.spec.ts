@@ -91,9 +91,12 @@ describe('Features System', () => {
         role: 'builder',
         taskId: startResult.taskId,
         originMessageClassification: 'new_feature',
-        featureTitle: 'Dark Mode Support',
-        featureDescription: 'Add a toggle to switch between light and dark themes',
-        featureTechSpecs: 'Use CSS custom properties for theming, store preference in localStorage',
+        rawStdin: `---TITLE---
+Dark Mode Support
+---DESCRIPTION---
+Add a toggle to switch between light and dark themes
+---TECH_SPECS---
+Use CSS custom properties for theming, store preference in localStorage`,
       });
 
       expect(result.success).toBe(true);
@@ -169,9 +172,12 @@ describe('Features System', () => {
         role: 'builder',
         taskId: start1.taskId,
         originMessageClassification: 'new_feature',
-        featureTitle: 'Feature One',
-        featureDescription: 'Description of feature one',
-        featureTechSpecs: 'Tech specs for feature one',
+        rawStdin: `---TITLE---
+Feature One
+---DESCRIPTION---
+Description of feature one
+---TECH_SPECS---
+Tech specs for feature one`,
       });
 
       // Complete first task via reviewer (new_feature must go through reviewer)
@@ -212,10 +218,12 @@ describe('Features System', () => {
         role: 'builder',
         taskId: start2.taskId,
         originMessageClassification: 'new_feature',
-        featureTitle: 'Feature Two',
-        featureDescription:
-          'Description of feature two that is longer than 100 characters so we can verify truncation works correctly in the preview text',
-        featureTechSpecs: 'Tech specs for feature two',
+        rawStdin: `---TITLE---
+Feature Two
+---DESCRIPTION---
+Description of feature two that is longer than 100 characters so we can verify truncation works correctly in the preview text
+---TECH_SPECS---
+Tech specs for feature two`,
       });
 
       // List features
@@ -279,9 +287,12 @@ describe('Features System', () => {
         role: 'builder',
         taskId: startResult.taskId,
         originMessageClassification: 'new_feature',
-        featureTitle: 'User Authentication',
-        featureDescription: 'Add login/logout functionality',
-        featureTechSpecs: 'Use JWT tokens, store in httpOnly cookies',
+        rawStdin: `---TITLE---
+User Authentication
+---DESCRIPTION---
+Add login/logout functionality
+---TECH_SPECS---
+Use JWT tokens, store in httpOnly cookies`,
       });
 
       // Add some conversation (handoff to reviewer)

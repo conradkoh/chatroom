@@ -111,6 +111,12 @@ describe('Pair Team Workflow', () => {
         role: 'builder',
         taskId: startResult.taskId,
         originMessageClassification: 'new_feature',
+        rawStdin: `---TITLE---
+Test Feature
+---DESCRIPTION---
+Test feature description
+---TECH_SPECS---
+Test technical specifications`,
       });
 
       // ========================================
@@ -740,6 +746,12 @@ describe('Pair Team Workflow', () => {
         role: 'builder',
         taskId: startResult1.taskId,
         originMessageClassification: 'new_feature',
+        rawStdin: `---TITLE---
+Test Feature
+---DESCRIPTION---
+Test feature description
+---TECH_SPECS---
+Test technical specifications`,
       });
 
       // Builder completes and hands off to reviewer
@@ -849,6 +861,12 @@ describe('Pair Team Workflow', () => {
         role: 'builder',
         taskId: startResult.taskId,
         originMessageClassification: 'new_feature',
+        rawStdin: `---TITLE---
+Test Feature
+---DESCRIPTION---
+Test feature description
+---TECH_SPECS---
+Test technical specifications`,
       });
 
       // Builder hands off
@@ -915,6 +933,12 @@ describe('Pair Team Workflow', () => {
         role: 'builder',
         taskId: builderStart.taskId,
         originMessageClassification: 'new_feature',
+        rawStdin: `---TITLE---
+Test Feature
+---DESCRIPTION---
+Test feature description
+---TECH_SPECS---
+Test technical specifications`,
       });
 
       await t.mutation(api.messages.handoff, {
@@ -996,6 +1020,12 @@ describe('Pair Team Workflow', () => {
         role: 'builder',
         taskId: builderStart.taskId,
         originMessageClassification: 'new_feature',
+        rawStdin: `---TITLE---
+Test Feature
+---DESCRIPTION---
+Test feature description
+---TECH_SPECS---
+Test technical specifications`,
       });
 
       await t.mutation(api.messages.handoff, {
@@ -1066,6 +1096,12 @@ describe('Pair Team Workflow', () => {
         role: 'builder',
         taskId: startResult.taskId,
         originMessageClassification: 'new_feature',
+        rawStdin: `---TITLE---
+Test Feature
+---DESCRIPTION---
+Test feature description
+---TECH_SPECS---
+Test technical specifications`,
       });
 
       expect(result.success).toBe(true);

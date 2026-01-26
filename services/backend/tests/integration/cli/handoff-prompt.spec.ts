@@ -45,7 +45,7 @@ describe('Handoff Command', () => {
     expect(command).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
     // Should inject chatroom ID
-    expect(command).toContain('chatroom handoff my-chatroom-456');
+    expect(command).toContain('--chatroom-id=my-chatroom-456');
 
     // Should inject role
     expect(command).toContain('--role=builder');
