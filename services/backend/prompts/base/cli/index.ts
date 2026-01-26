@@ -10,6 +10,7 @@ import * as taskStarted from './task-started/index.js';
 // Re-export task-started functions
 export const {
   getTaskStartedPrompt,
+  getTaskStartedPromptForHandoffRecipient,
   getTaskStartedExamples,
   getTaskStartedValidation,
   getClassificationGuidance,

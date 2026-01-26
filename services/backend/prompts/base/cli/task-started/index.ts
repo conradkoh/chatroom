@@ -4,7 +4,7 @@
 
 import { getClassificationGuidance } from './classification/index.js';
 import { taskStartedCommand } from './command.js';
-import { getTaskStartedPrompt } from './main-prompt.js';
+import { getTaskStartedPrompt, getTaskStartedPromptForHandoffRecipient } from './main-prompt.js';
 
 /**
  * Generate usage examples for task-started
@@ -138,4 +138,9 @@ For \`--origin-message-classification=new_feature\`, you must also provide:
 }
 
 // Re-export main functions
-export { getTaskStartedPrompt, getClassificationGuidance, taskStartedCommand };
+export {
+  getTaskStartedPrompt,
+  getTaskStartedPromptForHandoffRecipient,
+  getClassificationGuidance,
+  taskStartedCommand,
+};

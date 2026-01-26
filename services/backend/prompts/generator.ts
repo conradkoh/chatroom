@@ -7,7 +7,11 @@
  */
 
 import { handoffCommand } from './base/cli/handoff/command.js';
-import { getTaskStartedPrompt, getContextGainingGuidance } from './base/cli/index.js';
+import {
+  getTaskStartedPrompt,
+  getTaskStartedPromptForHandoffRecipient,
+  getContextGainingGuidance,
+} from './base/cli/index.js';
 import { reportProgressCommand } from './base/cli/report-progress/command.js';
 import { getBuilderGuidance as getBaseBuilderGuidance } from './base/cli/roles/builder.js';
 import { getReviewerGuidance as getBaseReviewerGuidance } from './base/cli/roles/reviewer.js';
@@ -395,9 +399,15 @@ export function generateInitPrompt(input: InitPromptInput): string {
   // Add context-gaining guidance for agents joining mid-conversation
   sections.push(getContextGainingGuidance({ chatroomId, role, convexUrl }));
 
+  // Add task-started guidance
   if (isEntryPoint) {
+    // Entry point roles classify user messages
     sections.push(getTaskStartedPrompt({ chatroomId, role, cliEnvPrefix }));
+  } else {
+    // Non-entry point roles just acknowledge handoffs (no classification)
+    sections.push(getTaskStartedPromptForHandoffRecipient({ chatroomId, role, cliEnvPrefix }));
   }
+
   sections.push(guidance);
   sections.push(getCommandsSection(roleCtx));
   sections.push(`### Next\n\nRun:\n\n\`\`\`bash\n${waitCmd}\n\`\`\``);

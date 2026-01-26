@@ -5,7 +5,6 @@
 import type { ReviewerGuidanceParams } from '../../../types/cli.js';
 import { getCliEnvPrefix } from '../../../utils/env.js';
 import { handoffCommand } from '../handoff/command.js';
-import { taskStartedCommand } from '../task-started/command.js';
 
 /**
  * Generate reviewer-specific guidance
@@ -15,22 +14,17 @@ export function getReviewerGuidance(params: ReviewerGuidanceParams): string {
   const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
-  // Use command generators with env prefix
-  const taskStartedExample = taskStartedCommand({ cliEnvPrefix });
-
   const feedbackHandoffCmd = handoffCommand({ nextRole: 'builder', cliEnvPrefix });
   const approvalHandoffCmd = handoffCommand({ nextRole: 'user', cliEnvPrefix });
 
   return `
 ## Reviewer Workflow
 
-You receive handoffs from other agents containing work to review or validate. When you receive any message, you MUST first acknowledge it and classify what type of request it is:
-
-**Important: DO run task-started** - Every message you receive needs to be classified, even handoffs.
+You receive handoffs from other agents containing work to review or validate.
 
 **Typical Flow:**
 1. Receive message (handoff from builder or other agent)
-2. First run \`${taskStartedExample}\` to classify the original message
+2. Run \`task-started --no-classify\` to acknowledge receipt and start work
 3. Review the code changes or content:
    - Check uncommitted changes: \`git status\`, \`git diff\`
    - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
