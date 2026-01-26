@@ -563,6 +563,7 @@ Test technical specifications`,
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User asks a question
+      // @ts-expect-error unused but needed for test flow
       const _userMessageId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
@@ -726,6 +727,7 @@ Test technical specifications`,
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends initial new_feature request
+      // @ts-expect-error unused but needed for test flow
       const _originalMessageId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
@@ -791,6 +793,7 @@ Test technical specifications`,
       });
 
       // User sends a follow-up message
+      // @ts-expect-error unused but needed for test flow
       const _followUpMessageId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
@@ -841,6 +844,7 @@ Test technical specifications`,
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends initial message
+      // @ts-expect-error unused but needed for test flow
       const _userMsgId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
@@ -913,6 +917,7 @@ Test technical specifications`,
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends message, builder handles it
+      // @ts-expect-error unused but needed for test flow
       const _userMsgId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
@@ -1000,6 +1005,7 @@ Test technical specifications`,
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // Complete flow to get to reviewer
+      // @ts-expect-error unused but needed for test flow
       const _userMsgId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
@@ -1075,6 +1081,7 @@ Test technical specifications`,
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends message
+      // @ts-expect-error unused but needed for test flow
       const _userMsgId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
@@ -1124,6 +1131,7 @@ Test technical specifications`,
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User asks a question
+      // @ts-expect-error unused but needed for test flow
       const _userMsgId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
@@ -1168,6 +1176,7 @@ Test technical specifications`,
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends message
+      // @ts-expect-error unused but needed for test flow
       const _userMsgId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,

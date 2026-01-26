@@ -182,7 +182,6 @@ function getCommandsSection(ctx: RolePromptContext): string {
   const progressCmd = reportProgressCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
-    message: 'Working on tests...',
     cliEnvPrefix,
   });
 
@@ -252,7 +251,6 @@ export function generateTaskStartedReminder(
           const progressCmd = reportProgressCommand({
             chatroomId,
             role: 'builder',
-            message: 'Researching...',
             cliEnvPrefix,
           });
           return `✅ Task acknowledged as QUESTION.

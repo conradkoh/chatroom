@@ -198,7 +198,7 @@ ${
   originMessage?.attachedTasks && originMessage.attachedTasks.length > 0
     ? `
 ATTACHED BACKLOG (${originMessage.attachedTasks.length})
-${originMessage.attachedTasks.map((t) => t.content).join('\n\n')}`
+${originMessage.attachedTasks.map((t: { content: string }) => t.content).join('\n\n')}`
     : ''
 }
 </user-message>

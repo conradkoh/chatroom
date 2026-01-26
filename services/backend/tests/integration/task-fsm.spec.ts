@@ -795,6 +795,7 @@ describe('FSM Error Handling', () => {
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
     // Create a backlog task
+    // @ts-expect-error unused but needed for test flow
     const _backlogTask = await t.mutation(api.tasks.createTask, {
       sessionId,
       chatroomId,

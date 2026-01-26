@@ -64,6 +64,7 @@ describe('Features System', () => {
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends a message
+      // @ts-expect-error unused but needed for test flow
       const _userMessageId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
@@ -110,6 +111,7 @@ Use CSS custom properties for theming, store preference in localStorage`,
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // User sends a question
+      // @ts-expect-error unused but needed for test flow
       const _userMessageId = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
@@ -153,6 +155,7 @@ Use CSS custom properties for theming, store preference in localStorage`,
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
       // Create first feature
+      // @ts-expect-error unused but needed for test flow
       const _msg1 = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
@@ -199,6 +202,7 @@ Tech specs for feature one`,
       });
 
       // Create second feature
+      // @ts-expect-error unused but needed for test flow
       const _msg2 = await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
