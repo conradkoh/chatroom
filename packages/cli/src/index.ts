@@ -205,14 +205,12 @@ program
   .description('Complete the current task without handing off to another role')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .option('--message <message>', 'Optional completion note')
-  .action(async (options: { chatroomId: string; role: string; message?: string }) => {
+  .action(async (options: { chatroomId: string; role: string }) => {
     await maybeRequireAuth();
 
     const { taskComplete } = await import('./commands/task-complete.js');
     await taskComplete(options.chatroomId, {
       role: options.role,
-      message: options.message,
     });
   });
 
@@ -273,33 +271,28 @@ program
   .description('Report progress on current task (does not complete the task)')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .option('--message <message>', 'Progress message (alternative to stdin)')
-  .action(async (options: { chatroomId: string; role: string; message?: string }) => {
+  .action(async (options: { chatroomId: string; role: string }) => {
     await maybeRequireAuth();
 
+    // Read message from stdin (mandatory)
+    const { decode } = await import('./utils/serialization/decode/index.js');
+    const stdinContent = await readStdin();
+
+    if (!stdinContent.trim()) {
+      console.error('❌ No message provided via stdin');
+      console.error("   Usage: chatroom report-progress --chatroom-id=<id> --role=<role> << 'EOF'");
+      console.error('   Your progress message here');
+      console.error('   EOF');
+      process.exit(1);
+    }
+
     let message: string;
-
-    // Primary: use --message flag if provided
-    if (options.message && options.message.trim().length > 0) {
-      message = options.message;
-    } else {
-      // Fallback: read from stdin using the decoder
-      const { decode } = await import('./utils/serialization/decode/index.js');
-      const stdinContent = await readStdin();
-
-      if (!stdinContent.trim()) {
-        console.error('❌ No message provided');
-        console.error('   Use --message="your message" or pipe content via stdin');
-        process.exit(1);
-      }
-
-      try {
-        const result = decode(stdinContent, { singleParam: 'message' });
-        message = result.message;
-      } catch (err) {
-        console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
-        process.exit(1);
-      }
+    try {
+      const result = decode(stdinContent, { singleParam: 'message' });
+      message = result.message;
+    } catch (err) {
+      console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+      process.exit(1);
     }
 
     // Validate that message is not empty

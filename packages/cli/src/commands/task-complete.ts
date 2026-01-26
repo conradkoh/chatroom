@@ -17,7 +17,6 @@ import { formatError, formatAuthError, formatChatroomIdError } from '../utils/er
 
 interface TaskCompleteOptions {
   role: string;
-  message?: string;
 }
 
 export async function taskComplete(
@@ -25,7 +24,7 @@ export async function taskComplete(
   options: TaskCompleteOptions
 ): Promise<void> {
   const client = await getConvexClient();
-  const { role, message } = options;
+  const { role } = options;
 
   // Get session ID for authentication
   const sessionId = getSessionId();
@@ -102,10 +101,6 @@ export async function taskComplete(
 
   console.log(`✅ Task completed successfully`);
   console.log(`   Tasks completed: ${result.completedCount}`);
-
-  if (message) {
-    console.log(`   Note: ${message}`);
-  }
 
   if (result.promoted) {
     console.log(`   Promoted next task: ${result.promoted}`);

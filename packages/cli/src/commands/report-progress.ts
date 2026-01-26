@@ -48,8 +48,10 @@ export async function reportProgress(
   // Validate message is not empty
   if (!message || message.trim().length === 0) {
     formatError('Progress message cannot be empty', [
-      'Provide a message via --message flag or stdin',
-      'Example: chatroom report-progress <id> --role=builder --message="Working on tests..."',
+      'Provide a message via stdin',
+      "Example: chatroom report-progress <id> --role=builder << 'EOF'",
+      'Your message here',
+      'EOF',
     ]);
     process.exit(1);
   }
