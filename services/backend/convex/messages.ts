@@ -2124,17 +2124,46 @@ export const getContextForRole = query({
     const enrichedMessages = await Promise.all(
       contextMessages.map(async (message) => {
         let taskStatus: string | undefined;
-        let attachedTaskIds: string[] | undefined;
+        let taskContent: string | undefined;
+        let attachedTasks:
+          | {
+              _id: string;
+              content: string;
+              status: string;
+              createdAt: number;
+            }[]
+          | undefined;
 
-        // Get task status for this message
+        // Get task status and content for this message
         if (message.taskId) {
           const task = await ctx.db.get('chatroom_tasks', message.taskId);
-          taskStatus = task?.status;
+          if (task) {
+            taskStatus = task.status;
+            taskContent = task.content;
+          }
         }
 
-        // Get attached task IDs
+        // Get full attached task objects (not just IDs)
         if (message.attachedTaskIds && message.attachedTaskIds.length > 0) {
-          attachedTaskIds = message.attachedTaskIds.map((id) => id.toString());
+          const tasks = await Promise.all(
+            message.attachedTaskIds.map(async (taskId) => {
+              const task = await ctx.db.get('chatroom_tasks', taskId);
+              if (task) {
+                return {
+                  _id: task._id.toString(),
+                  content: task.content,
+                  status: task.status,
+                  createdAt: task.createdAt,
+                };
+              }
+              return null;
+            })
+          );
+          // Filter out null values (tasks that don't exist)
+          const validTasks = tasks.filter((t): t is NonNullable<typeof t> => t !== null);
+          if (validTasks.length > 0) {
+            attachedTasks = validTasks;
+          }
         }
 
         return {
@@ -2147,7 +2176,8 @@ export const getContextForRole = query({
           featureTitle: message.featureTitle,
           taskId: message.taskId?.toString(),
           taskStatus,
-          attachedTaskIds,
+          taskContent,
+          attachedTasks,
         };
       })
     );

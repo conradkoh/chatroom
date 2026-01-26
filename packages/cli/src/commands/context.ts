@@ -16,7 +16,13 @@ interface ContextMessage {
   featureTitle?: string;
   taskId?: string;
   taskStatus?: string;
-  attachedTaskIds?: string[];
+  taskContent?: string;
+  attachedTasks?: {
+    _id: string;
+    content: string;
+    status: string;
+    createdAt: number;
+  }[];
 }
 
 /**
@@ -112,13 +118,30 @@ export async function readContext(
         if (message.taskStatus) {
           console.log(`      Status: ${message.taskStatus}`);
         }
+        if (message.taskContent) {
+          const contentLines = message.taskContent.split('\n');
+          const preview = contentLines[0].substring(0, 80);
+          console.log(
+            `      Content: ${preview}${contentLines[0].length > 80 || contentLines.length > 1 ? '...' : ''}`
+          );
+        }
       }
 
       // Show attached tasks if available
-      if (message.attachedTaskIds && message.attachedTaskIds.length > 0) {
+      if (message.attachedTasks && message.attachedTasks.length > 0) {
         console.log(`   Attachments:`);
-        for (const taskId of message.attachedTaskIds) {
-          console.log(`      🔹 Task: ${taskId}`);
+        for (const task of message.attachedTasks) {
+          console.log(`      🔹 Task ID: ${task._id}`);
+          console.log(`         Type: Task`);
+          const contentLines = task.content.split('\n');
+          // Show first line as preview
+          console.log(`         Content: ${contentLines[0]}`);
+          // Show remaining lines indented
+          if (contentLines.length > 1) {
+            for (let i = 1; i < contentLines.length; i++) {
+              console.log(`         ${contentLines[i]}`);
+            }
+          }
         }
       }
 
