@@ -42,15 +42,17 @@ Modified `services/backend/convex/messages.ts`:
 - Maintains backward compatibility with individual parameters
 - **Deprecated fields marked**: `featureTitle`, `featureDescription`, `featureTechSpecs`
 
-### ⏳ Phase 2: CLI Changes (NEXT)
+### ✅ Phase 2: CLI Changes (COMPLETE)
 
-#### 2.1: Update report-progress Command
+**Commit**: `v2 750ba51`
+
+#### ✅ 2.1: Update report-progress Command (COMPLETE)
 **File**: `packages/cli/src/index.ts` (lines 271-316)
 
 **Changes**:
-- Remove `--message` option
-- Make stdin mandatory (remove fallback logic)
-- Update error messages to reference stdin only
+- ✅ Removed `--message` option
+- ✅ Made stdin mandatory
+- ✅ Updated error messages to reference stdin only
 
 **Validation**:
 ```bash
@@ -60,26 +62,25 @@ Working on Phase 2 implementation...
 EOF
 ```
 
-#### 2.2: Update task-complete Command  
+#### ✅ 2.2: Update task-complete Command (COMPLETE)
 **File**: `packages/cli/src/index.ts` (lines 203-217)
 
 **Changes**:
-- Remove broken `--message` option entirely
-- Command remains simple (no stdin needed - just completes task)
+- ✅ Removed broken `--message` option entirely
+- ✅ Cleaned up TaskCompleteOptions interface
+- ✅ Updated error messages
 
 **Note**: task-complete doesn't send a message, so no stdin needed.
 
-#### 2.3: Update CLI to Send Raw Stdin
-**Files**: 
-- `packages/cli/src/commands/handoff.ts`
-- `packages/cli/src/commands/task-started.ts`
+#### ✅ 2.3: CLI Stdin Handling (COMPLETE)
+**Analysis**: Frontend decoding is appropriate for simple single-message commands.
 
-**Changes**:
-- Stop decoding stdin on frontend
-- Send raw stdin content to backend
-- Let backend handle all parsing
+**Conclusion**: 
+- `handoff` and `report-progress` send plain strings to backend (correct)
+- Only `taskStarted` with `new_feature` needs structured parsing (uses `rawStdin`)
+- No changes needed - current implementation follows requirements
 
-### 📋 Phase 3: Prompt Generator Updates
+### ⏳ Phase 3: Prompt Generator Updates (NEXT)
 
 #### 3.1: Update report-progress Prompt
 **File**: `services/backend/prompts/base/cli/report-progress/command.ts`
@@ -239,6 +240,6 @@ if (args.originMessageClassification === 'new_feature' && args.rawStdin) {
 
 ---
 
-**Version**: 1.0  
+**Version**: 1.1  
 **Last Updated**: 2026-01-26  
-**Status**: Phase 1 Complete, Phase 2 In Progress
+**Status**: Phase 2 Complete, Phase 3 In Progress
