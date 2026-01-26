@@ -137,13 +137,16 @@ program
       chatroomId: string;
       role: string;
       originMessageClassification?: string;
-      noClassify?: boolean;
+      classify?: boolean; // Note: Commander.js sets this to false when --no-classify is used
       taskId: string;
     }) => {
       await maybeRequireAuth();
 
+      // Commander.js converts --no-classify to classify: false
+      const skipClassification = options.classify === false;
+
       // Validate: must have either --no-classify or --origin-message-classification
-      if (!options.noClassify && !options.originMessageClassification) {
+      if (!skipClassification && !options.originMessageClassification) {
         console.error(`❌ Either --no-classify or --origin-message-classification is required`);
         console.error('');
         console.error('   For entry point roles (receiving user messages):');
@@ -155,7 +158,7 @@ program
       }
 
       // Validate: can't have both
-      if (options.noClassify && options.originMessageClassification) {
+      if (skipClassification && options.originMessageClassification) {
         console.error(`❌ Cannot use both --no-classify and --origin-message-classification`);
         console.error(
           '   Use --no-classify for handoffs, or --origin-message-classification for user messages'
@@ -226,7 +229,7 @@ program
         title,
         description,
         techSpecs,
-        noClassify: options.noClassify,
+        noClassify: skipClassification,
       });
     }
   );

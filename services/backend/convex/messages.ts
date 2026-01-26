@@ -679,10 +679,8 @@ export const taskStarted = mutation({
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    originMessageClassification: v.union(
-      v.literal('question'),
-      v.literal('new_feature'),
-      v.literal('follow_up')
+    originMessageClassification: v.optional(
+      v.union(v.literal('question'), v.literal('new_feature'), v.literal('follow_up'))
     ),
     // Require taskId for task-started (for consistency)
     taskId: v.id('chatroom_tasks'),
@@ -693,8 +691,19 @@ export const taskStarted = mutation({
     rawStdin: v.optional(v.string()),
 
     convexUrl: v.optional(v.string()),
+
+    // Skip classification for handoff recipients (message already classified by entry point)
+    skipClassification: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    // Validate that either skipClassification or originMessageClassification is provided
+    if (!args.skipClassification && !args.originMessageClassification) {
+      throw new ConvexError({
+        code: 'MISSING_CLASSIFICATION',
+        message: 'Either originMessageClassification or skipClassification must be provided',
+      });
+    }
+
     // Validate session and check chatroom access
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
@@ -730,8 +739,8 @@ export const taskStarted = mutation({
       });
     }
 
-    // Only allow classification of user messages
-    if (message.senderRole.toLowerCase() !== 'user') {
+    // Only allow classification of user messages (skip this check if we're not classifying)
+    if (!args.skipClassification && message.senderRole.toLowerCase() !== 'user') {
       throw new ConvexError({
         code: 'INVALID_MESSAGE',
         message: 'Can only classify user messages',
@@ -746,12 +755,42 @@ export const taskStarted = mutation({
       });
     }
 
+    // Use existing classification if skipClassification is true
+    let finalClassification: 'question' | 'new_feature' | 'follow_up';
+    if (args.skipClassification) {
+      // For handoff recipients, the task's sourceMessage is the handoff message (not user message)
+      // We need to find the most recent classified user message in the chatroom
+      const recentMessages = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .order('desc')
+        .take(50);
+
+      let classifiedMessage = null;
+      for (const msg of recentMessages) {
+        if (msg.senderRole.toLowerCase() === 'user' && msg.classification) {
+          classifiedMessage = msg;
+          break;
+        }
+      }
+
+      if (!classifiedMessage) {
+        throw new ConvexError({
+          code: 'MESSAGE_NOT_CLASSIFIED',
+          message: 'Cannot skip classification - no classified user message found in chatroom',
+        });
+      }
+      finalClassification = classifiedMessage.classification;
+    } else {
+      finalClassification = args.originMessageClassification!;
+    }
+
     // Parse raw stdin for new_feature classification (Requirement #4: backend parsing)
     let featureTitle: string | undefined;
     let featureDescription: string | undefined;
     let featureTechSpecs: string | undefined;
 
-    if (args.originMessageClassification === 'new_feature') {
+    if (!args.skipClassification && finalClassification === 'new_feature') {
       if (!args.rawStdin) {
         throw new ConvexError({
           code: 'MISSING_STDIN',
@@ -776,7 +815,7 @@ export const taskStarted = mutation({
     }
 
     // Validate new_feature has required metadata
-    if (args.originMessageClassification === 'new_feature') {
+    if (!args.skipClassification && finalClassification === 'new_feature') {
       if (!featureTitle || !featureDescription || !featureTechSpecs) {
         throw new ConvexError({
           code: 'MISSING_FEATURE_METADATA',
@@ -786,9 +825,9 @@ export const taskStarted = mutation({
     }
 
     // Update the message with classification and feature metadata (only if not already classified)
-    if (!message.classification) {
+    if (!args.skipClassification && !message.classification) {
       await ctx.db.patch('chatroom_messages', message._id, {
-        classification: args.originMessageClassification,
+        classification: finalClassification,
         ...(featureTitle && { featureTitle }),
         ...(featureDescription && { featureDescription }),
         ...(featureTechSpecs && { featureTechSpecs }),
@@ -799,7 +838,7 @@ export const taskStarted = mutation({
     // They will only be transitioned to pending_user_review when the agent hands off to user.
 
     // For follow-ups, link to the previous non-follow-up message
-    if (args.originMessageClassification === 'follow_up' && message) {
+    if (!args.skipClassification && finalClassification === 'follow_up' && message) {
       // Find the most recent non-follow-up user message (optimized with limit)
       const recentMessages = await ctx.db
         .query('chatroom_messages')
@@ -834,7 +873,7 @@ export const taskStarted = mutation({
     try {
       reminder = generateTaskStartedReminder(
         args.role,
-        args.originMessageClassification,
+        finalClassification,
         args.chatroomId,
         message?._id.toString(),
         args.taskId.toString(),
@@ -844,10 +883,10 @@ export const taskStarted = mutation({
     } catch (error) {
       console.error('Error generating task started reminder:', error);
       // Provide a fallback reminder
-      reminder = `Task acknowledged. Classification: ${args.originMessageClassification}. You can now proceed with your work.`;
+      reminder = `Task acknowledged. Classification: ${finalClassification}. You can now proceed with your work.`;
     }
 
-    return { success: true, classification: args.originMessageClassification, reminder };
+    return { success: true, classification: finalClassification, reminder };
   },
 });
 
