@@ -519,8 +519,12 @@ export const updateTask = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Only allow editing of queued and backlog tasks
-    if (task.status !== 'queued' && task.status !== 'backlog') {
+    // Only allow editing of queued, backlog, pending, acknowledged, and backlog_acknowledged tasks
+    if (
+      !['queued', 'backlog', 'pending', 'acknowledged', 'backlog_acknowledged'].includes(
+        task.status
+      )
+    ) {
       throw new Error(`Cannot edit task with status: ${task.status}`);
     }
 
