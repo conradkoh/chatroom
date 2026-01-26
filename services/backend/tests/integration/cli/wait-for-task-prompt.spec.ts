@@ -372,7 +372,9 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder --message="Working on tests..."
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      [Your progress message here]
+      EOF
       \`\`\`
 
       Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
@@ -562,7 +564,9 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder --message="Working on tests..."
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      [Your progress message here]
+      EOF
       \`\`\`
 
       Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
@@ -956,7 +960,9 @@ Use React Context + CSS variables`,
       💡 ✅ Task acknowledged as QUESTION.
 
       **Next steps:**
-      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10039;chatroom_rooms --role=builder --message="Researching..."\`
+      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10039;chatroom_rooms --role=builder << 'EOF'
+      [Your progress message here]
+      EOF\`
       2. Answer the user's question
       3. When done, hand off directly to user:
 
