@@ -2,8 +2,9 @@
 
 **Status:** 🟡 In Progress  
 **Created:** 2026-01-26  
-**Strategy:** Big Bang Migration  
-**Estimated Effort:** 5-7 hours  
+**Updated:** 2026-01-26  
+**Strategy:** Incremental Migration (Test-Driven, One Command at a Time)  
+**Estimated Effort:** 6-8 hours  
 
 ---
 
@@ -11,11 +12,13 @@
 
 1. [Overview](#overview)
 2. [Scope](#scope)
-3. [Phase 1: chatroomId Parameter](#phase-1-chatroomid-parameter)
-4. [Phase 2: artifactId Parameter](#phase-2-artifactid-parameter)
-5. [Implementation Checklist](#implementation-checklist)
-6. [Testing Strategy](#testing-strategy)
-7. [Rollback Plan](#rollback-plan)
+3. [Incremental Implementation Workflow](#incremental-implementation-workflow)
+4. [Phase 1: chatroomId Parameter](#phase-1-chatroomid-parameter)
+5. [Phase 2: artifactId Parameter](#phase-2-artifactid-parameter)
+6. [Phase 3: Prompt & Documentation Updates](#phase-3-prompt--documentation-updates)
+7. [Implementation Checklist](#implementation-checklist)
+8. [Testing Strategy](#testing-strategy)
+9. [Rollback Plan](#rollback-plan)
 
 ---
 
@@ -32,11 +35,133 @@ Convert all positional parameters in the CLI to named parameters for consistency
 5. **Future-Proof** - Easier to add new required parameters
 
 ### Migration Strategy
-**Big Bang Approach** - Convert all positional parameters in one release:
-- ✅ Clean break, no confusion
-- ✅ Easier to test
-- ✅ Simpler migration story
-- ✅ CLI is internal/development use
+**Incremental Approach** - Convert one command at a time with test-driven workflow:
+- ✅ Progressive validation - catch issues early
+- ✅ Easier to debug - smaller changes
+- ✅ Can pause/resume - clear checkpoints
+- ✅ Lower risk - rollback is simpler
+- ✅ Tests guide implementation
+
+**Previous Strategy:** ~~Big Bang Migration~~ (Changed to Incremental for better safety and validation)
+
+---
+
+## Incremental Implementation Workflow
+
+### Approach
+Convert **one command at a time** using a test-driven workflow. This ensures each change is validated before moving to the next.
+
+### Per-Command Workflow
+
+For each command, follow these 5 steps:
+
+#### 1. Update Integration Test
+**File:** `services/backend/tests/integration/cli/<command>-prompt.spec.ts`
+
+- Update test expectations to use new named parameter syntax
+- Update expected prompt text to show `--chatroom-id` instead of `<chatroomId>`
+- Commit: `test: update <command> test for named parameters`
+
+**Example:**
+```diff
+- expect(prompt).toContain('chatroom wait-for-task <chatroomId>')
++ expect(prompt).toContain('chatroom wait-for-task --chatroom-id <chatroomId>')
+```
+
+#### 2. Run Tests (Expect Failure)
+```bash
+pnpm test --filter=@workspace/backend
+```
+
+- Tests should FAIL because CLI hasn't been updated yet
+- Verify failure is due to CLI syntax mismatch
+- This confirms tests are working correctly
+
+#### 3. Update Prompts
+**Files:** `services/backend/prompts/base/cli/<command>/`
+
+- Update prompt templates to use new syntax
+- Update command examples
+- Update help text
+- Commit: `refactor: update <command> prompts for named parameters`
+
+#### 4. Update CLI Code
+**File:** `packages/cli/src/index.ts`
+
+- Remove `<chatroomId>` from `.command()` signature
+- Add `.requiredOption('--chatroom-id <id>', 'Chatroom identifier')`
+- Update action handler signature
+- Commit: `refactor: convert <command> to use named --chatroom-id parameter`
+
+**Pattern:**
+```typescript
+// Before
+.command('wait-for-task <chatroomId>')
+.action(async (chatroomId: string, options: {...}) => {
+
+// After
+.command('wait-for-task')
+.requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+.action(async (options: { chatroomId: string; ... }) => {
+```
+
+#### 5. Test & Validate
+```bash
+# Run tests again (should pass now)
+pnpm test --filter=@workspace/backend
+
+# Type check
+pnpm typecheck
+
+# Manual CLI test
+chatroom <command> --chatroom-id=<test-id> --role=builder
+```
+
+- All tests should pass
+- Type checks should pass
+- Manual test should work correctly
+- If all good, move to next command
+
+### Command Order
+
+Process commands in this order (grouped by category for easier context switching):
+
+**Core Commands (5):**
+1. wait-for-task ← START HERE
+2. task-started
+3. task-complete
+4. handoff
+5. report-progress
+
+**Context & Messages (2):**
+6. context read
+7. messages list
+
+**Backlog Commands (6):**
+8. backlog list
+9. backlog add
+10. backlog complete
+11. backlog reopen
+12. backlog patch-task
+13. backlog reset-task
+
+**Artifact Commands (3):**
+14. artifact create
+15. artifact view-many
+16. artifact view (includes artifactId - Phase 2)
+
+### Progress Tracking
+
+Use checkboxes in the Implementation Checklist to track which commands are done.
+
+### Benefits of This Approach
+
+1. **Early Detection** - Catch issues immediately, one command at a time
+2. **Incremental Validation** - Tests verify each change works
+3. **Easy Pause/Resume** - Can stop at any command and pick up later
+4. **Clear History** - Each command has its own set of commits
+5. **Lower Risk** - If something breaks, only one command affected
+6. **Guided Implementation** - Tests tell you what to change
 
 ---
 
