@@ -7,7 +7,9 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { handoffCommand } from '../../../prompts/base/cli/handoff/command';
 import { getContextGainingGuidance } from '../../../prompts/base/cli/init/context-gaining';
+import { reportProgressCommand } from '../../../prompts/base/cli/report-progress/command';
 import { getTaskStartedPrompt } from '../../../prompts/base/cli/task-started/main-prompt';
 import { getAvailableActions } from '../../../prompts/base/cli/wait-for-task/available-actions';
 import { getConfig } from '../../../prompts/config/index';
@@ -38,7 +40,9 @@ describe('Context Gaining Prompt', () => {
     expect(guidance).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
     // Should include the context read command with correct parameters
-    expect(guidance).toContain('chatroom context read test-chatroom-123 --role=builder');
+    expect(guidance).toContain(
+      'chatroom context read --chatroom-id=test-chatroom-123 --role=builder'
+    );
 
     // Should be concise (no verbose explanations)
     expect(guidance).not.toContain('Best Practices');
@@ -52,7 +56,7 @@ describe('Context Gaining Prompt', () => {
       convexUrl: 'http://localhost:3000',
     });
 
-    expect(guidance).toContain('chatroom wait-for-task abc123 --role=reviewer');
+    expect(guidance).toContain('chatroom wait-for-task --chatroom-id=abc123 --role=reviewer');
   });
 });
 
@@ -171,5 +175,91 @@ describe('Task Classification Prompt', () => {
     expect(prompt).not.toContain('Examples:');
     expect(prompt).not.toContain('Workflow:');
     expect(prompt).not.toContain('Handoff Rules:');
+  });
+});
+
+describe('Command Generators - Stdin Consistency', () => {
+  describe('report-progress command', () => {
+    test('uses EOF format (stdin) instead of --message flag', () => {
+      const command = reportProgressCommand({
+        chatroomId: 'test-123',
+        role: 'builder',
+        cliEnvPrefix: '',
+      });
+
+      // Should use EOF format
+      expect(command).toContain("<< 'EOF'");
+      expect(command).toContain('EOF');
+
+      // Should NOT use --message flag
+      expect(command).not.toContain('--message');
+    });
+
+    test('includes placeholder for message content', () => {
+      const command = reportProgressCommand({
+        chatroomId: 'abc',
+        role: 'reviewer',
+        cliEnvPrefix: '',
+      });
+
+      // Should have placeholder text for message
+      expect(command).toMatch(/\[.*\]/); // Contains placeholder in brackets
+    });
+
+    test('injects environment prefix correctly', () => {
+      const command = reportProgressCommand({
+        chatroomId: 'test-123',
+        role: 'builder',
+        cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+      });
+
+      expect(command).toContain(
+        'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress'
+      );
+    });
+
+    test('matches handoff command format consistency', () => {
+      const reportCmd = reportProgressCommand({
+        chatroomId: 'test',
+        role: 'builder',
+        cliEnvPrefix: '',
+      });
+
+      const handoffCmd = handoffCommand({
+        chatroomId: 'test',
+        role: 'builder',
+        nextRole: 'reviewer',
+        cliEnvPrefix: '',
+      });
+
+      // Both should use EOF format
+      expect(reportCmd).toContain("<< 'EOF'");
+      expect(handoffCmd).toContain("<< 'EOF'");
+
+      // Both should have similar structure
+      const reportLines = reportCmd.split('\n');
+      const handoffLines = handoffCmd.split('\n');
+
+      // Should be multiline with EOF wrapper
+      expect(reportLines.length).toBeGreaterThan(1);
+      expect(handoffLines.length).toBeGreaterThan(1);
+    });
+  });
+
+  describe('handoff command', () => {
+    test('already uses EOF format (baseline)', () => {
+      const command = handoffCommand({
+        chatroomId: 'test-123',
+        role: 'builder',
+        nextRole: 'reviewer',
+        cliEnvPrefix: '',
+      });
+
+      // Verify handoff is already correct
+      expect(command).toContain("<< 'EOF'");
+      expect(command).toContain('[Your message here]');
+      expect(command).toContain('EOF');
+      expect(command).not.toContain('--message');
+    });
   });
 });

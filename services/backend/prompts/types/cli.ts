@@ -69,7 +69,7 @@ export interface WaitForTaskParams extends CommandContext {
 export interface ReportProgressParams extends CommandContext {
   chatroomId?: string;
   role?: string;
-  message?: string;
+  // message field removed - now uses stdin (EOF format) for all input
 }
 
 // ============================================================================
