@@ -1005,6 +1005,90 @@ export const listTasks = query({
 });
 
 /**
+ * List active tasks in a chatroom (all tasks that are not completed or closed).
+ * Active tasks include: pending, acknowledged, in_progress, queued, backlog, backlog_acknowledged, pending_user_review.
+ * Sorted by queuePosition ascending for active queue items.
+ * No hard limit applied - returns all active tasks.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const listActiveTasks = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Get all tasks for this chatroom
+    let tasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    // Filter for active tasks (not completed or closed)
+    tasks = tasks.filter(
+      (t) =>
+        t.status === 'pending' ||
+        t.status === 'acknowledged' ||
+        t.status === 'in_progress' ||
+        t.status === 'queued' ||
+        t.status === 'backlog' ||
+        t.status === 'backlog_acknowledged' ||
+        t.status === 'pending_user_review'
+    );
+
+    // Sort by queuePosition for active queue items
+    tasks.sort((a, b) => a.queuePosition - b.queuePosition);
+
+    // Apply limit if specified
+    if (args.limit) {
+      return tasks.slice(0, args.limit);
+    }
+
+    return tasks;
+  },
+});
+
+/**
+ * List archived tasks in a chatroom (completed or closed tasks).
+ * Sorted by updatedAt descending (most recently updated first).
+ * No hard limit applied - returns all archived tasks.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const listArchivedTasks = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Get all tasks for this chatroom
+    let tasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    // Filter for archived tasks (completed or closed)
+    tasks = tasks.filter((t) => t.status === 'completed' || t.status === 'closed');
+
+    // Sort by updatedAt descending (most recently updated first)
+    tasks.sort((a, b) => b.updatedAt - a.updatedAt);
+
+    // Apply limit if specified
+    if (args.limit) {
+      return tasks.slice(0, args.limit);
+    }
+
+    return tasks;
+  },
+});
+
+/**
  * Get the active task (pending or in_progress).
  * Returns at most one task.
  * Requires CLI session authentication and chatroom access.

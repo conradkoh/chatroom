@@ -97,26 +97,42 @@ export async function listBacklog(
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
     })) as TaskCounts;
 
-    // Get tasks with filter
-    const tasks = (await client.query(api.tasks.listTasks, {
-      sessionId: sessionId as any, // SessionId branded type from convex-helpers
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      statusFilter:
-        statusFilter === 'all'
-          ? undefined
-          : (statusFilter as
-              | 'pending'
-              | 'in_progress'
-              | 'queued'
-              | 'backlog'
-              | 'completed'
-              | 'pending_user_review'
-              | 'closed'
-              | 'active'
-              | 'pending_review'
-              | 'archived'),
-      limit: options.limit || 20,
-    })) as Task[];
+    // Get tasks with filter - use specific queries for active/archived
+    let tasks: Task[];
+    if (statusFilter === 'active') {
+      tasks = (await client.query(api.tasks.listActiveTasks, {
+        sessionId: sessionId as any,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        limit: options.limit || 20,
+      })) as Task[];
+    } else if (statusFilter === 'archived') {
+      tasks = (await client.query(api.tasks.listArchivedTasks, {
+        sessionId: sessionId as any,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        limit: options.limit || 20,
+      })) as Task[];
+    } else {
+      // For specific status filters or 'all', use original listTasks
+      tasks = (await client.query(api.tasks.listTasks, {
+        sessionId: sessionId as any,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        statusFilter:
+          statusFilter === 'all'
+            ? undefined
+            : (statusFilter as
+                | 'pending'
+                | 'in_progress'
+                | 'queued'
+                | 'backlog'
+                | 'completed'
+                | 'pending_user_review'
+                | 'closed'
+                | 'active'
+                | 'pending_review'
+                | 'archived'),
+        limit: options.limit || 20,
+      })) as Task[];
+    }
 
     // Display header
     console.log('');
