@@ -171,6 +171,165 @@ artifactCommand
 
 ---
 
+## Phase 3: Prompt & Documentation Updates
+
+### Overview
+After CLI code changes are complete, all prompts, documentation, and examples must be updated to reflect the new named parameter syntax.
+
+### Files Requiring Updates
+
+#### Agent Prompts (Critical)
+These are embedded in the backend and shown to agents during runtime:
+
+| Location | Files | Description |
+|----------|-------|-------------|
+| `services/backend/prompts/base/cli/` | All CLI-related prompts | Agent instructions for CLI usage |
+| `services/backend/prompts/teams/pair/` | Team-specific workflows | Builder/reviewer workflows with CLI examples |
+| `services/backend/prompts/teams/pair/roles/` | Role-specific guides | Individual role instructions |
+
+**Search Pattern:**
+```bash
+grep -r "chatroom.*<chatroomId>" services/backend/prompts/
+```
+
+#### Documentation Files
+| File | Type | Update Required |
+|------|------|-----------------|
+| `AGENTS.md` | Agent guide | ✅ Many CLI examples |
+| `packages/cli/README.md` | CLI documentation | ✅ Usage examples |
+| `packages/cli/example.md` | CLI examples | ✅ All examples |
+| `docs/plans/*.md` | Project plans | ⚠️ Historical references (optional) |
+| `todo.md` | Task tracking | ⚠️ May have CLI commands |
+
+#### Test Files
+| Location | Purpose | Update Required |
+|----------|---------|-----------------|
+| `services/backend/tests/integration/cli/` | CLI integration tests | ✅ Test invocations |
+| Test specs with CLI examples | Validation | ✅ Expected output |
+
+#### Error Messages & Help Text
+Located in command files - already handled by Phase 1 & 2 code changes:
+- `packages/cli/src/commands/*.ts` - Error message examples
+- Commander.js auto-generates help text from `.requiredOption()`
+
+### Update Strategy
+
+#### 1. Search & Replace Patterns
+
+**Core Commands (wait-for-task, task-started, handoff, etc.):**
+```bash
+# Before
+chatroom wait-for-task <chatroomId>
+chatroom wait-for-task jx750h696te75x67z5q6cbwkph7zvm2x
+
+# After  
+chatroom wait-for-task --chatroom-id <chatroomId>
+chatroom wait-for-task --chatroom-id jx750h696te75x67z5q6cbwkph7zvm2x
+```
+
+**Backlog Commands:**
+```bash
+# Before
+chatroom backlog list <chatroomId>
+
+# After
+chatroom backlog list --chatroom-id <chatroomId>
+```
+
+**Artifact View (Phase 2):**
+```bash
+# Before
+chatroom artifact view <chatroomId> <artifactId>
+
+# After
+chatroom artifact view --chatroom-id <chatroomId> --artifact-id <artifactId>
+```
+
+#### 2. Automated Search Script
+
+Create a script to find all occurrences:
+```bash
+#!/bin/bash
+# Find all CLI usage examples
+
+echo "=== Searching for positional chatroomId usage ==="
+grep -r "chatroom [a-z-]* <chatroomId>" \
+  --include="*.md" \
+  --include="*.ts" \
+  --include="*.tsx" \
+  --exclude-dir=node_modules \
+  --exclude-dir=.git \
+  .
+
+echo ""
+echo "=== Searching for positional artifactId usage ==="
+grep -r "chatroom artifact view <chatroomId> <artifactId>" \
+  --include="*.md" \
+  --include="*.ts" \
+  --exclude-dir=node_modules \
+  --exclude-dir=.git \
+  .
+```
+
+#### 3. Verification Checklist
+
+After updates, verify:
+- [ ] **All agent prompts** use new syntax
+- [ ] **AGENTS.md** has no old positional parameters
+- [ ] **CLI examples** in packages/cli/ are updated
+- [ ] **Test files** use new syntax
+- [ ] **Error messages** show correct usage
+- [ ] **grep search** returns no old syntax (except in this spec)
+
+### Update Priority
+
+**🔴 Critical (Must update immediately):**
+1. Agent prompts in `services/backend/prompts/` - Agents use these at runtime
+2. `AGENTS.md` - Primary agent reference
+3. Test files - Must match new CLI behavior
+
+**🟡 Important (Update before release):**
+4. `packages/cli/README.md` and `example.md`
+5. Error message examples in command files
+6. `todo.md` and active project docs
+
+**⚪ Optional (Nice to have):**
+7. Historical docs in `docs/plans/` (old architecture docs)
+8. Archived documentation
+
+### Testing Prompt Updates
+
+1. **Agent Prompts:**
+   - Run wait-for-task and verify prompt shows correct syntax
+   - Check that all command examples use `--chatroom-id`
+
+2. **Documentation:**
+   - Review AGENTS.md for consistency
+   - Verify all examples are executable
+
+3. **Tests:**
+   - Run integration tests: `pnpm test`
+   - Ensure test CLI invocations work
+
+### Known Locations Summary
+
+Based on codebase search, these files definitely need updates:
+```
+./AGENTS.md
+./packages/cli/example.md
+./packages/cli/src/utils/serialization/decode/encoding.md
+./services/backend/prompts/base/cli/wait-for-task/reminder.ts
+./services/backend/tests/integration/cli/wait-for-task-prompt.spec.ts
+./docs/plans/004-api-naming-cleanup/cleanup.md
+./docs/plans/006-context-commands/architecture.md
+./docs/plans/006-context-commands/phases.md
+./docs/plans/006-context-commands/prd.md
+./docs/plans/020-task-lifecycle-reliability/architecture.md
+./todo.md
+```
+
+---
+
 ## Implementation Checklist
 
 ### Phase 1: chatroomId Conversion
@@ -227,6 +386,36 @@ artifactCommand
 #### Testing
 - [ ] Test artifact view command
 - [ ] Verify all parameter combinations work
+
+### Phase 3: Prompt & Documentation Updates
+
+#### Agent Prompts (Critical)
+- [ ] Update `services/backend/prompts/base/cli/` prompts
+- [ ] Update `services/backend/prompts/teams/pair/` workflows
+- [ ] Update role-specific prompts in `services/backend/prompts/teams/pair/roles/`
+- [ ] Run automated search to find all occurrences
+- [ ] Test agent prompts show correct syntax
+
+#### Core Documentation
+- [ ] **AGENTS.md** - Update all CLI examples
+- [ ] **packages/cli/README.md** - Update usage examples
+- [ ] **packages/cli/example.md** - Update all examples
+- [ ] **packages/cli/src/utils/serialization/decode/encoding.md** - Update if needed
+
+#### Test Files
+- [ ] Update `services/backend/tests/integration/cli/` test invocations
+- [ ] Run tests to verify: `pnpm test`
+- [ ] Fix any failing tests
+
+#### Project Documentation (Lower Priority)
+- [ ] Review and update `todo.md` if it has CLI commands
+- [ ] Update `docs/plans/` if they have active CLI examples
+- [ ] Mark historical docs as outdated (optional)
+
+#### Final Verification
+- [ ] Run grep search: no positional `<chatroomId>` or `<artifactId>` found (except in this spec)
+- [ ] Agent prompts verified in runtime
+- [ ] All examples are executable
 
 ### Final Validation
 - [ ] All type checks pass
@@ -311,16 +500,18 @@ For each converted command, test:
 |-------|--------|-------|
 | Spec Creation | 🟢 | This document |
 | Phase 1: Code Changes | ⚪ | Not started |
-| Phase 1: Documentation | ⚪ | Not started |
 | Phase 1: Testing | ⚪ | Not started |
 | Phase 2: Code Changes | ⚪ | Not started |
 | Phase 2: Testing | ⚪ | Not started |
+| Phase 3: Agent Prompts | ⚪ | Not started |
+| Phase 3: Documentation | ⚪ | Not started |
+| Phase 3: Tests | ⚪ | Not started |
 | Final Validation | ⚪ | Not started |
 
 ### Last Updated
 **Date:** 2026-01-26  
 **By:** builder  
-**Status:** Spec created, ready for implementation
+**Status:** Spec updated with Phase 3 (Prompt & Documentation updates)
 
 ---
 
