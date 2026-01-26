@@ -561,7 +561,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       Remember to listen for new messages using \`wait-for-task\` after handoff. Otherwise your team might get stuck not be able to reach you.
 
-          chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
 
       ============================================================
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
