@@ -774,13 +774,18 @@ export const taskStarted = mutation({
         }
       }
 
-      if (!classifiedMessage) {
+      if (!classifiedMessage || !classifiedMessage.classification) {
         throw new ConvexError({
           code: 'MESSAGE_NOT_CLASSIFIED',
           message: 'Cannot skip classification - no classified user message found in chatroom',
         });
       }
-      finalClassification = classifiedMessage.classification;
+      // TypeScript doesn't narrow the type through the check above, so we use a type assertion
+      // We know classification is non-null because we just checked it
+      finalClassification = classifiedMessage.classification as
+        | 'question'
+        | 'new_feature'
+        | 'follow_up';
     } else {
       finalClassification = args.originMessageClassification!;
     }
