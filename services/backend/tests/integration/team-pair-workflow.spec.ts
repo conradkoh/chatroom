@@ -328,13 +328,11 @@ Test technical specifications`,
          
         ## Reviewer Workflow
 
-        You receive handoffs from other agents containing work to review or validate. When you receive any message, you MUST first acknowledge it and classify what type of request it is:
-
-        **Important: DO run task-started** - Every message you receive needs to be classified, even handoffs.
+        You receive handoffs from other agents containing work to review or validate.
 
         **Typical Flow:**
         1. Receive message (handoff from builder or other agent)
-        2. First run \`chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message
+        2. Run \`task-started --no-classify\` to acknowledge receipt and start work
         3. Review the code changes or content:
            - Check uncommitted changes: \`git status\`, \`git diff\`
            - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`

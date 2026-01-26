@@ -1,3 +1,6 @@
+// Set test environment variable
+process.env.NODE_ENV = 'test';
+
 // Suppress console logs during testing to reduce noise
 if (process.env.NODE_ENV === 'test') {
   const originalConsoleLog = console.log;
