@@ -686,13 +686,19 @@ export const taskStarted = mutation({
     ),
     // Require taskId for task-started (for consistency)
     taskId: v.id('chatroom_tasks'),
-    // Raw stdin content (for new_feature - contains ---TITLE---, ---DESCRIPTION---, ---TECH_SPECS---)
+
+    // ✅ ACTIVE: Raw stdin content (for new_feature - contains ---TITLE---, ---DESCRIPTION---, ---TECH_SPECS---)
     // Requirement #4: Backend parsing of EOF format
+    // This is the preferred format - backend decodes stdin directly
     rawStdin: v.optional(v.string()),
-    // Feature metadata (optional for backward compatibility, required by CLI for new_feature)
+
+    // ⚠️ DEPRECATED: Individual feature metadata fields (backward compatibility only)
+    // TODO Phase 5: Remove after CLI migration complete (delete in cleanup phase)
+    // These are kept for backward compatibility but should not be used by new code
     featureTitle: v.optional(v.string()),
     featureDescription: v.optional(v.string()),
     featureTechSpecs: v.optional(v.string()),
+
     convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {

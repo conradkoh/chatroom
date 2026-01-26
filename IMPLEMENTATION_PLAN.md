@@ -1,0 +1,244 @@
+# CLI Command Input Consistency - Implementation Plan
+
+## Overview
+
+Migrate all CLI commands to use **stdin (heredoc EOF format)** for human-readable input fields, with backend parsing of all structured content.
+
+## Core Requirements
+
+1. **STDIN Format Mandate**: All commands with human-readable input MUST use stdin (EOF format)
+2. **Prompt Templates**: All prompts must show the correct command format and content type
+3. **Integration Test Coverage**: All prompt changes must be tested and verified
+4. **Backend Parsing**: All EOF format parsing happens on the backend, not frontend
+
+## Current State
+
+### ✅ Already Using Stdin (Mandatory)
+- **handoff** - Uses EOF format for message content
+- **task-started** (new_feature) - Uses EOF format for structured params (TITLE, DESCRIPTION, TECH_SPECS)
+
+### ⚠️ Still Using --message Flag
+- **report-progress** - Has `--message` flag + stdin fallback
+- **task-complete** - Has broken `--message` flag (accepted but not sent to backend)
+
+## Implementation Phases
+
+### ✅ Phase 1: Backend Changes (COMPLETE)
+
+#### ✅ Phase 1.1: Backend Decoder Utility (COMPLETE)
+**Commit**: `v2 2a8fd55`
+
+Created `services/backend/utils/stdin-decoder.ts`:
+- `decodeMessage()`: Single markdown messages
+- `decodeStructured()`: Multi-param with `---PARAM---` delimiters
+- 23 unit tests (all passing)
+
+#### ✅ Phase 1.2: Backend Mutations (COMPLETE)
+**Commit**: `v2 5e31497`
+
+Modified `services/backend/convex/messages.ts`:
+- Added `rawStdin` parameter to `taskStarted` mutation
+- Backend parses `---TITLE---`, `---DESCRIPTION---`, `---TECH_SPECS---`
+- Maintains backward compatibility with individual parameters
+- **Deprecated fields marked**: `featureTitle`, `featureDescription`, `featureTechSpecs`
+
+### ⏳ Phase 2: CLI Changes (NEXT)
+
+#### 2.1: Update report-progress Command
+**File**: `packages/cli/src/index.ts` (lines 271-316)
+
+**Changes**:
+- Remove `--message` option
+- Make stdin mandatory (remove fallback logic)
+- Update error messages to reference stdin only
+
+**Validation**:
+```bash
+# New format (stdin only)
+chatroom report-progress --chatroom-id=X --role=builder << 'EOF'
+Working on Phase 2 implementation...
+EOF
+```
+
+#### 2.2: Update task-complete Command  
+**File**: `packages/cli/src/index.ts` (lines 203-217)
+
+**Changes**:
+- Remove broken `--message` option entirely
+- Command remains simple (no stdin needed - just completes task)
+
+**Note**: task-complete doesn't send a message, so no stdin needed.
+
+#### 2.3: Update CLI to Send Raw Stdin
+**Files**: 
+- `packages/cli/src/commands/handoff.ts`
+- `packages/cli/src/commands/task-started.ts`
+
+**Changes**:
+- Stop decoding stdin on frontend
+- Send raw stdin content to backend
+- Let backend handle all parsing
+
+### 📋 Phase 3: Prompt Generator Updates
+
+#### 3.1: Update report-progress Prompt
+**File**: `services/backend/prompts/base/cli/report-progress/command.ts`
+
+**Changes**:
+- Show EOF format instead of `--message` flag
+- Add content type indicator: `(markdown)`
+
+**Example**:
+```bash
+chatroom report-progress --chatroom-id=X --role=builder << 'EOF'
+Progress message here (markdown)
+EOF
+```
+
+#### 3.2: Update Other Prompts
+**Files**:
+- `services/backend/prompts/base/cli/wait-for-task/reminder.ts`
+- `services/backend/prompts/base/cli/roles/builder.ts`
+- `services/backend/prompts/base/cli/roles/reviewer.ts`
+
+**Changes**:
+- Ensure all command examples use consistent EOF format
+- Add content type indicators where needed
+
+### 📋 Phase 4: Integration Test Updates
+
+#### 4.1: Fix Pre-existing Test Failures
+**Files**:
+- `tests/integration/cli/handoff-prompt.spec.ts`
+- `tests/integration/cli/prompts.spec.ts`
+- Other affected test files
+
+**Issues**: Test failures from previous CLI parameter migration (commit `ad5aa75`)
+
+#### 4.2: Update report-progress Test Snapshots
+**Estimate**: ~6 snapshots need updating for EOF format
+
+**Validation**:
+```bash
+pnpm test:integration
+```
+
+### 📋 Phase 5: Cleanup & Deprecation Removal
+
+#### 5.1: Remove Frontend Decoder
+**File**: `packages/cli/src/utils/serialization/decode/index.ts`
+
+**Action**: 
+- Evaluate if decoder is still needed for other purposes
+- Remove if only used for deprecated format
+- Keep tests for reference
+
+#### 5.2: Remove Deprecated Backend Parameters
+**File**: `services/backend/convex/messages.ts` (taskStarted mutation)
+
+**Remove these fields**:
+```typescript
+// ⚠️ DEPRECATED - DELETE IN PHASE 5
+featureTitle: v.optional(v.string()),
+featureDescription: v.optional(v.string()),
+featureTechSpecs: v.optional(v.string()),
+```
+
+**Remove backward compatibility code** (lines 750-769):
+```typescript
+// Parse raw stdin for new_feature classification
+let featureTitle = args.featureTitle;  // ← DELETE
+let featureDescription = args.featureDescription;  // ← DELETE
+let featureTechSpecs = args.featureTechSpecs;  // ← DELETE
+```
+
+**Keep only**:
+```typescript
+if (args.originMessageClassification === 'new_feature' && args.rawStdin) {
+  const { decodeStructured } = await import('../utils/stdin-decoder.js');
+  const parsed = decodeStructured(args.rawStdin, ['TITLE', 'DESCRIPTION', 'TECH_SPECS']);
+  
+  featureTitle = parsed.TITLE;
+  featureDescription = parsed.DESCRIPTION;
+  featureTechSpecs = parsed.TECH_SPECS;
+}
+```
+
+#### 5.3: Update CLI Help Text
+**Files**: 
+- `packages/cli/src/index.ts`
+- Command description strings
+
+**Changes**:
+- Remove any references to deprecated `--message` flags
+- Update examples to show only stdin format
+
+#### 5.4: Version Bump
+**Action**: Create major version release
+- Increment major version (breaking changes)
+- Update CHANGELOG.md with migration notes
+- Document breaking changes in release notes
+
+## Parameter Status Reference
+
+### taskStarted Mutation
+
+| Parameter | Status | Purpose | Action |
+|-----------|--------|---------|--------|
+| `sessionId` | ✅ Active | Authentication | Keep |
+| `chatroomId` | ✅ Active | Chatroom identifier | Keep |
+| `role` | ✅ Active | Sender role | Keep |
+| `originMessageClassification` | ✅ Active | Message classification | Keep |
+| `taskId` | ✅ Active | Task identifier | Keep |
+| `rawStdin` | ✅ Active | **Stdin content (preferred)** | Keep |
+| `featureTitle` | ⚠️ DEPRECATED | Backward compat only | **DELETE in Phase 5** |
+| `featureDescription` | ⚠️ DEPRECATED | Backward compat only | **DELETE in Phase 5** |
+| `featureTechSpecs` | ⚠️ DEPRECATED | Backward compat only | **DELETE in Phase 5** |
+| `convexUrl` | ✅ Active | Environment context | Keep |
+
+## Benefits
+
+- **Consistency**: All human-readable input uses same EOF format
+- **Clarity**: Agents see uniform command examples in prompts
+- **Simplicity**: One pattern to learn and maintain
+- **Backend Parsing**: All decoding happens server-side (secure, consistent)
+- **Type Safety**: Backend validation of structured content
+
+## Size Assessment
+
+**Very manageable change:**
+- **Core CLI logic**: ~30 lines across 2 command definitions
+- **Breaking changes acceptable**: Major version release
+- **No complex refactoring**: Just removing optional flags
+- **Backend already prepared**: All infrastructure exists
+
+## Testing Strategy
+
+1. **Unit Tests**: Backend decoder (already complete - 23 tests)
+2. **Integration Tests**: Update snapshots for new format
+3. **Manual Testing**: Verify each command works with EOF format
+4. **Backward Compatibility**: Ensure old format still works until Phase 5
+
+## Rollout Plan
+
+1. Complete Phases 2-4 (CLI + Prompts + Tests)
+2. Deploy to staging environment
+3. Test with real agents
+4. Deploy to production
+5. Monitor for issues
+6. After stable period, execute Phase 5 (cleanup)
+
+## Success Criteria
+
+- ✅ All commands use stdin for human-readable input
+- ✅ All prompt templates show correct format
+- ✅ All integration tests pass
+- ✅ Backend handles all parsing
+- ✅ Deprecated parameters removed (Phase 5)
+- ✅ Documentation updated
+
+---
+
+**Version**: 1.0  
+**Last Updated**: 2026-01-26  
+**Status**: Phase 1 Complete, Phase 2 In Progress
