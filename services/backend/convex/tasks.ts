@@ -6,7 +6,7 @@ import {
   getAndIncrementQueuePosition,
   requireChatroomAccess,
   validateSession,
-} from './lib/cliSessionAuth';
+} from './auth/cliSessionAuth';
 import { recoverOrphanedTasks } from './lib/taskRecovery';
 import { transitionTask } from './lib/taskStateMachine';
 

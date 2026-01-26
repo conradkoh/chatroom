@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
-import { areAllAgentsReady, requireChatroomAccess } from './lib/cliSessionAuth';
+import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 
 /**

@@ -9,7 +9,7 @@ import {
   areAllAgentsReady,
   getAndIncrementQueuePosition,
   requireChatroomAccess,
-} from './lib/cliSessionAuth';
+} from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
 import { getCompletionStatus } from './lib/taskWorkflows';

@@ -1,8 +1,7 @@
 import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
-// @ts-ignore TS6307: cliSessionAuth is in convex dir which is excluded from root tsconfig
-import { requireChatroomAccess, validateSession } from './lib/cliSessionAuth';
+import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
 
 /**
  * Create a new chatroom with team configuration.
