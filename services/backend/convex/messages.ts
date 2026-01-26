@@ -686,6 +686,9 @@ export const taskStarted = mutation({
     ),
     // Require taskId for task-started (for consistency)
     taskId: v.id('chatroom_tasks'),
+    // Raw stdin content (for new_feature - contains ---TITLE---, ---DESCRIPTION---, ---TECH_SPECS---)
+    // Requirement #4: Backend parsing of EOF format
+    rawStdin: v.optional(v.string()),
     // Feature metadata (optional for backward compatibility, required by CLI for new_feature)
     featureTitle: v.optional(v.string()),
     featureDescription: v.optional(v.string()),
@@ -744,13 +747,44 @@ export const taskStarted = mutation({
       });
     }
 
+    // Parse raw stdin for new_feature classification (Requirement #4: backend parsing)
+    let featureTitle = args.featureTitle;
+    let featureDescription = args.featureDescription;
+    let featureTechSpecs = args.featureTechSpecs;
+
+    if (args.originMessageClassification === 'new_feature' && args.rawStdin) {
+      try {
+        const { decodeStructured } = await import('../utils/stdin-decoder.js');
+        const parsed = decodeStructured(args.rawStdin, ['TITLE', 'DESCRIPTION', 'TECH_SPECS']);
+
+        featureTitle = parsed.TITLE;
+        featureDescription = parsed.DESCRIPTION;
+        featureTechSpecs = parsed.TECH_SPECS;
+      } catch (error) {
+        throw new ConvexError({
+          code: 'INVALID_STDIN_FORMAT',
+          message: `Failed to parse raw stdin: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    }
+
+    // Validate new_feature has required metadata
+    if (args.originMessageClassification === 'new_feature') {
+      if (!featureTitle || !featureDescription || !featureTechSpecs) {
+        throw new ConvexError({
+          code: 'MISSING_FEATURE_METADATA',
+          message: 'new_feature classification requires TITLE, DESCRIPTION, and TECH_SPECS',
+        });
+      }
+    }
+
     // Update the message with classification and feature metadata (only if not already classified)
     if (!message.classification) {
       await ctx.db.patch('chatroom_messages', message._id, {
         classification: args.originMessageClassification,
-        ...(args.featureTitle && { featureTitle: args.featureTitle }),
-        ...(args.featureDescription && { featureDescription: args.featureDescription }),
-        ...(args.featureTechSpecs && { featureTechSpecs: args.featureTechSpecs }),
+        ...(featureTitle && { featureTitle }),
+        ...(featureDescription && { featureDescription }),
+        ...(featureTechSpecs && { featureTechSpecs }),
       });
     }
 
