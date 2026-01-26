@@ -1445,6 +1445,172 @@ ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role
   });
 });
 
+describe('Reviewer Wait-for-Task Prompt After Handoff', () => {
+  test('materializes complete wait-for-task message for reviewer receiving handoff from builder', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-reviewer-handoff-prompt');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends message to builder
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Add dark mode toggle to the application',
+      type: 'message',
+    });
+
+    // Builder claims, starts, and classifies the task
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const builderStartResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await t.mutation(api.messages.taskStarted, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: builderStartResult.taskId,
+      originMessageClassification: 'new_feature',
+      rawStdin: `---TITLE---
+Dark Mode Toggle
+---DESCRIPTION---
+Add a toggle in settings for dark/light mode
+---TECH_SPECS---
+Use React Context + CSS variables`,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Builder hands off to reviewer
+    const handoffResult = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: `Implemented dark mode toggle. Please review.
+
+Changes:
+- Added ThemeProvider context
+- Created toggle component in Settings
+- Applied CSS variables for theming
+
+Testing: Toggle in settings switches between light/dark modes`,
+      targetRole: 'reviewer',
+    });
+
+    // Reviewer claims the task
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'reviewer',
+    });
+
+    const reviewerStartResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'reviewer',
+    });
+
+    // Get the init prompt for reviewer
+    const initPrompt = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'reviewer',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Get the task delivery prompt for reviewer
+    const taskDeliveryPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'reviewer',
+      taskId: reviewerStartResult.taskId,
+      messageId: handoffResult.messageId ?? undefined,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // ===== VERIFY INIT PROMPT =====
+    expect(initPrompt).toBeDefined();
+    expect(initPrompt?.prompt).toBeDefined();
+
+    // Should have role header
+    expect(initPrompt?.prompt).toContain('## Your Role: REVIEWER');
+
+    // Should have Getting Started section
+    expect(initPrompt?.prompt).toContain('## Getting Started');
+    expect(initPrompt?.prompt).toContain('### Read Context');
+    expect(initPrompt?.prompt).toContain('### Wait for Tasks');
+
+    // CRITICAL: Should have task-started instruction for reviewer (without classification)
+    // Reviewer receives handoffs, not user messages, so no classification needed
+    expect(initPrompt?.prompt).toContain('### Start Working');
+    expect(initPrompt?.prompt).toContain('task-started --no-classify');
+
+    // Should NOT have classification section (that's only for entry point roles)
+    expect(initPrompt?.prompt).not.toContain('### Classify Task');
+    expect(initPrompt?.prompt).not.toContain('--origin-message-classification');
+
+    // Should have reviewer workflow instructions
+    expect(initPrompt?.prompt).toContain('## Reviewer Workflow');
+
+    // ===== VERIFY TASK DELIVERY PROMPT =====
+    expect(taskDeliveryPrompt).toBeDefined();
+    expect(taskDeliveryPrompt.humanReadable).toBeDefined();
+    expect(taskDeliveryPrompt.json).toBeDefined();
+
+    // ===== VERIFY HUMAN READABLE FORMAT =====
+    const humanPrompt = taskDeliveryPrompt.humanReadable;
+
+    // Should have available actions section
+    expect(humanPrompt).toContain('## Available Actions');
+    expect(humanPrompt).toContain('### Gain Context');
+
+    // Should have role prompt
+    expect(humanPrompt).toContain('## Your Role: REVIEWER');
+    expect(humanPrompt).toContain('## Reviewer Workflow');
+
+    // Should have wait-for-task reminder
+    expect(humanPrompt).toContain('wait-for-task');
+    expect(humanPrompt).toContain(chatroomId);
+    expect(humanPrompt).toContain('--role=reviewer');
+
+    // ===== VERIFY JSON CONTEXT =====
+    const jsonContext = taskDeliveryPrompt.json;
+
+    // Should have task information
+    expect(jsonContext.task).toBeDefined();
+    expect(jsonContext.task._id).toBe(reviewerStartResult.taskId);
+    expect(jsonContext.task.status).toBe('in_progress');
+
+    // Should have handoff message information
+    expect(jsonContext.message).toBeDefined();
+    expect(jsonContext.message?._id).toBe(handoffResult.messageId);
+    expect(jsonContext.message?.senderRole).toBe('builder');
+    expect(jsonContext.message?.content).toContain('Implemented dark mode toggle');
+
+    // Should have origin message in context (the original user message)
+    expect(jsonContext.contextWindow.originMessage).toBeDefined();
+    expect(jsonContext.contextWindow.originMessage?.content).toBe(
+      'Add dark mode toggle to the application'
+    );
+    expect(jsonContext.contextWindow.originMessage?.senderRole).toBe('user');
+    expect(jsonContext.contextWindow.originMessage?.classification).toBe('new_feature');
+
+    // Should have role prompt context
+    expect(jsonContext.rolePrompt).toBeDefined();
+    expect(jsonContext.rolePrompt.prompt).toBeDefined();
+    expect(jsonContext.rolePrompt.availableHandoffRoles).toContain('builder');
+    expect(jsonContext.rolePrompt.availableHandoffRoles).toContain('user');
+  });
+});
+
 describe('Task-Complete Command', () => {
   test('materializes complete task-complete output', async () => {
     // ===== SETUP =====
@@ -1504,7 +1670,7 @@ describe('Task-Complete Command', () => {
          Tasks completed: 1
 
       ⏳ Now run wait-for-task to wait for your next assignment:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=builder"
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10089;chatroom_rooms --role=builder"
     `);
 
     // Verify mutation result
