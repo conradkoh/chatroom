@@ -322,8 +322,9 @@ program
 const backlogCommand = program.command('backlog').description('Manage task queue and backlog');
 
 backlogCommand
-  .command('list <chatroomId>')
+  .command('list')
   .description('List tasks in a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption(
     '--status <status>',
@@ -332,21 +333,24 @@ backlogCommand
   .option('--limit <n>', 'Maximum number of tasks to show (required for --status=all)')
   .option('--full', 'Show full task content without truncation')
   .action(
-    async (
-      chatroomId: string,
-      options: { role: string; status: string; limit?: string; full?: boolean }
-    ) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      status: string;
+      limit?: string;
+      full?: boolean;
+    }) => {
       // Validate: --status=all requires --limit
       if (options.status === 'all' && !options.limit) {
         console.error('❌ When using --status=all, you must specify --limit=<n>');
         console.error(
-          '   Example: chatroom backlog list <id> --role=builder --status=all --limit=50'
+          '   Example: chatroom backlog list --chatroom-id=<id> --role=builder --status=all --limit=50'
         );
         process.exit(1);
       }
       await maybeRequireAuth();
       const { listBacklog } = await import('./commands/backlog.js');
-      await listBacklog(chatroomId, {
+      await listBacklog(options.chatroomId, {
         role: options.role,
         status: options.status,
         limit: options.limit ? parseInt(options.limit, 10) : 20,
@@ -356,11 +360,12 @@ backlogCommand
   );
 
 backlogCommand
-  .command('add <chatroomId>')
+  .command('add')
   .description('Add a task to the backlog')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role (creator)')
   .requiredOption('--content-file <path>', 'Path to file containing task content')
-  .action(async (chatroomId: string, options: { role: string; contentFile: string }) => {
+  .action(async (options: { chatroomId: string; role: string; contentFile: string }) => {
     await maybeRequireAuth();
 
     // Read content from file
@@ -381,68 +386,70 @@ backlogCommand
     }
 
     const { addBacklog } = await import('./commands/backlog.js');
-    await addBacklog(chatroomId, { role: options.role, content });
+    await addBacklog(options.chatroomId, { role: options.role, content });
   });
 
 backlogCommand
-  .command('complete <chatroomId>')
+  .command('complete')
   .description('Mark a task as complete. Use --force for stuck in_progress/pending tasks.')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--task-id <taskId>', 'Task ID to complete')
   .option('-f, --force', 'Force complete a stuck in_progress or pending task')
   .action(
-    async (chatroomId: string, options: { role: string; taskId: string; force?: boolean }) => {
+    async (options: { chatroomId: string; role: string; taskId: string; force?: boolean }) => {
       await maybeRequireAuth();
       const { completeBacklog } = await import('./commands/backlog.js');
-      await completeBacklog(chatroomId, options);
+      await completeBacklog(options.chatroomId, options);
     }
   );
 
 backlogCommand
-  .command('reopen <chatroomId>')
+  .command('reopen')
   .description('Reopen a completed backlog task, returning it to pending_user_review status.')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--task-id <taskId>', 'Task ID to reopen')
-  .action(async (chatroomId: string, options: { role: string; taskId: string }) => {
+  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
     await maybeRequireAuth();
     const { reopenBacklog } = await import('./commands/backlog.js');
-    await reopenBacklog(chatroomId, options);
+    await reopenBacklog(options.chatroomId, options);
   });
 
 backlogCommand
-  .command('patch-task <chatroomId>')
+  .command('patch-task')
   .description('Update task scoring fields (complexity, value, priority)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--task-id <taskId>', 'Task ID to patch')
   .option('--complexity <level>', 'Complexity level (low|medium|high)')
   .option('--value <level>', 'Value level (low|medium|high)')
   .option('--priority <n>', 'Priority number (higher = more important)')
   .action(
-    async (
-      chatroomId: string,
-      options: {
-        role: string;
-        taskId: string;
-        complexity?: string;
-        value?: string;
-        priority?: string;
-      }
-    ) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      taskId: string;
+      complexity?: string;
+      value?: string;
+      priority?: string;
+    }) => {
       await maybeRequireAuth();
       const { patchBacklog } = await import('./commands/backlog.js');
-      await patchBacklog(chatroomId, options);
+      await patchBacklog(options.chatroomId, options);
     }
   );
 
 backlogCommand
-  .command('reset-task <chatroomId>')
+  .command('reset-task')
   .description('Reset a stuck in_progress task back to pending')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--task-id <taskId>', 'Task ID to reset')
-  .action(async (chatroomId: string, options: { role: string; taskId: string }) => {
+  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
     await maybeRequireAuth();
     const { resetBacklog } = await import('./commands/backlog.js');
-    await resetBacklog(chatroomId, options);
+    await resetBacklog(options.chatroomId, options);
   });
 
 // ============================================================================
@@ -454,46 +461,42 @@ const messagesCommand = program
   .description('List and filter chatroom messages');
 
 messagesCommand
-  .command('list <chatroomId>')
+  .command('list')
   .description('List messages by sender role or since a specific message')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .option('--sender-role <senderRole>', 'Filter by sender role (e.g., user, builder, reviewer)')
   .option('--since-message-id <messageId>', 'Get all messages since this message ID (inclusive)')
   .option('--limit <n>', 'Maximum number of messages to show')
   .option('--full', 'Show full message content without truncation')
   .action(
-    async (
-      chatroomId: string,
-      options: {
-        role: string;
-        senderRole?: string;
-        sinceMessageId?: string;
-        limit?: string;
-        full?: boolean;
-      }
-    ) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      senderRole?: string;
+      sinceMessageId?: string;
+      limit?: string;
+      full?: boolean;
+    }) => {
       // Validate: must specify either --sender-role or --since-message-id
       if (!options.senderRole && !options.sinceMessageId) {
         console.error('❌ Must specify either --sender-role or --since-message-id');
         console.error('   Examples:');
         console.error(
-          '     chatroom messages list <id> --role=builder --sender-role=user --limit=3'
+          '     chatroom messages list --chatroom-id=<id> --role=builder --sender-role=user --limit=3'
         );
-        console.error('     chatroom messages list <id> --role=builder --since-message-id=<msgId>');
-        process.exit(1);
-      }
-
-      // Cannot use both options together
-      if (options.senderRole && options.sinceMessageId) {
-        console.error('❌ Cannot use both --sender-role and --since-message-id at the same time');
+        console.error(
+          '     chatroom messages list --chatroom-id=<id> --role=builder --since-message-id=<msgId>'
+        );
         process.exit(1);
       }
 
       await maybeRequireAuth();
 
+      // Branch based on which option was provided
       if (options.senderRole) {
         const { listBySenderRole } = await import('./commands/messages.js');
-        await listBySenderRole(chatroomId, {
+        await listBySenderRole(options.chatroomId, {
           role: options.role,
           senderRole: options.senderRole,
           limit: options.limit ? parseInt(options.limit, 10) : 10,
@@ -501,7 +504,7 @@ messagesCommand
         });
       } else if (options.sinceMessageId) {
         const { listSinceMessage } = await import('./commands/messages.js');
-        await listSinceMessage(chatroomId, {
+        await listSinceMessage(options.chatroomId, {
           role: options.role,
           sinceMessageId: options.sinceMessageId,
           limit: options.limit ? parseInt(options.limit, 10) : 100,
@@ -518,13 +521,14 @@ messagesCommand
 const contextCommand = program.command('context').description('Get chatroom context and state');
 
 contextCommand
-  .command('read <chatroomId>')
+  .command('read')
   .description('Read context for your role (conversation history, tasks, status)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .action(async (chatroomId: string, options: { role: string }) => {
+  .action(async (options: { chatroomId: string; role: string }) => {
     await maybeRequireAuth();
     const { readContext } = await import('./commands/context.js');
-    await readContext(chatroomId, options);
+    await readContext(options.chatroomId, options);
   });
 
 // ============================================================================
@@ -561,41 +565,43 @@ guidelinesCommand
 const artifactCommand = program.command('artifact').description('Manage artifacts for handoffs');
 
 artifactCommand
-  .command('create <chatroomId>')
+  .command('create')
   .description('Create a new artifact from a file')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--from-file <path>', 'Path to file containing artifact content')
   .requiredOption('--filename <filename>', 'Display filename for the artifact')
   .option('--description <description>', 'Optional description of the artifact')
   .action(
-    async (
-      chatroomId: string,
-      options: {
-        role: string;
-        fromFile: string;
-        filename: string;
-        description?: string;
-      }
-    ) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      fromFile: string;
+      filename: string;
+      description?: string;
+    }) => {
       await maybeRequireAuth();
       const { createArtifact } = await import('./commands/artifact.js');
-      await createArtifact(chatroomId, options);
+      await createArtifact(options.chatroomId, options);
     }
   );
 
 artifactCommand
-  .command('view <chatroomId> <artifactId>')
+  .command('view')
   .description('View a single artifact')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--artifact-id <id>', 'Artifact identifier')
   .requiredOption('--role <role>', 'Your role')
-  .action(async (chatroomId: string, artifactId: string, options: { role: string }) => {
+  .action(async (options: { chatroomId: string; artifactId: string; role: string }) => {
     await maybeRequireAuth();
     const { viewArtifact } = await import('./commands/artifact.js');
-    await viewArtifact(chatroomId, { role: options.role, artifactId });
+    await viewArtifact(options.chatroomId, { role: options.role, artifactId: options.artifactId });
   });
 
 artifactCommand
-  .command('view-many <chatroomId>')
+  .command('view-many')
   .description('View multiple artifacts')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .option(
     '--artifact <artifactId>',
@@ -605,10 +611,10 @@ artifactCommand
     },
     []
   )
-  .action(async (chatroomId: string, options: { role: string; artifact?: string[] }) => {
+  .action(async (options: { chatroomId: string; role: string; artifact?: string[] }) => {
     await maybeRequireAuth();
     const { viewManyArtifacts } = await import('./commands/artifact.js');
-    await viewManyArtifacts(chatroomId, {
+    await viewManyArtifacts(options.chatroomId, {
       role: options.role,
       artifactIds: options.artifact || [],
     });

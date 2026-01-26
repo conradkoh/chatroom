@@ -44,7 +44,7 @@ ${template.responsibilities.map((r) => `- ${r}`).join('\n')}
 Before waiting for tasks, understand the conversation history:
 
 \`\`\`bash
-${cliEnvPrefix}chatroom context read ${chatroomId} --role=${role}
+${cliEnvPrefix}chatroom context read --chatroom-id=${chatroomId} --role=${role}
 \`\`\`
 
 This shows:
@@ -58,7 +58,7 @@ This shows:
 After gaining context, run:
 
 \`\`\`bash
-${cliEnvPrefix}chatroom wait-for-task ${chatroomId} --role=${role}
+${cliEnvPrefix}chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
 \`\`\`
 
 The CLI will provide:
@@ -86,5 +86,5 @@ ${teamRoles.join(', ')}
 export function generateShortPrompt(context: PromptContext): string {
   const { chatroomId, role, convexUrl } = context;
   const prefix = getCliEnvPrefix(convexUrl);
-  return `${prefix}chatroom context read ${chatroomId} --role=${role} && ${prefix}chatroom wait-for-task ${chatroomId} --role=${role}`;
+  return `${prefix}chatroom context read --chatroom-id=${chatroomId} --role=${role} && ${prefix}chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`;
 }
