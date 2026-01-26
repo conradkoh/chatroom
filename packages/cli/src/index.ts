@@ -120,31 +120,60 @@ program
 
 program
   .command('task-started')
-  .description('Acknowledge a task and classify the user message')
+  .description('Acknowledge a task and optionally classify the user message')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption(
+  .option(
     '--origin-message-classification <type>',
-    'Original message classification: question, new_feature, or follow_up'
+    'Original message classification: question, new_feature, or follow_up (for entry point roles)'
+  )
+  .option(
+    '--no-classify',
+    'Skip classification (for handoff recipients - classification already done by entry point)'
   )
   .requiredOption('--task-id <taskId>', 'Task ID to acknowledge')
   .action(
     async (options: {
       chatroomId: string;
       role: string;
-      originMessageClassification: string;
+      originMessageClassification?: string;
+      noClassify?: boolean;
       taskId: string;
     }) => {
       await maybeRequireAuth();
 
-      const validClassifications = ['question', 'new_feature', 'follow_up'];
-      if (!validClassifications.includes(options.originMessageClassification)) {
+      // Validate: must have either --no-classify or --origin-message-classification
+      if (!options.noClassify && !options.originMessageClassification) {
+        console.error(`❌ Either --no-classify or --origin-message-classification is required`);
+        console.error('');
+        console.error('   For entry point roles (receiving user messages):');
+        console.error('     Use --origin-message-classification=<type>');
+        console.error('');
+        console.error('   For handoff recipients (receiving from other agents):');
+        console.error('     Use --no-classify');
+        process.exit(1);
+      }
+
+      // Validate: can't have both
+      if (options.noClassify && options.originMessageClassification) {
+        console.error(`❌ Cannot use both --no-classify and --origin-message-classification`);
         console.error(
-          `❌ Invalid classification: ${
-            options.originMessageClassification
-          }. Must be one of: ${validClassifications.join(', ')}`
+          '   Use --no-classify for handoffs, or --origin-message-classification for user messages'
         );
         process.exit(1);
+      }
+
+      // Validate classification type if provided
+      if (options.originMessageClassification) {
+        const validClassifications = ['question', 'new_feature', 'follow_up'];
+        if (!validClassifications.includes(options.originMessageClassification)) {
+          console.error(
+            `❌ Invalid classification: ${
+              options.originMessageClassification
+            }. Must be one of: ${validClassifications.join(', ')}`
+          );
+          process.exit(1);
+        }
       }
 
       let title: string | undefined;
@@ -191,11 +220,13 @@ program
         originMessageClassification: options.originMessageClassification as
           | 'question'
           | 'new_feature'
-          | 'follow_up',
+          | 'follow_up'
+          | undefined,
         taskId: options.taskId,
         title,
         description,
         techSpecs,
+        noClassify: options.noClassify,
       });
     }
   );

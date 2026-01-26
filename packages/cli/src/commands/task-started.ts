@@ -12,17 +12,20 @@ import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.j
 
 interface TaskStartedOptions {
   role: string;
-  originMessageClassification: 'question' | 'new_feature' | 'follow_up';
+  originMessageClassification?: 'question' | 'new_feature' | 'follow_up';
   taskId: string;
   // Feature metadata (required for new_feature classification)
   title?: string;
   description?: string;
   techSpecs?: string;
+  // Flag to skip classification (for handoff recipients)
+  noClassify?: boolean;
 }
 
 export async function taskStarted(chatroomId: string, options: TaskStartedOptions): Promise<void> {
   const client = await getConvexClient();
-  const { role, originMessageClassification, title, description, techSpecs, taskId } = options;
+  const { role, originMessageClassification, title, description, techSpecs, taskId, noClassify } =
+    options;
 
   // Get Convex URL and CLI env prefix for generating commands
   const convexUrl = getConvexUrl();
@@ -62,8 +65,39 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     process.exit(1);
   }
 
-  // Validate new_feature requirements
-  if (originMessageClassification === 'new_feature') {
+  // Validate: either --no-classify OR --origin-message-classification must be provided
+  if (!noClassify && !originMessageClassification) {
+    console.error(`❌ Either --no-classify or --origin-message-classification is required`);
+    console.error('');
+    console.error('   For entry point roles (receiving user messages):');
+    console.error(
+      `   ${taskStartedCommand({
+        chatroomId,
+        role,
+        taskId: '<task-id>',
+        classification: 'question',
+        cliEnvPrefix,
+      })}`
+    );
+    console.error('');
+    console.error('   For handoff recipients (receiving from other agents):');
+    console.error(
+      `   ${cliEnvPrefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=<task-id> --no-classify`
+    );
+    process.exit(1);
+  }
+
+  // Validate: --no-classify and --origin-message-classification are mutually exclusive
+  if (noClassify && originMessageClassification) {
+    console.error(`❌ Cannot use both --no-classify and --origin-message-classification`);
+    console.error(
+      `   Use --no-classify for handoffs, or --origin-message-classification for user messages`
+    );
+    process.exit(1);
+  }
+
+  // Validate new_feature requirements (only if classifying)
+  if (!noClassify && originMessageClassification === 'new_feature') {
     const missingFields: string[] = [];
     if (!title || title.trim().length === 0) {
       missingFields.push('--title');
@@ -135,7 +169,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   }
 
   // First, start the task (transition: acknowledged → in_progress)
-  // This must happen before classification
+  // This happens for both --no-classify and classification modes
   try {
     await client.mutation(api.tasks.startTask, {
       sessionId: sessionId as any,
@@ -150,14 +184,23 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     process.exit(1);
   }
 
-  // Now classify the message (requires task to be in_progress)
+  // If --no-classify, we're done (handoff recipient just needed state transition)
+  if (noClassify) {
+    console.log(`✅ Task started`);
+    console.log(`   Task: ${targetTask.content}`);
+    console.log(`\n💡 Task is now in progress. Begin your work.`);
+    return;
+  }
+
+  // Otherwise, classify the message (requires task to be in_progress)
+  // This is only for entry point roles receiving user messages
   try {
     const result = (await client.mutation(api.messages.taskStarted, {
       sessionId: sessionId as any, // SessionId branded type from convex-helpers
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
       taskId: taskId as Id<'chatroom_tasks'>,
-      originMessageClassification,
+      originMessageClassification: originMessageClassification!,
       convexUrl: getConvexUrl(),
       // Include feature metadata if provided (validated above for new_feature)
       ...(title && { featureTitle: title.trim() }),
