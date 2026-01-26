@@ -1536,6 +1536,550 @@ Testing: Toggle in settings switches between light/dark modes`,
       convexUrl: 'http://127.0.0.1:3210',
     });
 
+    // ===== OUTPUT COMPLETE CLI MESSAGE FOR REVIEW =====
+    // This materializes the exact message structure sent from server to wait-for-task command
+
+    const taskId = reviewerStartResult.taskId;
+    const messageId = handoffResult.messageId;
+    const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
+
+    // Note: Timestamps will vary, so we use placeholders in expected output
+    const fullCliMessage = `
+[TIMESTAMP] ⏳ Connecting to chatroom as "reviewer"...
+[TIMESTAMP] ✅ Connected. Waiting for task...
+
+<!-- REFERENCE: Agent Initialization
+
+══════════════════════════════════════════════════
+📋 AGENT INITIALIZATION PROMPT
+══════════════════════════════════════════════════
+
+Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgrounding) - backgrounded processes cannot receive tasks
+
+⏱️  HOW WAIT-FOR-TASK WORKS:
+• While wait-for-task runs, you remain "frozen" - the tool continues executing while you wait
+• The command may timeout before a task arrives. This is normal and expected behavior
+• The shell host enforces timeouts to ensure agents remain responsive and can pick up new jobs
+• When wait-for-task terminates (timeout or after task completion), restart it immediately
+• Restarting quickly ensures users and other agents don't have to wait for your availability
+
+📋 BACKLOG:
+The chatroom has a task backlog. View items with:
+  chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
+More actions: \`chatroom backlog --help\`
+
+══════════════════════════════════════════════════
+
+${initPrompt?.prompt || 'NO INIT PROMPT GENERATED'}
+
+══════════════════════════════════════════════════
+-->
+
+[TIMESTAMP] 📨 Task received!
+
+============================================================
+🆔 TASK INFORMATION
+============================================================
+Task ID: ${taskId}
+Message ID: ${messageId}
+
+📋 NEXT STEPS
+============================================================
+To start working on this task, run:
+
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=${chatroomId} --role=reviewer --task-id=${taskId} --no-classify
+
+⚠️  Note: This task was handed off to you, so classification was already done by the entry point role.
+============================================================
+
+## 📍 Pinned
+### Primary User Directive
+<user-message>
+${originMessage?.content || 'NO CONTENT'}
+${
+  originMessage?.classification
+    ? `
+
+Classification: ${originMessage.classification.toUpperCase()}`
+    : ''
+}
+</user-message>
+
+### Task Context
+Handed off from: builder
+Original classification: ${originMessage?.classification || 'Not classified'}
+============================================================
+
+${taskDeliveryPrompt.humanReadable}
+
+============================================================
+Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+============================================================
+`;
+
+    // Verify the complete message structure matches expected format
+    // The inline snapshot will materialize the full message for human review in the test file
+    expect(fullCliMessage).toMatchInlineSnapshot(`
+      "
+      [TIMESTAMP] ⏳ Connecting to chatroom as "reviewer"...
+      [TIMESTAMP] ✅ Connected. Waiting for task...
+
+      <!-- REFERENCE: Agent Initialization
+
+      ══════════════════════════════════════════════════
+      📋 AGENT INITIALIZATION PROMPT
+      ══════════════════════════════════════════════════
+
+      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+      Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgrounding) - backgrounded processes cannot receive tasks
+
+      ⏱️  HOW WAIT-FOR-TASK WORKS:
+      • While wait-for-task runs, you remain "frozen" - the tool continues executing while you wait
+      • The command may timeout before a task arrives. This is normal and expected behavior
+      • The shell host enforces timeouts to ensure agents remain responsive and can pick up new jobs
+      • When wait-for-task terminates (timeout or after task completion), restart it immediately
+      • Restarting quickly ensures users and other agents don't have to wait for your availability
+
+      📋 BACKLOG:
+      The chatroom has a task backlog. View items with:
+        chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
+      More actions: \`chatroom backlog --help\`
+
+      ══════════════════════════════════════════════════
+
+      # Pair Team Team
+
+      ## Your Role: REVIEWER
+
+      You are the quality guardian responsible for reviewing and validating code changes.
+
+      ## Getting Started
+
+      ### Read Context
+      View the conversation history and pending tasks for your role.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10078;chatroom_rooms --role=reviewer
+      \`\`\`
+
+      ### Wait for Tasks
+      Listen for incoming tasks assigned to your role.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=reviewer
+      \`\`\`
+
+      ### Start Working
+      Before starting work on a received message, acknowledge it:
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10078;chatroom_rooms --role=reviewer --task-id=<task-id> --no-classify
+      \`\`\`
+
+      This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.
+
+
+       ## Reviewer Workflow
+       
+       You receive handoffs from other agents containing work to review or validate. When you receive any message, you MUST first acknowledge it.
+       
+       **Important: DO run task-started** - Every message you receive needs to be acknowledged, even handoffs.
+       
+       **Pair Team Context:**
+       - You work with a builder who implements code
+       - Focus on code quality and requirements
+       - Provide constructive feedback to builder
+       
+       
+      ## Reviewer Workflow
+
+      You receive handoffs from other agents containing work to review or validate.
+
+      **Typical Flow:**
+      1. Receive message (handoff from builder or other agent)
+      2. Run \`task-started --no-classify\` to acknowledge receipt and start work
+      3. Review the code changes or content:
+         - Check uncommitted changes: \`git status\`, \`git diff\`
+         - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
+      4. Either approve or request changes
+
+      **Your Options After Review:**
+
+      **If changes are needed:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=builder << 'EOF'
+      [Your message here]
+      EOF
+      \`\`\`
+
+      Replace \`[Your message here]\` with your detailed feedback:
+      - **Issues Found**: List specific problems
+      - **Suggestions**: Provide actionable recommendations
+
+      **If work is approved:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=user << 'EOF'
+      [Your message here]
+      EOF
+      \`\`\`
+
+      Replace \`[Your message here]\` with:
+      - **APPROVED ✅**: Clear approval statement
+      - **Summary**: What was reviewed and verified
+
+      **Review Checklist:**
+      - [ ] Code correctness and functionality
+      - [ ] Error handling and edge cases
+      - [ ] Code style and best practices
+      - [ ] Documentation and comments
+      - [ ] Tests (if applicable)
+      - [ ] Security considerations
+      - [ ] Performance implications
+
+      **Review Process:**
+      1. **Understand the requirements**: Review the original task and expected outcome
+      2. **Check implementation**: Verify the code meets the requirements
+      3. **Test the changes**: If possible, test the implementation
+      4. **Provide feedback**: Be specific and constructive in feedback
+      5. **Track iterations**: Keep track of review rounds
+
+      **Important:** For multi-round reviews, keep handing back to builder until all issues are resolved.
+
+      **Communication Style:**
+      - Be specific about what needs to be changed
+      - Explain why changes are needed
+      - Suggest solutions when possible
+      - Maintain a collaborative and constructive tone
+
+       
+       
+      ## Available Review Policies
+
+      These policies should be applied when reviewing code to ensure high quality:
+
+      ### 1. Security Policy
+      **Focus:** Authentication, authorization, input validation, data handling, and API security.
+
+      **Key Areas:**
+      - Authentication & authorization checks
+      - Input validation and sanitization (SQL injection, XSS, path traversal)
+      - Secrets management and PII handling
+      - API security (rate limiting, CORS, error messages)
+      - Common vulnerabilities (injection attacks, broken access control, cryptographic issues)
+
+      ### 2. Design Policy
+      **Focus:** Design system compliance, UI/UX patterns, accessibility, and consistency.
+
+      **Key Areas:**
+      - Design system compliance (tokens, component patterns, reusability)
+      - Color usage (semantic colors, dark mode support)
+      - Component patterns (structure, TypeScript props, accessibility, responsive design)
+      - Typography and spacing following design system
+      - UX considerations (loading states, error states, interactive feedback)
+
+      ### 3. Performance Policy
+      **Focus:** Frontend and backend optimization, efficient resource usage.
+
+      **Key Areas:**
+      - Frontend: React optimization (useMemo, useCallback, React.memo), bundle size, rendering
+      - Backend: Database queries (indexes, N+1 patterns), API design, memory management
+      - Platform-specific: Next.js (Server/Client Components), Convex (query indexing), Core Web Vitals
+      - Scalability considerations
+
+      **Note:** Apply these policies based on the type of changes being reviewed. Not all policies may be relevant for every review.
+
+       
+       **Pair Team Handoff Rules:**
+       - If the user's goal is met → hand off to user
+       - If changes are needed → hand off to builder with specific feedback
+       
+       
+
+      ### Commands
+
+      **Complete task and hand off:**
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10078;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+      [Your message here]
+      EOF
+      \`\`\`
+
+      Replace \`[Your message here]\` with:
+      - **Summary**: Brief description of what was done
+      - **Changes Made**: Key changes (bullets)
+      - **Testing**: How to verify the work
+
+      **Report progress on current task:**
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10078;chatroom_rooms --role=reviewer << 'EOF'
+      [Your progress message here]
+      EOF
+      \`\`\`
+
+      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+
+      **Continue receiving messages after \`handoff\`:**
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=reviewer
+      \`\`\`
+
+      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+      ### Next
+
+      Run:
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=reviewer
+      \`\`\`
+
+      ══════════════════════════════════════════════════
+      -->
+
+      [TIMESTAMP] 📨 Task received!
+
+      ============================================================
+      🆔 TASK INFORMATION
+      ============================================================
+      Task ID: 10086;chatroom_tasks
+      Message ID: 10085;chatroom_messages
+
+      📋 NEXT STEPS
+      ============================================================
+      To start working on this task, run:
+
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10078;chatroom_rooms --role=reviewer --task-id=10086;chatroom_tasks --no-classify
+
+      ⚠️  Note: This task was handed off to you, so classification was already done by the entry point role.
+      ============================================================
+
+      ## 📍 Pinned
+      ### Primary User Directive
+      <user-message>
+      Add dark mode toggle to the application
+
+
+      Classification: NEW_FEATURE
+      </user-message>
+
+      ### Task Context
+      Handed off from: builder
+      Original classification: new_feature
+      ============================================================
+
+      ## Available Actions
+
+      ### Gain Context
+      View the latest relevant chat history. Use when starting a new session or when context is unclear.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10078;chatroom_rooms --role=reviewer
+      \`\`\`
+
+      ### List Messages
+      Query specific messages with filters.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=10078;chatroom_rooms --role=reviewer --sender-role=user --limit=5 --full
+      \`\`\`
+
+      ### View Code Changes
+      Check recent commits for implementation context.
+
+      \`\`\`bash
+      git log --oneline -10
+      \`\`\`
+
+      ### Complete Task
+      Mark current task as complete without handing off to another role.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=10078;chatroom_rooms --role=reviewer
+      \`\`\`
+
+      ### Backlog
+      The chatroom has a task backlog. View items with:
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10078;chatroom_rooms --role=reviewer --status=backlog
+      \`\`\`
+
+      More actions: \`chatroom backlog --help\`
+
+      ## Your Role: REVIEWER
+
+      You are the quality guardian responsible for reviewing and validating code changes.
+
+
+       ## Reviewer Workflow
+       
+       You receive handoffs from other agents containing work to review or validate. When you receive any message, you MUST first acknowledge it.
+       
+       **Important: DO run task-started** - Every message you receive needs to be acknowledged, even handoffs.
+       
+       **Pair Team Context:**
+       - You work with a builder who implements code
+       - Focus on code quality and requirements
+       - Provide constructive feedback to builder
+       
+       
+      ## Reviewer Workflow
+
+      You receive handoffs from other agents containing work to review or validate.
+
+      **Typical Flow:**
+      1. Receive message (handoff from builder or other agent)
+      2. Run \`task-started --no-classify\` to acknowledge receipt and start work
+      3. Review the code changes or content:
+         - Check uncommitted changes: \`git status\`, \`git diff\`
+         - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
+      4. Either approve or request changes
+
+      **Your Options After Review:**
+
+      **If changes are needed:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=builder << 'EOF'
+      [Your message here]
+      EOF
+      \`\`\`
+
+      Replace \`[Your message here]\` with your detailed feedback:
+      - **Issues Found**: List specific problems
+      - **Suggestions**: Provide actionable recommendations
+
+      **If work is approved:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=user << 'EOF'
+      [Your message here]
+      EOF
+      \`\`\`
+
+      Replace \`[Your message here]\` with:
+      - **APPROVED ✅**: Clear approval statement
+      - **Summary**: What was reviewed and verified
+
+      **Review Checklist:**
+      - [ ] Code correctness and functionality
+      - [ ] Error handling and edge cases
+      - [ ] Code style and best practices
+      - [ ] Documentation and comments
+      - [ ] Tests (if applicable)
+      - [ ] Security considerations
+      - [ ] Performance implications
+
+      **Review Process:**
+      1. **Understand the requirements**: Review the original task and expected outcome
+      2. **Check implementation**: Verify the code meets the requirements
+      3. **Test the changes**: If possible, test the implementation
+      4. **Provide feedback**: Be specific and constructive in feedback
+      5. **Track iterations**: Keep track of review rounds
+
+      **Important:** For multi-round reviews, keep handing back to builder until all issues are resolved.
+
+      **Communication Style:**
+      - Be specific about what needs to be changed
+      - Explain why changes are needed
+      - Suggest solutions when possible
+      - Maintain a collaborative and constructive tone
+
+       
+       
+      ## Available Review Policies
+
+      These policies should be applied when reviewing code to ensure high quality:
+
+      ### 1. Security Policy
+      **Focus:** Authentication, authorization, input validation, data handling, and API security.
+
+      **Key Areas:**
+      - Authentication & authorization checks
+      - Input validation and sanitization (SQL injection, XSS, path traversal)
+      - Secrets management and PII handling
+      - API security (rate limiting, CORS, error messages)
+      - Common vulnerabilities (injection attacks, broken access control, cryptographic issues)
+
+      ### 2. Design Policy
+      **Focus:** Design system compliance, UI/UX patterns, accessibility, and consistency.
+
+      **Key Areas:**
+      - Design system compliance (tokens, component patterns, reusability)
+      - Color usage (semantic colors, dark mode support)
+      - Component patterns (structure, TypeScript props, accessibility, responsive design)
+      - Typography and spacing following design system
+      - UX considerations (loading states, error states, interactive feedback)
+
+      ### 3. Performance Policy
+      **Focus:** Frontend and backend optimization, efficient resource usage.
+
+      **Key Areas:**
+      - Frontend: React optimization (useMemo, useCallback, React.memo), bundle size, rendering
+      - Backend: Database queries (indexes, N+1 patterns), API design, memory management
+      - Platform-specific: Next.js (Server/Client Components), Convex (query indexing), Core Web Vitals
+      - Scalability considerations
+
+      **Note:** Apply these policies based on the type of changes being reviewed. Not all policies may be relevant for every review.
+
+       
+       **Pair Team Handoff Rules:**
+       - If the user's goal is met → hand off to user
+       - If changes are needed → hand off to builder with specific feedback
+       
+       
+
+      ### Current Task: NEW FEATURE
+      New functionality request. MUST go through reviewer before returning to user.
+
+      ### Handoff Options
+      Available targets: builder, user
+
+      ### Commands
+
+      **Complete task and hand off:**
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10078;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+      [Your message here]
+      EOF
+      \`\`\`
+
+      Replace \`[Your message here]\` with:
+      - **Summary**: Brief description of what was done
+      - **Changes Made**: Key changes (bullets)
+      - **Testing**: How to verify the work
+
+      **Report progress on current task:**
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10078;chatroom_rooms --role=reviewer << 'EOF'
+      [Your progress message here]
+      EOF
+      \`\`\`
+
+      Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+
+      **Continue receiving messages after \`handoff\`:**
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=reviewer
+      \`\`\`
+
+      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+      Remember to listen for new messages using \`wait-for-task\` after handoff. Otherwise your team might get stuck not be able to reach you.
+
+          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=reviewer
+
+      ============================================================
+      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      ============================================================
+      "
+    `);
+
     // ===== VERIFY INIT PROMPT =====
     expect(initPrompt).toBeDefined();
     expect(initPrompt?.prompt).toBeDefined();
