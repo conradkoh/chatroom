@@ -88,7 +88,10 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
         clearTasks();
       }
       // Refocus the textarea after successful send
-      textareaRef.current?.focus();
+      // Use setTimeout to ensure focus happens after React re-renders
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 0);
     } catch (error) {
       console.error('Failed to send message:', error);
     } finally {
