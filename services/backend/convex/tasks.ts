@@ -672,6 +672,45 @@ export const markBacklogComplete = mutation({
 });
 
 /**
+ * Mark a backlog task as ready for user review.
+ * Agent indicates they've completed work on this backlog item.
+ * Only allowed for backlog-origin tasks in 'backlog' status.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const markBacklogForReview = mutation({
+  args: {
+    sessionId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+
+    // Task must be a backlog-origin task
+    if (task.origin !== 'backlog') {
+      throw new Error('Task is not a backlog item');
+    }
+
+    // Only allowed for tasks in 'backlog' status
+    if (task.status !== 'backlog') {
+      throw new Error(
+        `Cannot mark task for review with status: ${task.status}. Task must be in 'backlog' status.`
+      );
+    }
+
+    // Use FSM for transition
+    await transitionTask(ctx, args.taskId, 'pending_user_review', 'markForReview');
+
+    return { success: true };
+  },
+});
+
+/**
  * Close a backlog task without completing.
  * Used for won't fix, duplicate, or no longer relevant items.
  * Only allowed for backlog-origin tasks.

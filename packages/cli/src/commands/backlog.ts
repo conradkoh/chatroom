@@ -519,6 +519,66 @@ export async function patchBacklog(
 }
 
 /**
+ * Mark a backlog task as ready for user review.
+ * Transitions the task from 'backlog' to 'pending_user_review'.
+ */
+export async function markForReviewBacklog(
+  chatroomId: string,
+  options: {
+    role: string;
+    taskId: string;
+  }
+): Promise<void> {
+  const client = await getConvexClient();
+
+  // Get session ID for authentication
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    process.exit(1);
+  }
+
+  // Validate chatroom ID format
+  if (
+    !chatroomId ||
+    typeof chatroomId !== 'string' ||
+    chatroomId.length < 20 ||
+    chatroomId.length > 40
+  ) {
+    console.error(
+      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
+    );
+    process.exit(1);
+  }
+
+  // Validate task ID
+  if (!options.taskId || options.taskId.trim().length === 0) {
+    console.error(`❌ Task ID is required`);
+    process.exit(1);
+  }
+
+  try {
+    await client.mutation(api.tasks.markBacklogForReview, {
+      sessionId,
+      taskId: options.taskId as Id<'chatroom_tasks'>,
+    });
+
+    console.log('');
+    console.log('✅ Task marked for review');
+    console.log(`   ID: ${options.taskId}`);
+    console.log(`   Status: pending_user_review`);
+    console.log('');
+    console.log(
+      '💡 The task is now visible in the "Pending Review" section for user confirmation.'
+    );
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to mark task for review: ${(error as Error).message}`);
+    process.exit(1);
+  }
+}
+
+/**
  * Reset a stuck in_progress task back to pending.
  */
 export async function resetBacklog(

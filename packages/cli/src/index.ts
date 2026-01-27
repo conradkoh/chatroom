@@ -454,6 +454,18 @@ backlogCommand
     await resetBacklog(options.chatroomId, options);
   });
 
+backlogCommand
+  .command('mark-for-review')
+  .description('Mark a backlog task as ready for user review (backlog → pending_user_review)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--task-id <taskId>', 'Task ID to mark for review')
+  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
+    await maybeRequireAuth();
+    const { markForReviewBacklog } = await import('./commands/backlog.js');
+    await markForReviewBacklog(options.chatroomId, options);
+  });
+
 // ============================================================================
 // MESSAGES COMMANDS (auth required)
 // ============================================================================

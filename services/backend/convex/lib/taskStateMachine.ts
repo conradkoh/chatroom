@@ -211,6 +211,18 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   // ==========================================================================
+  // MARK FOR REVIEW: backlog → pending_user_review (agent marks task ready)
+  // ==========================================================================
+
+  {
+    from: 'backlog',
+    to: 'pending_user_review',
+    trigger: 'markForReview',
+    setFields: {},
+    clearFields: [],
+  },
+
+  // ==========================================================================
   // REWORK FLOW: pending_user_review → pending
   // ==========================================================================
 

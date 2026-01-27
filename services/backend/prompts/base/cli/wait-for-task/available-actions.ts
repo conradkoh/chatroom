@@ -62,7 +62,7 @@ ${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} 
 Mark a backlog item as ready for user review:
 
 \`\`\`bash
-${cliEnvPrefix}chatroom backlog complete --chatroom-id=${chatroomId} --role=${role} --task-id=<task-id>
+${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=${chatroomId} --role=${role} --task-id=<task-id>
 \`\`\`
 
 More actions: \`chatroom backlog --help\``;
