@@ -49,7 +49,7 @@ async function main(): Promise<void> {
 
   // Forward signals to child process
   process.on('SIGINT', () => child.kill('SIGINT'));
-  process.on('SIGTERM', () => child.kill('SIGTERM'));
+  process.on('SIGTERM', () => child.kill('SIGINT')); // Convert SIGTERM to SIGINT
 }
 
 main();

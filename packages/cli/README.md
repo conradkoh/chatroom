@@ -51,59 +51,67 @@ Once all agents have joined (team shows as "ready"), type your task in the messa
 
 ### Authentication Commands
 
-| Command               | Description                           |
-| --------------------- | ------------------------------------- |
-| `chatroom auth login` | Authenticate CLI via browser          |
+| Command               | Description                  |
+| --------------------- | ---------------------------- |
+| `chatroom auth login` | Authenticate CLI via browser |
 
 ### User Commands
 
-| Command                  | Description                      |
-| ------------------------ | -------------------------------- |
-| `chatroom init`          | Initialize configuration file    |
+| Command                  | Description                          |
+| ------------------------ | ------------------------------------ |
 | `chatroom update`        | Update the CLI to the latest version |
-| `chatroom list`          | List chatroom history            |
-| `chatroom complete <id>` | Mark a chatroom as completed     |
+| `chatroom list`          | List chatroom history                |
+| `chatroom complete <id>` | Mark a chatroom as completed         |
 
 > **Note:** Chatrooms are created via the WebUI.
 
 ### Agent Commands
 
-| Command                                                                  | Description                         |
-| ------------------------------------------------------------------------ | ----------------------------------- |
-| `chatroom wait-for-task <id> --role=<role>`                              | Join chatroom and wait for tasks    |
-| `chatroom handoff <id> --role=<role> --message="..." --next-role=<role>` | Complete task and hand off          |
+| Command                                                                  | Description                      |
+| ------------------------------------------------------------------------ | -------------------------------- |
+| `chatroom wait-for-task <id> --role=<role>`                              | Join chatroom and wait for tasks |
+| `chatroom handoff <id> --role=<role> --message="..." --next-role=<role>` | Complete task and hand off       |
 
 ### Backlog Commands
 
 Manage task queues and backlogs within a chatroom.
 
-| Command                                                      | Description                    |
-| ------------------------------------------------------------ | ------------------------------ |
-| `chatroom backlog list <id> --role=<role>`                   | List tasks in a chatroom       |
-| `chatroom backlog add <id> --role=<role> --content="..."`    | Add a task to the backlog      |
-| `chatroom backlog complete <id> --role=<role> --task-id=...` | Mark a backlog task as done    |
+| Command                                                      | Description                 |
+| ------------------------------------------------------------ | --------------------------- |
+| `chatroom backlog list <id> --role=<role>`                   | List tasks in a chatroom    |
+| `chatroom backlog add <id> --role=<role> --content="..."`    | Add a task to the backlog   |
+| `chatroom backlog complete <id> --role=<role> --task-id=...` | Mark a backlog task as done |
 
 ---
 
-## Configuration
+## Environment Variables
 
-### Config Location
+Configure CLI behavior with these environment variables:
 
-The CLI searches for configuration in this order:
+| Variable                           | Description                                                  | Default                                |
+| ---------------------------------- | ------------------------------------------------------------ | -------------------------------------- |
+| `CHATROOM_CONVEX_URL`              | Override the default Convex backend URL                      | `https://chatroom-cloud.duskfare.com`  |
+| `CHATROOM_ENABLE_CLIENT_LOGGING`   | Enable Convex client logs (backend console.log) in CLI output | `false`                                |
 
-1. `.chatroom/chatroom.jsonc` in current directory (or parent directories)
-2. `~/.chatroom/chatroom.jsonc` (global config)
+### Examples
 
-### Project-Level Configuration
-
-To create a local configuration for a specific project:
+**Connect to local development backend:**
 
 ```bash
-cd your-project
-chatroom init
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task <id> --role=<role>
 ```
 
-This creates a local `.chatroom/chatroom.jsonc` that takes precedence.
+**Enable debug logging:**
+
+```bash
+CHATROOM_ENABLE_CLIENT_LOGGING=true chatroom wait-for-task <id> --role=<role>
+```
+
+**Combine multiple environment variables:**
+
+```bash
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 CHATROOM_ENABLE_CLIENT_LOGGING=true chatroom wait-for-task <id> --role=<role>
+```
 
 ---
 

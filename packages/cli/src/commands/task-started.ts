@@ -2,31 +2,38 @@
  * Acknowledge a task has started and classify the user message
  */
 
+import { taskStartedCommand } from '@workspace/backend/prompts/base/cli/task-started/command.js';
+import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
+
 import { api } from '../api.js';
-import type { Id, Message } from '../api.js';
+import type { Id } from '../api.js';
 import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.js';
 
 interface TaskStartedOptions {
   role: string;
-  classification: 'question' | 'new_feature' | 'follow_up';
-  // Feature metadata (required for new_feature classification)
-  title?: string;
-  description?: string;
-  techSpecs?: string;
+  originMessageClassification?: 'question' | 'new_feature' | 'follow_up';
+  taskId: string;
+  // Raw stdin content (for new_feature classification - backend will parse)
+  rawStdin?: string;
+  // Flag to skip classification (for handoff recipients)
+  noClassify?: boolean;
 }
 
 export async function taskStarted(chatroomId: string, options: TaskStartedOptions): Promise<void> {
   const client = await getConvexClient();
-  const { role, classification, title, description, techSpecs } = options;
+  const { role, originMessageClassification, rawStdin, taskId, noClassify } = options;
+
+  // Get Convex URL and CLI env prefix for generating commands
+  const convexUrl = getConvexUrl();
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   // Get session ID for authentication
   const sessionId = getSessionId();
   if (!sessionId) {
     const otherUrls = getOtherSessionUrls();
-    const currentUrl = getConvexUrl();
 
-    console.error(`❌ Not authenticated for: ${currentUrl}`);
+    console.error(`❌ Not authenticated for: ${convexUrl}`);
 
     if (otherUrls.length > 0) {
       console.error(`\n💡 You have sessions for other environments:`);
@@ -55,76 +62,138 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     process.exit(1);
   }
 
-  // Validate feature metadata for new_feature classification
-  if (classification === 'new_feature') {
-    const missingFields: string[] = [];
-    if (!title || title.trim().length === 0) {
-      missingFields.push('--title');
-    }
-    if (!description || description.trim().length === 0) {
-      missingFields.push('--description');
-    }
-    if (!techSpecs || techSpecs.trim().length === 0) {
-      missingFields.push('--tech-specs');
-    }
+  // Validate: either --no-classify OR --origin-message-classification must be provided
+  if (!noClassify && !originMessageClassification) {
+    console.error(`❌ Either --no-classify or --origin-message-classification is required`);
+    console.error('');
+    console.error('   For entry point roles (receiving user messages):');
+    console.error(
+      `   ${taskStartedCommand({
+        chatroomId,
+        role,
+        taskId: '<task-id>',
+        classification: 'question',
+        cliEnvPrefix,
+      })}`
+    );
+    console.error('');
+    console.error('   For handoff recipients (receiving from other agents):');
+    console.error(
+      `   ${cliEnvPrefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=<task-id> --no-classify`
+    );
+    process.exit(1);
+  }
 
-    if (missingFields.length > 0) {
-      console.error(`❌ new_feature classification requires feature metadata`);
-      console.error(`   Missing fields: ${missingFields.join(', ')}`);
+  // Validate: --no-classify and --origin-message-classification are mutually exclusive
+  if (noClassify && originMessageClassification) {
+    console.error(`❌ Cannot use both --no-classify and --origin-message-classification`);
+    console.error(
+      `   Use --no-classify for handoffs, or --origin-message-classification for user messages`
+    );
+    process.exit(1);
+  }
+
+  // Validate new_feature requirements (only if classifying)
+  if (!noClassify && originMessageClassification === 'new_feature') {
+    if (!rawStdin || rawStdin.trim().length === 0) {
+      console.error(`❌ new_feature classification requires stdin with feature metadata`);
+      console.error('   Provide structured stdin with TITLE, DESCRIPTION, and TECH_SPECS');
       console.error('');
       console.error('   Example:');
       console.error(
-        `   chatroom task-started ${chatroomId} --role=${role} --classification=new_feature \\`
+        `   echo '---TITLE---\nFeature title\n---DESCRIPTION---\nWhat this feature does\n---TECH_SPECS---\nHow to implement it' | ${taskStartedCommand(
+          {
+            chatroomId,
+            role,
+            taskId: '<task-id>',
+            classification: 'new_feature',
+            cliEnvPrefix,
+          }
+        )}`
       );
-      console.error(`     --title="Feature title" \\`);
-      console.error(`     --description="What this feature does" \\`);
-      console.error(`     --tech-specs="How to implement it"`);
       process.exit(1);
     }
   }
 
-  // Get the most recent user message to classify
-  const messages = (await client.query(api.messages.list, {
-    sessionId,
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    limit: 50,
-  })) as Message[];
+  // Find the target task to acknowledge
+  let targetTask: {
+    _id: string;
+    content: string;
+    status: string;
+  } | null = null;
 
-  // Find the most recent unclassified user message
-  let targetMessage: Message | null = null;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (msg.senderRole.toLowerCase() === 'user' && msg.type === 'message' && !msg.classification) {
-      targetMessage = msg;
-      break;
-    }
-  }
-
-  if (!targetMessage) {
-    console.error(`❌ No unclassified user message found to acknowledge`);
-    console.error(`   All user messages may already be classified.`);
+  if (!taskId) {
+    console.error(`❌ --task-id is required for task-started`);
+    console.error(
+      `   Usage: ${taskStartedCommand({
+        chatroomId: '<chatroomId>',
+        role: '<role>',
+        taskId: '<task-id>',
+        classification: 'question',
+        cliEnvPrefix,
+      })}`
+    );
     process.exit(1);
   }
 
-  // Call the taskStarted mutation
+  // Fetch the specific task by ID directly
+  targetTask = (await client.query(api.tasks.getTask, {
+    sessionId,
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    taskId: taskId as Id<'chatroom_tasks'>,
+  })) as {
+    _id: string;
+    content: string;
+    status: string;
+  } | null;
+
+  if (!targetTask) {
+    console.error(`❌ Task with ID "${taskId}" not found in this chatroom`);
+    console.error(`   Verify the task ID is correct and you have access to this chatroom`);
+    process.exit(1);
+  }
+
+  // First, start the task (transition: acknowledged → in_progress)
+  // This happens for both --no-classify and classification modes
   try {
-    const result = (await client.mutation(api.messages.taskStarted, {
-      sessionId,
+    await client.mutation(api.tasks.startTask, {
+      sessionId: sessionId as any,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
-      messageId: targetMessage._id,
-      classification,
-      // Include feature metadata if provided (validated above for new_feature)
-      ...(title && { featureTitle: title.trim() }),
-      ...(description && { featureDescription: description.trim() }),
-      ...(techSpecs && { featureTechSpecs: techSpecs.trim() }),
+      taskId: taskId as Id<'chatroom_tasks'>, // Pass the specific task ID
+    });
+  } catch (error) {
+    const err = error as Error;
+    console.error(`❌ Failed to start task`);
+    console.error(`   Error: ${err.message}`);
+    process.exit(1);
+  }
+
+  // If --no-classify, we're done (handoff recipient just needed state transition)
+  if (noClassify) {
+    console.log(`✅ Task started`);
+    console.log(`   Task: ${targetTask.content}`);
+    console.log(`\n💡 Task is now in progress. Begin your work.`);
+    return;
+  }
+
+  // Otherwise, classify the message (requires task to be in_progress)
+  // This is only for entry point roles receiving user messages
+  try {
+    const result = (await client.mutation(api.messages.taskStarted, {
+      sessionId: sessionId as any, // SessionId branded type from convex-helpers
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+      taskId: taskId as Id<'chatroom_tasks'>,
+      originMessageClassification: originMessageClassification!,
+      convexUrl: getConvexUrl(),
+      // Send raw stdin directly to backend for parsing
+      ...(rawStdin && { rawStdin }),
     })) as { success: boolean; classification: string; reminder: string };
 
     console.log(`✅ Task acknowledged and classified`);
-    console.log(`   Classification: ${classification}`);
-    console.log(
-      `   Message: "${targetMessage.content.substring(0, 80)}${targetMessage.content.length > 80 ? '...' : ''}"`
-    );
+    console.log(`   Classification: ${originMessageClassification}`);
+    console.log(`   Task: ${targetTask.content}`);
 
     // Display the focused reminder from the backend
     if (result.reminder) {
@@ -132,7 +201,24 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     }
   } catch (error) {
     const err = error as Error;
-    console.error(`❌ Failed to acknowledge task: ${err.message}`);
+    console.error(`❌ Failed to acknowledge task`);
+    console.error(`   Error: ${err.message}`);
+
+    // Try to extract more details from the error if available
+    if ('stack' in err && err.stack) {
+      const stackLines = err.stack.split('\n').slice(0, 5);
+      console.error(`   Stack trace:`);
+      stackLines.forEach((line) => console.error(`     ${line}`));
+    }
+
+    // Check if this is a Convex error with more details
+    if (typeof error === 'object' && error !== null) {
+      const errObj = error as any;
+      if (errObj.data) {
+        console.error(`   Server details:`, JSON.stringify(errObj.data, null, 2));
+      }
+    }
+
     process.exit(1);
   }
 }

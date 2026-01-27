@@ -30,6 +30,3 @@ export {
   type Agent,
   type TeamReadiness,
 } from './context/ChatroomListingContext';
-
-// Prompts
-export * from './prompts';

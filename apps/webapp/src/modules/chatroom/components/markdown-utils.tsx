@@ -99,33 +99,35 @@ export function CodeBlock({
   }, [textContent]);
 
   return (
-    <div className="relative group my-3">
-      {/* Header bar with language and copy button */}
-      <div className="flex items-center justify-between bg-chatroom-bg-tertiary border-2 border-b-0 border-chatroom-border px-3 py-1.5">
+    <div className="relative group not-prose mb-3">
+      {/* Header bar */}
+      <div className="flex items-center justify-between bg-chatroom-bg-secondary border-2 border-b-0 border-chatroom-border px-4 py-2">
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           {language || 'code'}
         </span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+          className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted hover:text-chatroom-text-primary transition-opacity opacity-80 hover:opacity-100"
           title={copied ? 'Copied!' : 'Copy code'}
         >
           {copied ? (
             <>
               <Check size={12} className="text-chatroom-status-success" />
-              <span className="text-chatroom-status-success">Copied</span>
+              <span className="text-chatroom-status-success font-mono">COPIED</span>
             </>
           ) : (
             <>
               <Copy size={12} />
-              <span>Copy</span>
+              <span>COPY</span>
             </>
           )}
         </button>
       </div>
       {/* Code content */}
-      <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 overflow-x-auto text-sm text-chatroom-text-primary">
-        <code className={`${className || ''} text-chatroom-text-primary`}>{children}</code>
+      <pre className="bg-chatroom-bg-secondary border-2 border-chatroom-border p-4 overflow-x-auto">
+        <code className={`${className || ''} text-xs text-chatroom-text-primary font-mono`}>
+          {children}
+        </code>
       </pre>
     </div>
   );

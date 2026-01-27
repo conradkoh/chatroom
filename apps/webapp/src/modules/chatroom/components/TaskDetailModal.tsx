@@ -29,9 +29,11 @@ import {
 
 type TaskStatus =
   | 'pending'
+  | 'acknowledged'
   | 'in_progress'
   | 'queued'
   | 'backlog'
+  | 'backlog_acknowledged'
   | 'pending_user_review'
   | 'completed'
   | 'closed'
@@ -73,6 +75,13 @@ const getStatusBadge = (status: TaskStatus) => {
       return {
         emoji: '🟢',
         label: 'Pending',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
+    case 'acknowledged':
+    case 'backlog_acknowledged':
+      return {
+        emoji: '🟢',
+        label: 'Claimed',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
     case 'in_progress':
@@ -469,7 +478,10 @@ export function TaskDetailModal({
                   )}
 
                 {/* Force complete for active tasks */}
-                {(task.status === 'in_progress' || task.status === 'pending') && (
+                {(task.status === 'in_progress' ||
+                  task.status === 'pending' ||
+                  task.status === 'acknowledged' ||
+                  task.status === 'backlog_acknowledged') && (
                   <button
                     onClick={handleForceComplete}
                     disabled={isLoading}

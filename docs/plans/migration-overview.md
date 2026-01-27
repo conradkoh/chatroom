@@ -17,14 +17,12 @@ This document outlines the migration plan for porting features from `chatroom-cl
 **Key Features:**
 
 1. **Backend (Convex)**
-
    - Chatrooms management (create, get, update status, interrupt)
    - Participants management (join, list, update status)
    - Messages (send, list, claim, routing logic)
    - Role hierarchy system
 
 2. **Frontend (Web Dashboard)**
-
    - Real-time chatroom dashboard
    - Agent status panels
    - Message feed with markdown support
@@ -34,7 +32,6 @@ This document outlines the migration plan for porting features from `chatroom-cl
 
 3. **CLI**
    - `chatroom start` - Start web server
-   - `chatroom init` - Initialize configuration
    - `chatroom create` - Create new chatroom
    - `chatroom resume` - Resume existing chatroom
    - `chatroom list` - List chatroom history

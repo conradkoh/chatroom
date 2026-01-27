@@ -4,7 +4,8 @@ import { Rocket, Check, Lightbulb, ArrowRight, Terminal } from 'lucide-react';
 import React, { useMemo, useCallback, memo } from 'react';
 
 import { CopyButton } from './CopyButton';
-import { generateAgentPrompt, isProductionConvexUrl } from '../prompts/generator';
+
+import { usePrompts } from '@/contexts/PromptsContext';
 
 interface Participant {
   role: string;
@@ -21,47 +22,39 @@ interface SetupChecklistProps {
 }
 
 export const SetupChecklist = memo(function SetupChecklist({
-  chatroomId,
-  teamName,
+  chatroomId: _chatroomId,
+  teamName: _teamName,
   teamRoles,
-  teamEntryPoint,
+  teamEntryPoint: _teamEntryPoint,
   participants,
   onViewPrompt,
 }: SetupChecklistProps) {
+  const { getAgentPrompt, isProductionUrl } = usePrompts();
+
   // Memoize participant map
   const participantMap = useMemo(
     () => new Map(participants.map((p) => [p.role.toLowerCase(), p])),
     [participants]
   );
 
-  // Memoize prompt generation
+  // Memoize prompt generation - now using context
   const generatePrompt = useCallback(
     (role: string): string => {
-      return generateAgentPrompt({
-        chatroomId,
-        role,
-        teamName,
-        teamRoles,
-        teamEntryPoint,
-        convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
-      });
+      return getAgentPrompt(role) || '';
     },
-    [chatroomId, teamName, teamRoles, teamEntryPoint]
+    [getAgentPrompt]
   );
-
-  // Check if we're in a non-production environment
-  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-  const isProduction = isProductionConvexUrl(convexUrl);
 
   // Generate the auth login command with appropriate env vars
   const authLoginCommand = useMemo(() => {
-    if (isProduction) {
+    if (isProductionUrl) {
       return 'chatroom auth login';
     }
     // For non-production, include both CHATROOM_WEB_URL and CHATROOM_CONVEX_URL
     const webUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
     return `CHATROOM_WEB_URL=${webUrl} \\\nCHATROOM_CONVEX_URL=${convexUrl} \\\nchatroom auth login`;
-  }, [isProduction, convexUrl]);
+  }, [isProductionUrl]);
 
   // Get first line of prompt for preview (pure function, no need for useCallback)
   const getPromptPreview = useCallback((prompt: string): string => {
@@ -91,7 +84,7 @@ export const SetupChecklist = memo(function SetupChecklist({
       </div>
 
       {/* Auth Login Section - shown for non-production */}
-      {!isProduction && (
+      {!isProductionUrl && (
         <div className="bg-chatroom-bg-surface border-2 border-chatroom-status-warning/30 mb-6">
           <div className="flex items-center gap-2 p-4 border-b border-chatroom-border">
             <Terminal size={16} className="text-chatroom-status-warning" />
