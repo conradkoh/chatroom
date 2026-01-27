@@ -677,18 +677,20 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
       </div>
       {/* End of Scrollable Task List Container */}
 
-      {/* Task Detail Modal */}
-      <TaskDetailModal
-        isOpen={selectedTask !== null}
-        task={selectedTask}
-        onClose={handleCloseTaskDetail}
-        onEdit={handleModalEdit}
-        onDelete={handleModalDelete}
-        onForceComplete={handleModalForceComplete}
-        onMarkBacklogComplete={handleModalMarkBacklogComplete}
-        onCloseBacklog={handleModalCloseBacklog}
-        onReopenBacklog={handleModalReopenBacklog}
-      />
+      {/* Task Detail Modal - only mount when task is selected for better performance */}
+      {selectedTask && (
+        <TaskDetailModal
+          isOpen={true}
+          task={selectedTask}
+          onClose={handleCloseTaskDetail}
+          onEdit={handleModalEdit}
+          onDelete={handleModalDelete}
+          onForceComplete={handleModalForceComplete}
+          onMarkBacklogComplete={handleModalMarkBacklogComplete}
+          onCloseBacklog={handleModalCloseBacklog}
+          onReopenBacklog={handleModalReopenBacklog}
+        />
+      )}
 
       {/* Full Task Queue Modal */}
       <TaskQueueModal
