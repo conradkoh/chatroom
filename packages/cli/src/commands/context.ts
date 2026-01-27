@@ -119,10 +119,11 @@ export async function readContext(
           console.log(`      Status: ${message.taskStatus}`);
         }
         if (message.taskContent) {
-          const contentLines = message.taskContent.split('\n');
-          const preview = contentLines[0].substring(0, 80);
           console.log(
-            `      Content: ${preview}${contentLines[0].length > 80 || contentLines.length > 1 ? '...' : ''}`
+            `      Content: ${message.taskContent
+              .split('\n')
+              .map((l, i) => (i === 0 ? l : `      ${l}`))
+              .join('\n')}`
           );
         }
       }
