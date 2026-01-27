@@ -210,6 +210,16 @@ const TRANSITIONS: TransitionRule[] = [
     clearFields: [],
   },
 
+  {
+    from: 'backlog',
+    to: 'completed',
+    trigger: 'markBacklogComplete',
+    setFields: {
+      completedAt: 'NOW',
+    },
+    clearFields: [],
+  },
+
   // ==========================================================================
   // MARK FOR REVIEW: backlog → pending_user_review (agent marks task ready)
   // ==========================================================================
