@@ -178,8 +178,9 @@ When users try to login on mobile devices, the form submits but nothing happens.
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end px-4 py-3 border-t-2 border-chatroom-border bg-chatroom-bg-tertiary">
-          <div className="flex gap-2">
+        <div className="flex items-center justify-between px-4 py-3 border-t-2 border-chatroom-border bg-chatroom-bg-tertiary">
+          <div className="flex-1" />
+          <div className="flex items-center gap-2">
             <button
               onClick={onClose}
               className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
