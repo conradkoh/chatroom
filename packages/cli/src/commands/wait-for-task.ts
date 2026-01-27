@@ -383,9 +383,17 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     console.log(`📋 PROCESS`);
     console.log(`${'='.repeat(60)}`);
     console.log(`\n1. Mark task as started:`);
-    console.log(
-      `   ${taskStartedCommand({ chatroomId, role, taskId: task._id, classification: 'follow_up', cliEnvPrefix })}`
-    );
+    if (isUserMessage) {
+      // Entry point role: needs to classify the user message
+      console.log(
+        `   ${taskStartedCommand({ chatroomId, role, taskId: task._id, classification: 'follow_up', cliEnvPrefix })}`
+      );
+    } else {
+      // Handoff recipient: classification already done, use --no-classify
+      console.log(
+        `   ${cliEnvPrefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=${task._id} --no-classify`
+      );
+    }
     console.log(`\n2. Do the work`);
     console.log(`\n3. Hand off when complete:`);
     console.log(
