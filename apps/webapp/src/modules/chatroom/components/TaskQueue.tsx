@@ -100,10 +100,15 @@ const getStatusBadge = (status: TaskStatus) => {
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
     case 'acknowledged':
+      return {
+        emoji: '🟢',
+        label: 'Acknowledged',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
     case 'backlog_acknowledged':
       return {
         emoji: '🟢',
-        label: 'Claimed',
+        label: 'Backlog Acknowledged',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
     case 'in_progress':
