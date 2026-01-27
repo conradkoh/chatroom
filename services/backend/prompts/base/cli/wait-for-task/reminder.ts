@@ -20,19 +20,30 @@ export function getWaitForTaskReminder(): string {
  * Used in initialization to explain proper usage.
  */
 export function getWaitForTaskGuidance(): string {
-  return `Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+  return `🔗 STAYING CONNECTED TO YOUR TEAM
 
-Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgrounding) - backgrounded processes cannot receive tasks
+Your primary directive: Stay available to respond to user and team requests.
 
-⏱️  HOW WAIT-FOR-TASK WORKS:
-• While wait-for-task runs, you remain "frozen" - the tool continues executing while you wait
-• The command may timeout before a task arrives. This is normal and expected behavior
-• The shell host enforces timeouts to ensure agents remain responsive and can pick up new jobs
-• When wait-for-task terminates (timeout or after task completion), restart it immediately
-• Restarting quickly ensures users and other agents don't have to wait for your availability
+⚠️  CRITICAL: Run wait-for-task in the FOREGROUND
 
-📋 BACKLOG:
-The chatroom has a task backlog. View items with:
+Two requirements:
+
+1. **Shell foreground** - Never use \`&\`, \`nohup\`, or backgrounding
+   • Must run directly in your active terminal
+   • Backgrounded processes cannot receive tasks
+
+2. **Blocking execution** - Wait for command completion
+   • Do not respond to user or perform other work while running
+   • Only proceed after the command exits (timeout or task received)
+
+⏱️  UNDERSTANDING TIMEOUTS
+• Timeouts are normal and expected - they keep agents responsive
+• When the command terminates:
+  1. Do you have urgent pending work?
+  2. Without wait-for-task, your team cannot reach you
+  3. If no urgent work, reconnect immediately
+
+📋 BACKLOG TASKS
   chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
-More actions: \`chatroom backlog --help\``;
+  chatroom backlog --help`;
 }
