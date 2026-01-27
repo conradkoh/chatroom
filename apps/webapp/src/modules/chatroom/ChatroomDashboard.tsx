@@ -13,7 +13,7 @@ import {
   X,
   CheckCircle,
   MoreVertical,
-  Circle,
+  Square,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 
@@ -436,8 +436,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 {sidebarVisible ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
                 {/* Aggregate status indicator - shown when sidebar is hidden */}
                 {!sidebarVisible && aggregateStatus !== 'none' && (
-                  <Circle
-                    size={10}
+                  <Square
+                    size={8}
                     className={`absolute -top-1 -right-1 ${
                       aggregateStatus === 'working'
                         ? 'text-chatroom-status-info fill-chatroom-status-info'
