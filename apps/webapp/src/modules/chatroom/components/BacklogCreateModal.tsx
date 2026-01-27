@@ -178,22 +178,21 @@ When users try to login on mobile devices, the form submits but nothing happens.
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end px-4 py-3 border-t-2 border-chatroom-border bg-chatroom-bg-tertiary">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={!content.trim() || isSubmitting}
-              className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isSubmitting ? 'Adding...' : 'Add to Backlog'}
-            </button>
-          </div>
+        <div className="flex items-center gap-2 px-4 py-3 border-t-2 border-chatroom-border bg-chatroom-bg-tertiary">
+          <button
+            onClick={handleSubmit}
+            disabled={!content.trim() || isSubmitting}
+            className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isSubmitting ? 'Adding...' : 'Add to Backlog'}
+          </button>
+          <div className="flex-1" />
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+          >
+            Cancel
+          </button>
         </div>
       </div>
     </div>
