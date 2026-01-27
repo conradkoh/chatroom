@@ -4,6 +4,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import {
   Check,
   CheckCircle,
+  Link,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -516,6 +517,23 @@ export function TaskDetailModal({
                     >
                       <Pencil size={14} />
                       Edit
+                    </DropdownMenuItem>
+
+                    {/* Attach to context - available for all tasks */}
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (task) {
+                          const added = addTask({ _id: task._id, content: task.content });
+                          if (added) {
+                            onClose();
+                          }
+                        }
+                      }}
+                      disabled={isTaskAttached(task._id) || !canAddMore}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Link size={14} />
+                      {isTaskAttached(task._id) ? 'Already Attached' : 'Attach to Context'}
                     </DropdownMenuItem>
 
                     {/* Backlog lifecycle actions */}
