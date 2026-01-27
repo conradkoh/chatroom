@@ -179,11 +179,8 @@ program
         }
       }
 
-      let title: string | undefined;
-      let description: string | undefined;
-      let techSpecs: string | undefined;
-
-      // For new_feature, read structured stdin
+      // For new_feature, read stdin and pass it directly to backend
+      let rawStdin: string | undefined;
       if (options.originMessageClassification === 'new_feature') {
         const stdinContent = await readStdin();
 
@@ -194,27 +191,7 @@ program
           process.exit(1);
         }
 
-        try {
-          const { decode } = await import('./utils/serialization/decode/index.js');
-          const result = decode(stdinContent, {
-            expectedParams: ['TITLE', 'DESCRIPTION', 'TECH_SPECS'],
-          });
-
-          title = result.TITLE;
-          description = result.DESCRIPTION;
-          techSpecs = result.TECH_SPECS;
-        } catch (err) {
-          console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
-          process.exit(1);
-        }
-
-        // Validate all required fields are present
-        if (!title || !description || !techSpecs) {
-          console.error(
-            '❌ Missing required fields for new_feature classification. All of TITLE, DESCRIPTION, and TECH_SPECS are required.'
-          );
-          process.exit(1);
-        }
+        rawStdin = stdinContent;
       }
 
       const { taskStarted } = await import('./commands/task-started.js');
@@ -226,9 +203,7 @@ program
           | 'follow_up'
           | undefined,
         taskId: options.taskId,
-        title,
-        description,
-        techSpecs,
+        rawStdin,
         noClassify: skipClassification,
       });
     }

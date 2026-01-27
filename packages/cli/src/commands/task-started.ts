@@ -14,18 +14,15 @@ interface TaskStartedOptions {
   role: string;
   originMessageClassification?: 'question' | 'new_feature' | 'follow_up';
   taskId: string;
-  // Feature metadata (required for new_feature classification)
-  title?: string;
-  description?: string;
-  techSpecs?: string;
+  // Raw stdin content (for new_feature classification - backend will parse)
+  rawStdin?: string;
   // Flag to skip classification (for handoff recipients)
   noClassify?: boolean;
 }
 
 export async function taskStarted(chatroomId: string, options: TaskStartedOptions): Promise<void> {
   const client = await getConvexClient();
-  const { role, originMessageClassification, title, description, techSpecs, taskId, noClassify } =
-    options;
+  const { role, originMessageClassification, rawStdin, taskId, noClassify } = options;
 
   // Get Convex URL and CLI env prefix for generating commands
   const convexUrl = getConvexUrl();
@@ -98,33 +95,21 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
 
   // Validate new_feature requirements (only if classifying)
   if (!noClassify && originMessageClassification === 'new_feature') {
-    const missingFields: string[] = [];
-    if (!title || title.trim().length === 0) {
-      missingFields.push('--title');
-    }
-    if (!description || description.trim().length === 0) {
-      missingFields.push('--description');
-    }
-    if (!techSpecs || techSpecs.trim().length === 0) {
-      missingFields.push('--tech-specs');
-    }
-
-    if (missingFields.length > 0) {
-      console.error(`❌ new_feature classification requires feature metadata`);
-      console.error(`   Missing fields: ${missingFields.join(', ')}`);
+    if (!rawStdin || rawStdin.trim().length === 0) {
+      console.error(`❌ new_feature classification requires stdin with feature metadata`);
+      console.error('   Provide structured stdin with TITLE, DESCRIPTION, and TECH_SPECS');
       console.error('');
       console.error('   Example:');
       console.error(
-        `   ${taskStartedCommand({
-          chatroomId,
-          role,
-          taskId: '<task-id>',
-          classification: 'new_feature',
-          title: 'Feature title',
-          description: 'What this feature does',
-          techSpecs: 'How to implement it',
-          cliEnvPrefix,
-        })}`
+        `   echo '---TITLE---\nFeature title\n---DESCRIPTION---\nWhat this feature does\n---TECH_SPECS---\nHow to implement it' | ${taskStartedCommand(
+          {
+            chatroomId,
+            role,
+            taskId: '<task-id>',
+            classification: 'new_feature',
+            cliEnvPrefix,
+          }
+        )}`
       );
       process.exit(1);
     }
@@ -202,10 +187,8 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       taskId: taskId as Id<'chatroom_tasks'>,
       originMessageClassification: originMessageClassification!,
       convexUrl: getConvexUrl(),
-      // Include feature metadata if provided (validated above for new_feature)
-      ...(title && { featureTitle: title.trim() }),
-      ...(description && { featureDescription: description.trim() }),
-      ...(techSpecs && { featureTechSpecs: techSpecs.trim() }),
+      // Send raw stdin directly to backend for parsing
+      ...(rawStdin && { rawStdin }),
     })) as { success: boolean; classification: string; reminder: string };
 
     console.log(`✅ Task acknowledged and classified`);
