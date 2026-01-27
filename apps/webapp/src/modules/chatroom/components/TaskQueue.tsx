@@ -114,7 +114,7 @@ const getStatusBadge = (status: TaskStatus) => {
     case 'in_progress':
       return {
         emoji: '🔵',
-        label: 'Working',
+        label: 'In Progress',
         classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
       };
     case 'queued':
@@ -132,7 +132,7 @@ const getStatusBadge = (status: TaskStatus) => {
     case 'pending_user_review':
       return {
         emoji: '🟣',
-        label: 'Review',
+        label: 'Pending User Review',
         classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
       };
     case 'completed':
