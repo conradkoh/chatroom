@@ -77,7 +77,7 @@ export function BacklogCreateModal({ isOpen, onClose, onSubmit }: BacklogCreateM
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-chatroom-bg-surface border-2 border-chatroom-border w-full max-w-2xl max-h-[80vh] flex flex-col mx-4">
+      <div className="relative bg-chatroom-bg-surface border-2 border-chatroom-border w-full max-w-2xl max-h-[80vh] flex flex-col mx-4 opacity-100">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border">
           <h2 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
@@ -178,10 +178,7 @@ When users try to login on mobile devices, the form submits but nothing happens.
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-3 border-t-2 border-chatroom-border bg-chatroom-bg-tertiary">
-          <span className="text-[10px] text-chatroom-text-muted">
-            Tip: Use markdown for formatting. Press ⌘+Enter to submit.
-          </span>
+        <div className="flex items-center justify-end px-4 py-3 border-t-2 border-chatroom-border bg-chatroom-bg-tertiary">
           <div className="flex gap-2">
             <button
               onClick={onClose}
