@@ -493,7 +493,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       Mark a backlog item as ready for user review:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog complete --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog mark-for-review --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id>
       \`\`\`
 
       More actions: \`chatroom backlog --help\`
@@ -1961,7 +1961,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       Mark a backlog item as ready for user review:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog complete --chatroom-id=10078;chatroom_rooms --role=reviewer --task-id=<task-id>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog mark-for-review --chatroom-id=10078;chatroom_rooms --role=reviewer --task-id=<task-id>
       \`\`\`
 
       More actions: \`chatroom backlog --help\`
