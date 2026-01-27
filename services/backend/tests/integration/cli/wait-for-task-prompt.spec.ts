@@ -125,6 +125,9 @@ describe('Wait-for-Task Full Prompt', () => {
     const existingClassification = originMessage?.classification;
 
     // Note: Timestamps will vary, so we use placeholders in expected output
+    // Task content comes from the task object
+    const taskContent = taskDeliveryPrompt.json.task?.content || 'NO TASK CONTENT';
+
     const fullCliMessage = `
 [TIMESTAMP] ⏳ Connecting to chatroom as "builder"...
 [TIMESTAMP] ✅ Connected. Waiting for task...
@@ -190,8 +193,15 @@ EOF
 Classification types: question, new_feature, follow_up
 ============================================================
 
-## 📍 Pinned
-### Primary User Directive
+<!-- CONTEXT: Available Actions & Role Instructions
+${taskDeliveryPrompt.humanReadable}
+-->
+
+============================================================
+📍 PINNED - Work on this immediately
+============================================================
+
+## User Message
 <user-message>
 ${originMessage?.content || 'NO CONTENT'}
 ${
@@ -203,11 +213,24 @@ ${originMessage.attachedTasks.map((t: { content: string }) => t.content).join('\
 }
 </user-message>
 
-### Inferred Task
-${existingClassification ? `Classification: ${existingClassification}` : `Not created yet. Run \`chatroom task-started …\` to specify task.`}
+## Task
+${taskContent}
+${existingClassification ? `\nClassification: ${existingClassification.toUpperCase()}` : ''}
+
+============================================================
+📋 PROCESS
 ============================================================
 
-${taskDeliveryPrompt.humanReadable}
+1. Mark task as started:
+   CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=${chatroomId} --role=builder --task-id=${taskId} --origin-message-classification=follow_up
+
+2. Do the work
+
+3. Hand off when complete:
+   CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=${chatroomId} --role=builder --next-role=<target>
+
+4. Resume listening:
+   CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=${chatroomId} --role=builder
 
 ============================================================
 Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -429,21 +452,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       Classification types: question, new_feature, follow_up
       ============================================================
 
-      ## 📍 Pinned
-      ### Primary User Directive
-      <user-message>
-      Can we add a backlog section to the available actions? Keep it concise and follow current format.
-
-      ATTACHED BACKLOG (1)
-      Fix: Agent lacks knowledge of backlog listing
-
-      Add backlog section to wait-for-task
-      </user-message>
-
-      ### Inferred Task
-      Not created yet. Run \`chatroom task-started …\` to specify task.
-      ============================================================
-
+      <!-- CONTEXT: Available Actions & Role Instructions
       ## Available Actions
 
       ### Gain Context
@@ -479,6 +488,12 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10002;chatroom_rooms --role=builder --status=backlog
+      \`\`\`
+
+      Mark a backlog item as ready for user review:
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog complete --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id>
       \`\`\`
 
       More actions: \`chatroom backlog --help\`
@@ -581,6 +596,40 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       Remember to listen for new messages using \`wait-for-task\` after handoff. Otherwise your team might get stuck not be able to reach you.
 
           CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+      -->
+
+      ============================================================
+      📍 PINNED - Work on this immediately
+      ============================================================
+
+      ## User Message
+      <user-message>
+      Can we add a backlog section to the available actions? Keep it concise and follow current format.
+
+      ATTACHED BACKLOG (1)
+      Fix: Agent lacks knowledge of backlog listing
+
+      Add backlog section to wait-for-task
+      </user-message>
+
+      ## Task
+      Can we add a backlog section to the available actions? Keep it concise and follow current format.
+
+
+      ============================================================
+      📋 PROCESS
+      ============================================================
+
+      1. Mark task as started:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10009;chatroom_tasks --origin-message-classification=follow_up
+
+      2. Do the work
+
+      3. Hand off when complete:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target>
+
+      4. Resume listening:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
 
       ============================================================
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -1907,6 +1956,12 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10078;chatroom_rooms --role=reviewer --status=backlog
+      \`\`\`
+
+      Mark a backlog item as ready for user review:
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog complete --chatroom-id=10078;chatroom_rooms --role=reviewer --task-id=<task-id>
       \`\`\`
 
       More actions: \`chatroom backlog --help\`

@@ -103,13 +103,13 @@ export async function listBacklog(
       tasks = (await client.query(api.tasks.listActiveTasks, {
         sessionId: sessionId as any,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        limit: options.limit || 20,
+        limit: options.limit || 100,
       })) as Task[];
     } else if (statusFilter === 'archived') {
       tasks = (await client.query(api.tasks.listArchivedTasks, {
         sessionId: sessionId as any,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        limit: options.limit || 20,
+        limit: options.limit || 100,
       })) as Task[];
     } else {
       // For specific status filters or 'all', use original listTasks
@@ -130,7 +130,7 @@ export async function listBacklog(
                 | 'active'
                 | 'pending_review'
                 | 'archived'),
-        limit: options.limit || 20,
+        limit: options.limit || 100,
       })) as Task[];
     }
 

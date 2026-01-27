@@ -59,5 +59,11 @@ The chatroom has a task backlog. View items with:
 ${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog
 \`\`\`
 
+Mark a backlog item as ready for user review:
+
+\`\`\`bash
+${cliEnvPrefix}chatroom backlog complete --chatroom-id=${chatroomId} --role=${role} --task-id=<task-id>
+\`\`\`
+
 More actions: \`chatroom backlog --help\``;
 }

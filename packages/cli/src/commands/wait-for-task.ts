@@ -341,11 +341,19 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     console.log(`${'='.repeat(60)}`);
 
-    // Print pinned section with primary user directive
+    // Wrap available actions and role prompts in HTML comments (context for agent)
+    console.log(`\n<!-- CONTEXT: Available Actions & Role Instructions`);
+    console.log(taskDeliveryPrompt.humanReadable);
+    console.log(`-->`);
+
+    // Print pinned section with primary user directive (visible, not in comments)
     const originMessage = taskDeliveryPrompt.json?.contextWindow?.originMessage;
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`📍 PINNED - Work on this immediately`);
+    console.log(`${'='.repeat(60)}`);
+
     if (originMessage && originMessage.senderRole.toLowerCase() === 'user') {
-      console.log(`\n## 📍 Pinned`);
-      console.log(`### Primary User Directive`);
+      console.log(`\n## User Message`);
       console.log(`<user-message>`);
       console.log(originMessage.content);
 
@@ -358,21 +366,33 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       }
 
       console.log(`</user-message>`);
-
-      // Show inferred task status
-      const existingClassification = originMessage.classification;
-      if (existingClassification) {
-        console.log(`\n### Inferred Task`);
-        console.log(`Classification: ${existingClassification}`);
-      } else {
-        console.log(`\n### Inferred Task`);
-        console.log(`Not created yet. Run \`chatroom task-started …\` to specify task.`);
-      }
-      console.log(`${'='.repeat(60)}`);
     }
 
-    // Print human-readable sections
-    console.log(`\n${taskDeliveryPrompt.humanReadable}`);
+    // Show task content (what needs to be done)
+    console.log(`\n## Task`);
+    console.log(task.content);
+
+    // Show classification status
+    const existingClassification = originMessage?.classification;
+    if (existingClassification) {
+      console.log(`\nClassification: ${existingClassification.toUpperCase()}`);
+    }
+
+    // Print clear 4-step process
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`📋 PROCESS`);
+    console.log(`${'='.repeat(60)}`);
+    console.log(`\n1. Mark task as started:`);
+    console.log(
+      `   ${taskStartedCommand({ chatroomId, role, taskId: task._id, classification: 'follow_up', cliEnvPrefix })}`
+    );
+    console.log(`\n2. Do the work`);
+    console.log(`\n3. Hand off when complete:`);
+    console.log(
+      `   ${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target>`
+    );
+    console.log(`\n4. Resume listening:`);
+    console.log(`   ${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}`);
 
     // Add reminder about wait-for-task
     console.log(`\n${'='.repeat(60)}`);
