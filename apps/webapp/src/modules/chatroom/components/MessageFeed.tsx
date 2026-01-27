@@ -22,6 +22,7 @@ import {
   Sparkles,
   RotateCcw,
   ArrowRight,
+  Square,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -388,12 +389,13 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
                       const isLatest = index === progressMessages.length - 1;
                       return (
                         <div key={progress._id} className="relative pl-4">
-                          {/* Timeline dot */}
-                          <div
-                            className={`absolute left-0 top-1 w-[11px] h-[11px] rounded-full border-2 ${
+                          {/* Timeline indicator - square per theme.md */}
+                          <Square
+                            size={11}
+                            className={`absolute left-0 top-1 ${
                               isLatest
-                                ? 'bg-chatroom-status-info border-chatroom-status-info'
-                                : 'bg-chatroom-bg-surface border-chatroom-border'
+                                ? 'text-chatroom-status-info fill-chatroom-status-info'
+                                : 'text-chatroom-border fill-chatroom-bg-surface'
                             }`}
                           />
                           {/* Content */}
