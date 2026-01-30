@@ -282,9 +282,11 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
   const isTaskActive = message.taskStatus === 'in_progress';
 
   // Determine what to display:
-  // - No classification yet: shimmer (waiting for classification)
-  // - Has classification: show badge and single-line truncated title
-  const isAwaitingClassification = !message.classification;
+  // - No classification yet AND task not finished: shimmer (waiting for classification)
+  // - Has classification OR task is finished: show badge and single-line truncated title
+  // Note: Completed/cancelled tasks should never show shimmer even if classification is missing
+  const isTaskFinished = message.taskStatus === 'completed' || message.taskStatus === 'cancelled';
+  const isAwaitingClassification = !message.classification && !isTaskFinished;
 
   // Get display text - use featureTitle if available, otherwise first line of content
   // Truncated to single line for uniform header height
