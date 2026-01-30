@@ -431,6 +431,15 @@ const TRANSITIONS: TransitionRule[] = [
     },
     clearFields: [],
   },
+  {
+    from: 'backlog_acknowledged',
+    to: 'completed',
+    trigger: 'completeTaskById',
+    setFields: {
+      completedAt: 'NOW',
+    },
+    clearFields: [],
+  },
 ];
 
 // ============================================================================
