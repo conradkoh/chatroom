@@ -54,14 +54,18 @@ const getStatusBadge = (status: TaskStatus) => {
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
     case 'acknowledged':
+      return {
+        label: 'Acknowledged',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
     case 'backlog_acknowledged':
       return {
-        label: 'Claimed',
+        label: 'Backlog Acknowledged',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
     case 'in_progress':
       return {
-        label: 'Working',
+        label: 'In Progress',
         classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
       };
     case 'queued':
@@ -76,7 +80,7 @@ const getStatusBadge = (status: TaskStatus) => {
       };
     case 'pending_user_review':
       return {
-        label: 'Review',
+        label: 'Pending User Review',
         classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
       };
     case 'completed':

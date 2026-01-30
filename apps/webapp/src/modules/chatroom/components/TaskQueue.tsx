@@ -430,32 +430,32 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     [reopenBacklogTask]
   );
 
-  // Batch close all claimed tasks
-  const handleCloseAllClaimed = useCallback(async () => {
+  // Batch close all acknowledged tasks
+  const handleCloseAllAcknowledged = useCallback(async () => {
     if (!categorizedTasks.current) return;
 
     // Filter for acknowledged and backlog_acknowledged tasks
-    const claimedTasks = categorizedTasks.current.filter(
+    const acknowledgedTasks = categorizedTasks.current.filter(
       (t) => t.status === 'acknowledged' || t.status === 'backlog_acknowledged'
     );
 
-    if (claimedTasks.length === 0) {
-      console.log('No claimed tasks to close');
+    if (acknowledgedTasks.length === 0) {
+      console.log('No acknowledged tasks to close');
       return;
     }
 
-    // Close all claimed tasks
+    // Close all acknowledged tasks
     try {
       await Promise.all(
-        claimedTasks.map((task) =>
+        acknowledgedTasks.map((task) =>
           cancelTask({
             taskId: task._id as Id<'chatroom_tasks'>,
           })
         )
       );
-      console.log(`Closed ${claimedTasks.length} claimed tasks`);
+      console.log(`Closed ${acknowledgedTasks.length} acknowledged tasks`);
     } catch (error) {
-      console.error('Failed to close all claimed tasks:', error);
+      console.error('Failed to close all acknowledged tasks:', error);
     }
   }, [categorizedTasks.current, cancelTask]);
 
@@ -528,11 +528,11 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[160px]">
                   <DropdownMenuItem
-                    onClick={handleCloseAllClaimed}
+                    onClick={handleCloseAllAcknowledged}
                     className="flex items-center gap-2 cursor-pointer text-chatroom-status-error"
                   >
                     <XCircle size={14} />
-                    Close All Claimed
+                    Close All Acknowledged
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
