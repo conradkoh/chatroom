@@ -23,6 +23,7 @@ import type * as crypto from "../crypto.js";
 import type * as discussions from "../discussions.js";
 import type * as guidelines from "../guidelines.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
+import type * as lib_stdinDecoder from "../lib/stdinDecoder.js";
 import type * as lib_taskRecovery from "../lib/taskRecovery.js";
 import type * as lib_taskStateMachine from "../lib/taskStateMachine.js";
 import type * as lib_taskWorkflows from "../lib/taskWorkflows.js";
@@ -57,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   discussions: typeof discussions;
   guidelines: typeof guidelines;
   "lib/hierarchy": typeof lib_hierarchy;
+  "lib/stdinDecoder": typeof lib_stdinDecoder;
   "lib/taskRecovery": typeof lib_taskRecovery;
   "lib/taskStateMachine": typeof lib_taskStateMachine;
   "lib/taskWorkflows": typeof lib_taskWorkflows;
