@@ -11,6 +11,7 @@ import {
   requireChatroomAccess,
 } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
+import { decodeStructured } from './lib/stdinDecoder';
 import { transitionTask } from './lib/taskStateMachine';
 import { getCompletionStatus } from './lib/taskWorkflows';
 import { getAvailableActions } from '../prompts/base/cli/wait-for-task/available-actions.js';
@@ -18,7 +19,6 @@ import { waitForTaskCommand } from '../prompts/base/cli/wait-for-task/command.js
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
 import { getCliEnvPrefix } from '../prompts/utils/index.js';
-import { decodeStructured } from '../utils/stdin-decoder.js';
 
 const config = getConfig();
 

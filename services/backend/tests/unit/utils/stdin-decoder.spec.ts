@@ -16,7 +16,7 @@ import {
   type DecodeError,
   detectDelimiterCollisions,
   formatDecodeError,
-} from '../../../utils/stdin-decoder';
+} from '../../../convex/lib/stdinDecoder';
 
 describe('decodeMessage', () => {
   test('decodes simple message', () => {
