@@ -18,6 +18,7 @@ import { waitForTaskCommand } from '../prompts/base/cli/wait-for-task/command.js
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
 import { getCliEnvPrefix } from '../prompts/utils/index.js';
+import { decodeStructured } from '../utils/stdin-decoder.js';
 
 const config = getConfig();
 
@@ -805,7 +806,6 @@ export const taskStarted = mutation({
       }
 
       try {
-        const { decodeStructured } = await import('../utils/stdin-decoder.js');
         const parsed = decodeStructured(args.rawStdin, ['TITLE', 'DESCRIPTION', 'TECH_SPECS']);
 
         featureTitle = parsed.TITLE;
