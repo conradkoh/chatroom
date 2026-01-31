@@ -8,10 +8,10 @@
 import { v } from 'convex/values';
 
 import { query } from './_generated/server';
-import { getReviewGuidelines } from './prompts/guidelines';
-import { getDesignPolicy } from './prompts/policies/design';
-import { getPerformancePolicy } from './prompts/policies/performance';
-import { getSecurityPolicy } from './prompts/policies/security';
+import { getDesignPolicy } from '../prompts/policies/design';
+import { getPerformancePolicy } from '../prompts/policies/performance';
+import { getSecurityPolicy } from '../prompts/policies/security';
+import { getReviewGuidelines } from '../prompts/teams/pair/roles';
 
 /**
  * Available guideline types

@@ -51,35 +51,34 @@ Once all agents have joined (team shows as "ready"), type your task in the messa
 
 ### Authentication Commands
 
-| Command               | Description                           |
-| --------------------- | ------------------------------------- |
-| `chatroom auth login` | Authenticate CLI via browser          |
+| Command               | Description                  |
+| --------------------- | ---------------------------- |
+| `chatroom auth login` | Authenticate CLI via browser |
 
 ### User Commands
 
-| Command                  | Description                      |
-| ------------------------ | -------------------------------- |
-| `chatroom init`          | Initialize configuration file    |
+| Command                  | Description                          |
+| ------------------------ | ------------------------------------ |
 | `chatroom update`        | Update the CLI to the latest version |
-| `chatroom list`          | List chatroom history            |
-| `chatroom complete <id>` | Mark a chatroom as completed     |
+| `chatroom list`          | List chatroom history                |
+| `chatroom complete <id>` | Mark a chatroom as completed         |
 
 > **Note:** Chatrooms are created via the WebUI.
 
 ### Agent Commands
 
-| Command                                                                  | Description                         |
-| ------------------------------------------------------------------------ | ----------------------------------- |
-| `chatroom wait-for-task <id> --role=<role>`                              | Join chatroom and wait for tasks    |
-| `chatroom handoff <id> --role=<role> --message="..." --next-role=<role>` | Complete task and hand off          |
+| Command                                                                  | Description                      |
+| ------------------------------------------------------------------------ | -------------------------------- |
+| `chatroom wait-for-task <id> --role=<role>`                              | Join chatroom and wait for tasks |
+| `chatroom handoff <id> --role=<role> --message="..." --next-role=<role>` | Complete task and hand off       |
 
 ### Backlog Commands
 
-| Command                                                      | Description                    |
-| ------------------------------------------------------------ | ------------------------------ |
-| `chatroom backlog list <id> --role=<role>`                   | List tasks in a chatroom       |
-| `chatroom backlog add <id> --role=<role> --content="..."`    | Add a task to the backlog      |
-| `chatroom backlog complete <id> --role=<role> --task-id=...` | Mark a backlog task as done    |
+| Command                                                      | Description                 |
+| ------------------------------------------------------------ | --------------------------- |
+| `chatroom backlog list <id> --role=<role>`                   | List tasks in a chatroom    |
+| `chatroom backlog add <id> --role=<role> --content="..."`    | Add a task to the backlog   |
+| `chatroom backlog complete <id> --role=<role> --task-id=...` | Mark a backlog task as done |
 
 ---
 
@@ -152,6 +151,7 @@ pnpm dev
 ```
 
 This starts:
+
 - **Convex backend** at `http://127.0.0.1:3210`
 - **Webapp** at `http://localhost:3000`
 
@@ -192,10 +192,10 @@ CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task <chatroom-id> -
 
 ### Environment Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `CHATROOM_CONVEX_URL` | Override the Convex backend URL | `http://127.0.0.1:3210` |
-| `CHATROOM_WEB_URL` | Override the webapp URL (auth only) | `http://localhost:3000` |
+| Variable              | Description                         | Example                 |
+| --------------------- | ----------------------------------- | ----------------------- |
+| `CHATROOM_CONVEX_URL` | Override the Convex backend URL     | `http://127.0.0.1:3210` |
+| `CHATROOM_WEB_URL`    | Override the webapp URL (auth only) | `http://localhost:3000` |
 
 **Note:** Sessions are stored per Convex URL. You can be authenticated to both production and local backends simultaneously.
 

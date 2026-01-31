@@ -17,6 +17,22 @@
         "command": "pnpm typecheck",
         "cwd": "packages/cli"
       }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm test",
+        "cwd": "packages/cli"
+      },
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "test:watch": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm test:watch",
+        "cwd": "packages/cli"
+      },
+      "continuous": true
     }
   }
 }

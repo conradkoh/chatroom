@@ -1,4 +1,4 @@
-import { ConvexHttpClient } from 'convex/browser';
+import { ConvexHttpClient, ConvexClient } from 'convex/browser';
 
 /**
  * The default Convex URL for the chatroom cloud service.
@@ -13,10 +13,20 @@ export function getConvexUrl(): string {
   return process.env.CHATROOM_CONVEX_URL || DEFAULT_CONVEX_URL;
 }
 
+/**
+ * Check if Convex client logging should be enabled.
+ * Defaults to false to keep CLI output clean.
+ * Set CHATROOM_ENABLE_CLIENT_LOGGING=true to enable backend logs streaming to CLI.
+ */
+export function isClientLoggingEnabled(): boolean {
+  return process.env.CHATROOM_ENABLE_CLIENT_LOGGING === 'true';
+}
+
 // For backwards compatibility - use getConvexUrl() instead
 export const CONVEX_URL = DEFAULT_CONVEX_URL;
 
 let client: ConvexHttpClient | null = null;
+let wsClient: ConvexClient | null = null;
 let cachedUrl: string | null = null;
 
 /**
@@ -33,9 +43,36 @@ export async function getConvexClient(): Promise<ConvexHttpClient> {
 
   if (!client) {
     cachedUrl = url;
-    client = new ConvexHttpClient(url);
+    const enableLogging = isClientLoggingEnabled();
+    client = new ConvexHttpClient(url, {
+      logger: enableLogging,
+    });
   }
   return client;
+}
+
+/**
+ * Get a singleton Convex WebSocket client instance.
+ * This client supports real-time subscriptions via onUpdate.
+ * The client is lazily initialized on first use.
+ */
+export async function getConvexWsClient(): Promise<ConvexClient> {
+  const url = getConvexUrl();
+
+  // Reset client if URL has changed
+  if (wsClient && cachedUrl !== url) {
+    await wsClient.close();
+    wsClient = null;
+  }
+
+  if (!wsClient) {
+    cachedUrl = url;
+    const enableLogging = isClientLoggingEnabled();
+    wsClient = new ConvexClient(url, {
+      logger: enableLogging,
+    });
+  }
+  return wsClient;
 }
 
 /**
@@ -43,5 +80,9 @@ export async function getConvexClient(): Promise<ConvexHttpClient> {
  */
 export function resetConvexClient(): void {
   client = null;
+  if (wsClient) {
+    wsClient.close();
+    wsClient = null;
+  }
   cachedUrl = null;
 }

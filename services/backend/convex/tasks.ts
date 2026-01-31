@@ -1,12 +1,14 @@
 import { v } from 'convex/values';
 
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
 import {
   areAllAgentsReady,
   getAndIncrementQueuePosition,
   requireChatroomAccess,
   validateSession,
-} from './lib/cliSessionAuth';
+} from './auth/cliSessionAuth';
+import { recoverOrphanedTasks } from './lib/taskRecovery';
+import { transitionTask } from './lib/taskStateMachine';
 
 /**
  * Maximum number of active tasks per chatroom.
@@ -92,11 +94,12 @@ export const createTask = mutation({
 });
 
 /**
- * Start working on a task.
- * Finds the pending task and transitions it to in_progress.
+ * Claim a pending task (acknowledge it without starting work yet).
+ * Transitions: pending → acknowledged
+ * This is called by wait-for-task to reserve a task for an agent.
  * Requires CLI session authentication and chatroom access.
  */
-export const startTask = mutation({
+export const claimTask = mutation({
   args: {
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
@@ -115,15 +118,14 @@ export const startTask = mutation({
       .first();
 
     if (!pendingTask) {
-      throw new Error('No pending task to start');
+      throw new Error('No pending task to claim');
     }
 
     const now = Date.now();
-    await ctx.db.patch('chatroom_tasks', pendingTask._id, {
-      status: 'in_progress',
+
+    // Transition: pending → acknowledged using FSM
+    await transitionTask(ctx, pendingTask._id, 'acknowledged', 'claimTask', {
       assignedTo: args.role,
-      startedAt: now,
-      updatedAt: now,
     });
 
     // Set acknowledgedAt on the source message (if not already set)
@@ -137,6 +139,69 @@ export const startTask = mutation({
     }
 
     return { taskId: pendingTask._id, content: pendingTask.content };
+  },
+});
+
+/**
+ * Start working on an acknowledged task.
+ * Transitions: acknowledged → in_progress
+ * This is called when agent begins actual work (sends task-started message).
+ * Requires CLI session authentication and chatroom access.
+ */
+export const startTask = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    taskId: v.optional(v.id('chatroom_tasks')), // Optional: specific task to start
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access (chatroom not needed)
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    let acknowledgedTask;
+
+    if (args.taskId) {
+      // Start a specific task (used by task-started command)
+      acknowledgedTask = await ctx.db.get('chatroom_tasks', args.taskId);
+
+      if (!acknowledgedTask) {
+        throw new Error(`Task ${args.taskId} not found`);
+      }
+
+      if (acknowledgedTask.chatroomId !== args.chatroomId) {
+        throw new Error('Task does not belong to this chatroom');
+      }
+
+      if (acknowledgedTask.status !== 'acknowledged') {
+        throw new Error(
+          `Task must be acknowledged to start (current status: ${acknowledgedTask.status})`
+        );
+      }
+
+      if (acknowledgedTask.assignedTo !== args.role) {
+        throw new Error(`Task is assigned to ${acknowledgedTask.assignedTo}, not ${args.role}`);
+      }
+    } else {
+      // Find any acknowledged task for this role (legacy behavior)
+      acknowledgedTask = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+        )
+        .filter((q) => q.eq(q.field('assignedTo'), args.role))
+        .first();
+
+      if (!acknowledgedTask) {
+        throw new Error('No acknowledged task to start for this role');
+      }
+    }
+
+    // Transition: acknowledged → in_progress using FSM
+
+    await transitionTask(ctx, acknowledgedTask._id, 'in_progress', 'startTask');
+
+    return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
   },
 });
 
@@ -170,21 +235,20 @@ export const completeTask = mutation({
       return { completed: false, completedCount: 0, promoted: null, pendingReview: [] };
     }
 
-    const now = Date.now();
     const pendingReview: string[] = [];
+
+    // Load FSM once for all transitions
 
     // Complete ALL in_progress tasks based on their origin
     for (const task of inProgressTasks) {
       // Determine the new status based on origin:
       // - backlog-origin tasks → pending_user_review (user must confirm completion)
       // - chat-origin tasks → completed
-      const newStatus = task.origin === 'backlog' ? 'pending_user_review' : 'completed';
+      const newStatus: 'pending_user_review' | 'completed' =
+        task.origin === 'backlog' ? 'pending_user_review' : 'completed';
 
-      await ctx.db.patch('chatroom_tasks', task._id, {
-        status: newStatus,
-        ...(newStatus === 'completed' && { completedAt: now }),
-        updatedAt: now,
-      });
+      // Use FSM for transition
+      await transitionTask(ctx, task._id, newStatus, 'completeTask');
 
       if (newStatus === 'pending_user_review') {
         pendingReview.push(task._id);
@@ -217,10 +281,7 @@ export const completeTask = mutation({
       const nextTask = queuedTasks[0];
 
       if (nextTask) {
-        await ctx.db.patch('chatroom_tasks', nextTask._id, {
-          status: 'pending',
-          updatedAt: now,
-        });
+        await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
         return {
           completed: true,
           completedCount: inProgressTasks.length,
@@ -245,7 +306,8 @@ export const completeTask = mutation({
 
 /**
  * Cancel a task.
- * Only allowed for pending, queued, backlog, and pending_user_review tasks.
+ * Allowed for pending, acknowledged, queued, backlog, backlog_acknowledged, pending_user_review, and in_progress tasks.
+ * For in_progress tasks, requires force: true to prevent accidental cancellation.
  * If a pending task is cancelled, promotes the next queued task.
  * Uses 'closed' status for all cancelled tasks.
  * Requires CLI session authentication and chatroom access.
@@ -254,6 +316,7 @@ export const cancelTask = mutation({
   args: {
     sessionId: v.string(),
     taskId: v.id('chatroom_tasks'),
+    force: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const task = await ctx.db.get('chatroom_tasks', args.taskId);
@@ -264,23 +327,47 @@ export const cancelTask = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Only allow cancellation of pending, queued, backlog, and pending_user_review tasks (not in_progress)
-    const allowedStatuses = ['pending', 'queued', 'backlog', 'pending_user_review'];
+    // Allow cancellation of most task statuses except completed/closed
+    // For in_progress tasks, require force flag to prevent accidental cancellation
+    const allowedStatuses = [
+      'pending',
+      'acknowledged',
+      'queued',
+      'backlog',
+      'backlog_acknowledged',
+      'pending_user_review',
+      'in_progress',
+    ];
     if (!allowedStatuses.includes(task.status)) {
       throw new Error(`Cannot cancel task with status: ${task.status}`);
     }
 
-    const now = Date.now();
+    // For in_progress tasks, require force flag
+    if (task.status === 'in_progress' && !args.force) {
+      throw new Error(
+        `Task is in_progress. This task is currently being worked on. ` +
+          `Use --force to cancel an active task.`
+      );
+    }
+
     const wasPending = task.status === 'pending';
+    const wasInProgress = task.status === 'in_progress';
 
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'closed' as const,
-      updatedAt: now,
-    });
+    // Use FSM for transition
 
-    // If we cancelled a pending task, promote the next queued task only if all agents are ready
+    await transitionTask(ctx, args.taskId, 'closed', 'cancelTask');
+
+    // Log force cancellation for in_progress tasks
+    if (wasInProgress) {
+      console.warn(
+        `[Force Cancel] Task ${args.taskId} force-cancelled from in_progress. ` +
+          `Content: "${task.content.substring(0, 50)}${task.content.length > 50 ? '...' : ''}"`
+      );
+    }
+
+    // If we cancelled a pending or in_progress task, promote the next queued task only if all agents are ready
     let promoted = null;
-    if (wasPending) {
+    if (wasPending || wasInProgress) {
       const allAgentsReady = await areAllAgentsReady(ctx, task.chatroomId);
 
       if (allAgentsReady) {
@@ -296,14 +383,11 @@ export const cancelTask = mutation({
           queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
           const nextTask = queuedTasks[0];
 
-          await ctx.db.patch('chatroom_tasks', nextTask._id, {
-            status: 'pending',
-            updatedAt: now,
-          });
+          await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
 
           // Log the automatic promotion
           console.warn(
-            `[Queue Promotion] Auto-promoted task ${nextTask._id} after cancellation of pending task ${args.taskId}. ` +
+            `[Queue Promotion] Auto-promoted task ${nextTask._id} after cancellation of ${task.status} task ${args.taskId}. ` +
               `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
           );
 
@@ -311,7 +395,7 @@ export const cancelTask = mutation({
         }
       } else {
         console.warn(
-          `[Queue Promotion Deferred] Cancelled pending task ${args.taskId} but some agents are still active. ` +
+          `[Queue Promotion Deferred] Cancelled ${task.status} task ${args.taskId} but some agents are still active. ` +
             `Queue promotion deferred until all agents are ready.`
         );
       }
@@ -342,10 +426,13 @@ export const completeTaskById = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    const now = Date.now();
-
-    // For pending/in_progress tasks, require force flag
-    if (task.status === 'pending' || task.status === 'in_progress') {
+    // For active tasks (pending, in_progress, acknowledged, backlog_acknowledged), require force flag
+    if (
+      task.status === 'pending' ||
+      task.status === 'in_progress' ||
+      task.status === 'acknowledged' ||
+      task.status === 'backlog_acknowledged'
+    ) {
       if (!args.force) {
         throw new Error(
           `Task is ${task.status}. Use --force to complete an active task. ` +
@@ -353,18 +440,17 @@ export const completeTaskById = mutation({
         );
       }
 
-      // Complete the task
-      await ctx.db.patch('chatroom_tasks', args.taskId, {
-        status: 'completed',
-        completedAt: now,
-        updatedAt: now,
-      });
+      // Use FSM for transition
 
-      // Log force completion
-      console.warn(
-        `[Force Complete] Task ${args.taskId} force-completed from ${task.status}. ` +
-          `Content: "${task.content.substring(0, 50)}${task.content.length > 50 ? '...' : ''}"`
-      );
+      await transitionTask(ctx, args.taskId, 'completed', 'completeTaskById');
+
+      // Log force completion (suppress during testing)
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn(
+          `[Force Complete] Task ${args.taskId} force-completed from ${task.status}. ` +
+            `Content: "${task.content.substring(0, 50)}${task.content.length > 50 ? '...' : ''}"`
+        );
+      }
 
       // Auto-promote the next queued task only if all agents are ready
       let promoted = null;
@@ -383,10 +469,7 @@ export const completeTaskById = mutation({
           queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
           const nextTask = queuedTasks[0];
 
-          await ctx.db.patch('chatroom_tasks', nextTask._id, {
-            status: 'pending',
-            updatedAt: now,
-          });
+          await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
 
           console.warn(
             `[Queue Promotion] Auto-promoted task ${nextTask._id} after force-completing ${args.taskId}. ` +
@@ -408,15 +491,11 @@ export const completeTaskById = mutation({
     // For backlog and queued tasks, complete normally (no promotion needed)
     if (task.status !== 'backlog' && task.status !== 'queued') {
       throw new Error(
-        `Cannot complete task with status: ${task.status}. Only backlog, queued, pending, and in_progress tasks can be completed.`
+        `Cannot complete task with status: ${task.status}. Only backlog, queued, pending, in_progress, acknowledged, and backlog_acknowledged tasks can be completed.`
       );
     }
 
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'completed',
-      completedAt: now,
-      updatedAt: now,
-    });
+    await transitionTask(ctx, args.taskId, 'completed', 'completeTaskById');
 
     return { success: true, taskId: args.taskId, promoted: null, wasForced: false };
   },
@@ -442,8 +521,12 @@ export const updateTask = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Only allow editing of queued and backlog tasks
-    if (task.status !== 'queued' && task.status !== 'backlog') {
+    // Only allow editing of queued, backlog, pending, acknowledged, and backlog_acknowledged tasks
+    if (
+      !['queued', 'backlog', 'pending', 'acknowledged', 'backlog_acknowledged'].includes(
+        task.status
+      )
+    ) {
       throw new Error(`Cannot edit task with status: ${task.status}`);
     }
 
@@ -501,7 +584,7 @@ export const moveToQueue = mutation({
 
     // If no pending/in_progress, this becomes pending
     // Otherwise, it goes to the queue
-    const newStatus = activeTasks.length > 0 ? 'queued' : 'pending';
+    const newStatus: 'queued' | 'pending' = activeTasks.length > 0 ? 'queued' : 'pending';
 
     const now = Date.now();
 
@@ -521,11 +604,14 @@ export const moveToQueue = mutation({
       attachedTaskIds: [args.taskId],
     });
 
-    // Update task with new status and link to the message
+    // Update task with new status and link to the message using FSM
+
+    await transitionTask(ctx, args.taskId, newStatus, 'moveToQueue');
+
+    // Update sourceMessageId separately (not part of FSM transition)
     await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: newStatus,
-      updatedAt: now,
       sourceMessageId: messageId,
+      updatedAt: now,
     });
 
     // Link message to task
@@ -577,12 +663,48 @@ export const markBacklogComplete = mutation({
       throw new Error(`Cannot complete task with status: ${task.status}`);
     }
 
-    // Update task to completed status
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'completed' as const,
-      completedAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    // Use FSM for transition
+
+    await transitionTask(ctx, args.taskId, 'completed', 'markBacklogComplete');
+
+    return { success: true };
+  },
+});
+
+/**
+ * Mark a backlog task as ready for user review.
+ * Agent indicates they've completed work on this backlog item.
+ * Only allowed for backlog-origin tasks in 'backlog' status.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const markBacklogForReview = mutation({
+  args: {
+    sessionId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+
+    // Task must be a backlog-origin task
+    if (task.origin !== 'backlog') {
+      throw new Error('Task is not a backlog item');
+    }
+
+    // Only allowed for tasks in 'backlog' status
+    if (task.status !== 'backlog') {
+      throw new Error(
+        `Cannot mark task for review with status: ${task.status}. Task must be in 'backlog' status.`
+      );
+    }
+
+    // Use FSM for transition
+    await transitionTask(ctx, args.taskId, 'pending_user_review', 'markForReview');
 
     return { success: true };
   },
@@ -618,11 +740,9 @@ export const closeBacklogTask = mutation({
       throw new Error(`Task is already ${task.status}`);
     }
 
-    // Update task status to 'closed'
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'closed' as const,
-      updatedAt: Date.now(),
-    });
+    // Use FSM for transition
+
+    await transitionTask(ctx, args.taskId, 'closed', 'cancelTask');
 
     return { success: true };
   },
@@ -658,12 +778,9 @@ export const reopenBacklogTask = mutation({
       throw new Error(`Task is ${task.status}, not completed or closed`);
     }
 
-    // Reopen to pending_user_review (user can then review or send back)
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: 'pending_user_review' as const,
-      completedAt: undefined,
-      updatedAt: Date.now(),
-    });
+    // Use FSM for transition
+
+    await transitionTask(ctx, args.taskId, 'pending_user_review', 'reopenBacklogTask');
 
     return { success: true };
   },
@@ -716,7 +833,7 @@ export const sendBackForRework = mutation({
       .collect();
 
     // Determine new status: queued if active task exists, pending otherwise
-    const newStatus = activeTasks.length > 0 ? 'queued' : 'pending';
+    const newStatus: 'queued' | 'pending' = activeTasks.length > 0 ? 'queued' : 'pending';
 
     // If feedback provided, create a message from user
     let messageId = null;
@@ -737,9 +854,12 @@ export const sendBackForRework = mutation({
       });
     }
 
-    // Update task status back to queue
+    // Update task status back to queue using FSM
+
+    await transitionTask(ctx, args.taskId, newStatus, 'sendBackForRework');
+
+    // Update sourceMessageId separately (not part of FSM transition)
     await ctx.db.patch('chatroom_tasks', args.taskId, {
-      status: newStatus,
       sourceMessageId: messageId || task.sourceMessageId,
       updatedAt: now,
     });
@@ -806,6 +926,48 @@ export const patchTask = mutation({
 });
 
 /**
+ * Reset a stuck in_progress task back to pending.
+ * Used for manual recovery when an agent crashes without completing.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const resetStuckTask = mutation({
+  args: {
+    sessionId: v.string(),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error('Task not found');
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+
+    // Only allow resetting in_progress tasks
+    if (task.status !== 'in_progress') {
+      throw new Error(
+        `Cannot reset task with status: ${task.status}. Only in_progress tasks can be reset.`
+      );
+    }
+
+    // Use FSM for transition
+
+    await transitionTask(ctx, args.taskId, 'pending', 'resetStuckTask');
+
+    // Log manual reset (suppress during testing)
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn(
+        `[Manual Reset] chatroomId=${task.chatroomId} taskId=${args.taskId} ` +
+          `previousAssignee=${task.assignedTo || 'unknown'} action=reset_to_pending`
+      );
+    }
+
+    return { success: true, previousAssignee: task.assignedTo };
+  },
+});
+
+/**
  * List tasks in a chatroom.
  * Optionally filter by status.
  * Backlog tasks are sorted by priority descending (higher = first), then by createdAt descending.
@@ -825,7 +987,7 @@ export const listTasks = query({
         v.literal('completed'),
         v.literal('closed'),
         v.literal('pending_user_review'),
-        v.literal('active'), // pending + in_progress + queued + backlog
+        v.literal('active'), // pending + acknowledged + in_progress + queued + backlog + backlog_acknowledged
         v.literal('pending_review'), // pending_user_review status
         v.literal('archived') // completed + closed
       )
@@ -847,9 +1009,11 @@ export const listTasks = query({
         tasks = tasks.filter(
           (t) =>
             t.status === 'pending' ||
+            t.status === 'acknowledged' ||
             t.status === 'in_progress' ||
             t.status === 'queued' ||
-            t.status === 'backlog'
+            t.status === 'backlog' ||
+            t.status === 'backlog_acknowledged'
         );
       } else if (args.statusFilter === 'pending_review') {
         // Pending review: tasks in pending_user_review status
@@ -885,6 +1049,90 @@ export const listTasks = query({
     // Apply limit (capped at MAX_TASK_LIST_LIMIT)
     const limit = args.limit ? Math.min(args.limit, MAX_TASK_LIST_LIMIT) : MAX_TASK_LIST_LIMIT;
     return tasks.slice(0, limit);
+  },
+});
+
+/**
+ * List active tasks in a chatroom (all tasks that are not completed or closed).
+ * Active tasks include: pending, acknowledged, in_progress, queued, backlog, backlog_acknowledged, pending_user_review.
+ * Sorted by queuePosition ascending for active queue items.
+ * No hard limit applied - returns all active tasks.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const listActiveTasks = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Get all tasks for this chatroom
+    let tasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    // Filter for active tasks (not completed or closed)
+    tasks = tasks.filter(
+      (t) =>
+        t.status === 'pending' ||
+        t.status === 'acknowledged' ||
+        t.status === 'in_progress' ||
+        t.status === 'queued' ||
+        t.status === 'backlog' ||
+        t.status === 'backlog_acknowledged' ||
+        t.status === 'pending_user_review'
+    );
+
+    // Sort by queuePosition for active queue items
+    tasks.sort((a, b) => a.queuePosition - b.queuePosition);
+
+    // Apply limit if specified
+    if (args.limit) {
+      return tasks.slice(0, args.limit);
+    }
+
+    return tasks;
+  },
+});
+
+/**
+ * List archived tasks in a chatroom (completed or closed tasks).
+ * Sorted by updatedAt descending (most recently updated first).
+ * No hard limit applied - returns all archived tasks.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const listArchivedTasks = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Get all tasks for this chatroom
+    let tasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    // Filter for archived tasks (completed or closed)
+    tasks = tasks.filter((t) => t.status === 'completed' || t.status === 'closed');
+
+    // Sort by updatedAt descending (most recently updated first)
+    tasks.sort((a, b) => b.updatedAt - a.updatedAt);
+
+    // Apply limit if specified
+    if (args.limit) {
+      return tasks.slice(0, args.limit);
+    }
+
+    return tasks;
   },
 });
 
@@ -979,11 +1227,9 @@ export const promoteNextTask = mutation({
     queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
     const nextTask = queuedTasks[0];
 
-    const now = Date.now();
-    await ctx.db.patch('chatroom_tasks', nextTask._id, {
-      status: 'pending',
-      updatedAt: now,
-    });
+    // Use FSM for transition
+
+    await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
 
     // Log the promotion
     console.warn(
@@ -1064,9 +1310,11 @@ export const getTaskCounts = query({
 
     return {
       pending: tasks.filter((t) => t.status === 'pending').length,
+      acknowledged: tasks.filter((t) => t.status === 'acknowledged').length,
       in_progress: tasks.filter((t) => t.status === 'in_progress').length,
       queued: tasks.filter((t) => t.status === 'queued').length,
       backlog: tasks.filter((t) => t.status === 'backlog').length,
+      backlog_acknowledged: tasks.filter((t) => t.status === 'backlog_acknowledged').length,
       pending_user_review: tasks.filter((t) => t.status === 'pending_user_review').length,
       completed: tasks.filter((t) => t.status === 'completed').length,
       closed: tasks.filter((t) => t.status === 'closed').length,
@@ -1104,6 +1352,7 @@ export const getPendingTasksForRole = query({
       .collect();
 
     // Filter for tasks assigned to this role or user-created tasks routed to entry point
+    // Status is now the single source of truth - no need to check timestamps
     const relevantTasks = pendingTasks.filter((task) => {
       // If task has explicit assignment, check it matches
       if (task.assignedTo) {
@@ -1174,6 +1423,43 @@ export const getTasksByIds = query({
 });
 
 /**
+ * Get a single task by ID.
+ * Used by CLI to fetch task details efficiently without listing all tasks.
+ * Requires CLI session authentication and validates task belongs to specified chatroom.
+ */
+export const getTask = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Fetch the task directly by ID
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      return null;
+    }
+
+    // Verify task belongs to the specified chatroom
+    if (task.chatroomId !== args.chatroomId) {
+      return null;
+    }
+
+    return {
+      _id: task._id,
+      content: task.content,
+      status: task.status,
+      origin: task.origin,
+      createdAt: task.createdAt,
+      createdBy: task.createdBy,
+    };
+  },
+});
+
+/**
  * Get task system limits.
  * Returns the configured limits for task operations.
  * This allows clients to use the same limits as the server.
@@ -1185,5 +1471,65 @@ export const getTaskLimits = query({
       maxActiveTasks: MAX_ACTIVE_TASKS,
       maxTaskListLimit: MAX_TASK_LIST_LIMIT,
     };
+  },
+});
+
+/**
+ * Internal mutation to clean up stale agents.
+ * Called by cron job every 2 minutes.
+ * Detects agents that have exceeded their timeout without disconnecting.
+ * Resets them to idle and recovers any orphaned tasks.
+ */
+export const cleanupStaleAgents = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // Only query participants that could be stale (active or waiting status)
+    // This avoids scanning idle participants unnecessarily
+    const activeParticipants = await ctx.db
+      .query('chatroom_participants')
+      .filter((q) => q.eq(q.field('status'), 'active'))
+      .collect();
+
+    const waitingParticipants = await ctx.db
+      .query('chatroom_participants')
+      .filter((q) => q.eq(q.field('status'), 'waiting'))
+      .collect();
+
+    const candidateParticipants = [...activeParticipants, ...waitingParticipants];
+
+    let cleanedCount = 0;
+    const affectedTasks: string[] = [];
+
+    for (const p of candidateParticipants) {
+      const isStaleActive = p.status === 'active' && p.activeUntil && now > p.activeUntil;
+      const isStaleWaiting = p.status === 'waiting' && p.readyUntil && now > p.readyUntil;
+
+      if (isStaleActive || isStaleWaiting) {
+        // Reset participant to idle
+        await ctx.db.patch('chatroom_participants', p._id, {
+          status: 'idle',
+          readyUntil: undefined,
+          activeUntil: undefined,
+        });
+
+        // If was active, recover their orphaned tasks using shared helper
+        if (isStaleActive) {
+          const recovered = await recoverOrphanedTasks(ctx, p.chatroomId, p.role);
+          affectedTasks.push(...recovered);
+        }
+
+        cleanedCount++;
+      }
+    }
+
+    // Summary log (one per run, includes affected task IDs)
+    if (cleanedCount > 0) {
+      console.warn(
+        `[Stale Cleanup] Cleaned ${cleanedCount} participants, recovered ${affectedTasks.length} tasks. ` +
+          `taskIds=${affectedTasks.join(',') || 'none'}`
+      );
+    }
   },
 });

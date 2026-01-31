@@ -8,6 +8,7 @@
 
 import { Command } from 'commander';
 
+import { readStdin } from './utils/stdin.js';
 import { getVersion } from './version.js';
 
 const program = new Command();
@@ -67,19 +68,6 @@ authCommand
   });
 
 // ============================================================================
-// INIT COMMAND (no auth required)
-// ============================================================================
-
-program
-  .command('init')
-  .description('Initialize configuration file (.chatroom/chatroom.jsonc)')
-  .option('-f, --force', 'Overwrite existing configuration')
-  .action(async (options: { force?: boolean }) => {
-    const { initConfig } = await import('./commands/init.js');
-    await initConfig(options);
-  });
-
-// ============================================================================
 // UPDATE COMMAND (no auth required)
 // ============================================================================
 
@@ -96,17 +84,14 @@ program
 // ============================================================================
 
 program
-  .command('wait-for-task <chatroomId>')
+  .command('wait-for-task')
   .description('Join a chatroom and wait for tasks')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Role to join as (e.g., builder, reviewer)')
   .option('--timeout <ms>', 'Optional timeout in milliseconds (deprecated, use --duration)')
   .option('--duration <duration>', 'How long to wait (e.g., "1m", "5m", "30s")')
-  .option('--session <n>', 'Current session number (for tracking progress)', '1')
   .action(
-    async (
-      chatroomId: string,
-      options: { role: string; timeout?: string; duration?: string; session?: string }
-    ) => {
+    async (options: { chatroomId: string; role: string; timeout?: string; duration?: string }) => {
       await maybeRequireAuth();
       const { waitForTask, parseDuration } = await import('./commands/wait-for-task.js');
 
@@ -125,149 +110,211 @@ program
         timeoutMs = parseInt(options.timeout, 10);
       }
 
-      // Parse session number (default to 1)
-      const sessionNumber = options.session ? parseInt(options.session, 10) : 1;
-
-      await waitForTask(chatroomId, {
+      await waitForTask(options.chatroomId, {
         role: options.role,
         timeout: timeoutMs,
         duration: options.duration,
-        session: sessionNumber,
       });
     }
   );
 
 program
-  .command('task-started <chatroomId>')
-  .description('Acknowledge a task and classify the user message')
+  .command('task-started')
+  .description('Acknowledge a task and optionally classify the user message')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption(
-    '--classification <type>',
-    'Message classification: question, new_feature, or follow_up'
-  )
-  .option('--title <title>', 'Feature title (required for new_feature)')
   .option(
-    '--description-file <path>',
-    'Path to file containing feature description (required for new_feature)'
+    '--origin-message-classification <type>',
+    'Original message classification: question, new_feature, or follow_up (for entry point roles)'
   )
   .option(
-    '--tech-specs-file <path>',
-    'Path to file containing technical specifications (required for new_feature)'
+    '--no-classify',
+    'Skip classification (for handoff recipients - classification already done by entry point)'
   )
+  .requiredOption('--task-id <taskId>', 'Task ID to acknowledge')
   .action(
-    async (
-      chatroomId: string,
-      options: {
-        role: string;
-        classification: string;
-        title?: string;
-        descriptionFile?: string;
-        techSpecsFile?: string;
-      }
-    ) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      originMessageClassification?: string;
+      classify?: boolean; // Note: Commander.js sets this to false when --no-classify is used
+      taskId: string;
+    }) => {
       await maybeRequireAuth();
-      const validClassifications = ['question', 'new_feature', 'follow_up'];
-      if (!validClassifications.includes(options.classification)) {
+
+      // Commander.js converts --no-classify to classify: false
+      const skipClassification = options.classify === false;
+
+      // Validate: must have either --no-classify or --origin-message-classification
+      if (!skipClassification && !options.originMessageClassification) {
+        console.error(`❌ Either --no-classify or --origin-message-classification is required`);
+        console.error('');
+        console.error('   For entry point roles (receiving user messages):');
+        console.error('     Use --origin-message-classification=<type>');
+        console.error('');
+        console.error('   For handoff recipients (receiving from other agents):');
+        console.error('     Use --no-classify');
+        process.exit(1);
+      }
+
+      // Validate: can't have both
+      if (skipClassification && options.originMessageClassification) {
+        console.error(`❌ Cannot use both --no-classify and --origin-message-classification`);
         console.error(
-          `❌ Invalid classification: ${
-            options.classification
-          }. Must be one of: ${validClassifications.join(', ')}`
+          '   Use --no-classify for handoffs, or --origin-message-classification for user messages'
         );
         process.exit(1);
       }
 
-      // Read content from files
-      const { readFileContent } = await import('./utils/file-content.js');
-      let description: string | undefined;
-      let techSpecs: string | undefined;
+      // Validate classification type if provided
+      if (options.originMessageClassification) {
+        const validClassifications = ['question', 'new_feature', 'follow_up'];
+        if (!validClassifications.includes(options.originMessageClassification)) {
+          console.error(
+            `❌ Invalid classification: ${
+              options.originMessageClassification
+            }. Must be one of: ${validClassifications.join(', ')}`
+          );
+          process.exit(1);
+        }
+      }
 
-      try {
-        if (options.descriptionFile) {
-          description = readFileContent(options.descriptionFile, 'description-file');
+      // For new_feature, read stdin and pass it directly to backend
+      let rawStdin: string | undefined;
+      if (options.originMessageClassification === 'new_feature') {
+        const stdinContent = await readStdin();
+
+        if (!stdinContent.trim()) {
+          console.error(
+            '❌ Stdin is empty. For new_feature classification, provide:\n---TITLE---\n[title]\n---DESCRIPTION---\n[description]\n---TECH_SPECS---\n[specs]'
+          );
+          process.exit(1);
         }
-        if (options.techSpecsFile) {
-          techSpecs = readFileContent(options.techSpecsFile, 'tech-specs-file');
-        }
-      } catch (err) {
-        console.error(`❌ ${(err as Error).message}`);
-        process.exit(1);
+
+        rawStdin = stdinContent;
       }
 
       const { taskStarted } = await import('./commands/task-started.js');
-      await taskStarted(chatroomId, {
+      await taskStarted(options.chatroomId, {
         role: options.role,
-        classification: options.classification as 'question' | 'new_feature' | 'follow_up',
-        title: options.title,
-        description,
-        techSpecs,
+        originMessageClassification: options.originMessageClassification as
+          | 'question'
+          | 'new_feature'
+          | 'follow_up'
+          | undefined,
+        taskId: options.taskId,
+        rawStdin,
+        noClassify: skipClassification,
       });
     }
   );
 
 program
-  .command('handoff <chatroomId>')
-  .description('Complete your task and hand off to the next role')
+  .command('task-complete')
+  .description('Complete the current task without handing off to another role')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--message-file <path>', 'Path to file containing completion message')
+  .action(async (options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+
+    const { taskComplete } = await import('./commands/task-complete.js');
+    await taskComplete(options.chatroomId, {
+      role: options.role,
+    });
+  });
+
+program
+  .command('handoff')
+  .description('Complete your task and hand off to the next role')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
   .requiredOption('--next-role <nextRole>', 'Role to hand off to')
+  .option(
+    '--attach-artifact <artifactId>',
+    'Attach artifact to handoff (can be used multiple times)',
+    (value: string, previous: string[]) => {
+      return previous ? [...previous, value] : [value];
+    },
+    []
+  )
   .action(
-    async (
-      chatroomId: string,
-      options: {
-        role: string;
-        messageFile: string;
-        nextRole: string;
-      }
-    ) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      nextRole: string;
+      attachArtifact?: string[];
+    }) => {
       await maybeRequireAuth();
 
-      // Read content from file
-      const { readFileContent } = await import('./utils/file-content.js');
-      let message: string;
+      // Read message from stdin
+      const { decode } = await import('./utils/serialization/decode/index.js');
+      const stdinContent = await readStdin();
 
+      let message: string;
       try {
-        message = readFileContent(options.messageFile, 'message-file');
+        const result = decode(stdinContent, { singleParam: 'message' });
+        message = result.message;
       } catch (err) {
-        console.error(`❌ ${(err as Error).message}`);
+        console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
         process.exit(1);
       }
 
       // Validate that message is not empty
       if (!message || message.trim().length === 0) {
-        console.error('❌ Message file is empty');
+        console.error('❌ Message is empty');
         process.exit(1);
       }
 
       const { handoff } = await import('./commands/handoff.js');
-      await handoff(chatroomId, { role: options.role, message, nextRole: options.nextRole });
+      await handoff(options.chatroomId, {
+        role: options.role,
+        message,
+        nextRole: options.nextRole,
+        attachedArtifactIds: options.attachArtifact || [],
+      });
     }
   );
 
-// ============================================================================
-// FEATURE COMMANDS (auth required)
-// ============================================================================
-
-const featureCommand = program.command('feature').description('Browse and inspect features');
-
-featureCommand
-  .command('list <chatroomId>')
-  .description('List features in a chatroom')
-  .option('--limit <n>', 'Maximum number of features to show', '10')
-  .action(async (chatroomId: string, options: { limit?: string }) => {
+program
+  .command('report-progress')
+  .description('Report progress on current task (does not complete the task)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .action(async (options: { chatroomId: string; role: string }) => {
     await maybeRequireAuth();
-    const { listFeatures } = await import('./commands/feature.js');
-    await listFeatures(chatroomId, {
-      limit: options.limit ? parseInt(options.limit, 10) : undefined,
+
+    // Read message from stdin (mandatory)
+    const { decode } = await import('./utils/serialization/decode/index.js');
+    const stdinContent = await readStdin();
+
+    if (!stdinContent.trim()) {
+      console.error('❌ No message provided via stdin');
+      console.error("   Usage: chatroom report-progress --chatroom-id=<id> --role=<role> << 'EOF'");
+      console.error('   Your progress message here');
+      console.error('   EOF');
+      process.exit(1);
+    }
+
+    let message: string;
+    try {
+      const result = decode(stdinContent, { singleParam: 'message' });
+      message = result.message;
+    } catch (err) {
+      console.error(`❌ Failed to decode stdin: ${(err as Error).message}`);
+      process.exit(1);
+    }
+
+    // Validate that message is not empty
+    if (!message || message.trim().length === 0) {
+      console.error('❌ Progress message cannot be empty');
+      process.exit(1);
+    }
+
+    const { reportProgress } = await import('./commands/report-progress.js');
+    await reportProgress(options.chatroomId, {
+      role: options.role,
+      message,
     });
-  });
-
-featureCommand
-  .command('inspect <chatroomId> <messageId>')
-  .description('Inspect a specific feature')
-  .action(async (chatroomId: string, messageId: string) => {
-    await maybeRequireAuth();
-    const { inspectFeature } = await import('./commands/feature.js');
-    await inspectFeature(chatroomId, messageId);
   });
 
 // ============================================================================
@@ -277,8 +324,9 @@ featureCommand
 const backlogCommand = program.command('backlog').description('Manage task queue and backlog');
 
 backlogCommand
-  .command('list <chatroomId>')
+  .command('list')
   .description('List tasks in a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption(
     '--status <status>',
@@ -287,21 +335,24 @@ backlogCommand
   .option('--limit <n>', 'Maximum number of tasks to show (required for --status=all)')
   .option('--full', 'Show full task content without truncation')
   .action(
-    async (
-      chatroomId: string,
-      options: { role: string; status: string; limit?: string; full?: boolean }
-    ) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      status: string;
+      limit?: string;
+      full?: boolean;
+    }) => {
       // Validate: --status=all requires --limit
       if (options.status === 'all' && !options.limit) {
         console.error('❌ When using --status=all, you must specify --limit=<n>');
         console.error(
-          '   Example: chatroom backlog list <id> --role=builder --status=all --limit=50'
+          '   Example: chatroom backlog list --chatroom-id=<id> --role=builder --status=all --limit=50'
         );
         process.exit(1);
       }
       await maybeRequireAuth();
       const { listBacklog } = await import('./commands/backlog.js');
-      await listBacklog(chatroomId, {
+      await listBacklog(options.chatroomId, {
         role: options.role,
         status: options.status,
         limit: options.limit ? parseInt(options.limit, 10) : 20,
@@ -311,11 +362,12 @@ backlogCommand
   );
 
 backlogCommand
-  .command('add <chatroomId>')
+  .command('add')
   .description('Add a task to the backlog')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role (creator)')
   .requiredOption('--content-file <path>', 'Path to file containing task content')
-  .action(async (chatroomId: string, options: { role: string; contentFile: string }) => {
+  .action(async (options: { chatroomId: string; role: string; contentFile: string }) => {
     await maybeRequireAuth();
 
     // Read content from file
@@ -336,58 +388,83 @@ backlogCommand
     }
 
     const { addBacklog } = await import('./commands/backlog.js');
-    await addBacklog(chatroomId, { role: options.role, content });
+    await addBacklog(options.chatroomId, { role: options.role, content });
   });
 
 backlogCommand
-  .command('complete <chatroomId>')
+  .command('complete')
   .description('Mark a task as complete. Use --force for stuck in_progress/pending tasks.')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--task-id <taskId>', 'Task ID to complete')
   .option('-f, --force', 'Force complete a stuck in_progress or pending task')
   .action(
-    async (chatroomId: string, options: { role: string; taskId: string; force?: boolean }) => {
+    async (options: { chatroomId: string; role: string; taskId: string; force?: boolean }) => {
       await maybeRequireAuth();
       const { completeBacklog } = await import('./commands/backlog.js');
-      await completeBacklog(chatroomId, options);
+      await completeBacklog(options.chatroomId, options);
     }
   );
 
 backlogCommand
-  .command('reopen <chatroomId>')
+  .command('reopen')
   .description('Reopen a completed backlog task, returning it to pending_user_review status.')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--task-id <taskId>', 'Task ID to reopen')
-  .action(async (chatroomId: string, options: { role: string; taskId: string }) => {
+  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
     await maybeRequireAuth();
     const { reopenBacklog } = await import('./commands/backlog.js');
-    await reopenBacklog(chatroomId, options);
+    await reopenBacklog(options.chatroomId, options);
   });
 
 backlogCommand
-  .command('patch-task <chatroomId>')
+  .command('patch-task')
   .description('Update task scoring fields (complexity, value, priority)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--task-id <taskId>', 'Task ID to patch')
   .option('--complexity <level>', 'Complexity level (low|medium|high)')
   .option('--value <level>', 'Value level (low|medium|high)')
   .option('--priority <n>', 'Priority number (higher = more important)')
   .action(
-    async (
-      chatroomId: string,
-      options: {
-        role: string;
-        taskId: string;
-        complexity?: string;
-        value?: string;
-        priority?: string;
-      }
-    ) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      taskId: string;
+      complexity?: string;
+      value?: string;
+      priority?: string;
+    }) => {
       await maybeRequireAuth();
       const { patchBacklog } = await import('./commands/backlog.js');
-      await patchBacklog(chatroomId, options);
+      await patchBacklog(options.chatroomId, options);
     }
   );
+
+backlogCommand
+  .command('reset-task')
+  .description('Reset a stuck in_progress task back to pending')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--task-id <taskId>', 'Task ID to reset')
+  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
+    await maybeRequireAuth();
+    const { resetBacklog } = await import('./commands/backlog.js');
+    await resetBacklog(options.chatroomId, options);
+  });
+
+backlogCommand
+  .command('mark-for-review')
+  .description('Mark a backlog task as ready for user review (backlog → pending_user_review)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--task-id <taskId>', 'Task ID to mark for review')
+  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
+    await maybeRequireAuth();
+    const { markForReviewBacklog } = await import('./commands/backlog.js');
+    await markForReviewBacklog(options.chatroomId, options);
+  });
 
 // ============================================================================
 // MESSAGES COMMANDS (auth required)
@@ -398,46 +475,42 @@ const messagesCommand = program
   .description('List and filter chatroom messages');
 
 messagesCommand
-  .command('list <chatroomId>')
+  .command('list')
   .description('List messages by sender role or since a specific message')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .option('--sender-role <senderRole>', 'Filter by sender role (e.g., user, builder, reviewer)')
   .option('--since-message-id <messageId>', 'Get all messages since this message ID (inclusive)')
   .option('--limit <n>', 'Maximum number of messages to show')
   .option('--full', 'Show full message content without truncation')
   .action(
-    async (
-      chatroomId: string,
-      options: {
-        role: string;
-        senderRole?: string;
-        sinceMessageId?: string;
-        limit?: string;
-        full?: boolean;
-      }
-    ) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      senderRole?: string;
+      sinceMessageId?: string;
+      limit?: string;
+      full?: boolean;
+    }) => {
       // Validate: must specify either --sender-role or --since-message-id
       if (!options.senderRole && !options.sinceMessageId) {
         console.error('❌ Must specify either --sender-role or --since-message-id');
         console.error('   Examples:');
         console.error(
-          '     chatroom messages list <id> --role=builder --sender-role=user --limit=3'
+          '     chatroom messages list --chatroom-id=<id> --role=builder --sender-role=user --limit=3'
         );
-        console.error('     chatroom messages list <id> --role=builder --since-message-id=<msgId>');
-        process.exit(1);
-      }
-
-      // Cannot use both options together
-      if (options.senderRole && options.sinceMessageId) {
-        console.error('❌ Cannot use both --sender-role and --since-message-id at the same time');
+        console.error(
+          '     chatroom messages list --chatroom-id=<id> --role=builder --since-message-id=<msgId>'
+        );
         process.exit(1);
       }
 
       await maybeRequireAuth();
 
+      // Branch based on which option was provided
       if (options.senderRole) {
         const { listBySenderRole } = await import('./commands/messages.js');
-        await listBySenderRole(chatroomId, {
+        await listBySenderRole(options.chatroomId, {
           role: options.role,
           senderRole: options.senderRole,
           limit: options.limit ? parseInt(options.limit, 10) : 10,
@@ -445,7 +518,7 @@ messagesCommand
         });
       } else if (options.sinceMessageId) {
         const { listSinceMessage } = await import('./commands/messages.js');
-        await listSinceMessage(chatroomId, {
+        await listSinceMessage(options.chatroomId, {
           role: options.role,
           sinceMessageId: options.sinceMessageId,
           limit: options.limit ? parseInt(options.limit, 10) : 100,
@@ -454,6 +527,23 @@ messagesCommand
       }
     }
   );
+
+// ============================================================================
+// CONTEXT COMMANDS (auth required)
+// ============================================================================
+
+const contextCommand = program.command('context').description('Get chatroom context and state');
+
+contextCommand
+  .command('read')
+  .description('Read context for your role (conversation history, tasks, status)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .action(async (options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+    const { readContext } = await import('./commands/context.js');
+    await readContext(options.chatroomId, options);
+  });
 
 // ============================================================================
 // GUIDELINES COMMANDS (auth required)
@@ -480,6 +570,68 @@ guidelinesCommand
     await maybeRequireAuth();
     const { listGuidelineTypes } = await import('./commands/guidelines.js');
     await listGuidelineTypes();
+  });
+
+// ============================================================================
+// ARTIFACT COMMANDS (auth required)
+// ============================================================================
+
+const artifactCommand = program.command('artifact').description('Manage artifacts for handoffs');
+
+artifactCommand
+  .command('create')
+  .description('Create a new artifact from a file')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--from-file <path>', 'Path to file containing artifact content')
+  .requiredOption('--filename <filename>', 'Display filename for the artifact')
+  .option('--description <description>', 'Optional description of the artifact')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      fromFile: string;
+      filename: string;
+      description?: string;
+    }) => {
+      await maybeRequireAuth();
+      const { createArtifact } = await import('./commands/artifact.js');
+      await createArtifact(options.chatroomId, options);
+    }
+  );
+
+artifactCommand
+  .command('view')
+  .description('View a single artifact')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--artifact-id <id>', 'Artifact identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .action(async (options: { chatroomId: string; artifactId: string; role: string }) => {
+    await maybeRequireAuth();
+    const { viewArtifact } = await import('./commands/artifact.js');
+    await viewArtifact(options.chatroomId, { role: options.role, artifactId: options.artifactId });
+  });
+
+artifactCommand
+  .command('view-many')
+  .description('View multiple artifacts')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .option(
+    '--artifact <artifactId>',
+    'Artifact ID to view (can be used multiple times)',
+    (value: string, previous: string[]) => {
+      return previous ? [...previous, value] : [value];
+    },
+    []
+  )
+  .action(async (options: { chatroomId: string; role: string; artifact?: string[] }) => {
+    await maybeRequireAuth();
+    const { viewManyArtifacts } = await import('./commands/artifact.js');
+    await viewManyArtifacts(options.chatroomId, {
+      role: options.role,
+      artifactIds: options.artifact || [],
+    });
   });
 
 // ============================================================================

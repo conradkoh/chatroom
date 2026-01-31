@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
-import { requireChatroomAccess, validateSession } from './lib/cliSessionAuth';
+import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
 
 /**
  * Create a new chatroom with team configuration.

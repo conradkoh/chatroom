@@ -13,8 +13,9 @@ import {
   X,
   CheckCircle,
   MoreVertical,
+  Square,
 } from 'lucide-react';
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
 
 import { AgentPanel } from './components/AgentPanel';
 import { MessageFeed } from './components/MessageFeed';
@@ -25,7 +26,6 @@ import { SetupChecklist } from './components/SetupChecklist';
 import { TaskQueue } from './components/TaskQueue';
 import { AttachedTasksProvider } from './context/AttachedTasksContext';
 // TeamStatus is now consolidated into AgentPanel
-import { generateAgentPrompt } from './prompts/generator';
 
 import {
   DropdownMenu,
@@ -33,6 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { PromptsProvider } from '@/contexts/PromptsContext';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 interface ChatroomDashboardProps {
@@ -40,10 +41,123 @@ interface ChatroomDashboardProps {
   onBack?: () => void;
 }
 
+/**
+ * Memoized title editor component to prevent input recreation on every keystroke.
+ * This component manages its own editing state to avoid triggering parent re-renders.
+ */
+interface ChatroomTitleEditorProps {
+  displayName: string;
+  chatroomId: string;
+}
+
+const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
+  displayName,
+  chatroomId,
+}: ChatroomTitleEditorProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [isPending, setIsPending] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Type assertion workaround for Convex API
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chatroomApi = api as any;
+  const renameChatroom = useSessionMutation(chatroomApi.chatrooms.rename);
+
+  const handleStartEdit = useCallback(() => {
+    setEditedName(displayName);
+    setIsEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, [displayName]);
+
+  const handleCancel = useCallback(() => {
+    setIsEditing(false);
+    setEditedName('');
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!editedName.trim()) {
+      handleCancel();
+      return;
+    }
+    setIsPending(true);
+    try {
+      await renameChatroom({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        name: editedName.trim(),
+      });
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to rename chatroom:', error);
+    } finally {
+      setIsPending(false);
+    }
+  }, [editedName, renameChatroom, chatroomId, handleCancel]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        handleSave();
+      } else if (e.key === 'Escape') {
+        handleCancel();
+      }
+    },
+    [handleSave, handleCancel]
+  );
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          type="text"
+          value={editedName}
+          onChange={(e) => setEditedName(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="bg-chatroom-bg-tertiary border-2 border-chatroom-border-strong text-chatroom-text-primary px-2 py-1 text-xs font-bold uppercase tracking-wide w-32 sm:w-48 focus:outline-none focus:border-chatroom-accent"
+          placeholder="Enter name..."
+          disabled={isPending}
+          maxLength={100}
+        />
+        <button
+          className="bg-transparent border-2 border-chatroom-border text-chatroom-status-success w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-status-success disabled:opacity-50"
+          onClick={handleSave}
+          disabled={isPending}
+          title="Save name"
+        >
+          <Check size={12} />
+        </button>
+        <button
+          className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+          onClick={handleCancel}
+          disabled={isPending}
+          title="Cancel"
+        >
+          <X size={12} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-chatroom-text-primary text-xs font-bold uppercase tracking-wide max-w-[120px] sm:max-w-[200px] truncate">
+        {displayName}
+      </span>
+      <button
+        className="bg-transparent border-0 text-chatroom-text-muted w-5 h-5 flex items-center justify-center cursor-pointer transition-all duration-100 hover:text-chatroom-text-secondary"
+        onClick={handleStartEdit}
+        title="Rename chatroom"
+      >
+        <Pencil size={12} />
+      </button>
+    </div>
+  );
+});
+
 interface ModalState {
   isOpen: boolean;
   role: string;
-  prompt: string;
 }
 
 interface Chatroom {
@@ -104,7 +218,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const [modalState, setModalState] = useState<ModalState>({
     isOpen: false,
     role: '',
-    prompt: '',
   });
 
   // Reconnect modal state
@@ -154,12 +267,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Header portal integration
   const { setContent: setHeaderContent, clearContent: clearHeaderContent } = useSetHeaderPortal();
 
-  // Rename state
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [editedName, setEditedName] = useState('');
-  const [isRenamePending, setIsRenamePending] = useState(false);
-  const nameInputRef = useRef<HTMLInputElement>(null);
-
   // Type assertion workaround: The Convex API types are not fully generated
   // until `npx convex dev` is run. This assertion allows us to use the API
   // without full type safety. The correct types will be available after
@@ -171,8 +278,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Chatroom | null | undefined;
 
-  // Rename mutation
-  const renameChatroom = useSessionMutation(chatroomApi.chatrooms.rename);
   // Update status mutation (for marking complete)
   const updateStatus = useSessionMutation(chatroomApi.chatrooms.updateStatus);
 
@@ -222,30 +327,17 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   );
 
   // Memoize callbacks to prevent unnecessary child re-renders
-  const handleViewPrompt = useCallback(
-    (role: string) => {
-      const prompt = generateAgentPrompt({
-        chatroomId,
-        role,
-        teamName,
-        teamRoles,
-        teamEntryPoint,
-        convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
-      });
-      setModalState({
-        isOpen: true,
-        role,
-        prompt,
-      });
-    },
-    [chatroomId, teamName, teamRoles, teamEntryPoint]
-  );
+  const handleViewPrompt = useCallback((role: string) => {
+    setModalState({
+      isOpen: true,
+      role,
+    });
+  }, []);
 
   const handleCloseModal = useCallback(() => {
     setModalState({
       isOpen: false,
       role: '',
-      prompt: '',
     });
   }, []);
 
@@ -273,49 +365,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       console.error('Failed to mark as complete:', error);
     }
   }, [updateStatus, chatroomId, onBack]);
-
-  // Rename handlers
-  const handleStartRename = useCallback(() => {
-    setEditedName(chatroom?.name || chatroom?.teamName || '');
-    setIsEditingName(true);
-    // Focus input after render
-    setTimeout(() => nameInputRef.current?.focus(), 0);
-  }, [chatroom?.name, chatroom?.teamName]);
-
-  const handleCancelRename = useCallback(() => {
-    setIsEditingName(false);
-    setEditedName('');
-  }, []);
-
-  const handleSaveRename = useCallback(async () => {
-    if (!editedName.trim()) {
-      handleCancelRename();
-      return;
-    }
-    setIsRenamePending(true);
-    try {
-      await renameChatroom({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        name: editedName.trim(),
-      });
-      setIsEditingName(false);
-    } catch (error) {
-      console.error('Failed to rename chatroom:', error);
-    } finally {
-      setIsRenamePending(false);
-    }
-  }, [editedName, renameChatroom, chatroomId, handleCancelRename]);
-
-  const handleRenameKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        handleSaveRename();
-      } else if (e.key === 'Escape') {
-        handleCancelRename();
-      }
-    },
-    [handleSaveRename, handleCancelRename]
-  );
 
   // Show setup checklist if not all members have joined
   const isSetupMode = !allMembersJoined;
@@ -382,50 +431,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               </button>
             )}
             {/* Chatroom Name - Editable */}
-            {isEditingName ? (
-              <div className="flex items-center gap-2">
-                <input
-                  ref={nameInputRef}
-                  type="text"
-                  value={editedName}
-                  onChange={(e) => setEditedName(e.target.value)}
-                  onKeyDown={handleRenameKeyDown}
-                  className="bg-chatroom-bg-tertiary border-2 border-chatroom-border-strong text-chatroom-text-primary px-2 py-1 text-xs font-bold uppercase tracking-wide w-32 sm:w-48 focus:outline-none focus:border-chatroom-accent"
-                  placeholder="Enter name..."
-                  disabled={isRenamePending}
-                  maxLength={100}
-                />
-                <button
-                  className="bg-transparent border-2 border-chatroom-border text-chatroom-status-success w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-status-success disabled:opacity-50"
-                  onClick={handleSaveRename}
-                  disabled={isRenamePending}
-                  title="Save name"
-                >
-                  <Check size={12} />
-                </button>
-                <button
-                  className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-6 h-6 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-                  onClick={handleCancelRename}
-                  disabled={isRenamePending}
-                  title="Cancel"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-chatroom-text-primary text-xs font-bold uppercase tracking-wide max-w-[120px] sm:max-w-[200px] truncate">
-                  {displayName}
-                </span>
-                <button
-                  className="bg-transparent border-0 text-chatroom-text-muted w-5 h-5 flex items-center justify-center cursor-pointer transition-all duration-100 hover:text-chatroom-text-secondary"
-                  onClick={handleStartRename}
-                  title="Rename chatroom"
-                >
-                  <Pencil size={12} />
-                </button>
-              </div>
-            )}
+            <ChatroomTitleEditor displayName={displayName} chatroomId={chatroomId} />
           </div>
         ),
         right: (
@@ -450,13 +456,14 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 {sidebarVisible ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
                 {/* Aggregate status indicator - shown when sidebar is hidden */}
                 {!sidebarVisible && aggregateStatus !== 'none' && (
-                  <span
-                    className={`absolute -top-1 -right-1 w-2.5 h-2.5 ${
+                  <Square
+                    size={8}
+                    className={`absolute -top-1 -right-1 ${
                       aggregateStatus === 'working'
-                        ? 'bg-chatroom-status-info'
+                        ? 'text-chatroom-status-info fill-chatroom-status-info'
                         : aggregateStatus === 'ready'
-                          ? 'bg-chatroom-status-success'
-                          : 'bg-chatroom-text-muted'
+                          ? 'text-chatroom-status-success fill-chatroom-status-success'
+                          : 'text-chatroom-text-muted fill-chatroom-text-muted'
                     }`}
                   />
                 )}
@@ -492,6 +499,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     };
   }, [
     chatroom,
+    chatroomId,
     isSetupMode,
     isTeamDisconnected,
     onBack,
@@ -501,14 +509,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     setHeaderContent,
     clearHeaderContent,
     getStatusBadgeClasses,
-    isEditingName,
-    editedName,
-    isRenamePending,
     displayName,
-    handleStartRename,
-    handleCancelRename,
-    handleSaveRename,
-    handleRenameKeyDown,
     handleMarkComplete,
   ]);
 
@@ -540,46 +541,52 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   return (
     <AttachedTasksProvider>
-      <>
-        <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
-          {isSetupMode ? (
-            <div className="setup-content flex flex-col h-full overflow-hidden">
-              <div className="flex-1 overflow-y-auto">
-                <SetupChecklist
-                  chatroomId={chatroomId}
-                  teamName={teamName}
-                  teamRoles={teamRoles}
-                  teamEntryPoint={teamEntryPoint}
-                  participants={participants || []}
-                  onViewPrompt={handleViewPrompt}
-                />
+      <PromptsProvider
+        chatroomId={chatroomId}
+        teamName={teamName}
+        teamRoles={teamRoles}
+        teamEntryPoint={teamEntryPoint}
+      >
+        <>
+          <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
+            {isSetupMode ? (
+              <div className="setup-content flex flex-col h-full overflow-hidden">
+                <div className="flex-1 overflow-y-auto">
+                  <SetupChecklist
+                    chatroomId={chatroomId}
+                    teamName={teamName}
+                    teamRoles={teamRoles}
+                    teamEntryPoint={teamEntryPoint}
+                    participants={participants || []}
+                    onViewPrompt={handleViewPrompt}
+                  />
+                </div>
+                {/* Backlog access during setup - collapsible at bottom */}
+                <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
+                  <TaskQueue chatroomId={chatroomId} />
+                </div>
               </div>
-              {/* Backlog access during setup - collapsible at bottom */}
-              <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
-                <TaskQueue chatroomId={chatroomId} />
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-1 overflow-hidden relative">
-              {/* Message Section */}
-              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <MessageFeed chatroomId={chatroomId} participants={participants || []} />
-                <SendForm chatroomId={chatroomId} />
-              </div>
+            ) : (
+              <div className="flex flex-1 overflow-hidden relative">
+                {/* Message Section */}
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                  <MessageFeed chatroomId={chatroomId} participants={participants || []} />
+                  <SendForm chatroomId={chatroomId} />
+                </div>
 
-              {/* Sidebar Overlay for mobile - below app header */}
-              {sidebarVisible && isSmallScreen && (
+                {/* Sidebar Overlay for mobile - below app header */}
+                {sidebarVisible && isSmallScreen && (
+                  <div
+                    className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
+                    onClick={toggleSidebar}
+                  />
+                )}
+
+                {/* Sidebar - positioned below app header on mobile */}
+                {/* On desktop: transitions width to 0 when hidden so chat fills space */}
+                {/* On mobile: uses fixed positioning with translate for overlay effect */}
                 <div
-                  className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
-                  onClick={toggleSidebar}
-                />
-              )}
-
-              {/* Sidebar - positioned below app header on mobile */}
-              {/* On desktop: transitions width to 0 when hidden so chat fills space */}
-              {/* On mobile: uses fixed positioning with translate for overlay effect */}
-              <div
-                className={`
+                  className={`
                 ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain w-80' : 'relative overflow-hidden'}
                 ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
@@ -587,49 +594,49 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 transition-all duration-300 ease-in-out
                 ${isSmallScreen ? (sidebarVisible ? 'translate-x-0' : 'translate-x-full') : ''}
               `}
-              >
-                <AgentPanel
-                  chatroomId={chatroomId}
-                  teamName={teamName}
-                  teamRoles={teamRoles}
-                  teamEntryPoint={teamEntryPoint}
-                  readiness={readiness}
-                  onViewPrompt={handleViewPrompt}
-                  onReconnect={handleOpenReconnect}
-                />
-                <TaskQueue chatroomId={chatroomId} />
-                <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
-                    Chatroom ID
-                  </div>
-                  <div className="font-mono text-[10px] font-bold text-chatroom-text-secondary break-all p-2 bg-chatroom-bg-tertiary">
-                    {chatroomId}
+                >
+                  <AgentPanel
+                    chatroomId={chatroomId}
+                    teamName={teamName}
+                    teamRoles={teamRoles}
+                    teamEntryPoint={teamEntryPoint}
+                    readiness={readiness}
+                    onViewPrompt={handleViewPrompt}
+                    onReconnect={handleOpenReconnect}
+                  />
+                  <TaskQueue chatroomId={chatroomId} />
+                  <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
+                      Chatroom ID
+                    </div>
+                    <div className="font-mono text-[10px] font-bold text-chatroom-text-secondary break-all p-2 bg-chatroom-bg-tertiary">
+                      {chatroomId}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        <PromptModal
-          isOpen={modalState.isOpen}
-          onClose={handleCloseModal}
-          role={modalState.role}
-          prompt={modalState.prompt}
-        />
+          <PromptModal
+            isOpen={modalState.isOpen}
+            onClose={handleCloseModal}
+            role={modalState.role}
+          />
 
-        <ReconnectModal
-          isOpen={reconnectModalOpen}
-          onClose={handleCloseReconnect}
-          chatroomId={chatroomId}
-          teamName={teamName}
-          teamRoles={teamRoles}
-          teamEntryPoint={teamEntryPoint}
-          expiredRoles={readiness?.expiredRoles || []}
-          participants={readiness?.participants}
-          onViewPrompt={handleViewPrompt}
-        />
-      </>
+          <ReconnectModal
+            isOpen={reconnectModalOpen}
+            onClose={handleCloseReconnect}
+            chatroomId={chatroomId}
+            teamName={teamName}
+            teamRoles={teamRoles}
+            teamEntryPoint={teamEntryPoint}
+            expiredRoles={readiness?.expiredRoles || []}
+            participants={readiness?.participants}
+            onViewPrompt={handleViewPrompt}
+          />
+        </>
+      </PromptsProvider>
     </AttachedTasksProvider>
   );
 }

@@ -3,24 +3,17 @@
  *
  * Defines the state machines for different task origins.
  * Each origin (backlog, chat) has its own workflow with allowed transitions.
+ *
+ * NOTE: This module is being phased out in favor of taskStateMachine.ts.
+ * The FSM module is now the single source of truth for task status definitions and transitions.
  */
+
+import type { TaskStatus } from './taskStateMachine';
 
 /**
  * Task origins - where the task was created
  */
 export type TaskOrigin = 'backlog' | 'chat';
-
-/**
- * Task statuses - lifecycle stages
- */
-export type TaskStatus =
-  | 'backlog' // Backlog only: initial state in backlog tab (before moved to chat)
-  | 'queued' // Waiting in line
-  | 'pending' // Ready for agent
-  | 'in_progress' // Agent working
-  | 'pending_user_review' // Backlog only: agent done, user confirms
-  | 'completed' // Finished
-  | 'closed'; // Backlog only: user closed without completing
 
 /**
  * UI sections where tasks can appear
@@ -90,7 +83,13 @@ export function getTaskSection(_origin: TaskOrigin | undefined, status: TaskStat
   }
 
   // Active work - shows in current section
-  if (status === 'in_progress' || status === 'pending') {
+  // Includes acknowledged states (agent has claimed but not started)
+  if (
+    status === 'in_progress' ||
+    status === 'pending' ||
+    status === 'acknowledged' ||
+    status === 'backlog_acknowledged'
+  ) {
     return 'current';
   }
 

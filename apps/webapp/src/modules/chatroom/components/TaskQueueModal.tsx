@@ -1,16 +1,18 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { Search, X } from 'lucide-react';
+import { Search, X, Pencil, Trash2 } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 type TaskStatus =
   | 'pending'
+  | 'acknowledged'
   | 'in_progress'
   | 'queued'
   | 'backlog'
+  | 'backlog_acknowledged'
   | 'pending_user_review'
   | 'completed'
   | 'closed'
@@ -30,6 +32,10 @@ interface Task {
   backlog?: {
     status: BacklogStatus;
   };
+  // Scoring fields for prioritization
+  complexity?: 'low' | 'medium' | 'high';
+  value?: 'low' | 'medium' | 'high';
+  priority?: number;
 }
 
 interface TaskQueueModalProps {
@@ -47,9 +53,19 @@ const getStatusBadge = (status: TaskStatus) => {
         label: 'Pending',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
+    case 'acknowledged':
+      return {
+        label: 'Acknowledged',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
+    case 'backlog_acknowledged':
+      return {
+        label: 'Backlog Acknowledged',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
     case 'in_progress':
       return {
-        label: 'Working',
+        label: 'In Progress',
         classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
       };
     case 'queued':
@@ -64,7 +80,7 @@ const getStatusBadge = (status: TaskStatus) => {
       };
     case 'pending_user_review':
       return {
-        label: 'Review',
+        label: 'Pending User Review',
         classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
       };
     case 'completed':
@@ -324,10 +340,36 @@ interface TaskListItemProps {
   task: Task;
   onClick: () => void;
   isProtected?: boolean;
+  onStartEdit?: () => void;
+  onDelete?: () => void;
 }
 
-function TaskListItem({ task, onClick, isProtected: _isProtected = false }: TaskListItemProps) {
+// Scoring badge helper for complexity/value
+function getScoringBadge(type: 'complexity' | 'value', level: 'low' | 'medium' | 'high') {
+  const colors = {
+    low: 'bg-green-500/15 text-green-600 dark:text-green-400',
+    medium: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
+    high: 'bg-red-500/15 text-red-600 dark:text-red-400',
+  };
+  const labels = {
+    complexity: { low: 'C:L', medium: 'C:M', high: 'C:H' },
+    value: { low: 'V:L', medium: 'V:M', high: 'V:H' },
+  };
+  return {
+    label: labels[type][level],
+    classes: colors[level],
+  };
+}
+
+function TaskListItem({
+  task,
+  onClick,
+  isProtected = false,
+  onStartEdit,
+  onDelete,
+}: TaskListItemProps) {
   const badge = getStatusBadge(task.status);
+  const hasScoring = task.complexity || task.value || task.priority !== undefined;
 
   return (
     <div
@@ -348,6 +390,34 @@ function TaskListItem({ task, onClick, isProtected: _isProtected = false }: Task
       >
         {badge.label}
       </span>
+      {task.assignedTo && (
+        <span className="text-[9px] text-chatroom-text-muted">→ {task.assignedTo}</span>
+      )}
+
+      {/* Scoring badges */}
+      {hasScoring && (
+        <div className="flex-shrink-0 flex items-center gap-1">
+          {task.priority !== undefined && (
+            <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
+              P:{task.priority}
+            </span>
+          )}
+          {task.complexity && (
+            <span
+              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', task.complexity).classes}`}
+            >
+              {getScoringBadge('complexity', task.complexity).label}
+            </span>
+          )}
+          {task.value && (
+            <span
+              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', task.value).classes}`}
+            >
+              {getScoringBadge('value', task.value).label}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Content - with simplified markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
@@ -355,6 +425,36 @@ function TaskListItem({ task, onClick, isProtected: _isProtected = false }: Task
           {task.content}
         </Markdown>
       </div>
+
+      {/* Actions for editable tasks */}
+      {!isProtected && (
+        <div className="flex items-center gap-1">
+          {onStartEdit && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartEdit();
+              }}
+              className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+              title="Edit"
+            >
+              <Pencil size={12} />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="p-1 text-chatroom-text-muted hover:text-chatroom-status-error transition-colors"
+              title="Delete"
+            >
+              <Trash2 size={12} />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

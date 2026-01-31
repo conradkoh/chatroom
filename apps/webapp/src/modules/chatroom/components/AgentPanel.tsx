@@ -4,11 +4,11 @@ import { ChevronRight, CheckCircle, AlertTriangle, Clock, RefreshCw } from 'luci
 import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import { CopyButton } from './CopyButton';
-import { generateAgentPrompt } from '../prompts/generator';
 
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { usePrompts } from '@/contexts/PromptsContext';
 
 // Participant info from readiness query - includes expiration data
 interface ParticipantInfo {
@@ -269,15 +269,16 @@ const SingleAgentModal = memo(function SingleAgentModal({
 });
 
 export const AgentPanel = memo(function AgentPanel({
-  chatroomId,
-  teamName = 'Team',
+  chatroomId: _chatroomId,
+  teamName: _teamName = 'Team',
   teamRoles = [],
-  teamEntryPoint,
+  teamEntryPoint: _teamEntryPoint,
   readiness,
   onViewPrompt,
   onReconnect,
 }: AgentPanelProps) {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const { getAgentPrompt } = usePrompts();
 
   // Build participant map from readiness data
   const participantMap = useMemo(() => {
@@ -321,16 +322,9 @@ export const AgentPanel = memo(function AgentPanel({
   // Memoize prompt generation function
   const generatePrompt = useCallback(
     (role: string): string => {
-      return generateAgentPrompt({
-        chatroomId,
-        role,
-        teamName,
-        teamRoles,
-        teamEntryPoint,
-        convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
-      });
+      return getAgentPrompt(role) || '';
     },
-    [chatroomId, teamName, teamRoles, teamEntryPoint]
+    [getAgentPrompt]
   );
 
   // Open agent modal

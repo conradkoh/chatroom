@@ -14,20 +14,32 @@ import {
   ChevronDown,
   Archive,
   ClipboardCheck,
+  MoreHorizontal,
+  XCircle,
 } from 'lucide-react';
 import React, { useState, useCallback, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { BacklogCreateModal } from './BacklogCreateModal';
 import { compactMarkdownComponents } from './markdown-utils';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
 type TaskStatus =
   | 'pending'
+  | 'acknowledged'
   | 'in_progress'
   | 'queued'
   | 'backlog'
+  | 'backlog_acknowledged'
   | 'pending_user_review'
   | 'completed'
   | 'closed'
@@ -57,9 +69,11 @@ interface Task {
 
 interface TaskCounts {
   pending: number;
+  acknowledged: number;
   in_progress: number;
   queued: number;
   backlog: number;
+  backlog_acknowledged: number;
   pending_user_review: number;
   completed: number;
   closed: number;
@@ -85,10 +99,22 @@ const getStatusBadge = (status: TaskStatus) => {
         label: 'Pending',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
+    case 'acknowledged':
+      return {
+        emoji: '🟢',
+        label: 'Acknowledged',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
+    case 'backlog_acknowledged':
+      return {
+        emoji: '🟢',
+        label: 'Backlog Acknowledged',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
     case 'in_progress':
       return {
         emoji: '🔵',
-        label: 'Working',
+        label: 'In Progress',
         classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
       };
     case 'queued':
@@ -106,7 +132,7 @@ const getStatusBadge = (status: TaskStatus) => {
     case 'pending_user_review':
       return {
         emoji: '🟣',
-        label: 'Review',
+        label: 'Pending User Review',
         classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
       };
     case 'completed':
@@ -139,15 +165,18 @@ const getStatusBadge = (status: TaskStatus) => {
 // Maximum number of pending review items to show in sidebar before "View More"
 const PENDING_REVIEW_PREVIEW_LIMIT = 3;
 
+// Maximum number of current tasks to show in sidebar before "View More"
+const CURRENT_TASKS_PREVIEW_LIMIT = 3;
+
 export function TaskQueue({ chatroomId }: TaskQueueProps) {
-  const [isAddingTask, setIsAddingTask] = useState(false);
-  const [newTaskContent, setNewTaskContent] = useState('');
+  const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
   const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
   const [isPendingReviewModalOpen, setIsPendingReviewModalOpen] = useState(false);
+  const [isCurrentTasksModalOpen, setIsCurrentTasksModalOpen] = useState(false);
 
   // Type assertion workaround for Convex API
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -221,7 +250,13 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
       });
 
     return {
-      current: tasks.filter((t) => t.status === 'pending' || t.status === 'in_progress'),
+      current: tasks.filter(
+        (t) =>
+          t.status === 'pending' ||
+          t.status === 'acknowledged' ||
+          t.status === 'in_progress' ||
+          t.status === 'backlog_acknowledged'
+      ),
       queued: tasks.filter((t) => t.status === 'queued'),
       backlog: backlogTasks,
     };
@@ -235,22 +270,17 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   }, [counts]);
 
   // Handlers
-  const handleAddTask = useCallback(async () => {
-    if (!newTaskContent.trim()) return;
-
-    try {
+  const handleAddTask = useCallback(
+    async (content: string) => {
       await createTask({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        content: newTaskContent.trim(),
+        content,
         createdBy: 'user',
         isBacklog: true,
       });
-      setNewTaskContent('');
-      setIsAddingTask(false);
-    } catch (error) {
-      console.error('Failed to create task:', error);
-    }
-  }, [createTask, chatroomId, newTaskContent]);
+    },
+    [createTask, chatroomId]
+  );
 
   const handleEditTask = useCallback(
     async (taskId: string) => {
@@ -400,10 +430,46 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     [reopenBacklogTask]
   );
 
+  // Batch close all acknowledged tasks
+  const handleCloseAllAcknowledged = useCallback(async () => {
+    if (!categorizedTasks.current) return;
+
+    // Filter for acknowledged and backlog_acknowledged tasks
+    const acknowledgedTasks = categorizedTasks.current.filter(
+      (t) => t.status === 'acknowledged' || t.status === 'backlog_acknowledged'
+    );
+
+    if (acknowledgedTasks.length === 0) {
+      console.log('No acknowledged tasks to close');
+      return;
+    }
+
+    // Close all acknowledged tasks
+    try {
+      await Promise.all(
+        acknowledgedTasks.map((task) =>
+          cancelTask({
+            taskId: task._id as Id<'chatroom_tasks'>,
+          })
+        )
+      );
+      console.log(`Closed ${acknowledgedTasks.length} acknowledged tasks`);
+    } catch (error) {
+      console.error('Failed to close all acknowledged tasks:', error);
+    }
+  }, [categorizedTasks.current, cancelTask]);
+
   // Calculate active total
   const activeTotal = useMemo(() => {
     if (!counts) return 0;
-    return counts.pending + counts.in_progress + counts.queued + counts.backlog;
+    return (
+      counts.pending +
+      counts.acknowledged +
+      counts.in_progress +
+      counts.queued +
+      counts.backlog +
+      counts.backlog_acknowledged
+    );
   }, [counts]);
 
   if (tasks === undefined) {
@@ -449,10 +515,30 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         {/* Current Task */}
         {categorizedTasks.current.length > 0 && (
           <div className="border-b border-chatroom-border">
-            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary">
-              Current
+            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
+              <span>Current ({categorizedTasks.current.length})</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors p-1"
+                    title="Actions"
+                  >
+                    <MoreHorizontal size={14} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[160px]">
+                  <DropdownMenuItem
+                    onClick={handleCloseAllAcknowledged}
+                    className="flex items-center gap-2 cursor-pointer text-chatroom-status-error"
+                  >
+                    <XCircle size={14} />
+                    Close All Acknowledged
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-            {categorizedTasks.current.map((task) => (
+            {/* Show only first CURRENT_TASKS_PREVIEW_LIMIT items */}
+            {categorizedTasks.current.slice(0, CURRENT_TASKS_PREVIEW_LIMIT).map((task) => (
               <TaskItem
                 key={task._id}
                 task={task}
@@ -460,6 +546,13 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
                 onClick={() => handleOpenTaskDetail(task)}
               />
             ))}
+            {/* Show "View More" button when there are more items */}
+            {categorizedTasks.current.length > CURRENT_TASKS_PREVIEW_LIMIT && (
+              <ViewMoreButton
+                count={categorizedTasks.current.length - CURRENT_TASKS_PREVIEW_LIMIT}
+                onClick={() => setIsCurrentTasksModalOpen(true)}
+              />
+            )}
           </div>
         )}
 
@@ -514,59 +607,14 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
         <div className="border-b border-chatroom-border">
           <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
             <span>Backlog ({categorizedTasks.backlog.length})</span>
-            {!isAddingTask && (
-              <button
-                onClick={() => setIsAddingTask(true)}
-                className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
-                title="Add to backlog"
-              >
-                <Plus size={14} />
-              </button>
-            )}
+            <button
+              onClick={() => setIsBacklogCreateModalOpen(true)}
+              className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
+              title="Add to backlog"
+            >
+              <Plus size={14} />
+            </button>
           </div>
-
-          {/* Add Task Form */}
-          {isAddingTask && (
-            <div className="p-3 border-b border-chatroom-border bg-chatroom-bg-hover">
-              <textarea
-                value={newTaskContent}
-                onChange={(e) => setNewTaskContent(e.target.value)}
-                onKeyDown={(e) => {
-                  // Cmd+Enter or Ctrl+Enter to add
-                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                    e.preventDefault();
-                    if (newTaskContent.trim()) {
-                      handleAddTask();
-                    }
-                  }
-                }}
-                placeholder="Enter task description..."
-                className="w-full bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary text-xs p-2 resize-none focus:outline-none focus:border-chatroom-accent"
-                rows={2}
-                autoFocus
-              />
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={handleAddTask}
-                  disabled={!newTaskContent.trim()}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Check size={12} />
-                  Add
-                </button>
-                <button
-                  onClick={() => {
-                    setIsAddingTask(false);
-                    setNewTaskContent('');
-                  }}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary"
-                >
-                  <X size={12} />
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Compact Backlog Items - Show first 3 */}
           {categorizedTasks.backlog.slice(0, 3).map((task) => (
@@ -585,7 +633,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
             />
           )}
 
-          {categorizedTasks.backlog.length === 0 && !isAddingTask && (
+          {categorizedTasks.backlog.length === 0 && (
             <div className="p-3 text-center text-chatroom-text-muted text-xs">No backlog items</div>
           )}
         </div>
@@ -629,18 +677,20 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
       </div>
       {/* End of Scrollable Task List Container */}
 
-      {/* Task Detail Modal */}
-      <TaskDetailModal
-        isOpen={selectedTask !== null}
-        task={selectedTask}
-        onClose={handleCloseTaskDetail}
-        onEdit={handleModalEdit}
-        onDelete={handleModalDelete}
-        onForceComplete={handleModalForceComplete}
-        onMarkBacklogComplete={handleModalMarkBacklogComplete}
-        onCloseBacklog={handleModalCloseBacklog}
-        onReopenBacklog={handleModalReopenBacklog}
-      />
+      {/* Task Detail Modal - only mount when task is selected for better performance */}
+      {selectedTask && (
+        <TaskDetailModal
+          isOpen={true}
+          task={selectedTask}
+          onClose={handleCloseTaskDetail}
+          onEdit={handleModalEdit}
+          onDelete={handleModalDelete}
+          onForceComplete={handleModalForceComplete}
+          onMarkBacklogComplete={handleModalMarkBacklogComplete}
+          onCloseBacklog={handleModalCloseBacklog}
+          onReopenBacklog={handleModalReopenBacklog}
+        />
+      )}
 
       {/* Full Task Queue Modal */}
       <TaskQueueModal
@@ -663,6 +713,24 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
           }}
         />
       )}
+
+      {/* Current Tasks Modal */}
+      {isCurrentTasksModalOpen && (
+        <CurrentTasksModal
+          tasks={categorizedTasks.current}
+          onClose={() => setIsCurrentTasksModalOpen(false)}
+          onTaskClick={(task) => {
+            handleOpenTaskDetail(task);
+          }}
+        />
+      )}
+
+      {/* Backlog Create Modal */}
+      <BacklogCreateModal
+        isOpen={isBacklogCreateModalOpen}
+        onClose={() => setIsBacklogCreateModalOpen(false)}
+        onSubmit={handleAddTask}
+      />
     </div>
   );
 }
@@ -1132,6 +1200,132 @@ function PendingReviewModalItem({ task, onClick }: PendingReviewModalItemProps) 
           {task.content}
         </Markdown>
       </div>
+
+      {/* Relative Time */}
+      <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>
+    </div>
+  );
+}
+
+// Current Tasks Modal Component
+interface CurrentTasksModalProps {
+  tasks: Task[];
+  onClose: () => void;
+  onTaskClick: (task: Task) => void;
+}
+
+function CurrentTasksModal({ tasks, onClose, onTaskClick }: CurrentTasksModalProps) {
+  // Handle Escape key
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    },
+    [onClose]
+  );
+
+  React.useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
+  // Handle backdrop click
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    },
+    [onClose]
+  );
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
+        onClick={handleBackdropClick}
+      />
+
+      {/* Modal */}
+      <div className="fixed inset-x-2 top-16 bottom-2 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[95%] md:max-w-xl md:max-h-[70vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong z-50 flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
+              Current Tasks ({tasks.length})
+            </span>
+          </div>
+          <button
+            className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Task List */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {tasks.length === 0 ? (
+            <div className="p-8 text-center text-chatroom-text-muted text-sm">No current tasks</div>
+          ) : (
+            tasks.map((task) => (
+              <CurrentTasksModalItem key={task._id} task={task} onClick={() => onTaskClick(task)} />
+            ))
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Current Tasks Modal Item - Similar to TaskItem but for modal display
+interface CurrentTasksModalItemProps {
+  task: Task;
+  onClick: () => void;
+}
+
+function CurrentTasksModalItem({ task, onClick }: CurrentTasksModalItemProps) {
+  const badge = getStatusBadge(task.status);
+  const relativeTime = task.updatedAt ? formatRelativeTime(task.updatedAt) : '';
+
+  return (
+    <div
+      className="flex items-start gap-3 p-3 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group border-b border-chatroom-border last:border-b-0"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      {/* Status Badge */}
+      <span
+        className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${badge.classes}`}
+      >
+        {badge.label}
+      </span>
+
+      {/* Content - with markdown */}
+      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
+        <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+          {task.content}
+        </Markdown>
+      </div>
+
+      {/* Assigned To */}
+      {task.assignedTo && (
+        <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">
+          → {task.assignedTo}
+        </span>
+      )}
 
       {/* Relative Time */}
       <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>

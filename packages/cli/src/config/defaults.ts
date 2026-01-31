@@ -2,7 +2,6 @@ import type { ChatroomConfig } from './schema';
 
 /**
  * Default configuration used when no .chatroom/chatroom.jsonc is found
- * or as the template for `chatroom init`
  */
 export const DEFAULT_CONFIG: ChatroomConfig = {
   defaultTeam: 'pair',
@@ -24,7 +23,6 @@ export const DEFAULT_CONFIG: ChatroomConfig = {
 
 /**
  * Default configuration as JSONC string (with comments)
- * Used when generating .chatroom/chatroom.jsonc via `chatroom init`
  */
 export const DEFAULT_CONFIG_JSONC = `{
   // Chatroom CLI Configuration
@@ -57,9 +55,6 @@ export const DEFAULT_CONFIG_JSONC = `{
   // Prompt customization (optional)
   // Uncomment to customize agent prompts
   // "prompts": {
-  //   // Path to custom init prompt template (replaces default)
-  //   // "initPrompt": "prompts/init.md",
-  //   
   //   // System reminders shown to agents
   //   "systemReminders": {
   //     // Set to false to disable system reminders

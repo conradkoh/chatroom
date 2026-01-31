@@ -2,22 +2,28 @@
  * Wait for tasks in a chatroom
  */
 
-import { api, type Id, type Chatroom, type TaskWithMessage } from '../api.js';
 import {
-  WAIT_POLL_INTERVAL_MS,
-  MAX_SILENT_ERRORS,
-  DEFAULT_WAIT_TIMEOUT_MS,
-  DEFAULT_ACTIVE_TIMEOUT_MS,
-} from '../config.js';
+  getWaitForTaskGuidance,
+  getWaitForTaskReminder,
+} from '@workspace/backend/prompts/base/cli/index.js';
+import { taskStartedCommand } from '@workspace/backend/prompts/base/cli/task-started/command.js';
+import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
+import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
+
+import { api, type Id, type Chatroom, type TaskWithMessage } from '../api.js';
+import { DEFAULT_WAIT_TIMEOUT_MS, DEFAULT_ACTIVE_TIMEOUT_MS } from '../config.js';
 import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
-import { getConvexUrl, getConvexClient } from '../infrastructure/convex/client.js';
+import {
+  getConvexUrl,
+  getConvexClient,
+  getConvexWsClient,
+} from '../infrastructure/convex/client.js';
 
 interface WaitForTaskOptions {
   role: string;
   timeout?: number;
   duration?: string;
   silent?: boolean;
-  session?: number;
 }
 
 /**
@@ -54,45 +60,20 @@ export function parseDuration(duration: string): number | null {
   }
 }
 
-/**
- * Format milliseconds into a human-readable duration string.
- */
-function formatDuration(ms: number): string {
-  if (ms >= 60 * 60 * 1000) {
-    const hours = Math.round((ms / (60 * 60 * 1000)) * 10) / 10;
-    return `${hours}h`;
-  }
-  if (ms >= 60 * 1000) {
-    const minutes = Math.round((ms / (60 * 1000)) * 10) / 10;
-    return `${minutes}m`;
-  }
-  const seconds = Math.round((ms / 1000) * 10) / 10;
-  return `${seconds}s`;
-}
-
-/**
- * Print the wait-for-task reminder - short but forceful.
- */
-function printWaitReminder(chatroomId: string, role: string, session = 1): void {
-  console.log(`${'─'.repeat(50)}`);
-  console.log(
-    `⚠️  ALWAYS run \`wait-for-task\` after handoff. If it times out, run it again immediately.`
-  );
-  console.log(`    chatroom wait-for-task ${chatroomId} --role=${role} --session=${session}`);
-  console.log(`${'─'.repeat(50)}`);
-}
-
 export async function waitForTask(chatroomId: string, options: WaitForTaskOptions): Promise<void> {
   const client = await getConvexClient();
-  const { role, timeout, duration, silent } = options;
+  const { role, timeout, silent } = options;
+
+  // Get Convex URL and CLI env prefix for generating commands
+  const convexUrl = getConvexUrl();
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   // Get session ID for authentication
   const sessionId = getSessionId();
   if (!sessionId) {
     const otherUrls = getOtherSessionUrls();
-    const currentUrl = getConvexUrl();
 
-    console.error(`❌ Not authenticated for: ${currentUrl}`);
+    console.error(`❌ Not authenticated for: ${convexUrl}`);
 
     if (otherUrls.length > 0) {
       console.error(`\n💡 You have sessions for other environments:`);
@@ -152,222 +133,319 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     readyUntil,
   });
 
+  // Log initial connection with timestamp
+  const connectionTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
   if (!silent) {
-    console.log(`✅ Joined chatroom as "${role}"`);
-  }
-
-  // Session tracking for finite but long task framing
-  const currentSession = options.session || 1;
-
-  // Warn if session not provided (helps agents track session progress)
-  if (!options.session) {
-    console.warn(
-      '⚠️  Warning: --session not provided (defaulting to 1). Use the command shown in CLI output after session completes for accurate tracking.'
-    );
+    console.log(`[${connectionTime}] ⏳ Connecting to chatroom as "${role}"...`);
   }
 
   // On first session, fetch and display the full initialization prompt from backend
-  if (currentSession === 1) {
-    try {
-      const initPromptResult = (await client.query(api.messages.getInitPrompt, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-      })) as { prompt: string } | null;
+  try {
+    const convexUrl = getConvexUrl();
+    const initPromptResult = (await client.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+      convexUrl,
+    })) as { prompt: string } | null;
 
-      if (initPromptResult?.prompt) {
-        console.log('');
-        console.log('═'.repeat(50));
-        console.log('📋 AGENT INITIALIZATION PROMPT');
-        console.log('═'.repeat(50));
-        console.log('');
-        console.log(initPromptResult.prompt);
-        console.log('');
-        console.log('═'.repeat(50));
-        console.log('');
-      }
-    } catch {
-      // Fallback - init prompt not critical, continue without it
+    if (initPromptResult?.prompt) {
+      // Log successful connection with timestamp
+      const connectedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.log(`[${connectedTime}] ✅ Connected. Waiting for task...\n`);
+
+      // Wrap reference content in HTML comments for LLM skimming
+      console.log('<!-- REFERENCE: Agent Initialization');
+      console.log('');
+      console.log('═'.repeat(50));
+      console.log('📋 AGENT INITIALIZATION PROMPT');
+      console.log('═'.repeat(50));
+      console.log('');
+      console.log(getWaitForTaskGuidance());
+      console.log('');
+      console.log('═'.repeat(50));
+      console.log('');
+      console.log(initPromptResult.prompt);
+      console.log('');
+      console.log('═'.repeat(50));
+      console.log('-->');
+      console.log('');
     }
+  } catch {
+    // Fallback - init prompt not critical, continue without it
   }
 
-  const durationDisplay = formatDuration(effectiveTimeout);
-  console.log(`⏳ Waiting for tasks (duration: ${durationDisplay})...`);
-  console.log('');
-  printWaitReminder(chatroomId, role, currentSession);
-  console.log('');
-
-  // Track errors for better debugging with exponential backoff
-  let consecutiveErrors = 0;
-  let currentPollInterval = WAIT_POLL_INTERVAL_MS;
-  let pollTimeout: ReturnType<typeof setTimeout>;
+  // Track if we've already processed a task (prevent duplicate processing)
+  let taskProcessed = false;
+  let unsubscribe: (() => void) | null = null;
 
   // Set up timeout - now always has a default value
-  const TOTAL_SESSIONS = 1000000;
-  const nextSession = currentSession + 1;
-  const sessionsRemaining = TOTAL_SESSIONS - currentSession;
-
   const timeoutHandle = setTimeout(() => {
-    if (pollTimeout) clearTimeout(pollTimeout);
-    const durationDisplay = duration || formatDuration(effectiveTimeout);
-    const nextCommand = `chatroom wait-for-task ${chatroomId} --role=${role}${duration ? ` --duration="${duration}"` : ''} --session=${nextSession}`;
+    if (unsubscribe) unsubscribe();
+    const timeoutTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
     console.log(`\n${'─'.repeat(50)}`);
-    console.log(
-      `⏱️  COMPLETED WAIT SESSION #${currentSession} (${durationDisplay}) - ${sessionsRemaining.toLocaleString()} sessions remaining`
-    );
+    console.log(`⚠️  RECONNECTION REQUIRED\n`);
+    console.log(`[${timeoutTime}] Why: Session timeout reached (normal and expected behavior)`);
+    console.log(`Impact: You are no longer listening for tasks`);
+    console.log(`Action: Run this command immediately to resume availability\n`);
+    console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
     console.log(`${'─'.repeat(50)}`);
-    console.log(`\n   ✅ Wait session completed successfully. No tasks received this session.`);
-    console.log(`\n⚠️  Continue to the next session by running:\n`);
-    console.log(`   ${nextCommand}`);
-    console.log(`\n${'─'.repeat(50)}`);
     process.exit(0); // Exit with 0 since this is expected behavior
   }, effectiveTimeout);
 
-  // Polling function with exponential backoff
-  const poll = async () => {
+  // Handle task processing when we receive pending tasks via subscription
+  const handlePendingTasks = async (pendingTasks: TaskWithMessage[]) => {
+    // Prevent duplicate processing
+    if (taskProcessed) return;
+
+    // Get the oldest pending task (first in array)
+    const taskWithMessage = pendingTasks.length > 0 ? pendingTasks[0] : null;
+
+    if (!taskWithMessage) {
+      // No tasks yet, subscription will notify us when there are
+      return;
+    }
+
+    const { task, message } = taskWithMessage;
+
+    // Claim the task (transition: pending → acknowledged)
+    // This is atomic and handles race conditions - only one agent can claim a task
     try {
-      // Poll for pending tasks instead of messages
-      const pendingTasks = (await client.query(api.tasks.getPendingTasksForRole, {
+      await client.mutation(api.tasks.claimTask, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
-      })) as TaskWithMessage[];
+      });
+    } catch (_claimError) {
+      // Task was already claimed by another agent, subscription will update with new state
+      console.log(`🔄 Task already claimed by another agent, continuing to wait...`);
+      return;
+    }
 
-      // Get the oldest pending task (first in array)
-      const taskWithMessage = pendingTasks.length > 0 ? pendingTasks[0] : null;
+    // Mark as processed to prevent duplicate handling
+    taskProcessed = true;
 
-      if (taskWithMessage) {
-        const { task, message } = taskWithMessage;
+    // Also claim the message if it exists (for compatibility)
+    if (message) {
+      await client.mutation(api.messages.claimMessage, {
+        sessionId,
+        messageId: message._id,
+        role,
+      });
+    }
 
-        // Start the task (transition to in_progress)
-        // This is atomic and handles race conditions - only one agent can start a task
-        try {
-          await client.mutation(api.tasks.startTask, {
-            sessionId,
-            chatroomId: chatroomId as Id<'chatroom_rooms'>,
-            role,
-          });
-        } catch (_startError) {
-          // Task was already started by another agent
-          console.log(`🔄 Task already started by another agent, continuing to wait...`);
-          pollTimeout = setTimeout(poll, currentPollInterval);
-          return;
-        }
+    // SUCCESS: This agent has exclusive claim on the task
+    if (unsubscribe) unsubscribe();
+    clearTimeout(timeoutHandle);
 
-        // Also claim the message if it exists (for compatibility)
-        if (message) {
-          await client.mutation(api.messages.claimMessage, {
-            sessionId,
-            messageId: message._id,
-            role,
-          });
-        }
+    // Update participant status to active with activeUntil timeout
+    // This gives the agent ~1 hour to complete the task before being considered crashed
+    const activeUntil = Date.now() + DEFAULT_ACTIVE_TIMEOUT_MS;
+    await client.mutation(api.participants.updateStatus, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+      status: 'active',
+      expiresAt: activeUntil,
+    });
 
-        // SUCCESS: This agent has exclusive claim on the task
-        if (pollTimeout) clearTimeout(pollTimeout);
-        clearTimeout(timeoutHandle);
+    // Handle interrupt (if message is interrupt type)
+    if (message && message.type === 'interrupt') {
+      const interruptTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.log(`\n${'─'.repeat(50)}`);
+      console.log(`⚠️  RECONNECTION REQUIRED\n`);
+      console.log(`[${interruptTime}] Why: Interrupt message received from team`);
+      console.log(`Impact: You are no longer listening for tasks`);
+      console.log(`Action: Run this command immediately to resume availability\n`);
+      console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
+      console.log(`${'─'.repeat(50)}`);
+      process.exit(0);
+    }
 
-        // Update participant status to active with activeUntil timeout
-        // This gives the agent ~1 hour to complete the task before being considered crashed
-        const activeUntil = Date.now() + DEFAULT_ACTIVE_TIMEOUT_MS;
-        await client.mutation(api.participants.updateStatus, {
-          sessionId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          role,
-          status: 'active',
-          expiresAt: activeUntil,
-        });
+    // Get the complete task delivery prompt from backend
+    const taskDeliveryPrompt = await client.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+      taskId: task._id,
+      messageId: message?._id,
+      convexUrl,
+    });
 
-        // Handle interrupt (if message is interrupt type)
-        if (message && message.type === 'interrupt') {
-          console.log(`\n${'═'.repeat(50)}`);
-          console.log(`⚠️  INTERRUPT RECEIVED`);
-          console.log(`${'═'.repeat(50)}`);
-          console.log(`Message: ${message.content}`);
-          console.log(`\nAll agents have been reset to idle state.`);
-          console.log(`Rejoin the chatroom to continue participating.`);
-          process.exit(0);
-        }
+    // Log task received with timestamp
+    const taskReceivedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    console.log(`\n[${taskReceivedTime}] 📨 Task received!\n`);
 
-        // Get the complete task delivery prompt from backend
-        const taskDeliveryPrompt = await client.query(api.messages.getTaskDeliveryPrompt, {
-          sessionId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    // Display explicit task and message IDs for clarity
+    console.log(`${'='.repeat(60)}`);
+    console.log(`🆔 TASK INFORMATION`);
+    console.log(`${'='.repeat(60)}`);
+    console.log(`Task ID: ${task._id}`);
+    if (message) {
+      console.log(`Message ID: ${message._id}`);
+    }
+    console.log(`\n📋 NEXT STEPS`);
+    console.log(`${'='.repeat(60)}`);
+
+    // Only show task-started instructions for user messages (entry point classification)
+    // Handoff messages from other agents don't need classification
+    const isUserMessage = message && message.senderRole.toLowerCase() === 'user';
+
+    if (isUserMessage) {
+      console.log(`To acknowledge and classify this message, run:\n`);
+
+      // Show basic command structure
+      const baseCmd = taskStartedCommand({
+        chatroomId,
+        role,
+        taskId: task._id,
+        classification: 'question',
+        cliEnvPrefix,
+      }).replace(
+        '--origin-message-classification=question',
+        '--origin-message-classification=<type>'
+      );
+      console.log(baseCmd);
+
+      // Show classification-specific requirements
+      console.log(`\n📝 Classification Requirements:`);
+      console.log(`   • question: No additional fields required`);
+      console.log(`   • follow_up: No additional fields required`);
+      console.log(`   • new_feature: REQUIRES --title, --description, --tech-specs`);
+
+      // Show complete new_feature example
+      console.log(`\n💡 Example for new_feature:`);
+      console.log(
+        taskStartedCommand({
+          chatroomId,
           role,
           taskId: task._id,
-          messageId: message?._id,
-        });
-
-        // Print human-readable sections
-        console.log(`\n${taskDeliveryPrompt.humanReadable}`);
-
-        // Print JSON output
-        console.log(`\n${'─'.repeat(50)}`);
-        console.log(`📊 MESSAGE DATA (JSON)`);
-        console.log(`${'─'.repeat(50)}`);
-        console.log(JSON.stringify(taskDeliveryPrompt.json, null, 2));
-
-        process.exit(0);
-      } else {
-        // No pending tasks yet, schedule next poll
-        pollTimeout = setTimeout(poll, currentPollInterval);
-      }
-
-      // Reset error counter and poll interval on success
-      consecutiveErrors = 0;
-      currentPollInterval = WAIT_POLL_INTERVAL_MS;
-    } catch (error) {
-      consecutiveErrors++;
-      const err = error as Error;
-
-      // Implement exponential backoff with max limit
-      const maxInterval = 30000; // Max 30 seconds
-      currentPollInterval = Math.min(
-        WAIT_POLL_INTERVAL_MS * Math.pow(2, Math.min(consecutiveErrors - 1, 10)),
-        maxInterval
+          classification: 'new_feature',
+          title: '<title>',
+          description: '<description>',
+          techSpecs: '<tech-specs>',
+          cliEnvPrefix,
+        })
       );
 
-      if (consecutiveErrors === MAX_SILENT_ERRORS) {
-        console.warn(`⚠️  Connection issues, retrying with backoff... (${err.message})`);
-        console.warn(`   Next retry in ${currentPollInterval / 1000}s`);
-      } else if (consecutiveErrors > MAX_SILENT_ERRORS && consecutiveErrors % 10 === 0) {
-        console.warn(`⚠️  Still experiencing issues after ${consecutiveErrors} attempts`);
-        console.warn(`   Retry interval: ${currentPollInterval / 1000}s`);
+      console.log(`\nClassification types: question, new_feature, follow_up`);
+    } else if (message) {
+      console.log(`Task handed off from ${message.senderRole}.`);
+      console.log(
+        `The original user message was already classified - you can start work immediately.`
+      );
+    } else {
+      console.log(`No message found. Task ID: ${task._id}`);
+    }
+
+    console.log(`${'='.repeat(60)}`);
+
+    // Wrap available actions and role prompts in HTML comments (context for agent)
+    console.log(`\n<!-- CONTEXT: Available Actions & Role Instructions`);
+    console.log(taskDeliveryPrompt.humanReadable);
+    console.log(`-->`);
+
+    // Print pinned section with primary user directive (visible, not in comments)
+    const originMessage = taskDeliveryPrompt.json?.contextWindow?.originMessage;
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`📍 PINNED - Work on this immediately`);
+    console.log(`${'='.repeat(60)}`);
+
+    if (originMessage && originMessage.senderRole.toLowerCase() === 'user') {
+      console.log(`\n## User Message`);
+      console.log(`<user-message>`);
+      console.log(originMessage.content);
+
+      // Show attached tasks if available
+      if (originMessage.attachedTasks && originMessage.attachedTasks.length > 0) {
+        console.log(`\nATTACHED BACKLOG (${originMessage.attachedTasks.length})`);
+        for (const attachedTask of originMessage.attachedTasks) {
+          console.log(`${attachedTask.content}`);
+        }
       }
 
-      // Schedule next poll with backoff
-      pollTimeout = setTimeout(poll, currentPollInterval);
+      console.log(`</user-message>`);
     }
+
+    // Show task content (what needs to be done)
+    console.log(`\n## Task`);
+    console.log(task.content);
+
+    // Show classification status
+    const existingClassification = originMessage?.classification;
+    if (existingClassification) {
+      console.log(`\nClassification: ${existingClassification.toUpperCase()}`);
+    }
+
+    // Print clear 4-step process
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`📋 PROCESS`);
+    console.log(`${'='.repeat(60)}`);
+    console.log(`\n1. Mark task as started:`);
+    if (isUserMessage) {
+      // Entry point role: needs to classify the user message
+      console.log(
+        `   ${taskStartedCommand({ chatroomId, role, taskId: task._id, classification: 'follow_up', cliEnvPrefix })}`
+      );
+    } else {
+      // Handoff recipient: classification already done, use --no-classify
+      console.log(
+        `   ${cliEnvPrefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=${task._id} --no-classify`
+      );
+    }
+    console.log(`\n2. Do the work`);
+    console.log(`\n3. Hand off when complete:`);
+    console.log(
+      `   ${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target>`
+    );
+    console.log(`\n4. Resume listening:`);
+    console.log(`   ${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}`);
+
+    // Add reminder about wait-for-task
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(getWaitForTaskReminder());
+    console.log(`${'='.repeat(60)}`);
+
+    process.exit(0);
   };
 
-  // Start polling
-  poll();
+  // Use websocket subscription instead of polling
+  // This is more efficient - we only receive updates when data changes
+  const wsClient = await getConvexWsClient();
+  unsubscribe = wsClient.onUpdate(
+    api.tasks.getPendingTasksForRole,
+    {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+    },
+    (pendingTasks: TaskWithMessage[]) => {
+      handlePendingTasks(pendingTasks).catch((error) => {
+        console.error(`❌ Error processing task: ${(error as Error).message}`);
+      });
+    }
+  );
 
   // Handle interrupt signals - These are UNEXPECTED terminations that require immediate restart
-  const handleSignal = (signal: string) => {
-    if (pollTimeout) clearTimeout(pollTimeout);
+  const handleSignal = (_signal: string) => {
+    if (unsubscribe) unsubscribe();
     clearTimeout(timeoutHandle);
-    console.log(`\n${'═'.repeat(50)}`);
-    console.log(`🚨 UNEXPECTED TERMINATION: ${signal} received`);
-    console.log(`${'═'.repeat(50)}`);
-    console.log(`\n❌ The wait-for-task process was killed unexpectedly.`);
-    console.log(
-      `   This was NOT a normal timeout - the process was terminated by an external signal.`
-    );
-    console.log(`\n⚠️  IMPORTANT: You may miss messages while not waiting!`);
-    console.log(`   Other agents or users may send tasks to you that will be missed.`);
-    console.log(`\n🔄 IMMEDIATELY restart the wait process:`);
-    console.log(
-      `\n   chatroom wait-for-task ${chatroomId} --role=${role} --session=${currentSession}`
-    );
-    console.log(`\n${'═'.repeat(50)}`);
+    const signalTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    console.log(`\n${'─'.repeat(50)}`);
+    console.log(`⚠️  RECONNECTION REQUIRED\n`);
+    console.log(`[${signalTime}] Why: Process interrupted (unexpected termination)`);
+    console.log(`Impact: You are no longer listening for tasks`);
+    console.log(`Action: Run this command immediately to resume availability\n`);
+    console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
+    console.log(`${'─'.repeat(50)}`);
     process.exit(0);
   };
 
   // SIGINT: Ctrl+C or interrupt signal
   process.on('SIGINT', () => handleSignal('SIGINT'));
 
-  // SIGTERM: Graceful termination (e.g., container shutdown, AI agent timeout)
+  // SIGTERM: Graceful termination (e.g., container shutdown, timeout)
   process.on('SIGTERM', () => handleSignal('SIGTERM'));
 
   // SIGHUP: Hang up signal (terminal closed)

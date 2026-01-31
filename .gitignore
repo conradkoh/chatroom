@@ -16,3 +16,4 @@ coverage/
 
 # Misc
 .env*.local
+tmp/
