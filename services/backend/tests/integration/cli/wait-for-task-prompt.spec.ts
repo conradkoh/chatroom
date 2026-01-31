@@ -498,6 +498,9 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       This transitions the task to \`pending_user_review\` where the user can confirm completion or send it back for rework.
 
+      #### Backlog Scoring and Maintenance
+      When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10002;chatroom_rooms --role=builder --status=backlog\` to view items, then provide recommendations.
+
       More actions: \`chatroom backlog --help\`
 
       ## Your Role: BUILDER
@@ -1967,6 +1970,9 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       \`\`\`
 
       This transitions the task to \`pending_user_review\` where the user can confirm completion or send it back for rework.
+
+      #### Backlog Scoring and Maintenance
+      When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10078;chatroom_rooms --role=reviewer --status=backlog\` to view items, then provide recommendations.
 
       More actions: \`chatroom backlog --help\`
 

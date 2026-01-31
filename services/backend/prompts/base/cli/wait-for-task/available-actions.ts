@@ -67,5 +67,8 @@ ${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=${chatroomId} --ro
 
 This transitions the task to \`pending_user_review\` where the user can confirm completion or send it back for rework.
 
+#### Backlog Scoring and Maintenance
+When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog\` to view items, then provide recommendations.
+
 More actions: \`chatroom backlog --help\``;
 }
