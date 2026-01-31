@@ -12,9 +12,26 @@ This plan introduces a new subsystem for machine registration and command delive
 - `machines` table for registered machine records
 - `machine_commands` table for command queue/history
 
-**New Files**:
-- `convex/machines.ts` - Machine registration and management mutations/queries
-- `convex/machine/commands.ts` - Command sending and receiving logic
+**New Module** (`convex/machine/`):
+
+All machine-related functions are consolidated under a single `machine` module for a clean, consistent API:
+
+```
+convex/machine/
+├── index.ts      # Machine CRUD: register, list, get, updateActivity
+├── commands.ts   # Command operations: send, acknowledge, report
+└── config.ts     # Whitelist configuration and sanitizers
+```
+
+**Consumer API** (from `api.machine.*`):
+- `api.machine.register` - Register a new machine
+- `api.machine.list` - List user's machines
+- `api.machine.get` - Get a single machine
+- `api.machine.updateActivity` - Update lastActiveAt timestamp
+- `api.machine.commands.send` - Send a command to a machine
+- `api.machine.commands.getNext` - Get next pending command (for CLI subscription)
+- `api.machine.commands.acknowledge` - Mark command as delivered
+- `api.machine.commands.reportResult` - Report command execution result
 
 ### CLI
 
@@ -205,7 +222,7 @@ export const COMMAND_WHITELIST: CommandWhitelist = {
 
 ### Ownership Verification
 
-Every `machine.command.*` endpoint must verify ownership:
+Every `machine.commands.*` endpoint must verify ownership:
 
 ```typescript
 // Pseudocode for ownership check

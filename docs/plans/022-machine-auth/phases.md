@@ -25,20 +25,19 @@ Establish the database schema and core backend functions for machine management.
    - Add `machines` table with fields: userId, name, machineToken, lastActiveAt, registeredAt, metadata
    - Add `machine_commands` table with fields: machineId, senderId, commandType, payload, status, timestamps
 
-2. **Create machine module** (`convex/machines.ts`)
-   - `registerMachine` mutation - Create machine record with hashed token
-   - `listMachines` query - List machines for current user
-   - `getMachine` query - Get single machine by ID
-   - `updateMachineActivity` mutation - Update lastActiveAt timestamp
+2. **Create machine module** (`convex/machine/index.ts`)
+   - `register` mutation - Create machine record with hashed token
+   - `list` query - List machines for current user
+   - `get` query - Get single machine by ID
+   - `updateActivity` mutation - Update lastActiveAt timestamp
+   
+   Consumer API: `api.machine.register`, `api.machine.list`, `api.machine.get`, `api.machine.updateActivity`
 
 3. **Create command whitelist config** (`convex/machine/config.ts`)
    - Define `COMMAND_WHITELIST` constant
    - Add `test` command as the only initially supported command
    - Add sanitization utilities
-
-4. **Add ownership verification helper** (`convex/machine/auth.ts`)
-   - `verifyMachineOwnership` function
-   - Integration with existing session auth
+   - Export `verifyMachineOwnership` helper for ownership checks
 
 ### Success Criteria
 - Schema migration runs successfully
@@ -60,12 +59,12 @@ Implement the CLI commands for machine registration and listing.
 1. **Create machine register command** (`packages/cli/src/commands/machine-register.ts`)
    - Check if user is authenticated (prerequisite)
    - Check if machine is already registered (read local config)
-   - If not registered, call `registerMachine` mutation
+   - If not registered, call `api.machine.register` mutation
    - Store machine token in `~/.chatroom/machine.json`
    - Display registration confirmation
 
 2. **Create machine list command** (`packages/cli/src/commands/machine-list.ts`)
-   - Call `listMachines` query
+   - Call `api.machine.list` query
    - Display table of registered machines
    - Show last active time, registration date
 
@@ -126,14 +125,16 @@ Build the backend infrastructure for sending and receiving commands.
 ### Tasks
 
 1. **Create command module** (`convex/machine/commands.ts`)
-   - `sendCommand` mutation
+   - `send` mutation - Send a command to a machine
      - Verify user is machine owner
      - Validate command type against whitelist
      - Sanitize payload
      - Insert command record with status "pending"
-   - `getNextCommand` query - Get next pending command for a machine
-   - `acknowledgeCommand` mutation - Mark command as delivered
-   - `reportCommandResult` mutation - Update command with execution result
+   - `getNext` query - Get next pending command for a machine
+   - `acknowledge` mutation - Mark command as delivered
+   - `reportResult` mutation - Update command with execution result
+   
+   Consumer API: `api.machine.commands.send`, `api.machine.commands.getNext`, `api.machine.commands.acknowledge`, `api.machine.commands.reportResult`
 
 2. **Add command subscription** (`convex/machine/commands.ts`)
    - Query that returns pending commands for a machine
@@ -238,7 +239,7 @@ Ensure all security requirements are met and add additional protections.
 ### Tasks
 
 1. **Audit ownership checks**
-   - Review all `machine.command.*` endpoints
+   - Review all `machine.commands.*` endpoints
    - Ensure ownership verification on every endpoint
    - Add integration tests for unauthorized access
 

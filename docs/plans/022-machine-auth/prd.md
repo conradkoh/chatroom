@@ -53,6 +53,6 @@
 
 **US-6**: As a machine owner, I want only my account to be able to send commands to my machines so that others cannot control my devices.
 - **Acceptance Criteria**:
-  - All `machine.command.*` endpoints verify the caller is the machine owner
+  - All `machine.commands.*` endpoints verify the caller is the machine owner
   - Unauthorized command attempts return an access denied error
   - No other user can see or interact with my machines
