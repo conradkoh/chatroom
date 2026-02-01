@@ -34,7 +34,7 @@
     "convex"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "Elastic-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/conradkoh/chatroom"
