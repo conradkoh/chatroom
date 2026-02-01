@@ -81,8 +81,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build CLI
-        run: pnpm --filter chatroom-cli build
+      - name: Build CLI (with dependencies)
+        run: npx nx run @workspace/cli:build
 
       - name: Publish to npm
         working-directory: packages/cli
