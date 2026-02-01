@@ -9,6 +9,10 @@ import { getRolePriority } from './lib/hierarchy';
  * If already joined, updates status to waiting and refreshes readyUntil.
  * When the entry point (primary) role joins, auto-promotes queued tasks if no active task exists.
  * Requires CLI session authentication and chatroom access.
+ *
+ * The connectionId is used to detect concurrent wait-for-task processes.
+ * When a new wait-for-task starts, it generates a unique connectionId.
+ * Any old process with a different connectionId should detect the mismatch and exit.
  */
 export const join = mutation({
   args: {
@@ -17,6 +21,8 @@ export const join = mutation({
     role: v.string(),
     // Optional timestamp when this participant's readiness expires
     readyUntil: v.optional(v.number()),
+    // Unique connection ID to detect concurrent wait-for-task processes
+    connectionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access - returns chatroom directly
@@ -73,10 +79,12 @@ export const join = mutation({
     let participantId;
     if (existing) {
       // Update status to waiting and refresh readyUntil, clear activeUntil
+      // Also update connectionId to allow old processes to detect they should exit
       await ctx.db.patch('chatroom_participants', existing._id, {
         status: 'waiting',
         readyUntil: args.readyUntil,
         activeUntil: undefined, // Clear active timeout when transitioning to waiting
+        connectionId: args.connectionId, // Track current connection for concurrent process detection
       });
       participantId = existing._id;
     } else {
@@ -86,6 +94,7 @@ export const join = mutation({
         role: args.role,
         status: 'waiting',
         readyUntil: args.readyUntil,
+        connectionId: args.connectionId, // Track current connection for concurrent process detection
         // activeUntil not set - will be set when transitioning to active
       });
 
@@ -282,5 +291,32 @@ export const getHighestPriorityWaitingRole = query({
     waitingParticipants.sort((a, b) => getRolePriority(a.role) - getRolePriority(b.role));
 
     return waitingParticipants[0]?.role ?? null;
+  },
+});
+
+/**
+ * Get the current connection ID for a participant.
+ * Used by CLI to detect if another wait-for-task process has taken over.
+ * If the returned connectionId differs from the caller's, the caller should exit.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const getConnectionId = query({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access (chatroom not needed)
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .unique();
+
+    return participant?.connectionId ?? null;
   },
 });

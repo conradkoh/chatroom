@@ -280,6 +280,11 @@ export default defineSchema({
     // After this time, an active participant is considered crashed/stale
     // Used when status = 'active' (typically ~1 hour to allow for long tasks)
     activeUntil: v.optional(v.number()),
+    // Unique connection ID for the current wait-for-task session
+    // Used to detect concurrent wait-for-task processes and terminate old ones
+    // When a new wait-for-task starts, it generates a new connectionId
+    // The old process detects the mismatch and exits cleanly
+    connectionId: v.optional(v.string()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role']),

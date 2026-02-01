@@ -125,12 +125,18 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   const effectiveTimeout = timeout || DEFAULT_WAIT_TIMEOUT_MS;
   const readyUntil = Date.now() + effectiveTimeout;
 
-  // Join the chatroom with readyUntil timestamp
+  // Generate a unique connection ID for this wait-for-task session
+  // This allows detection of concurrent wait-for-task processes
+  // If another process starts, it will update the connectionId and this process will exit
+  const connectionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+  // Join the chatroom with readyUntil timestamp and connectionId
   await client.mutation(api.participants.join, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     role,
     readyUntil,
+    connectionId,
   });
 
   // Log initial connection with timestamp
@@ -198,6 +204,30 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   const handlePendingTasks = async (pendingTasks: TaskWithMessage[]) => {
     // Prevent duplicate processing
     if (taskProcessed) return;
+
+    // Check if another wait-for-task process has taken over
+    // This detects concurrent processes and gracefully exits the old one
+    const currentConnectionId = await client.query(api.participants.getConnectionId, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+    });
+
+    if (currentConnectionId && currentConnectionId !== connectionId) {
+      // Another process has taken over - exit gracefully
+      if (unsubscribe) unsubscribe();
+      clearTimeout(timeoutHandle);
+      const takeoverTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.log(`\n${'─'.repeat(50)}`);
+      console.log(`⚠️  CONNECTION SUPERSEDED\n`);
+      console.log(`[${takeoverTime}] Why: Another wait-for-task process started for this role`);
+      console.log(`Impact: This process is being replaced by the newer connection`);
+      console.log(`Action: This is expected if you started a new wait-for-task session\n`);
+      console.log(`If you meant to use THIS terminal, run:`);
+      console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
+      console.log(`${'─'.repeat(50)}`);
+      process.exit(0);
+    }
 
     // Get the oldest pending task (first in array)
     const taskWithMessage = pendingTasks.length > 0 ? pendingTasks[0] : null;
