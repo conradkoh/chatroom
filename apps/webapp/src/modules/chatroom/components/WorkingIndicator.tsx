@@ -6,6 +6,7 @@ interface Participant {
   _id?: string;
   role: string;
   status: string;
+  activeUntil?: number;
 }
 
 interface WorkingIndicatorProps {
@@ -19,10 +20,16 @@ export const WorkingIndicator = memo(function WorkingIndicator({
   compact = false,
 }: WorkingIndicatorProps) {
   // Find active participants (excluding user) - memoized
-  const activeAgents = useMemo(
-    () => participants.filter((p) => p.status === 'active' && p.role.toLowerCase() !== 'user'),
-    [participants]
-  );
+  // Also check that activeUntil hasn't expired
+  const activeAgents = useMemo(() => {
+    const now = Date.now();
+    return participants.filter((p) => {
+      if (p.status !== 'active' || p.role.toLowerCase() === 'user') return false;
+      // Check if active agent has expired
+      if (p.activeUntil && p.activeUntil < now) return false;
+      return true;
+    });
+  }, [participants]);
 
   if (activeAgents.length === 0) {
     return null;

@@ -175,6 +175,8 @@ interface Participant {
   chatroomId: string;
   role: string;
   status: string;
+  readyUntil?: number;
+  activeUntil?: number;
 }
 
 interface ParticipantInfo {
@@ -307,16 +309,44 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Compute aggregate status for sidebar indicator
   // Blue (working) if any agent is active, Green (ready) if all are waiting
+  // Must check expiration timestamps to detect disconnected agents
   const aggregateStatus = useMemo(() => {
     if (!participants || participants.length === 0) return 'none';
     const nonUserParticipants = participants.filter((p) => p.role.toLowerCase() !== 'user');
     if (nonUserParticipants.length === 0) return 'none';
-    const hasActiveAgent = nonUserParticipants.some((p) => p.status === 'active');
+
+    const now = Date.now();
+
+    // Check if any agent has expired (disconnected)
+    // - Active agents expire based on activeUntil
+    // - Waiting agents expire based on readyUntil
+    const isExpired = (p: Participant): boolean => {
+      if (p.status === 'active') {
+        return p.activeUntil ? p.activeUntil < now : false;
+      }
+      if (p.status === 'waiting') {
+        return p.readyUntil ? p.readyUntil < now : false;
+      }
+      return false;
+    };
+
+    // Filter to get non-expired agents
+    const connectedAgents = nonUserParticipants.filter((p) => !isExpired(p));
+
+    // If any agent is expired, check if we have enough connected agents
+    const hasDisconnected = nonUserParticipants.some(isExpired);
+    if (hasDisconnected && connectedAgents.length === 0) return 'partial';
+
+    // Check for active non-expired agents
+    const hasActiveAgent = connectedAgents.some((p) => p.status === 'active');
     if (hasActiveAgent) return 'working';
-    const allReady = nonUserParticipants.every(
-      (p) => p.status === 'waiting' || p.status === 'active'
-    );
-    if (allReady) return 'ready';
+
+    // All non-expired agents must be waiting for "ready" status
+    const allReady =
+      connectedAgents.length > 0 &&
+      connectedAgents.every((p) => p.status === 'waiting' || p.status === 'active');
+    if (allReady && !hasDisconnected) return 'ready';
+
     return 'partial';
   }, [participants]);
 
