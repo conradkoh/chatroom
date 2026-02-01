@@ -45,9 +45,16 @@ export const compactMarkdownComponents = {
   strong: ({ children }: { children?: React.ReactNode }) => (
     <strong className="font-bold">{children}</strong>
   ),
-  // Links: simple text with underline
-  a: ({ children }: { children?: React.ReactNode }) => (
-    <span className="underline">{children}</span>
+  // Links: underlined with proper color
+  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
+    <a
+      href={href}
+      className="text-chatroom-status-info underline decoration-chatroom-status-info/50 hover:decoration-chatroom-status-info transition-colors"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {children}
+    </a>
   ),
 };
 

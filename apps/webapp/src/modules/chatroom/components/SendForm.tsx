@@ -155,7 +155,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
           placeholder="Type a message..."
           disabled={sending}
           rows={1}
-          className="flex-1 bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm px-3 py-2.5 resize-none max-h-[200px] overflow-hidden leading-5 placeholder:text-chatroom-text-muted focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 min-h-[40px] bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary text-sm px-3 py-2 resize-none max-h-[200px] overflow-hidden leading-6 placeholder:text-chatroom-text-muted placeholder:leading-6 focus:outline-none focus:border-chatroom-border-strong disabled:opacity-50 disabled:cursor-not-allowed align-middle"
         />
 
         <button

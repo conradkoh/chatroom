@@ -1,21 +1,8 @@
 'use client';
 
-import { RefreshCw, AlertTriangle } from 'lucide-react';
-import React, { useCallback, memo, useMemo } from 'react';
+import { RefreshCw, AlertTriangle, X, Copy, Check } from 'lucide-react';
+import React, { useCallback, memo, useMemo, useState, useEffect } from 'react';
 
-import { CopyButton } from './CopyButton';
-
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { usePrompts } from '@/contexts/PromptsContext';
 
 interface ParticipantInfo {
@@ -38,6 +25,42 @@ interface ReconnectModalProps {
   onViewPrompt?: (role: string) => void;
 }
 
+/**
+ * Copy button component styled for chatroom theme
+ */
+function CopyPromptButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }, [text]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-2 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent text-[10px] font-bold uppercase tracking-wider transition-all hover:opacity-90"
+    >
+      {copied ? (
+        <>
+          <Check size={12} />
+          Copied!
+        </>
+      ) : (
+        <>
+          <Copy size={12} />
+          Copy Prompt
+        </>
+      )}
+    </button>
+  );
+}
+
 export const ReconnectModal = memo(function ReconnectModal({
   isOpen,
   onClose,
@@ -50,6 +73,17 @@ export const ReconnectModal = memo(function ReconnectModal({
   onViewPrompt,
 }: ReconnectModalProps) {
   const { getAgentPrompt } = usePrompts();
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
 
   // Generate prompts for expired roles
   const expiredRolePrompts = useMemo(() => {
@@ -68,87 +102,131 @@ export const ReconnectModal = memo(function ReconnectModal({
     return firstLine;
   }, []);
 
+  // Handle backdrop click
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    },
+    [onClose]
+  );
+
+  // Handle escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col gap-0 p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 space-y-2">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={handleBackdropClick}
+    >
+      <div className="chatroom-root w-full max-w-2xl max-h-[85vh] flex flex-col bg-chatroom-bg-primary border-2 border-chatroom-border-strong overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-            <DialogTitle className="text-lg">Agents Disconnected</DialogTitle>
+            <AlertTriangle size={18} className="text-chatroom-status-error" />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+              Agents Disconnected
+            </h2>
           </div>
-          <DialogDescription className="text-sm">
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Description */}
+        <div className="px-4 py-3 border-b-2 border-chatroom-border bg-chatroom-bg-tertiary">
+          <p className="text-xs text-chatroom-text-secondary">
             The following agents have disconnected and need to be reconnected. Copy the prompt for
             each agent and paste it into their terminal.
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
 
-        <ScrollArea className="flex-1 px-6">
-          <div className="flex flex-col gap-3 pb-4">
-            {expiredRolePrompts.map(({ role, prompt }) => {
-              const preview = getPromptPreview(prompt);
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {expiredRolePrompts.map(({ role, prompt }) => {
+            const preview = getPromptPreview(prompt);
 
-              return (
-                <Card
-                  key={role}
-                  className="border-destructive/30 hover:border-destructive/50 transition-colors"
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <RefreshCw className="h-4 w-4 text-destructive" />
-                        <CardTitle className="text-sm font-bold uppercase tracking-wider">
-                          {role}
-                        </CardTitle>
-                      </div>
-                      <Badge variant="destructive" className="uppercase text-xs">
-                        Disconnected
-                      </Badge>
-                    </div>
-                  </CardHeader>
+            return (
+              <div
+                key={role}
+                className="border-2 border-chatroom-status-error/30 bg-chatroom-bg-tertiary"
+              >
+                {/* Card Header */}
+                <div className="flex items-center justify-between px-3 py-2 border-b-2 border-chatroom-border">
+                  <div className="flex items-center gap-2">
+                    <RefreshCw size={14} className="text-chatroom-status-error" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
+                      {role}
+                    </span>
+                  </div>
+                  <span className="px-2 py-0.5 bg-chatroom-status-error/15 text-chatroom-status-error text-[10px] font-bold uppercase tracking-wide">
+                    Disconnected
+                  </span>
+                </div>
 
-                  <CardContent className="pt-0 flex flex-col gap-3">
-                    {/* Prompt Preview */}
-                    {onViewPrompt && (
-                      <button
-                        className="flex items-center justify-between p-2 bg-muted/50 hover:bg-muted transition-colors text-left"
-                        onClick={() => onViewPrompt(role)}
-                        title="Click to view full prompt"
-                      >
-                        <span className="font-mono text-xs text-muted-foreground truncate flex-1">
-                          {preview}
-                        </span>
-                        <span className="text-xs font-medium text-primary ml-2 shrink-0">View</span>
-                      </button>
-                    )}
+                {/* Card Content */}
+                <div className="p-3 space-y-3">
+                  {/* Prompt Preview */}
+                  {onViewPrompt && (
+                    <button
+                      className="w-full flex items-center justify-between p-2 bg-chatroom-bg-hover text-left hover:bg-chatroom-accent-subtle transition-colors"
+                      onClick={() => onViewPrompt(role)}
+                      title="Click to view full prompt"
+                    >
+                      <span className="font-mono text-xs text-chatroom-text-secondary truncate flex-1">
+                        {preview}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info ml-2 flex-shrink-0">
+                        View
+                      </span>
+                    </button>
+                  )}
 
-                    {/* Copy Button */}
-                    <div className="flex justify-end">
-                      <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </ScrollArea>
+                  {/* Copy Button */}
+                  <div className="flex justify-end">
+                    <CopyPromptButton text={prompt} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-        <DialogFooter className="px-6 py-4 border-t bg-muted/30">
-          <div className="w-full space-y-2 text-xs text-muted-foreground">
-            <p className="font-medium">To reconnect each agent:</p>
+        {/* Footer */}
+        <div className="px-4 py-3 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
+          <div className="space-y-2 text-xs text-chatroom-text-secondary">
+            <p className="font-bold uppercase tracking-wide text-chatroom-text-muted">
+              To reconnect each agent:
+            </p>
             <ol className="list-decimal list-inside space-y-1 ml-2">
               <li>Copy the prompt using the button above</li>
               <li>Paste it into the agent&apos;s terminal</li>
               <li>
                 Run{' '}
-                <code className="bg-background px-1.5 py-0.5 text-primary font-mono">
+                <code className="bg-chatroom-bg-tertiary px-1.5 py-0.5 text-chatroom-status-success font-mono text-[11px]">
                   wait-for-task
                 </code>{' '}
                 to reconnect
               </li>
             </ol>
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </div>
   );
 });

@@ -507,13 +507,13 @@ const MessageItem = memo(function MessageItem({
           onClick={handleContentClick}
           className="w-full text-left cursor-pointer hover:bg-chatroom-accent-subtle transition-colors -mx-2 px-2 py-1 rounded"
         >
-          <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-hidden line-clamp-2 prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:my-0 prose-p:my-0 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:hidden prose-a:text-chatroom-status-info prose-a:no-underline prose-table:hidden prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
+          <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-hidden line-clamp-2 prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:my-0 prose-p:my-0 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:hidden prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-table:hidden prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
             <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
           </div>
           <span className="text-[10px] text-chatroom-text-muted mt-1 block">Tap to expand</span>
         </button>
       ) : (
-        <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
+        <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
           <Markdown remarkPlugins={[remarkGfm]} components={fullMarkdownComponents}>
             {message.content}
           </Markdown>
@@ -785,7 +785,7 @@ export const MessageFeed = memo(function MessageFeed({
       {/* Scrollable message content - Task headers use CSS sticky to stay at top while scrolling */}
       {/* Note: px-2 for horizontal padding, no vertical padding so sticky headers flush to top */}
       <div
-        className="flex-1 overflow-y-auto px-2 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
+        className="flex-1 overflow-y-auto overscroll-contain px-2 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
         ref={feedRef}
         onScroll={handleScroll}
       >
