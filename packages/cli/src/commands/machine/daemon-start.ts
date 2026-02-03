@@ -207,12 +207,27 @@ async function processCommand(
           break;
         }
 
-        // Spawn the agent
+        // Fetch init prompt from backend (single source of truth)
+        const convexUrl = getConvexUrl();
+        const initPromptResult = (await client.query(api.messages.getInitPrompt, {
+          sessionId,
+          chatroomId: command.payload.chatroomId,
+          role: command.payload.role,
+          convexUrl,
+        })) as { prompt: string } | null;
+
+        if (!initPromptResult?.prompt) {
+          result = 'Failed to fetch init prompt from backend';
+          break;
+        }
+
+        console.log(`   Fetched init prompt from backend`);
+
+        // Spawn the agent with init prompt from backend
         const spawnResult = await spawnAgent({
           tool: command.payload.agentTool,
           workingDir: agentContext.workingDir,
-          chatroomId: command.payload.chatroomId,
-          role: command.payload.role,
+          initPrompt: initPromptResult.prompt,
         });
 
         if (spawnResult.success) {

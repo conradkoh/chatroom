@@ -2,6 +2,7 @@
  * Agent Spawn Logic
  *
  * Spawns AI agent processes (OpenCode, Claude, Cursor) for remote start.
+ * Init prompt is fetched from the backend (single source of truth).
  */
 
 import { spawn } from 'node:child_process';
@@ -13,10 +14,8 @@ export interface SpawnOptions {
   tool: AgentTool;
   /** Working directory to run in */
   workingDir: string;
-  /** Chatroom ID for init prompt */
-  chatroomId: string;
-  /** Role for init prompt */
-  role: string;
+  /** Init prompt from backend (single source of truth) */
+  initPrompt: string;
 }
 
 export interface SpawnResult {
@@ -26,65 +25,18 @@ export interface SpawnResult {
 }
 
 /**
- * Build the init prompt for an agent
- */
-function buildInitPrompt(chatroomId: string, role: string): string {
-  // The init prompt tells the agent to connect to the chatroom
-  return `# Pair Team
-
-## Your Role: ${role.toUpperCase()}
-
-You are the ${role} in a pair team workflow.
-
-## Getting Started
-
-### Step 1: Gain Context
-
-Before waiting for tasks, understand the conversation history:
-
-\`\`\`bash
-chatroom context read --chatroom-id=${chatroomId} --role=${role}
-\`\`\`
-
-This shows:
-- Origin message and classification
-- Full conversation history
-- Pending tasks for your role
-- Current work status
-
-### Step 2: Wait for Tasks
-
-After gaining context, run:
-
-\`\`\`bash
-chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
-\`\`\`
-
-The CLI will provide:
-- Detailed workflow instructions
-- Command examples
-- Role-specific guidance
-- Team collaboration patterns
-
-## Next Steps
-
-1. Copy the **context read** command above
-2. Review the conversation history
-3. Run **wait-for-task** to receive your first task
-4. Follow the detailed instructions provided by the CLI
-`;
-}
-
-/**
  * Spawn an agent process
  *
  * The agent is spawned in detached mode so it continues running
  * independently of the daemon process.
+ *
+ * @param options.tool - Agent tool to spawn (opencode, claude, cursor)
+ * @param options.workingDir - Working directory to run in
+ * @param options.initPrompt - Init prompt fetched from backend
  */
 export async function spawnAgent(options: SpawnOptions): Promise<SpawnResult> {
-  const { tool, workingDir, chatroomId, role } = options;
+  const { tool, workingDir, initPrompt } = options;
   const command = AGENT_TOOL_COMMANDS[tool];
-  const initPrompt = buildInitPrompt(chatroomId, role);
 
   console.log(`   Spawning ${tool} agent...`);
   console.log(`   Working dir: ${workingDir}`);
