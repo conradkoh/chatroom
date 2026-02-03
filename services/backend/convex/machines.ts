@@ -9,7 +9,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { getAuthUser } from '../modules/auth/getAuthUser';
+import { getAuthUser, getAuthUserOptional } from '../modules/auth/getAuthUser';
 
 // Agent tool type validator (shared across functions)
 const agentToolValidator = v.union(v.literal('opencode'), v.literal('claude'), v.literal('cursor'));
@@ -34,7 +34,7 @@ export const register = mutation({
   },
   handler: async (ctx, args) => {
     // Verify authenticated user
-    const user = await getAuthUser(ctx, args.sessionId);
+    const user = await getAuthUser(ctx, { sessionId: args.sessionId });
     if (!user) {
       throw new Error('Authentication required');
     }
@@ -101,7 +101,7 @@ export const updateAgentConfig = mutation({
   },
   handler: async (ctx, args) => {
     // Verify authenticated user
-    const user = await getAuthUser(ctx, args.sessionId);
+    const user = await getAuthUser(ctx, { sessionId: args.sessionId });
     if (!user) {
       throw new Error('Authentication required');
     }
@@ -175,7 +175,7 @@ export const listMachines = query({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    const user = await getAuthUser(ctx, args.sessionId);
+    const user = await getAuthUserOptional(ctx, { sessionId: args.sessionId });
     if (!user) {
       return { machines: [] };
     }
@@ -209,7 +209,7 @@ export const getAgentConfigs = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthUser(ctx, args.sessionId);
+    const user = await getAuthUserOptional(ctx, { sessionId: args.sessionId });
     if (!user) {
       return { configs: [] };
     }
@@ -259,7 +259,7 @@ export const getPendingCommands = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthUser(ctx, args.sessionId);
+    const user = await getAuthUserOptional(ctx, { sessionId: args.sessionId });
     if (!user) {
       return { commands: [] };
     }
@@ -308,7 +308,7 @@ export const updateDaemonStatus = mutation({
     connected: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthUser(ctx, args.sessionId);
+    const user = await getAuthUser(ctx, { sessionId: args.sessionId });
     if (!user) {
       throw new Error('Authentication required');
     }
@@ -352,7 +352,7 @@ export const sendCommand = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthUser(ctx, args.sessionId);
+    const user = await getAuthUser(ctx, { sessionId: args.sessionId });
     if (!user) {
       throw new Error('Authentication required');
     }
@@ -428,7 +428,7 @@ export const ackCommand = mutation({
     result: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthUser(ctx, args.sessionId);
+    const user = await getAuthUser(ctx, { sessionId: args.sessionId });
     if (!user) {
       throw new Error('Authentication required');
     }

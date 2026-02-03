@@ -18,12 +18,18 @@ import {
   getConvexClient,
   getConvexWsClient,
 } from '../infrastructure/convex/client.js';
+import {
+  ensureMachineRegistered,
+  updateAgentContext,
+  type AgentTool,
+} from '../infrastructure/machine/index.js';
 
 interface WaitForTaskOptions {
   role: string;
   timeout?: number;
   duration?: string;
   silent?: boolean;
+  agentType?: AgentTool;
 }
 
 /**
@@ -118,6 +124,52 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   if (!chatroom) {
     console.error(`❌ Chatroom ${chatroomId} not found or access denied`);
     process.exit(1);
+  }
+
+  // Register machine and sync config to backend
+  // This enables remote agent start from web UI
+  try {
+    // Ensure local machine config exists (idempotent - creates or refreshes)
+    const machineInfo = ensureMachineRegistered();
+
+    // Register/update machine in backend
+
+    await client.mutation(api.machines.register, {
+      sessionId: sessionId as any, // SessionId branded type from convex-helpers
+      machineId: machineInfo.machineId,
+      hostname: machineInfo.hostname,
+      os: machineInfo.os,
+      availableTools: machineInfo.availableTools,
+    });
+
+    // Determine agent type (from flag or default to first available tool)
+    const agentType: AgentTool | undefined =
+      options.agentType ??
+      (machineInfo.availableTools.length > 0 ? machineInfo.availableTools[0] : undefined);
+
+    if (agentType) {
+      // Store agent config for this chatroom+role (enables remote restart)
+      const workingDir = process.cwd();
+
+      // Update local config
+      updateAgentContext(chatroomId, role, agentType, workingDir);
+
+      // Sync to backend
+
+      await client.mutation(api.machines.updateAgentConfig, {
+        sessionId: sessionId as any, // SessionId branded type from convex-helpers
+        machineId: machineInfo.machineId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        role,
+        agentType,
+        workingDir,
+      });
+    }
+  } catch (machineError) {
+    // Machine registration is non-critical - log warning but continue
+    if (!silent) {
+      console.warn(`⚠️  Machine registration failed: ${(machineError as Error).message}`);
+    }
   }
 
   // Calculate readyUntil timestamp for this session
