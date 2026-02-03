@@ -635,6 +635,41 @@ artifactCommand
   });
 
 // ============================================================================
+// MACHINE COMMANDS (auth required)
+// ============================================================================
+
+const machineCommand = program
+  .command('machine')
+  .description('Machine daemon management for remote agent control');
+
+const daemonCommand = machineCommand.command('daemon').description('Manage the machine daemon');
+
+daemonCommand
+  .command('start')
+  .description('Start the machine daemon to listen for remote commands')
+  .action(async () => {
+    await maybeRequireAuth();
+    const { daemonStart } = await import('./commands/machine/index.js');
+    await daemonStart();
+  });
+
+daemonCommand
+  .command('stop')
+  .description('Stop the running machine daemon')
+  .action(async () => {
+    const { daemonStop } = await import('./commands/machine/index.js');
+    await daemonStop();
+  });
+
+daemonCommand
+  .command('status')
+  .description('Check if the machine daemon is running')
+  .action(async () => {
+    const { daemonStatus } = await import('./commands/machine/index.js');
+    await daemonStatus();
+  });
+
+// ============================================================================
 // OPENCODE COMMANDS (no auth required)
 // ============================================================================
 
