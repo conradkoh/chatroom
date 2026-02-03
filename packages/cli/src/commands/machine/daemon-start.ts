@@ -5,6 +5,7 @@
  */
 
 import { acquireLock, releaseLock } from './pid.js';
+import { spawnAgent } from './spawn.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import {
@@ -12,7 +13,11 @@ import {
   getConvexClient,
   getConvexWsClient,
 } from '../../infrastructure/convex/client.js';
-import { getMachineId, loadMachineConfig } from '../../infrastructure/machine/index.js';
+import {
+  getMachineId,
+  loadMachineConfig,
+  getAgentContext,
+} from '../../infrastructure/machine/index.js';
 
 interface MachineCommand {
   _id: Id<'chatroom_machineCommands'>;
@@ -182,14 +187,43 @@ async function processCommand(
         console.log(`   ↪ Responding with status`);
         break;
 
-      case 'start-agent':
-        // This will be implemented in Phase 5
+      case 'start-agent': {
         console.log(`   ↪ start-agent command received`);
         console.log(`      Chatroom: ${command.payload.chatroomId}`);
         console.log(`      Role: ${command.payload.role}`);
         console.log(`      Tool: ${command.payload.agentTool}`);
-        result = 'Agent spawn not yet implemented (Phase 5)';
+
+        // Validate payload
+        if (!command.payload.chatroomId || !command.payload.role || !command.payload.agentTool) {
+          result = 'Missing required payload: chatroomId, role, or agentTool';
+          break;
+        }
+
+        // Get agent context for working directory
+        const agentContext = getAgentContext(command.payload.chatroomId, command.payload.role);
+
+        if (!agentContext) {
+          result = `No agent context found for ${command.payload.chatroomId}/${command.payload.role}`;
+          break;
+        }
+
+        // Spawn the agent
+        const spawnResult = await spawnAgent({
+          tool: command.payload.agentTool,
+          workingDir: agentContext.workingDir,
+          chatroomId: command.payload.chatroomId,
+          role: command.payload.role,
+        });
+
+        if (spawnResult.success) {
+          result = `Agent spawned (PID: ${spawnResult.pid})`;
+          console.log(`   ✅ ${result}`);
+        } else {
+          result = spawnResult.message;
+          console.log(`   ⚠️  ${result}`);
+        }
         break;
+      }
 
       default:
         result = `Unknown command type: ${command.type}`;
