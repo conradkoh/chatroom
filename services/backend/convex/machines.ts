@@ -294,7 +294,7 @@ export const getPendingCommands = query({
 });
 
 // ============================================================================
-// COMMAND MANAGEMENT (will be expanded in Phase 5-6)
+// COMMAND MANAGEMENT
 // ============================================================================
 
 /**
