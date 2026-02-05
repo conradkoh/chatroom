@@ -7,13 +7,14 @@ import {
   Play,
   Square,
   X,
-  Monitor,
   AlertCircle,
   Loader2,
   CheckCircle,
   Copy,
   Check,
   ChevronLeft,
+  RotateCw,
+  ChevronDown,
 } from 'lucide-react';
 import React, { useCallback, memo, useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -131,11 +132,11 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
   // Local state
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<AgentTool | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>('default');
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [showMachineSelector, setShowMachineSelector] = useState(false);
 
   // Get prompt for this role
   const prompt = useMemo(() => getAgentPrompt(role) || '', [getAgentPrompt, role]);
@@ -145,11 +146,11 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     if (isOpen) {
       setSelectedMachineId(null);
       setSelectedTool(null);
+      setSelectedModel('default');
       setIsStarting(false);
       setIsStopping(false);
       setError(null);
       setSuccess(null);
-      setShowMachineSelector(false);
     }
   }, [isOpen]);
 
@@ -188,12 +189,27 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     return machine?.availableTools || [];
   }, [selectedMachineId, machinesResult?.machines]);
 
-  // Auto-select first machine if only one is available
+  // Auto-select machine: prefer the machine with existing config, else first connected
   useEffect(() => {
-    if (connectedMachines.length === 1 && !selectedMachineId && showMachineSelector) {
-      setSelectedMachineId(connectedMachines[0].machineId);
+    if (!selectedMachineId && connectedMachines.length > 0) {
+      // If there's a running agent config, select that machine
+      if (runningAgentConfig) {
+        setSelectedMachineId(runningAgentConfig.machineId);
+      } else if (roleConfigs.length > 0) {
+        // Select machine that has an existing config for this role
+        const configMachine = connectedMachines.find((m) =>
+          roleConfigs.some((c) => c.machineId === m.machineId)
+        );
+        if (configMachine) {
+          setSelectedMachineId(configMachine.machineId);
+        } else {
+          setSelectedMachineId(connectedMachines[0].machineId);
+        }
+      } else {
+        setSelectedMachineId(connectedMachines[0].machineId);
+      }
     }
-  }, [connectedMachines, selectedMachineId, showMachineSelector]);
+  }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs]);
 
   // Auto-select tool if there's a config for this machine/role
   useEffect(() => {
@@ -225,17 +241,16 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
       });
 
       setSuccess('Agent start command sent!');
-      setShowMachineSelector(false);
-      // Close modal after a short delay to show success
+      // Clear success after a short delay
       setTimeout(() => {
-        onClose();
-      }, 1500);
+        setSuccess(null);
+      }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start agent');
     } finally {
       setIsStarting(false);
     }
-  }, [selectedMachineId, selectedTool, sendCommand, chatroomId, role, onClose]);
+  }, [selectedMachineId, selectedTool, sendCommand, chatroomId, role]);
 
   // Handle stop agent
   const handleStopAgent = useCallback(async () => {
@@ -255,16 +270,60 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
       });
 
       setSuccess('Agent stop command sent!');
-      // Close modal after a short delay to show success
+      // Clear success after a short delay
       setTimeout(() => {
-        onClose();
-      }, 1500);
+        setSuccess(null);
+      }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to stop agent');
     } finally {
       setIsStopping(false);
     }
-  }, [runningAgentConfig, sendCommand, chatroomId, role, onClose]);
+  }, [runningAgentConfig, sendCommand, chatroomId, role]);
+
+  // Handle restart agent (stop then start)
+  const handleRestartAgent = useCallback(async () => {
+    if (!runningAgentConfig) return;
+
+    setIsStopping(true);
+    setError(null);
+
+    try {
+      // Send stop command
+      await sendCommand({
+        machineId: runningAgentConfig.machineId,
+        type: 'stop-agent' as const,
+        payload: {
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+        },
+      });
+
+      // Wait a moment then send start
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setIsStopping(false);
+      setIsStarting(true);
+
+      await sendCommand({
+        machineId: runningAgentConfig.machineId,
+        type: 'start-agent' as const,
+        payload: {
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+        },
+      });
+
+      setSuccess('Agent restart command sent!');
+      setTimeout(() => {
+        setSuccess(null);
+      }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to restart agent');
+    } finally {
+      setIsStarting(false);
+      setIsStopping(false);
+    }
+  }, [runningAgentConfig, sendCommand, chatroomId, role]);
 
   // Handle backdrop click
   const handleBackdropClick = useCallback(
@@ -288,12 +347,18 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  // Available models (placeholder for future extension)
+  const availableModels = useMemo(() => [{ value: 'default', label: 'Default' }], []);
+
   if (!isOpen) return null;
 
   const isLoading = machinesResult === undefined || configsResult === undefined;
   const hasNoMachines = !isLoading && connectedMachines.length === 0;
-  const canStart = selectedMachineId && selectedTool && !isStarting && !success;
-  const canStop = runningAgentConfig && !isStopping && !success;
+  const isAgentRunning = !!runningAgentConfig;
+  const canStart = selectedMachineId && selectedTool && !isStarting && !isAgentRunning && !success;
+  const canStop = isAgentRunning && !isStopping && !success;
+  const canRestart = isAgentRunning && !isStopping && !isStarting && !success;
+  const isBusy = isStarting || isStopping;
 
   // Status display
   const statusLabel =
@@ -364,204 +429,213 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {success ? (
-            <div className="text-center py-8 space-y-3">
-              <CheckCircle size={32} className="mx-auto text-chatroom-status-success" />
-              <p className="text-sm text-chatroom-text-primary font-bold">{success}</p>
+          {/* Running agent info banner */}
+          {runningAgentConfig && (
+            <div className="p-3 bg-chatroom-bg-tertiary border border-chatroom-status-info/30 space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-chatroom-status-info rounded-full animate-pulse" />
+                <span className="text-xs font-bold text-chatroom-text-primary">Agent Running</span>
+              </div>
+              <div className="text-[10px] text-chatroom-text-muted">
+                <span>Machine: {runningAgentConfig.hostname}</span>
+                {' · '}
+                <span>Tool: {TOOL_DISPLAY_NAMES[runningAgentConfig.agentType]}</span>
+                {' · '}
+                <span>PID: {runningAgentConfig.spawnedAgentPid}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Success message */}
+          {success && (
+            <div className="flex items-center gap-2 p-3 bg-chatroom-status-success/10 border border-chatroom-status-success/30">
+              <CheckCircle size={14} className="text-chatroom-status-success flex-shrink-0" />
+              <p className="text-xs text-chatroom-status-success font-bold">{success}</p>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-chatroom-status-error/10 border border-chatroom-status-error/30">
+              <AlertCircle size={14} className="text-chatroom-status-error flex-shrink-0" />
+              <p className="text-xs text-chatroom-status-error">{error}</p>
+            </div>
+          )}
+
+          {/* Agent Prompt Section */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+                Agent Prompt
+              </span>
+              <CopyPromptButton text={prompt} />
+            </div>
+            <button
+              className="w-full text-left text-xs text-chatroom-text-secondary font-mono whitespace-pre-wrap break-words bg-chatroom-bg-tertiary p-3 max-h-40 overflow-y-auto hover:text-chatroom-text-primary transition-colors"
+              onClick={() => {
+                onViewPrompt?.(role);
+                onClose();
+              }}
+              title="Click to view full prompt"
+            >
+              {prompt.length > 300 ? prompt.substring(0, 300) + '...' : prompt}
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom Control Bar */}
+        <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface px-3 py-2.5">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-1">
+              <Loader2 size={16} className="animate-spin text-chatroom-text-muted" />
+              <span className="ml-2 text-[10px] text-chatroom-text-muted">Loading machines...</span>
+            </div>
+          ) : hasNoMachines ? (
+            <div className="flex items-center gap-2 py-1">
+              <AlertCircle size={14} className="text-chatroom-status-warning flex-shrink-0" />
+              <span className="text-[10px] text-chatroom-text-secondary">No machines online.</span>
+              <code className="text-[10px] font-mono text-chatroom-status-success ml-auto">
+                chatroom machine daemon start
+              </code>
             </div>
           ) : (
-            <>
-              {/* Agent Control Section */}
-              <div className="space-y-3">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-                  Agent Control
-                </div>
+            <div className="flex items-center gap-2">
+              {/* Machine Selection Dropdown */}
+              <div className="relative flex-shrink-0">
+                <select
+                  value={selectedMachineId || ''}
+                  onChange={(e) => {
+                    setSelectedMachineId(e.target.value || null);
+                    setSelectedTool(null);
+                  }}
+                  disabled={isBusy || isAgentRunning}
+                  className="appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent min-w-0 max-w-[120px] truncate"
+                  title="Select Machine"
+                >
+                  <option value="">Machine...</option>
+                  {connectedMachines.map((machine) => (
+                    <option key={machine.machineId} value={machine.machineId}>
+                      {machine.hostname}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={10}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-chatroom-text-muted pointer-events-none"
+                />
+              </div>
 
-                {/* Running agent info */}
-                {runningAgentConfig && (
-                  <div className="p-3 bg-chatroom-bg-tertiary border border-chatroom-status-info/30 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-chatroom-status-info rounded-full animate-pulse" />
-                      <span className="text-xs font-bold text-chatroom-text-primary">
-                        Agent Running
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-chatroom-text-muted">
-                      <span>Machine: {runningAgentConfig.hostname}</span>
-                      <br />
-                      <span>Tool: {TOOL_DISPLAY_NAMES[runningAgentConfig.agentType]}</span>
-                      <br />
-                      <span>PID: {runningAgentConfig.spawnedAgentPid}</span>
-                    </div>
+              {/* Tool Selection Dropdown */}
+              <div className="relative flex-shrink-0">
+                <select
+                  value={selectedTool || ''}
+                  onChange={(e) => setSelectedTool((e.target.value as AgentTool) || null)}
+                  disabled={
+                    isBusy ||
+                    isAgentRunning ||
+                    !selectedMachineId ||
+                    availableToolsForMachine.length === 0
+                  }
+                  className="appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent min-w-0 max-w-[120px] truncate"
+                  title="Select Tool"
+                >
+                  <option value="">Tool...</option>
+                  {availableToolsForMachine.map((tool) => (
+                    <option key={tool} value={tool}>
+                      {TOOL_DISPLAY_NAMES[tool]}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={10}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-chatroom-text-muted pointer-events-none"
+                />
+              </div>
+
+              {/* Model Selection Dropdown */}
+              <div className="relative flex-shrink-0">
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  disabled={isBusy}
+                  className="appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent min-w-0 max-w-[100px] truncate"
+                  title="Select Model"
+                >
+                  {availableModels.map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={10}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-chatroom-text-muted pointer-events-none"
+                />
+              </div>
+
+              {/* Spacer */}
+              <div className="flex-1" />
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {isAgentRunning ? (
+                  <>
+                    {/* Stop Button */}
                     <button
                       onClick={handleStopAgent}
                       disabled={!canStop}
-                      className={`w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all ${
+                      className={`w-8 h-8 flex items-center justify-center transition-all ${
                         canStop
-                          ? 'bg-chatroom-status-error text-white hover:bg-chatroom-status-error/90'
-                          : 'bg-chatroom-bg-tertiary text-chatroom-text-muted cursor-not-allowed'
+                          ? 'text-chatroom-status-error hover:bg-chatroom-status-error/10'
+                          : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
                       }`}
+                      title="Stop Agent"
                     >
                       {isStopping ? (
-                        <>
-                          <Loader2 size={12} className="animate-spin" />
-                          Stopping...
-                        </>
+                        <Loader2 size={16} className="animate-spin" />
                       ) : (
-                        <>
-                          <Square size={12} />
-                          Stop Agent
-                        </>
+                        <Square size={16} />
                       )}
                     </button>
-                  </div>
-                )}
-
-                {/* Start agent section */}
-                {!runningAgentConfig && (
-                  <>
-                    {!showMachineSelector ? (
-                      <button
-                        onClick={() => setShowMachineSelector(true)}
-                        disabled={isLoading}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-chatroom-status-info text-white text-xs font-bold uppercase tracking-wider hover:bg-chatroom-status-info/90 transition-colors disabled:opacity-50"
-                      >
-                        <Play size={14} />
-                        Start Agent Remotely
-                      </button>
-                    ) : isLoading ? (
-                      <div className="flex items-center justify-center py-4">
-                        <Loader2 size={24} className="animate-spin text-chatroom-text-muted" />
-                      </div>
-                    ) : hasNoMachines ? (
-                      <div className="text-center py-4 space-y-2">
-                        <AlertCircle size={24} className="mx-auto text-chatroom-status-warning" />
-                        <p className="text-xs text-chatroom-text-secondary">
-                          No machines with daemon running.
-                        </p>
-                        <code className="block bg-chatroom-bg-tertiary px-2 py-1 text-[10px] font-mono text-chatroom-status-success">
-                          chatroom machine daemon start
-                        </code>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* Machine Selection */}
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-                            Select Machine
-                          </label>
-                          <div className="space-y-1">
-                            {connectedMachines.map((machine) => (
-                              <button
-                                key={machine.machineId}
-                                onClick={() => {
-                                  setSelectedMachineId(machine.machineId);
-                                  setSelectedTool(null);
-                                }}
-                                className={`w-full flex items-center gap-2 p-2 border transition-all ${
-                                  selectedMachineId === machine.machineId
-                                    ? 'border-chatroom-accent bg-chatroom-accent-subtle'
-                                    : 'border-chatroom-border hover:border-chatroom-border-strong hover:bg-chatroom-bg-hover'
-                                }`}
-                              >
-                                <Monitor size={14} className="text-chatroom-text-muted" />
-                                <span className="text-xs font-bold text-chatroom-text-primary flex-1 text-left">
-                                  {machine.hostname}
-                                </span>
-                                <div className="w-2 h-2 bg-chatroom-status-success rounded-full" />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Tool Selection */}
-                        {selectedMachineId && availableToolsForMachine.length > 0 && (
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-                              Select Tool
-                            </label>
-                            <div className="flex flex-wrap gap-1">
-                              {availableToolsForMachine.map((tool) => (
-                                <button
-                                  key={tool}
-                                  onClick={() => setSelectedTool(tool)}
-                                  className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
-                                    selectedTool === tool
-                                      ? 'bg-chatroom-accent text-chatroom-text-on-accent'
-                                      : 'bg-chatroom-bg-tertiary text-chatroom-text-secondary hover:bg-chatroom-bg-hover'
-                                  }`}
-                                >
-                                  {TOOL_DISPLAY_NAMES[tool]}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Start Button */}
-                        <button
-                          onClick={handleStartAgent}
-                          disabled={!canStart}
-                          className={`w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all ${
-                            canStart
-                              ? 'bg-chatroom-status-info text-white hover:bg-chatroom-status-info/90'
-                              : 'bg-chatroom-bg-tertiary text-chatroom-text-muted cursor-not-allowed'
-                          }`}
-                        >
-                          {isStarting ? (
-                            <>
-                              <Loader2 size={12} className="animate-spin" />
-                              Starting...
-                            </>
-                          ) : (
-                            <>
-                              <Play size={12} />
-                              Start Agent
-                            </>
-                          )}
-                        </button>
-
-                        {/* Cancel */}
-                        <button
-                          onClick={() => setShowMachineSelector(false)}
-                          className="w-full text-center text-[10px] text-chatroom-text-muted hover:text-chatroom-text-secondary"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
+                    {/* Restart Button */}
+                    <button
+                      onClick={handleRestartAgent}
+                      disabled={!canRestart}
+                      className={`w-8 h-8 flex items-center justify-center transition-all ${
+                        canRestart
+                          ? 'text-chatroom-status-info hover:bg-chatroom-status-info/10'
+                          : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
+                      }`}
+                      title="Restart Agent"
+                    >
+                      {isStarting ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <RotateCw size={16} />
+                      )}
+                    </button>
                   </>
+                ) : (
+                  /* Start Button */
+                  <button
+                    onClick={handleStartAgent}
+                    disabled={!canStart}
+                    className={`w-8 h-8 flex items-center justify-center transition-all ${
+                      canStart
+                        ? 'text-chatroom-status-success hover:bg-chatroom-status-success/10'
+                        : 'text-chatroom-text-muted cursor-not-allowed opacity-50'
+                    }`}
+                    title="Start Agent"
+                  >
+                    {isStarting ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Play size={16} />
+                    )}
+                  </button>
                 )}
               </div>
-
-              {/* Error */}
-              {error && (
-                <div className="flex items-center gap-2 p-3 bg-chatroom-status-error/10 border border-chatroom-status-error/30">
-                  <AlertCircle size={14} className="text-chatroom-status-error flex-shrink-0" />
-                  <p className="text-xs text-chatroom-status-error">{error}</p>
-                </div>
-              )}
-
-              {/* Agent Prompt Section */}
-              <div className="space-y-2 pt-2 border-t border-chatroom-border">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-                    Agent Prompt
-                  </span>
-                  <CopyPromptButton text={prompt} />
-                </div>
-                <button
-                  className="w-full text-left text-xs text-chatroom-text-secondary font-mono whitespace-pre-wrap break-words bg-chatroom-bg-tertiary p-3 max-h-32 overflow-y-auto hover:text-chatroom-text-primary transition-colors"
-                  onClick={() => {
-                    onViewPrompt?.(role);
-                    onClose();
-                  }}
-                  title="Click to view full prompt"
-                >
-                  {prompt.length > 300 ? prompt.substring(0, 300) + '...' : prompt}
-                </button>
-              </div>
-            </>
+            </div>
           )}
         </div>
       </div>
