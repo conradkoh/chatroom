@@ -242,6 +242,8 @@ export const getAgentConfigs = query({
           daemonConnected: machine?.daemonConnected ?? false,
           availableTools: machine?.availableTools ?? [],
           updatedAt: config.updatedAt,
+          spawnedAgentPid: config.spawnedAgentPid,
+          spawnedAt: config.spawnedAt,
         };
       })
     );
@@ -343,7 +345,12 @@ export const sendCommand = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    type: v.union(v.literal('start-agent'), v.literal('ping'), v.literal('status')),
+    type: v.union(
+      v.literal('start-agent'),
+      v.literal('stop-agent'),
+      v.literal('ping'),
+      v.literal('status')
+    ),
     payload: v.optional(
       v.object({
         chatroomId: v.optional(v.id('chatroom_rooms')),
@@ -414,6 +421,59 @@ export const sendCommand = mutation({
     });
 
     return { commandId };
+  },
+});
+
+/**
+ * Update spawned agent PID (from daemon after spawning).
+ * Used to track running agents for stop functionality.
+ */
+export const updateSpawnedAgent = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    pid: v.optional(v.number()), // null to clear
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthUser(ctx, { sessionId: args.sessionId });
+    if (!user) {
+      throw new Error('Authentication required');
+    }
+
+    // Verify machine ownership
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    if (!machine || machine.userId !== user._id) {
+      throw new Error('Not authorized');
+    }
+
+    // Find the agent config
+    const config = await ctx.db
+      .query('chatroom_machineAgentConfigs')
+      .withIndex('by_machine_chatroom_role', (q) =>
+        q.eq('machineId', args.machineId).eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .first();
+
+    if (!config) {
+      throw new Error('Agent config not found');
+    }
+
+    const now = Date.now();
+
+    // Update the spawned agent info
+    await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
+      spawnedAgentPid: args.pid,
+      spawnedAt: args.pid ? now : undefined,
+      updatedAt: now,
+    });
+
+    return { success: true };
   },
 });
 

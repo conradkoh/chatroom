@@ -1,14 +1,12 @@
 'use client';
 
-import { ChevronRight, CheckCircle, AlertTriangle, Clock, RefreshCw, Play } from 'lucide-react';
-import React, { useState, useMemo, useCallback, memo } from 'react';
+import { ChevronRight, CheckCircle, AlertTriangle, Clock, RefreshCw, X } from 'lucide-react';
+import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
+import { ChatroomAgentDetailsModal } from './ChatroomAgentDetailsModal';
 import { CopyButton } from './CopyButton';
-import { StartAgentModal } from './StartAgentModal';
 
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { usePrompts } from '@/contexts/PromptsContext';
 
 // Participant info from readiness query - includes expiration data
@@ -71,42 +69,59 @@ const getEffectiveStatus = (
   return { status: participant.status, isExpired: false };
 };
 
-// Collapsed Agent Group Component - uses ShadCN Dialog
+// Collapsed Agent Group Component - shows a list and opens details modal for each agent
 interface CollapsedAgentGroupProps {
+  chatroomId: string;
   title: string;
   agents: string[];
   variant: 'ready' | 'offline';
   generatePrompt: (role: string) => string;
   onViewPrompt?: (role: string) => void;
-  onStartAgent?: (role: string) => void;
 }
 
 const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
+  chatroomId,
   title,
   agents,
   variant,
   generatePrompt,
   onViewPrompt,
-  onStartAgent,
 }: CollapsedAgentGroupProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
 
   const variantClasses = {
     ready: {
       indicator: 'bg-green-500 dark:bg-green-400',
-      badge: 'default' as const,
     },
     offline: {
       indicator: 'bg-amber-500 dark:bg-amber-400',
-      badge: 'secondary' as const,
     },
   };
 
   const classes = variantClasses[variant];
+  const effectiveStatus = variant === 'ready' ? 'waiting' : 'disconnected';
+
+  // Handle clicking on an agent in the list
+  const handleAgentClick = useCallback((role: string) => {
+    setSelectedRole(role);
+  }, []);
+
+  // Handle going back to the list view
+  const handleBack = useCallback(() => {
+    setSelectedRole(null);
+  }, []);
+
+  // Handle closing the modal entirely
+  const handleClose = useCallback(() => {
+    setIsModalOpen(false);
+    setSelectedRole(null);
+  }, []);
 
   return (
     <>
       <div className="border-b border-border last:border-b-0">
+        {/* Clickable Header - opens modal */}
         <div
           className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-accent/50"
           role="button"
@@ -137,167 +152,141 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
         </div>
       </div>
 
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-sm max-h-[70vh] flex flex-col gap-0 p-0">
-          <DialogHeader className="px-4 py-3 border-b">
-            <div className="flex items-center gap-2">
-              <div className={`w-2.5 h-2.5 ${classes.indicator}`} />
-              <DialogTitle className="text-sm font-bold uppercase tracking-wider">
-                {title} Agents ({agents.length})
-              </DialogTitle>
-            </div>
-          </DialogHeader>
+      {/* Single Centered Modal - shows either list or details */}
+      {isModalOpen && !selectedRole && (
+        <AgentListModal
+          isOpen={true}
+          onClose={handleClose}
+          title={title}
+          agents={agents}
+          variant={variant}
+          generatePrompt={generatePrompt}
+          onSelectAgent={handleAgentClick}
+        />
+      )}
 
-          <ScrollArea className="flex-1">
-            {agents.map((role) => {
-              const prompt = generatePrompt(role);
-              const preview = prompt.split('\n')[0]?.substring(0, 40) + '...';
-
-              return (
-                <div
-                  key={role}
-                  className="border-b border-border last:border-b-0 p-4 hover:bg-accent/50 transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-sm font-bold uppercase tracking-wider text-foreground truncate">
-                      {role}
-                    </span>
-                    <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
-                  </div>
-                  <button
-                    className="text-xs text-muted-foreground font-mono truncate w-full text-left hover:text-foreground transition-colors"
-                    onClick={() => {
-                      onViewPrompt?.(role);
-                      setIsModalOpen(false);
-                    }}
-                    title="Click to view full prompt"
-                  >
-                    {preview}
-                  </button>
-                  {/* Start Agent button for offline agents */}
-                  {variant === 'offline' && onStartAgent && (
-                    <button
-                      onClick={() => {
-                        onStartAgent(role);
-                        setIsModalOpen(false);
-                      }}
-                      className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-blue-600 dark:bg-blue-500 text-white text-[10px] font-bold uppercase tracking-wider hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
-                    >
-                      <Play size={12} />
-                      Start Agent
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
+      {/* Agent Details View - same modal position, different content */}
+      {isModalOpen && selectedRole && (
+        <ChatroomAgentDetailsModal
+          isOpen={true}
+          onClose={handleClose}
+          chatroomId={chatroomId}
+          role={selectedRole}
+          effectiveStatus={effectiveStatus}
+          onViewPrompt={onViewPrompt}
+          onBack={agents.length > 1 ? handleBack : undefined}
+        />
+      )}
     </>
   );
 });
 
-// Single Agent Modal Component - uses ShadCN Dialog
-interface SingleAgentModalProps {
-  role: string;
-  effectiveStatus: string;
-  prompt: string;
+// Agent List Modal - shows list of agents in a centered modal
+interface AgentListModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onViewPrompt?: (role: string) => void;
-  onStartAgent?: (role: string) => void;
+  title: string;
+  agents: string[];
+  variant: 'ready' | 'offline';
+  generatePrompt: (role: string) => string;
+  onSelectAgent: (role: string) => void;
 }
 
-const SingleAgentModal = memo(function SingleAgentModal({
-  role,
-  effectiveStatus,
-  prompt,
+const AgentListModal = memo(function AgentListModal({
   isOpen,
   onClose,
-  onViewPrompt,
-  onStartAgent,
-}: SingleAgentModalProps) {
-  const statusLabel =
-    effectiveStatus === 'missing'
-      ? 'NOT JOINED'
-      : effectiveStatus === 'disconnected'
-        ? 'DISCONNECTED'
-        : effectiveStatus === 'waiting'
-          ? 'READY'
-          : effectiveStatus === 'active'
-            ? 'WORKING'
-            : 'IDLE';
+  title,
+  agents,
+  variant,
+  generatePrompt,
+  onSelectAgent,
+}: AgentListModalProps) {
+  const variantClasses = {
+    ready: {
+      indicator: 'bg-chatroom-status-success',
+    },
+    offline: {
+      indicator: 'bg-chatroom-status-warning',
+    },
+  };
 
-  const indicatorClass =
-    effectiveStatus === 'active'
-      ? 'bg-blue-500 dark:bg-blue-400'
-      : effectiveStatus === 'waiting'
-        ? 'bg-green-500 dark:bg-green-400'
-        : effectiveStatus === 'disconnected'
-          ? 'bg-red-500 dark:bg-red-400'
-          : 'bg-muted-foreground';
+  const classes = variantClasses[variant];
 
-  const badgeVariant =
-    effectiveStatus === 'active'
-      ? 'default'
-      : effectiveStatus === 'waiting'
-        ? 'secondary'
-        : effectiveStatus === 'disconnected'
-          ? 'destructive'
-          : 'outline';
+  // Handle backdrop click
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    },
+    [onClose]
+  );
 
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm max-h-[70vh] flex flex-col gap-0 p-0">
-        <DialogHeader className="px-4 py-3 border-b">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={`w-2.5 h-2.5 ${indicatorClass}`} />
-              <DialogTitle className="text-sm font-bold uppercase tracking-wider">
-                {role.toUpperCase()}
-              </DialogTitle>
-            </div>
-            <Badge variant={badgeVariant} className="text-xs">
-              {statusLabel}
-            </Badge>
-          </div>
-        </DialogHeader>
+  // Handle escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
-        <div className="p-4 space-y-4">
-          {/* Start Agent Button - shown for disconnected or missing agents */}
-          {(effectiveStatus === 'disconnected' || effectiveStatus === 'missing') &&
-            onStartAgent && (
-              <button
-                onClick={() => {
-                  onStartAgent(role);
-                  onClose();
-                }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 dark:bg-blue-500 text-white text-xs font-bold uppercase tracking-wider hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
-              >
-                <Play size={14} />
-                Start Agent
-              </button>
-            )}
+  if (!isOpen) return null;
 
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <span className="text-sm font-bold uppercase tracking-wider text-foreground">
-              Agent Prompt
-            </span>
-            <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
+  // Use portal to render at document root, escaping any parent stacking context
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={handleBackdropClick}
+    >
+      <div className="chatroom-root w-full max-w-md max-h-[85vh] flex flex-col bg-chatroom-bg-primary border-2 border-chatroom-border-strong overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface">
+          <div className="flex items-center gap-2">
+            <div className={`w-2.5 h-2.5 ${classes.indicator}`} />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+              {title} Agents ({agents.length})
+            </h2>
           </div>
           <button
-            className="w-full text-left text-xs text-muted-foreground font-mono whitespace-pre-wrap break-words bg-muted p-3 max-h-[40vh] overflow-y-auto hover:text-foreground transition-colors"
-            onClick={() => {
-              onViewPrompt?.(role);
-              onClose();
-            }}
-            title="Click to view full prompt in viewer"
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
           >
-            {prompt.length > 500 ? prompt.substring(0, 500) + '...' : prompt}
+            <X size={18} />
           </button>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        {/* Agent List */}
+        <div className="flex-1 overflow-y-auto">
+          {agents.map((role) => {
+            const prompt = generatePrompt(role);
+            const preview = prompt.split('\n')[0]?.substring(0, 40) + '...';
+
+            return (
+              <div
+                key={role}
+                className="border-b-2 border-chatroom-border last:border-b-0 p-4 hover:bg-chatroom-bg-hover transition-colors cursor-pointer"
+                onClick={() => onSelectAgent(role)}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+                    {role}
+                  </span>
+                  <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
+                </div>
+                <div className="text-xs text-chatroom-text-muted font-mono truncate">{preview}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 });
 
@@ -311,7 +300,6 @@ export const AgentPanel = memo(function AgentPanel({
   onReconnect,
 }: AgentPanelProps) {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
-  const [startAgentRole, setStartAgentRole] = useState<string | null>(null);
   const { getAgentPrompt } = usePrompts();
 
   // Build participant map from readiness data
@@ -369,16 +357,6 @@ export const AgentPanel = memo(function AgentPanel({
   // Close agent modal
   const closeAgentModal = useCallback(() => {
     setSelectedAgent(null);
-  }, []);
-
-  // Open start agent modal
-  const openStartAgentModal = useCallback((role: string) => {
-    setStartAgentRole(role);
-  }, []);
-
-  // Close start agent modal
-  const closeStartAgentModal = useCallback(() => {
-    setStartAgentRole(null);
   }, []);
 
   // Compute team status
@@ -522,24 +500,24 @@ export const AgentPanel = memo(function AgentPanel({
         {/* Ready Agents - collapsed group with dialog */}
         {categorizedAgents.ready.length > 0 && (
           <CollapsedAgentGroup
+            chatroomId={chatroomId}
             title="Ready"
             agents={categorizedAgents.ready}
             variant="ready"
             generatePrompt={generatePrompt}
             onViewPrompt={onViewPrompt}
-            onStartAgent={openStartAgentModal}
           />
         )}
 
         {/* Other Agents (disconnected/missing) - collapsed group with dialog */}
         {categorizedAgents.other.length > 0 && (
           <CollapsedAgentGroup
+            chatroomId={chatroomId}
             title="Offline"
             agents={categorizedAgents.other}
             variant="offline"
             generatePrompt={generatePrompt}
             onViewPrompt={onViewPrompt}
-            onStartAgent={openStartAgentModal}
           />
         )}
       </div>
@@ -573,28 +551,17 @@ export const AgentPanel = memo(function AgentPanel({
         </div>
       )}
 
-      {/* Single Agent Modal */}
+      {/* Agent Details Modal - consolidated from SingleAgentModal and StartAgentModal */}
       {selectedAgent && (
-        <SingleAgentModal
+        <ChatroomAgentDetailsModal
+          isOpen={true}
+          onClose={closeAgentModal}
+          chatroomId={chatroomId}
           role={selectedAgent}
           effectiveStatus={
             getEffectiveStatus(selectedAgent, participantMap, expiredRolesSet).status
           }
-          prompt={generatePrompt(selectedAgent)}
-          isOpen={true}
-          onClose={closeAgentModal}
           onViewPrompt={onViewPrompt}
-          onStartAgent={openStartAgentModal}
-        />
-      )}
-
-      {/* Start Agent Modal */}
-      {startAgentRole && (
-        <StartAgentModal
-          isOpen={true}
-          onClose={closeStartAgentModal}
-          chatroomId={chatroomId}
-          role={startAgentRole}
         />
       )}
     </div>

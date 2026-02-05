@@ -21,7 +21,7 @@ import {
 
 interface MachineCommand {
   _id: Id<'chatroom_machineCommands'>;
-  type: 'start-agent' | 'ping' | 'status';
+  type: 'start-agent' | 'stop-agent' | 'ping' | 'status';
   payload: {
     chatroomId?: Id<'chatroom_rooms'>;
     role?: string;
@@ -233,8 +233,106 @@ async function processCommand(
         if (spawnResult.success) {
           result = `Agent spawned (PID: ${spawnResult.pid})`;
           console.log(`   ✅ ${result}`);
+
+          // Update backend with spawned agent PID
+          if (spawnResult.pid) {
+            try {
+              await client.mutation(api.machines.updateSpawnedAgent, {
+                sessionId: sessionId as any,
+                machineId: getMachineId()!,
+                chatroomId: command.payload.chatroomId,
+                role: command.payload.role,
+                pid: spawnResult.pid,
+              });
+              console.log(`   Updated backend with PID: ${spawnResult.pid}`);
+            } catch (e) {
+              console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
+            }
+          }
         } else {
           result = spawnResult.message;
+          console.log(`   ⚠️  ${result}`);
+        }
+        break;
+      }
+
+      case 'stop-agent': {
+        console.log(`   ↪ stop-agent command received`);
+        console.log(`      Chatroom: ${command.payload.chatroomId}`);
+        console.log(`      Role: ${command.payload.role}`);
+
+        // Validate payload
+        if (!command.payload.chatroomId || !command.payload.role) {
+          result = 'Missing required payload: chatroomId or role';
+          break;
+        }
+
+        // Get agent context to find the PID from local config
+        const stopAgentContext = getAgentContext(command.payload.chatroomId, command.payload.role);
+
+        if (!stopAgentContext) {
+          result = `No agent context found for ${command.payload.chatroomId}/${command.payload.role}`;
+          break;
+        }
+
+        // We need to get the PID from the backend since we store it there
+        // For now, we'll use a workaround - the PID will be passed in the payload from the backend
+        // Actually, let's query the backend for the current PID
+        const configsResult = (await client.query(api.machines.getAgentConfigs, {
+          sessionId: sessionId as any,
+          chatroomId: command.payload.chatroomId,
+        })) as {
+          configs: {
+            machineId: string;
+            role: string;
+            spawnedAgentPid?: number;
+          }[];
+        };
+
+        const targetConfig = configsResult.configs.find(
+          (c) =>
+            c.machineId === getMachineId() &&
+            c.role.toLowerCase() === command.payload.role!.toLowerCase()
+        );
+
+        if (!targetConfig?.spawnedAgentPid) {
+          result = 'No running agent found (no PID recorded)';
+          break;
+        }
+
+        const pidToKill = targetConfig.spawnedAgentPid;
+        console.log(`   Stopping agent with PID: ${pidToKill}`);
+
+        try {
+          // Send SIGTERM to gracefully stop the process
+          process.kill(pidToKill, 'SIGTERM');
+          result = `Agent stopped (PID: ${pidToKill})`;
+          console.log(`   ✅ ${result}`);
+
+          // Clear the PID in backend
+          await client.mutation(api.machines.updateSpawnedAgent, {
+            sessionId: sessionId as any,
+            machineId: getMachineId()!,
+            chatroomId: command.payload.chatroomId,
+            role: command.payload.role,
+            pid: undefined, // Clear PID
+          });
+          console.log(`   Cleared PID in backend`);
+        } catch (e) {
+          const err = e as NodeJS.ErrnoException;
+          if (err.code === 'ESRCH') {
+            result = 'Process not found (may have already exited)';
+            // Clear the stale PID
+            await client.mutation(api.machines.updateSpawnedAgent, {
+              sessionId: sessionId as any,
+              machineId: getMachineId()!,
+              chatroomId: command.payload.chatroomId,
+              role: command.payload.role,
+              pid: undefined,
+            });
+          } else {
+            result = `Failed to stop agent: ${err.message}`;
+          }
           console.log(`   ⚠️  ${result}`);
         }
         break;

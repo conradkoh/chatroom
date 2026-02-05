@@ -3,7 +3,7 @@
 import { RefreshCw, AlertTriangle, X, Copy, Check, Play } from 'lucide-react';
 import React, { useCallback, memo, useMemo, useState, useEffect } from 'react';
 
-import { StartAgentModal } from './StartAgentModal';
+import { ChatroomAgentDetailsModal } from './ChatroomAgentDetailsModal';
 
 import { usePrompts } from '@/contexts/PromptsContext';
 
@@ -242,13 +242,15 @@ export const ReconnectModal = memo(function ReconnectModal({
         </div>
       </div>
 
-      {/* Start Agent Modal */}
+      {/* Agent Details Modal */}
       {startAgentRole && (
-        <StartAgentModal
+        <ChatroomAgentDetailsModal
           isOpen={true}
           onClose={() => setStartAgentRole(null)}
           chatroomId={chatroomId}
           role={startAgentRole}
+          effectiveStatus="disconnected"
+          onViewPrompt={onViewPrompt}
         />
       )}
     </div>

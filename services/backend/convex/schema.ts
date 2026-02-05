@@ -577,6 +577,10 @@ export default defineSchema({
     workingDir: v.string(),
     // Last updated timestamp
     updatedAt: v.number(),
+    // PID of spawned agent (for stop functionality), null if not running
+    spawnedAgentPid: v.optional(v.number()),
+    // When the agent was spawned (for tracking)
+    spawnedAt: v.optional(v.number()),
   })
     .index('by_machine_chatroom_role', ['machineId', 'chatroomId', 'role'])
     .index('by_chatroom', ['chatroomId']),
@@ -589,7 +593,12 @@ export default defineSchema({
     // Target machine ID
     machineId: v.string(),
     // Command type
-    type: v.union(v.literal('start-agent'), v.literal('ping'), v.literal('status')),
+    type: v.union(
+      v.literal('start-agent'),
+      v.literal('stop-agent'),
+      v.literal('ping'),
+      v.literal('status')
+    ),
     // Command payload (varies by type)
     payload: v.object({
       chatroomId: v.optional(v.id('chatroom_rooms')),
