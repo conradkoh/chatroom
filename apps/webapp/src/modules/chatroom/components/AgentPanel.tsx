@@ -1,9 +1,10 @@
 'use client';
 
-import { ChevronRight, CheckCircle, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
+import { ChevronRight, CheckCircle, AlertTriangle, Clock, RefreshCw, Play } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import { CopyButton } from './CopyButton';
+import { StartAgentModal } from './StartAgentModal';
 
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -77,6 +78,7 @@ interface CollapsedAgentGroupProps {
   variant: 'ready' | 'offline';
   generatePrompt: (role: string) => string;
   onViewPrompt?: (role: string) => void;
+  onStartAgent?: (role: string) => void;
 }
 
 const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
@@ -85,6 +87,7 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   variant,
   generatePrompt,
   onViewPrompt,
+  onStartAgent,
 }: CollapsedAgentGroupProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -171,6 +174,19 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
                   >
                     {preview}
                   </button>
+                  {/* Start Agent button for offline agents */}
+                  {variant === 'offline' && onStartAgent && (
+                    <button
+                      onClick={() => {
+                        onStartAgent(role);
+                        setIsModalOpen(false);
+                      }}
+                      className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-blue-600 dark:bg-blue-500 text-white text-[10px] font-bold uppercase tracking-wider hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+                    >
+                      <Play size={12} />
+                      Start Agent
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -189,6 +205,7 @@ interface SingleAgentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onViewPrompt?: (role: string) => void;
+  onStartAgent?: (role: string) => void;
 }
 
 const SingleAgentModal = memo(function SingleAgentModal({
@@ -198,6 +215,7 @@ const SingleAgentModal = memo(function SingleAgentModal({
   isOpen,
   onClose,
   onViewPrompt,
+  onStartAgent,
 }: SingleAgentModalProps) {
   const statusLabel =
     effectiveStatus === 'missing'
@@ -245,7 +263,22 @@ const SingleAgentModal = memo(function SingleAgentModal({
           </div>
         </DialogHeader>
 
-        <div className="p-4">
+        <div className="p-4 space-y-4">
+          {/* Start Agent Button - shown for disconnected or missing agents */}
+          {(effectiveStatus === 'disconnected' || effectiveStatus === 'missing') &&
+            onStartAgent && (
+              <button
+                onClick={() => {
+                  onStartAgent(role);
+                  onClose();
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 dark:bg-blue-500 text-white text-xs font-bold uppercase tracking-wider hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+              >
+                <Play size={14} />
+                Start Agent
+              </button>
+            )}
+
           <div className="flex items-center justify-between gap-2 mb-3">
             <span className="text-sm font-bold uppercase tracking-wider text-foreground">
               Agent Prompt
@@ -269,7 +302,7 @@ const SingleAgentModal = memo(function SingleAgentModal({
 });
 
 export const AgentPanel = memo(function AgentPanel({
-  chatroomId: _chatroomId,
+  chatroomId,
   teamName: _teamName = 'Team',
   teamRoles = [],
   teamEntryPoint: _teamEntryPoint,
@@ -278,6 +311,7 @@ export const AgentPanel = memo(function AgentPanel({
   onReconnect,
 }: AgentPanelProps) {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [startAgentRole, setStartAgentRole] = useState<string | null>(null);
   const { getAgentPrompt } = usePrompts();
 
   // Build participant map from readiness data
@@ -335,6 +369,16 @@ export const AgentPanel = memo(function AgentPanel({
   // Close agent modal
   const closeAgentModal = useCallback(() => {
     setSelectedAgent(null);
+  }, []);
+
+  // Open start agent modal
+  const openStartAgentModal = useCallback((role: string) => {
+    setStartAgentRole(role);
+  }, []);
+
+  // Close start agent modal
+  const closeStartAgentModal = useCallback(() => {
+    setStartAgentRole(null);
   }, []);
 
   // Compute team status
@@ -483,6 +527,7 @@ export const AgentPanel = memo(function AgentPanel({
             variant="ready"
             generatePrompt={generatePrompt}
             onViewPrompt={onViewPrompt}
+            onStartAgent={openStartAgentModal}
           />
         )}
 
@@ -494,6 +539,7 @@ export const AgentPanel = memo(function AgentPanel({
             variant="offline"
             generatePrompt={generatePrompt}
             onViewPrompt={onViewPrompt}
+            onStartAgent={openStartAgentModal}
           />
         )}
       </div>
@@ -538,6 +584,17 @@ export const AgentPanel = memo(function AgentPanel({
           isOpen={true}
           onClose={closeAgentModal}
           onViewPrompt={onViewPrompt}
+          onStartAgent={openStartAgentModal}
+        />
+      )}
+
+      {/* Start Agent Modal */}
+      {startAgentRole && (
+        <StartAgentModal
+          isOpen={true}
+          onClose={closeStartAgentModal}
+          chatroomId={chatroomId}
+          role={startAgentRole}
         />
       )}
     </div>

@@ -1,7 +1,9 @@
 'use client';
 
-import { RefreshCw, AlertTriangle, X, Copy, Check } from 'lucide-react';
+import { RefreshCw, AlertTriangle, X, Copy, Check, Play } from 'lucide-react';
 import React, { useCallback, memo, useMemo, useState, useEffect } from 'react';
+
+import { StartAgentModal } from './StartAgentModal';
 
 import { usePrompts } from '@/contexts/PromptsContext';
 
@@ -64,7 +66,7 @@ function CopyPromptButton({ text }: { text: string }) {
 export const ReconnectModal = memo(function ReconnectModal({
   isOpen,
   onClose,
-  chatroomId: _chatroomId,
+  chatroomId,
   teamName: _teamName,
   teamRoles: _teamRoles,
   teamEntryPoint: _teamEntryPoint,
@@ -73,6 +75,9 @@ export const ReconnectModal = memo(function ReconnectModal({
   onViewPrompt,
 }: ReconnectModalProps) {
   const { getAgentPrompt } = usePrompts();
+
+  // Start agent modal state
+  const [startAgentRole, setStartAgentRole] = useState<string | null>(null);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -181,6 +186,15 @@ export const ReconnectModal = memo(function ReconnectModal({
 
                 {/* Card Content */}
                 <div className="p-3 space-y-3">
+                  {/* Start Agent Button */}
+                  <button
+                    onClick={() => setStartAgentRole(role)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-chatroom-status-info text-white text-xs font-bold uppercase tracking-wider hover:bg-chatroom-status-info/90 transition-colors"
+                  >
+                    <Play size={14} />
+                    Start Agent Remotely
+                  </button>
+
                   {/* Prompt Preview */}
                   {onViewPrompt && (
                     <button
@@ -211,7 +225,7 @@ export const ReconnectModal = memo(function ReconnectModal({
         <div className="px-4 py-3 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
           <div className="space-y-2 text-xs text-chatroom-text-secondary">
             <p className="font-bold uppercase tracking-wide text-chatroom-text-muted">
-              To reconnect each agent:
+              To reconnect manually:
             </p>
             <ol className="list-decimal list-inside space-y-1 ml-2">
               <li>Copy the prompt using the button above</li>
@@ -227,6 +241,16 @@ export const ReconnectModal = memo(function ReconnectModal({
           </div>
         </div>
       </div>
+
+      {/* Start Agent Modal */}
+      {startAgentRole && (
+        <StartAgentModal
+          isOpen={true}
+          onClose={() => setStartAgentRole(null)}
+          chatroomId={chatroomId}
+          role={startAgentRole}
+        />
+      )}
     </div>
   );
 });
