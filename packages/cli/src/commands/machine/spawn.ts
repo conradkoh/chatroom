@@ -1,29 +1,21 @@
 /**
- * Agent Spawn Logic
+ * Agent Spawn Logic — Backward Compatibility Wrapper
  *
- * Spawns AI agent processes (OpenCode, Claude, Cursor) for remote start.
- * Supports split prompts: role prompt as system prompt, initial message as user message.
+ * @deprecated Use `getDriverRegistry()` from `infrastructure/agent-drivers` instead.
  *
- * Start modes:
- * - "machine" mode (daemon-controlled): Uses split prompts where rolePrompt is
- *   injected as the system prompt and initialMessage is the first user message.
- * - "manual" mode: Uses the combined init prompt as a single user message.
+ * This module now delegates to the unified driver registry.
+ * The SpawnOptions/SpawnResult interfaces are preserved for callers that
+ * haven't migrated yet (e.g. daemon-start.ts).
  *
- * SECURITY: All spawn calls use shell: false to prevent shell injection.
- * Prompts are passed via stdin or as properly escaped arguments.
+ * Migration path (Phase 2):
+ *   Before: import { spawnAgent } from './spawn.js';
+ *   After:  import { getDriverRegistry } from '../../infrastructure/agent-drivers/index.js';
+ *           const driver = getDriverRegistry().get(tool);
+ *           const result = await driver.start(options);
  */
 
-import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
-import { writeFileSync, unlinkSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
-import {
-  AGENT_TOOL_COMMANDS,
-  type AgentTool,
-  type ToolVersionInfo,
-} from '../../infrastructure/machine/index.js';
+import { getDriverRegistry } from '../../infrastructure/agent-drivers/index.js';
+import type { AgentTool, ToolVersionInfo } from '../../infrastructure/machine/index.js';
 
 export interface SpawnOptions {
   /** Agent tool to spawn */
@@ -47,144 +39,40 @@ export interface SpawnResult {
 }
 
 /**
- * Write prompt to a temp file and return the path.
- * Used for tools that need prompts passed via file to avoid
- * arg length limits and shell injection.
- */
-function writeTempPromptFile(prompt: string): string {
-  const tempPath = join(tmpdir(), `chatroom-prompt-${randomUUID()}.txt`);
-  writeFileSync(tempPath, prompt, { encoding: 'utf-8', mode: 0o600 });
-  return tempPath;
-}
-
-/**
- * Schedule cleanup of a temp file after a delay.
- */
-function scheduleCleanup(filePath: string, delayMs = 5000): void {
-  setTimeout(() => {
-    try {
-      unlinkSync(filePath);
-    } catch {
-      // Ignore cleanup errors — file may already be deleted
-    }
-  }, delayMs);
-}
-
-/**
- * Build combined prompt from role prompt and initial message.
- */
-function buildCombinedPrompt(rolePrompt: string, initialMessage: string): string {
-  return `${rolePrompt}\n\n${initialMessage}`;
-}
-
-/**
- * Spawn an agent process
+ * Spawn an agent process.
  *
- * The agent is spawned in detached mode so it continues running
- * independently of the daemon process.
+ * @deprecated Delegates to the driver registry. Use getDriverRegistry().get(tool).start() directly.
  *
- * SECURITY: All spawn calls use shell: false. Prompts are passed via
- * stdin (opencode) or temp files (claude, cursor) — never as shell-interpreted args.
+ * Preserved for backward compatibility with daemon-start.ts and other callers.
+ * The driver registry produces identical behavior — same process spawn, same
+ * detach/unref, same stdin prompt delivery — so this is a zero-behavior-change migration.
  */
 export async function spawnAgent(options: SpawnOptions): Promise<SpawnResult> {
   const { tool, workingDir, rolePrompt, initialMessage, toolVersion, model } = options;
-  const command = AGENT_TOOL_COMMANDS[tool];
 
-  console.log(`   Spawning ${tool} agent...`);
-  console.log(`   Working dir: ${workingDir}`);
-  if (toolVersion) {
-    console.log(`   Tool version: v${toolVersion.version} (major: ${toolVersion.major})`);
-  }
-  if (model) {
-    console.log(`   Model: ${model}`);
-  }
+  const registry = getDriverRegistry();
 
+  let driver;
   try {
-    let childProcess;
-    const combinedPrompt = buildCombinedPrompt(rolePrompt, initialMessage);
-
-    switch (tool) {
-      case 'opencode': {
-        // OpenCode: use `opencode run` for non-interactive (headless) mode.
-        // Prompt is passed via stdin. Supports --model flag.
-        // SECURITY: shell: false prevents shell injection.
-        const ocArgs: string[] = ['run'];
-        if (model) {
-          ocArgs.push('--model', model);
-        }
-        childProcess = spawn(command, ocArgs, {
-          cwd: workingDir,
-          stdio: ['pipe', 'inherit', 'inherit'],
-          detached: true,
-          shell: false,
-        });
-        childProcess.stdin?.write(combinedPrompt);
-        childProcess.stdin?.end();
-        break;
-      }
-
-      case 'claude': {
-        // Claude Code: pass prompt via stdin with --print flag.
-        // SECURITY: shell: false prevents shell injection.
-        const claudeArgs = ['--print'];
-        if (model) {
-          claudeArgs.unshift('--model', model);
-        }
-        childProcess = spawn(command, claudeArgs, {
-          cwd: workingDir,
-          stdio: ['pipe', 'inherit', 'inherit'],
-          detached: true,
-          shell: false,
-        });
-        childProcess.stdin?.write(combinedPrompt);
-        childProcess.stdin?.end();
-        break;
-      }
-
-      case 'cursor': {
-        // Cursor CLI: write prompt to temp file to avoid arg length limits.
-        // SECURITY: shell: false prevents shell injection.
-        const promptFile = writeTempPromptFile(combinedPrompt);
-        childProcess = spawn(command, ['chat', '--file', promptFile], {
-          cwd: workingDir,
-          stdio: 'inherit',
-          detached: true,
-          shell: false,
-        });
-        scheduleCleanup(promptFile, 10000);
-        break;
-      }
-
-      default:
-        return {
-          success: false,
-          message: `Unknown agent tool: ${tool}`,
-        };
-    }
-
-    // Unref so parent can exit independently
-    childProcess.unref();
-
-    // Give it a moment to start
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Check if process is still running (didn't immediately crash)
-    if (childProcess.killed || childProcess.exitCode !== null) {
-      return {
-        success: false,
-        message: `Agent process exited immediately (exit code: ${childProcess.exitCode})`,
-      };
-    }
-
-    return {
-      success: true,
-      message: `Agent spawned successfully`,
-      pid: childProcess.pid,
-    };
-  } catch (error) {
+    driver = registry.get(tool);
+  } catch {
     return {
       success: false,
-      message: `Failed to spawn agent: ${(error as Error).message}`,
+      message: `Unknown agent tool: ${tool}`,
     };
   }
+
+  const result = await driver.start({
+    workingDir,
+    rolePrompt,
+    initialMessage,
+    toolVersion,
+    model,
+  });
+
+  return {
+    success: result.success,
+    message: result.message,
+    pid: result.handle?.pid,
+  };
 }
