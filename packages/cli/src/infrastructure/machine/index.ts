@@ -1,44 +1,19 @@
 /**
  * Machine Infrastructure
  *
- * Exports for machine identity and configuration management.
+ * Public API for machine identity and configuration management.
+ * Only exports symbols that are used by consumers outside this module.
  */
 
 // Types
-export type {
-  AgentContext,
-  AgentTool,
-  LegacyMachineConfig,
-  MachineConfig,
-  MachineConfigFile,
-  MachineEndpointConfig,
-  MachineRegistrationInfo,
-  ToolVersionInfo,
-} from './types.js';
-export {
-  AGENT_TOOLS,
-  AGENT_TOOL_COMMANDS,
-  MACHINE_CONFIG_VERSION,
-  TOOL_MODELS,
-  MODEL_DISPLAY_NAMES,
-} from './types.js';
-
-// Detection
-export {
-  detectAvailableTools,
-  detectToolVersion,
-  detectToolVersions,
-  isToolAvailable,
-} from './detection.js';
+export type { AgentContext, AgentTool, ToolVersionInfo } from './types.js';
+export { AGENT_TOOL_COMMANDS } from './types.js';
 
 // Storage
 export {
   ensureMachineRegistered,
   getAgentContext,
-  getMachineConfigPath,
   getMachineId,
-  listChatroomAgents,
   loadMachineConfig,
-  saveMachineConfig,
   updateAgentContext,
 } from './storage.js';
