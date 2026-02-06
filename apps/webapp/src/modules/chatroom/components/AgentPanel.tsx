@@ -452,7 +452,13 @@ const InlineAgentCard = memo(function InlineAgentCard({
       await sendCommand({
         machineId: runningAgentConfig.machineId,
         type: 'start-agent',
-        payload: { chatroomId: chatroomId as Id<'chatroom_rooms'>, role },
+        payload: {
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+          model: selectedModel || undefined,
+          agentTool: runningAgentConfig.agentType,
+          workingDir: runningAgentConfig.workingDir,
+        },
       });
       setSuccess('Restart command sent!');
       setTimeout(() => setSuccess(null), 2000);
@@ -462,7 +468,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
       setIsStarting(false);
       setIsStopping(false);
     }
-  }, [runningAgentConfig, sendCommand, chatroomId, role]);
+  }, [runningAgentConfig, selectedModel, sendCommand, chatroomId, role]);
 
   const statusInfo = getStatusConfig(effectiveStatus);
   const statusLabel = statusInfo.label;

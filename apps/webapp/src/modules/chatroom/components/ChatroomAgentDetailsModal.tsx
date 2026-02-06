@@ -187,6 +187,8 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
       const config = roleConfigs.find((c) => c.machineId === selectedMachineId);
       if (config?.workingDir) {
         setWorkingDir(config.workingDir);
+      } else {
+        setWorkingDir('');
       }
     }
   }, [selectedMachineId, roleConfigs]);
