@@ -641,4 +641,24 @@ export default defineSchema({
   })
     .index('by_machineId_status', ['machineId', 'status'])
     .index('by_machineId_createdAt', ['machineId', 'createdAt']),
+
+  /**
+   * Agent start preferences per chatroom.
+   * Updated each time a user starts a remote agent from the UI.
+   * Used to improve default selections for machine, tool, and model.
+   */
+  chatroom_agentPreferences: defineTable({
+    // Chatroom this preference belongs to
+    chatroomId: v.id('chatroom_rooms'),
+    // User who set the preference
+    userId: v.id('users'),
+    // Last selected machine ID
+    machineId: v.optional(v.string()),
+    // Last selected agent tool per role (e.g. { "builder": "opencode", "reviewer": "claude" })
+    toolByRole: v.optional(v.record(v.string(), v.string())),
+    // Last selected model per role (e.g. { "builder": "github-copilot/claude-sonnet-4.5" })
+    modelByRole: v.optional(v.record(v.string(), v.string())),
+    // Last updated timestamp
+    updatedAt: v.number(),
+  }).index('by_chatroom_user', ['chatroomId', 'userId']),
 });

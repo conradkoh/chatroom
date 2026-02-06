@@ -21,7 +21,7 @@ import { createPortal } from 'react-dom';
 
 import { CopyButton } from './CopyButton';
 import type { AgentTool, MachineInfo, AgentConfig } from '../types/machine';
-import { TOOL_DISPLAY_NAMES, TOOL_MODELS, MODEL_DISPLAY_NAMES } from '../types/machine';
+import { TOOL_DISPLAY_NAMES, TOOL_MODELS, getModelDisplayLabel } from '../types/machine';
 
 import { Badge } from '@/components/ui/badge';
 import { usePrompts } from '@/contexts/PromptsContext';
@@ -597,7 +597,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
                     <option value="">Model...</option>
                     {availableModelsForTool.map((model) => (
                       <option key={model} value={model}>
-                        {MODEL_DISPLAY_NAMES[model] || model}
+                        {getModelDisplayLabel(model)}
                       </option>
                     ))}
                   </select>

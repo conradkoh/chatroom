@@ -592,3 +592,104 @@ export const ackCommand = mutation({
     return { success: true };
   },
 });
+
+// ============================================================================
+// AGENT PREFERENCES
+// Chatroom-level preferences for agent start defaults
+// ============================================================================
+
+/**
+ * Get agent start preferences for a chatroom.
+ * Returns the current user's preferences for the given chatroom.
+ */
+export const getAgentPreferences = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUserOptional(ctx, args.sessionId);
+    if (!user) return null;
+
+    const prefs = await ctx.db
+      .query('chatroom_agentPreferences')
+      .withIndex('by_chatroom_user', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('userId', user._id)
+      )
+      .first();
+
+    if (!prefs) return null;
+
+    return {
+      machineId: prefs.machineId,
+      toolByRole: prefs.toolByRole,
+      modelByRole: prefs.modelByRole,
+    };
+  },
+});
+
+/**
+ * Update agent start preferences for a chatroom.
+ * Called each time a user starts an agent from the UI to remember their selections.
+ */
+export const updateAgentPreferences = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.optional(v.string()),
+    role: v.optional(v.string()),
+    tool: v.optional(v.string()),
+    model: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!user) {
+      throw new Error('Authentication required');
+    }
+
+    const now = Date.now();
+
+    // Find existing preferences
+    const existing = await ctx.db
+      .query('chatroom_agentPreferences')
+      .withIndex('by_chatroom_user', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('userId', user._id)
+      )
+      .first();
+
+    if (existing) {
+      // Update existing preferences
+      const updates: Record<string, unknown> = { updatedAt: now };
+
+      if (args.machineId !== undefined) {
+        updates.machineId = args.machineId;
+      }
+
+      // Update tool for specific role
+      if (args.role && args.tool) {
+        const toolByRole = { ...(existing.toolByRole ?? {}), [args.role]: args.tool };
+        updates.toolByRole = toolByRole;
+      }
+
+      // Update model for specific role
+      if (args.role && args.model) {
+        const modelByRole = { ...(existing.modelByRole ?? {}), [args.role]: args.model };
+        updates.modelByRole = modelByRole;
+      }
+
+      await ctx.db.patch('chatroom_agentPreferences', existing._id, updates);
+    } else {
+      // Create new preferences
+      await ctx.db.insert('chatroom_agentPreferences', {
+        chatroomId: args.chatroomId,
+        userId: user._id,
+        machineId: args.machineId,
+        toolByRole: args.role && args.tool ? { [args.role]: args.tool } : undefined,
+        modelByRole: args.role && args.model ? { [args.role]: args.model } : undefined,
+        updatedAt: now,
+      });
+    }
+
+    return { success: true };
+  },
+});

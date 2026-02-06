@@ -24,7 +24,12 @@ import { createPortal } from 'react-dom';
 import { ChatroomAgentDetailsModal } from './ChatroomAgentDetailsModal';
 import { CopyButton } from './CopyButton';
 import type { AgentTool, ToolVersionInfo, MachineInfo, AgentConfig } from '../types/machine';
-import { TOOL_DISPLAY_NAMES, TOOL_MODELS, MODEL_DISPLAY_NAMES } from '../types/machine';
+import {
+  TOOL_DISPLAY_NAMES,
+  TOOL_MODELS,
+  getModelDisplayLabel,
+  getModelShortName,
+} from '../types/machine';
 
 import { usePrompts } from '@/contexts/PromptsContext';
 
@@ -216,6 +221,14 @@ interface InlineAgentCardProps {
     payload: { chatroomId: Id<'chatroom_rooms'>; role: string; model?: string };
   }) => Promise<unknown>;
   onViewPrompt?: (role: string) => void;
+  /** Saved preferences for default selections */
+  preferences?: {
+    machineId?: string;
+    toolByRole?: Record<string, string>;
+    modelByRole?: Record<string, string>;
+  } | null;
+  /** Callback to save preferences when starting an agent */
+  onSavePreferences?: (role: string, machineId: string, tool: string, model?: string) => void;
 }
 
 const InlineAgentCard = memo(function InlineAgentCard({
@@ -229,6 +242,8 @@ const InlineAgentCard = memo(function InlineAgentCard({
   daemonStartCommand,
   sendCommand,
   onViewPrompt,
+  preferences,
+  onSavePreferences,
 }: InlineAgentCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
@@ -263,11 +278,17 @@ const InlineAgentCard = memo(function InlineAgentCard({
     return machine?.toolVersions || {};
   }, [selectedMachineId, connectedMachines]);
 
-  // Auto-select machine
+  // Auto-select machine (priority: running agent > preferences > role config > first available)
   useEffect(() => {
     if (!selectedMachineId && connectedMachines.length > 0) {
       if (runningAgentConfig) {
         setSelectedMachineId(runningAgentConfig.machineId);
+      } else if (
+        preferences?.machineId &&
+        connectedMachines.some((m) => m.machineId === preferences.machineId)
+      ) {
+        // Use saved preference if the machine is still connected
+        setSelectedMachineId(preferences.machineId);
       } else if (roleConfigs.length > 0) {
         const configMachine = connectedMachines.find((m) =>
           roleConfigs.some((c) => c.machineId === m.machineId)
@@ -281,7 +302,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
         setSelectedMachineId(connectedMachines[0].machineId);
       }
     }
-  }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs]);
+  }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs, preferences]);
 
   // Available models for the selected tool
   const availableModelsForTool = useMemo(() => {
@@ -289,19 +310,29 @@ const InlineAgentCard = memo(function InlineAgentCard({
     return TOOL_MODELS[selectedTool] || [];
   }, [selectedTool]);
 
-  // Auto-select tool
+  // Auto-select tool (priority: role config > preferences > single available tool)
   useEffect(() => {
-    if (selectedMachineId && roleConfigs.length > 0) {
+    if (selectedMachineId) {
+      // Check role config first
       const config = roleConfigs.find((c) => c.machineId === selectedMachineId);
       if (config && availableToolsForMachine.includes(config.agentType)) {
         setSelectedTool(config.agentType);
-      } else if (availableToolsForMachine.length === 1) {
+        return;
+      }
+      // Check preferences
+      const prefTool = preferences?.toolByRole?.[role] as AgentTool | undefined;
+      if (prefTool && availableToolsForMachine.includes(prefTool)) {
+        setSelectedTool(prefTool);
+        return;
+      }
+      // Single available tool
+      if (availableToolsForMachine.length === 1) {
         setSelectedTool(availableToolsForMachine[0]);
       }
     }
-  }, [selectedMachineId, roleConfigs, availableToolsForMachine]);
+  }, [selectedMachineId, roleConfigs, availableToolsForMachine, preferences, role]);
 
-  // Auto-select model when tool changes
+  // Auto-select model when tool changes (priority: role config > preferences > first model)
   useEffect(() => {
     if (selectedTool) {
       const models = TOOL_MODELS[selectedTool] || [];
@@ -309,18 +340,24 @@ const InlineAgentCard = memo(function InlineAgentCard({
         setSelectedModel(null);
         return;
       }
-      // If there's a saved config with a model, use that
+      // Check saved config first
       const config = roleConfigs.find((c) => c.machineId === selectedMachineId && c.model);
       if (config?.model && models.includes(config.model)) {
         setSelectedModel(config.model);
-      } else {
-        // Default to first model
-        setSelectedModel(models[0]);
+        return;
       }
+      // Check preferences
+      const prefModel = preferences?.modelByRole?.[role];
+      if (prefModel && models.includes(prefModel)) {
+        setSelectedModel(prefModel);
+        return;
+      }
+      // Default to first model
+      setSelectedModel(models[0]);
     } else {
       setSelectedModel(null);
     }
-  }, [selectedTool, roleConfigs, selectedMachineId]);
+  }, [selectedTool, roleConfigs, selectedMachineId, preferences, role]);
 
   const isAgentRunning = !!runningAgentConfig;
   const isBusy = isStarting || isStopping;
@@ -350,6 +387,8 @@ const InlineAgentCard = memo(function InlineAgentCard({
           model: selectedModel || undefined,
         },
       });
+      // Save preferences for next time
+      onSavePreferences?.(role, selectedMachineId, selectedTool, selectedModel || undefined);
       setSuccess('Start command sent!');
       setTimeout(() => setSuccess(null), 2000);
     } catch (err) {
@@ -357,7 +396,15 @@ const InlineAgentCard = memo(function InlineAgentCard({
     } finally {
       setIsStarting(false);
     }
-  }, [selectedMachineId, selectedTool, selectedModel, sendCommand, chatroomId, role]);
+  }, [
+    selectedMachineId,
+    selectedTool,
+    selectedModel,
+    sendCommand,
+    chatroomId,
+    role,
+    onSavePreferences,
+  ]);
 
   const handleStopAgent = useCallback(async () => {
     if (!runningAgentConfig) return;
@@ -470,9 +517,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
                 {runningAgentConfig.model && (
                   <>
                     {' · '}
-                    <span>
-                      {MODEL_DISPLAY_NAMES[runningAgentConfig.model] || runningAgentConfig.model}
-                    </span>
+                    <span>{getModelShortName(runningAgentConfig.model)}</span>
                   </>
                 )}
                 {' · '}
@@ -600,7 +645,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
                       <option value="">Model...</option>
                       {availableModelsForTool.map((model) => (
                         <option key={model} value={model}>
-                          {MODEL_DISPLAY_NAMES[model] || model}
+                          {getModelDisplayLabel(model)}
                         </option>
                       ))}
                     </select>
@@ -749,6 +794,37 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   }) as { configs: AgentConfig[] } | undefined;
 
   const sendCommand = useSessionMutation(machinesApi.machines.sendCommand);
+  const updatePreferences = useSessionMutation(machinesApi.machines.updateAgentPreferences);
+
+  // Load agent preferences for this chatroom
+  const preferencesResult = useSessionQuery(machinesApi.machines.getAgentPreferences, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  }) as
+    | {
+        machineId?: string;
+        toolByRole?: Record<string, string>;
+        modelByRole?: Record<string, string>;
+      }
+    | null
+    | undefined;
+
+  // Save preferences callback (called on agent start)
+  const savePreferences = useCallback(
+    async (role: string, machineId: string, tool: string, model?: string) => {
+      try {
+        await updatePreferences({
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          machineId,
+          role,
+          tool,
+          model,
+        });
+      } catch {
+        // Non-critical — don't block agent start if preferences fail to save
+      }
+    },
+    [updatePreferences, chatroomId]
+  );
 
   const connectedMachines = useMemo(() => {
     if (!machinesResult?.machines) return [];
@@ -831,6 +907,8 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
               daemonStartCommand={daemonStartCommand}
               sendCommand={sendCommand}
               onViewPrompt={onViewPrompt}
+              preferences={preferencesResult}
+              onSavePreferences={savePreferences}
             />
           ))}
         </div>

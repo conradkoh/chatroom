@@ -75,8 +75,19 @@ export const TOOL_MODELS: Record<AgentTool, string[]> = {
 };
 
 /**
+ * Provider display names for the UI.
+ * Maps the provider prefix in model IDs to human-readable names.
+ */
+export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  'github-copilot': 'GitHub Copilot',
+  opencode: 'OpenCode',
+  openrouter: 'OpenRouter',
+  vercel: 'Vercel',
+};
+
+/**
  * Short display names for models in the UI.
- * Maps full model IDs to human-readable short names.
+ * Maps full model IDs to human-readable short names (model name only).
  */
 export const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'github-copilot/claude-sonnet-4.5': 'Sonnet 4.5',
@@ -89,3 +100,45 @@ export const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'github-copilot/claude-haiku-4.5': 'Haiku 4.5',
   'opencode/big-pickle': 'Big Pickle',
 };
+
+// ─── Helpers ────────────────────────────────────────────────────────
+
+/**
+ * Get the full display label for a model, including its provider.
+ * e.g. "GitHub Copilot / Sonnet 4.5" or "OpenCode / Big Pickle"
+ *
+ * Falls back to the raw model ID if no display name is found.
+ */
+export function getModelDisplayLabel(modelId: string): string {
+  const slashIdx = modelId.indexOf('/');
+  if (slashIdx === -1) return modelId;
+
+  const providerKey = modelId.substring(0, slashIdx);
+  const providerName = PROVIDER_DISPLAY_NAMES[providerKey] ?? providerKey;
+  const modelName = MODEL_DISPLAY_NAMES[modelId] ?? modelId.substring(slashIdx + 1);
+
+  return `${providerName} / ${modelName}`;
+}
+
+/**
+ * Get only the short model name (without provider).
+ * e.g. "Sonnet 4.5" or "Big Pickle"
+ */
+export function getModelShortName(modelId: string): string {
+  return MODEL_DISPLAY_NAMES[modelId] ?? modelId;
+}
+
+// ─── Preferences ────────────────────────────────────────────────────
+
+/**
+ * Agent start preferences stored at the chatroom level.
+ * Updated every time a user starts a remote agent from the UI.
+ */
+export interface AgentStartPreferences {
+  /** Last selected machine ID */
+  machineId?: string;
+  /** Last selected agent tool per role */
+  toolByRole?: Record<string, AgentTool>;
+  /** Last selected model per role */
+  modelByRole?: Record<string, string>;
+}
