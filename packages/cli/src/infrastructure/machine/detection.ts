@@ -14,7 +14,7 @@ import { AGENT_TOOLS, AGENT_TOOL_COMMANDS, type AgentTool, type ToolVersionInfo 
  * Returns null if version detection is not supported for a tool.
  */
 const TOOL_VERSION_COMMANDS: Partial<Record<AgentTool, string>> = {
-  opencode: 'opencode version',
+  opencode: 'opencode --version',
   claude: 'claude --version',
 };
 
