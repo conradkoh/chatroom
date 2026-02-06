@@ -14,6 +14,55 @@ import { validateSession } from './auth/cliSessionAuth';
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
 /**
+ * Validate a working directory path to prevent shell injection and path traversal.
+ *
+ * Rejects:
+ * - Non-absolute paths (must start with /)
+ * - Null bytes (\0)
+ * - Shell metacharacters (;, |, &, $, `, (, ), {, }, <, >, !, #, ~)
+ * - Command substitution patterns ($(...), `...`)
+ * - Newlines and carriage returns
+ * - Excessively long paths (>1024 chars)
+ *
+ * Note: The CLI daemon also validates that the directory exists on the local
+ * filesystem before spawning an agent, providing defense-in-depth.
+ */
+function validateWorkingDir(workingDir: string): void {
+  if (!workingDir || workingDir.trim().length === 0) {
+    throw new Error('Working directory cannot be empty');
+  }
+
+  if (workingDir.length > 1024) {
+    throw new Error('Working directory path is too long (max 1024 characters)');
+  }
+
+  // Must be an absolute path
+  if (!workingDir.startsWith('/')) {
+    throw new Error('Working directory must be an absolute path (starting with /)');
+  }
+
+  // Reject null bytes
+  if (workingDir.includes('\0')) {
+    throw new Error('Working directory contains invalid characters (null byte)');
+  }
+
+  // Reject newlines / carriage returns
+  if (/[\n\r]/.test(workingDir)) {
+    throw new Error('Working directory must not contain newlines');
+  }
+
+  // Reject shell metacharacters that could enable injection
+  // These have no legitimate use in directory paths
+  const shellMetaChars = /[;|&$`(){}<>!#~\\]/;
+  if (shellMetaChars.test(workingDir)) {
+    throw new Error(
+      'Working directory contains disallowed characters. ' +
+        'Only alphanumeric characters, hyphens, underscores, dots, slashes, and spaces are allowed.'
+    );
+  }
+}
+
+/**
  * Get authenticated user from session. Throws if session is invalid.
  */
 async function getAuthenticatedUser(ctx: any, sessionId: string) {
@@ -160,6 +209,9 @@ export const updateAgentConfig = mutation({
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx, args.sessionId);
     await getOwnedMachine(ctx, args.machineId, user._id);
+
+    // Sanitize workingDir before storing
+    validateWorkingDir(args.workingDir);
 
     // Verify chatroom exists and user has access
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
@@ -398,6 +450,11 @@ export const sendCommand = mutation({
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx, args.sessionId);
     const machine = await getOwnedMachine(ctx, args.machineId, user._id);
+
+    // Sanitize workingDir if provided in the payload
+    if (args.payload?.workingDir) {
+      validateWorkingDir(args.payload.workingDir);
+    }
 
     // For start-agent commands, resolve the agent tool from config or payload
     let agentTool: 'opencode' | 'claude' | 'cursor' | undefined;

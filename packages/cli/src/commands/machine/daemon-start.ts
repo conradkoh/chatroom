@@ -5,6 +5,7 @@
  */
 
 import { execSync } from 'node:child_process';
+import { stat } from 'node:fs/promises';
 
 import { acquireLock, releaseLock } from './pid.js';
 import { spawnAgent } from './spawn.js';
@@ -274,6 +275,20 @@ async function processCommand(
 
         if (!agentContext) {
           result = `No agent context found for ${command.payload.chatroomId}/${command.payload.role}`;
+          break;
+        }
+
+        // SECURITY: Validate working directory exists on the local filesystem
+        // using fs.stat (not a shell command) to prevent path-based attacks.
+        // This is defense-in-depth alongside the backend's character validation.
+        try {
+          const dirStat = await stat(agentContext.workingDir);
+          if (!dirStat.isDirectory()) {
+            result = `Working directory is not a directory: ${agentContext.workingDir}`;
+            break;
+          }
+        } catch {
+          result = `Working directory does not exist: ${agentContext.workingDir}`;
           break;
         }
 
