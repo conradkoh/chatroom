@@ -567,6 +567,9 @@ export default defineSchema({
     // Whether daemon is currently connected (for UI status display)
     daemonConnected: v.boolean(),
   })
+    // machineId is client-generated (UUID). Convex doesn't support unique indexes,
+    // so uniqueness is enforced at the application layer in register() mutation.
+    // Convex mutations are serializable, so the check-then-insert is race-safe.
     .index('by_machineId', ['machineId'])
     .index('by_userId', ['userId']),
 
