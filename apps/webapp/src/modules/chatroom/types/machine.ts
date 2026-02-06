@@ -50,56 +50,60 @@ export const TOOL_DISPLAY_NAMES: Record<AgentTool, string> = {
   opencode: 'OpenCode',
 };
 
-/**
- * Provider display names for the UI.
- * Maps the provider prefix in model IDs to human-readable names.
- */
-export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
-  'github-copilot': 'GitHub Copilot',
-  opencode: 'OpenCode',
-  openrouter: 'OpenRouter',
-  vercel: 'Vercel',
-};
-
-/**
- * Short display names for models in the UI.
- * Maps full model IDs to human-readable short names (model name only).
- */
-export const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  'github-copilot/claude-sonnet-4.5': 'Sonnet 4.5',
-  'github-copilot/claude-opus-4.6': 'Opus 4.6',
-  'github-copilot/claude-opus-4.5': 'Opus 4.5',
-  'github-copilot/gpt-5.2': 'GPT-5.2',
-  'github-copilot/gpt-5.2-codex': 'GPT-5.2 Codex',
-  'github-copilot/gpt-5.1-codex-max': 'GPT-5.1 Codex Max',
-  'github-copilot/gemini-3-flash-preview': 'Gemini 3 Flash',
-  'github-copilot/claude-haiku-4.5': 'Haiku 4.5',
-  'opencode/big-pickle': 'Big Pickle',
-};
-
 // ─── Helpers ────────────────────────────────────────────────────────
 
 /**
- * Get the full display label for a model, including its provider.
- * e.g. "GitHub Copilot / Sonnet 4.5" or "OpenCode / Big Pickle"
+ * Title-case a hyphenated slug: "claude-sonnet-4.5" → "Claude Sonnet 4.5"
+ */
+function titleCase(slug: string): string {
+  return slug
+    .split('-')
+    .map((word) => (word.length > 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word))
+    .join(' ');
+}
+
+/**
+ * Parse an OpenCode model ID (provider/model-slug format) into display parts.
  *
- * Falls back to the raw model ID if no display name is found.
+ * OpenCode models use the format "provider/model-slug", e.g.:
+ *   "github-copilot/claude-sonnet-4.5" → { provider: "Github Copilot", model: "Claude Sonnet 4.5" }
+ *   "opencode/big-pickle" → { provider: "Opencode", model: "Big Pickle" }
+ *
+ * For IDs without a slash, the entire string is treated as the model name.
+ */
+function parseModelId(modelId: string): { provider: string; model: string } {
+  const slashIdx = modelId.indexOf('/');
+  if (slashIdx === -1) {
+    return { provider: '', model: titleCase(modelId) };
+  }
+
+  const providerSlug = modelId.substring(0, slashIdx);
+  const modelSlug = modelId.substring(slashIdx + 1);
+
+  return {
+    provider: titleCase(providerSlug),
+    model: titleCase(modelSlug),
+  };
+}
+
+/**
+ * Get the full display label for a model, including its provider.
+ * e.g. "Github Copilot / Claude Sonnet 4.5"
+ *
+ * Uses algorithmic transformation — no hardcoded model name mappings.
+ * This handles the OpenCode "provider/model-slug" format.
  */
 export function getModelDisplayLabel(modelId: string): string {
-  const slashIdx = modelId.indexOf('/');
-  if (slashIdx === -1) return modelId;
-
-  const providerKey = modelId.substring(0, slashIdx);
-  const providerName = PROVIDER_DISPLAY_NAMES[providerKey] ?? providerKey;
-  const modelName = MODEL_DISPLAY_NAMES[modelId] ?? modelId.substring(slashIdx + 1);
-
-  return `${providerName} / ${modelName}`;
+  const { provider, model } = parseModelId(modelId);
+  if (!provider) return model;
+  return `${provider} / ${model}`;
 }
 
 /**
  * Get only the short model name (without provider).
- * e.g. "Sonnet 4.5" or "Big Pickle"
+ * e.g. "Claude Sonnet 4.5" or "Big Pickle"
  */
 export function getModelShortName(modelId: string): string {
-  return MODEL_DISPLAY_NAMES[modelId] ?? modelId;
+  const { model } = parseModelId(modelId);
+  return model;
 }
