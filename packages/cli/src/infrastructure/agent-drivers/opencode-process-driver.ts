@@ -10,28 +10,11 @@
  * passed via stdin. Supports --model flag for model selection.
  */
 
+import { execSync } from 'node:child_process';
+
 import { buildCombinedPrompt, ProcessDriver, type SpawnConfig } from './process-driver.js';
 import type { AgentCapabilities, AgentStartOptions } from './types.js';
 import { AGENT_TOOL_COMMANDS } from '../machine/types.js';
-
-/**
- * Static model list for OpenCode (fallback when dynamic discovery is unavailable).
- *
- * OpenCode models depend on the user's configured providers. These are
- * the commonly available models. In Phase 4 (SDK driver), this will be
- * replaced by dynamic discovery via the OpenCode API.
- */
-const OPENCODE_MODELS: string[] = [
-  'github-copilot/claude-sonnet-4.5',
-  'github-copilot/claude-opus-4.6',
-  'github-copilot/claude-opus-4.5',
-  'github-copilot/gpt-5.2',
-  'github-copilot/gpt-5.2-codex',
-  'github-copilot/gpt-5.1-codex-max',
-  'github-copilot/gemini-3-flash-preview',
-  'github-copilot/claude-haiku-4.5',
-  'opencode/big-pickle',
-];
 
 export class OpenCodeProcessDriver extends ProcessDriver {
   readonly tool = 'opencode' as const;
@@ -43,7 +26,7 @@ export class OpenCodeProcessDriver extends ProcessDriver {
     compaction: false, // Will become true in Phase 4 (SDK driver)
     eventStreaming: false, // Will become true in Phase 4 (SDK driver)
     messageInjection: false, // Will become true in Phase 4 (SDK driver)
-    dynamicModelDiscovery: false, // Will become true in Phase 4 (SDK driver)
+    dynamicModelDiscovery: true,
   };
 
   protected buildSpawnConfig(options: AgentStartOptions): SpawnConfig {
@@ -65,7 +48,28 @@ export class OpenCodeProcessDriver extends ProcessDriver {
     };
   }
 
+  /**
+   * Discover available models by running `opencode models`.
+   * Returns one model ID per line (provider/model-id format).
+   * Falls back to empty array if the command fails.
+   */
   override async listModels(): Promise<string[]> {
-    return OPENCODE_MODELS;
+    try {
+      const output = execSync('opencode models', {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 10000,
+      })
+        .toString()
+        .trim();
+
+      if (!output) return [];
+
+      return output
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+    } catch {
+      return [];
+    }
   }
 }

@@ -558,6 +558,8 @@ export default defineSchema({
         })
       )
     ),
+    // Available AI models discovered via `opencode models` (dynamic, per-machine)
+    availableModels: v.optional(v.array(v.string())),
     // When machine was first registered
     registeredAt: v.number(),
     // Last sync/heartbeat from CLI

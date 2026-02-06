@@ -18,7 +18,7 @@ import { createPortal } from 'react-dom';
 
 import { CopyButton } from './CopyButton';
 import type { AgentTool, MachineInfo, AgentConfig } from '../types/machine';
-import { TOOL_DISPLAY_NAMES, TOOL_MODELS, getModelDisplayLabel } from '../types/machine';
+import { TOOL_DISPLAY_NAMES, getModelDisplayLabel } from '../types/machine';
 
 import { Badge } from '@/components/ui/badge';
 import { usePrompts } from '@/contexts/PromptsContext';
@@ -166,11 +166,12 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     }
   }, [selectedMachineId, roleConfigs, availableToolsForMachine]);
 
-  // Available models for the selected tool
+  // Available models from the selected machine (discovered dynamically)
   const availableModelsForTool = useMemo(() => {
-    if (!selectedTool) return [];
-    return TOOL_MODELS[selectedTool] || [];
-  }, [selectedTool]);
+    if (!selectedMachineId || !selectedTool || !machinesResult?.machines) return [];
+    const machine = machinesResult.machines.find((m) => m.machineId === selectedMachineId);
+    return machine?.availableModels || [];
+  }, [selectedMachineId, selectedTool, machinesResult?.machines]);
 
   // Pre-populate workingDir from existing config, falling back to last known config
   useEffect(() => {
@@ -192,10 +193,10 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     setWorkingDir('');
   }, [selectedMachineId, roleConfigs]);
 
-  // Auto-select model when tool changes
+  // Auto-select model when tool or machine changes
   useEffect(() => {
     if (selectedTool) {
-      const models = TOOL_MODELS[selectedTool] || [];
+      const models = availableModelsForTool;
       if (models.length === 0) {
         setSelectedModel(null);
         return;
@@ -211,7 +212,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     } else {
       setSelectedModel(null);
     }
-  }, [selectedTool, roleConfigs, selectedMachineId]);
+  }, [selectedTool, availableModelsForTool, roleConfigs, selectedMachineId]);
 
   // Handle start agent
   const handleStartAgent = useCallback(async () => {

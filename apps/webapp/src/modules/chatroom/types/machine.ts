@@ -24,6 +24,8 @@ export interface MachineInfo {
   os: string;
   availableTools: AgentTool[];
   toolVersions: Partial<Record<AgentTool, ToolVersionInfo>>;
+  /** Available AI models discovered dynamically via `opencode models` */
+  availableModels: string[];
   daemonConnected: boolean;
   lastSeenAt: number;
 }
@@ -46,28 +48,6 @@ export interface AgentConfig {
 
 export const TOOL_DISPLAY_NAMES: Record<AgentTool, string> = {
   opencode: 'OpenCode',
-};
-
-/**
- * Available AI models per agent tool.
- * Models sourced from `opencode models` using provider/model-id format.
- * First model in each array is the default.
- *
- * Note: opencode models are dynamic and depend on user's configured providers.
- * A future improvement could detect models dynamically via the backend.
- */
-export const TOOL_MODELS: Record<AgentTool, string[]> = {
-  opencode: [
-    'github-copilot/claude-sonnet-4.5',
-    'github-copilot/claude-opus-4.6',
-    'github-copilot/claude-opus-4.5',
-    'github-copilot/gpt-5.2',
-    'github-copilot/gpt-5.2-codex',
-    'github-copilot/gpt-5.1-codex-max',
-    'github-copilot/gemini-3-flash-preview',
-    'github-copilot/claude-haiku-4.5',
-    'opencode/big-pickle',
-  ],
 };
 
 /**

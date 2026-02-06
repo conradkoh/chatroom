@@ -14,7 +14,7 @@ import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
 
 import { CopyButton } from './CopyButton';
 import type { AgentTool, ToolVersionInfo, MachineInfo, AgentConfig } from '../types/machine';
-import { TOOL_DISPLAY_NAMES, TOOL_MODELS, getModelDisplayLabel } from '../types/machine';
+import { TOOL_DISPLAY_NAMES, getModelDisplayLabel } from '../types/machine';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -128,11 +128,12 @@ export function useAgentControls({
     }
   }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs, preferences]);
 
-  // Available models for the selected tool
+  // Available models from the selected machine (discovered dynamically)
   const availableModelsForTool = useMemo(() => {
-    if (!selectedTool) return [];
-    return TOOL_MODELS[selectedTool] || [];
-  }, [selectedTool]);
+    if (!selectedMachineId || !selectedTool) return [];
+    const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
+    return machine?.availableModels || [];
+  }, [selectedMachineId, selectedTool, connectedMachines]);
 
   // Auto-select tool (priority: role config > preferences > single available tool)
   useEffect(() => {
@@ -153,10 +154,10 @@ export function useAgentControls({
     }
   }, [selectedMachineId, roleConfigs, availableToolsForMachine, preferences, role]);
 
-  // Auto-select model when tool changes (priority: role config > preferences > first model)
+  // Auto-select model when tool or machine changes (priority: role config > preferences > first model)
   useEffect(() => {
     if (selectedTool) {
-      const models = TOOL_MODELS[selectedTool] || [];
+      const models = availableModelsForTool;
       if (models.length === 0) {
         setSelectedModel(null);
         return;
@@ -175,7 +176,7 @@ export function useAgentControls({
     } else {
       setSelectedModel(null);
     }
-  }, [selectedTool, roleConfigs, selectedMachineId, preferences, role]);
+  }, [selectedTool, availableModelsForTool, roleConfigs, selectedMachineId, preferences, role]);
 
   // Pre-populate workingDir from existing config when switching machines
   useEffect(() => {

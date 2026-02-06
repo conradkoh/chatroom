@@ -12,6 +12,7 @@ import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
 import { api, type Id, type Chatroom, type TaskWithMessage } from '../api.js';
 import { DEFAULT_WAIT_TIMEOUT_MS, DEFAULT_ACTIVE_TIMEOUT_MS } from '../config.js';
+import { getDriverRegistry } from '../infrastructure/agent-drivers/index.js';
 import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
 import {
   getConvexUrl,
@@ -132,6 +133,20 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     // Ensure local machine config exists (idempotent - creates or refreshes)
     const machineInfo = ensureMachineRegistered();
 
+    // Discover available models from installed tools (dynamic)
+    let availableModels: string[] = [];
+    try {
+      const registry = getDriverRegistry();
+      for (const driver of registry.all()) {
+        if (driver.capabilities.dynamicModelDiscovery) {
+          const models = await driver.listModels();
+          availableModels = availableModels.concat(models);
+        }
+      }
+    } catch {
+      // Model discovery is non-critical — continue with empty list
+    }
+
     // Register/update machine in backend
 
     await client.mutation(api.machines.register, {
@@ -141,6 +156,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       os: machineInfo.os,
       availableTools: machineInfo.availableTools,
       toolVersions: machineInfo.toolVersions,
+      availableModels,
     });
 
     // Determine agent type (from flag or default to first available tool)

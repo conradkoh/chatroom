@@ -32,46 +32,6 @@ export interface ToolVersionInfo {
 }
 
 /**
- * Available AI models per agent tool.
- *
- * For opencode, models are sourced from `opencode models` and use the
- * provider/model-id format. The first model in each array is the default.
- *
- * Note: opencode models are dynamic and depend on user's configured providers.
- * These are the commonly available models as of v1.x. A future improvement
- * could detect models dynamically via `opencode models` at runtime.
- */
-export const TOOL_MODELS: Record<AgentTool, string[]> = {
-  opencode: [
-    'github-copilot/claude-sonnet-4.5',
-    'github-copilot/claude-opus-4.6',
-    'github-copilot/claude-opus-4.5',
-    'github-copilot/gpt-5.2',
-    'github-copilot/gpt-5.2-codex',
-    'github-copilot/gpt-5.1-codex-max',
-    'github-copilot/gemini-3-flash-preview',
-    'github-copilot/claude-haiku-4.5',
-    'opencode/big-pickle',
-  ],
-};
-
-/**
- * Display names for AI models (short labels for UI).
- * Maps full model IDs to human-readable short names.
- */
-export const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  'github-copilot/claude-sonnet-4.5': 'Sonnet 4.5',
-  'github-copilot/claude-opus-4.6': 'Opus 4.6',
-  'github-copilot/claude-opus-4.5': 'Opus 4.5',
-  'github-copilot/gpt-5.2': 'GPT-5.2',
-  'github-copilot/gpt-5.2-codex': 'GPT-5.2 Codex',
-  'github-copilot/gpt-5.1-codex-max': 'GPT-5.1 Codex Max',
-  'github-copilot/gemini-3-flash-preview': 'Gemini 3 Flash',
-  'github-copilot/claude-haiku-4.5': 'Haiku 4.5',
-  'opencode/big-pickle': 'Big Pickle',
-};
-
-/**
  * Per-chatroom, per-role agent context (static config, stored in machine.json)
  *
  * Runtime state like spawned PIDs is stored separately in

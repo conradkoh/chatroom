@@ -140,6 +140,7 @@ export const register = mutation({
     os: v.string(),
     availableTools: v.array(agentToolValidator),
     toolVersions: v.optional(v.record(v.string(), toolVersionValidator)),
+    availableModels: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx, args.sessionId);
@@ -163,6 +164,7 @@ export const register = mutation({
         os: args.os,
         availableTools: args.availableTools,
         toolVersions: args.toolVersions,
+        availableModels: args.availableModels,
         lastSeenAt: now,
       });
 
@@ -177,6 +179,7 @@ export const register = mutation({
       os: args.os,
       availableTools: args.availableTools,
       toolVersions: args.toolVersions,
+      availableModels: args.availableModels,
       registeredAt: now,
       lastSeenAt: now,
       daemonConnected: false,
@@ -287,6 +290,7 @@ export const listMachines = query({
         os: m.os,
         availableTools: m.availableTools,
         toolVersions: m.toolVersions ?? {},
+        availableModels: m.availableModels ?? [],
         daemonConnected: m.daemonConnected,
         lastSeenAt: m.lastSeenAt,
         registeredAt: m.registeredAt,
