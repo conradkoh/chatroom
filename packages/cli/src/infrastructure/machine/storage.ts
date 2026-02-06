@@ -278,3 +278,33 @@ export function listChatroomAgents(): Record<string, Record<string, AgentContext
   const config = loadMachineConfig();
   return config?.chatroomAgents ?? {};
 }
+
+/**
+ * Persist the PID of a spawned agent into the local config.
+ * Called after a successful agent start so the daemon can recover it on restart.
+ */
+export function persistAgentPid(chatroomId: string, role: string, pid: number): void {
+  const config = loadMachineConfig();
+  if (!config) return;
+
+  const agent = config.chatroomAgents[chatroomId]?.[role];
+  if (!agent) return;
+
+  agent.spawnedAgentPid = pid;
+  saveMachineConfig(config);
+}
+
+/**
+ * Clear the PID of a spawned agent from the local config.
+ * Called after a successful agent stop or when a stale PID is detected.
+ */
+export function clearAgentPid(chatroomId: string, role: string): void {
+  const config = loadMachineConfig();
+  if (!config) return;
+
+  const agent = config.chatroomAgents[chatroomId]?.[role];
+  if (!agent) return;
+
+  delete agent.spawnedAgentPid;
+  saveMachineConfig(config);
+}

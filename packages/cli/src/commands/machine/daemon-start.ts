@@ -18,9 +18,12 @@ import {
   getConvexWsClient,
 } from '../../infrastructure/convex/client.js';
 import {
+  clearAgentPid,
   getMachineId,
+  listChatroomAgents,
   loadMachineConfig,
   getAgentContext,
+  persistAgentPid,
   updateAgentContext,
 } from '../../infrastructure/machine/index.js';
 
@@ -93,6 +96,70 @@ function verifyPidOwnership(pid: number, expectedTool?: string): boolean {
 }
 
 /**
+ * Recover agent state on daemon restart.
+ *
+ * Reads locally persisted PIDs from machine.json, verifies each is still alive
+ * using `verifyPidOwnership()`, and reconciles with Convex:
+ * - Alive agents: log as recovered, keep PID in local config and Convex
+ * - Dead agents: clear PID from local config and Convex
+ *
+ * This runs once on daemon startup before command processing begins.
+ */
+async function recoverAgentState(
+  client: Awaited<ReturnType<typeof getConvexClient>>,
+  sessionId: any,
+  machineId: string
+): Promise<void> {
+  const chatroomAgents = listChatroomAgents();
+  const entries = Object.entries(chatroomAgents);
+
+  if (entries.length === 0) {
+    console.log(`   No agent contexts found — nothing to recover`);
+    return;
+  }
+
+  let recovered = 0;
+  let cleared = 0;
+
+  for (const [chatroomId, roles] of entries) {
+    for (const [role, context] of Object.entries(roles)) {
+      if (!context.spawnedAgentPid) continue;
+
+      const pid = context.spawnedAgentPid;
+      const tool = context.agentType;
+      const alive = verifyPidOwnership(pid, tool);
+
+      if (alive) {
+        console.log(`   ✅ Recovered: ${role} (PID ${pid}, tool: ${tool})`);
+        recovered++;
+      } else {
+        console.log(`   🧹 Stale PID ${pid} for ${role} — clearing`);
+
+        // Clear locally
+        clearAgentPid(chatroomId, role);
+
+        // Clear in Convex (best-effort — don't fail startup if this errors)
+        try {
+          await client.mutation(api.machines.updateSpawnedAgent, {
+            sessionId,
+            machineId,
+            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+            role,
+            pid: undefined,
+          });
+        } catch (e) {
+          console.log(`   ⚠️  Failed to clear stale PID in Convex: ${(e as Error).message}`);
+        }
+
+        cleared++;
+      }
+    }
+  }
+
+  console.log(`   Recovery complete: ${recovered} alive, ${cleared} stale cleared`);
+}
+
+/**
  * Start the daemon
  */
 export async function daemonStart(): Promise<void> {
@@ -161,6 +228,16 @@ export async function daemonStart(): Promise<void> {
   console.log(`   Hostname: ${config?.hostname ?? 'Unknown'}`);
   console.log(`   Available tools: ${config?.availableTools.join(', ') || 'none'}`);
   console.log(`   PID: ${process.pid}`);
+
+  // Recover agent state from previous daemon session
+  console.log(`\n[${formatTimestamp()}] 🔄 Recovering agent state...`);
+  try {
+    await recoverAgentState(client, typedSessionId, machineId);
+  } catch (e) {
+    console.log(`   ⚠️  Recovery failed: ${(e as Error).message}`);
+    console.log(`   Continuing with fresh state`);
+  }
+
   console.log(`\nListening for commands...`);
   console.log(`Press Ctrl+C to stop\n`);
 
@@ -378,6 +455,13 @@ async function processCommand(
                 pid: startResult.handle.pid,
               });
               console.log(`   Updated backend with PID: ${startResult.handle.pid}`);
+
+              // Persist PID locally for daemon restart recovery
+              persistAgentPid(
+                command.payload.chatroomId!,
+                command.payload.role!,
+                startResult.handle.pid
+              );
             } catch (e) {
               console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
             }
@@ -469,6 +553,8 @@ async function processCommand(
             pid: undefined,
           });
           console.log(`   Cleared stale PID in backend`);
+          // Also clear locally for restart recovery
+          clearAgentPid(command.payload.chatroomId!, command.payload.role!);
           break;
         }
 
@@ -492,6 +578,8 @@ async function processCommand(
             pid: undefined, // Clear PID
           });
           console.log(`   Cleared PID in backend`);
+          // Also clear locally for restart recovery
+          clearAgentPid(command.payload.chatroomId!, command.payload.role!);
         } catch (e) {
           const err = e as NodeJS.ErrnoException;
           if (err.code === 'ESRCH') {
@@ -505,6 +593,8 @@ async function processCommand(
               role: command.payload.role,
               pid: undefined,
             });
+            // Also clear locally
+            clearAgentPid(command.payload.chatroomId!, command.payload.role!);
           } else {
             result = `Failed to stop agent: ${err.message}`;
             commandFailed = true;

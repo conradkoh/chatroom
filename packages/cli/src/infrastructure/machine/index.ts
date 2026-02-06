@@ -11,9 +11,12 @@ export { AGENT_TOOL_COMMANDS } from './types.js';
 
 // Storage
 export {
+  clearAgentPid,
   ensureMachineRegistered,
   getAgentContext,
   getMachineId,
+  listChatroomAgents,
   loadMachineConfig,
+  persistAgentPid,
   updateAgentContext,
 } from './storage.js';

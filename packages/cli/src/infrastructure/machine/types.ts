@@ -85,6 +85,8 @@ export interface AgentContext {
   workingDir: string;
   /** Last time this agent was started (ISO string) */
   lastStartedAt: string;
+  /** PID of the spawned agent process (undefined if not running or unknown) */
+  spawnedAgentPid?: number;
 }
 
 /**
