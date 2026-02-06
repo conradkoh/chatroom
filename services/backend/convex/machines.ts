@@ -11,9 +11,10 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
 
+// ─── Shared Helpers ──────────────────────────────────────────────────
+
 /**
- * Helper to get authenticated user from session (supports both CLI and web sessions).
- * Throws if session is invalid.
+ * Get authenticated user from session. Throws if session is invalid.
  */
 async function getAuthenticatedUser(ctx: any, sessionId: string) {
   const result = await validateSession(ctx, sessionId);
@@ -28,8 +29,7 @@ async function getAuthenticatedUser(ctx: any, sessionId: string) {
 }
 
 /**
- * Helper to get authenticated user from session (supports both CLI and web sessions).
- * Returns null if session is invalid.
+ * Get authenticated user from session. Returns null if invalid.
  */
 async function getAuthenticatedUserOptional(ctx: any, sessionId: string) {
   try {
@@ -37,6 +37,31 @@ async function getAuthenticatedUserOptional(ctx: any, sessionId: string) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Look up a machine by its machineId. Throws if not found.
+ */
+async function getMachineByMachineId(ctx: any, machineId: string) {
+  const machine = await ctx.db
+    .query('chatroom_machines')
+    .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
+    .first();
+  if (!machine) {
+    throw new Error('Machine not found');
+  }
+  return machine;
+}
+
+/**
+ * Look up a machine and verify ownership. Throws if not found or not owned.
+ */
+async function getOwnedMachine(ctx: any, machineId: string, userId: any) {
+  const machine = await getMachineByMachineId(ctx, machineId);
+  if (machine.userId !== userId) {
+    throw new Error('Machine is registered to a different user');
+  }
+  return machine;
 }
 
 // Agent tool type validator (shared across functions)
@@ -68,12 +93,7 @@ export const register = mutation({
     toolVersions: v.optional(v.record(v.string(), toolVersionValidator)),
   },
   handler: async (ctx, args) => {
-    // Verify authenticated user
     const user = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!user) {
-      throw new Error('Authentication required');
-    }
-
     const now = Date.now();
 
     // Check if machine already exists
@@ -83,7 +103,7 @@ export const register = mutation({
       .first();
 
     if (existing) {
-      // Verify ownership - machine must belong to this user
+      // Verify ownership
       if (existing.userId !== user._id) {
         throw new Error('Machine is registered to a different user');
       }
@@ -138,25 +158,8 @@ export const updateAgentConfig = mutation({
     model: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Verify authenticated user
     const user = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!user) {
-      throw new Error('Authentication required');
-    }
-
-    // Verify machine ownership
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
-    if (!machine) {
-      throw new Error('Machine not registered. Call register() first.');
-    }
-
-    if (machine.userId !== user._id) {
-      throw new Error('Machine is registered to a different user');
-    }
+    await getOwnedMachine(ctx, args.machineId, user._id);
 
     // Verify chatroom exists and user has access
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
@@ -353,22 +356,7 @@ export const updateDaemonStatus = mutation({
   },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!user) {
-      throw new Error('Authentication required');
-    }
-
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
-    if (!machine) {
-      throw new Error('Machine not found');
-    }
-
-    if (machine.userId !== user._id) {
-      throw new Error('Not authorized');
-    }
+    const machine = await getOwnedMachine(ctx, args.machineId, user._id);
 
     await ctx.db.patch('chatroom_machines', machine._id, {
       daemonConnected: args.connected,
@@ -403,23 +391,7 @@ export const sendCommand = mutation({
   },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!user) {
-      throw new Error('Authentication required');
-    }
-
-    // Verify machine ownership
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
-    if (!machine) {
-      throw new Error('Machine not found');
-    }
-
-    if (machine.userId !== user._id) {
-      throw new Error('Not authorized to send commands to this machine');
-    }
+    const machine = await getOwnedMachine(ctx, args.machineId, user._id);
 
     // For start-agent commands, get the agent config to determine tool
     let agentTool: 'opencode' | 'claude' | 'cursor' | undefined;
@@ -482,19 +454,7 @@ export const updateSpawnedAgent = mutation({
   },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!user) {
-      throw new Error('Authentication required');
-    }
-
-    // Verify machine ownership
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-
-    if (!machine || machine.userId !== user._id) {
-      throw new Error('Not authorized');
-    }
+    await getOwnedMachine(ctx, args.machineId, user._id);
 
     // Find the agent config
     const config = await ctx.db
@@ -533,24 +493,13 @@ export const ackCommand = mutation({
   },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!user) {
-      throw new Error('Authentication required');
-    }
 
     const command = await ctx.db.get('chatroom_machineCommands', args.commandId);
     if (!command) {
       throw new Error('Command not found');
     }
 
-    // Verify machine ownership
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', command.machineId))
-      .first();
-
-    if (!machine || machine.userId !== user._id) {
-      throw new Error('Not authorized');
-    }
+    await getOwnedMachine(ctx, command.machineId, user._id);
 
     const now = Date.now();
 
@@ -643,10 +592,6 @@ export const updateAgentPreferences = mutation({
   },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!user) {
-      throw new Error('Authentication required');
-    }
-
     const now = Date.now();
 
     // Find existing preferences
