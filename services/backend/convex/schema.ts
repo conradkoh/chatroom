@@ -550,6 +550,16 @@ export default defineSchema({
     availableTools: v.array(
       v.union(v.literal('opencode'), v.literal('claude'), v.literal('cursor'))
     ),
+    // Detected tool versions (keyed by tool name, e.g. { opencode: { version: "1.2.3", major: 1 } })
+    toolVersions: v.optional(
+      v.record(
+        v.string(),
+        v.object({
+          version: v.string(),
+          major: v.number(),
+        })
+      )
+    ),
     // When machine was first registered
     registeredAt: v.number(),
     // Last sync/heartbeat from CLI

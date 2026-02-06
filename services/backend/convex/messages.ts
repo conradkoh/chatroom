@@ -1,7 +1,11 @@
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
-import { generateRolePrompt, generateTaskStartedReminder, generateInitPrompt } from '../prompts';
+import {
+  generateRolePrompt,
+  generateTaskStartedReminder,
+  generateSplitInitPrompt,
+} from '../prompts';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
@@ -1660,17 +1664,27 @@ export const getInitPrompt = query({
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Generate the full initialization prompt
-    const prompt = generateInitPrompt({
+    const promptInput = {
       chatroomId: args.chatroomId,
       role: args.role,
       teamName: chatroom.teamName || 'Team',
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
-    });
+    };
 
-    return { prompt };
+    // Generate split prompt (role prompt + initial message)
+    const splitPrompt = generateSplitInitPrompt(promptInput);
+
+    // Return both combined (backwards compatible) and split parts
+    return {
+      /** Combined prompt for manual/backwards-compatible mode */
+      prompt: splitPrompt.combined,
+      /** Role identity and guidance (for use as system prompt in machine mode) */
+      rolePrompt: splitPrompt.rolePrompt,
+      /** Context-gaining and next steps (for use as initial message in machine mode) */
+      initialMessage: splitPrompt.initialMessage,
+    };
   },
 });
 

@@ -5,11 +5,25 @@
  */
 
 // Types
-export type { AgentContext, AgentTool, MachineConfig, MachineRegistrationInfo } from './types.js';
-export { AGENT_TOOLS, AGENT_TOOL_COMMANDS } from './types.js';
+export type {
+  AgentContext,
+  AgentTool,
+  LegacyMachineConfig,
+  MachineConfig,
+  MachineConfigFile,
+  MachineEndpointConfig,
+  MachineRegistrationInfo,
+  ToolVersionInfo,
+} from './types.js';
+export { AGENT_TOOLS, AGENT_TOOL_COMMANDS, MACHINE_CONFIG_VERSION } from './types.js';
 
 // Detection
-export { detectAvailableTools, isToolAvailable } from './detection.js';
+export {
+  detectAvailableTools,
+  detectToolVersion,
+  detectToolVersions,
+  isToolAvailable,
+} from './detection.js';
 
 // Storage
 export {

@@ -26,11 +26,17 @@ import { usePrompts } from '@/contexts/PromptsContext';
 
 type AgentTool = 'opencode' | 'claude' | 'cursor';
 
+interface ToolVersionInfo {
+  version: string;
+  major: number;
+}
+
 interface MachineInfo {
   machineId: string;
   hostname: string;
   os: string;
   availableTools: AgentTool[];
+  toolVersions: Partial<Record<AgentTool, ToolVersionInfo>>;
   daemonConnected: boolean;
   lastSeenAt: number;
 }

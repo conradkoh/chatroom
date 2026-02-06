@@ -207,27 +207,33 @@ async function processCommand(
           break;
         }
 
-        // Fetch init prompt from backend (single source of truth)
+        // Fetch split init prompt from backend (single source of truth)
         const convexUrl = getConvexUrl();
         const initPromptResult = (await client.query(api.messages.getInitPrompt, {
           sessionId,
           chatroomId: command.payload.chatroomId,
           role: command.payload.role,
           convexUrl,
-        })) as { prompt: string } | null;
+        })) as { prompt: string; rolePrompt: string; initialMessage: string } | null;
 
         if (!initPromptResult?.prompt) {
           result = 'Failed to fetch init prompt from backend';
           break;
         }
 
-        console.log(`   Fetched init prompt from backend`);
+        console.log(`   Fetched split init prompt from backend`);
 
-        // Spawn the agent with init prompt from backend
+        // Get tool version for version-specific spawn logic
+        const machineConfig = loadMachineConfig();
+        const toolVersion = machineConfig?.toolVersions?.[command.payload.agentTool];
+
+        // Spawn the agent with split prompts (role prompt + initial message)
         const spawnResult = await spawnAgent({
           tool: command.payload.agentTool,
           workingDir: agentContext.workingDir,
-          initPrompt: initPromptResult.prompt,
+          rolePrompt: initPromptResult.rolePrompt,
+          initialMessage: initPromptResult.initialMessage,
+          toolVersion: toolVersion ?? undefined,
         });
 
         if (spawnResult.success) {

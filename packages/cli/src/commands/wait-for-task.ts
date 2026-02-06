@@ -140,6 +140,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       hostname: machineInfo.hostname,
       os: machineInfo.os,
       availableTools: machineInfo.availableTools,
+      toolVersions: machineInfo.toolVersions,
     });
 
     // Determine agent type (from flag or default to first available tool)

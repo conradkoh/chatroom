@@ -52,6 +52,12 @@ const agentToolValidator = v.union(v.literal('opencode'), v.literal('claude'), v
  * Called by CLI on every wait-for-task startup.
  * Creates new machine record or updates existing one.
  */
+// Tool version validator
+const toolVersionValidator = v.object({
+  version: v.string(),
+  major: v.number(),
+});
+
 export const register = mutation({
   args: {
     ...SessionIdArg,
@@ -59,6 +65,7 @@ export const register = mutation({
     hostname: v.string(),
     os: v.string(),
     availableTools: v.array(agentToolValidator),
+    toolVersions: v.optional(v.record(v.string(), toolVersionValidator)),
   },
   handler: async (ctx, args) => {
     // Verify authenticated user
@@ -86,6 +93,7 @@ export const register = mutation({
         hostname: args.hostname,
         os: args.os,
         availableTools: args.availableTools,
+        toolVersions: args.toolVersions,
         lastSeenAt: now,
       });
 
@@ -99,6 +107,7 @@ export const register = mutation({
       hostname: args.hostname,
       os: args.os,
       availableTools: args.availableTools,
+      toolVersions: args.toolVersions,
       registeredAt: now,
       lastSeenAt: now,
       daemonConnected: false,
@@ -219,6 +228,7 @@ export const listMachines = query({
         hostname: m.hostname,
         os: m.os,
         availableTools: m.availableTools,
+        toolVersions: m.toolVersions ?? {},
         daemonConnected: m.daemonConnected,
         lastSeenAt: m.lastSeenAt,
         registeredAt: m.registeredAt,

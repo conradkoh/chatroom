@@ -2,6 +2,15 @@
  * Machine Config Storage
  *
  * Manages machine configuration in ~/.chatroom/machine.json
+ *
+ * Config format is versioned and indexed by Convex URL:
+ * {
+ *   "version": "1",
+ *   "machines": {
+ *     "https://wonderful-raven-192.convex.cloud": { machineId, hostname, ... },
+ *     "https://chatroom-cloud.duskfare.com": { machineId, hostname, ... }
+ *   }
+ * }
  */
 
 import { randomUUID } from 'node:crypto';
@@ -9,8 +18,18 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 
-import { detectAvailableTools } from './detection.js';
-import type { AgentContext, AgentTool, MachineConfig, MachineRegistrationInfo } from './types.js';
+import { detectAvailableTools, detectToolVersions } from './detection.js';
+import type {
+  AgentContext,
+  AgentTool,
+  LegacyMachineConfig,
+  MachineConfig,
+  MachineConfigFile,
+  MachineEndpointConfig,
+  MachineRegistrationInfo,
+} from './types.js';
+import { MACHINE_CONFIG_VERSION } from './types.js';
+import { getConvexUrl } from '../convex/client.js';
 
 const CHATROOM_DIR = join(homedir(), '.chatroom');
 const MACHINE_FILE = 'machine.json';
@@ -32,11 +51,43 @@ export function getMachineConfigPath(): string {
 }
 
 /**
- * Load the machine configuration from disk
- *
- * @returns Machine config or null if not exists
+ * Check if a raw config object is the legacy (pre-versioned) format.
+ * Legacy configs have `machineId` at the top level and no `version` field.
  */
-export function loadMachineConfig(): MachineConfig | null {
+function isLegacyConfig(raw: Record<string, unknown>): boolean {
+  return 'machineId' in raw && !('version' in raw);
+}
+
+/**
+ * Migrate a legacy config to the versioned format.
+ * The legacy config becomes the entry for the current Convex URL.
+ */
+function migrateLegacyConfig(legacy: LegacyMachineConfig): MachineConfigFile {
+  const convexUrl = getConvexUrl();
+
+  const endpointConfig: MachineEndpointConfig = {
+    machineId: legacy.machineId,
+    hostname: legacy.hostname,
+    os: legacy.os,
+    registeredAt: legacy.registeredAt,
+    lastSyncedAt: legacy.lastSyncedAt,
+    availableTools: legacy.availableTools,
+    toolVersions: {},
+    chatroomAgents: legacy.chatroomAgents || {},
+  };
+
+  return {
+    version: MACHINE_CONFIG_VERSION,
+    machines: {
+      [convexUrl]: endpointConfig,
+    },
+  };
+}
+
+/**
+ * Load the raw config file from disk, handling migration from legacy format.
+ */
+function loadConfigFile(): MachineConfigFile | null {
   const configPath = getMachineConfigPath();
 
   if (!existsSync(configPath)) {
@@ -45,29 +96,65 @@ export function loadMachineConfig(): MachineConfig | null {
 
   try {
     const content = readFileSync(configPath, 'utf-8');
-    return JSON.parse(content) as MachineConfig;
+    const raw = JSON.parse(content) as Record<string, unknown>;
+
+    // Check for legacy format and migrate
+    if (isLegacyConfig(raw)) {
+      const migrated = migrateLegacyConfig(raw as unknown as LegacyMachineConfig);
+      // Save the migrated config back to disk
+      saveConfigFile(migrated);
+      return migrated;
+    }
+
+    return raw as unknown as MachineConfigFile;
   } catch {
     return null;
   }
 }
 
 /**
- * Save machine configuration to disk
+ * Save the config file to disk
  */
-export function saveMachineConfig(config: MachineConfig): void {
+function saveConfigFile(configFile: MachineConfigFile): void {
   ensureConfigDir();
-
   const configPath = getMachineConfigPath();
-  const content = JSON.stringify(config, null, 2);
-
+  const content = JSON.stringify(configFile, null, 2);
   writeFileSync(configPath, content, 'utf-8');
 }
 
 /**
- * Create a new machine configuration with generated UUID
+ * Load the machine configuration for the current Convex URL endpoint.
+ *
+ * @returns Machine config for the active endpoint, or null if not registered
  */
-function createNewMachineConfig(): MachineConfig {
+export function loadMachineConfig(): MachineConfig | null {
+  const configFile = loadConfigFile();
+  if (!configFile) return null;
+
+  const convexUrl = getConvexUrl();
+  return configFile.machines[convexUrl] ?? null;
+}
+
+/**
+ * Save machine configuration for the current Convex URL endpoint.
+ */
+export function saveMachineConfig(config: MachineConfig): void {
+  const configFile = loadConfigFile() ?? {
+    version: MACHINE_CONFIG_VERSION,
+    machines: {},
+  };
+
+  const convexUrl = getConvexUrl();
+  configFile.machines[convexUrl] = config;
+  saveConfigFile(configFile);
+}
+
+/**
+ * Create a new machine endpoint configuration with generated UUID
+ */
+function createNewEndpointConfig(): MachineEndpointConfig {
   const now = new Date().toISOString();
+  const availableTools = detectAvailableTools();
 
   return {
     machineId: randomUUID(),
@@ -75,15 +162,16 @@ function createNewMachineConfig(): MachineConfig {
     os: process.platform,
     registeredAt: now,
     lastSyncedAt: now,
-    availableTools: detectAvailableTools(),
+    availableTools,
+    toolVersions: detectToolVersions(availableTools),
     chatroomAgents: {},
   };
 }
 
 /**
- * Ensure machine is registered (idempotent)
+ * Ensure machine is registered for the current Convex URL (idempotent)
  *
- * Creates machine.json if not exists, otherwise refreshes tool detection.
+ * Creates a new endpoint entry if not exists, otherwise refreshes tool detection.
  *
  * @returns Machine registration info for backend sync
  */
@@ -91,13 +179,14 @@ export function ensureMachineRegistered(): MachineRegistrationInfo {
   let config = loadMachineConfig();
 
   if (!config) {
-    // First time registration - create new config
-    config = createNewMachineConfig();
+    // First time registration for this endpoint
+    config = createNewEndpointConfig();
     saveMachineConfig(config);
   } else {
-    // Refresh tool detection and update lastSyncedAt
+    // Refresh tool detection, versions, and update lastSyncedAt
     const now = new Date().toISOString();
     config.availableTools = detectAvailableTools();
+    config.toolVersions = detectToolVersions(config.availableTools);
     config.lastSyncedAt = now;
     // Update hostname in case it changed
     config.hostname = hostname();
@@ -109,11 +198,12 @@ export function ensureMachineRegistered(): MachineRegistrationInfo {
     hostname: config.hostname,
     os: config.os,
     availableTools: config.availableTools,
+    toolVersions: config.toolVersions,
   };
 }
 
 /**
- * Get the machine ID (or null if not registered)
+ * Get the machine ID for the current endpoint (or null if not registered)
  */
 export function getMachineId(): string | null {
   const config = loadMachineConfig();

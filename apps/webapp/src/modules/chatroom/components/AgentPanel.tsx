@@ -154,11 +154,17 @@ interface AgentWithStatus {
 
 type AgentTool = 'opencode' | 'claude' | 'cursor';
 
+interface ToolVersionInfo {
+  version: string;
+  major: number;
+}
+
 interface MachineInfo {
   machineId: string;
   hostname: string;
   os: string;
   availableTools: AgentTool[];
+  toolVersions: Partial<Record<AgentTool, ToolVersionInfo>>;
   daemonConnected: boolean;
   lastSeenAt: number;
 }
@@ -279,6 +285,13 @@ const InlineAgentCard = memo(function InlineAgentCard({
     if (!selectedMachineId) return [];
     const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
     return machine?.availableTools || [];
+  }, [selectedMachineId, connectedMachines]);
+
+  // Get tool versions for selected machine
+  const toolVersionsForMachine = useMemo(() => {
+    if (!selectedMachineId) return {} as Partial<Record<AgentTool, ToolVersionInfo>>;
+    const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
+    return machine?.toolVersions || {};
   }, [selectedMachineId, connectedMachines]);
 
   // Auto-select machine
@@ -535,11 +548,15 @@ const InlineAgentCard = memo(function InlineAgentCard({
                     title="Select Tool"
                   >
                     <option value="">Tool...</option>
-                    {availableToolsForMachine.map((tool) => (
-                      <option key={tool} value={tool}>
-                        {TOOL_DISPLAY_NAMES[tool]}
-                      </option>
-                    ))}
+                    {availableToolsForMachine.map((tool) => {
+                      const ver = toolVersionsForMachine[tool];
+                      return (
+                        <option key={tool} value={tool}>
+                          {TOOL_DISPLAY_NAMES[tool]}
+                          {ver ? ` v${ver.version}` : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                   <ChevronDown
                     size={10}

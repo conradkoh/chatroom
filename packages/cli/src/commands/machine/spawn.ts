@@ -2,20 +2,33 @@
  * Agent Spawn Logic
  *
  * Spawns AI agent processes (OpenCode, Claude, Cursor) for remote start.
- * Init prompt is fetched from the backend (single source of truth).
+ * Supports split prompts: role prompt as system prompt, initial message as user message.
+ *
+ * Start modes:
+ * - "machine" mode (daemon-controlled): Uses split prompts where rolePrompt is
+ *   injected as the system prompt and initialMessage is the first user message.
+ * - "manual" mode: Uses the combined init prompt as a single user message.
  */
 
 import { spawn } from 'node:child_process';
 
-import { AGENT_TOOL_COMMANDS, type AgentTool } from '../../infrastructure/machine/index.js';
+import {
+  AGENT_TOOL_COMMANDS,
+  type AgentTool,
+  type ToolVersionInfo,
+} from '../../infrastructure/machine/index.js';
 
 export interface SpawnOptions {
   /** Agent tool to spawn */
   tool: AgentTool;
   /** Working directory to run in */
   workingDir: string;
-  /** Init prompt from backend (single source of truth) */
-  initPrompt: string;
+  /** Role prompt (identity, guidance, commands) — used as system prompt in machine mode */
+  rolePrompt: string;
+  /** Initial message (context-gaining, next steps) — used as first user message */
+  initialMessage: string;
+  /** Tool version info (for version-specific spawn logic) */
+  toolVersion?: ToolVersionInfo;
 }
 
 export interface SpawnResult {
@@ -25,43 +38,72 @@ export interface SpawnResult {
 }
 
 /**
+ * Spawn an OpenCode agent.
+ * For v1.x: passes combined prompt via stdin (no system prompt support).
+ * Future v2.x: could use --system-prompt flag or similar.
+ */
+function spawnOpenCode(
+  command: string,
+  workingDir: string,
+  rolePrompt: string,
+  initialMessage: string,
+  toolVersion?: ToolVersionInfo
+) {
+  const majorVersion = toolVersion?.major ?? 1;
+
+  if (majorVersion >= 2) {
+    // Future: OpenCode v2.x may support --system-prompt or similar
+    // For now, fall through to v1.x behavior
+    console.log(`   OpenCode v${toolVersion?.version} detected (v2+ path - placeholder)`);
+  }
+
+  // v1.x: OpenCode reads stdin on start, combine prompts for now
+  // In the future, rolePrompt can be passed as a system prompt flag
+  const combinedPrompt = `${rolePrompt}\n\n${initialMessage}`;
+
+  const childProcess = spawn(command, [], {
+    cwd: workingDir,
+    stdio: ['pipe', 'inherit', 'inherit'],
+    detached: true,
+    shell: true,
+  });
+  childProcess.stdin?.write(combinedPrompt);
+  childProcess.stdin?.end();
+
+  return childProcess;
+}
+
+/**
  * Spawn an agent process
  *
  * The agent is spawned in detached mode so it continues running
  * independently of the daemon process.
- *
- * @param options.tool - Agent tool to spawn (opencode, claude, cursor)
- * @param options.workingDir - Working directory to run in
- * @param options.initPrompt - Init prompt fetched from backend
  */
 export async function spawnAgent(options: SpawnOptions): Promise<SpawnResult> {
-  const { tool, workingDir, initPrompt } = options;
+  const { tool, workingDir, rolePrompt, initialMessage, toolVersion } = options;
   const command = AGENT_TOOL_COMMANDS[tool];
 
   console.log(`   Spawning ${tool} agent...`);
   console.log(`   Working dir: ${workingDir}`);
+  if (toolVersion) {
+    console.log(`   Tool version: v${toolVersion.version} (major: ${toolVersion.major})`);
+  }
 
   try {
     let childProcess;
 
+    // Combined prompt for tools that don't support separate system prompts
+    const combinedPrompt = `${rolePrompt}\n\n${initialMessage}`;
+
     switch (tool) {
       case 'opencode':
-        // OpenCode: Start interactive session
-        // Pass init prompt via environment or stdin (OpenCode reads stdin on start)
-        childProcess = spawn(command, [], {
-          cwd: workingDir,
-          stdio: ['pipe', 'inherit', 'inherit'],
-          detached: true,
-          shell: true,
-        });
-        // Write init prompt to stdin
-        childProcess.stdin?.write(initPrompt);
-        childProcess.stdin?.end();
+        childProcess = spawnOpenCode(command, workingDir, rolePrompt, initialMessage, toolVersion);
         break;
 
       case 'claude':
-        // Claude: First argument is the prompt
-        childProcess = spawn(command, [initPrompt], {
+        // Claude Code: First argument is the prompt (combined for now)
+        // Future: could use --system-prompt flag
+        childProcess = spawn(command, [combinedPrompt], {
           cwd: workingDir,
           stdio: 'inherit',
           detached: true,
@@ -71,7 +113,7 @@ export async function spawnAgent(options: SpawnOptions): Promise<SpawnResult> {
 
       case 'cursor':
         // Cursor CLI uses 'agent chat' subcommand
-        childProcess = spawn(command, ['chat', initPrompt], {
+        childProcess = spawn(command, ['chat', combinedPrompt], {
           cwd: workingDir,
           stdio: 'inherit',
           detached: true,
