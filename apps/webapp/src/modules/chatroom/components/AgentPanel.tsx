@@ -247,6 +247,14 @@ const InlineAgentCard = memo(function InlineAgentCard({
     return roleConfigs.find((c) => c.spawnedAgentPid && c.daemonConnected);
   }, [roleConfigs]);
 
+  // Last known config (most recently updated) — shown when agent is offline
+  const lastKnownConfig = useMemo(() => {
+    if (runningAgentConfig) return null; // Running agent banner takes precedence
+    if (roleConfigs.length === 0) return null;
+    // Pick the most recently updated config
+    return roleConfigs.reduce((latest, c) => (c.updatedAt > latest.updatedAt ? c : latest));
+  }, [roleConfigs, runningAgentConfig]);
+
   // Get available tools for selected machine
   const availableToolsForMachine = useMemo(() => {
     if (!selectedMachineId) return [];
@@ -549,6 +557,26 @@ const InlineAgentCard = memo(function InlineAgentCard({
                   />
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Last known config - shown when agent is offline */}
+          {lastKnownConfig?.workingDir && (
+            <div className="p-2.5 bg-chatroom-bg-tertiary border border-chatroom-border space-y-1">
+              <div className="text-[10px] font-bold text-chatroom-text-muted uppercase tracking-wide">
+                Last Working Directory
+              </div>
+              <div className="flex items-center gap-1.5">
+                <code className="flex-1 text-[10px] font-mono text-chatroom-text-secondary bg-chatroom-bg-surface px-1.5 py-0.5 border border-chatroom-border truncate">
+                  {lastKnownConfig.workingDir}
+                </code>
+                <CopyButton
+                  text={lastKnownConfig.workingDir}
+                  label="Copy Path"
+                  copiedLabel="Copied!"
+                  variant="compact"
+                />
+              </div>
             </div>
           )}
 
