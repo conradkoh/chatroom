@@ -114,7 +114,7 @@ async function getOwnedMachine(ctx: any, machineId: string, userId: any) {
 }
 
 // Agent tool type validator (shared across functions)
-const agentToolValidator = v.union(v.literal('opencode'), v.literal('claude'));
+const agentToolValidator = v.literal('opencode');
 
 // ============================================================================
 // MACHINE REGISTRATION
@@ -457,7 +457,7 @@ export const sendCommand = mutation({
     }
 
     // For start-agent commands, resolve the agent tool and working directory from config or payload
-    let agentTool: 'opencode' | 'claude' | undefined;
+    let agentTool: 'opencode' | undefined;
     let resolvedWorkingDir: string | undefined;
 
     if (args.type === 'start-agent' && args.payload?.chatroomId && args.payload?.role) {

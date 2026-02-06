@@ -547,7 +547,7 @@ export default defineSchema({
     // Operating system (darwin, linux, win32)
     os: v.string(),
     // Available agent tools on this machine
-    availableTools: v.array(v.union(v.literal('opencode'), v.literal('claude'))),
+    availableTools: v.array(v.literal('opencode')),
     // Detected tool versions (keyed by tool name, e.g. { opencode: { version: "1.2.3", major: 1 } })
     toolVersions: v.optional(
       v.record(
@@ -583,10 +583,10 @@ export default defineSchema({
     // Role this config is for
     role: v.string(),
     // Agent tool used (must be in machine's availableTools)
-    agentType: v.union(v.literal('opencode'), v.literal('claude')),
+    agentType: v.literal('opencode'),
     // Working directory on the machine
     workingDir: v.string(),
-    // AI model to use (e.g. "claude-sonnet-4-20250514", "o3")
+    // AI model to use (e.g. "github-copilot/claude-sonnet-4.5")
     model: v.optional(v.string()),
     // Last updated timestamp
     updatedAt: v.number(),
@@ -616,8 +616,8 @@ export default defineSchema({
     payload: v.object({
       chatroomId: v.optional(v.id('chatroom_rooms')),
       role: v.optional(v.string()),
-      agentTool: v.optional(v.union(v.literal('opencode'), v.literal('claude'))),
-      // AI model to use when starting agent (e.g. "claude-sonnet-4-20250514")
+      agentTool: v.optional(v.literal('opencode')),
+      // AI model to use when starting agent (e.g. "github-copilot/claude-sonnet-4.5")
       model: v.optional(v.string()),
       // Working directory for the agent (absolute path on the remote machine)
       workingDir: v.optional(v.string()),
@@ -650,7 +650,7 @@ export default defineSchema({
     userId: v.id('users'),
     // Last selected machine ID
     machineId: v.optional(v.string()),
-    // Last selected agent tool per role (e.g. { "builder": "opencode", "reviewer": "claude" })
+    // Last selected agent tool per role (e.g. { "builder": "opencode" })
     toolByRole: v.optional(v.record(v.string(), v.string())),
     // Last selected model per role (e.g. { "builder": "github-copilot/claude-sonnet-4.5" })
     modelByRole: v.optional(v.record(v.string(), v.string())),

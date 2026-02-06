@@ -2,7 +2,7 @@
  * Agent Tool Driver — Type Contracts
  *
  * Defines the unified interface for interacting with AI agent tools
- * (OpenCode, Claude Code, Cursor). Each tool implements AgentToolDriver
+ * (OpenCode). Each tool implements AgentToolDriver
  * to provide a consistent API for starting, stopping, and querying agents.
  *
  * Boundary: This module defines driver contracts and capabilities.
@@ -95,12 +95,12 @@ export interface DriverStartResult {
 /**
  * Common interface for all agent tool drivers.
  *
- * Each AI tool (OpenCode, Claude) implements this interface.
+ * Each AI tool (e.g. OpenCode) implements this interface.
  * The daemon resolves drivers from the DriverRegistry and interacts
  * with them through this contract.
  */
 export interface AgentToolDriver {
-  /** Tool identifier (e.g. 'opencode', 'claude') */
+  /** Tool identifier (e.g. 'opencode') */
   readonly tool: AgentTool;
 
   /** Static capability declaration — what this tool supports */

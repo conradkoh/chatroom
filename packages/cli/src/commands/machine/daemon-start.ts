@@ -33,7 +33,7 @@ interface MachineCommand {
   payload: {
     chatroomId?: Id<'chatroom_rooms'>;
     role?: string;
-    agentTool?: 'opencode' | 'claude';
+    agentTool?: 'opencode';
     model?: string;
     workingDir?: string;
   };
@@ -87,7 +87,7 @@ function verifyPidOwnership(pid: number, expectedTool?: string): boolean {
     const toolLower = expectedTool.toLowerCase();
     const procLower = processName.toLowerCase();
 
-    // Match common patterns: 'opencode', 'claude', 'node' (for Node-based tools)
+    // Match common patterns: 'opencode', 'node' (for Node-based tools)
     return procLower.includes(toolLower) || procLower.includes('node') || procLower.includes('bun');
   } catch {
     // If we can't check, assume the process is valid (safer than killing an unknown process)
@@ -511,7 +511,7 @@ async function processCommand(
         }
 
         const pidToKill = targetConfig.spawnedAgentPid;
-        const agentTool = (targetConfig.agentType as 'opencode' | 'claude') || undefined;
+        const agentTool = (targetConfig.agentType as 'opencode') || undefined;
         console.log(`   Stopping agent with PID: ${pidToKill}`);
 
         // Build an AgentHandle from the stored PID and tool type

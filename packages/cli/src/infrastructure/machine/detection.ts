@@ -15,7 +15,6 @@ import { AGENT_TOOLS, AGENT_TOOL_COMMANDS, type AgentTool, type ToolVersionInfo 
  */
 const TOOL_VERSION_COMMANDS: Partial<Record<AgentTool, string>> = {
   opencode: 'opencode --version',
-  claude: 'claude --version',
 };
 
 /**
@@ -93,7 +92,6 @@ export function detectToolVersions(
  *
  * Checks for:
  * - opencode: OpenCode CLI
- * - claude: Claude Code CLI
  *
  * @returns Array of available agent tools
  */

@@ -25,5 +25,4 @@ export { ProcessDriver } from './process-driver.js';
 export { buildCombinedPrompt, writeTempPromptFile, scheduleCleanup } from './process-driver.js';
 
 // Concrete drivers (consumers rarely need these directly, but exported for testing)
-export { ClaudeDriver } from './claude-driver.js';
 export { OpenCodeProcessDriver } from './opencode-process-driver.js';

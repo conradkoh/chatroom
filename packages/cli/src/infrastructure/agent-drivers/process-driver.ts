@@ -1,8 +1,8 @@
 /**
  * Process-Based Agent Driver — Base Class
  *
- * Wraps the common child_process.spawn pattern used by Claude
- * and the process-based OpenCode driver. Subclasses override buildSpawnArgs()
+ * Wraps the common child_process.spawn pattern used by
+ * the process-based OpenCode driver. Subclasses override buildSpawnArgs()
  * and optionally writePromptToStdin() to customize per-tool behavior.
  *
  * SECURITY: All spawn calls use shell: false. Prompts are passed via
@@ -64,7 +64,7 @@ export function buildCombinedPrompt(rolePrompt: string, initialMessage: string):
  * Tells the base class how to spawn the child process.
  */
 export interface SpawnConfig {
-  /** The executable command (e.g. 'opencode', 'claude', 'agent') */
+  /** The executable command (e.g. 'opencode') */
   command: string;
   /** Command-line arguments */
   args: string[];
@@ -81,7 +81,7 @@ export interface SpawnConfig {
 // ─── Base Class ──────────────────────────────────────────────────────────────
 
 /**
- * Base driver for process-based agent tools (Claude, OpenCode process).
+ * Base driver for process-based agent tools (e.g. OpenCode).
  *
  * Subclasses must implement:
  *   - tool: the AgentTool identifier

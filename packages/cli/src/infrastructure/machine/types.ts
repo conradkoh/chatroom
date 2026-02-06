@@ -7,19 +7,18 @@
 /**
  * Supported AI agent tools that can be spawned
  */
-export type AgentTool = 'opencode' | 'claude';
+export type AgentTool = 'opencode';
 
 /**
  * All supported agent tools
  */
-export const AGENT_TOOLS: AgentTool[] = ['opencode', 'claude'];
+export const AGENT_TOOLS: AgentTool[] = ['opencode'];
 
 /**
  * Command names for each agent tool (used for detection)
  */
 export const AGENT_TOOL_COMMANDS: Record<AgentTool, string> = {
   opencode: 'opencode',
-  claude: 'claude',
 };
 
 /**
@@ -54,7 +53,6 @@ export const TOOL_MODELS: Record<AgentTool, string[]> = {
     'github-copilot/claude-haiku-4.5',
     'opencode/big-pickle',
   ],
-  claude: [],
 };
 
 /**

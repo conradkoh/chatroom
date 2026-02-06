@@ -11,7 +11,7 @@
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-export type AgentTool = 'opencode' | 'claude';
+export type AgentTool = 'opencode';
 
 export interface ToolVersionInfo {
   version: string;
@@ -46,7 +46,6 @@ export interface AgentConfig {
 
 export const TOOL_DISPLAY_NAMES: Record<AgentTool, string> = {
   opencode: 'OpenCode',
-  claude: 'Claude Code',
 };
 
 /**
@@ -69,7 +68,6 @@ export const TOOL_MODELS: Record<AgentTool, string[]> = {
     'github-copilot/claude-haiku-4.5',
     'opencode/big-pickle',
   ],
-  claude: [],
 };
 
 /**

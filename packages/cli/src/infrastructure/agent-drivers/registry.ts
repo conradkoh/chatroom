@@ -11,7 +11,6 @@
  *   const result = await driver.start(options);
  */
 
-import { ClaudeDriver } from './claude-driver.js';
 import { OpenCodeProcessDriver } from './opencode-process-driver.js';
 import type { AgentCapabilities, AgentToolDriver, DriverRegistry } from './types.js';
 import type { AgentTool } from '../machine/types.js';
@@ -58,7 +57,7 @@ let registryInstance: DriverRegistry | null = null;
  */
 export function getDriverRegistry(): DriverRegistry {
   if (!registryInstance) {
-    registryInstance = new DefaultDriverRegistry([new OpenCodeProcessDriver(), new ClaudeDriver()]);
+    registryInstance = new DefaultDriverRegistry([new OpenCodeProcessDriver()]);
   }
   return registryInstance;
 }
