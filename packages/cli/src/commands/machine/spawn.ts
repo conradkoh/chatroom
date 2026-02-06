@@ -105,9 +105,10 @@ export async function spawnAgent(options: SpawnOptions): Promise<SpawnResult> {
 
     switch (tool) {
       case 'opencode': {
-        // OpenCode: pass prompt via stdin, supports --model flag.
+        // OpenCode: use `opencode run` for non-interactive (headless) mode.
+        // Prompt is passed via stdin. Supports --model flag.
         // SECURITY: shell: false prevents shell injection.
-        const ocArgs: string[] = [];
+        const ocArgs: string[] = ['run'];
         if (model) {
           ocArgs.push('--model', model);
         }
