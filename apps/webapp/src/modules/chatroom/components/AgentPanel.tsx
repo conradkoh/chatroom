@@ -117,16 +117,13 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   variant,
   onOpenModal,
 }: CollapsedAgentGroupProps) {
-  const variantClasses = {
-    ready: {
-      indicator: 'bg-green-500 dark:bg-green-400',
-    },
-    offline: {
-      indicator: 'bg-amber-500 dark:bg-amber-400',
-    },
+  // Map variants to status keys so we reuse the shared STATUS_CONFIG colors
+  const variantStatusMap: Record<CollapsedAgentGroupProps['variant'], string> = {
+    ready: 'waiting',
+    offline: 'missing',
   };
-
-  const classes = variantClasses[variant];
+  const statusConfig = getStatusConfig(variantStatusMap[variant]);
+  const classes = { indicator: statusConfig.bg };
 
   return (
     <div className="border-b border-border last:border-b-0">
