@@ -547,9 +547,7 @@ export default defineSchema({
     // Operating system (darwin, linux, win32)
     os: v.string(),
     // Available agent tools on this machine
-    availableTools: v.array(
-      v.union(v.literal('opencode'), v.literal('claude'), v.literal('cursor'))
-    ),
+    availableTools: v.array(v.union(v.literal('opencode'), v.literal('claude'))),
     // Detected tool versions (keyed by tool name, e.g. { opencode: { version: "1.2.3", major: 1 } })
     toolVersions: v.optional(
       v.record(
@@ -618,9 +616,7 @@ export default defineSchema({
     payload: v.object({
       chatroomId: v.optional(v.id('chatroom_rooms')),
       role: v.optional(v.string()),
-      agentTool: v.optional(
-        v.union(v.literal('opencode'), v.literal('claude'), v.literal('cursor'))
-      ),
+      agentTool: v.optional(v.union(v.literal('opencode'), v.literal('claude'))),
       // AI model to use when starting agent (e.g. "claude-sonnet-4-20250514")
       model: v.optional(v.string()),
       // Working directory for the agent (absolute path on the remote machine)

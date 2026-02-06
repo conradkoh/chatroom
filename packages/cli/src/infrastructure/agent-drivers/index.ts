@@ -26,5 +26,4 @@ export { buildCombinedPrompt, writeTempPromptFile, scheduleCleanup } from './pro
 
 // Concrete drivers (consumers rarely need these directly, but exported for testing)
 export { ClaudeDriver } from './claude-driver.js';
-export { CursorDriver } from './cursor-driver.js';
 export { OpenCodeProcessDriver } from './opencode-process-driver.js';

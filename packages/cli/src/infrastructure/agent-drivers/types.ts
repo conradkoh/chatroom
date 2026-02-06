@@ -100,7 +100,7 @@ export interface DriverStartResult {
  * with them through this contract.
  */
 export interface AgentToolDriver {
-  /** Tool identifier (e.g. 'opencode', 'claude', 'cursor') */
+  /** Tool identifier (e.g. 'opencode', 'claude') */
   readonly tool: AgentTool;
 
   /** Static capability declaration — what this tool supports */

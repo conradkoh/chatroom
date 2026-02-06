@@ -7,12 +7,12 @@
 /**
  * Supported AI agent tools that can be spawned
  */
-export type AgentTool = 'opencode' | 'claude' | 'cursor';
+export type AgentTool = 'opencode' | 'claude';
 
 /**
  * All supported agent tools
  */
-export const AGENT_TOOLS: AgentTool[] = ['opencode', 'claude', 'cursor'];
+export const AGENT_TOOLS: AgentTool[] = ['opencode', 'claude'];
 
 /**
  * Command names for each agent tool (used for detection)
@@ -20,7 +20,6 @@ export const AGENT_TOOLS: AgentTool[] = ['opencode', 'claude', 'cursor'];
 export const AGENT_TOOL_COMMANDS: Record<AgentTool, string> = {
   opencode: 'opencode',
   claude: 'claude',
-  cursor: 'agent', // Cursor CLI uses 'agent' command
 };
 
 /**
@@ -56,7 +55,6 @@ export const TOOL_MODELS: Record<AgentTool, string[]> = {
     'opencode/big-pickle',
   ],
   claude: [],
-  cursor: [],
 };
 
 /**

@@ -94,7 +94,6 @@ export function detectToolVersions(
  * Checks for:
  * - opencode: OpenCode CLI
  * - claude: Claude Code CLI
- * - cursor: Cursor CLI (uses 'agent' command)
  *
  * @returns Array of available agent tools
  */

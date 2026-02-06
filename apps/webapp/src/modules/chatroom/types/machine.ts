@@ -11,7 +11,7 @@
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-export type AgentTool = 'opencode' | 'claude' | 'cursor';
+export type AgentTool = 'opencode' | 'claude';
 
 export interface ToolVersionInfo {
   version: string;
@@ -47,7 +47,6 @@ export interface AgentConfig {
 export const TOOL_DISPLAY_NAMES: Record<AgentTool, string> = {
   opencode: 'OpenCode',
   claude: 'Claude Code',
-  cursor: 'Cursor Agent',
 };
 
 /**
@@ -71,7 +70,6 @@ export const TOOL_MODELS: Record<AgentTool, string[]> = {
     'opencode/big-pickle',
   ],
   claude: [],
-  cursor: [],
 };
 
 /**
