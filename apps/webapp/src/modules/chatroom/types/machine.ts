@@ -127,18 +127,3 @@ export function getModelDisplayLabel(modelId: string): string {
 export function getModelShortName(modelId: string): string {
   return MODEL_DISPLAY_NAMES[modelId] ?? modelId;
 }
-
-// ─── Preferences ────────────────────────────────────────────────────
-
-/**
- * Agent start preferences stored at the chatroom level.
- * Updated every time a user starts a remote agent from the UI.
- */
-export interface AgentStartPreferences {
-  /** Last selected machine ID */
-  machineId?: string;
-  /** Last selected agent tool per role */
-  toolByRole?: Record<string, AgentTool>;
-  /** Last selected model per role */
-  modelByRole?: Record<string, string>;
-}
