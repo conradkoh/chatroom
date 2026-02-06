@@ -8,8 +8,9 @@ import { execSync } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 
 import { acquireLock, releaseLock } from './pid.js';
-import { spawnAgent } from './spawn.js';
 import { api, type Id } from '../../api.js';
+import { getDriverRegistry } from '../../infrastructure/agent-drivers/index.js';
+import type { AgentHandle } from '../../infrastructure/agent-drivers/types.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import {
   getConvexUrl,
@@ -312,9 +313,17 @@ async function processCommand(
         const machineConfig = loadMachineConfig();
         const toolVersion = machineConfig?.toolVersions?.[command.payload.agentTool];
 
-        // Spawn the agent with split prompts (role prompt + initial message)
-        const spawnResult = await spawnAgent({
-          tool: command.payload.agentTool,
+        // Resolve driver from registry and start the agent
+        const registry = getDriverRegistry();
+        let driver;
+        try {
+          driver = registry.get(command.payload.agentTool);
+        } catch {
+          result = `No driver registered for tool: ${command.payload.agentTool}`;
+          break;
+        }
+
+        const startResult = await driver.start({
           workingDir: agentContext.workingDir,
           rolePrompt: initPromptResult.rolePrompt,
           initialMessage: initPromptResult.initialMessage,
@@ -322,27 +331,27 @@ async function processCommand(
           model: command.payload.model,
         });
 
-        if (spawnResult.success) {
-          result = `Agent spawned (PID: ${spawnResult.pid})`;
+        if (startResult.success && startResult.handle) {
+          result = `Agent spawned (PID: ${startResult.handle.pid})`;
           console.log(`   ✅ ${result}`);
 
           // Update backend with spawned agent PID
-          if (spawnResult.pid) {
+          if (startResult.handle.pid) {
             try {
               await client.mutation(api.machines.updateSpawnedAgent, {
                 sessionId,
                 machineId,
                 chatroomId: command.payload.chatroomId,
                 role: command.payload.role,
-                pid: spawnResult.pid,
+                pid: startResult.handle.pid,
               });
-              console.log(`   Updated backend with PID: ${spawnResult.pid}`);
+              console.log(`   Updated backend with PID: ${startResult.handle.pid}`);
             } catch (e) {
               console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
             }
           }
         } else {
-          result = spawnResult.message;
+          result = startResult.message;
           console.log(`   ⚠️  ${result}`);
         }
         break;
@@ -384,11 +393,32 @@ async function processCommand(
         }
 
         const pidToKill = targetConfig.spawnedAgentPid;
+        const agentTool = (targetConfig.agentType as 'opencode' | 'claude' | 'cursor') || undefined;
         console.log(`   Stopping agent with PID: ${pidToKill}`);
 
-        // Verify the PID still belongs to the expected agent process
-        // to prevent killing an unrelated process after PID recycling
-        if (!verifyPidOwnership(pidToKill, targetConfig.agentType)) {
+        // Build an AgentHandle from the stored PID and tool type
+        const stopHandle: AgentHandle = {
+          tool: agentTool || 'opencode', // fallback; tool is needed for handle but stop uses PID
+          type: 'process',
+          pid: pidToKill,
+          workingDir: '', // Not needed for stop
+        };
+
+        // Resolve the driver for this tool (for isAlive/stop)
+        const stopRegistry = getDriverRegistry();
+        let stopDriver;
+        try {
+          stopDriver = agentTool ? stopRegistry.get(agentTool) : null;
+        } catch {
+          stopDriver = null;
+        }
+
+        // Verify the PID is still alive via the driver (or fallback to verifyPidOwnership)
+        const isAlive = stopDriver
+          ? await stopDriver.isAlive(stopHandle)
+          : verifyPidOwnership(pidToKill, agentTool);
+
+        if (!isAlive) {
           console.log(`   ⚠️  PID ${pidToKill} does not appear to belong to the expected agent`);
           result = `PID ${pidToKill} appears stale (process not found or belongs to different program)`;
 
@@ -405,8 +435,13 @@ async function processCommand(
         }
 
         try {
-          // Send SIGTERM to gracefully stop the process
-          process.kill(pidToKill, 'SIGTERM');
+          // Use the driver to stop the agent (sends SIGTERM for process-based drivers)
+          if (stopDriver) {
+            await stopDriver.stop(stopHandle);
+          } else {
+            // Fallback: direct SIGTERM if no driver available
+            process.kill(pidToKill, 'SIGTERM');
+          }
           result = `Agent stopped (PID: ${pidToKill})`;
           console.log(`   ✅ ${result}`);
 
