@@ -627,9 +627,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 >
                   <AgentPanel
                     chatroomId={chatroomId}
-                    teamName={teamName}
                     teamRoles={teamRoles}
-                    teamEntryPoint={teamEntryPoint}
                     readiness={readiness}
                     onViewPrompt={handleViewPrompt}
                     onReconnect={handleOpenReconnect}
@@ -658,11 +656,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             isOpen={reconnectModalOpen}
             onClose={handleCloseReconnect}
             chatroomId={chatroomId}
-            teamName={teamName}
-            teamRoles={teamRoles}
-            teamEntryPoint={teamEntryPoint}
             expiredRoles={readiness?.expiredRoles || []}
-            participants={readiness?.participants}
             onViewPrompt={handleViewPrompt}
           />
         </>

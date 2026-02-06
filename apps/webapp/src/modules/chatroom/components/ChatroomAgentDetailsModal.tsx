@@ -12,7 +12,6 @@ import {
   CheckCircle,
   Copy,
   Check,
-  ChevronLeft,
   RotateCw,
   ChevronDown,
 } from 'lucide-react';
@@ -33,7 +32,6 @@ interface ChatroomAgentDetailsModalProps {
   role: string;
   effectiveStatus: string; // 'active' | 'waiting' | 'disconnected' | 'missing'
   onViewPrompt?: (role: string) => void;
-  onBack?: () => void; // Optional back navigation (for multi-agent list context)
 }
 
 /**
@@ -83,7 +81,6 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
   role,
   effectiveStatus,
   onViewPrompt,
-  onBack,
 }: ChatroomAgentDetailsModalProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const machinesApi = api as any;
@@ -419,15 +416,6 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface">
           <div className="flex items-center gap-2">
-            {onBack && (
-              <button
-                onClick={onBack}
-                className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors -ml-1 mr-1"
-                aria-label="Back to agent list"
-              >
-                <ChevronLeft size={18} />
-              </button>
-            )}
             <div className={`w-2.5 h-2.5 ${indicatorColor}`} />
             <h2 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
               {role.toUpperCase()}

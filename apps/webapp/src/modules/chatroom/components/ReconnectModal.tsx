@@ -7,23 +7,11 @@ import { ChatroomAgentDetailsModal } from './ChatroomAgentDetailsModal';
 
 import { usePrompts } from '@/contexts/PromptsContext';
 
-interface ParticipantInfo {
-  role: string;
-  status: string;
-  readyUntil?: number;
-  isExpired: boolean;
-}
-
 interface ReconnectModalProps {
   isOpen: boolean;
   onClose: () => void;
   chatroomId: string;
-  teamName: string;
-  teamRoles: string[];
-  teamEntryPoint?: string;
   expiredRoles: string[];
-  // participants prop is available for future use (e.g., showing status)
-  participants?: ParticipantInfo[];
   onViewPrompt?: (role: string) => void;
 }
 
@@ -67,11 +55,7 @@ export const ReconnectModal = memo(function ReconnectModal({
   isOpen,
   onClose,
   chatroomId,
-  teamName: _teamName,
-  teamRoles: _teamRoles,
-  teamEntryPoint: _teamEntryPoint,
   expiredRoles,
-  participants: _participants, // Reserved for future use
   onViewPrompt,
 }: ReconnectModalProps) {
   const { getAgentPrompt } = usePrompts();

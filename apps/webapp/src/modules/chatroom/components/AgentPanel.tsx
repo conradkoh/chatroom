@@ -53,9 +53,7 @@ interface TeamReadiness {
 
 interface AgentPanelProps {
   chatroomId: string;
-  teamName?: string;
   teamRoles?: string[];
-  teamEntryPoint?: string;
   readiness: TeamReadiness | null | undefined;
   onViewPrompt?: (role: string) => void;
   onReconnect?: () => void;
@@ -920,9 +918,7 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
 
 export const AgentPanel = memo(function AgentPanel({
   chatroomId,
-  teamName: _teamName = 'Team',
   teamRoles = [],
-  teamEntryPoint: _teamEntryPoint,
   readiness,
   onViewPrompt,
   onReconnect,
