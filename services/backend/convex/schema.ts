@@ -623,6 +623,8 @@ export default defineSchema({
       ),
       // AI model to use when starting agent (e.g. "claude-sonnet-4-20250514")
       model: v.optional(v.string()),
+      // Working directory for the agent (absolute path on the remote machine)
+      workingDir: v.optional(v.string()),
     }),
     // Command status
     status: v.union(

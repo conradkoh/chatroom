@@ -456,8 +456,9 @@ export const sendCommand = mutation({
       validateWorkingDir(args.payload.workingDir);
     }
 
-    // For start-agent commands, resolve the agent tool from config or payload
+    // For start-agent commands, resolve the agent tool and working directory from config or payload
     let agentTool: 'opencode' | 'claude' | 'cursor' | undefined;
+    let resolvedWorkingDir: string | undefined;
 
     if (args.type === 'start-agent' && args.payload?.chatroomId && args.payload?.role) {
       const config = await ctx.db
@@ -473,6 +474,8 @@ export const sendCommand = mutation({
       if (config) {
         // Use existing config's agent type (payload agentTool overrides if provided)
         agentTool = (args.payload.agentTool ?? config.agentType) as typeof agentTool;
+        // Resolve working directory: payload overrides config
+        resolvedWorkingDir = args.payload.workingDir ?? config.workingDir;
 
         // Update config if payload provides new values
         const updates: Record<string, unknown> = { updatedAt: Date.now() };
@@ -485,6 +488,7 @@ export const sendCommand = mutation({
       } else if (args.payload.agentTool && args.payload.workingDir) {
         // No existing config — create one on-the-fly from payload
         agentTool = args.payload.agentTool;
+        resolvedWorkingDir = args.payload.workingDir;
         await ctx.db.insert('chatroom_machineAgentConfigs', {
           machineId: args.machineId,
           chatroomId: args.payload.chatroomId,
@@ -508,7 +512,8 @@ export const sendCommand = mutation({
 
     const now = Date.now();
 
-    // Create the command
+    // Create the command — include workingDir so the daemon can use it
+    // without needing a pre-populated local config
     const commandId = await ctx.db.insert('chatroom_machineCommands', {
       machineId: args.machineId,
       type: args.type,
@@ -517,6 +522,7 @@ export const sendCommand = mutation({
         role: args.payload?.role,
         agentTool,
         model: args.payload?.model,
+        workingDir: resolvedWorkingDir,
       },
       status: 'pending',
       sentBy: user._id,

@@ -21,6 +21,7 @@ import {
   getMachineId,
   loadMachineConfig,
   getAgentContext,
+  updateAgentContext,
 } from '../../infrastructure/machine/index.js';
 
 interface MachineCommand {
@@ -31,6 +32,7 @@ interface MachineCommand {
     role?: string;
     agentTool?: 'opencode' | 'claude' | 'cursor';
     model?: string;
+    workingDir?: string;
   };
   createdAt: number;
 }
@@ -272,8 +274,23 @@ async function processCommand(
           break;
         }
 
-        // Get agent context for working directory
-        const agentContext = getAgentContext(command.payload.chatroomId, command.payload.role);
+        // Get agent context for working directory.
+        // First try local config, then fall back to workingDir from the command payload
+        // (which the backend resolves from chatroom_machineAgentConfigs).
+        let agentContext = getAgentContext(command.payload.chatroomId, command.payload.role);
+
+        if (!agentContext && command.payload.workingDir && command.payload.agentTool) {
+          // No local context — use the working directory from the command payload
+          // and update the local config so future commands don't need this fallback
+          console.log(`   No local agent context, using workingDir from command payload`);
+          updateAgentContext(
+            command.payload.chatroomId,
+            command.payload.role,
+            command.payload.agentTool,
+            command.payload.workingDir
+          );
+          agentContext = getAgentContext(command.payload.chatroomId, command.payload.role);
+        }
 
         if (!agentContext) {
           result = `No agent context found for ${command.payload.chatroomId}/${command.payload.role}`;
