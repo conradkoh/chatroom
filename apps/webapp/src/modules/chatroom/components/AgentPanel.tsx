@@ -60,19 +60,41 @@ interface AgentPanelProps {
 }
 
 // Status indicator colors - now includes disconnected state
-const getStatusClasses = (effectiveStatus: string) => {
-  const base = 'w-2.5 h-2.5 flex-shrink-0';
-  switch (effectiveStatus) {
-    case 'active':
-      return `${base} bg-chatroom-status-info`;
-    case 'waiting':
-      return `${base} bg-chatroom-status-success`;
-    case 'disconnected':
-      return `${base} bg-chatroom-status-error`;
-    default:
-      return `${base} bg-chatroom-text-muted`;
-  }
+// ─── Status Utilities ────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
+  active: {
+    bg: 'bg-chatroom-status-info',
+    text: 'text-chatroom-status-info',
+    label: 'WORKING',
+  },
+  waiting: {
+    bg: 'bg-chatroom-status-success',
+    text: 'text-chatroom-status-success',
+    label: 'READY',
+  },
+  disconnected: {
+    bg: 'bg-chatroom-status-error',
+    text: 'text-chatroom-status-error',
+    label: 'DISCONNECTED',
+  },
+  missing: {
+    bg: 'bg-chatroom-text-muted',
+    text: 'text-chatroom-status-warning',
+    label: 'NOT JOINED',
+  },
 };
+
+const DEFAULT_STATUS = {
+  bg: 'bg-chatroom-text-muted',
+  text: 'text-chatroom-status-warning',
+  label: 'OFFLINE',
+};
+
+const getStatusConfig = (status: string) => STATUS_CONFIG[status] ?? DEFAULT_STATUS;
+
+const getStatusClasses = (effectiveStatus: string) =>
+  `w-2.5 h-2.5 flex-shrink-0 ${getStatusConfig(effectiveStatus).bg}`;
 
 // Compute effective status accounting for expiration
 const getEffectiveStatus = (
@@ -158,50 +180,6 @@ interface AgentWithStatus {
 }
 
 // Types and constants imported from ../types/machine
-
-// Get status indicator class for the modal
-const getModalStatusIndicatorClass = (status: string) => {
-  switch (status) {
-    case 'active':
-      return 'bg-chatroom-status-info';
-    case 'waiting':
-      return 'bg-chatroom-status-success';
-    case 'disconnected':
-      return 'bg-chatroom-status-error';
-    default:
-      return 'bg-chatroom-status-warning';
-  }
-};
-
-// Get status label for the modal
-const getModalStatusLabel = (status: string) => {
-  switch (status) {
-    case 'active':
-      return 'WORKING';
-    case 'waiting':
-      return 'READY';
-    case 'disconnected':
-      return 'DISCONNECTED';
-    case 'missing':
-      return 'NOT JOINED';
-    default:
-      return 'OFFLINE';
-  }
-};
-
-// Get status label color class
-const getStatusLabelColorClass = (status: string) => {
-  switch (status) {
-    case 'active':
-      return 'text-chatroom-status-info';
-    case 'waiting':
-      return 'text-chatroom-status-success';
-    case 'disconnected':
-      return 'text-chatroom-status-error';
-    default:
-      return 'text-chatroom-status-warning';
-  }
-};
 
 // Inline Agent Card - shows agent config, prompt, and controls directly in the modal
 interface InlineAgentCardProps {
@@ -456,9 +434,10 @@ const InlineAgentCard = memo(function InlineAgentCard({
     }
   }, [runningAgentConfig, sendCommand, chatroomId, role]);
 
-  const statusLabel = getModalStatusLabel(effectiveStatus);
-  const statusClass = getModalStatusIndicatorClass(effectiveStatus);
-  const statusColorClass = getStatusLabelColorClass(effectiveStatus);
+  const statusInfo = getStatusConfig(effectiveStatus);
+  const statusLabel = statusInfo.label;
+  const statusClass = statusInfo.bg;
+  const statusColorClass = statusInfo.text;
 
   return (
     <div className="border-b-2 border-chatroom-border last:border-b-0">
