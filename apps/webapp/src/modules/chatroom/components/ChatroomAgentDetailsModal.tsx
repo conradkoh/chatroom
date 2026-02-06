@@ -309,8 +309,10 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
         },
       });
 
-      // Wait a moment then send start
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Wait for the daemon to process the stop command and for the agent
+      // process to shut down. 3s is a reasonable heuristic.
+      // TODO: Replace with polling the agent config until spawnedAgentPid is cleared.
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       setIsStopping(false);
       setIsStarting(true);
 

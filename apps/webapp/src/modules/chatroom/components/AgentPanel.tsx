@@ -388,7 +388,12 @@ const InlineAgentCard = memo(function InlineAgentCard({
         type: 'stop-agent',
         payload: { chatroomId: chatroomId as Id<'chatroom_rooms'>, role },
       });
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Wait for the daemon to process the stop command and for the agent
+      // process to shut down. 3s is a reasonable heuristic — the daemon
+      // receives the command via WebSocket, sends SIGTERM, and clears PID.
+      // TODO: Replace with polling the agent config until spawnedAgentPid
+      // is cleared, which would be fully reliable regardless of timing.
+      await new Promise((resolve) => setTimeout(resolve, 3000));
       setIsStopping(false);
       setIsStarting(true);
       await sendCommand({

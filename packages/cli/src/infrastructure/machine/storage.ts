@@ -14,7 +14,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 
@@ -109,21 +109,35 @@ function loadConfigFile(): MachineConfigFile | null {
     }
 
     return raw as unknown as MachineConfigFile;
-  } catch {
+  } catch (error) {
+    // Don't silently swallow errors — a corrupted config means the machine
+    // will re-register with a new UUID, losing its identity and agent configs.
+    console.warn(`⚠️  Failed to read machine config at ${configPath}: ${(error as Error).message}`);
+    console.warn(`   The machine will re-register with a new identity on next startup.`);
+    console.warn(`   If this is unexpected, check the file for corruption.`);
     return null;
   }
 }
 
 /**
- * Save the config file to disk
+ * Save the config file to disk using atomic write.
+ *
+ * Writes to a temp file first, then renames (atomic on most filesystems).
+ * This prevents corruption if the process crashes mid-write.
  */
 function saveConfigFile(configFile: MachineConfigFile): void {
   ensureConfigDir();
   const configPath = getMachineConfigPath();
+  const tempPath = `${configPath}.tmp`;
   const content = JSON.stringify(configFile, null, 2);
+
   // SECURITY: 0o600 restricts file access to owner only.
   // Machine config contains identity credentials (machineId).
-  writeFileSync(configPath, content, { encoding: 'utf-8', mode: 0o600 });
+  writeFileSync(tempPath, content, { encoding: 'utf-8', mode: 0o600 });
+
+  // Atomic rename — if the process crashes before this line, the original
+  // config file remains intact. renameSync is atomic on POSIX filesystems.
+  renameSync(tempPath, configPath);
 }
 
 /**
