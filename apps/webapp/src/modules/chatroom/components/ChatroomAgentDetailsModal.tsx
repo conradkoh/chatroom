@@ -425,7 +425,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Running agent info banner */}
           {runningAgentConfig && (
-            <div className="p-3 bg-chatroom-bg-tertiary border border-chatroom-status-info/30 space-y-1">
+            <div className="p-3 bg-chatroom-bg-tertiary border border-chatroom-status-info/30 space-y-1.5">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-chatroom-status-info rounded-full animate-pulse" />
                 <span className="text-xs font-bold text-chatroom-text-primary">Agent Running</span>
@@ -434,9 +434,28 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
                 <span>Machine: {runningAgentConfig.hostname}</span>
                 {' · '}
                 <span>Tool: {TOOL_DISPLAY_NAMES[runningAgentConfig.agentType]}</span>
+                {runningAgentConfig.model && (
+                  <>
+                    {' · '}
+                    <span>Model: {getModelDisplayLabel(runningAgentConfig.model)}</span>
+                  </>
+                )}
                 {' · '}
                 <span>PID: {runningAgentConfig.spawnedAgentPid}</span>
               </div>
+              {runningAgentConfig.workingDir && (
+                <div className="flex items-center gap-1.5">
+                  <code className="flex-1 text-[10px] font-mono text-chatroom-text-secondary bg-chatroom-bg-surface px-1.5 py-0.5 border border-chatroom-border truncate">
+                    {runningAgentConfig.workingDir}
+                  </code>
+                  <CopyButton
+                    text={runningAgentConfig.workingDir}
+                    label="Copy Path"
+                    copiedLabel="Copied!"
+                    variant="compact"
+                  />
+                </div>
+              )}
             </div>
           )}
 

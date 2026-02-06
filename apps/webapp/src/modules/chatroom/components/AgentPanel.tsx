@@ -516,7 +516,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
         <div className="px-4 pb-4 space-y-3">
           {/* Running agent info banner */}
           {runningAgentConfig && (
-            <div className="p-2.5 bg-chatroom-bg-tertiary border border-chatroom-status-info/30 space-y-1">
+            <div className="p-2.5 bg-chatroom-bg-tertiary border border-chatroom-status-info/30 space-y-1.5">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-chatroom-status-info rounded-full animate-pulse" />
                 <span className="text-[10px] font-bold text-chatroom-text-primary">
@@ -536,6 +536,19 @@ const InlineAgentCard = memo(function InlineAgentCard({
                 {' · '}
                 <span>PID {runningAgentConfig.spawnedAgentPid}</span>
               </div>
+              {runningAgentConfig.workingDir && (
+                <div className="flex items-center gap-1.5">
+                  <code className="flex-1 text-[10px] font-mono text-chatroom-text-secondary bg-chatroom-bg-surface px-1.5 py-0.5 border border-chatroom-border truncate">
+                    {runningAgentConfig.workingDir}
+                  </code>
+                  <CopyButton
+                    text={runningAgentConfig.workingDir}
+                    label="Copy Path"
+                    copiedLabel="Copied!"
+                    variant="compact"
+                  />
+                </div>
+              )}
             </div>
           )}
 
