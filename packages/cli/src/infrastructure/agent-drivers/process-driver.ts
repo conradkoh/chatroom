@@ -1,7 +1,7 @@
 /**
  * Process-Based Agent Driver — Base Class
  *
- * Wraps the common child_process.spawn pattern used by Claude, Cursor,
+ * Wraps the common child_process.spawn pattern used by Claude
  * and the process-based OpenCode driver. Subclasses override buildSpawnArgs()
  * and optionally writePromptToStdin() to customize per-tool behavior.
  *
@@ -81,7 +81,7 @@ export interface SpawnConfig {
 // ─── Base Class ──────────────────────────────────────────────────────────────
 
 /**
- * Base driver for process-based agent tools (Claude, Cursor, OpenCode process).
+ * Base driver for process-based agent tools (Claude, OpenCode process).
  *
  * Subclasses must implement:
  *   - tool: the AgentTool identifier

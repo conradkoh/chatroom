@@ -583,7 +583,7 @@ export default defineSchema({
     // Role this config is for
     role: v.string(),
     // Agent tool used (must be in machine's availableTools)
-    agentType: v.union(v.literal('opencode'), v.literal('claude'), v.literal('cursor')),
+    agentType: v.union(v.literal('opencode'), v.literal('claude')),
     // Working directory on the machine
     workingDir: v.string(),
     // AI model to use (e.g. "claude-sonnet-4-20250514", "o3")

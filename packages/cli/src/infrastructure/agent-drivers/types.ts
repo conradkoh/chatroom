@@ -95,7 +95,7 @@ export interface DriverStartResult {
 /**
  * Common interface for all agent tool drivers.
  *
- * Each AI tool (OpenCode, Claude, Cursor) implements this interface.
+ * Each AI tool (OpenCode, Claude) implements this interface.
  * The daemon resolves drivers from the DriverRegistry and interacts
  * with them through this contract.
  */
