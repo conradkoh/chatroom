@@ -638,9 +638,7 @@ export default defineSchema({
     // Timestamps
     createdAt: v.number(),
     processedAt: v.optional(v.number()),
-  })
-    .index('by_machineId_status', ['machineId', 'status'])
-    .index('by_machineId_createdAt', ['machineId', 'createdAt']),
+  }).index('by_machineId_status', ['machineId', 'status']),
 
   /**
    * Agent start preferences per chatroom.
