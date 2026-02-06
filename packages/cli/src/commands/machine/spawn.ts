@@ -8,9 +8,16 @@
  * - "machine" mode (daemon-controlled): Uses split prompts where rolePrompt is
  *   injected as the system prompt and initialMessage is the first user message.
  * - "manual" mode: Uses the combined init prompt as a single user message.
+ *
+ * SECURITY: All spawn calls use shell: false to prevent shell injection.
+ * Prompts are passed via stdin or as properly escaped arguments.
  */
 
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { writeFileSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
   AGENT_TOOL_COMMANDS,
@@ -29,7 +36,7 @@ export interface SpawnOptions {
   initialMessage: string;
   /** Tool version info (for version-specific spawn logic) */
   toolVersion?: ToolVersionInfo;
-  /** AI model to use (e.g. "claude-sonnet-4-20250514", "o3") */
+  /** AI model to use (e.g. "github-copilot/claude-sonnet-4.5") */
   model?: string;
 }
 
@@ -40,8 +47,32 @@ export interface SpawnResult {
 }
 
 /**
+ * Write prompt to a temp file and return the path.
+ * Used for tools that need prompts passed via file to avoid
+ * arg length limits and shell injection.
+ */
+function writeTempPromptFile(prompt: string): string {
+  const tempPath = join(tmpdir(), `chatroom-prompt-${randomUUID()}.txt`);
+  writeFileSync(tempPath, prompt, { encoding: 'utf-8', mode: 0o600 });
+  return tempPath;
+}
+
+/**
+ * Schedule cleanup of a temp file after a delay.
+ */
+function scheduleCleanup(filePath: string, delayMs = 5000): void {
+  setTimeout(() => {
+    try {
+      unlinkSync(filePath);
+    } catch {
+      // Ignore cleanup errors — file may already be deleted
+    }
+  }, delayMs);
+}
+
+/**
  * Spawn an OpenCode agent.
- * For v1.x: passes combined prompt via stdin (no system prompt support).
+ * For v1.x: passes combined prompt via stdin (safe — no shell interpretation).
  * Future v2.x: could use --system-prompt flag or similar.
  */
 function spawnOpenCode(
@@ -70,11 +101,13 @@ function spawnOpenCode(
     args.push('--model', model);
   }
 
+  // SECURITY: shell: false prevents shell metacharacter injection.
+  // Prompt is safely passed via stdin, not as shell arguments.
   const childProcess = spawn(command, args, {
     cwd: workingDir,
     stdio: ['pipe', 'inherit', 'inherit'],
     detached: true,
-    shell: true,
+    shell: false,
   });
   childProcess.stdin?.write(combinedPrompt);
   childProcess.stdin?.end();
@@ -87,6 +120,9 @@ function spawnOpenCode(
  *
  * The agent is spawned in detached mode so it continues running
  * independently of the daemon process.
+ *
+ * SECURITY: All spawn calls use shell: false. Prompts are passed via
+ * stdin (opencode) or temp files (claude, cursor) — never as shell-interpreted args.
  */
 export async function spawnAgent(options: SpawnOptions): Promise<SpawnResult> {
   const { tool, workingDir, rolePrompt, initialMessage, toolVersion, model } = options;
@@ -120,31 +156,38 @@ export async function spawnAgent(options: SpawnOptions): Promise<SpawnResult> {
         break;
 
       case 'claude': {
-        // Claude Code: First argument is the prompt (combined for now)
-        // Supports --model flag
-        const claudeArgs = ['--print', combinedPrompt];
+        // Claude Code: pass prompt via stdin with --print flag for non-interactive mode.
+        // SECURITY: shell: false prevents shell injection.
+        const claudeArgs = ['--print'];
         if (model) {
           claudeArgs.unshift('--model', model);
         }
         childProcess = spawn(command, claudeArgs, {
           cwd: workingDir,
-          stdio: 'inherit',
+          stdio: ['pipe', 'inherit', 'inherit'],
           detached: true,
-          shell: true,
+          shell: false,
         });
+        childProcess.stdin?.write(combinedPrompt);
+        childProcess.stdin?.end();
         break;
       }
 
-      case 'cursor':
-        // Cursor CLI uses 'agent chat' subcommand
-        // No model flag support currently
-        childProcess = spawn(command, ['chat', combinedPrompt], {
+      case 'cursor': {
+        // Cursor CLI uses 'agent chat' subcommand.
+        // Write prompt to temp file to avoid arg length limits.
+        // SECURITY: shell: false prevents shell injection.
+        const promptFile = writeTempPromptFile(combinedPrompt);
+        childProcess = spawn(command, ['chat', '--file', promptFile], {
           cwd: workingDir,
           stdio: 'inherit',
           detached: true,
-          shell: true,
+          shell: false,
         });
+        // Clean up temp file after agent has time to read it
+        scheduleCleanup(promptFile, 10000);
         break;
+      }
 
       default:
         return {

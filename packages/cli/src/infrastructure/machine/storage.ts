@@ -39,7 +39,9 @@ const MACHINE_FILE = 'machine.json';
  */
 function ensureConfigDir(): void {
   if (!existsSync(CHATROOM_DIR)) {
-    mkdirSync(CHATROOM_DIR, { recursive: true });
+    // SECURITY: 0o700 restricts directory access to owner only.
+    // Machine config contains identity credentials (machineId).
+    mkdirSync(CHATROOM_DIR, { recursive: true, mode: 0o700 });
   }
 }
 
@@ -119,7 +121,9 @@ function saveConfigFile(configFile: MachineConfigFile): void {
   ensureConfigDir();
   const configPath = getMachineConfigPath();
   const content = JSON.stringify(configFile, null, 2);
-  writeFileSync(configPath, content, 'utf-8');
+  // SECURITY: 0o600 restricts file access to owner only.
+  // Machine config contains identity credentials (machineId).
+  writeFileSync(configPath, content, { encoding: 'utf-8', mode: 0o600 });
 }
 
 /**
