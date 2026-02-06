@@ -3,6 +3,7 @@
 ## Changes Overview
 
 This plan introduces:
+
 1. **New CLI infrastructure** for machine config management and daemon process
 2. **New backend tables** for machines and machine commands
 3. **New backend mutations/queries** for registration, command dispatch, and status
@@ -51,6 +52,7 @@ New Convex module for machine management.
 **File**: `packages/cli/src/commands/wait-for-task.ts`
 
 **Changes**:
+
 - Call `ensureMachineRegistered()` at startup
 - Sync agent config (chatroom, role, workingDir, agentType) to backend
 - Detect agent type from environment or CLI flag
@@ -60,6 +62,7 @@ New Convex module for machine management.
 **File**: `packages/cli/src/index.ts`
 
 **Changes**:
+
 - Add `machine` command group with subcommands: `daemon start`, `daemon stop`, `daemon status`
 
 ## New Contracts
@@ -105,17 +108,15 @@ machines: defineTable({
   /** UUID from CLI machine config */
   machineId: v.string(),
   /** Owner user ID (from authenticated session) */
-  userId: v.id("users"),
+  userId: v.id('users'),
   /** Machine hostname */
   hostname: v.string(),
   /** Operating system */
   os: v.string(),
   /** Available agent tools on this machine */
-  availableTools: v.array(v.union(
-    v.literal("opencode"),
-    v.literal("claude"),
-    v.literal("cursor")
-  )),
+  availableTools: v.array(
+    v.union(v.literal('opencode'), v.literal('claude'), v.literal('cursor'))
+  ),
   /** When machine was first registered */
   registeredAt: v.number(),
   /** Last heartbeat/sync from CLI */
@@ -123,8 +124,8 @@ machines: defineTable({
   /** Whether daemon is currently connected */
   daemonConnected: v.boolean(),
 })
-  .index("by_machineId", ["machineId"])
-  .index("by_userId", ["userId"])
+  .index('by_machineId', ['machineId'])
+  .index('by_userId', ['userId']);
 ```
 
 ### Backend: Machine Agent Configs Table
@@ -135,22 +136,22 @@ machineAgentConfigs: defineTable({
   /** Reference to machine */
   machineId: v.string(),
   /** Chatroom this config is for */
-  chatroomId: v.id("chatrooms"),
+  chatroomId: v.id('chatrooms'),
   /** Role this config is for */
   role: v.string(),
   /** Agent tool used */
   agentType: v.union(
-    v.literal("opencode"),
-    v.literal("claude"),
-    v.literal("cursor")
+    v.literal('opencode'),
+    v.literal('claude'),
+    v.literal('cursor')
   ),
   /** Working directory */
   workingDir: v.string(),
   /** Last updated */
   updatedAt: v.number(),
 })
-  .index("by_machine_chatroom_role", ["machineId", "chatroomId", "role"])
-  .index("by_chatroom", ["chatroomId"])
+  .index('by_machine_chatroom_role', ['machineId', 'chatroomId', 'role'])
+  .index('by_chatroom', ['chatroomId']);
 ```
 
 ### Backend: Machine Commands Table
@@ -162,37 +163,35 @@ machineCommands: defineTable({
   machineId: v.string(),
   /** Command type */
   type: v.union(
-    v.literal("start-agent"),
-    v.literal("ping"),
-    v.literal("status")
+    v.literal('start-agent'),
+    v.literal('ping'),
+    v.literal('status')
   ),
   /** Command payload */
   payload: v.object({
-    chatroomId: v.optional(v.id("chatrooms")),
+    chatroomId: v.optional(v.id('chatrooms')),
     role: v.optional(v.string()),
-    agentTool: v.optional(v.union(
-      v.literal("opencode"),
-      v.literal("claude"),
-      v.literal("cursor")
-    )),
+    agentTool: v.optional(
+      v.union(v.literal('opencode'), v.literal('claude'), v.literal('cursor'))
+    ),
   }),
   /** Command status */
   status: v.union(
-    v.literal("pending"),
-    v.literal("processing"),
-    v.literal("completed"),
-    v.literal("failed")
+    v.literal('pending'),
+    v.literal('processing'),
+    v.literal('completed'),
+    v.literal('failed')
   ),
   /** Result or error message */
   result: v.optional(v.string()),
   /** Who sent the command */
-  sentBy: v.id("users"),
+  sentBy: v.id('users'),
   /** Timestamps */
   createdAt: v.number(),
   processedAt: v.optional(v.number()),
 })
-  .index("by_machineId_status", ["machineId", "status"])
-  .index("by_machineId_createdAt", ["machineId", "createdAt"])
+  .index('by_machineId_status', ['machineId', 'status'])
+  .index('by_machineId_createdAt', ['machineId', 'createdAt']);
 ```
 
 ### Backend: Mutations
@@ -211,7 +210,7 @@ interface RegisterMachineArgs {
 /** Update agent config for a chatroom+role on a machine */
 interface UpdateAgentConfigArgs {
   machineId: string;
-  chatroomId: Id<"chatrooms">;
+  chatroomId: Id<'chatrooms'>;
   role: string;
   agentType: AgentTool;
   workingDir: string;
@@ -220,17 +219,17 @@ interface UpdateAgentConfigArgs {
 /** Send a command to a machine (from web UI) */
 interface SendCommandArgs {
   machineId: string;
-  type: "start-agent" | "ping" | "status";
+  type: 'start-agent' | 'ping' | 'status';
   payload?: {
-    chatroomId?: Id<"chatrooms">;
+    chatroomId?: Id<'chatrooms'>;
     role?: string;
   };
 }
 
 /** Mark command as processed (from daemon) */
 interface AckCommandArgs {
-  commandId: Id<"machineCommands">;
-  status: "completed" | "failed";
+  commandId: Id<'machineCommands'>;
+  status: 'completed' | 'failed';
   result?: string;
 }
 
@@ -265,7 +264,7 @@ interface GetPendingCommandsArgs {
 
 /** Get agent configs for a chatroom (for web UI to show start buttons) */
 interface GetAgentConfigsArgs {
-  chatroomId: Id<"chatrooms">;
+  chatroomId: Id<'chatrooms'>;
 }
 ```
 
@@ -356,7 +355,7 @@ function spawnAgent(
   const opts: SpawnOptions = {
     cwd: workingDir,
     stdio: 'inherit',
-    detached: true,  // Detach so daemon doesn't wait
+    detached: true, // Detach so daemon doesn't wait
   };
 
   switch (tool) {

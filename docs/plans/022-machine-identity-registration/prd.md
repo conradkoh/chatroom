@@ -2,16 +2,16 @@
 
 ## Glossary
 
-| Term | Definition |
-|------|------------|
-| **Machine** | A physical or virtual computer where the chatroom CLI is installed and agents can run |
-| **Machine ID** | A UUID generated once per machine, stored in `~/.chatroom/machine.json` |
-| **Agent Tool** | An AI coding assistant CLI (opencode, claude, or cursor) that can be spawned to work on tasks |
-| **Daemon** | A long-running background process that listens for remote commands from the backend |
-| **Agent Config** | Per-chatroom, per-role configuration storing the working directory and agent type used |
-| **Available Tools** | The set of agent tools detected as installed on a machine (present in PATH) |
-| **Remote Command** | A command sent from the web UI to a machine's daemon via the backend |
-| **PID File** | A file storing the process ID of the running daemon, used to prevent multiple instances |
+| Term                | Definition                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| **Machine**         | A physical or virtual computer where the chatroom CLI is installed and agents can run         |
+| **Machine ID**      | A UUID generated once per machine, stored in `~/.chatroom/machine.json`                       |
+| **Agent Tool**      | An AI coding assistant CLI (opencode, claude, or cursor) that can be spawned to work on tasks |
+| **Daemon**          | A long-running background process that listens for remote commands from the backend           |
+| **Agent Config**    | Per-chatroom, per-role configuration storing the working directory and agent type used        |
+| **Available Tools** | The set of agent tools detected as installed on a machine (present in PATH)                   |
+| **Remote Command**  | A command sent from the web UI to a machine's daemon via the backend                          |
+| **PID File**        | A file storing the process ID of the running daemon, used to prevent multiple instances       |
 
 ## User Stories
 
