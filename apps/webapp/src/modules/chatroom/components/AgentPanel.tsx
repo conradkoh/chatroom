@@ -247,14 +247,6 @@ const InlineAgentCard = memo(function InlineAgentCard({
     return roleConfigs.find((c) => c.spawnedAgentPid && c.daemonConnected);
   }, [roleConfigs]);
 
-  // Last known config (most recently updated) — shown when agent is offline
-  const lastKnownConfig = useMemo(() => {
-    if (runningAgentConfig) return null; // Running agent banner takes precedence
-    if (roleConfigs.length === 0) return null;
-    // Pick the most recently updated config
-    return roleConfigs.reduce((latest, c) => (c.updatedAt > latest.updatedAt ? c : latest));
-  }, [roleConfigs, runningAgentConfig]);
-
   // Get available tools for selected machine
   const availableToolsForMachine = useMemo(() => {
     if (!selectedMachineId) return [];
@@ -350,33 +342,35 @@ const InlineAgentCard = memo(function InlineAgentCard({
     }
   }, [selectedTool, roleConfigs, selectedMachineId, preferences, role]);
 
-  // Check if there's an existing config for the selected machine (meaning agent was started before)
-  const hasExistingConfig = useMemo(() => {
-    if (!selectedMachineId) return false;
-    return roleConfigs.some((c) => c.machineId === selectedMachineId);
-  }, [selectedMachineId, roleConfigs]);
-
-  // Pre-populate workingDir from existing config when switching machines
+  // Pre-populate workingDir from existing config when switching machines,
+  // falling back to the last known config for the role
   useEffect(() => {
     if (selectedMachineId) {
       const existingConfig = roleConfigs.find((c) => c.machineId === selectedMachineId);
       if (existingConfig?.workingDir) {
         setWorkingDir(existingConfig.workingDir);
-      } else {
-        setWorkingDir('');
+        return;
       }
     }
+    // Fallback: use last known config for any machine
+    if (roleConfigs.length > 0) {
+      const latest = roleConfigs.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
+      if (latest.workingDir) {
+        setWorkingDir(latest.workingDir);
+        return;
+      }
+    }
+    setWorkingDir('');
   }, [selectedMachineId, roleConfigs]);
 
   const isAgentRunning = !!runningAgentConfig;
   const isBusy = isStarting || isStopping;
   const hasModels = availableModelsForTool.length > 0;
-  const needsWorkingDir = !hasExistingConfig && !isAgentRunning;
   const canStart =
     selectedMachineId &&
     selectedTool &&
     (!hasModels || selectedModel) &&
-    (!needsWorkingDir || workingDir.trim()) &&
+    workingDir.trim() &&
     !isStarting &&
     !isAgentRunning &&
     !success;
@@ -560,26 +554,6 @@ const InlineAgentCard = memo(function InlineAgentCard({
             </div>
           )}
 
-          {/* Last known config - shown when agent is offline */}
-          {lastKnownConfig?.workingDir && (
-            <div className="p-2.5 bg-chatroom-bg-tertiary border border-chatroom-border space-y-1">
-              <div className="text-[10px] font-bold text-chatroom-text-muted uppercase tracking-wide">
-                Last Working Directory
-              </div>
-              <div className="flex items-center gap-1.5">
-                <code className="flex-1 text-[10px] font-mono text-chatroom-text-secondary bg-chatroom-bg-surface px-1.5 py-0.5 border border-chatroom-border truncate">
-                  {lastKnownConfig.workingDir}
-                </code>
-                <CopyButton
-                  text={lastKnownConfig.workingDir}
-                  label="Copy Path"
-                  copiedLabel="Copied!"
-                  variant="compact"
-                />
-              </div>
-            </div>
-          )}
-
           {/* Success message */}
           {success && (
             <div className="flex items-center gap-2 p-2 bg-chatroom-status-success/10 border border-chatroom-status-success/30">
@@ -710,25 +684,30 @@ const InlineAgentCard = memo(function InlineAgentCard({
                   </div>
                 )}
 
-                {/* Working Directory - shown when no existing config */}
-                {needsWorkingDir && selectedTool && (
-                  <div className="w-full mt-1.5">
+                {/* Working Directory - always visible */}
+                <div className="w-full mt-1.5">
+                  <div className="flex items-center gap-1">
                     <input
                       type="text"
                       value={workingDir}
                       onChange={(e) => setWorkingDir(e.target.value)}
                       placeholder="/path/to/project"
                       disabled={isBusy || isAgentRunning}
-                      className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 placeholder:text-chatroom-text-muted/50 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 placeholder:text-chatroom-text-muted/50 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Working directory for agent (absolute path on remote machine)"
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => e.stopPropagation()}
                     />
-                    <div className="text-[9px] text-chatroom-text-muted mt-0.5">
-                      Working directory on the remote machine
-                    </div>
+                    {workingDir.trim() && (
+                      <CopyButton
+                        text={workingDir.trim()}
+                        label="Copy Path"
+                        copiedLabel="Copied!"
+                        variant="compact"
+                      />
+                    )}
                   </div>
-                )}
+                </div>
 
                 {/* Spacer */}
                 <div className="flex-1" />
