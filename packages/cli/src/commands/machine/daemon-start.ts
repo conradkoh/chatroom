@@ -268,6 +268,7 @@ async function processCommand(
         // Validate payload
         if (!command.payload.chatroomId || !command.payload.role || !command.payload.agentTool) {
           result = 'Missing required payload: chatroomId, role, or agentTool';
+          console.log(`   ⚠️  ${result}`);
           break;
         }
 
@@ -276,8 +277,11 @@ async function processCommand(
 
         if (!agentContext) {
           result = `No agent context found for ${command.payload.chatroomId}/${command.payload.role}`;
+          console.log(`   ⚠️  ${result}`);
           break;
         }
+
+        console.log(`      Working dir: ${agentContext.workingDir}`);
 
         // SECURITY: Validate working directory exists on the local filesystem
         // using fs.stat (not a shell command) to prevent path-based attacks.
@@ -286,10 +290,12 @@ async function processCommand(
           const dirStat = await stat(agentContext.workingDir);
           if (!dirStat.isDirectory()) {
             result = `Working directory is not a directory: ${agentContext.workingDir}`;
+            console.log(`   ⚠️  ${result}`);
             break;
           }
         } catch {
           result = `Working directory does not exist: ${agentContext.workingDir}`;
+          console.log(`   ⚠️  ${result}`);
           break;
         }
 
@@ -304,6 +310,7 @@ async function processCommand(
 
         if (!initPromptResult?.prompt) {
           result = 'Failed to fetch init prompt from backend';
+          console.log(`   ⚠️  ${result}`);
           break;
         }
 
@@ -320,6 +327,7 @@ async function processCommand(
           driver = registry.get(command.payload.agentTool);
         } catch {
           result = `No driver registered for tool: ${command.payload.agentTool}`;
+          console.log(`   ⚠️  ${result}`);
           break;
         }
 
@@ -365,6 +373,7 @@ async function processCommand(
         // Validate payload
         if (!command.payload.chatroomId || !command.payload.role) {
           result = 'Missing required payload: chatroomId or role';
+          console.log(`   ⚠️  ${result}`);
           break;
         }
 
@@ -389,6 +398,7 @@ async function processCommand(
 
         if (!targetConfig?.spawnedAgentPid) {
           result = 'No running agent found (no PID recorded)';
+          console.log(`   ⚠️  ${result}`);
           break;
         }
 
