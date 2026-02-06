@@ -20,83 +20,11 @@ import React, { useCallback, memo, useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 import { CopyButton } from './CopyButton';
+import type { AgentTool, MachineInfo, AgentConfig } from '../types/machine';
+import { TOOL_DISPLAY_NAMES, TOOL_MODELS, MODEL_DISPLAY_NAMES } from '../types/machine';
 
 import { Badge } from '@/components/ui/badge';
 import { usePrompts } from '@/contexts/PromptsContext';
-
-type AgentTool = 'opencode' | 'claude' | 'cursor';
-
-interface ToolVersionInfo {
-  version: string;
-  major: number;
-}
-
-interface MachineInfo {
-  machineId: string;
-  hostname: string;
-  os: string;
-  availableTools: AgentTool[];
-  toolVersions: Partial<Record<AgentTool, ToolVersionInfo>>;
-  daemonConnected: boolean;
-  lastSeenAt: number;
-}
-
-interface AgentConfig {
-  machineId: string;
-  hostname: string;
-  role: string;
-  agentType: AgentTool;
-  workingDir: string;
-  model?: string;
-  daemonConnected: boolean;
-  availableTools: AgentTool[];
-  updatedAt: number;
-  spawnedAgentPid?: number;
-  spawnedAt?: number;
-}
-
-// Tool display names
-const TOOL_DISPLAY_NAMES: Record<AgentTool, string> = {
-  opencode: 'OpenCode',
-  claude: 'Claude Code',
-  cursor: 'Cursor Agent',
-};
-
-/**
- * Available AI models per agent tool.
- * Models sourced from `opencode models` using provider/model-id format.
- * First model in each array is the default.
- */
-const TOOL_MODELS: Record<AgentTool, string[]> = {
-  opencode: [
-    'github-copilot/claude-sonnet-4.5',
-    'github-copilot/claude-opus-4.6',
-    'github-copilot/claude-opus-4.5',
-    'github-copilot/gpt-5.2',
-    'github-copilot/gpt-5.2-codex',
-    'github-copilot/gpt-5.1-codex-max',
-    'github-copilot/gemini-3-flash-preview',
-    'github-copilot/claude-haiku-4.5',
-    'opencode/big-pickle',
-  ],
-  claude: [],
-  cursor: [],
-};
-
-/**
- * Short display names for models in the UI.
- */
-const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  'github-copilot/claude-sonnet-4.5': 'Sonnet 4.5',
-  'github-copilot/claude-opus-4.6': 'Opus 4.6',
-  'github-copilot/claude-opus-4.5': 'Opus 4.5',
-  'github-copilot/gpt-5.2': 'GPT-5.2',
-  'github-copilot/gpt-5.2-codex': 'GPT-5.2 Codex',
-  'github-copilot/gpt-5.1-codex-max': 'GPT-5.1 Codex Max',
-  'github-copilot/gemini-3-flash-preview': 'Gemini 3 Flash',
-  'github-copilot/claude-haiku-4.5': 'Haiku 4.5',
-  'opencode/big-pickle': 'Big Pickle',
-};
 
 interface ChatroomAgentDetailsModalProps {
   isOpen: boolean;
