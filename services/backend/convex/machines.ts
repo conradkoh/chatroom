@@ -135,6 +135,7 @@ export const updateAgentConfig = mutation({
     role: v.string(),
     agentType: agentToolValidator,
     workingDir: v.string(),
+    model: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Verify authenticated user
@@ -182,6 +183,7 @@ export const updateAgentConfig = mutation({
       await ctx.db.patch('chatroom_machineAgentConfigs', existing._id, {
         agentType: args.agentType,
         workingDir: args.workingDir,
+        model: args.model,
         updatedAt: now,
       });
     } else {
@@ -192,6 +194,7 @@ export const updateAgentConfig = mutation({
         role: args.role,
         agentType: args.agentType,
         workingDir: args.workingDir,
+        model: args.model,
         updatedAt: now,
       });
     }
@@ -277,6 +280,7 @@ export const getAgentConfigs = query({
           role: config.role,
           agentType: config.agentType,
           workingDir: config.workingDir,
+          model: config.model,
           daemonConnected: machine?.daemonConnected ?? false,
           availableTools: machine?.availableTools ?? [],
           updatedAt: config.updatedAt,
@@ -393,6 +397,7 @@ export const sendCommand = mutation({
       v.object({
         chatroomId: v.optional(v.id('chatroom_rooms')),
         role: v.optional(v.string()),
+        model: v.optional(v.string()),
       })
     ),
   },
@@ -452,6 +457,7 @@ export const sendCommand = mutation({
         chatroomId: args.payload?.chatroomId,
         role: args.payload?.role,
         agentTool,
+        model: args.payload?.model,
       },
       status: 'pending',
       sentBy: user._id,

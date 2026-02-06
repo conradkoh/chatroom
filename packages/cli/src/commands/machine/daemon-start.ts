@@ -26,6 +26,7 @@ interface MachineCommand {
     chatroomId?: Id<'chatroom_rooms'>;
     role?: string;
     agentTool?: 'opencode' | 'claude' | 'cursor';
+    model?: string;
   };
   createdAt: number;
 }
@@ -192,6 +193,9 @@ async function processCommand(
         console.log(`      Chatroom: ${command.payload.chatroomId}`);
         console.log(`      Role: ${command.payload.role}`);
         console.log(`      Tool: ${command.payload.agentTool}`);
+        if (command.payload.model) {
+          console.log(`      Model: ${command.payload.model}`);
+        }
 
         // Validate payload
         if (!command.payload.chatroomId || !command.payload.role || !command.payload.agentTool) {
@@ -234,6 +238,7 @@ async function processCommand(
           rolePrompt: initPromptResult.rolePrompt,
           initialMessage: initPromptResult.initialMessage,
           toolVersion: toolVersion ?? undefined,
+          model: command.payload.model,
         });
 
         if (spawnResult.success) {

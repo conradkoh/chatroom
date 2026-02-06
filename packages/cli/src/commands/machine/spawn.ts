@@ -29,6 +29,8 @@ export interface SpawnOptions {
   initialMessage: string;
   /** Tool version info (for version-specific spawn logic) */
   toolVersion?: ToolVersionInfo;
+  /** AI model to use (e.g. "claude-sonnet-4-20250514", "o3") */
+  model?: string;
 }
 
 export interface SpawnResult {
@@ -47,7 +49,8 @@ function spawnOpenCode(
   workingDir: string,
   rolePrompt: string,
   initialMessage: string,
-  toolVersion?: ToolVersionInfo
+  toolVersion?: ToolVersionInfo,
+  model?: string
 ) {
   const majorVersion = toolVersion?.major ?? 1;
 
@@ -61,7 +64,13 @@ function spawnOpenCode(
   // In the future, rolePrompt can be passed as a system prompt flag
   const combinedPrompt = `${rolePrompt}\n\n${initialMessage}`;
 
-  const childProcess = spawn(command, [], {
+  // Build args: opencode supports --model flag
+  const args: string[] = [];
+  if (model) {
+    args.push('--model', model);
+  }
+
+  const childProcess = spawn(command, args, {
     cwd: workingDir,
     stdio: ['pipe', 'inherit', 'inherit'],
     detached: true,
@@ -80,13 +89,16 @@ function spawnOpenCode(
  * independently of the daemon process.
  */
 export async function spawnAgent(options: SpawnOptions): Promise<SpawnResult> {
-  const { tool, workingDir, rolePrompt, initialMessage, toolVersion } = options;
+  const { tool, workingDir, rolePrompt, initialMessage, toolVersion, model } = options;
   const command = AGENT_TOOL_COMMANDS[tool];
 
   console.log(`   Spawning ${tool} agent...`);
   console.log(`   Working dir: ${workingDir}`);
   if (toolVersion) {
     console.log(`   Tool version: v${toolVersion.version} (major: ${toolVersion.major})`);
+  }
+  if (model) {
+    console.log(`   Model: ${model}`);
   }
 
   try {
@@ -97,22 +109,35 @@ export async function spawnAgent(options: SpawnOptions): Promise<SpawnResult> {
 
     switch (tool) {
       case 'opencode':
-        childProcess = spawnOpenCode(command, workingDir, rolePrompt, initialMessage, toolVersion);
+        childProcess = spawnOpenCode(
+          command,
+          workingDir,
+          rolePrompt,
+          initialMessage,
+          toolVersion,
+          model
+        );
         break;
 
-      case 'claude':
+      case 'claude': {
         // Claude Code: First argument is the prompt (combined for now)
-        // Future: could use --system-prompt flag
-        childProcess = spawn(command, [combinedPrompt], {
+        // Supports --model flag
+        const claudeArgs = ['--print', combinedPrompt];
+        if (model) {
+          claudeArgs.unshift('--model', model);
+        }
+        childProcess = spawn(command, claudeArgs, {
           cwd: workingDir,
           stdio: 'inherit',
           detached: true,
           shell: true,
         });
         break;
+      }
 
       case 'cursor':
         // Cursor CLI uses 'agent chat' subcommand
+        // No model flag support currently
         childProcess = spawn(command, ['chat', combinedPrompt], {
           cwd: workingDir,
           stdio: 'inherit',

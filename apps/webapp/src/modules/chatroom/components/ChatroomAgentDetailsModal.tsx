@@ -47,6 +47,7 @@ interface AgentConfig {
   role: string;
   agentType: AgentTool;
   workingDir: string;
+  model?: string;
   daemonConnected: boolean;
   availableTools: AgentTool[];
   updatedAt: number;
@@ -59,6 +60,33 @@ const TOOL_DISPLAY_NAMES: Record<AgentTool, string> = {
   opencode: 'OpenCode',
   claude: 'Claude Code',
   cursor: 'Cursor Agent',
+};
+
+/**
+ * Available AI models per agent tool.
+ * First model in each array is the default.
+ */
+const TOOL_MODELS: Record<AgentTool, string[]> = {
+  opencode: [
+    'claude-sonnet-4-20250514',
+    'claude-opus-4-20250514',
+    'o3',
+    'o4-mini',
+    'gemini-2.5-pro',
+  ],
+  claude: ['claude-sonnet-4-20250514', 'claude-opus-4-20250514'],
+  cursor: [],
+};
+
+/**
+ * Short display names for models in the UI.
+ */
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  'claude-sonnet-4-20250514': 'Sonnet 4',
+  'claude-opus-4-20250514': 'Opus 4',
+  o3: 'o3',
+  'o4-mini': 'o4-mini',
+  'gemini-2.5-pro': 'Gemini 2.5 Pro',
 };
 
 interface ChatroomAgentDetailsModalProps {
@@ -149,7 +177,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
   // Local state
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<AgentTool | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>('default');
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -163,7 +191,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     if (isOpen) {
       setSelectedMachineId(null);
       setSelectedTool(null);
-      setSelectedModel('default');
+      setSelectedModel(null);
       setIsStarting(false);
       setIsStopping(false);
       setError(null);
@@ -240,6 +268,33 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     }
   }, [selectedMachineId, roleConfigs, availableToolsForMachine]);
 
+  // Available models for the selected tool
+  const availableModelsForTool = useMemo(() => {
+    if (!selectedTool) return [];
+    return TOOL_MODELS[selectedTool] || [];
+  }, [selectedTool]);
+
+  // Auto-select model when tool changes
+  useEffect(() => {
+    if (selectedTool) {
+      const models = TOOL_MODELS[selectedTool] || [];
+      if (models.length === 0) {
+        setSelectedModel(null);
+        return;
+      }
+      // If there's a saved config with a model, use that
+      const config = roleConfigs.find((c) => c.machineId === selectedMachineId && c.model);
+      if (config?.model && models.includes(config.model)) {
+        setSelectedModel(config.model);
+      } else {
+        // Default to first model
+        setSelectedModel(models[0]);
+      }
+    } else {
+      setSelectedModel(null);
+    }
+  }, [selectedTool, roleConfigs, selectedMachineId]);
+
   // Handle start agent
   const handleStartAgent = useCallback(async () => {
     if (!selectedMachineId || !selectedTool) return;
@@ -254,6 +309,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
         payload: {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
+          model: selectedModel || undefined,
         },
       });
 
@@ -267,7 +323,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     } finally {
       setIsStarting(false);
     }
-  }, [selectedMachineId, selectedTool, sendCommand, chatroomId, role]);
+  }, [selectedMachineId, selectedTool, selectedModel, sendCommand, chatroomId, role]);
 
   // Handle stop agent
   const handleStopAgent = useCallback(async () => {
@@ -327,6 +383,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
         payload: {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
+          model: selectedModel || undefined,
         },
       });
 
@@ -340,7 +397,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
       setIsStarting(false);
       setIsStopping(false);
     }
-  }, [runningAgentConfig, sendCommand, chatroomId, role]);
+  }, [runningAgentConfig, selectedModel, sendCommand, chatroomId, role]);
 
   // Handle backdrop click
   const handleBackdropClick = useCallback(
@@ -364,15 +421,19 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Available models (placeholder for future extension)
-  const availableModels = useMemo(() => [{ value: 'default', label: 'Default' }], []);
-
   if (!isOpen) return null;
 
   const isLoading = machinesResult === undefined || configsResult === undefined;
   const hasNoMachines = !isLoading && connectedMachines.length === 0;
   const isAgentRunning = !!runningAgentConfig;
-  const canStart = selectedMachineId && selectedTool && !isStarting && !isAgentRunning && !success;
+  const hasModels = availableModelsForTool.length > 0;
+  const canStart =
+    selectedMachineId &&
+    selectedTool &&
+    (!hasModels || selectedModel) &&
+    !isStarting &&
+    !isAgentRunning &&
+    !success;
   const canStop = isAgentRunning && !isStopping && !success;
   const canRestart = isAgentRunning && !isStopping && !isStarting && !success;
   const isBusy = isStarting || isStopping;
@@ -558,7 +619,10 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
               <div className="relative flex-shrink-0">
                 <select
                   value={selectedTool || ''}
-                  onChange={(e) => setSelectedTool((e.target.value as AgentTool) || null)}
+                  onChange={(e) => {
+                    setSelectedTool((e.target.value as AgentTool) || null);
+                    setSelectedModel(null);
+                  }}
                   disabled={
                     isBusy ||
                     isAgentRunning ||
@@ -581,26 +645,29 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
                 />
               </div>
 
-              {/* Model Selection Dropdown */}
-              <div className="relative flex-shrink-0">
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  disabled={isBusy}
-                  className="appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent min-w-0 max-w-[100px] truncate"
-                  title="Select Model"
-                >
-                  {availableModels.map((model) => (
-                    <option key={model.value} value={model.value}>
-                      {model.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={10}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-chatroom-text-muted pointer-events-none"
-                />
-              </div>
+              {/* Model Selection Dropdown - shown when selected tool has model options */}
+              {hasModels && (
+                <div className="relative flex-shrink-0">
+                  <select
+                    value={selectedModel || ''}
+                    onChange={(e) => setSelectedModel(e.target.value || null)}
+                    disabled={isBusy || isAgentRunning || !selectedTool}
+                    className="appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent min-w-0 max-w-[110px] truncate"
+                    title="Select Model"
+                  >
+                    <option value="">Model...</option>
+                    {availableModelsForTool.map((model) => (
+                      <option key={model} value={model}>
+                        {MODEL_DISPLAY_NAMES[model] || model}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={10}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-chatroom-text-muted pointer-events-none"
+                  />
+                </div>
+              )}
 
               {/* Spacer */}
               <div className="flex-1" />

@@ -175,6 +175,7 @@ interface AgentConfig {
   role: string;
   agentType: AgentTool;
   workingDir: string;
+  model?: string;
   daemonConnected: boolean;
   availableTools: AgentTool[];
   updatedAt: number;
@@ -186,6 +187,33 @@ const TOOL_DISPLAY_NAMES: Record<AgentTool, string> = {
   opencode: 'OpenCode',
   claude: 'Claude Code',
   cursor: 'Cursor Agent',
+};
+
+/**
+ * Available AI models per agent tool.
+ * First model in each array is the default.
+ */
+const TOOL_MODELS: Record<AgentTool, string[]> = {
+  opencode: [
+    'claude-sonnet-4-20250514',
+    'claude-opus-4-20250514',
+    'o3',
+    'o4-mini',
+    'gemini-2.5-pro',
+  ],
+  claude: ['claude-sonnet-4-20250514', 'claude-opus-4-20250514'],
+  cursor: [],
+};
+
+/**
+ * Short display names for models in the UI.
+ */
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  'claude-sonnet-4-20250514': 'Sonnet 4',
+  'claude-opus-4-20250514': 'Opus 4',
+  o3: 'o3',
+  'o4-mini': 'o4-mini',
+  'gemini-2.5-pro': 'Gemini 2.5 Pro',
 };
 
 // Get status indicator class for the modal
@@ -245,7 +273,7 @@ interface InlineAgentCardProps {
   sendCommand: (args: {
     machineId: string;
     type: string;
-    payload: { chatroomId: Id<'chatroom_rooms'>; role: string };
+    payload: { chatroomId: Id<'chatroom_rooms'>; role: string; model?: string };
   }) => Promise<unknown>;
   onViewPrompt?: (role: string) => void;
 }
@@ -265,6 +293,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<AgentTool | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -314,6 +343,12 @@ const InlineAgentCard = memo(function InlineAgentCard({
     }
   }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs]);
 
+  // Available models for the selected tool
+  const availableModelsForTool = useMemo(() => {
+    if (!selectedTool) return [];
+    return TOOL_MODELS[selectedTool] || [];
+  }, [selectedTool]);
+
   // Auto-select tool
   useEffect(() => {
     if (selectedMachineId && roleConfigs.length > 0) {
@@ -326,9 +361,37 @@ const InlineAgentCard = memo(function InlineAgentCard({
     }
   }, [selectedMachineId, roleConfigs, availableToolsForMachine]);
 
+  // Auto-select model when tool changes
+  useEffect(() => {
+    if (selectedTool) {
+      const models = TOOL_MODELS[selectedTool] || [];
+      if (models.length === 0) {
+        setSelectedModel(null);
+        return;
+      }
+      // If there's a saved config with a model, use that
+      const config = roleConfigs.find((c) => c.machineId === selectedMachineId && c.model);
+      if (config?.model && models.includes(config.model)) {
+        setSelectedModel(config.model);
+      } else {
+        // Default to first model
+        setSelectedModel(models[0]);
+      }
+    } else {
+      setSelectedModel(null);
+    }
+  }, [selectedTool, roleConfigs, selectedMachineId]);
+
   const isAgentRunning = !!runningAgentConfig;
   const isBusy = isStarting || isStopping;
-  const canStart = selectedMachineId && selectedTool && !isStarting && !isAgentRunning && !success;
+  const hasModels = availableModelsForTool.length > 0;
+  const canStart =
+    selectedMachineId &&
+    selectedTool &&
+    (!hasModels || selectedModel) &&
+    !isStarting &&
+    !isAgentRunning &&
+    !success;
   const canStop = isAgentRunning && !isStopping && !success;
   const canRestart = isAgentRunning && !isStopping && !isStarting && !success;
   const hasNoMachines = !isLoadingMachines && connectedMachines.length === 0;
@@ -341,7 +404,11 @@ const InlineAgentCard = memo(function InlineAgentCard({
       await sendCommand({
         machineId: selectedMachineId,
         type: 'start-agent',
-        payload: { chatroomId: chatroomId as Id<'chatroom_rooms'>, role },
+        payload: {
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+          model: selectedModel || undefined,
+        },
       });
       setSuccess('Start command sent!');
       setTimeout(() => setSuccess(null), 2000);
@@ -350,7 +417,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
     } finally {
       setIsStarting(false);
     }
-  }, [selectedMachineId, selectedTool, sendCommand, chatroomId, role]);
+  }, [selectedMachineId, selectedTool, selectedModel, sendCommand, chatroomId, role]);
 
   const handleStopAgent = useCallback(async () => {
     if (!runningAgentConfig) return;
@@ -455,6 +522,14 @@ const InlineAgentCard = memo(function InlineAgentCard({
                 <span>{runningAgentConfig.hostname}</span>
                 {' · '}
                 <span>{TOOL_DISPLAY_NAMES[runningAgentConfig.agentType]}</span>
+                {runningAgentConfig.model && (
+                  <>
+                    {' · '}
+                    <span>
+                      {MODEL_DISPLAY_NAMES[runningAgentConfig.model] || runningAgentConfig.model}
+                    </span>
+                  </>
+                )}
                 {' · '}
                 <span>PID {runningAgentConfig.spawnedAgentPid}</span>
               </div>
@@ -537,7 +612,10 @@ const InlineAgentCard = memo(function InlineAgentCard({
                 <div className="relative flex-shrink-0">
                   <select
                     value={selectedTool || ''}
-                    onChange={(e) => setSelectedTool((e.target.value as AgentTool) || null)}
+                    onChange={(e) => {
+                      setSelectedTool((e.target.value as AgentTool) || null);
+                      setSelectedModel(null);
+                    }}
                     disabled={
                       isBusy ||
                       isAgentRunning ||
@@ -563,6 +641,30 @@ const InlineAgentCard = memo(function InlineAgentCard({
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 text-chatroom-text-muted pointer-events-none"
                   />
                 </div>
+
+                {/* Model Dropdown - shown when selected tool has model options */}
+                {hasModels && (
+                  <div className="relative flex-shrink-0">
+                    <select
+                      value={selectedModel || ''}
+                      onChange={(e) => setSelectedModel(e.target.value || null)}
+                      disabled={isBusy || isAgentRunning || !selectedTool}
+                      className="appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent max-w-[110px] truncate"
+                      title="Select Model"
+                    >
+                      <option value="">Model...</option>
+                      {availableModelsForTool.map((model) => (
+                        <option key={model} value={model}>
+                          {MODEL_DISPLAY_NAMES[model] || model}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={10}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-chatroom-text-muted pointer-events-none"
+                    />
+                  </div>
+                )}
 
                 {/* Spacer */}
                 <div className="flex-1" />

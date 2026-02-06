@@ -15,7 +15,13 @@ export type {
   MachineRegistrationInfo,
   ToolVersionInfo,
 } from './types.js';
-export { AGENT_TOOLS, AGENT_TOOL_COMMANDS, MACHINE_CONFIG_VERSION } from './types.js';
+export {
+  AGENT_TOOLS,
+  AGENT_TOOL_COMMANDS,
+  MACHINE_CONFIG_VERSION,
+  TOOL_MODELS,
+  MODEL_DISPLAY_NAMES,
+} from './types.js';
 
 // Detection
 export {

@@ -34,6 +34,35 @@ export interface ToolVersionInfo {
 }
 
 /**
+ * Available AI models per agent tool.
+ *
+ * Each tool supports a different set of models. The first model
+ * in each array is the default for that tool.
+ */
+export const TOOL_MODELS: Record<AgentTool, string[]> = {
+  opencode: [
+    'claude-sonnet-4-20250514',
+    'claude-opus-4-20250514',
+    'o3',
+    'o4-mini',
+    'gemini-2.5-pro',
+  ],
+  claude: ['claude-sonnet-4-20250514', 'claude-opus-4-20250514'],
+  cursor: [],
+};
+
+/**
+ * Display names for AI models (short labels for UI).
+ */
+export const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  'claude-sonnet-4-20250514': 'Sonnet 4',
+  'claude-opus-4-20250514': 'Opus 4',
+  o3: 'o3',
+  'o4-mini': 'o4-mini',
+  'gemini-2.5-pro': 'Gemini 2.5 Pro',
+};
+
+/**
  * Per-chatroom, per-role agent context
  */
 export interface AgentContext {

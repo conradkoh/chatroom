@@ -585,6 +585,8 @@ export default defineSchema({
     agentType: v.union(v.literal('opencode'), v.literal('claude'), v.literal('cursor')),
     // Working directory on the machine
     workingDir: v.string(),
+    // AI model to use (e.g. "claude-sonnet-4-20250514", "o3")
+    model: v.optional(v.string()),
     // Last updated timestamp
     updatedAt: v.number(),
     // PID of spawned agent (for stop functionality), null if not running
@@ -616,6 +618,8 @@ export default defineSchema({
       agentTool: v.optional(
         v.union(v.literal('opencode'), v.literal('claude'), v.literal('cursor'))
       ),
+      // AI model to use when starting agent (e.g. "claude-sonnet-4-20250514")
+      model: v.optional(v.string()),
     }),
     // Command status
     status: v.union(
