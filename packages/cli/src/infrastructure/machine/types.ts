@@ -76,7 +76,10 @@ export const MODEL_DISPLAY_NAMES: Record<string, string> = {
 };
 
 /**
- * Per-chatroom, per-role agent context
+ * Per-chatroom, per-role agent context (static config, stored in machine.json)
+ *
+ * Runtime state like spawned PIDs is stored separately in
+ * ~/.chatroom/machines/state/<machine-id>.json — see daemon-state.ts.
  */
 export interface AgentContext {
   /** Which tool was used for this role */
@@ -85,8 +88,6 @@ export interface AgentContext {
   workingDir: string;
   /** Last time this agent was started (ISO string) */
   lastStartedAt: string;
-  /** PID of the spawned agent process (undefined if not running or unknown) */
-  spawnedAgentPid?: number;
 }
 
 /**
