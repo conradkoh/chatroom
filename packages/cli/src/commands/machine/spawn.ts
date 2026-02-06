@@ -71,48 +71,10 @@ function scheduleCleanup(filePath: string, delayMs = 5000): void {
 }
 
 /**
- * Spawn an OpenCode agent.
- * For v1.x: passes combined prompt via stdin (safe — no shell interpretation).
- * Future v2.x: could use --system-prompt flag or similar.
+ * Build combined prompt from role prompt and initial message.
  */
-function spawnOpenCode(
-  command: string,
-  workingDir: string,
-  rolePrompt: string,
-  initialMessage: string,
-  toolVersion?: ToolVersionInfo,
-  model?: string
-) {
-  const majorVersion = toolVersion?.major ?? 1;
-
-  if (majorVersion >= 2) {
-    // Future: OpenCode v2.x may support --system-prompt or similar
-    // For now, fall through to v1.x behavior
-    console.log(`   OpenCode v${toolVersion?.version} detected (v2+ path - placeholder)`);
-  }
-
-  // v1.x: OpenCode reads stdin on start, combine prompts for now
-  // In the future, rolePrompt can be passed as a system prompt flag
-  const combinedPrompt = `${rolePrompt}\n\n${initialMessage}`;
-
-  // Build args: opencode supports --model flag
-  const args: string[] = [];
-  if (model) {
-    args.push('--model', model);
-  }
-
-  // SECURITY: shell: false prevents shell metacharacter injection.
-  // Prompt is safely passed via stdin, not as shell arguments.
-  const childProcess = spawn(command, args, {
-    cwd: workingDir,
-    stdio: ['pipe', 'inherit', 'inherit'],
-    detached: true,
-    shell: false,
-  });
-  childProcess.stdin?.write(combinedPrompt);
-  childProcess.stdin?.end();
-
-  return childProcess;
+function buildCombinedPrompt(rolePrompt: string, initialMessage: string): string {
+  return `${rolePrompt}\n\n${initialMessage}`;
 }
 
 /**
@@ -139,24 +101,29 @@ export async function spawnAgent(options: SpawnOptions): Promise<SpawnResult> {
 
   try {
     let childProcess;
-
-    // Combined prompt for tools that don't support separate system prompts
-    const combinedPrompt = `${rolePrompt}\n\n${initialMessage}`;
+    const combinedPrompt = buildCombinedPrompt(rolePrompt, initialMessage);
 
     switch (tool) {
-      case 'opencode':
-        childProcess = spawnOpenCode(
-          command,
-          workingDir,
-          rolePrompt,
-          initialMessage,
-          toolVersion,
-          model
-        );
+      case 'opencode': {
+        // OpenCode: pass prompt via stdin, supports --model flag.
+        // SECURITY: shell: false prevents shell injection.
+        const ocArgs: string[] = [];
+        if (model) {
+          ocArgs.push('--model', model);
+        }
+        childProcess = spawn(command, ocArgs, {
+          cwd: workingDir,
+          stdio: ['pipe', 'inherit', 'inherit'],
+          detached: true,
+          shell: false,
+        });
+        childProcess.stdin?.write(combinedPrompt);
+        childProcess.stdin?.end();
         break;
+      }
 
       case 'claude': {
-        // Claude Code: pass prompt via stdin with --print flag for non-interactive mode.
+        // Claude Code: pass prompt via stdin with --print flag.
         // SECURITY: shell: false prevents shell injection.
         const claudeArgs = ['--print'];
         if (model) {
@@ -174,8 +141,7 @@ export async function spawnAgent(options: SpawnOptions): Promise<SpawnResult> {
       }
 
       case 'cursor': {
-        // Cursor CLI uses 'agent chat' subcommand.
-        // Write prompt to temp file to avoid arg length limits.
+        // Cursor CLI: write prompt to temp file to avoid arg length limits.
         // SECURITY: shell: false prevents shell injection.
         const promptFile = writeTempPromptFile(combinedPrompt);
         childProcess = spawn(command, ['chat', '--file', promptFile], {
@@ -184,7 +150,6 @@ export async function spawnAgent(options: SpawnOptions): Promise<SpawnResult> {
           detached: true,
           shell: false,
         });
-        // Clean up temp file after agent has time to read it
         scheduleCleanup(promptFile, 10000);
         break;
       }

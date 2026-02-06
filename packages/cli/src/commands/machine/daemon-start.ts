@@ -344,15 +344,7 @@ async function processCommand(
           break;
         }
 
-        // Get agent context to find the PID from local config
-        const stopAgentContext = getAgentContext(command.payload.chatroomId, command.payload.role);
-
-        if (!stopAgentContext) {
-          result = `No agent context found for ${command.payload.chatroomId}/${command.payload.role}`;
-          break;
-        }
-
-        // Query the backend for the current PID
+        // Query the backend for the current PID (single source of truth)
         const configsResult = (await client.query(api.machines.getAgentConfigs, {
           sessionId,
           chatroomId: command.payload.chatroomId,
