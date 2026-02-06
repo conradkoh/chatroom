@@ -235,6 +235,7 @@ interface InlineAgentCardProps {
   connectedMachines: MachineInfo[];
   agentConfigs: AgentConfig[];
   isLoadingMachines: boolean;
+  daemonStartCommand: string;
   sendCommand: (args: {
     machineId: string;
     type: string;
@@ -251,6 +252,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
   connectedMachines,
   agentConfigs,
   isLoadingMachines,
+  daemonStartCommand,
   sendCommand,
   onViewPrompt,
 }: InlineAgentCardProps) {
@@ -472,12 +474,24 @@ const InlineAgentCard = memo(function InlineAgentCard({
                 </span>
               </div>
             ) : hasNoMachines ? (
-              <div className="flex items-center gap-2 py-1">
-                <AlertCircle size={12} className="text-chatroom-status-warning flex-shrink-0" />
-                <span className="text-[10px] text-chatroom-text-secondary">No machines online</span>
-                <code className="text-[10px] font-mono text-chatroom-status-success ml-auto">
-                  chatroom machine daemon start
-                </code>
+              <div className="space-y-2 py-1">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={12} className="text-chatroom-status-warning flex-shrink-0" />
+                  <span className="text-[10px] text-chatroom-text-secondary">
+                    No machines online. Run:
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-[10px] font-mono text-chatroom-status-success bg-chatroom-bg-tertiary px-2 py-1.5 border border-chatroom-border break-all">
+                    {daemonStartCommand}
+                  </code>
+                  <CopyButton
+                    text={daemonStartCommand}
+                    label="Copy"
+                    copiedLabel="Copied!"
+                    variant="compact"
+                  />
+                </div>
               </div>
             ) : (
               <div className="flex items-center gap-2 flex-wrap">
@@ -650,6 +664,16 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
 }: UnifiedAgentListModalProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const machinesApi = api as any;
+  const { isProductionUrl } = usePrompts();
+
+  // Compute the full daemon start command with env var if needed
+  const daemonStartCommand = useMemo(() => {
+    if (isProductionUrl) {
+      return 'chatroom machine daemon start';
+    }
+    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+    return `CHATROOM_CONVEX_URL=${convexUrl} chatroom machine daemon start`;
+  }, [isProductionUrl]);
 
   // Fetch machines and agent configs for all agents in one go
   const machinesResult = useSessionQuery(machinesApi.machines.listMachines, {}) as
@@ -740,6 +764,7 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
               connectedMachines={connectedMachines}
               agentConfigs={agentConfigs}
               isLoadingMachines={isLoadingMachines}
+              daemonStartCommand={daemonStartCommand}
               sendCommand={sendCommand}
               onViewPrompt={onViewPrompt}
             />

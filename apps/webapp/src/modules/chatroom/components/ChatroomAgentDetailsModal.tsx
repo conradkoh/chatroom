@@ -19,6 +19,8 @@ import {
 import React, { useCallback, memo, useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
+import { CopyButton } from './CopyButton';
+
 import { Badge } from '@/components/ui/badge';
 import { usePrompts } from '@/contexts/PromptsContext';
 
@@ -114,7 +116,16 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
 }: ChatroomAgentDetailsModalProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const machinesApi = api as any;
-  const { getAgentPrompt } = usePrompts();
+  const { getAgentPrompt, isProductionUrl } = usePrompts();
+
+  // Compute the full daemon start command with env var if needed
+  const daemonStartCommand = useMemo(() => {
+    if (isProductionUrl) {
+      return 'chatroom machine daemon start';
+    }
+    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+    return `CHATROOM_CONVEX_URL=${convexUrl} chatroom machine daemon start`;
+  }, [isProductionUrl]);
 
   // Fetch user's machines
   const machinesResult = useSessionQuery(machinesApi.machines.listMachines, {}) as
@@ -491,12 +502,24 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
               <span className="ml-2 text-[10px] text-chatroom-text-muted">Loading machines...</span>
             </div>
           ) : hasNoMachines ? (
-            <div className="flex items-center gap-2 py-1">
-              <AlertCircle size={14} className="text-chatroom-status-warning flex-shrink-0" />
-              <span className="text-[10px] text-chatroom-text-secondary">No machines online.</span>
-              <code className="text-[10px] font-mono text-chatroom-status-success ml-auto">
-                chatroom machine daemon start
-              </code>
+            <div className="space-y-2 py-1">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={14} className="text-chatroom-status-warning flex-shrink-0" />
+                <span className="text-[10px] text-chatroom-text-secondary">
+                  No machines online. Run:
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-[10px] font-mono text-chatroom-status-success bg-chatroom-bg-tertiary px-2 py-1.5 border border-chatroom-border break-all">
+                  {daemonStartCommand}
+                </code>
+                <CopyButton
+                  text={daemonStartCommand}
+                  label="Copy"
+                  copiedLabel="Copied!"
+                  variant="compact"
+                />
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-2">
