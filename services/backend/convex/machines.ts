@@ -560,6 +560,35 @@ export const ackCommand = mutation({
       ...(args.status !== 'processing' ? { processedAt: now } : {}),
     });
 
+    // Cleanup: Remove old completed/failed commands for this machine.
+    // Commands older than 1 hour that are no longer pending/processing are
+    // safe to delete. This prevents unbounded table growth.
+    if (args.status === 'completed' || args.status === 'failed') {
+      const oneHourAgo = now - 60 * 60 * 1000;
+      const oldCommands = await ctx.db
+        .query('chatroom_machineCommands')
+        .withIndex('by_machineId_status', (q) =>
+          q.eq('machineId', command.machineId).eq('status', args.status)
+        )
+        .collect();
+
+      // Delete commands older than 1 hour, keep recent ones for debugging
+      let deletedCount = 0;
+      for (const oldCmd of oldCommands) {
+        if (oldCmd.createdAt < oneHourAgo && oldCmd._id !== args.commandId) {
+          await ctx.db.delete('chatroom_machineCommands', oldCmd._id);
+          deletedCount++;
+        }
+      }
+
+      if (deletedCount > 0) {
+        // Log for debugging — this runs server-side in Convex
+        console.log(
+          `Cleaned up ${deletedCount} old ${args.status} commands for machine ${command.machineId}`
+        );
+      }
+    }
+
     return { success: true };
   },
 });
