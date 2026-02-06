@@ -36,30 +36,43 @@ export interface ToolVersionInfo {
 /**
  * Available AI models per agent tool.
  *
- * Each tool supports a different set of models. The first model
- * in each array is the default for that tool.
+ * For opencode, models are sourced from `opencode models` and use the
+ * provider/model-id format. The first model in each array is the default.
+ *
+ * Note: opencode models are dynamic and depend on user's configured providers.
+ * These are the commonly available models as of v1.x. A future improvement
+ * could detect models dynamically via `opencode models` at runtime.
  */
 export const TOOL_MODELS: Record<AgentTool, string[]> = {
   opencode: [
-    'claude-sonnet-4-20250514',
-    'claude-opus-4-20250514',
-    'o3',
-    'o4-mini',
-    'gemini-2.5-pro',
+    'github-copilot/claude-sonnet-4.5',
+    'github-copilot/claude-opus-4.6',
+    'github-copilot/claude-opus-4.5',
+    'github-copilot/gpt-5.2',
+    'github-copilot/gpt-5.2-codex',
+    'github-copilot/gpt-5.1-codex-max',
+    'github-copilot/gemini-3-flash-preview',
+    'github-copilot/claude-haiku-4.5',
+    'opencode/big-pickle',
   ],
-  claude: ['claude-sonnet-4-20250514', 'claude-opus-4-20250514'],
+  claude: [],
   cursor: [],
 };
 
 /**
  * Display names for AI models (short labels for UI).
+ * Maps full model IDs to human-readable short names.
  */
 export const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  'claude-sonnet-4-20250514': 'Sonnet 4',
-  'claude-opus-4-20250514': 'Opus 4',
-  o3: 'o3',
-  'o4-mini': 'o4-mini',
-  'gemini-2.5-pro': 'Gemini 2.5 Pro',
+  'github-copilot/claude-sonnet-4.5': 'Sonnet 4.5',
+  'github-copilot/claude-opus-4.6': 'Opus 4.6',
+  'github-copilot/claude-opus-4.5': 'Opus 4.5',
+  'github-copilot/gpt-5.2': 'GPT-5.2',
+  'github-copilot/gpt-5.2-codex': 'GPT-5.2 Codex',
+  'github-copilot/gpt-5.1-codex-max': 'GPT-5.1 Codex Max',
+  'github-copilot/gemini-3-flash-preview': 'Gemini 3 Flash',
+  'github-copilot/claude-haiku-4.5': 'Haiku 4.5',
+  'opencode/big-pickle': 'Big Pickle',
 };
 
 /**

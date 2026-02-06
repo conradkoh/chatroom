@@ -191,17 +191,22 @@ const TOOL_DISPLAY_NAMES: Record<AgentTool, string> = {
 
 /**
  * Available AI models per agent tool.
+ * Models sourced from `opencode models` using provider/model-id format.
  * First model in each array is the default.
  */
 const TOOL_MODELS: Record<AgentTool, string[]> = {
   opencode: [
-    'claude-sonnet-4-20250514',
-    'claude-opus-4-20250514',
-    'o3',
-    'o4-mini',
-    'gemini-2.5-pro',
+    'github-copilot/claude-sonnet-4.5',
+    'github-copilot/claude-opus-4.6',
+    'github-copilot/claude-opus-4.5',
+    'github-copilot/gpt-5.2',
+    'github-copilot/gpt-5.2-codex',
+    'github-copilot/gpt-5.1-codex-max',
+    'github-copilot/gemini-3-flash-preview',
+    'github-copilot/claude-haiku-4.5',
+    'opencode/big-pickle',
   ],
-  claude: ['claude-sonnet-4-20250514', 'claude-opus-4-20250514'],
+  claude: [],
   cursor: [],
 };
 
@@ -209,11 +214,15 @@ const TOOL_MODELS: Record<AgentTool, string[]> = {
  * Short display names for models in the UI.
  */
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  'claude-sonnet-4-20250514': 'Sonnet 4',
-  'claude-opus-4-20250514': 'Opus 4',
-  o3: 'o3',
-  'o4-mini': 'o4-mini',
-  'gemini-2.5-pro': 'Gemini 2.5 Pro',
+  'github-copilot/claude-sonnet-4.5': 'Sonnet 4.5',
+  'github-copilot/claude-opus-4.6': 'Opus 4.6',
+  'github-copilot/claude-opus-4.5': 'Opus 4.5',
+  'github-copilot/gpt-5.2': 'GPT-5.2',
+  'github-copilot/gpt-5.2-codex': 'GPT-5.2 Codex',
+  'github-copilot/gpt-5.1-codex-max': 'GPT-5.1 Codex Max',
+  'github-copilot/gemini-3-flash-preview': 'Gemini 3 Flash',
+  'github-copilot/claude-haiku-4.5': 'Haiku 4.5',
+  'opencode/big-pickle': 'Big Pickle',
 };
 
 // Get status indicator class for the modal
