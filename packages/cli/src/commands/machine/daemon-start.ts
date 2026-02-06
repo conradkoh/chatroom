@@ -4,6 +4,8 @@
  * Start the machine daemon that listens for remote commands.
  */
 
+import { execSync } from 'node:child_process';
+
 import { acquireLock, releaseLock } from './pid.js';
 import { spawnAgent } from './spawn.js';
 import { api, type Id } from '../../api.js';
@@ -29,6 +31,61 @@ interface MachineCommand {
     model?: string;
   };
   createdAt: number;
+}
+
+/**
+ * Format timestamp for daemon log output.
+ */
+function formatTimestamp(): string {
+  return new Date().toISOString().replace('T', ' ').substring(0, 19);
+}
+
+/**
+ * Verify that a PID belongs to an expected process.
+ * Returns true if the process exists and appears to match the expected tool.
+ * Returns false if the PID doesn't exist or belongs to a different process.
+ */
+function verifyPidOwnership(pid: number, expectedTool?: string): boolean {
+  try {
+    // First check if process exists
+    process.kill(pid, 0);
+  } catch {
+    // Process doesn't exist
+    return false;
+  }
+
+  if (!expectedTool) {
+    // No tool to verify against, just confirm process exists
+    return true;
+  }
+
+  // Try to get process info to verify it's the expected tool
+  try {
+    const platform = process.platform;
+    let processName = '';
+
+    if (platform === 'darwin' || platform === 'linux') {
+      processName = execSync(`ps -p ${pid} -o comm= 2>/dev/null`, {
+        encoding: 'utf-8',
+        timeout: 3000,
+      }).trim();
+    }
+
+    if (!processName) {
+      // Can't determine process name, assume it's valid
+      return true;
+    }
+
+    // Check if the process name contains the expected tool name
+    const toolLower = expectedTool.toLowerCase();
+    const procLower = processName.toLowerCase();
+
+    // Match common patterns: 'opencode', 'claude', 'cursor', 'node' (for Node-based tools)
+    return procLower.includes(toolLower) || procLower.includes('node') || procLower.includes('bun');
+  } catch {
+    // If we can't check, assume the process is valid (safer than killing an unknown process)
+    return true;
+  }
 }
 
 /**
@@ -73,10 +130,17 @@ export async function daemonStart(): Promise<void> {
 
   const client = await getConvexClient();
 
+  // SessionId is validated above as non-null. We use a typed reference
+  // to avoid repeated `as any` casts throughout the daemon.
+  // The Convex SessionIdArg expects a specific branded type, but our
+  // sessionId is a plain string from local storage. This single cast
+  // is the boundary between our storage format and Convex's type system.
+  const typedSessionId = sessionId as any;
+
   // Update daemon status to connected
   try {
     await client.mutation(api.machines.updateDaemonStatus, {
-      sessionId: sessionId as any,
+      sessionId: typedSessionId,
       machineId,
       connected: true,
     });
@@ -87,9 +151,8 @@ export async function daemonStart(): Promise<void> {
   }
 
   const config = loadMachineConfig();
-  const startTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
-  console.log(`[${startTime}] 🚀 Daemon started`);
+  console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
   console.log(`   Machine ID: ${machineId}`);
   console.log(`   Hostname: ${config?.hostname ?? 'Unknown'}`);
   console.log(`   Available tools: ${config?.availableTools.join(', ') || 'none'}`);
@@ -99,13 +162,12 @@ export async function daemonStart(): Promise<void> {
 
   // Set up graceful shutdown
   const shutdown = async () => {
-    const shutdownTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    console.log(`\n[${shutdownTime}] Shutting down...`);
+    console.log(`\n[${formatTimestamp()}] Shutting down...`);
 
     try {
       // Update daemon status to disconnected
       await client.mutation(api.machines.updateDaemonStatus, {
-        sessionId: sessionId as any,
+        sessionId: typedSessionId,
         machineId,
         connected: false,
       });
@@ -128,7 +190,7 @@ export async function daemonStart(): Promise<void> {
   wsClient.onUpdate(
     api.machines.getPendingCommands,
     {
-      sessionId: sessionId as any,
+      sessionId: typedSessionId,
       machineId,
     },
     async (result: { commands: MachineCommand[] }) => {
@@ -138,11 +200,15 @@ export async function daemonStart(): Promise<void> {
 
       processingCommand = true;
 
-      for (const command of result.commands) {
-        await processCommand(client, sessionId, command);
+      try {
+        for (const command of result.commands) {
+          await processCommand(client, typedSessionId, machineId, command);
+        }
+      } finally {
+        // IMPORTANT: Always reset the flag, even if processCommand throws.
+        // Without this, an unhandled error would permanently stop command processing.
+        processingCommand = false;
       }
-
-      processingCommand = false;
     }
   );
 
@@ -155,16 +221,16 @@ export async function daemonStart(): Promise<void> {
  */
 async function processCommand(
   client: Awaited<ReturnType<typeof getConvexClient>>,
-  sessionId: string,
+  sessionId: any,
+  machineId: string,
   command: MachineCommand
 ): Promise<void> {
-  const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
-  console.log(`[${timestamp}] 📨 Command received: ${command.type}`);
+  console.log(`[${formatTimestamp()}] 📨 Command received: ${command.type}`);
 
   try {
     // Mark as processing
     await client.mutation(api.machines.ackCommand, {
-      sessionId: sessionId as any,
+      sessionId,
       commandId: command._id,
       status: 'processing',
     });
@@ -249,8 +315,8 @@ async function processCommand(
           if (spawnResult.pid) {
             try {
               await client.mutation(api.machines.updateSpawnedAgent, {
-                sessionId: sessionId as any,
-                machineId: getMachineId()!,
+                sessionId,
+                machineId,
                 chatroomId: command.payload.chatroomId,
                 role: command.payload.role,
                 pid: spawnResult.pid,
@@ -286,23 +352,22 @@ async function processCommand(
           break;
         }
 
-        // We need to get the PID from the backend since we store it there
-        // For now, we'll use a workaround - the PID will be passed in the payload from the backend
-        // Actually, let's query the backend for the current PID
+        // Query the backend for the current PID
         const configsResult = (await client.query(api.machines.getAgentConfigs, {
-          sessionId: sessionId as any,
+          sessionId,
           chatroomId: command.payload.chatroomId,
         })) as {
           configs: {
             machineId: string;
             role: string;
+            agentType?: string;
             spawnedAgentPid?: number;
           }[];
         };
 
         const targetConfig = configsResult.configs.find(
           (c) =>
-            c.machineId === getMachineId() &&
+            c.machineId === machineId &&
             c.role.toLowerCase() === command.payload.role!.toLowerCase()
         );
 
@@ -314,6 +379,24 @@ async function processCommand(
         const pidToKill = targetConfig.spawnedAgentPid;
         console.log(`   Stopping agent with PID: ${pidToKill}`);
 
+        // Verify the PID still belongs to the expected agent process
+        // to prevent killing an unrelated process after PID recycling
+        if (!verifyPidOwnership(pidToKill, targetConfig.agentType)) {
+          console.log(`   ⚠️  PID ${pidToKill} does not appear to belong to the expected agent`);
+          result = `PID ${pidToKill} appears stale (process not found or belongs to different program)`;
+
+          // Clear the stale PID in backend
+          await client.mutation(api.machines.updateSpawnedAgent, {
+            sessionId,
+            machineId,
+            chatroomId: command.payload.chatroomId,
+            role: command.payload.role,
+            pid: undefined,
+          });
+          console.log(`   Cleared stale PID in backend`);
+          break;
+        }
+
         try {
           // Send SIGTERM to gracefully stop the process
           process.kill(pidToKill, 'SIGTERM');
@@ -322,8 +405,8 @@ async function processCommand(
 
           // Clear the PID in backend
           await client.mutation(api.machines.updateSpawnedAgent, {
-            sessionId: sessionId as any,
-            machineId: getMachineId()!,
+            sessionId,
+            machineId,
             chatroomId: command.payload.chatroomId,
             role: command.payload.role,
             pid: undefined, // Clear PID
@@ -335,8 +418,8 @@ async function processCommand(
             result = 'Process not found (may have already exited)';
             // Clear the stale PID
             await client.mutation(api.machines.updateSpawnedAgent, {
-              sessionId: sessionId as any,
-              machineId: getMachineId()!,
+              sessionId,
+              machineId,
               chatroomId: command.payload.chatroomId,
               role: command.payload.role,
               pid: undefined,
@@ -355,7 +438,7 @@ async function processCommand(
 
     // Mark as completed
     await client.mutation(api.machines.ackCommand, {
-      sessionId: sessionId as any,
+      sessionId,
       commandId: command._id,
       status: 'completed',
       result,
@@ -368,7 +451,7 @@ async function processCommand(
     // Mark as failed
     try {
       await client.mutation(api.machines.ackCommand, {
-        sessionId: sessionId as any,
+        sessionId,
         commandId: command._id,
         status: 'failed',
         result: (error as Error).message,
