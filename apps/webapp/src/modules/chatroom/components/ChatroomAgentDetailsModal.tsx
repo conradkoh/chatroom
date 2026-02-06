@@ -74,6 +74,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<AgentTool | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [workingDir, setWorkingDir] = useState<string>('');
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +89,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
       setSelectedMachineId(null);
       setSelectedTool(null);
       setSelectedModel(null);
+      setWorkingDir('');
       setIsStarting(false);
       setIsStopping(false);
       setError(null);
@@ -170,6 +172,25 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     return TOOL_MODELS[selectedTool] || [];
   }, [selectedTool]);
 
+  // Check if there's an existing config for the selected machine/role
+  const hasExistingConfig = useMemo(() => {
+    if (!selectedMachineId) return false;
+    return roleConfigs.some((c) => c.machineId === selectedMachineId);
+  }, [selectedMachineId, roleConfigs]);
+
+  // Need working dir input when no existing config exists
+  const needsWorkingDir = !hasExistingConfig;
+
+  // Pre-populate workingDir from existing config
+  useEffect(() => {
+    if (selectedMachineId && roleConfigs.length > 0) {
+      const config = roleConfigs.find((c) => c.machineId === selectedMachineId);
+      if (config?.workingDir) {
+        setWorkingDir(config.workingDir);
+      }
+    }
+  }, [selectedMachineId, roleConfigs]);
+
   // Auto-select model when tool changes
   useEffect(() => {
     if (selectedTool) {
@@ -206,11 +227,12 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           model: selectedModel || undefined,
+          agentTool: selectedTool,
+          workingDir: workingDir.trim() || undefined,
         },
       });
 
       setSuccess('Agent start command sent!');
-      // Clear success after a short delay
       setTimeout(() => {
         setSuccess(null);
       }, 2000);
@@ -219,7 +241,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     } finally {
       setIsStarting(false);
     }
-  }, [selectedMachineId, selectedTool, selectedModel, sendCommand, chatroomId, role]);
+  }, [selectedMachineId, selectedTool, selectedModel, workingDir, sendCommand, chatroomId, role]);
 
   // Handle stop agent
   const handleStopAgent = useCallback(async () => {
@@ -282,6 +304,8 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           model: selectedModel || undefined,
+          agentTool: runningAgentConfig.agentType,
+          workingDir: runningAgentConfig.workingDir,
         },
       });
 
@@ -329,6 +353,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     selectedMachineId &&
     selectedTool &&
     (!hasModels || selectedModel) &&
+    (!needsWorkingDir || workingDir.trim()) &&
     !isStarting &&
     !isAgentRunning &&
     !success;
@@ -558,8 +583,23 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
                 </div>
               )}
 
-              {/* Spacer */}
-              <div className="flex-1" />
+              {/* Working Directory - shown when no existing config */}
+              {needsWorkingDir && selectedTool && (
+                <div className="flex-1 min-w-0">
+                  <input
+                    type="text"
+                    value={workingDir}
+                    onChange={(e) => setWorkingDir(e.target.value)}
+                    placeholder="/path/to/project"
+                    disabled={isBusy || isAgentRunning}
+                    className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 placeholder:text-chatroom-text-muted/50 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Working directory for agent (absolute path on remote machine)"
+                  />
+                </div>
+              )}
+
+              {/* Spacer - only when working dir input is not shown */}
+              {!(needsWorkingDir && selectedTool) && <div className="flex-1" />}
 
               {/* Action Buttons */}
               <div className="flex items-center gap-1 flex-shrink-0">

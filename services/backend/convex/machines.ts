@@ -370,6 +370,9 @@ export const updateDaemonStatus = mutation({
 /**
  * Send a command to a machine (from web UI).
  * Only the machine owner can send commands.
+ *
+ * For start-agent commands: if no agent config exists for this chatroom/role/machine,
+ * the payload must include agentTool and workingDir to create one on-the-fly.
  */
 export const sendCommand = mutation({
   args: {
@@ -386,6 +389,9 @@ export const sendCommand = mutation({
         chatroomId: v.optional(v.id('chatroom_rooms')),
         role: v.optional(v.string()),
         model: v.optional(v.string()),
+        // For first-time starts when no agent config exists:
+        agentTool: v.optional(agentToolValidator),
+        workingDir: v.optional(v.string()),
       })
     ),
   },
@@ -393,7 +399,7 @@ export const sendCommand = mutation({
     const user = await getAuthenticatedUser(ctx, args.sessionId);
     const machine = await getOwnedMachine(ctx, args.machineId, user._id);
 
-    // For start-agent commands, get the agent config to determine tool
+    // For start-agent commands, resolve the agent tool from config or payload
     let agentTool: 'opencode' | 'claude' | 'cursor' | undefined;
 
     if (args.type === 'start-agent' && args.payload?.chatroomId && args.payload?.role) {
@@ -408,13 +414,37 @@ export const sendCommand = mutation({
         .first();
 
       if (config) {
-        agentTool = config.agentType;
+        // Use existing config's agent type (payload agentTool overrides if provided)
+        agentTool = (args.payload.agentTool ?? config.agentType) as typeof agentTool;
+
+        // Update config if payload provides new values
+        const updates: Record<string, unknown> = { updatedAt: Date.now() };
+        if (args.payload.agentTool) updates.agentType = args.payload.agentTool;
+        if (args.payload.workingDir) updates.workingDir = args.payload.workingDir;
+        if (args.payload.model !== undefined) updates.model = args.payload.model;
+        if (Object.keys(updates).length > 1) {
+          await ctx.db.patch('chatroom_machineAgentConfigs', config._id, updates);
+        }
+      } else if (args.payload.agentTool && args.payload.workingDir) {
+        // No existing config — create one on-the-fly from payload
+        agentTool = args.payload.agentTool;
+        await ctx.db.insert('chatroom_machineAgentConfigs', {
+          machineId: args.machineId,
+          chatroomId: args.payload.chatroomId,
+          role: args.payload.role,
+          agentType: args.payload.agentTool,
+          workingDir: args.payload.workingDir,
+          model: args.payload.model,
+          updatedAt: Date.now(),
+        });
       } else {
-        throw new Error('No agent config found for this chatroom/role on this machine');
+        throw new Error(
+          'No agent config found. Provide agentTool and workingDir to start an agent for the first time.'
+        );
       }
 
       // Verify the tool is available on the machine
-      if (!machine.availableTools.includes(agentTool)) {
+      if (!machine.availableTools.includes(agentTool!)) {
         throw new Error(`Agent tool '${agentTool}' is not available on this machine`);
       }
     }

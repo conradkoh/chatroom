@@ -194,7 +194,13 @@ interface InlineAgentCardProps {
   sendCommand: (args: {
     machineId: string;
     type: string;
-    payload: { chatroomId: Id<'chatroom_rooms'>; role: string; model?: string };
+    payload: {
+      chatroomId: Id<'chatroom_rooms'>;
+      role: string;
+      model?: string;
+      agentTool?: AgentTool;
+      workingDir?: string;
+    };
   }) => Promise<unknown>;
   onViewPrompt?: (role: string) => void;
   /** Saved preferences for default selections */
@@ -225,6 +231,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<AgentTool | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [workingDir, setWorkingDir] = useState<string>('');
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -335,13 +342,33 @@ const InlineAgentCard = memo(function InlineAgentCard({
     }
   }, [selectedTool, roleConfigs, selectedMachineId, preferences, role]);
 
+  // Check if there's an existing config for the selected machine (meaning agent was started before)
+  const hasExistingConfig = useMemo(() => {
+    if (!selectedMachineId) return false;
+    return roleConfigs.some((c) => c.machineId === selectedMachineId);
+  }, [selectedMachineId, roleConfigs]);
+
+  // Pre-populate workingDir from existing config when switching machines
+  useEffect(() => {
+    if (selectedMachineId) {
+      const existingConfig = roleConfigs.find((c) => c.machineId === selectedMachineId);
+      if (existingConfig?.workingDir) {
+        setWorkingDir(existingConfig.workingDir);
+      } else {
+        setWorkingDir('');
+      }
+    }
+  }, [selectedMachineId, roleConfigs]);
+
   const isAgentRunning = !!runningAgentConfig;
   const isBusy = isStarting || isStopping;
   const hasModels = availableModelsForTool.length > 0;
+  const needsWorkingDir = !hasExistingConfig && !isAgentRunning;
   const canStart =
     selectedMachineId &&
     selectedTool &&
     (!hasModels || selectedModel) &&
+    (!needsWorkingDir || workingDir.trim()) &&
     !isStarting &&
     !isAgentRunning &&
     !success;
@@ -361,6 +388,8 @@ const InlineAgentCard = memo(function InlineAgentCard({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           model: selectedModel || undefined,
+          agentTool: selectedTool,
+          workingDir: workingDir.trim() || undefined,
         },
       });
       // Save preferences for next time
@@ -376,6 +405,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
     selectedMachineId,
     selectedTool,
     selectedModel,
+    workingDir,
     sendCommand,
     chatroomId,
     role,
@@ -630,6 +660,26 @@ const InlineAgentCard = memo(function InlineAgentCard({
                       size={10}
                       className="absolute right-1.5 top-1/2 -translate-y-1/2 text-chatroom-text-muted pointer-events-none"
                     />
+                  </div>
+                )}
+
+                {/* Working Directory - shown when no existing config */}
+                {needsWorkingDir && selectedTool && (
+                  <div className="w-full mt-1.5">
+                    <input
+                      type="text"
+                      value={workingDir}
+                      onChange={(e) => setWorkingDir(e.target.value)}
+                      placeholder="/path/to/project"
+                      disabled={isBusy || isAgentRunning}
+                      className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 placeholder:text-chatroom-text-muted/50 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Working directory for agent (absolute path on remote machine)"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                    <div className="text-[9px] text-chatroom-text-muted mt-0.5">
+                      Working directory on the remote machine
+                    </div>
                   </div>
                 )}
 
