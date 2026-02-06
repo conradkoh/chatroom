@@ -240,6 +240,7 @@ async function processCommand(
     });
 
     let result: string;
+    let commandFailed = false;
 
     switch (command.type) {
       case 'ping':
@@ -270,6 +271,7 @@ async function processCommand(
         // Validate payload
         if (!command.payload.chatroomId || !command.payload.role || !command.payload.agentTool) {
           result = 'Missing required payload: chatroomId, role, or agentTool';
+          commandFailed = true;
           console.log(`   ⚠️  ${result}`);
           break;
         }
@@ -294,6 +296,7 @@ async function processCommand(
 
         if (!agentContext) {
           result = `No agent context found for ${command.payload.chatroomId}/${command.payload.role}`;
+          commandFailed = true;
           console.log(`   ⚠️  ${result}`);
           break;
         }
@@ -307,11 +310,13 @@ async function processCommand(
           const dirStat = await stat(agentContext.workingDir);
           if (!dirStat.isDirectory()) {
             result = `Working directory is not a directory: ${agentContext.workingDir}`;
+            commandFailed = true;
             console.log(`   ⚠️  ${result}`);
             break;
           }
         } catch {
           result = `Working directory does not exist: ${agentContext.workingDir}`;
+          commandFailed = true;
           console.log(`   ⚠️  ${result}`);
           break;
         }
@@ -327,6 +332,7 @@ async function processCommand(
 
         if (!initPromptResult?.prompt) {
           result = 'Failed to fetch init prompt from backend';
+          commandFailed = true;
           console.log(`   ⚠️  ${result}`);
           break;
         }
@@ -344,6 +350,7 @@ async function processCommand(
           driver = registry.get(command.payload.agentTool);
         } catch {
           result = `No driver registered for tool: ${command.payload.agentTool}`;
+          commandFailed = true;
           console.log(`   ⚠️  ${result}`);
           break;
         }
@@ -377,6 +384,7 @@ async function processCommand(
           }
         } else {
           result = startResult.message;
+          commandFailed = true;
           console.log(`   ⚠️  ${result}`);
         }
         break;
@@ -390,6 +398,7 @@ async function processCommand(
         // Validate payload
         if (!command.payload.chatroomId || !command.payload.role) {
           result = 'Missing required payload: chatroomId or role';
+          commandFailed = true;
           console.log(`   ⚠️  ${result}`);
           break;
         }
@@ -415,6 +424,7 @@ async function processCommand(
 
         if (!targetConfig?.spawnedAgentPid) {
           result = 'No running agent found (no PID recorded)';
+          commandFailed = true;
           console.log(`   ⚠️  ${result}`);
           break;
         }
@@ -448,6 +458,7 @@ async function processCommand(
         if (!isAlive) {
           console.log(`   ⚠️  PID ${pidToKill} does not appear to belong to the expected agent`);
           result = `PID ${pidToKill} appears stale (process not found or belongs to different program)`;
+          commandFailed = true;
 
           // Clear the stale PID in backend
           await client.mutation(api.machines.updateSpawnedAgent, {
@@ -485,6 +496,7 @@ async function processCommand(
           const err = e as NodeJS.ErrnoException;
           if (err.code === 'ESRCH') {
             result = 'Process not found (may have already exited)';
+            commandFailed = true;
             // Clear the stale PID
             await client.mutation(api.machines.updateSpawnedAgent, {
               sessionId,
@@ -495,6 +507,7 @@ async function processCommand(
             });
           } else {
             result = `Failed to stop agent: ${err.message}`;
+            commandFailed = true;
           }
           console.log(`   ⚠️  ${result}`);
         }
@@ -505,15 +518,20 @@ async function processCommand(
         result = `Unknown command type: ${command.type}`;
     }
 
-    // Mark as completed
+    // Mark as completed or failed based on whether an error occurred
+    const finalStatus = commandFailed ? 'failed' : 'completed';
     await client.mutation(api.machines.ackCommand, {
       sessionId,
       commandId: command._id,
-      status: 'completed',
+      status: finalStatus,
       result,
     });
 
-    console.log(`   ✅ Command completed`);
+    if (commandFailed) {
+      console.log(`   ❌ Command failed: ${result}`);
+    } else {
+      console.log(`   ✅ Command completed`);
+    }
   } catch (error) {
     console.error(`   ❌ Command failed: ${(error as Error).message}`);
 
