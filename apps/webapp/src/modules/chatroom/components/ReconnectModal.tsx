@@ -1,9 +1,10 @@
 'use client';
 
-import { RefreshCw, AlertTriangle, X, Copy, Check, Play } from 'lucide-react';
+import { RefreshCw, AlertTriangle, X, Play } from 'lucide-react';
 import React, { useCallback, memo, useMemo, useState, useEffect } from 'react';
 
 import { ChatroomAgentDetailsModal } from './ChatroomAgentDetailsModal';
+import { CopyButton } from './CopyButton';
 
 import { usePrompts } from '@/contexts/PromptsContext';
 
@@ -13,42 +14,6 @@ interface ReconnectModalProps {
   chatroomId: string;
   expiredRoles: string[];
   onViewPrompt?: (role: string) => void;
-}
-
-/**
- * Copy button component styled for chatroom theme
- */
-function CopyPromptButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  }, [text]);
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="flex items-center gap-2 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent text-[10px] font-bold uppercase tracking-wider transition-all hover:opacity-90"
-    >
-      {copied ? (
-        <>
-          <Check size={12} />
-          Copied!
-        </>
-      ) : (
-        <>
-          <Copy size={12} />
-          Copy Prompt
-        </>
-      )}
-    </button>
-  );
 }
 
 export const ReconnectModal = memo(function ReconnectModal({
@@ -197,7 +162,7 @@ export const ReconnectModal = memo(function ReconnectModal({
 
                   {/* Copy Button */}
                   <div className="flex justify-end">
-                    <CopyPromptButton text={prompt} />
+                    <CopyButton text={prompt} label="Copy Prompt" />
                   </div>
                 </div>
               </div>

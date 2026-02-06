@@ -10,8 +10,6 @@ import {
   AlertCircle,
   Loader2,
   CheckCircle,
-  Copy,
-  Check,
   RotateCw,
   ChevronDown,
 } from 'lucide-react';
@@ -32,42 +30,6 @@ interface ChatroomAgentDetailsModalProps {
   role: string;
   effectiveStatus: string; // 'active' | 'waiting' | 'disconnected' | 'missing'
   onViewPrompt?: (role: string) => void;
-}
-
-/**
- * Copy button component styled for chatroom theme
- */
-function CopyPromptButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  }, [text]);
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="flex items-center gap-2 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent text-[10px] font-bold uppercase tracking-wider transition-all hover:opacity-90"
-    >
-      {copied ? (
-        <>
-          <Check size={12} />
-          Copied!
-        </>
-      ) : (
-        <>
-          <Copy size={12} />
-          Copy Prompt
-        </>
-      )}
-    </button>
-  );
 }
 
 /**
@@ -473,7 +435,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
               <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
                 Agent Prompt
               </span>
-              <CopyPromptButton text={prompt} />
+              <CopyButton text={prompt} label="Copy Prompt" />
             </div>
             <button
               className="w-full text-left text-xs text-chatroom-text-secondary font-mono whitespace-pre-wrap break-words bg-chatroom-bg-tertiary p-3 max-h-40 overflow-y-auto hover:text-chatroom-text-primary transition-colors"
