@@ -1478,15 +1478,15 @@ export const getTaskLimits = query({
  * Internal mutation to clean up stale agents.
  * Called by cron job every 2 minutes.
  * Detects agents that have exceeded their timeout without disconnecting.
- * Resets them to idle and recovers any orphaned tasks.
+ * Deletes stale participant rows (agents re-join when they reconnect)
+ * and recovers any orphaned tasks from active agents that went stale.
  */
 export const cleanupStaleAgents = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
 
-    // Only query participants that could be stale (active or waiting status)
-    // This avoids scanning idle participants unnecessarily
+    // Query active and waiting participants to check for stale timeouts
     const activeParticipants = await ctx.db
       .query('chatroom_participants')
       .filter((q) => q.eq(q.field('status'), 'active'))
@@ -1507,18 +1507,15 @@ export const cleanupStaleAgents = internalMutation({
       const isStaleWaiting = p.status === 'waiting' && p.readyUntil && now > p.readyUntil;
 
       if (isStaleActive || isStaleWaiting) {
-        // Reset participant to idle
-        await ctx.db.patch('chatroom_participants', p._id, {
-          status: 'idle',
-          readyUntil: undefined,
-          activeUntil: undefined,
-        });
-
-        // If was active, recover their orphaned tasks using shared helper
+        // If was active, recover their orphaned tasks before deleting
         if (isStaleActive) {
           const recovered = await recoverOrphanedTasks(ctx, p.chatroomId, p.role);
           affectedTasks.push(...recovered);
         }
+
+        // Delete the stale participant — when the agent reconnects it will
+        // re-join via join() and register as 'waiting' with fresh timeouts.
+        await ctx.db.delete('chatroom_participants', p._id);
 
         cleanedCount++;
       }

@@ -7,8 +7,8 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 // Types based on backend response from listByUserWithStatus
 export interface Agent {
   role: string;
-  status: 'idle' | 'active' | 'waiting';
-  effectiveStatus: 'idle' | 'active' | 'waiting' | 'disconnected';
+  status: 'active' | 'waiting';
+  effectiveStatus: 'active' | 'waiting' | 'disconnected';
   isExpired: boolean;
   readyUntil?: number;
 }

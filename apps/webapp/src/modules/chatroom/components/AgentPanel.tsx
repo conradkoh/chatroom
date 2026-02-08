@@ -63,11 +63,6 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }>
     text: 'text-chatroom-status-success',
     label: 'READY',
   },
-  idle: {
-    bg: 'bg-chatroom-text-muted',
-    text: 'text-chatroom-text-muted',
-    label: 'IDLE',
-  },
   disconnected: {
     bg: 'bg-chatroom-status-error',
     text: 'text-chatroom-status-error',
@@ -586,16 +581,7 @@ export const AgentPanel = memo(function AgentPanel({
   const renderAgentRow = (role: string) => {
     const { status: effectiveStatus } = getEffectiveStatus(role, participantMap, expiredRolesSet);
 
-    const statusLabel =
-      effectiveStatus === 'missing'
-        ? 'NOT JOINED'
-        : effectiveStatus === 'disconnected'
-          ? 'DISCONNECTED'
-          : effectiveStatus === 'waiting'
-            ? 'READY'
-            : effectiveStatus === 'active'
-              ? 'WORKING'
-              : 'IDLE';
+    const statusLabel = getStatusConfig(effectiveStatus).label;
 
     const isActive = effectiveStatus === 'active';
     const isDisconnectedAgent = effectiveStatus === 'disconnected';

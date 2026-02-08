@@ -469,12 +469,12 @@ async function _handoffHandler(
   }
 
   // Step 6: Promote next queued task only if ALL agents are ready (not active)
-  // This ensures queued tasks are only promoted when the team is idle
+  // This ensures queued tasks are only promoted when the team is ready
   let promotedTaskId: Id<'chatroom_tasks'> | null = null;
 
   // Check if we're handing off to a specific agent (not the queue)
   // Handoffs to specific agents don't trigger queue promotion - the target agent gets a dedicated task
-  // Queue promotion only happens when all agents become idle
+  // Queue promotion only happens when all agents become ready (waiting)
   if (isHandoffToUser) {
     // When handing off to user, check if all agents are ready for queue promotion
     const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);

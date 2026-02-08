@@ -373,7 +373,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
           ? 'READY'
           : effectiveStatus === 'active'
             ? 'WORKING'
-            : 'IDLE';
+            : 'OFFLINE';
 
   const indicatorColor =
     effectiveStatus === 'active'

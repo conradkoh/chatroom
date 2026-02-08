@@ -146,8 +146,6 @@ export const listByUserWithStatus = query({
             // Waiting agents expire based on readyUntil
             isExpired = p.readyUntil ? p.readyUntil < now : false;
           }
-          // Idle agents don't have timeouts
-
           // Effective status: if expired, treat as 'disconnected'
           const effectiveStatus = isExpired ? ('disconnected' as const) : p.status;
           return {
@@ -267,14 +265,16 @@ export const interrupt = mutation({
     // Update chatroom status
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { status: 'interrupted' });
 
-    // Reset all participants to idle
+    // Delete all participants — agents must re-join after an interrupt.
+    // This avoids a liveness-ambiguous state; when agents loop back to
+    // wait-for-task they will call join() and re-register as 'waiting'.
     const participants = await ctx.db
       .query('chatroom_participants')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
     for (const participant of participants) {
-      await ctx.db.patch('chatroom_participants', participant._id, { status: 'idle' });
+      await ctx.db.delete('chatroom_participants', participant._id);
     }
 
     // Send interrupt message
