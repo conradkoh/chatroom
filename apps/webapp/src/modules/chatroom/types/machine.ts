@@ -2,7 +2,7 @@
  * Machine and Agent Types & Constants
  *
  * Shared types and constants for machine identity and agent management.
- * Used by AgentPanel.tsx and ChatroomAgentDetailsModal.tsx.
+ * Used by AgentPanel.tsx and AgentConfigTabs.tsx.
  *
  * These mirror the canonical definitions in packages/cli/src/infrastructure/machine/types.ts
  * but are maintained separately since the CLI is a Node package and can't be imported

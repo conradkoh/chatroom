@@ -1,9 +1,8 @@
 'use client';
 
 import { RefreshCw, AlertTriangle, X, Play } from 'lucide-react';
-import React, { useCallback, memo, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, memo, useMemo, useEffect } from 'react';
 
-import { ChatroomAgentDetailsModal } from './ChatroomAgentDetailsModal';
 import { CopyButton } from './CopyButton';
 
 import { usePrompts } from '@/contexts/PromptsContext';
@@ -14,6 +13,8 @@ interface ReconnectModalProps {
   chatroomId: string;
   expiredRoles: string[];
   onViewPrompt?: (role: string) => void;
+  /** Called when user clicks "Start Agent Remotely" — opens the unified agents panel */
+  onStartAgent?: () => void;
 }
 
 export const ReconnectModal = memo(function ReconnectModal({
@@ -22,11 +23,10 @@ export const ReconnectModal = memo(function ReconnectModal({
   chatroomId,
   expiredRoles,
   onViewPrompt,
+  onStartAgent,
 }: ReconnectModalProps) {
   const { getAgentPrompt } = usePrompts();
-
-  // Start agent modal state
-  const [startAgentRole, setStartAgentRole] = useState<string | null>(null);
+  void chatroomId; // Kept for API compatibility
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -135,9 +135,12 @@ export const ReconnectModal = memo(function ReconnectModal({
 
                 {/* Card Content */}
                 <div className="p-3 space-y-3">
-                  {/* Start Agent Button */}
+                  {/* Start Agent Button - opens unified agents panel */}
                   <button
-                    onClick={() => setStartAgentRole(role)}
+                    onClick={() => {
+                      onClose();
+                      onStartAgent?.();
+                    }}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-chatroom-status-info text-white text-xs font-bold uppercase tracking-wider hover:bg-chatroom-status-info/90 transition-colors"
                   >
                     <Play size={14} />
@@ -190,18 +193,6 @@ export const ReconnectModal = memo(function ReconnectModal({
           </div>
         </div>
       </div>
-
-      {/* Agent Details Modal */}
-      {startAgentRole && (
-        <ChatroomAgentDetailsModal
-          isOpen={true}
-          onClose={() => setStartAgentRole(null)}
-          chatroomId={chatroomId}
-          role={startAgentRole}
-          effectiveStatus="disconnected"
-          onViewPrompt={onViewPrompt}
-        />
-      )}
     </div>
   );
 });

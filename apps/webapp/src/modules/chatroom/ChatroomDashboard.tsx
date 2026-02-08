@@ -225,6 +225,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Reconnect modal state
   const [reconnectModalOpen, setReconnectModalOpen] = useState(false);
 
+  // Agent list modal trigger (used when ReconnectModal's "Start Agent Remotely" is clicked)
+  const [agentListRequested, setAgentListRequested] = useState(false);
+
   // Sidebar visibility state - hidden by default on small screens
   const isSmallScreen = useIsSmallScreen();
   const [sidebarVisible, setSidebarVisible] = useState(!isSmallScreen);
@@ -378,6 +381,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   const handleCloseReconnect = useCallback(() => {
     setReconnectModalOpen(false);
+  }, []);
+
+  // Open the unified agents panel (triggered from ReconnectModal)
+  const handleOpenAgentList = useCallback(() => {
+    setAgentListRequested(true);
+  }, []);
+
+  const handleAgentListOpened = useCallback(() => {
+    setAgentListRequested(false);
   }, []);
 
   // Mark complete handler
@@ -631,6 +643,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                     readiness={readiness}
                     onViewPrompt={handleViewPrompt}
                     onReconnect={handleOpenReconnect}
+                    openAgentListRequested={agentListRequested}
+                    onAgentListOpened={handleAgentListOpened}
                   />
                   <TaskQueue chatroomId={chatroomId} />
                   <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
@@ -658,6 +672,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             chatroomId={chatroomId}
             expiredRoles={readiness?.expiredRoles || []}
             onViewPrompt={handleViewPrompt}
+            onStartAgent={handleOpenAgentList}
           />
         </>
       </PromptsProvider>

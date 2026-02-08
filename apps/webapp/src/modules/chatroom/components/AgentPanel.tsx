@@ -17,7 +17,6 @@ import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
-import { ChatroomAgentDetailsModal } from './ChatroomAgentDetailsModal';
 import { CopyButton } from './CopyButton';
 import type { AgentHarness, MachineInfo, AgentConfig } from '../types/machine';
 
@@ -47,6 +46,10 @@ interface AgentPanelProps {
   readiness: TeamReadiness | null | undefined;
   onViewPrompt?: (role: string) => void;
   onReconnect?: () => void;
+  /** When true, the unified agent list modal opens automatically. Reset to false by the component. */
+  openAgentListRequested?: boolean;
+  /** Called when the component has consumed the openAgentListRequested flag */
+  onAgentListOpened?: () => void;
 }
 
 // Status indicator colors - now includes disconnected state
@@ -460,10 +463,18 @@ export const AgentPanel = memo(function AgentPanel({
   readiness,
   onViewPrompt,
   onReconnect,
+  openAgentListRequested,
+  onAgentListOpened,
 }: AgentPanelProps) {
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
-  const [selectedAgentStatus, setSelectedAgentStatus] = useState<string | null>(null);
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
+
+  // Allow parent to request opening the agent list modal
+  useEffect(() => {
+    if (openAgentListRequested) {
+      setIsAgentListModalOpen(true);
+      onAgentListOpened?.();
+    }
+  }, [openAgentListRequested, onAgentListOpened]);
   const { getAgentPrompt } = usePrompts();
 
   // Build participant map from readiness data
@@ -531,22 +542,6 @@ export const AgentPanel = memo(function AgentPanel({
     setIsAgentListModalOpen(false);
   }, []);
 
-  // Open agent modal directly (for individual agent rows in sidebar)
-  const openAgentModal = useCallback(
-    (role: string) => {
-      const { status } = getEffectiveStatus(role, participantMap, expiredRolesSet);
-      setSelectedAgent(role);
-      setSelectedAgentStatus(status);
-    },
-    [participantMap, expiredRolesSet]
-  );
-
-  // Close agent modal
-  const closeAgentModal = useCallback(() => {
-    setSelectedAgent(null);
-    setSelectedAgentStatus(null);
-  }, []);
-
   // Compute team status
   const hasExpiredRoles = readiness?.expiredRoles && readiness.expiredRoles.length > 0;
   const isDisconnected = !readiness?.isReady && hasExpiredRoles;
@@ -592,12 +587,12 @@ export const AgentPanel = memo(function AgentPanel({
           className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isActive ? 'bg-chatroom-status-info/5' : ''} ${isDisconnectedAgent ? 'bg-chatroom-status-error/5' : ''}`}
           role="button"
           tabIndex={0}
-          aria-label={`${role}: ${statusLabel}. Click to view details.`}
-          onClick={() => openAgentModal(role)}
+          aria-label={`${role}: ${statusLabel}. Click to view all agents.`}
+          onClick={openAgentListModal}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              openAgentModal(role);
+              openAgentListModal();
             }
           }}
         >
@@ -735,18 +730,6 @@ export const AgentPanel = memo(function AgentPanel({
         chatroomId={chatroomId}
         onViewPrompt={onViewPrompt}
       />
-
-      {/* Agent Details Modal - for direct agent row clicks in sidebar */}
-      {selectedAgent && selectedAgentStatus && (
-        <ChatroomAgentDetailsModal
-          isOpen={true}
-          onClose={closeAgentModal}
-          chatroomId={chatroomId}
-          role={selectedAgent}
-          effectiveStatus={selectedAgentStatus}
-          onViewPrompt={onViewPrompt}
-        />
-      )}
     </div>
   );
 });
