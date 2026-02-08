@@ -158,7 +158,7 @@ export const register = mutation({
         throw new Error('Machine is registered to a different user');
       }
 
-      // Update existing machine (migrate deprecated fields)
+      // Update existing machine
       await ctx.db.patch('chatroom_machines', existing._id, {
         hostname: args.hostname,
         os: args.os,
@@ -166,9 +166,6 @@ export const register = mutation({
         harnessVersions: args.harnessVersions,
         availableModels: args.availableModels,
         lastSeenAt: now,
-        // Clear deprecated fields on update
-        availableTools: undefined,
-        toolVersions: undefined,
       });
 
       return { machineId: args.machineId, isNew: false };
@@ -291,9 +288,8 @@ export const listMachines = query({
         machineId: m.machineId,
         hostname: m.hostname,
         os: m.os,
-        // Read from new field, fall back to deprecated field for migration
-        availableHarnesses: m.availableHarnesses ?? m.availableTools ?? [],
-        harnessVersions: m.harnessVersions ?? m.toolVersions ?? {},
+        availableHarnesses: m.availableHarnesses,
+        harnessVersions: m.harnessVersions ?? {},
         availableModels: m.availableModels ?? [],
         daemonConnected: m.daemonConnected,
         lastSeenAt: m.lastSeenAt,
@@ -345,8 +341,7 @@ export const getAgentConfigs = query({
           workingDir: config.workingDir,
           model: config.model,
           daemonConnected: machine?.daemonConnected ?? false,
-          // Read from new field, fall back to deprecated field for migration
-          availableHarnesses: machine?.availableHarnesses ?? machine?.availableTools ?? [],
+          availableHarnesses: machine?.availableHarnesses ?? [],
           updatedAt: config.updatedAt,
           spawnedAgentPid: config.spawnedAgentPid,
           spawnedAt: config.spawnedAt,
@@ -516,9 +511,8 @@ export const sendCommand = mutation({
         );
       }
 
-      // Verify the harness is available on the machine (check new + deprecated field)
-      const machineHarnesses = machine.availableHarnesses ?? machine.availableTools ?? [];
-      if (!machineHarnesses.includes(agentHarness!)) {
+      // Verify the harness is available on the machine
+      if (!machine.availableHarnesses.includes(agentHarness!)) {
         throw new Error(`Agent harness '${agentHarness}' is not available on this machine`);
       }
     }
@@ -677,8 +671,7 @@ export const getAgentPreferences = query({
 
     return {
       machineId: prefs.machineId,
-      // Read from new field, fall back to deprecated field for migration
-      harnessByRole: prefs.harnessByRole ?? prefs.toolByRole,
+      harnessByRole: prefs.harnessByRole,
       modelByRole: prefs.modelByRole,
     };
   },
@@ -717,10 +710,9 @@ export const updateAgentPreferences = mutation({
         updates.machineId = args.machineId;
       }
 
-      // Update harness for specific role (merge from deprecated toolByRole if needed)
+      // Update harness for specific role
       if (args.role && args.harness) {
-        const base = existing.harnessByRole ?? existing.toolByRole ?? {};
-        const harnessByRole = { ...base, [args.role]: args.harness };
+        const harnessByRole = { ...(existing.harnessByRole ?? {}), [args.role]: args.harness };
         updates.harnessByRole = harnessByRole;
       }
 
@@ -729,9 +721,6 @@ export const updateAgentPreferences = mutation({
         const modelByRole = { ...(existing.modelByRole ?? {}), [args.role]: args.model };
         updates.modelByRole = modelByRole;
       }
-
-      // Clear deprecated field on update
-      updates.toolByRole = undefined;
 
       await ctx.db.patch('chatroom_agentPreferences', existing._id, updates);
     } else {
