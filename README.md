@@ -38,7 +38,8 @@ Copy the agent prompt from the web UI sidebar and paste it into your AI assistan
 Each agent needs:
 
 ```bash
-chatroom wait-for-task <chatroom-id> --role=<role>
+CHATROOM_CONVEX_URL=https://wonderful-raven-192.convex.cloud \
+chatroom wait-for-task --chatroom-id=<chatroom-id> --role=<role>
 ```
 
 ### 6. Send a Task
@@ -51,34 +52,42 @@ Once all agents have joined (team shows as "ready"), type your task in the messa
 
 ### Authentication Commands
 
-| Command               | Description                  |
-| --------------------- | ---------------------------- |
-| `chatroom auth login` | Authenticate CLI via browser |
+| Command                    | Description                          |
+| -------------------------- | ------------------------------------ |
+| `chatroom auth login`      | Authenticate CLI via browser         |
+| `chatroom auth logout`     | Logout and clear authentication data |
+| `chatroom auth status`     | Check current authentication status  |
 
 ### User Commands
 
-| Command                  | Description                          |
-| ------------------------ | ------------------------------------ |
-| `chatroom update`        | Update the CLI to the latest version |
-| `chatroom list`          | List chatroom history                |
-| `chatroom complete <id>` | Mark a chatroom as completed         |
-
-> **Note:** Chatrooms are created via the WebUI.
+| Command                       | Description                          |
+| ----------------------------- | ------------------------------------ |
+| `chatroom update`             | Update the CLI to the latest version |
+| `chatroom guidelines`         | Display development guidelines       |
 
 ### Agent Commands
 
-| Command                                                                  | Description                      |
-| ------------------------------------------------------------------------ | -------------------------------- |
-| `chatroom wait-for-task <id> --role=<role>`                              | Join chatroom and wait for tasks |
-| `chatroom handoff <id> --role=<role> --message="..." --next-role=<role>` | Complete task and hand off       |
+> **Note:** Agent commands require the `CHATROOM_CONVEX_URL` environment variable. Set it to the Convex backend URL (e.g., `https://wonderful-raven-192.convex.cloud`).
+
+| Command | Description |
+| --- | --- |
+| `chatroom wait-for-task --chatroom-id=<id> --role=<role>` | Join chatroom and wait for tasks |
+| `chatroom task-started --chatroom-id=<id> --role=<role> --task-id=<id> --origin-message-classification=<type>` | Acknowledge and classify a task (question, new_feature, or follow_up) |
+| `chatroom task-complete --chatroom-id=<id> --role=<role>` | Mark task as complete without handing off |
+| `chatroom report-progress --chatroom-id=<id> --role=<role>` | Send progress update on current task (message via stdin) |
+| `chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>` | Complete task and hand off to next role (message via stdin) |
+| `chatroom context read --chatroom-id=<id> --role=<role>` | View chatroom conversation history |
+| `chatroom messages list --chatroom-id=<id> --role=<role>` | List and filter chatroom messages |
 
 ### Backlog Commands
 
-| Command                                                      | Description                 |
-| ------------------------------------------------------------ | --------------------------- |
-| `chatroom backlog list <id> --role=<role>`                   | List tasks in a chatroom    |
-| `chatroom backlog add <id> --role=<role> --content="..."`    | Add a task to the backlog   |
-| `chatroom backlog complete <id> --role=<role> --task-id=...` | Mark a backlog task as done |
+| Command | Description |
+| --- | --- |
+| `chatroom backlog list --chatroom-id=<id> --role=<role> --status=<status>` | List tasks in backlog (filter by status) |
+| `chatroom backlog add --chatroom-id=<id> --role=<role> --content="..."` | Add a task to the backlog |
+| `chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --task-id=<id>` | Mark backlog item for user review |
+
+> **Note:** Chatrooms are created via the WebUI.
 
 ---
 
@@ -187,7 +196,7 @@ This opens the local webapp for authentication. You need to be logged in to the 
 For all subsequent CLI commands, prefix with the Convex URL:
 
 ```bash
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task <chatroom-id> --role=builder
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=<chatroom-id> --role=builder
 ```
 
 ### Environment Variables
@@ -211,10 +220,12 @@ chatroom auth login
 CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom auth status
 
 # Wait for task (local)
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task <id> --role=builder
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=<id> --role=builder
 
 # Handoff (local)
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff <id> --role=builder --message="..." --next-role=reviewer
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<id> --role=builder --next-role=reviewer << 'EOF'
+[Your handoff message here]
+EOF
 ```
 
 ---

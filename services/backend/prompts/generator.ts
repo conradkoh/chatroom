@@ -352,10 +352,27 @@ export interface InitPromptInput {
 }
 
 /**
- * Generate a complete agent initialization prompt.
- * This is the full prompt shown when an agent first joins the chatroom.
+ * Split init prompt result.
+ * For "machine" mode, rolePrompt is used as the system prompt and
+ * initialMessage as the first user message.
+ * For "manual" mode, they are combined into a single prompt.
  */
-export function generateInitPrompt(input: InitPromptInput): string {
+export interface SplitInitPrompt {
+  /** Role identity, team info, guidance, and commands reference */
+  rolePrompt: string;
+  /** Context-gaining instructions and task-started guidance */
+  initialMessage: string;
+  /** Combined prompt (rolePrompt + initialMessage) for manual mode */
+  combined: string;
+}
+
+/**
+ * Generate a split init prompt with separate role prompt and initial message.
+ *
+ * This enables "machine" mode agents (daemon-controlled) to receive the role
+ * prompt as a system prompt and the initial message as the first user message.
+ */
+export function generateSplitInitPrompt(input: InitPromptInput): SplitInitPrompt {
   const { chatroomId, role, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
   const template = getRoleTemplate(role);
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
@@ -391,29 +408,37 @@ export function generateInitPrompt(input: InitPromptInput): string {
     cliEnvPrefix,
   });
 
-  const sections: string[] = [];
-  sections.push(`# ${teamName} Team`);
-  sections.push(`## Your Role: ${template.title.toUpperCase()}`);
-  sections.push(template.description);
+  // --- Role Prompt sections (identity, guidance, commands) ---
+  const rolePromptSections: string[] = [];
+  rolePromptSections.push(`# ${teamName} Team`);
+  rolePromptSections.push(`## Your Role: ${template.title.toUpperCase()}`);
+  rolePromptSections.push(template.description);
+  rolePromptSections.push(guidance);
+  rolePromptSections.push(getCommandsSection(roleCtx));
 
-  // Add context-gaining guidance for agents joining mid-conversation
-  sections.push(getContextGainingGuidance({ chatroomId, role, convexUrl }));
+  // --- Initial Message sections (context, next steps) ---
+  const initialMessageSections: string[] = [];
+  initialMessageSections.push(getContextGainingGuidance({ chatroomId, role, convexUrl }));
 
-  // Add task-started guidance
   if (isEntryPoint) {
-    // Entry point roles classify user messages
-    sections.push(getTaskStartedPrompt({ chatroomId, role, cliEnvPrefix }));
+    initialMessageSections.push(getTaskStartedPrompt({ chatroomId, role, cliEnvPrefix }));
   } else {
-    // Non-entry point roles just acknowledge handoffs (no classification)
-    sections.push(getTaskStartedPromptForHandoffRecipient({ chatroomId, role, cliEnvPrefix }));
+    initialMessageSections.push(
+      getTaskStartedPromptForHandoffRecipient({ chatroomId, role, cliEnvPrefix })
+    );
   }
 
-  sections.push(guidance);
-  sections.push(getCommandsSection(roleCtx));
-  sections.push(`### Next\n\nRun:\n\n\`\`\`bash\n${waitCmd}\n\`\`\``);
+  initialMessageSections.push(`### Next\n\nRun:\n\n\`\`\`bash\n${waitCmd}\n\`\`\``);
 
-  return sections
+  const rolePrompt = rolePromptSections
     .filter((s) => s.trim())
     .join('\n\n')
     .trim();
+  const initialMessage = initialMessageSections
+    .filter((s) => s.trim())
+    .join('\n\n')
+    .trim();
+  const combined = `${rolePrompt}\n\n${initialMessage}`;
+
+  return { rolePrompt, initialMessage, combined };
 }

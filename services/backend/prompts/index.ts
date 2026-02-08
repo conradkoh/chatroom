@@ -5,9 +5,10 @@ export { getRoleTemplate, type RoleTemplate } from './templates';
 export {
   generateRolePrompt,
   generateTaskStartedReminder,
-  generateInitPrompt,
+  generateSplitInitPrompt,
   type RolePromptContext,
   type InitPromptInput,
+  type SplitInitPrompt,
 } from './generator';
 
 // CLI-specific prompts

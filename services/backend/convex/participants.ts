@@ -108,7 +108,7 @@ export const join = mutation({
     }
 
     // Auto-promote queued tasks when the entry point (primary) role joins
-    // AND all other agents are ready (idle/waiting, not active)
+    // AND all other agents are ready (waiting, not active)
     // This ensures resilience - if a worker reconnects after being stuck, queued items get promoted
     const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
     const normalizedRole = args.role.toLowerCase();
@@ -184,6 +184,7 @@ export const list = query({
 
 /**
  * Update participant status.
+ * Status is either 'active' (working on a task) or 'waiting' (ready for tasks).
  * When transitioning to 'active', sets activeUntil and clears readyUntil.
  * When transitioning to 'waiting', sets readyUntil and clears activeUntil.
  * Requires CLI session authentication and chatroom access.
@@ -193,7 +194,7 @@ export const updateStatus = mutation({
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    status: v.union(v.literal('idle'), v.literal('active'), v.literal('waiting')),
+    status: v.union(v.literal('active'), v.literal('waiting')),
     // Optional: timestamp when the new status expires
     // For 'active': when agent is considered crashed (~1 hour)
     // For 'waiting': when agent is considered disconnected (~10 min)
@@ -216,7 +217,7 @@ export const updateStatus = mutation({
 
     // Build the update based on the target status
     const update: {
-      status: 'idle' | 'active' | 'waiting';
+      status: 'active' | 'waiting';
       readyUntil?: number;
       activeUntil?: number;
     } = { status: args.status };
@@ -225,13 +226,9 @@ export const updateStatus = mutation({
       // Transitioning to active: set activeUntil, clear readyUntil
       update.activeUntil = args.expiresAt;
       update.readyUntil = undefined;
-    } else if (args.status === 'waiting') {
+    } else {
       // Transitioning to waiting: set readyUntil, clear activeUntil
       update.readyUntil = args.expiresAt;
-      update.activeUntil = undefined;
-    } else {
-      // Idle: clear both
-      update.readyUntil = undefined;
       update.activeUntil = undefined;
     }
 

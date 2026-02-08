@@ -183,9 +183,12 @@ nx run-many --target=test --projects=@workspace/webapp,@workspace/backend
 ## Project Structure
 
 ```
-next-convex-starter-app/
-├── apps/webapp/           # Next.js frontend
+chatroom/
+├── apps/webapp/           # Next.js frontend application
+├── packages/cli/          # CLI package (chatroom-cli on npm)
 ├── services/backend/      # Convex backend
 ├── docs/                  # Documentation
+├── guides/                # Guides and tutorials
+├── codemaps/              # Code mapping templates
 └── scripts/               # Utility scripts
 ```
