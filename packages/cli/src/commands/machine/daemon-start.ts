@@ -27,7 +27,70 @@ import {
   updateAgentContext,
 } from '../../infrastructure/machine/index.js';
 
-interface MachineCommand {
+/**
+ * Base fields shared across all machine commands.
+ */
+interface MachineCommandBase {
+  _id: Id<'chatroom_machineCommands'>;
+  createdAt: number;
+}
+
+/**
+ * Start an agent process in a chatroom.
+ * Requires chatroomId, role, and agentTool. Model and workingDir are optional.
+ */
+interface StartAgentCommand extends MachineCommandBase {
+  type: 'start-agent';
+  payload: {
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    agentTool: 'opencode';
+    model?: string;
+    workingDir?: string;
+  };
+}
+
+/**
+ * Stop a running agent process in a chatroom.
+ * Requires chatroomId and role to identify the target agent.
+ */
+interface StopAgentCommand extends MachineCommandBase {
+  type: 'stop-agent';
+  payload: {
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+  };
+}
+
+/**
+ * Ping the daemon to check connectivity.
+ */
+interface PingCommand extends MachineCommandBase {
+  type: 'ping';
+  payload: Record<string, never>;
+}
+
+/**
+ * Query daemon status (hostname, OS, available tools).
+ */
+interface StatusCommand extends MachineCommandBase {
+  type: 'status';
+  payload: Record<string, never>;
+}
+
+/**
+ * Discriminated union of all machine commands.
+ * The `type` field determines which payload shape is available,
+ * enabling TypeScript to narrow types in switch/case branches.
+ */
+type MachineCommand = StartAgentCommand | StopAgentCommand | PingCommand | StatusCommand;
+
+/**
+ * Raw command shape as received from the Convex backend subscription.
+ * All payload fields are optional because Convex uses a single flat schema
+ * for all command types.
+ */
+interface RawMachineCommand {
   _id: Id<'chatroom_machineCommands'>;
   type: 'start-agent' | 'stop-agent' | 'ping' | 'status';
   payload: {
@@ -38,6 +101,54 @@ interface MachineCommand {
     workingDir?: string;
   };
   createdAt: number;
+}
+
+/**
+ * Parse a raw command from Convex into the type-safe discriminated union.
+ * Validates that required fields are present for each command type.
+ * Returns null if the command has invalid/missing payload fields.
+ */
+function parseMachineCommand(raw: RawMachineCommand): MachineCommand | null {
+  switch (raw.type) {
+    case 'ping':
+      return { _id: raw._id, type: 'ping', payload: {}, createdAt: raw.createdAt };
+    case 'status':
+      return { _id: raw._id, type: 'status', payload: {}, createdAt: raw.createdAt };
+    case 'start-agent': {
+      const { chatroomId, role, agentTool } = raw.payload;
+      if (!chatroomId || !role || !agentTool) {
+        console.error(`   ⚠️  Invalid start-agent command: missing chatroomId, role, or agentTool`);
+        return null;
+      }
+      return {
+        _id: raw._id,
+        type: 'start-agent',
+        payload: {
+          chatroomId,
+          role,
+          agentTool,
+          model: raw.payload.model,
+          workingDir: raw.payload.workingDir,
+        },
+        createdAt: raw.createdAt,
+      };
+    }
+    case 'stop-agent': {
+      const { chatroomId, role } = raw.payload;
+      if (!chatroomId || !role) {
+        console.error(`   ⚠️  Invalid stop-agent command: missing chatroomId or role`);
+        return null;
+      }
+      return {
+        _id: raw._id,
+        type: 'stop-agent',
+        payload: { chatroomId, role },
+        createdAt: raw.createdAt,
+      };
+    }
+    default:
+      return null;
+  }
 }
 
 /**
@@ -302,10 +413,16 @@ export async function daemonStart(): Promise<void> {
       sessionId: typedSessionId,
       machineId,
     },
-    async (result: { commands: MachineCommand[] }) => {
+    async (result: { commands: RawMachineCommand[] }) => {
       if (!result.commands || result.commands.length === 0) return;
 
-      enqueueCommands(result.commands);
+      // Parse raw commands into type-safe discriminated unions.
+      // Invalid commands (missing required fields) are filtered out.
+      const parsed = result.commands
+        .map(parseMachineCommand)
+        .filter((c): c is MachineCommand => c !== null);
+
+      enqueueCommands(parsed);
       await drainQueue();
     }
   );
@@ -354,42 +471,30 @@ async function processCommand(
         break;
 
       case 'start-agent': {
+        const { chatroomId, role, agentTool, model, workingDir } = command.payload;
         console.log(`   ↪ start-agent command received`);
-        console.log(`      Chatroom: ${command.payload.chatroomId}`);
-        console.log(`      Role: ${command.payload.role}`);
-        console.log(`      Tool: ${command.payload.agentTool}`);
-        if (command.payload.model) {
-          console.log(`      Model: ${command.payload.model}`);
-        }
-
-        // Validate payload
-        if (!command.payload.chatroomId || !command.payload.role || !command.payload.agentTool) {
-          result = 'Missing required payload: chatroomId, role, or agentTool';
-          commandFailed = true;
-          console.log(`   ⚠️  ${result}`);
-          break;
+        console.log(`      Chatroom: ${chatroomId}`);
+        console.log(`      Role: ${role}`);
+        console.log(`      Tool: ${agentTool}`);
+        if (model) {
+          console.log(`      Model: ${model}`);
         }
 
         // Get agent context for working directory.
         // First try local config, then fall back to workingDir from the command payload
         // (which the backend resolves from chatroom_machineAgentConfigs).
-        let agentContext = getAgentContext(command.payload.chatroomId, command.payload.role);
+        let agentContext = getAgentContext(chatroomId, role);
 
-        if (!agentContext && command.payload.workingDir && command.payload.agentTool) {
+        if (!agentContext && workingDir) {
           // No local context — use the working directory from the command payload
           // and update the local config so future commands don't need this fallback
           console.log(`   No local agent context, using workingDir from command payload`);
-          updateAgentContext(
-            command.payload.chatroomId,
-            command.payload.role,
-            command.payload.agentTool,
-            command.payload.workingDir
-          );
-          agentContext = getAgentContext(command.payload.chatroomId, command.payload.role);
+          updateAgentContext(chatroomId, role, agentTool, workingDir);
+          agentContext = getAgentContext(chatroomId, role);
         }
 
         if (!agentContext) {
-          result = `No agent context found for ${command.payload.chatroomId}/${command.payload.role}`;
+          result = `No agent context found for ${chatroomId}/${role}`;
           commandFailed = true;
           console.log(`   ⚠️  ${result}`);
           break;
@@ -419,8 +524,8 @@ async function processCommand(
         const convexUrl = getConvexUrl();
         const initPromptResult = (await client.query(api.messages.getInitPrompt, {
           sessionId,
-          chatroomId: command.payload.chatroomId,
-          role: command.payload.role,
+          chatroomId,
+          role,
           convexUrl,
         })) as { prompt: string; rolePrompt: string; initialMessage: string } | null;
 
@@ -435,15 +540,15 @@ async function processCommand(
 
         // Get tool version for version-specific spawn logic
         const machineConfig = loadMachineConfig();
-        const toolVersion = machineConfig?.toolVersions?.[command.payload.agentTool];
+        const toolVersion = machineConfig?.toolVersions?.[agentTool];
 
         // Resolve driver from registry and start the agent
         const registry = getDriverRegistry();
         let driver;
         try {
-          driver = registry.get(command.payload.agentTool);
+          driver = registry.get(agentTool);
         } catch {
-          result = `No driver registered for tool: ${command.payload.agentTool}`;
+          result = `No driver registered for tool: ${agentTool}`;
           commandFailed = true;
           console.log(`   ⚠️  ${result}`);
           break;
@@ -454,7 +559,7 @@ async function processCommand(
           rolePrompt: initPromptResult.rolePrompt,
           initialMessage: initPromptResult.initialMessage,
           toolVersion: toolVersion ?? undefined,
-          model: command.payload.model,
+          model,
         });
 
         if (startResult.success && startResult.handle) {
@@ -467,20 +572,14 @@ async function processCommand(
               await client.mutation(api.machines.updateSpawnedAgent, {
                 sessionId,
                 machineId,
-                chatroomId: command.payload.chatroomId,
-                role: command.payload.role,
+                chatroomId,
+                role,
                 pid: startResult.handle.pid,
               });
               console.log(`   Updated backend with PID: ${startResult.handle.pid}`);
 
               // Persist PID locally for daemon restart recovery
-              persistAgentPid(
-                machineId,
-                command.payload.chatroomId!,
-                command.payload.role!,
-                startResult.handle.pid,
-                command.payload.agentTool!
-              );
+              persistAgentPid(machineId, chatroomId, role, startResult.handle.pid, agentTool);
             } catch (e) {
               console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
             }
@@ -494,22 +593,15 @@ async function processCommand(
       }
 
       case 'stop-agent': {
+        const { chatroomId: stopChatroomId, role: stopRole } = command.payload;
         console.log(`   ↪ stop-agent command received`);
-        console.log(`      Chatroom: ${command.payload.chatroomId}`);
-        console.log(`      Role: ${command.payload.role}`);
-
-        // Validate payload
-        if (!command.payload.chatroomId || !command.payload.role) {
-          result = 'Missing required payload: chatroomId or role';
-          commandFailed = true;
-          console.log(`   ⚠️  ${result}`);
-          break;
-        }
+        console.log(`      Chatroom: ${stopChatroomId}`);
+        console.log(`      Role: ${stopRole}`);
 
         // Query the backend for the current PID (single source of truth)
         const configsResult = (await client.query(api.machines.getAgentConfigs, {
           sessionId,
-          chatroomId: command.payload.chatroomId,
+          chatroomId: stopChatroomId,
         })) as {
           configs: {
             machineId: string;
@@ -520,9 +612,7 @@ async function processCommand(
         };
 
         const targetConfig = configsResult.configs.find(
-          (c) =>
-            c.machineId === machineId &&
-            c.role.toLowerCase() === command.payload.role!.toLowerCase()
+          (c) => c.machineId === machineId && c.role.toLowerCase() === stopRole.toLowerCase()
         );
 
         if (!targetConfig?.spawnedAgentPid) {
@@ -567,13 +657,13 @@ async function processCommand(
           await client.mutation(api.machines.updateSpawnedAgent, {
             sessionId,
             machineId,
-            chatroomId: command.payload.chatroomId,
-            role: command.payload.role,
+            chatroomId: stopChatroomId,
+            role: stopRole,
             pid: undefined,
           });
           console.log(`   Cleared stale PID in backend`);
           // Also clear locally for restart recovery
-          clearAgentPid(machineId, command.payload.chatroomId!, command.payload.role!);
+          clearAgentPid(machineId, stopChatroomId, stopRole);
           break;
         }
 
@@ -592,13 +682,13 @@ async function processCommand(
           await client.mutation(api.machines.updateSpawnedAgent, {
             sessionId,
             machineId,
-            chatroomId: command.payload.chatroomId,
-            role: command.payload.role,
+            chatroomId: stopChatroomId,
+            role: stopRole,
             pid: undefined, // Clear PID
           });
           console.log(`   Cleared PID in backend`);
           // Also clear locally for restart recovery
-          clearAgentPid(machineId, command.payload.chatroomId!, command.payload.role!);
+          clearAgentPid(machineId, stopChatroomId, stopRole);
         } catch (e) {
           const err = e as NodeJS.ErrnoException;
           if (err.code === 'ESRCH') {
@@ -608,12 +698,12 @@ async function processCommand(
             await client.mutation(api.machines.updateSpawnedAgent, {
               sessionId,
               machineId,
-              chatroomId: command.payload.chatroomId,
-              role: command.payload.role,
+              chatroomId: stopChatroomId,
+              role: stopRole,
               pid: undefined,
             });
             // Also clear locally
-            clearAgentPid(machineId, command.payload.chatroomId!, command.payload.role!);
+            clearAgentPid(machineId, stopChatroomId, stopRole);
           } else {
             result = `Failed to stop agent: ${err.message}`;
             commandFailed = true;
@@ -623,8 +713,13 @@ async function processCommand(
         break;
       }
 
-      default:
-        result = `Unknown command type: ${command.type}`;
+      default: {
+        // Exhaustiveness check: this should never be reached.
+        // If a new command type is added to MachineCommand but not handled above,
+        // TypeScript will report a compile error here.
+        const _exhaustive: never = command;
+        result = `Unknown command type: ${(_exhaustive as MachineCommandBase & { type: string }).type}`;
+      }
     }
 
     // Mark as completed or failed based on whether an error occurred
