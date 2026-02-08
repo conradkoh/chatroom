@@ -8,7 +8,7 @@ import React, { useMemo, useCallback, memo, useState } from 'react';
 
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
-import type { AgentTool, MachineInfo, AgentConfig } from '../types/machine';
+import type { AgentHarness, MachineInfo, AgentConfig } from '../types/machine';
 
 import { usePrompts } from '@/contexts/PromptsContext';
 
@@ -48,17 +48,17 @@ interface SetupAgentCardProps {
       chatroomId: Id<'chatroom_rooms'>;
       role: string;
       model?: string;
-      agentTool?: AgentTool;
+      agentHarness?: AgentHarness;
       workingDir?: string;
     };
   }) => Promise<unknown>;
   onViewPrompt: (role: string) => void;
   preferences?: {
     machineId?: string;
-    toolByRole?: Record<string, string>;
+    harnessByRole?: Record<string, string>;
     modelByRole?: Record<string, string>;
   } | null;
-  onSavePreferences?: (role: string, machineId: string, tool: string, model?: string) => void;
+  onSavePreferences?: (role: string, machineId: string, harness: string, model?: string) => void;
 }
 
 const SetupAgentCard = memo(function SetupAgentCard({
@@ -177,7 +177,7 @@ export const SetupChecklist = memo(function SetupChecklist({
   }) as
     | {
         machineId?: string;
-        toolByRole?: Record<string, string>;
+        harnessByRole?: Record<string, string>;
         modelByRole?: Record<string, string>;
       }
     | null
@@ -185,13 +185,13 @@ export const SetupChecklist = memo(function SetupChecklist({
 
   // Save preferences callback (called on agent start)
   const savePreferences = useCallback(
-    async (role: string, machineId: string, tool: string, model?: string) => {
+    async (role: string, machineId: string, harness: string, model?: string) => {
       try {
         await updatePreferences({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           machineId,
           role,
-          tool,
+          harness,
           model,
         });
       } catch {

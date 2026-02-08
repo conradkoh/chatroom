@@ -673,12 +673,12 @@ daemonCommand
 // OPENCODE COMMANDS (no auth required)
 // ============================================================================
 
-const opencodeCommand = program.command('opencode').description('OpenCode integration tools');
+const opencodeCommand = program.command('opencode').description('OpenCode integration harness');
 
 opencodeCommand
   .command('install')
-  .description('Install chatroom as an OpenCode tool')
-  .option('--force', 'Overwrite existing tool installation')
+  .description('Install chatroom as an OpenCode harness')
+  .option('--force', 'Overwrite existing harness installation')
   .action(async (options: { force?: boolean }) => {
     const { installTool } = await import('./commands/opencode-install.js');
     await installTool({ checkExisting: !options.force });

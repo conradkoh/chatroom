@@ -1,19 +1,24 @@
 /**
- * Agent Tool Detection
+ * Agent Harness Detection
  *
- * Detects which AI agent tools are installed on the current machine,
+ * Detects which AI agent harnesses are installed on the current machine,
  * including version detection for compatibility gating.
  */
 
 import { execSync } from 'node:child_process';
 
-import { AGENT_TOOLS, AGENT_TOOL_COMMANDS, type AgentTool, type ToolVersionInfo } from './types.js';
+import {
+  AGENT_HARNESSES,
+  AGENT_HARNESS_COMMANDS,
+  type AgentHarness,
+  type HarnessVersionInfo,
+} from './types.js';
 
 /**
- * Version detection commands for each tool.
- * Returns null if version detection is not supported for a tool.
+ * Version detection commands for each harness.
+ * Returns null if version detection is not supported for a harness.
  */
-const TOOL_VERSION_COMMANDS: Partial<Record<AgentTool, string>> = {
+const HARNESS_VERSION_COMMANDS: Partial<Record<AgentHarness, string>> = {
   opencode: 'opencode --version',
 };
 
@@ -35,7 +40,7 @@ function commandExists(command: string): boolean {
  * Parse a version string like "1.2.3" or "v1.2.3" into structured info.
  * Returns null if the version string cannot be parsed.
  */
-function parseVersion(versionStr: string): ToolVersionInfo | null {
+function parseVersion(versionStr: string): HarnessVersionInfo | null {
   // Match patterns like "1.2.3", "v1.2.3", "1.0.0-beta.1"
   const match = versionStr.match(/v?(\d+)\.(\d+)\.(\d+)/);
   if (!match) return null;
@@ -47,11 +52,11 @@ function parseVersion(versionStr: string): ToolVersionInfo | null {
 }
 
 /**
- * Detect the version of a specific agent tool.
+ * Detect the version of a specific agent harness.
  * Returns null if version cannot be detected.
  */
-export function detectToolVersion(tool: AgentTool): ToolVersionInfo | null {
-  const versionCommand = TOOL_VERSION_COMMANDS[tool];
+export function detectHarnessVersion(harness: AgentHarness): HarnessVersionInfo | null {
+  const versionCommand = HARNESS_VERSION_COMMANDS[harness];
   if (!versionCommand) return null;
 
   try {
@@ -69,18 +74,18 @@ export function detectToolVersion(tool: AgentTool): ToolVersionInfo | null {
 }
 
 /**
- * Detect versions for all provided tools.
- * Returns a partial record (only tools with detectable versions).
+ * Detect versions for all provided harnesses.
+ * Returns a partial record (only harnesses with detectable versions).
  */
-export function detectToolVersions(
-  tools: AgentTool[]
-): Partial<Record<AgentTool, ToolVersionInfo>> {
-  const versions: Partial<Record<AgentTool, ToolVersionInfo>> = {};
+export function detectHarnessVersions(
+  harnesses: AgentHarness[]
+): Partial<Record<AgentHarness, HarnessVersionInfo>> {
+  const versions: Partial<Record<AgentHarness, HarnessVersionInfo>> = {};
 
-  for (const tool of tools) {
-    const version = detectToolVersion(tool);
+  for (const harness of harnesses) {
+    const version = detectHarnessVersion(harness);
     if (version) {
-      versions[tool] = version;
+      versions[harness] = version;
     }
   }
 
@@ -88,20 +93,20 @@ export function detectToolVersions(
 }
 
 /**
- * Detect which agent tools are installed on this machine
+ * Detect which agent harnesses are installed on this machine
  *
  * Checks for:
  * - opencode: OpenCode CLI
  *
- * @returns Array of available agent tools
+ * @returns Array of available agent harnesses
  */
-export function detectAvailableTools(): AgentTool[] {
-  const available: AgentTool[] = [];
+export function detectAvailableHarnesses(): AgentHarness[] {
+  const available: AgentHarness[] = [];
 
-  for (const tool of AGENT_TOOLS) {
-    const command = AGENT_TOOL_COMMANDS[tool];
+  for (const harness of AGENT_HARNESSES) {
+    const command = AGENT_HARNESS_COMMANDS[harness];
     if (commandExists(command)) {
-      available.push(tool);
+      available.push(harness);
     }
   }
 
@@ -109,9 +114,9 @@ export function detectAvailableTools(): AgentTool[] {
 }
 
 /**
- * Check if a specific agent tool is available
+ * Check if a specific agent harness is available
  */
-export function isToolAvailable(tool: AgentTool): boolean {
-  const command = AGENT_TOOL_COMMANDS[tool];
+export function isHarnessAvailable(harness: AgentHarness): boolean {
+  const command = AGENT_HARNESS_COMMANDS[harness];
   return commandExists(command);
 }

@@ -19,7 +19,7 @@
  *   "agents": {
  *     "<chatroomId>/<role>": {
  *       "pid": 12345,
- *       "tool": "opencode",
+ *       "harness": "opencode",
  *       "startedAt": "ISO string"
  *     }
  *   }
@@ -30,7 +30,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from '
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AgentTool } from './types.js';
+import type { AgentHarness } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -48,8 +48,8 @@ const STATE_VERSION = '1';
 export interface DaemonAgentEntry {
   /** OS process ID */
   pid: number;
-  /** Which agent tool spawned it */
-  tool: AgentTool;
+  /** Which agent harness spawned it */
+  harness: AgentHarness;
   /** When the agent was started (ISO string) */
   startedAt: string;
 }
@@ -156,13 +156,13 @@ export function persistAgentPid(
   chatroomId: string,
   role: string,
   pid: number,
-  tool: AgentTool
+  harness: AgentHarness
 ): void {
   const state = loadOrCreate(machineId);
 
   state.agents[agentKey(chatroomId, role)] = {
     pid,
-    tool,
+    harness,
     startedAt: new Date().toISOString(),
   };
   state.updatedAt = new Date().toISOString();

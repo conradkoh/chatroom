@@ -17,8 +17,8 @@ import React, { useCallback, memo, useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 import { CopyButton } from './CopyButton';
-import type { AgentTool, MachineInfo, AgentConfig } from '../types/machine';
-import { TOOL_DISPLAY_NAMES, getModelDisplayLabel } from '../types/machine';
+import type { AgentHarness, MachineInfo, AgentConfig } from '../types/machine';
+import { HARNESS_DISPLAY_NAMES, getModelDisplayLabel } from '../types/machine';
 
 import { Badge } from '@/components/ui/badge';
 import { usePrompts } from '@/contexts/PromptsContext';
@@ -72,7 +72,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
 
   // Local state
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
-  const [selectedTool, setSelectedTool] = useState<AgentTool | null>(null);
+  const [selectedHarness, setSelectedHarness] = useState<AgentHarness | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [workingDir, setWorkingDir] = useState<string>('');
   const [isStarting, setIsStarting] = useState(false);
@@ -87,7 +87,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
   useEffect(() => {
     if (isOpen) {
       setSelectedMachineId(null);
-      setSelectedTool(null);
+      setSelectedHarness(null);
       setSelectedModel(null);
       setWorkingDir('');
       setIsStarting(false);
@@ -125,11 +125,11 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     return roleConfigs.find((c) => c.spawnedAgentPid && c.daemonConnected);
   }, [roleConfigs]);
 
-  // Get available tools for selected machine
-  const availableToolsForMachine = useMemo(() => {
+  // Get available harnesses for selected machine
+  const availableHarnessesForMachine = useMemo(() => {
     if (!selectedMachineId || !machinesResult?.machines) return [];
     const machine = machinesResult.machines.find((m) => m.machineId === selectedMachineId);
-    return machine?.availableTools || [];
+    return machine?.availableHarnesses || [];
   }, [selectedMachineId, machinesResult?.machines]);
 
   // Auto-select machine: prefer the machine with existing config, else first connected
@@ -154,24 +154,24 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     }
   }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs]);
 
-  // Auto-select tool if there's a config for this machine/role
+  // Auto-select harness if there's a config for this machine/role
   useEffect(() => {
     if (selectedMachineId && roleConfigs.length > 0) {
       const config = roleConfigs.find((c) => c.machineId === selectedMachineId);
-      if (config && availableToolsForMachine.includes(config.agentType)) {
-        setSelectedTool(config.agentType);
-      } else if (availableToolsForMachine.length === 1) {
-        setSelectedTool(availableToolsForMachine[0]);
+      if (config && availableHarnessesForMachine.includes(config.agentType)) {
+        setSelectedHarness(config.agentType);
+      } else if (availableHarnessesForMachine.length === 1) {
+        setSelectedHarness(availableHarnessesForMachine[0]);
       }
     }
-  }, [selectedMachineId, roleConfigs, availableToolsForMachine]);
+  }, [selectedMachineId, roleConfigs, availableHarnessesForMachine]);
 
   // Available models from the selected machine (discovered dynamically)
-  const availableModelsForTool = useMemo(() => {
-    if (!selectedMachineId || !selectedTool || !machinesResult?.machines) return [];
+  const availableModelsForHarness = useMemo(() => {
+    if (!selectedMachineId || !selectedHarness || !machinesResult?.machines) return [];
     const machine = machinesResult.machines.find((m) => m.machineId === selectedMachineId);
     return machine?.availableModels || [];
-  }, [selectedMachineId, selectedTool, machinesResult?.machines]);
+  }, [selectedMachineId, selectedHarness, machinesResult?.machines]);
 
   // Pre-populate workingDir from existing config, falling back to last known config
   useEffect(() => {
@@ -193,10 +193,10 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     setWorkingDir('');
   }, [selectedMachineId, roleConfigs]);
 
-  // Auto-select model when tool or machine changes
+  // Auto-select model when harness or machine changes
   useEffect(() => {
-    if (selectedTool) {
-      const models = availableModelsForTool;
+    if (selectedHarness) {
+      const models = availableModelsForHarness;
       if (models.length === 0) {
         setSelectedModel(null);
         return;
@@ -212,11 +212,11 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     } else {
       setSelectedModel(null);
     }
-  }, [selectedTool, availableModelsForTool, roleConfigs, selectedMachineId]);
+  }, [selectedHarness, availableModelsForHarness, roleConfigs, selectedMachineId]);
 
   // Handle start agent
   const handleStartAgent = useCallback(async () => {
-    if (!selectedMachineId || !selectedTool) return;
+    if (!selectedMachineId || !selectedHarness) return;
 
     setIsStarting(true);
     setError(null);
@@ -229,7 +229,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           model: selectedModel || undefined,
-          agentTool: selectedTool,
+          agentHarness: selectedHarness,
           workingDir: workingDir.trim() || undefined,
         },
       });
@@ -243,7 +243,15 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
     } finally {
       setIsStarting(false);
     }
-  }, [selectedMachineId, selectedTool, selectedModel, workingDir, sendCommand, chatroomId, role]);
+  }, [
+    selectedMachineId,
+    selectedHarness,
+    selectedModel,
+    workingDir,
+    sendCommand,
+    chatroomId,
+    role,
+  ]);
 
   // Handle stop agent
   const handleStopAgent = useCallback(async () => {
@@ -306,7 +314,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           model: selectedModel || undefined,
-          agentTool: runningAgentConfig.agentType,
+          agentHarness: runningAgentConfig.agentType,
           workingDir: runningAgentConfig.workingDir,
         },
       });
@@ -350,10 +358,10 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
   const isLoading = machinesResult === undefined || configsResult === undefined;
   const hasNoMachines = !isLoading && connectedMachines.length === 0;
   const isAgentRunning = !!runningAgentConfig;
-  const hasModels = availableModelsForTool.length > 0;
+  const hasModels = availableModelsForHarness.length > 0;
   const canStart =
     selectedMachineId &&
-    selectedTool &&
+    selectedHarness &&
     (!hasModels || selectedModel) &&
     workingDir.trim() &&
     !isStarting &&
@@ -433,7 +441,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
               <div className="text-[10px] text-chatroom-text-muted">
                 <span>Machine: {runningAgentConfig.hostname}</span>
                 {' · '}
-                <span>Tool: {TOOL_DISPLAY_NAMES[runningAgentConfig.agentType]}</span>
+                <span>Harness: {HARNESS_DISPLAY_NAMES[runningAgentConfig.agentType]}</span>
                 {runningAgentConfig.model && (
                   <>
                     {' · '}
@@ -531,7 +539,7 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
                   value={selectedMachineId || ''}
                   onChange={(e) => {
                     setSelectedMachineId(e.target.value || null);
-                    setSelectedTool(null);
+                    setSelectedHarness(null);
                   }}
                   disabled={isBusy || isAgentRunning}
                   className="appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent min-w-0 max-w-[120px] truncate"
@@ -550,27 +558,27 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
                 />
               </div>
 
-              {/* Tool Selection Dropdown */}
+              {/* Harness Selection Dropdown */}
               <div className="relative flex-shrink-0">
                 <select
-                  value={selectedTool || ''}
+                  value={selectedHarness || ''}
                   onChange={(e) => {
-                    setSelectedTool((e.target.value as AgentTool) || null);
+                    setSelectedHarness((e.target.value as AgentHarness) || null);
                     setSelectedModel(null);
                   }}
                   disabled={
                     isBusy ||
                     isAgentRunning ||
                     !selectedMachineId ||
-                    availableToolsForMachine.length === 0
+                    availableHarnessesForMachine.length === 0
                   }
                   className="appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent min-w-0 max-w-[120px] truncate"
-                  title="Select Tool"
+                  title="Select Harness"
                 >
-                  <option value="">Tool...</option>
-                  {availableToolsForMachine.map((tool) => (
-                    <option key={tool} value={tool}>
-                      {TOOL_DISPLAY_NAMES[tool]}
+                  <option value="">Harness...</option>
+                  {availableHarnessesForMachine.map((harness) => (
+                    <option key={harness} value={harness}>
+                      {HARNESS_DISPLAY_NAMES[harness]}
                     </option>
                   ))}
                 </select>
@@ -580,18 +588,18 @@ export const ChatroomAgentDetailsModal = memo(function ChatroomAgentDetailsModal
                 />
               </div>
 
-              {/* Model Selection Dropdown - shown when selected tool has model options */}
+              {/* Model Selection Dropdown - shown when selected harness has model options */}
               {hasModels && (
                 <div className="relative flex-shrink-0">
                   <select
                     value={selectedModel || ''}
                     onChange={(e) => setSelectedModel(e.target.value || null)}
-                    disabled={isBusy || isAgentRunning || !selectedTool}
+                    disabled={isBusy || isAgentRunning || !selectedHarness}
                     className="appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent min-w-0 max-w-[110px] truncate"
                     title="Select Model"
                   >
                     <option value="">Model...</option>
-                    {availableModelsForTool.map((model) => (
+                    {availableModelsForHarness.map((model) => (
                       <option key={model} value={model}>
                         {getModelDisplayLabel(model)}
                       </option>

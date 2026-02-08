@@ -7,13 +7,17 @@
  * These mirror the canonical definitions in packages/cli/src/infrastructure/machine/types.ts
  * but are maintained separately since the CLI is a Node package and can't be imported
  * directly by the Next.js frontend.
+ *
+ * "Harness" refers to the AI development environment / tool runner
+ * (e.g. Cursor, OpenCode, Claude). This avoids confusion with the AI
+ * concept of "tools" (read file, write file, web search, etc.).
  */
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-export type AgentTool = 'opencode';
+export type AgentHarness = 'opencode';
 
-export interface ToolVersionInfo {
+export interface HarnessVersionInfo {
   version: string;
   major: number;
 }
@@ -22,8 +26,8 @@ export interface MachineInfo {
   machineId: string;
   hostname: string;
   os: string;
-  availableTools: AgentTool[];
-  toolVersions: Partial<Record<AgentTool, ToolVersionInfo>>;
+  availableHarnesses: AgentHarness[];
+  harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
   /** Available AI models discovered dynamically via `opencode models` */
   availableModels: string[];
   daemonConnected: boolean;
@@ -34,11 +38,11 @@ export interface AgentConfig {
   machineId: string;
   hostname: string;
   role: string;
-  agentType: AgentTool;
+  agentType: AgentHarness;
   workingDir: string;
   model?: string;
   daemonConnected: boolean;
-  availableTools: AgentTool[];
+  availableHarnesses: AgentHarness[];
   updatedAt: number;
   spawnedAgentPid?: number;
   spawnedAt?: number;
@@ -46,7 +50,7 @@ export interface AgentConfig {
 
 // ─── Constants ──────────────────────────────────────────────────────
 
-export const TOOL_DISPLAY_NAMES: Record<AgentTool, string> = {
+export const HARNESS_DISPLAY_NAMES: Record<AgentHarness, string> = {
   opencode: 'OpenCode',
 };
 

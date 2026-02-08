@@ -10,7 +10,7 @@ export type {
   AgentCapabilities,
   AgentHandle,
   AgentStartOptions,
-  AgentToolDriver,
+  AgentHarnessDriver,
   DriverRegistry,
   DriverStartResult,
 } from './types.js';

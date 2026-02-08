@@ -54,14 +54,14 @@ interface MachineCommandBase {
 
 /**
  * Start an agent process in a chatroom.
- * Requires chatroomId, role, and agentTool. Model and workingDir are optional.
+ * Requires chatroomId, role, and agentHarness. Model and workingDir are optional.
  */
 interface StartAgentCommand extends MachineCommandBase {
   type: 'start-agent';
   payload: {
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
-    agentTool: 'opencode';
+    agentHarness: 'opencode';
     model?: string;
     workingDir?: string;
   };
@@ -88,7 +88,7 @@ interface PingCommand extends MachineCommandBase {
 }
 
 /**
- * Query daemon status (hostname, OS, available tools).
+ * Query daemon status (hostname, OS, available harnesses).
  */
 interface StatusCommand extends MachineCommandBase {
   type: 'status';
@@ -113,7 +113,7 @@ interface RawMachineCommand {
   payload: {
     chatroomId?: Id<'chatroom_rooms'>;
     role?: string;
-    agentTool?: 'opencode';
+    agentHarness?: 'opencode';
     model?: string;
     workingDir?: string;
   };
@@ -148,9 +148,11 @@ function parseMachineCommand(raw: RawMachineCommand): MachineCommand | null {
     case 'status':
       return { _id: raw._id, type: 'status', payload: {}, createdAt: raw.createdAt };
     case 'start-agent': {
-      const { chatroomId, role, agentTool } = raw.payload;
-      if (!chatroomId || !role || !agentTool) {
-        console.error(`   ⚠️  Invalid start-agent command: missing chatroomId, role, or agentTool`);
+      const { chatroomId, role, agentHarness } = raw.payload;
+      if (!chatroomId || !role || !agentHarness) {
+        console.error(
+          `   ⚠️  Invalid start-agent command: missing chatroomId, role, or agentHarness`
+        );
         return null;
       }
       return {
@@ -159,7 +161,7 @@ function parseMachineCommand(raw: RawMachineCommand): MachineCommand | null {
         payload: {
           chatroomId,
           role,
-          agentTool,
+          agentHarness,
           model: raw.payload.model,
           workingDir: raw.payload.workingDir,
         },
@@ -195,10 +197,10 @@ function formatTimestamp(): string {
 
 /**
  * Verify that a PID belongs to an expected process.
- * Returns true if the process exists and appears to match the expected tool.
+ * Returns true if the process exists and appears to match the expected harness.
  * Returns false if the PID doesn't exist or belongs to a different process.
  */
-function verifyPidOwnership(pid: number, expectedTool?: string): boolean {
+function verifyPidOwnership(pid: number, expectedHarness?: string): boolean {
   try {
     // First check if process exists
     process.kill(pid, 0);
@@ -207,12 +209,12 @@ function verifyPidOwnership(pid: number, expectedTool?: string): boolean {
     return false;
   }
 
-  if (!expectedTool) {
-    // No tool to verify against, just confirm process exists
+  if (!expectedHarness) {
+    // No harness to verify against, just confirm process exists
     return true;
   }
 
-  // Try to get process info to verify it's the expected tool
+  // Try to get process info to verify it's the expected harness
   try {
     const platform = process.platform;
     let processName = '';
@@ -229,12 +231,14 @@ function verifyPidOwnership(pid: number, expectedTool?: string): boolean {
       return true;
     }
 
-    // Check if the process name contains the expected tool name
-    const toolLower = expectedTool.toLowerCase();
+    // Check if the process name contains the expected harness name
+    const harnessLower = expectedHarness.toLowerCase();
     const procLower = processName.toLowerCase();
 
-    // Match common patterns: 'opencode', 'node' (for Node-based tools)
-    return procLower.includes(toolLower) || procLower.includes('node') || procLower.includes('bun');
+    // Match common patterns: 'opencode', 'node' (for Node-based harnesses)
+    return (
+      procLower.includes(harnessLower) || procLower.includes('node') || procLower.includes('bun')
+    );
   } catch {
     // If we can't check, assume the process is valid (safer than killing an unknown process)
     return true;
@@ -289,11 +293,11 @@ async function recoverAgentState(ctx: DaemonContext): Promise<void> {
   let cleared = 0;
 
   for (const { chatroomId, role, entry } of entries) {
-    const { pid, tool } = entry;
-    const alive = verifyPidOwnership(pid, tool);
+    const { pid, harness } = entry;
+    const alive = verifyPidOwnership(pid, harness);
 
     if (alive) {
-      console.log(`   ✅ Recovered: ${role} (PID ${pid}, tool: ${tool})`);
+      console.log(`   ✅ Recovered: ${role} (PID ${pid}, harness: ${harness})`);
       recovered++;
     } else {
       console.log(`   🧹 Stale PID ${pid} for ${role} — clearing`);
@@ -322,7 +326,7 @@ function handleStatus(ctx: DaemonContext): CommandResult {
   const result = JSON.stringify({
     hostname: ctx.config?.hostname,
     os: ctx.config?.os,
-    availableTools: ctx.config?.availableTools,
+    availableHarnesses: ctx.config?.availableHarnesses,
     chatroomAgents: Object.keys(ctx.config?.chatroomAgents ?? {}),
   });
   console.log(`   ↪ Responding with status`);
@@ -336,11 +340,11 @@ async function handleStartAgent(
   ctx: DaemonContext,
   command: StartAgentCommand
 ): Promise<CommandResult> {
-  const { chatroomId, role, agentTool, model, workingDir } = command.payload;
+  const { chatroomId, role, agentHarness, model, workingDir } = command.payload;
   console.log(`   ↪ start-agent command received`);
   console.log(`      Chatroom: ${chatroomId}`);
   console.log(`      Role: ${role}`);
-  console.log(`      Tool: ${agentTool}`);
+  console.log(`      Harness: ${agentHarness}`);
   if (model) {
     console.log(`      Model: ${model}`);
   }
@@ -354,7 +358,7 @@ async function handleStartAgent(
     // No local context — use the working directory from the command payload
     // and update the local config so future commands don't need this fallback
     console.log(`   No local agent context, using workingDir from command payload`);
-    updateAgentContext(chatroomId, role, agentTool, workingDir);
+    updateAgentContext(chatroomId, role, agentHarness, workingDir);
     agentContext = getAgentContext(chatroomId, role);
   }
 
@@ -399,16 +403,16 @@ async function handleStartAgent(
 
   console.log(`   Fetched split init prompt from backend`);
 
-  // Get tool version for version-specific spawn logic (uses cached config)
-  const toolVersion = ctx.config?.toolVersions?.[agentTool];
+  // Get harness version for version-specific spawn logic (uses cached config)
+  const harnessVersion = ctx.config?.harnessVersions?.[agentHarness];
 
   // Resolve driver from registry and start the agent
   const registry = getDriverRegistry();
   let driver;
   try {
-    driver = registry.get(agentTool);
+    driver = registry.get(agentHarness);
   } catch {
-    const msg = `No driver registered for tool: ${agentTool}`;
+    const msg = `No driver registered for harness: ${agentHarness}`;
     console.log(`   ⚠️  ${msg}`);
     return { result: msg, failed: true };
   }
@@ -417,7 +421,7 @@ async function handleStartAgent(
     workingDir: agentContext.workingDir,
     rolePrompt: initPromptResult.rolePrompt,
     initialMessage: initPromptResult.initialMessage,
-    toolVersion: toolVersion ?? undefined,
+    harnessVersion: harnessVersion ?? undefined,
     model,
   });
 
@@ -438,7 +442,7 @@ async function handleStartAgent(
         console.log(`   Updated backend with PID: ${startResult.handle.pid}`);
 
         // Persist PID locally for daemon restart recovery
-        persistAgentPid(ctx.machineId, chatroomId, role, startResult.handle.pid, agentTool);
+        persistAgentPid(ctx.machineId, chatroomId, role, startResult.handle.pid, agentHarness);
       } catch (e) {
         console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
       }
@@ -486,22 +490,22 @@ async function handleStopAgent(
   }
 
   const pidToKill = targetConfig.spawnedAgentPid;
-  const agentTool = (targetConfig.agentType as 'opencode') || undefined;
+  const agentHarness = (targetConfig.agentType as 'opencode') || undefined;
   console.log(`   Stopping agent with PID: ${pidToKill}`);
 
-  // Build an AgentHandle from the stored PID and tool type
+  // Build an AgentHandle from the stored PID and harness type
   const stopHandle: AgentHandle = {
-    tool: agentTool || 'opencode', // fallback; tool is needed for handle but stop uses PID
+    harness: agentHarness || 'opencode', // fallback; harness is needed for handle but stop uses PID
     type: 'process',
     pid: pidToKill,
     workingDir: '', // Not needed for stop
   };
 
-  // Resolve the driver for this tool (for isAlive/stop)
+  // Resolve the driver for this harness (for isAlive/stop)
   const registry = getDriverRegistry();
   let stopDriver;
   try {
-    stopDriver = agentTool ? registry.get(agentTool) : null;
+    stopDriver = agentHarness ? registry.get(agentHarness) : null;
   } catch {
     stopDriver = null;
   }
@@ -509,7 +513,7 @@ async function handleStopAgent(
   // Verify the PID is still alive via the driver (or fallback to verifyPidOwnership)
   const isAlive = stopDriver
     ? await stopDriver.isAlive(stopHandle)
-    : verifyPidOwnership(pidToKill, agentTool);
+    : verifyPidOwnership(pidToKill, agentHarness);
 
   if (!isAlive) {
     console.log(`   ⚠️  PID ${pidToKill} does not appear to belong to the expected agent`);
@@ -693,7 +697,7 @@ async function initDaemon(): Promise<DaemonContext> {
   console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
   console.log(`   Machine ID: ${machineId}`);
   console.log(`   Hostname: ${config?.hostname ?? 'Unknown'}`);
-  console.log(`   Available tools: ${config?.availableTools.join(', ') || 'none'}`);
+  console.log(`   Available harnesses: ${config?.availableHarnesses.join(', ') || 'none'}`);
   console.log(`   PID: ${process.pid}`);
 
   // Recover agent state from previous daemon session

@@ -18,10 +18,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from '
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 
-import { detectAvailableTools, detectToolVersions } from './detection.js';
+import { detectAvailableHarnesses, detectHarnessVersions } from './detection.js';
 import type {
   AgentContext,
-  AgentTool,
+  AgentHarness,
   LegacyMachineConfig,
   MachineConfig,
   MachineConfigFile,
@@ -73,8 +73,8 @@ function migrateLegacyConfig(legacy: LegacyMachineConfig): MachineConfigFile {
     os: legacy.os,
     registeredAt: legacy.registeredAt,
     lastSyncedAt: legacy.lastSyncedAt,
-    availableTools: legacy.availableTools,
-    toolVersions: {},
+    availableHarnesses: legacy.availableHarnesses,
+    harnessVersions: {},
     chatroomAgents: legacy.chatroomAgents || {},
   };
 
@@ -172,7 +172,7 @@ export function saveMachineConfig(config: MachineConfig): void {
  */
 function createNewEndpointConfig(): MachineEndpointConfig {
   const now = new Date().toISOString();
-  const availableTools = detectAvailableTools();
+  const availableHarnesses = detectAvailableHarnesses();
 
   return {
     machineId: randomUUID(),
@@ -180,8 +180,8 @@ function createNewEndpointConfig(): MachineEndpointConfig {
     os: process.platform,
     registeredAt: now,
     lastSyncedAt: now,
-    availableTools,
-    toolVersions: detectToolVersions(availableTools),
+    availableHarnesses,
+    harnessVersions: detectHarnessVersions(availableHarnesses),
     chatroomAgents: {},
   };
 }
@@ -189,7 +189,7 @@ function createNewEndpointConfig(): MachineEndpointConfig {
 /**
  * Ensure machine is registered for the current Convex URL (idempotent)
  *
- * Creates a new endpoint entry if not exists, otherwise refreshes tool detection.
+ * Creates a new endpoint entry if not exists, otherwise refreshes harness detection.
  *
  * @returns Machine registration info for backend sync
  */
@@ -201,10 +201,10 @@ export function ensureMachineRegistered(): MachineRegistrationInfo {
     config = createNewEndpointConfig();
     saveMachineConfig(config);
   } else {
-    // Refresh tool detection, versions, and update lastSyncedAt
+    // Refresh harness detection, versions, and update lastSyncedAt
     const now = new Date().toISOString();
-    config.availableTools = detectAvailableTools();
-    config.toolVersions = detectToolVersions(config.availableTools);
+    config.availableHarnesses = detectAvailableHarnesses();
+    config.harnessVersions = detectHarnessVersions(config.availableHarnesses);
     config.lastSyncedAt = now;
     // Update hostname in case it changed
     config.hostname = hostname();
@@ -215,8 +215,8 @@ export function ensureMachineRegistered(): MachineRegistrationInfo {
     machineId: config.machineId,
     hostname: config.hostname,
     os: config.os,
-    availableTools: config.availableTools,
-    toolVersions: config.toolVersions,
+    availableHarnesses: config.availableHarnesses,
+    harnessVersions: config.harnessVersions,
   };
 }
 
@@ -234,7 +234,7 @@ export function getMachineId(): string | null {
 export function updateAgentContext(
   chatroomId: string,
   role: string,
-  agentType: AgentTool,
+  agentType: AgentHarness,
   workingDir: string
 ): void {
   const config = loadMachineConfig();

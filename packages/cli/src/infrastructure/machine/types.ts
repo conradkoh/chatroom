@@ -5,26 +5,30 @@
  */
 
 /**
- * Supported AI agent tools that can be spawned
+ * Supported AI agent harnesses that can be spawned.
+ *
+ * "Harness" refers to the AI development environment / tool runner
+ * (e.g. Cursor, OpenCode, Claude). This avoids confusion with the AI
+ * concept of "tools" (read file, write file, web search, etc.).
  */
-export type AgentTool = 'opencode';
+export type AgentHarness = 'opencode';
 
 /**
- * All supported agent tools
+ * All supported agent harnesses
  */
-export const AGENT_TOOLS: AgentTool[] = ['opencode'];
+export const AGENT_HARNESSES: AgentHarness[] = ['opencode'];
 
 /**
- * Command names for each agent tool (used for detection)
+ * Command names for each agent harness (used for detection)
  */
-export const AGENT_TOOL_COMMANDS: Record<AgentTool, string> = {
+export const AGENT_HARNESS_COMMANDS: Record<AgentHarness, string> = {
   opencode: 'opencode',
 };
 
 /**
- * Detected tool version info
+ * Detected harness version info
  */
-export interface ToolVersionInfo {
+export interface HarnessVersionInfo {
   /** Full version string (e.g. "1.2.3") */
   version: string;
   /** Major version number for compatibility gating */
@@ -38,8 +42,8 @@ export interface ToolVersionInfo {
  * ~/.chatroom/machines/state/<machine-id>.json — see daemon-state.ts.
  */
 export interface AgentContext {
-  /** Which tool was used for this role */
-  agentType: AgentTool;
+  /** Which harness was used for this role */
+  agentType: AgentHarness;
   /** Working directory when agent was started */
   workingDir: string;
   /** Last time this agent was started (ISO string) */
@@ -61,10 +65,10 @@ export interface MachineEndpointConfig {
   registeredAt: string;
   /** Last time config was synced (ISO string) */
   lastSyncedAt: string;
-  /** Agent tools detected as available */
-  availableTools: AgentTool[];
-  /** Detected tool versions (keyed by tool name) */
-  toolVersions: Partial<Record<AgentTool, ToolVersionInfo>>;
+  /** Agent harnesses detected as available */
+  availableHarnesses: AgentHarness[];
+  /** Detected harness versions (keyed by harness name) */
+  harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
   /** Per-chatroom agent configurations */
   chatroomAgents: Record<string, Record<string, AgentContext>>;
 }
@@ -95,7 +99,7 @@ export interface LegacyMachineConfig {
   os: string;
   registeredAt: string;
   lastSyncedAt: string;
-  availableTools: AgentTool[];
+  availableHarnesses: AgentHarness[];
   chatroomAgents: Record<string, Record<string, AgentContext>>;
 }
 
@@ -112,6 +116,6 @@ export interface MachineRegistrationInfo {
   machineId: string;
   hostname: string;
   os: string;
-  availableTools: AgentTool[];
-  toolVersions: Partial<Record<AgentTool, ToolVersionInfo>>;
+  availableHarnesses: AgentHarness[];
+  harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
 }

@@ -13,8 +13,8 @@ import {
 import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
 
 import { CopyButton } from './CopyButton';
-import type { AgentTool, ToolVersionInfo, MachineInfo, AgentConfig } from '../types/machine';
-import { TOOL_DISPLAY_NAMES, getModelDisplayLabel } from '../types/machine';
+import type { AgentHarness, HarnessVersionInfo, MachineInfo, AgentConfig } from '../types/machine';
+import { HARNESS_DISPLAY_NAMES, getModelDisplayLabel } from '../types/machine';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -33,7 +33,7 @@ export interface AgentConfigTabsProps {
       chatroomId: Id<'chatroom_rooms'>;
       role: string;
       model?: string;
-      agentTool?: AgentTool;
+      agentHarness?: AgentHarness;
       workingDir?: string;
     };
   }) => Promise<unknown>;
@@ -41,15 +41,15 @@ export interface AgentConfigTabsProps {
   /** Saved preferences for default selections */
   preferences?: {
     machineId?: string;
-    toolByRole?: Record<string, string>;
+    harnessByRole?: Record<string, string>;
     modelByRole?: Record<string, string>;
   } | null;
   /** Callback to save preferences when starting an agent */
-  onSavePreferences?: (role: string, machineId: string, tool: string, model?: string) => void;
+  onSavePreferences?: (role: string, machineId: string, harness: string, model?: string) => void;
 }
 
 // ─── Hook: useAgentControls ─────────────────────────────────────────
-// Encapsulates all state + logic for machine/tool/model selection and
+// Encapsulates all state + logic for machine/harness/model selection and
 // start/stop/restart actions. Used by both the shared tab content and
 // any container that needs programmatic access.
 
@@ -71,7 +71,7 @@ export function useAgentControls({
   onSavePreferences: AgentConfigTabsProps['onSavePreferences'];
 }) {
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
-  const [selectedTool, setSelectedTool] = useState<AgentTool | null>(null);
+  const [selectedHarness, setSelectedHarness] = useState<AgentHarness | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [workingDir, setWorkingDir] = useState<string>('');
   const [isStarting, setIsStarting] = useState(false);
@@ -89,18 +89,18 @@ export function useAgentControls({
     return roleConfigs.find((c) => c.spawnedAgentPid && c.daemonConnected);
   }, [roleConfigs]);
 
-  // Get available tools for selected machine
-  const availableToolsForMachine = useMemo(() => {
+  // Get available harnesses for selected machine
+  const availableHarnessesForMachine = useMemo(() => {
     if (!selectedMachineId) return [];
     const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
-    return machine?.availableTools || [];
+    return machine?.availableHarnesses || [];
   }, [selectedMachineId, connectedMachines]);
 
-  // Get tool versions for selected machine
-  const toolVersionsForMachine = useMemo(() => {
-    if (!selectedMachineId) return {} as Partial<Record<AgentTool, ToolVersionInfo>>;
+  // Get harness versions for selected machine
+  const harnessVersionsForMachine = useMemo(() => {
+    if (!selectedMachineId) return {} as Partial<Record<AgentHarness, HarnessVersionInfo>>;
     const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
-    return machine?.toolVersions || {};
+    return machine?.harnessVersions || {};
   }, [selectedMachineId, connectedMachines]);
 
   // Auto-select machine (priority: running agent > preferences > role config > first available)
@@ -129,35 +129,35 @@ export function useAgentControls({
   }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs, preferences]);
 
   // Available models from the selected machine (discovered dynamically)
-  const availableModelsForTool = useMemo(() => {
-    if (!selectedMachineId || !selectedTool) return [];
+  const availableModelsForHarness = useMemo(() => {
+    if (!selectedMachineId || !selectedHarness) return [];
     const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
     return machine?.availableModels || [];
-  }, [selectedMachineId, selectedTool, connectedMachines]);
+  }, [selectedMachineId, selectedHarness, connectedMachines]);
 
-  // Auto-select tool (priority: role config > preferences > single available tool)
+  // Auto-select harness (priority: role config > preferences > single available harness)
   useEffect(() => {
     if (selectedMachineId) {
       const config = roleConfigs.find((c) => c.machineId === selectedMachineId);
-      if (config && availableToolsForMachine.includes(config.agentType)) {
-        setSelectedTool(config.agentType);
+      if (config && availableHarnessesForMachine.includes(config.agentType)) {
+        setSelectedHarness(config.agentType);
         return;
       }
-      const prefTool = preferences?.toolByRole?.[role] as AgentTool | undefined;
-      if (prefTool && availableToolsForMachine.includes(prefTool)) {
-        setSelectedTool(prefTool);
+      const prefHarness = preferences?.harnessByRole?.[role] as AgentHarness | undefined;
+      if (prefHarness && availableHarnessesForMachine.includes(prefHarness)) {
+        setSelectedHarness(prefHarness);
         return;
       }
-      if (availableToolsForMachine.length === 1) {
-        setSelectedTool(availableToolsForMachine[0]);
+      if (availableHarnessesForMachine.length === 1) {
+        setSelectedHarness(availableHarnessesForMachine[0]);
       }
     }
-  }, [selectedMachineId, roleConfigs, availableToolsForMachine, preferences, role]);
+  }, [selectedMachineId, roleConfigs, availableHarnessesForMachine, preferences, role]);
 
-  // Auto-select model when tool or machine changes (priority: role config > preferences > first model)
+  // Auto-select model when harness or machine changes (priority: role config > preferences > first model)
   useEffect(() => {
-    if (selectedTool) {
-      const models = availableModelsForTool;
+    if (selectedHarness) {
+      const models = availableModelsForHarness;
       if (models.length === 0) {
         setSelectedModel(null);
         return;
@@ -176,7 +176,14 @@ export function useAgentControls({
     } else {
       setSelectedModel(null);
     }
-  }, [selectedTool, availableModelsForTool, roleConfigs, selectedMachineId, preferences, role]);
+  }, [
+    selectedHarness,
+    availableModelsForHarness,
+    roleConfigs,
+    selectedMachineId,
+    preferences,
+    role,
+  ]);
 
   // Pre-populate workingDir from existing config when switching machines
   useEffect(() => {
@@ -199,10 +206,10 @@ export function useAgentControls({
 
   const isAgentRunning = !!runningAgentConfig;
   const isBusy = isStarting || isStopping;
-  const hasModels = availableModelsForTool.length > 0;
+  const hasModels = availableModelsForHarness.length > 0;
   const canStart =
     selectedMachineId &&
-    selectedTool &&
+    selectedHarness &&
     (!hasModels || selectedModel) &&
     workingDir.trim() &&
     !isStarting &&
@@ -212,7 +219,7 @@ export function useAgentControls({
   const canRestart = isAgentRunning && !isStopping && !isStarting && !success;
 
   const handleStartAgent = useCallback(async () => {
-    if (!selectedMachineId || !selectedTool) return;
+    if (!selectedMachineId || !selectedHarness) return;
     setIsStarting(true);
     setError(null);
     try {
@@ -223,11 +230,11 @@ export function useAgentControls({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           model: selectedModel || undefined,
-          agentTool: selectedTool,
+          agentHarness: selectedHarness,
           workingDir: workingDir.trim() || undefined,
         },
       });
-      onSavePreferences?.(role, selectedMachineId, selectedTool, selectedModel || undefined);
+      onSavePreferences?.(role, selectedMachineId, selectedHarness, selectedModel || undefined);
       setSuccess('Start command sent!');
       setTimeout(() => setSuccess(null), 2000);
     } catch (err) {
@@ -237,7 +244,7 @@ export function useAgentControls({
     }
   }, [
     selectedMachineId,
-    selectedTool,
+    selectedHarness,
     selectedModel,
     workingDir,
     sendCommand,
@@ -285,7 +292,7 @@ export function useAgentControls({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           model: selectedModel || undefined,
-          agentTool: runningAgentConfig.agentType,
+          agentHarness: runningAgentConfig.agentType,
           workingDir: runningAgentConfig.workingDir,
         },
       });
@@ -302,8 +309,8 @@ export function useAgentControls({
   return {
     selectedMachineId,
     setSelectedMachineId,
-    selectedTool,
-    setSelectedTool,
+    selectedHarness,
+    setSelectedHarness,
     selectedModel,
     setSelectedModel,
     workingDir,
@@ -314,9 +321,9 @@ export function useAgentControls({
     success,
     roleConfigs,
     runningAgentConfig,
-    availableToolsForMachine,
-    toolVersionsForMachine,
-    availableModelsForTool,
+    availableHarnessesForMachine,
+    harnessVersionsForMachine,
+    availableModelsForHarness,
     isAgentRunning,
     isBusy,
     hasModels,
@@ -330,7 +337,7 @@ export function useAgentControls({
 }
 
 // ─── Component: RemoteTabContent ────────────────────────────────────
-// The "Remote" tab UI: machine selection, tool, model, working dir,
+// The "Remote" tab UI: machine selection, harness, model, working dir,
 // start/stop/restart buttons.
 
 interface RemoteTabContentProps {
@@ -349,17 +356,17 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   const {
     selectedMachineId,
     setSelectedMachineId,
-    selectedTool,
-    setSelectedTool,
+    selectedHarness,
+    setSelectedHarness,
     selectedModel,
     setSelectedModel,
     workingDir,
     setWorkingDir,
     isStarting,
     isStopping,
-    availableToolsForMachine,
-    toolVersionsForMachine,
-    availableModelsForTool,
+    availableHarnessesForMachine,
+    harnessVersionsForMachine,
+    availableModelsForHarness,
     isAgentRunning,
     isBusy,
     hasModels,
@@ -402,14 +409,14 @@ export const RemoteTabContent = memo(function RemoteTabContent({
         </div>
       ) : (
         <>
-          {/* Row 1: Machine + Tool */}
+          {/* Row 1: Machine + Harness */}
           <div className="flex items-center gap-2">
             <div className="relative flex-1 min-w-0">
               <select
                 value={selectedMachineId || ''}
                 onChange={(e) => {
                   setSelectedMachineId(e.target.value || null);
-                  setSelectedTool(null);
+                  setSelectedHarness(null);
                 }}
                 disabled={isBusy || isAgentRunning}
                 className="w-full appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent truncate"
@@ -429,26 +436,26 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             </div>
             <div className="relative flex-1 min-w-0">
               <select
-                value={selectedTool || ''}
+                value={selectedHarness || ''}
                 onChange={(e) => {
-                  setSelectedTool((e.target.value as AgentTool) || null);
+                  setSelectedHarness((e.target.value as AgentHarness) || null);
                   setSelectedModel(null);
                 }}
                 disabled={
                   isBusy ||
                   isAgentRunning ||
                   !selectedMachineId ||
-                  availableToolsForMachine.length === 0
+                  availableHarnessesForMachine.length === 0
                 }
                 className="w-full appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent truncate"
-                title="Select Tool"
+                title="Select Harness"
               >
-                <option value="">Tool...</option>
-                {availableToolsForMachine.map((tool) => {
-                  const ver = toolVersionsForMachine[tool];
+                <option value="">Harness...</option>
+                {availableHarnessesForMachine.map((harness) => {
+                  const ver = harnessVersionsForMachine[harness];
                   return (
-                    <option key={tool} value={tool}>
-                      {TOOL_DISPLAY_NAMES[tool]}
+                    <option key={harness} value={harness}>
+                      {HARNESS_DISPLAY_NAMES[harness]}
                       {ver ? ` v${ver.version}` : ''}
                     </option>
                   );
@@ -491,12 +498,12 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                 <select
                   value={selectedModel || ''}
                   onChange={(e) => setSelectedModel(e.target.value || null)}
-                  disabled={isBusy || isAgentRunning || !selectedTool}
+                  disabled={isBusy || isAgentRunning || !selectedHarness}
                   className="w-full appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent truncate"
                   title="Select Model"
                 >
                   <option value="">Model...</option>
-                  {availableModelsForTool.map((model) => (
+                  {availableModelsForHarness.map((model) => (
                     <option key={model} value={model}>
                       {getModelDisplayLabel(model)}
                     </option>

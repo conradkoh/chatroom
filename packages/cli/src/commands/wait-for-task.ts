@@ -22,7 +22,7 @@ import {
 import {
   ensureMachineRegistered,
   updateAgentContext,
-  type AgentTool,
+  type AgentHarness,
 } from '../infrastructure/machine/index.js';
 
 interface WaitForTaskOptions {
@@ -30,7 +30,7 @@ interface WaitForTaskOptions {
   timeout?: number;
   duration?: string;
   silent?: boolean;
-  agentType?: AgentTool;
+  agentType?: AgentHarness;
 }
 
 /**
@@ -133,7 +133,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     // Ensure local machine config exists (idempotent - creates or refreshes)
     const machineInfo = ensureMachineRegistered();
 
-    // Discover available models from installed tools (dynamic)
+    // Discover available models from installed harnesses (dynamic)
     let availableModels: string[] = [];
     try {
       const registry = getDriverRegistry();
@@ -154,15 +154,15 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       machineId: machineInfo.machineId,
       hostname: machineInfo.hostname,
       os: machineInfo.os,
-      availableTools: machineInfo.availableTools,
-      toolVersions: machineInfo.toolVersions,
+      availableHarnesses: machineInfo.availableHarnesses,
+      harnessVersions: machineInfo.harnessVersions,
       availableModels,
     });
 
-    // Determine agent type (from flag or default to first available tool)
-    const agentType: AgentTool | undefined =
+    // Determine agent type (from flag or default to first available harness)
+    const agentType: AgentHarness | undefined =
       options.agentType ??
-      (machineInfo.availableTools.length > 0 ? machineInfo.availableTools[0] : undefined);
+      (machineInfo.availableHarnesses.length > 0 ? machineInfo.availableHarnesses[0] : undefined);
 
     if (agentType) {
       // Store agent config for this chatroom+role (enables remote restart)

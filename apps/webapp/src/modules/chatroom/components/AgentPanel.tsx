@@ -19,7 +19,7 @@ import { createPortal } from 'react-dom';
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import { ChatroomAgentDetailsModal } from './ChatroomAgentDetailsModal';
 import { CopyButton } from './CopyButton';
-import type { AgentTool, MachineInfo, AgentConfig } from '../types/machine';
+import type { AgentHarness, MachineInfo, AgentConfig } from '../types/machine';
 
 import { usePrompts } from '@/contexts/PromptsContext';
 
@@ -185,7 +185,7 @@ interface InlineAgentCardProps {
       chatroomId: Id<'chatroom_rooms'>;
       role: string;
       model?: string;
-      agentTool?: AgentTool;
+      agentHarness?: AgentHarness;
       workingDir?: string;
     };
   }) => Promise<unknown>;
@@ -193,11 +193,11 @@ interface InlineAgentCardProps {
   /** Saved preferences for default selections */
   preferences?: {
     machineId?: string;
-    toolByRole?: Record<string, string>;
+    harnessByRole?: Record<string, string>;
     modelByRole?: Record<string, string>;
   } | null;
   /** Callback to save preferences when starting an agent */
-  onSavePreferences?: (role: string, machineId: string, tool: string, model?: string) => void;
+  onSavePreferences?: (role: string, machineId: string, harness: string, model?: string) => void;
 }
 
 const InlineAgentCard = memo(function InlineAgentCard({
@@ -338,7 +338,7 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   }) as
     | {
         machineId?: string;
-        toolByRole?: Record<string, string>;
+        harnessByRole?: Record<string, string>;
         modelByRole?: Record<string, string>;
       }
     | null
@@ -346,13 +346,13 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
 
   // Save preferences callback (called on agent start)
   const savePreferences = useCallback(
-    async (role: string, machineId: string, tool: string, model?: string) => {
+    async (role: string, machineId: string, harness: string, model?: string) => {
       try {
         await updatePreferences({
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           machineId,
           role,
-          tool,
+          harness,
           model,
         });
       } catch {

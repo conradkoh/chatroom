@@ -1,8 +1,8 @@
 /**
- * Agent Tool Driver — Type Contracts
+ * Agent Harness Driver — Type Contracts
  *
- * Defines the unified interface for interacting with AI agent tools
- * (OpenCode). Each tool implements AgentToolDriver
+ * Defines the unified interface for interacting with AI agent harnesses
+ * (OpenCode). Each harness implements AgentHarnessDriver
  * to provide a consistent API for starting, stopping, and querying agents.
  *
  * Boundary: This module defines driver contracts and capabilities.
@@ -11,13 +11,13 @@
  * but `machine/` should never import from `agent-drivers/`.
  */
 
-import type { AgentTool, ToolVersionInfo } from '../machine/types.js';
+import type { AgentHarness, HarnessVersionInfo } from '../machine/types.js';
 
 // ─── Capabilities ────────────────────────────────────────────────────────────
 
 /**
- * Declares what an agent tool supports at runtime.
- * Used by the daemon and UI to adapt behavior per tool.
+ * Declares what an agent harness supports at runtime.
+ * Used by the daemon and UI to adapt behavior per harness.
  */
 export interface AgentCapabilities {
   /** Can persist and resume sessions across daemon restarts */
@@ -50,8 +50,8 @@ export interface AgentStartOptions {
   initialMessage: string;
   /** AI model to use (respected only if modelSelection capability is true) */
   model?: string;
-  /** Tool version info for version-specific spawn logic */
-  toolVersion?: ToolVersionInfo;
+  /** Harness version info for version-specific spawn logic */
+  harnessVersion?: HarnessVersionInfo;
 }
 
 // ─── Agent Handle ────────────────────────────────────────────────────────────
@@ -64,8 +64,8 @@ export interface AgentStartOptions {
  * The daemon stores handles in Convex so they survive restarts.
  */
 export interface AgentHandle {
-  /** Which tool owns this handle */
-  tool: AgentTool;
+  /** Which harness owns this handle */
+  harness: AgentHarness;
   /** Handle type determines interaction semantics */
   type: 'process' | 'session';
   /** OS process ID (for process-based drivers) */
@@ -93,15 +93,15 @@ export interface DriverStartResult {
 // ─── Driver Interface ────────────────────────────────────────────────────────
 
 /**
- * Common interface for all agent tool drivers.
+ * Common interface for all agent harness drivers.
  *
- * Each AI tool (e.g. OpenCode) implements this interface.
+ * Each AI harness (e.g. OpenCode) implements this interface.
  * The daemon resolves drivers from the DriverRegistry and interacts
  * with them through this contract.
  */
-export interface AgentToolDriver {
-  /** Tool identifier (e.g. 'opencode') */
-  readonly tool: AgentTool;
+export interface AgentHarnessDriver {
+  /** Harness identifier (e.g. 'opencode') */
+  readonly harness: AgentHarness;
 
   /** Static capability declaration — what this tool supports */
   readonly capabilities: AgentCapabilities;
@@ -136,7 +136,7 @@ export interface AgentToolDriver {
 
   /**
    * List available AI models (if dynamicModelDiscovery is true).
-   * Returns an empty array if the tool doesn't support dynamic discovery.
+   * Returns an empty array if the harness doesn't support dynamic discovery.
    */
   listModels(): Promise<string[]>;
 }
@@ -144,16 +144,16 @@ export interface AgentToolDriver {
 // ─── Driver Registry ─────────────────────────────────────────────────────────
 
 /**
- * Resolves AgentToolDriver instances by tool name.
+ * Resolves AgentHarnessDriver instances by harness name.
  * The daemon uses this to dispatch commands to the correct driver.
  */
 export interface DriverRegistry {
-  /** Get the driver for a specific tool. Throws if tool is not registered. */
-  get(tool: AgentTool): AgentToolDriver;
+  /** Get the driver for a specific harness. Throws if harness is not registered. */
+  get(harness: AgentHarness): AgentHarnessDriver;
 
   /** Get all registered drivers */
-  all(): AgentToolDriver[];
+  all(): AgentHarnessDriver[];
 
-  /** Get capabilities for a specific tool. Throws if tool is not registered. */
-  capabilities(tool: AgentTool): AgentCapabilities;
+  /** Get capabilities for a specific harness. Throws if harness is not registered. */
+  capabilities(harness: AgentHarness): AgentCapabilities;
 }

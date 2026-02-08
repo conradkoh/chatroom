@@ -3,7 +3,7 @@
  *
  * Wraps the common child_process.spawn pattern used by
  * the process-based OpenCode driver. Subclasses override buildSpawnArgs()
- * and optionally writePromptToStdin() to customize per-tool behavior.
+ * and optionally writePromptToStdin() to customize per-harness behavior.
  *
  * SECURITY: All spawn calls use shell: false. Prompts are passed via
  * stdin or temp files — never as shell-interpreted arguments.
@@ -19,16 +19,16 @@ import type {
   AgentCapabilities,
   AgentHandle,
   AgentStartOptions,
-  AgentToolDriver,
+  AgentHarnessDriver,
   DriverStartResult,
 } from './types.js';
-import type { AgentTool } from '../machine/types.js';
+import type { AgentHarness } from '../machine/types.js';
 
 // ─── Shared Utilities ────────────────────────────────────────────────────────
 
 /**
  * Write prompt to a temp file and return the path.
- * Used for tools that need prompts passed via file to avoid
+ * Used for harnesses that need prompts passed via file to avoid
  * arg length limits and shell injection.
  */
 export function writeTempPromptFile(prompt: string): string {
@@ -81,10 +81,10 @@ export interface SpawnConfig {
 // ─── Base Class ──────────────────────────────────────────────────────────────
 
 /**
- * Base driver for process-based agent tools (e.g. OpenCode).
+ * Base driver for process-based agent harnesses (e.g. OpenCode).
  *
  * Subclasses must implement:
- *   - tool: the AgentTool identifier
+ *   - harness: the AgentHarness identifier
  *   - capabilities: static capability declaration
  *   - buildSpawnConfig(): returns SpawnConfig for the child process
  *
@@ -94,12 +94,12 @@ export interface SpawnConfig {
  *   - PID-based liveness checking
  *   - SIGTERM-based stopping
  */
-export abstract class ProcessDriver implements AgentToolDriver {
-  abstract readonly tool: AgentTool;
+export abstract class ProcessDriver implements AgentHarnessDriver {
+  abstract readonly harness: AgentHarness;
   abstract readonly capabilities: AgentCapabilities;
 
   /**
-   * Build the spawn configuration for this tool.
+   * Build the spawn configuration for this harness.
    * Subclasses customize command, args, stdio, and prompt delivery.
    */
   protected abstract buildSpawnConfig(options: AgentStartOptions): SpawnConfig;
@@ -110,11 +110,11 @@ export abstract class ProcessDriver implements AgentToolDriver {
   async start(options: AgentStartOptions): Promise<DriverStartResult> {
     const config = this.buildSpawnConfig(options);
 
-    console.log(`   Spawning ${this.tool} agent...`);
+    console.log(`   Spawning ${this.harness} agent...`);
     console.log(`   Working dir: ${options.workingDir}`);
-    if (options.toolVersion) {
+    if (options.harnessVersion) {
       console.log(
-        `   Tool version: v${options.toolVersion.version} (major: ${options.toolVersion.major})`
+        `   Harness version: v${options.harnessVersion.version} (major: ${options.harnessVersion.major})`
       );
     }
     if (options.model) {
@@ -153,7 +153,7 @@ export abstract class ProcessDriver implements AgentToolDriver {
       }
 
       const handle: AgentHandle = {
-        tool: this.tool,
+        harness: this.harness,
         type: 'process',
         pid: childProcess.pid,
         workingDir: options.workingDir,

@@ -6,8 +6,8 @@
  */
 
 // Types
-export type { AgentContext, AgentTool, ToolVersionInfo } from './types.js';
-export { AGENT_TOOL_COMMANDS } from './types.js';
+export type { AgentContext, AgentHarness, HarnessVersionInfo } from './types.js';
+export { AGENT_HARNESS_COMMANDS } from './types.js';
 
 // Storage (static machine config)
 export {

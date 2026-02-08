@@ -1,7 +1,7 @@
 /**
  * Agent Driver Registry
  *
- * Maps AgentTool identifiers to their driver instances.
+ * Maps AgentHarness identifiers to their driver instances.
  * The daemon resolves drivers from this registry to dispatch commands.
  *
  * Usage:
@@ -12,35 +12,35 @@
  */
 
 import { OpenCodeProcessDriver } from './opencode-process-driver.js';
-import type { AgentCapabilities, AgentToolDriver, DriverRegistry } from './types.js';
-import type { AgentTool } from '../machine/types.js';
+import type { AgentCapabilities, AgentHarnessDriver, DriverRegistry } from './types.js';
+import type { AgentHarness } from '../machine/types.js';
 
 // ─── Default Registry Implementation ─────────────────────────────────────────
 
 class DefaultDriverRegistry implements DriverRegistry {
-  private readonly drivers: Map<AgentTool, AgentToolDriver>;
+  private readonly drivers: Map<AgentHarness, AgentHarnessDriver>;
 
-  constructor(drivers: AgentToolDriver[]) {
+  constructor(drivers: AgentHarnessDriver[]) {
     this.drivers = new Map();
     for (const driver of drivers) {
-      this.drivers.set(driver.tool, driver);
+      this.drivers.set(driver.harness, driver);
     }
   }
 
-  get(tool: AgentTool): AgentToolDriver {
-    const driver = this.drivers.get(tool);
+  get(harness: AgentHarness): AgentHarnessDriver {
+    const driver = this.drivers.get(harness);
     if (!driver) {
-      throw new Error(`No driver registered for tool: ${tool}`);
+      throw new Error(`No driver registered for harness: ${harness}`);
     }
     return driver;
   }
 
-  all(): AgentToolDriver[] {
+  all(): AgentHarnessDriver[] {
     return Array.from(this.drivers.values());
   }
 
-  capabilities(tool: AgentTool): AgentCapabilities {
-    return this.get(tool).capabilities;
+  capabilities(harness: AgentHarness): AgentCapabilities {
+    return this.get(harness).capabilities;
   }
 }
 

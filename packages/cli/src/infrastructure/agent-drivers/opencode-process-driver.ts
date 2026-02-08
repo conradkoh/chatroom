@@ -14,10 +14,10 @@ import { execSync } from 'node:child_process';
 
 import { buildCombinedPrompt, ProcessDriver, type SpawnConfig } from './process-driver.js';
 import type { AgentCapabilities, AgentStartOptions } from './types.js';
-import { AGENT_TOOL_COMMANDS } from '../machine/types.js';
+import { AGENT_HARNESS_COMMANDS } from '../machine/types.js';
 
 export class OpenCodeProcessDriver extends ProcessDriver {
-  readonly tool = 'opencode' as const;
+  readonly harness = 'opencode' as const;
 
   readonly capabilities: AgentCapabilities = {
     sessionPersistence: false, // Will become true in Phase 4 (SDK driver)
@@ -30,7 +30,7 @@ export class OpenCodeProcessDriver extends ProcessDriver {
   };
 
   protected buildSpawnConfig(options: AgentStartOptions): SpawnConfig {
-    const command = AGENT_TOOL_COMMANDS[this.tool];
+    const command = AGENT_HARNESS_COMMANDS[this.harness];
     const combinedPrompt = buildCombinedPrompt(options.rolePrompt, options.initialMessage);
 
     // OpenCode: use `opencode run` for non-interactive (headless) mode.

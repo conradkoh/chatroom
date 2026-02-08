@@ -113,8 +113,8 @@ async function getOwnedMachine(ctx: any, machineId: string, userId: any) {
   return machine;
 }
 
-// Agent tool type validator (shared across functions)
-const agentToolValidator = v.literal('opencode');
+// Agent harness type validator (shared across functions)
+const agentHarnessValidator = v.literal('opencode');
 
 // ============================================================================
 // MACHINE REGISTRATION
@@ -126,8 +126,8 @@ const agentToolValidator = v.literal('opencode');
  * Called by CLI on every wait-for-task startup.
  * Creates new machine record or updates existing one.
  */
-// Tool version validator
-const toolVersionValidator = v.object({
+// Harness version validator
+const harnessVersionValidator = v.object({
   version: v.string(),
   major: v.number(),
 });
@@ -138,8 +138,8 @@ export const register = mutation({
     machineId: v.string(),
     hostname: v.string(),
     os: v.string(),
-    availableTools: v.array(agentToolValidator),
-    toolVersions: v.optional(v.record(v.string(), toolVersionValidator)),
+    availableHarnesses: v.array(agentHarnessValidator),
+    harnessVersions: v.optional(v.record(v.string(), harnessVersionValidator)),
     availableModels: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
@@ -162,8 +162,8 @@ export const register = mutation({
       await ctx.db.patch('chatroom_machines', existing._id, {
         hostname: args.hostname,
         os: args.os,
-        availableTools: args.availableTools,
-        toolVersions: args.toolVersions,
+        availableHarnesses: args.availableHarnesses,
+        harnessVersions: args.harnessVersions,
         availableModels: args.availableModels,
         lastSeenAt: now,
       });
@@ -177,8 +177,8 @@ export const register = mutation({
       userId: user._id,
       hostname: args.hostname,
       os: args.os,
-      availableTools: args.availableTools,
-      toolVersions: args.toolVersions,
+      availableHarnesses: args.availableHarnesses,
+      harnessVersions: args.harnessVersions,
       availableModels: args.availableModels,
       registeredAt: now,
       lastSeenAt: now,
@@ -205,7 +205,7 @@ export const updateAgentConfig = mutation({
     machineId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    agentType: agentToolValidator,
+    agentType: agentHarnessValidator,
     workingDir: v.string(),
     model: v.optional(v.string()),
   },
@@ -288,8 +288,8 @@ export const listMachines = query({
         machineId: m.machineId,
         hostname: m.hostname,
         os: m.os,
-        availableTools: m.availableTools,
-        toolVersions: m.toolVersions ?? {},
+        availableHarnesses: m.availableHarnesses,
+        harnessVersions: m.harnessVersions ?? {},
         availableModels: m.availableModels ?? [],
         daemonConnected: m.daemonConnected,
         lastSeenAt: m.lastSeenAt,
@@ -341,7 +341,7 @@ export const getAgentConfigs = query({
           workingDir: config.workingDir,
           model: config.model,
           daemonConnected: machine?.daemonConnected ?? false,
-          availableTools: machine?.availableTools ?? [],
+          availableHarnesses: machine?.availableHarnesses ?? [],
           updatedAt: config.updatedAt,
           spawnedAgentPid: config.spawnedAgentPid,
           spawnedAt: config.spawnedAt,
@@ -431,7 +431,7 @@ export const updateDaemonStatus = mutation({
  * Only the machine owner can send commands.
  *
  * For start-agent commands: if no agent config exists for this chatroom/role/machine,
- * the payload must include agentTool and workingDir to create one on-the-fly.
+ * the payload must include agentHarness and workingDir to create one on-the-fly.
  */
 export const sendCommand = mutation({
   args: {
@@ -449,7 +449,7 @@ export const sendCommand = mutation({
         role: v.optional(v.string()),
         model: v.optional(v.string()),
         // For first-time starts when no agent config exists:
-        agentTool: v.optional(agentToolValidator),
+        agentHarness: v.optional(agentHarnessValidator),
         workingDir: v.optional(v.string()),
       })
     ),
@@ -463,8 +463,8 @@ export const sendCommand = mutation({
       validateWorkingDir(args.payload.workingDir);
     }
 
-    // For start-agent commands, resolve the agent tool and working directory from config or payload
-    let agentTool: 'opencode' | undefined;
+    // For start-agent commands, resolve the agent harness and working directory from config or payload
+    let agentHarness: 'opencode' | undefined;
     let resolvedWorkingDir: string | undefined;
 
     if (args.type === 'start-agent' && args.payload?.chatroomId && args.payload?.role) {
@@ -479,41 +479,41 @@ export const sendCommand = mutation({
         .first();
 
       if (config) {
-        // Use existing config's agent type (payload agentTool overrides if provided)
-        agentTool = (args.payload.agentTool ?? config.agentType) as typeof agentTool;
+        // Use existing config's agent type (payload agentHarness overrides if provided)
+        agentHarness = (args.payload.agentHarness ?? config.agentType) as typeof agentHarness;
         // Resolve working directory: payload overrides config
         resolvedWorkingDir = args.payload.workingDir ?? config.workingDir;
 
         // Update config if payload provides new values
         const updates: Record<string, unknown> = { updatedAt: Date.now() };
-        if (args.payload.agentTool) updates.agentType = args.payload.agentTool;
+        if (args.payload.agentHarness) updates.agentType = args.payload.agentHarness;
         if (args.payload.workingDir) updates.workingDir = args.payload.workingDir;
         if (args.payload.model !== undefined) updates.model = args.payload.model;
         if (Object.keys(updates).length > 1) {
           await ctx.db.patch('chatroom_machineAgentConfigs', config._id, updates);
         }
-      } else if (args.payload.agentTool && args.payload.workingDir) {
+      } else if (args.payload.agentHarness && args.payload.workingDir) {
         // No existing config — create one on-the-fly from payload
-        agentTool = args.payload.agentTool;
+        agentHarness = args.payload.agentHarness;
         resolvedWorkingDir = args.payload.workingDir;
         await ctx.db.insert('chatroom_machineAgentConfigs', {
           machineId: args.machineId,
           chatroomId: args.payload.chatroomId,
           role: args.payload.role,
-          agentType: args.payload.agentTool,
+          agentType: args.payload.agentHarness,
           workingDir: args.payload.workingDir,
           model: args.payload.model,
           updatedAt: Date.now(),
         });
       } else {
         throw new Error(
-          'No agent config found. Provide agentTool and workingDir to start an agent for the first time.'
+          'No agent config found. Provide agentHarness and workingDir to start an agent for the first time.'
         );
       }
 
-      // Verify the tool is available on the machine
-      if (!machine.availableTools.includes(agentTool!)) {
-        throw new Error(`Agent tool '${agentTool}' is not available on this machine`);
+      // Verify the harness is available on the machine
+      if (!machine.availableHarnesses.includes(agentHarness!)) {
+        throw new Error(`Agent harness '${agentHarness}' is not available on this machine`);
       }
     }
 
@@ -527,7 +527,7 @@ export const sendCommand = mutation({
       payload: {
         chatroomId: args.payload?.chatroomId,
         role: args.payload?.role,
-        agentTool,
+        agentHarness,
         model: args.payload?.model,
         workingDir: resolvedWorkingDir,
       },
@@ -671,7 +671,7 @@ export const getAgentPreferences = query({
 
     return {
       machineId: prefs.machineId,
-      toolByRole: prefs.toolByRole,
+      harnessByRole: prefs.harnessByRole,
       modelByRole: prefs.modelByRole,
     };
   },
@@ -687,7 +687,7 @@ export const updateAgentPreferences = mutation({
     chatroomId: v.id('chatroom_rooms'),
     machineId: v.optional(v.string()),
     role: v.optional(v.string()),
-    tool: v.optional(v.string()),
+    harness: v.optional(v.string()),
     model: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -710,10 +710,10 @@ export const updateAgentPreferences = mutation({
         updates.machineId = args.machineId;
       }
 
-      // Update tool for specific role
-      if (args.role && args.tool) {
-        const toolByRole = { ...(existing.toolByRole ?? {}), [args.role]: args.tool };
-        updates.toolByRole = toolByRole;
+      // Update harness for specific role
+      if (args.role && args.harness) {
+        const harnessByRole = { ...(existing.harnessByRole ?? {}), [args.role]: args.harness };
+        updates.harnessByRole = harnessByRole;
       }
 
       // Update model for specific role
@@ -729,7 +729,7 @@ export const updateAgentPreferences = mutation({
         chatroomId: args.chatroomId,
         userId: user._id,
         machineId: args.machineId,
-        toolByRole: args.role && args.tool ? { [args.role]: args.tool } : undefined,
+        harnessByRole: args.role && args.harness ? { [args.role]: args.harness } : undefined,
         modelByRole: args.role && args.model ? { [args.role]: args.model } : undefined,
         updatedAt: now,
       });
