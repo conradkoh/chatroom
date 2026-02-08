@@ -268,7 +268,34 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       ══════════════════════════════════════════════════
 
-      # Pair Team Team
+      🔗 STAYING CONNECTED TO YOUR TEAM
+
+      Your primary directive: Stay available to respond to user and team requests.
+
+      ⚠️  CRITICAL: Run wait-for-task in the FOREGROUND
+
+      Two requirements:
+
+      1. **Shell foreground** - Never use \`&\`, \`nohup\`, or backgrounding
+         • Must run directly in your active terminal
+         • Backgrounded processes cannot receive tasks
+
+      2. **Blocking execution** - Wait for command completion
+         • Do not respond to user or perform other work while running
+         • Only proceed after the command exits (timeout or task received)
+
+      ⏱️  UNDERSTANDING TIMEOUTS
+      • Timeouts are normal and expected - they keep agents responsive
+      • When the command terminates:
+        1. Do you have urgent pending work?
+        2. Without wait-for-task, your team cannot reach you
+        3. If no urgent work, reconnect immediately
+
+      📋 BACKLOG TASKS
+        chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
+        chatroom backlog --help
+
+      # Pair Team
 
       ## Your Role: BUILDER
 
@@ -1643,7 +1670,34 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       ══════════════════════════════════════════════════
 
-      # Pair Team Team
+      🔗 STAYING CONNECTED TO YOUR TEAM
+
+      Your primary directive: Stay available to respond to user and team requests.
+
+      ⚠️  CRITICAL: Run wait-for-task in the FOREGROUND
+
+      Two requirements:
+
+      1. **Shell foreground** - Never use \`&\`, \`nohup\`, or backgrounding
+         • Must run directly in your active terminal
+         • Backgrounded processes cannot receive tasks
+
+      2. **Blocking execution** - Wait for command completion
+         • Do not respond to user or perform other work while running
+         • Only proceed after the command exits (timeout or task received)
+
+      ⏱️  UNDERSTANDING TIMEOUTS
+      • Timeouts are normal and expected - they keep agents responsive
+      • When the command terminates:
+        1. Do you have urgent pending work?
+        2. Without wait-for-task, your team cannot reach you
+        3. If no urgent work, reconnect immediately
+
+      📋 BACKLOG TASKS
+        chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
+        chatroom backlog --help
+
+      # Pair Team
 
       ## Your Role: REVIEWER
 

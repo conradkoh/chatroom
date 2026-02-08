@@ -1,11 +1,7 @@
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
-import {
-  generateRolePrompt,
-  generateTaskStartedReminder,
-  generateSplitInitPrompt,
-} from '../prompts';
+import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
@@ -1658,17 +1654,16 @@ export const getInitPrompt = query({
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
     };
 
-    // Generate split prompt (role prompt + initial message)
-    const splitPrompt = generateSplitInitPrompt(promptInput);
+    // Compose init prompt (system prompt + init message + combined)
+    const composed = composeInitPrompt(promptInput);
 
-    // Return both combined (backwards compatible) and split parts
     return {
-      /** Combined prompt for manual/backwards-compatible mode */
-      prompt: splitPrompt.combined,
-      /** Role identity and guidance (for use as system prompt in machine mode) */
-      rolePrompt: splitPrompt.rolePrompt,
-      /** Context-gaining and next steps (for use as initial message in machine mode) */
-      initialMessage: splitPrompt.initialMessage,
+      /** Combined prompt for manual mode (harnesses without system prompt support) */
+      prompt: composed.initPrompt,
+      /** System prompt: general instructions + role identity (for machine mode) */
+      rolePrompt: composed.systemPrompt,
+      /** Init message: context-gaining and next steps (first user message in machine mode) */
+      initialMessage: composed.initMessage,
     };
   },
 });
