@@ -385,6 +385,9 @@ export const getPendingCommands = query({
       )
       .collect();
 
+    // Ensure FIFO processing order
+    commands.sort((a, b) => a.createdAt - b.createdAt);
+
     return {
       commands: commands.map((cmd) => ({
         _id: cmd._id,
