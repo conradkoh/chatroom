@@ -29,10 +29,17 @@ export { getContextGainingGuidance } from './init/context-gaining.js';
 //   getHandoffValidation,
 // } from './handoff/index.js';
 
+/** Shared context for CLI command prompt generation */
+interface CliCommandContext {
+  chatroomId: string;
+  role: string;
+  cliEnvPrefix: string;
+}
+
 /**
  * Get CLI prompt by command name
  */
-export function getCliPrompt(command: string, ctx: any): string {
+export function getCliPrompt(command: string, ctx: CliCommandContext): string {
   switch (command) {
     case 'task-started':
       return getTaskStartedPrompt(ctx);
@@ -47,7 +54,7 @@ export function getCliPrompt(command: string, ctx: any): string {
 /**
  * Get CLI examples by command name
  */
-export function getCliExamples(command: string, ctx: any): string {
+export function getCliExamples(command: string, ctx: CliCommandContext): string {
   switch (command) {
     case 'task-started':
       return getTaskStartedExamples(ctx);

@@ -8,6 +8,8 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import type { Id } from './_generated/dataModel';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
 
@@ -65,7 +67,7 @@ function validateWorkingDir(workingDir: string): void {
 /**
  * Get authenticated user from session. Throws if session is invalid.
  */
-async function getAuthenticatedUser(ctx: any, sessionId: string) {
+async function getAuthenticatedUser(ctx: QueryCtx | MutationCtx, sessionId: string) {
   const result = await validateSession(ctx, sessionId);
   if (!result.valid) {
     throw new Error('Authentication required');
@@ -80,7 +82,7 @@ async function getAuthenticatedUser(ctx: any, sessionId: string) {
 /**
  * Get authenticated user from session. Returns null if invalid.
  */
-async function getAuthenticatedUserOptional(ctx: any, sessionId: string) {
+async function getAuthenticatedUserOptional(ctx: QueryCtx | MutationCtx, sessionId: string) {
   try {
     return await getAuthenticatedUser(ctx, sessionId);
   } catch {
@@ -91,10 +93,10 @@ async function getAuthenticatedUserOptional(ctx: any, sessionId: string) {
 /**
  * Look up a machine by its machineId. Throws if not found.
  */
-async function getMachineByMachineId(ctx: any, machineId: string) {
+async function getMachineByMachineId(ctx: QueryCtx | MutationCtx, machineId: string) {
   const machine = await ctx.db
     .query('chatroom_machines')
-    .withIndex('by_machineId', (q: any) => q.eq('machineId', machineId))
+    .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
     .first();
   if (!machine) {
     throw new Error('Machine not found');
@@ -105,7 +107,11 @@ async function getMachineByMachineId(ctx: any, machineId: string) {
 /**
  * Look up a machine and verify ownership. Throws if not found or not owned.
  */
-async function getOwnedMachine(ctx: any, machineId: string, userId: any) {
+async function getOwnedMachine(
+  ctx: QueryCtx | MutationCtx,
+  machineId: string,
+  userId: Id<'users'>
+) {
   const machine = await getMachineByMachineId(ctx, machineId);
   if (machine.userId !== userId) {
     throw new Error('Machine is registered to a different user');
