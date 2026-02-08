@@ -63,6 +63,11 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }>
     text: 'text-chatroom-status-success',
     label: 'READY',
   },
+  idle: {
+    bg: 'bg-chatroom-text-muted',
+    text: 'text-chatroom-text-muted',
+    label: 'IDLE',
+  },
   disconnected: {
     bg: 'bg-chatroom-status-error',
     text: 'text-chatroom-status-error',
