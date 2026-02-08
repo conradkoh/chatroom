@@ -271,7 +271,13 @@ export default defineSchema({
   chatroom_participants: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    status: v.union(v.literal('active'), v.literal('waiting')),
+    status: v.union(
+      v.literal('active'),
+      v.literal('waiting'),
+      // @deprecated - idle status is no longer used. Kept for migration compatibility
+      // with existing documents. Will be removed after data cleanup.
+      v.literal('idle')
+    ),
     // Timestamp when this participant's readiness (waiting status) expires
     // After this time, a waiting participant is considered disconnected/stale
     // Used when status = 'waiting'
@@ -546,9 +552,21 @@ export default defineSchema({
     // Operating system (darwin, linux, win32)
     os: v.string(),
     // Available agent harnesses on this machine
-    availableHarnesses: v.array(v.literal('opencode')),
+    availableHarnesses: v.optional(v.array(v.literal('opencode'))),
     // Detected harness versions (keyed by harness name, e.g. { opencode: { version: "1.2.3", major: 1 } })
     harnessVersions: v.optional(
+      v.record(
+        v.string(),
+        v.object({
+          version: v.string(),
+          major: v.number(),
+        })
+      )
+    ),
+    // @deprecated - use availableHarnesses instead (kept for migration compatibility)
+    availableTools: v.optional(v.array(v.literal('opencode'))),
+    // @deprecated - use harnessVersions instead (kept for migration compatibility)
+    toolVersions: v.optional(
       v.record(
         v.string(),
         v.object({
@@ -618,6 +636,8 @@ export default defineSchema({
       chatroomId: v.optional(v.id('chatroom_rooms')),
       role: v.optional(v.string()),
       agentHarness: v.optional(v.literal('opencode')),
+      // @deprecated - use agentHarness instead (kept for migration compatibility)
+      agentTool: v.optional(v.literal('opencode')),
       // AI model to use when starting agent (e.g. "github-copilot/claude-sonnet-4.5")
       model: v.optional(v.string()),
       // Working directory for the agent (absolute path on the remote machine)
@@ -653,6 +673,8 @@ export default defineSchema({
     machineId: v.optional(v.string()),
     // Last selected agent harness per role (e.g. { "builder": "opencode" })
     harnessByRole: v.optional(v.record(v.string(), v.string())),
+    // @deprecated - use harnessByRole instead (kept for migration compatibility)
+    toolByRole: v.optional(v.record(v.string(), v.string())),
     // Last selected model per role (e.g. { "builder": "github-copilot/claude-sonnet-4.5" })
     modelByRole: v.optional(v.record(v.string(), v.string())),
     // Last updated timestamp
