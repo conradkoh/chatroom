@@ -320,34 +320,38 @@ export const getAgentConfigs = query({
       return { configs: [] };
     }
 
-    const configs = await ctx.db
+    // Get the user's machines for ownership filtering
+    const userMachines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', user._id))
+      .collect();
+    const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
+
+    const allConfigs = await ctx.db
       .query('chatroom_machineAgentConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Get machine details for each config
-    const configsWithMachine = await Promise.all(
-      configs.map(async (config) => {
-        const machine = await ctx.db
-          .query('chatroom_machines')
-          .withIndex('by_machineId', (q) => q.eq('machineId', config.machineId))
-          .first();
+    // Filter to only configs for machines the user owns
+    const userConfigs = allConfigs.filter((c) => userMachineMap.has(c.machineId));
 
-        return {
-          machineId: config.machineId,
-          hostname: machine?.hostname ?? 'Unknown',
-          role: config.role,
-          agentType: config.agentType,
-          workingDir: config.workingDir,
-          model: config.model,
-          daemonConnected: machine?.daemonConnected ?? false,
-          availableHarnesses: machine?.availableHarnesses ?? [],
-          updatedAt: config.updatedAt,
-          spawnedAgentPid: config.spawnedAgentPid,
-          spawnedAt: config.spawnedAt,
-        };
-      })
-    );
+    // Enrich configs with machine details (already fetched)
+    const configsWithMachine = userConfigs.map((config) => {
+      const machine = userMachineMap.get(config.machineId);
+      return {
+        machineId: config.machineId,
+        hostname: machine?.hostname ?? 'Unknown',
+        role: config.role,
+        agentType: config.agentType,
+        workingDir: config.workingDir,
+        model: config.model,
+        daemonConnected: machine?.daemonConnected ?? false,
+        availableHarnesses: machine?.availableHarnesses ?? [],
+        updatedAt: config.updatedAt,
+        spawnedAgentPid: config.spawnedAgentPid,
+        spawnedAt: config.spawnedAt,
+      };
+    });
 
     return { configs: configsWithMachine };
   },
