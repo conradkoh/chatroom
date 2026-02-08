@@ -27,6 +27,23 @@ import {
   updateAgentContext,
 } from '../../infrastructure/machine/index.js';
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+/**
+ * Named type alias for the session ID passed to Convex mutations/queries.
+ * The Convex SessionIdArg expects a specific branded type, but our sessionId
+ * is a plain string from local storage. This alias documents intent and
+ * avoids bare `any` in every function signature.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SessionId = any;
+
+/** Convex client type used throughout the daemon. */
+type ConvexClient = Awaited<ReturnType<typeof getConvexClient>>;
+
+/** Machine config type returned by loadMachineConfig(). */
+type MachineConfig = ReturnType<typeof loadMachineConfig>;
+
 /**
  * Base fields shared across all machine commands.
  */
@@ -103,6 +120,22 @@ interface RawMachineCommand {
   createdAt: number;
 }
 
+/** Result returned by individual command handlers. */
+interface CommandResult {
+  result: string;
+  failed: boolean;
+}
+
+/** Shared context passed to all command handlers. */
+interface DaemonContext {
+  client: ConvexClient;
+  sessionId: SessionId;
+  machineId: string;
+  config: MachineConfig;
+}
+
+// ─── Parsing ─────────────────────────────────────────────────────────────────
+
 /**
  * Parse a raw command from Convex into the type-safe discriminated union.
  * Validates that required fields are present for each command type.
@@ -150,6 +183,8 @@ function parseMachineCommand(raw: RawMachineCommand): MachineCommand | null {
       return null;
   }
 }
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
 
 /**
  * Format timestamp for daemon log output.
@@ -207,6 +242,31 @@ function verifyPidOwnership(pid: number, expectedTool?: string): boolean {
 }
 
 /**
+ * Clear an agent's PID from both the Convex backend and local state file.
+ * Used when stopping agents or cleaning up stale PIDs.
+ */
+async function clearAgentPidEverywhere(
+  ctx: DaemonContext,
+  chatroomId: Id<'chatroom_rooms'>,
+  role: string
+): Promise<void> {
+  try {
+    await ctx.client.mutation(api.machines.updateSpawnedAgent, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      chatroomId,
+      role,
+      pid: undefined,
+    });
+  } catch (e) {
+    console.log(`   ⚠️  Failed to clear PID in backend: ${(e as Error).message}`);
+  }
+  clearAgentPid(ctx.machineId, chatroomId, role);
+}
+
+// ─── State Recovery ──────────────────────────────────────────────────────────
+
+/**
  * Recover agent state on daemon restart.
  *
  * Reads locally persisted PIDs from the per-machine state file
@@ -217,12 +277,8 @@ function verifyPidOwnership(pid: number, expectedTool?: string): boolean {
  *
  * This runs once on daemon startup before command processing begins.
  */
-async function recoverAgentState(
-  client: Awaited<ReturnType<typeof getConvexClient>>,
-  sessionId: any,
-  machineId: string
-): Promise<void> {
-  const entries = listAgentEntries(machineId);
+async function recoverAgentState(ctx: DaemonContext): Promise<void> {
+  const entries = listAgentEntries(ctx.machineId);
 
   if (entries.length === 0) {
     console.log(`   No agent entries found — nothing to recover`);
@@ -241,23 +297,7 @@ async function recoverAgentState(
       recovered++;
     } else {
       console.log(`   🧹 Stale PID ${pid} for ${role} — clearing`);
-
-      // Clear locally
-      clearAgentPid(machineId, chatroomId, role);
-
-      // Clear in Convex (best-effort — don't fail startup if this errors)
-      try {
-        await client.mutation(api.machines.updateSpawnedAgent, {
-          sessionId,
-          machineId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          role,
-          pid: undefined,
-        });
-      } catch (e) {
-        console.log(`   ⚠️  Failed to clear stale PID in Convex: ${(e as Error).message}`);
-      }
-
+      await clearAgentPidEverywhere(ctx, chatroomId as Id<'chatroom_rooms'>, role);
       cleared++;
     }
   }
@@ -265,10 +305,331 @@ async function recoverAgentState(
   console.log(`   Recovery complete: ${recovered} alive, ${cleared} stale cleared`);
 }
 
+// ─── Command Handlers ────────────────────────────────────────────────────────
+
 /**
- * Start the daemon
+ * Handle a ping command — responds with "pong".
  */
-export async function daemonStart(): Promise<void> {
+function handlePing(): CommandResult {
+  console.log(`   ↪ Responding: pong`);
+  return { result: 'pong', failed: false };
+}
+
+/**
+ * Handle a status command — responds with machine info.
+ */
+function handleStatus(ctx: DaemonContext): CommandResult {
+  const result = JSON.stringify({
+    hostname: ctx.config?.hostname,
+    os: ctx.config?.os,
+    availableTools: ctx.config?.availableTools,
+    chatroomAgents: Object.keys(ctx.config?.chatroomAgents ?? {}),
+  });
+  console.log(`   ↪ Responding with status`);
+  return { result, failed: false };
+}
+
+/**
+ * Handle a start-agent command — spawns an agent process for a chatroom role.
+ */
+async function handleStartAgent(
+  ctx: DaemonContext,
+  command: StartAgentCommand
+): Promise<CommandResult> {
+  const { chatroomId, role, agentTool, model, workingDir } = command.payload;
+  console.log(`   ↪ start-agent command received`);
+  console.log(`      Chatroom: ${chatroomId}`);
+  console.log(`      Role: ${role}`);
+  console.log(`      Tool: ${agentTool}`);
+  if (model) {
+    console.log(`      Model: ${model}`);
+  }
+
+  // Get agent context for working directory.
+  // First try local config, then fall back to workingDir from the command payload
+  // (which the backend resolves from chatroom_machineAgentConfigs).
+  let agentContext = getAgentContext(chatroomId, role);
+
+  if (!agentContext && workingDir) {
+    // No local context — use the working directory from the command payload
+    // and update the local config so future commands don't need this fallback
+    console.log(`   No local agent context, using workingDir from command payload`);
+    updateAgentContext(chatroomId, role, agentTool, workingDir);
+    agentContext = getAgentContext(chatroomId, role);
+  }
+
+  if (!agentContext) {
+    const msg = `No agent context found for ${chatroomId}/${role}`;
+    console.log(`   ⚠️  ${msg}`);
+    return { result: msg, failed: true };
+  }
+
+  console.log(`      Working dir: ${agentContext.workingDir}`);
+
+  // SECURITY: Validate working directory exists on the local filesystem
+  // using fs.stat (not a shell command) to prevent path-based attacks.
+  // This is defense-in-depth alongside the backend's character validation.
+  try {
+    const dirStat = await stat(agentContext.workingDir);
+    if (!dirStat.isDirectory()) {
+      const msg = `Working directory is not a directory: ${agentContext.workingDir}`;
+      console.log(`   ⚠️  ${msg}`);
+      return { result: msg, failed: true };
+    }
+  } catch {
+    const msg = `Working directory does not exist: ${agentContext.workingDir}`;
+    console.log(`   ⚠️  ${msg}`);
+    return { result: msg, failed: true };
+  }
+
+  // Fetch split init prompt from backend (single source of truth)
+  const convexUrl = getConvexUrl();
+  const initPromptResult = (await ctx.client.query(api.messages.getInitPrompt, {
+    sessionId: ctx.sessionId,
+    chatroomId,
+    role,
+    convexUrl,
+  })) as { prompt: string; rolePrompt: string; initialMessage: string } | null;
+
+  if (!initPromptResult?.prompt) {
+    const msg = 'Failed to fetch init prompt from backend';
+    console.log(`   ⚠️  ${msg}`);
+    return { result: msg, failed: true };
+  }
+
+  console.log(`   Fetched split init prompt from backend`);
+
+  // Get tool version for version-specific spawn logic (uses cached config)
+  const toolVersion = ctx.config?.toolVersions?.[agentTool];
+
+  // Resolve driver from registry and start the agent
+  const registry = getDriverRegistry();
+  let driver;
+  try {
+    driver = registry.get(agentTool);
+  } catch {
+    const msg = `No driver registered for tool: ${agentTool}`;
+    console.log(`   ⚠️  ${msg}`);
+    return { result: msg, failed: true };
+  }
+
+  const startResult = await driver.start({
+    workingDir: agentContext.workingDir,
+    rolePrompt: initPromptResult.rolePrompt,
+    initialMessage: initPromptResult.initialMessage,
+    toolVersion: toolVersion ?? undefined,
+    model,
+  });
+
+  if (startResult.success && startResult.handle) {
+    const msg = `Agent spawned (PID: ${startResult.handle.pid})`;
+    console.log(`   ✅ ${msg}`);
+
+    // Update backend with spawned agent PID and persist locally
+    if (startResult.handle.pid) {
+      try {
+        await ctx.client.mutation(api.machines.updateSpawnedAgent, {
+          sessionId: ctx.sessionId,
+          machineId: ctx.machineId,
+          chatroomId,
+          role,
+          pid: startResult.handle.pid,
+        });
+        console.log(`   Updated backend with PID: ${startResult.handle.pid}`);
+
+        // Persist PID locally for daemon restart recovery
+        persistAgentPid(ctx.machineId, chatroomId, role, startResult.handle.pid, agentTool);
+      } catch (e) {
+        console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
+      }
+    }
+    return { result: msg, failed: false };
+  }
+
+  console.log(`   ⚠️  ${startResult.message}`);
+  return { result: startResult.message, failed: true };
+}
+
+/**
+ * Handle a stop-agent command — stops a running agent process.
+ */
+async function handleStopAgent(
+  ctx: DaemonContext,
+  command: StopAgentCommand
+): Promise<CommandResult> {
+  const { chatroomId, role } = command.payload;
+  console.log(`   ↪ stop-agent command received`);
+  console.log(`      Chatroom: ${chatroomId}`);
+  console.log(`      Role: ${role}`);
+
+  // Query the backend for the current PID (single source of truth)
+  const configsResult = (await ctx.client.query(api.machines.getAgentConfigs, {
+    sessionId: ctx.sessionId,
+    chatroomId,
+  })) as {
+    configs: {
+      machineId: string;
+      role: string;
+      agentType?: string;
+      spawnedAgentPid?: number;
+    }[];
+  };
+
+  const targetConfig = configsResult.configs.find(
+    (c) => c.machineId === ctx.machineId && c.role.toLowerCase() === role.toLowerCase()
+  );
+
+  if (!targetConfig?.spawnedAgentPid) {
+    const msg = 'No running agent found (no PID recorded)';
+    console.log(`   ⚠️  ${msg}`);
+    return { result: msg, failed: true };
+  }
+
+  const pidToKill = targetConfig.spawnedAgentPid;
+  const agentTool = (targetConfig.agentType as 'opencode') || undefined;
+  console.log(`   Stopping agent with PID: ${pidToKill}`);
+
+  // Build an AgentHandle from the stored PID and tool type
+  const stopHandle: AgentHandle = {
+    tool: agentTool || 'opencode', // fallback; tool is needed for handle but stop uses PID
+    type: 'process',
+    pid: pidToKill,
+    workingDir: '', // Not needed for stop
+  };
+
+  // Resolve the driver for this tool (for isAlive/stop)
+  const registry = getDriverRegistry();
+  let stopDriver;
+  try {
+    stopDriver = agentTool ? registry.get(agentTool) : null;
+  } catch {
+    stopDriver = null;
+  }
+
+  // Verify the PID is still alive via the driver (or fallback to verifyPidOwnership)
+  const isAlive = stopDriver
+    ? await stopDriver.isAlive(stopHandle)
+    : verifyPidOwnership(pidToKill, agentTool);
+
+  if (!isAlive) {
+    console.log(`   ⚠️  PID ${pidToKill} does not appear to belong to the expected agent`);
+    await clearAgentPidEverywhere(ctx, chatroomId, role);
+    console.log(`   Cleared stale PID`);
+    return {
+      result: `PID ${pidToKill} appears stale (process not found or belongs to different program)`,
+      failed: true,
+    };
+  }
+
+  try {
+    // Use the driver to stop the agent (sends SIGTERM for process-based drivers)
+    if (stopDriver) {
+      await stopDriver.stop(stopHandle);
+    } else {
+      // Fallback: direct SIGTERM if no driver available
+      process.kill(pidToKill, 'SIGTERM');
+    }
+
+    const msg = `Agent stopped (PID: ${pidToKill})`;
+    console.log(`   ✅ ${msg}`);
+    await clearAgentPidEverywhere(ctx, chatroomId, role);
+    console.log(`   Cleared PID`);
+    return { result: msg, failed: false };
+  } catch (e) {
+    const err = e as NodeJS.ErrnoException;
+    if (err.code === 'ESRCH') {
+      await clearAgentPidEverywhere(ctx, chatroomId, role);
+      const msg = 'Process not found (may have already exited)';
+      console.log(`   ⚠️  ${msg}`);
+      return { result: msg, failed: true };
+    }
+    const msg = `Failed to stop agent: ${err.message}`;
+    console.log(`   ⚠️  ${msg}`);
+    return { result: msg, failed: true };
+  }
+}
+
+// ─── Command Dispatch ────────────────────────────────────────────────────────
+
+/**
+ * Process a single command: dispatch to the appropriate handler,
+ * then ack the result back to the backend.
+ */
+async function processCommand(ctx: DaemonContext, command: MachineCommand): Promise<void> {
+  console.log(`[${formatTimestamp()}] 📨 Command received: ${command.type}`);
+
+  try {
+    // Mark as processing
+    await ctx.client.mutation(api.machines.ackCommand, {
+      sessionId: ctx.sessionId,
+      commandId: command._id,
+      status: 'processing',
+    });
+
+    // Dispatch to the appropriate handler
+    let commandResult: CommandResult;
+    switch (command.type) {
+      case 'ping':
+        commandResult = handlePing();
+        break;
+      case 'status':
+        commandResult = handleStatus(ctx);
+        break;
+      case 'start-agent':
+        commandResult = await handleStartAgent(ctx, command);
+        break;
+      case 'stop-agent':
+        commandResult = await handleStopAgent(ctx, command);
+        break;
+      default: {
+        // Exhaustiveness check: TypeScript will error if a new command type
+        // is added to MachineCommand but not handled above.
+        const _exhaustive: never = command;
+        commandResult = {
+          result: `Unknown command type: ${(_exhaustive as MachineCommandBase & { type: string }).type}`,
+          failed: true,
+        };
+      }
+    }
+
+    // Ack result back to backend
+    const finalStatus = commandResult.failed ? 'failed' : 'completed';
+    await ctx.client.mutation(api.machines.ackCommand, {
+      sessionId: ctx.sessionId,
+      commandId: command._id,
+      status: finalStatus,
+      result: commandResult.result,
+    });
+
+    if (commandResult.failed) {
+      console.log(`   ❌ Command failed: ${commandResult.result}`);
+    } else {
+      console.log(`   ✅ Command completed`);
+    }
+  } catch (error) {
+    console.error(`   ❌ Command failed: ${(error as Error).message}`);
+
+    // Mark as failed
+    try {
+      await ctx.client.mutation(api.machines.ackCommand, {
+        sessionId: ctx.sessionId,
+        commandId: command._id,
+        status: 'failed',
+        result: (error as Error).message,
+      });
+    } catch {
+      // Ignore ack errors
+    }
+  }
+}
+
+// ─── Daemon Initialization ───────────────────────────────────────────────────
+
+/**
+ * Initialize the daemon: validate auth, connect to Convex, recover state.
+ * Returns the DaemonContext if successful, or exits the process on failure.
+ */
+async function initDaemon(): Promise<DaemonContext> {
   // Acquire lock (prevents multiple daemons)
   if (!acquireLock()) {
     process.exit(1);
@@ -307,12 +668,9 @@ export async function daemonStart(): Promise<void> {
 
   const client = await getConvexClient();
 
-  // SessionId is validated above as non-null. We use a typed reference
-  // to avoid repeated `as any` casts throughout the daemon.
-  // The Convex SessionIdArg expects a specific branded type, but our
-  // sessionId is a plain string from local storage. This single cast
-  // is the boundary between our storage format and Convex's type system.
-  const typedSessionId = sessionId as any;
+  // SessionId is validated above as non-null. Cast once at the boundary
+  // between our storage format and Convex's branded type system.
+  const typedSessionId: SessionId = sessionId;
 
   // Update daemon status to connected
   try {
@@ -327,7 +685,10 @@ export async function daemonStart(): Promise<void> {
     process.exit(1);
   }
 
+  // Load and cache machine config (read once, reused by handlers)
   const config = loadMachineConfig();
+
+  const ctx: DaemonContext = { client, sessionId: typedSessionId, machineId, config };
 
   console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
   console.log(`   Machine ID: ${machineId}`);
@@ -338,24 +699,31 @@ export async function daemonStart(): Promise<void> {
   // Recover agent state from previous daemon session
   console.log(`\n[${formatTimestamp()}] 🔄 Recovering agent state...`);
   try {
-    await recoverAgentState(client, typedSessionId, machineId);
+    await recoverAgentState(ctx);
   } catch (e) {
     console.log(`   ⚠️  Recovery failed: ${(e as Error).message}`);
     console.log(`   Continuing with fresh state`);
   }
 
-  console.log(`\nListening for commands...`);
-  console.log(`Press Ctrl+C to stop\n`);
+  return ctx;
+}
 
+// ─── Command Loop ────────────────────────────────────────────────────────────
+
+/**
+ * Start the command processing loop: subscribe to Convex for pending commands,
+ * enqueue them, and process sequentially.
+ */
+async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Set up graceful shutdown
   const shutdown = async () => {
     console.log(`\n[${formatTimestamp()}] Shutting down...`);
 
     try {
       // Update daemon status to disconnected
-      await client.mutation(api.machines.updateDaemonStatus, {
-        sessionId: typedSessionId,
-        machineId,
+      await ctx.client.mutation(api.machines.updateDaemonStatus, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
         connected: false,
       });
     } catch {
@@ -397,7 +765,7 @@ export async function daemonStart(): Promise<void> {
         const commandId = command._id.toString();
         queuedCommandIds.delete(commandId);
         try {
-          await processCommand(client, typedSessionId, machineId, command);
+          await processCommand(ctx, command);
         } catch (error) {
           console.error(`   ❌ Command processing failed: ${(error as Error).message}`);
         }
@@ -407,11 +775,14 @@ export async function daemonStart(): Promise<void> {
     }
   };
 
+  console.log(`\nListening for commands...`);
+  console.log(`Press Ctrl+C to stop\n`);
+
   wsClient.onUpdate(
     api.machines.getPendingCommands,
     {
-      sessionId: typedSessionId,
-      machineId,
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
     },
     async (result: { commands: RawMachineCommand[] }) => {
       if (!result.commands || result.commands.length === 0) return;
@@ -428,327 +799,15 @@ export async function daemonStart(): Promise<void> {
   );
 
   // Keep process alive
-  await new Promise(() => {});
+  return await new Promise(() => {});
 }
 
+// ─── Entry Point ─────────────────────────────────────────────────────────────
+
 /**
- * Process a single command
+ * Start the daemon: initialize, then enter the command processing loop.
  */
-async function processCommand(
-  client: Awaited<ReturnType<typeof getConvexClient>>,
-  sessionId: any,
-  machineId: string,
-  command: MachineCommand
-): Promise<void> {
-  console.log(`[${formatTimestamp()}] 📨 Command received: ${command.type}`);
-
-  try {
-    // Mark as processing
-    await client.mutation(api.machines.ackCommand, {
-      sessionId,
-      commandId: command._id,
-      status: 'processing',
-    });
-
-    let result: string;
-    let commandFailed = false;
-
-    switch (command.type) {
-      case 'ping':
-        result = 'pong';
-        console.log(`   ↪ Responding: pong`);
-        break;
-
-      case 'status':
-        const config = loadMachineConfig();
-        result = JSON.stringify({
-          hostname: config?.hostname,
-          os: config?.os,
-          availableTools: config?.availableTools,
-          chatroomAgents: Object.keys(config?.chatroomAgents ?? {}),
-        });
-        console.log(`   ↪ Responding with status`);
-        break;
-
-      case 'start-agent': {
-        const { chatroomId, role, agentTool, model, workingDir } = command.payload;
-        console.log(`   ↪ start-agent command received`);
-        console.log(`      Chatroom: ${chatroomId}`);
-        console.log(`      Role: ${role}`);
-        console.log(`      Tool: ${agentTool}`);
-        if (model) {
-          console.log(`      Model: ${model}`);
-        }
-
-        // Get agent context for working directory.
-        // First try local config, then fall back to workingDir from the command payload
-        // (which the backend resolves from chatroom_machineAgentConfigs).
-        let agentContext = getAgentContext(chatroomId, role);
-
-        if (!agentContext && workingDir) {
-          // No local context — use the working directory from the command payload
-          // and update the local config so future commands don't need this fallback
-          console.log(`   No local agent context, using workingDir from command payload`);
-          updateAgentContext(chatroomId, role, agentTool, workingDir);
-          agentContext = getAgentContext(chatroomId, role);
-        }
-
-        if (!agentContext) {
-          result = `No agent context found for ${chatroomId}/${role}`;
-          commandFailed = true;
-          console.log(`   ⚠️  ${result}`);
-          break;
-        }
-
-        console.log(`      Working dir: ${agentContext.workingDir}`);
-
-        // SECURITY: Validate working directory exists on the local filesystem
-        // using fs.stat (not a shell command) to prevent path-based attacks.
-        // This is defense-in-depth alongside the backend's character validation.
-        try {
-          const dirStat = await stat(agentContext.workingDir);
-          if (!dirStat.isDirectory()) {
-            result = `Working directory is not a directory: ${agentContext.workingDir}`;
-            commandFailed = true;
-            console.log(`   ⚠️  ${result}`);
-            break;
-          }
-        } catch {
-          result = `Working directory does not exist: ${agentContext.workingDir}`;
-          commandFailed = true;
-          console.log(`   ⚠️  ${result}`);
-          break;
-        }
-
-        // Fetch split init prompt from backend (single source of truth)
-        const convexUrl = getConvexUrl();
-        const initPromptResult = (await client.query(api.messages.getInitPrompt, {
-          sessionId,
-          chatroomId,
-          role,
-          convexUrl,
-        })) as { prompt: string; rolePrompt: string; initialMessage: string } | null;
-
-        if (!initPromptResult?.prompt) {
-          result = 'Failed to fetch init prompt from backend';
-          commandFailed = true;
-          console.log(`   ⚠️  ${result}`);
-          break;
-        }
-
-        console.log(`   Fetched split init prompt from backend`);
-
-        // Get tool version for version-specific spawn logic
-        const machineConfig = loadMachineConfig();
-        const toolVersion = machineConfig?.toolVersions?.[agentTool];
-
-        // Resolve driver from registry and start the agent
-        const registry = getDriverRegistry();
-        let driver;
-        try {
-          driver = registry.get(agentTool);
-        } catch {
-          result = `No driver registered for tool: ${agentTool}`;
-          commandFailed = true;
-          console.log(`   ⚠️  ${result}`);
-          break;
-        }
-
-        const startResult = await driver.start({
-          workingDir: agentContext.workingDir,
-          rolePrompt: initPromptResult.rolePrompt,
-          initialMessage: initPromptResult.initialMessage,
-          toolVersion: toolVersion ?? undefined,
-          model,
-        });
-
-        if (startResult.success && startResult.handle) {
-          result = `Agent spawned (PID: ${startResult.handle.pid})`;
-          console.log(`   ✅ ${result}`);
-
-          // Update backend with spawned agent PID
-          if (startResult.handle.pid) {
-            try {
-              await client.mutation(api.machines.updateSpawnedAgent, {
-                sessionId,
-                machineId,
-                chatroomId,
-                role,
-                pid: startResult.handle.pid,
-              });
-              console.log(`   Updated backend with PID: ${startResult.handle.pid}`);
-
-              // Persist PID locally for daemon restart recovery
-              persistAgentPid(machineId, chatroomId, role, startResult.handle.pid, agentTool);
-            } catch (e) {
-              console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
-            }
-          }
-        } else {
-          result = startResult.message;
-          commandFailed = true;
-          console.log(`   ⚠️  ${result}`);
-        }
-        break;
-      }
-
-      case 'stop-agent': {
-        const { chatroomId: stopChatroomId, role: stopRole } = command.payload;
-        console.log(`   ↪ stop-agent command received`);
-        console.log(`      Chatroom: ${stopChatroomId}`);
-        console.log(`      Role: ${stopRole}`);
-
-        // Query the backend for the current PID (single source of truth)
-        const configsResult = (await client.query(api.machines.getAgentConfigs, {
-          sessionId,
-          chatroomId: stopChatroomId,
-        })) as {
-          configs: {
-            machineId: string;
-            role: string;
-            agentType?: string;
-            spawnedAgentPid?: number;
-          }[];
-        };
-
-        const targetConfig = configsResult.configs.find(
-          (c) => c.machineId === machineId && c.role.toLowerCase() === stopRole.toLowerCase()
-        );
-
-        if (!targetConfig?.spawnedAgentPid) {
-          result = 'No running agent found (no PID recorded)';
-          commandFailed = true;
-          console.log(`   ⚠️  ${result}`);
-          break;
-        }
-
-        const pidToKill = targetConfig.spawnedAgentPid;
-        const agentTool = (targetConfig.agentType as 'opencode') || undefined;
-        console.log(`   Stopping agent with PID: ${pidToKill}`);
-
-        // Build an AgentHandle from the stored PID and tool type
-        const stopHandle: AgentHandle = {
-          tool: agentTool || 'opencode', // fallback; tool is needed for handle but stop uses PID
-          type: 'process',
-          pid: pidToKill,
-          workingDir: '', // Not needed for stop
-        };
-
-        // Resolve the driver for this tool (for isAlive/stop)
-        const stopRegistry = getDriverRegistry();
-        let stopDriver;
-        try {
-          stopDriver = agentTool ? stopRegistry.get(agentTool) : null;
-        } catch {
-          stopDriver = null;
-        }
-
-        // Verify the PID is still alive via the driver (or fallback to verifyPidOwnership)
-        const isAlive = stopDriver
-          ? await stopDriver.isAlive(stopHandle)
-          : verifyPidOwnership(pidToKill, agentTool);
-
-        if (!isAlive) {
-          console.log(`   ⚠️  PID ${pidToKill} does not appear to belong to the expected agent`);
-          result = `PID ${pidToKill} appears stale (process not found or belongs to different program)`;
-          commandFailed = true;
-
-          // Clear the stale PID in backend
-          await client.mutation(api.machines.updateSpawnedAgent, {
-            sessionId,
-            machineId,
-            chatroomId: stopChatroomId,
-            role: stopRole,
-            pid: undefined,
-          });
-          console.log(`   Cleared stale PID in backend`);
-          // Also clear locally for restart recovery
-          clearAgentPid(machineId, stopChatroomId, stopRole);
-          break;
-        }
-
-        try {
-          // Use the driver to stop the agent (sends SIGTERM for process-based drivers)
-          if (stopDriver) {
-            await stopDriver.stop(stopHandle);
-          } else {
-            // Fallback: direct SIGTERM if no driver available
-            process.kill(pidToKill, 'SIGTERM');
-          }
-          result = `Agent stopped (PID: ${pidToKill})`;
-          console.log(`   ✅ ${result}`);
-
-          // Clear the PID in backend
-          await client.mutation(api.machines.updateSpawnedAgent, {
-            sessionId,
-            machineId,
-            chatroomId: stopChatroomId,
-            role: stopRole,
-            pid: undefined, // Clear PID
-          });
-          console.log(`   Cleared PID in backend`);
-          // Also clear locally for restart recovery
-          clearAgentPid(machineId, stopChatroomId, stopRole);
-        } catch (e) {
-          const err = e as NodeJS.ErrnoException;
-          if (err.code === 'ESRCH') {
-            result = 'Process not found (may have already exited)';
-            commandFailed = true;
-            // Clear the stale PID
-            await client.mutation(api.machines.updateSpawnedAgent, {
-              sessionId,
-              machineId,
-              chatroomId: stopChatroomId,
-              role: stopRole,
-              pid: undefined,
-            });
-            // Also clear locally
-            clearAgentPid(machineId, stopChatroomId, stopRole);
-          } else {
-            result = `Failed to stop agent: ${err.message}`;
-            commandFailed = true;
-          }
-          console.log(`   ⚠️  ${result}`);
-        }
-        break;
-      }
-
-      default: {
-        // Exhaustiveness check: this should never be reached.
-        // If a new command type is added to MachineCommand but not handled above,
-        // TypeScript will report a compile error here.
-        const _exhaustive: never = command;
-        result = `Unknown command type: ${(_exhaustive as MachineCommandBase & { type: string }).type}`;
-      }
-    }
-
-    // Mark as completed or failed based on whether an error occurred
-    const finalStatus = commandFailed ? 'failed' : 'completed';
-    await client.mutation(api.machines.ackCommand, {
-      sessionId,
-      commandId: command._id,
-      status: finalStatus,
-      result,
-    });
-
-    if (commandFailed) {
-      console.log(`   ❌ Command failed: ${result}`);
-    } else {
-      console.log(`   ✅ Command completed`);
-    }
-  } catch (error) {
-    console.error(`   ❌ Command failed: ${(error as Error).message}`);
-
-    // Mark as failed
-    try {
-      await client.mutation(api.machines.ackCommand, {
-        sessionId,
-        commandId: command._id,
-        status: 'failed',
-        result: (error as Error).message,
-      });
-    } catch {
-      // Ignore ack errors
-    }
-  }
+export async function daemonStart(): Promise<void> {
+  const ctx = await initDaemon();
+  await startCommandLoop(ctx);
 }
