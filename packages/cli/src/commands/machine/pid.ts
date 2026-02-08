@@ -5,12 +5,22 @@
  * and enable clean shutdown.
  */
 
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const CHATROOM_DIR = join(homedir(), '.chatroom');
 const PID_FILE = 'daemon.pid';
+
+/**
+ * Ensure the chatroom directory exists
+ */
+function ensureChatroomDir(): void {
+  if (!existsSync(CHATROOM_DIR)) {
+    // SECURITY: 0o700 restricts directory access to owner only.
+    mkdirSync(CHATROOM_DIR, { recursive: true, mode: 0o700 });
+  }
+}
 
 /**
  * Get the path to the PID file
@@ -62,6 +72,7 @@ export function readPid(): number | null {
  * Write the current process PID to the file
  */
 export function writePid(): void {
+  ensureChatroomDir();
   const pidPath = getPidFilePath();
   writeFileSync(pidPath, process.pid.toString(), 'utf-8');
 }
