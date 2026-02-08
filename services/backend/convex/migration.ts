@@ -322,3 +322,96 @@ export const getTasksBatch = internalQuery({
     return await ctx.db.query('chatroom_tasks').paginate(args.paginationOpts);
   },
 });
+
+// ========================================
+// TOOL → HARNESS FIELD RENAME MIGRATION
+// ========================================
+
+/**
+ * Migrate all data from deprecated "tool" fields to new "harness" fields.
+ *
+ * Handles three tables:
+ * 1. chatroom_machines: availableTools → availableHarnesses, toolVersions → harnessVersions
+ * 2. chatroom_agentPreferences: toolByRole → harnessByRole
+ * 3. chatroom_participants: delete any with status = 'idle' (deprecated)
+ *
+ * After running this migration, the deprecated fields in the schema can be removed.
+ *
+ * @returns Summary of what was migrated
+ */
+export const migrateToolToHarness = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const results = {
+      machines: { total: 0, migrated: 0 },
+      preferences: { total: 0, migrated: 0 },
+      participants: { total: 0, deletedIdle: 0 },
+    };
+
+    // 1. Migrate chatroom_machines
+    const machines = await ctx.db.query('chatroom_machines').collect();
+    results.machines.total = machines.length;
+
+    for (const machine of machines) {
+      const needsMigration =
+        (machine as Record<string, unknown>).availableTools !== undefined ||
+        (machine as Record<string, unknown>).toolVersions !== undefined;
+
+      if (needsMigration) {
+        const doc = machine as Record<string, unknown>;
+        await ctx.db.patch('chatroom_machines', machine._id, {
+          // Copy old → new (only if new field is absent)
+          availableHarnesses:
+            machine.availableHarnesses ?? (doc.availableTools as 'opencode'[] | undefined),
+          harnessVersions:
+            machine.harnessVersions ??
+            (doc.toolVersions as Record<string, { version: string; major: number }> | undefined),
+          // Clear deprecated fields
+          availableTools: undefined,
+          toolVersions: undefined,
+        });
+        results.machines.migrated++;
+      }
+    }
+
+    // 2. Migrate chatroom_agentPreferences
+    const preferences = await ctx.db.query('chatroom_agentPreferences').collect();
+    results.preferences.total = preferences.length;
+
+    for (const pref of preferences) {
+      const needsMigration = (pref as Record<string, unknown>).toolByRole !== undefined;
+
+      if (needsMigration) {
+        const doc = pref as Record<string, unknown>;
+        await ctx.db.patch('chatroom_agentPreferences', pref._id, {
+          // Copy old → new (only if new field is absent)
+          harnessByRole:
+            pref.harnessByRole ?? (doc.toolByRole as Record<string, string> | undefined),
+          // Clear deprecated field
+          toolByRole: undefined,
+        });
+        results.preferences.migrated++;
+      }
+    }
+
+    // 3. Clean up idle participants
+    const participants = await ctx.db.query('chatroom_participants').collect();
+    results.participants.total = participants.length;
+
+    for (const participant of participants) {
+      if (participant.status === 'idle') {
+        await ctx.db.delete('chatroom_participants', participant._id);
+        results.participants.deletedIdle++;
+      }
+    }
+
+    console.log(
+      `Tool → Harness migration complete:\n` +
+        `  Machines: ${results.machines.migrated}/${results.machines.total} migrated\n` +
+        `  Preferences: ${results.preferences.migrated}/${results.preferences.total} migrated\n` +
+        `  Participants: ${results.participants.deletedIdle}/${results.participants.total} idle entries deleted`
+    );
+
+    return results;
+  },
+});
