@@ -241,7 +241,7 @@ export default defineSchema({
    * Stores chatroom state and team configuration.
    */
   chatroom_rooms: defineTable({
-    status: v.union(v.literal('active'), v.literal('interrupted'), v.literal('completed')),
+    status: v.union(v.literal('active'), v.literal('completed')),
     // Owner of this chatroom (user ID from session) - required for access control
     ownerId: v.id('users'),
     // Custom chatroom name (user-defined for easier identification)
@@ -291,7 +291,7 @@ export default defineSchema({
 
   /**
    * Messages in chatrooms.
-   * Supports targeted messages, broadcasts, handoffs, and interrupts.
+   * Supports targeted messages, broadcasts, and handoffs.
    */
   chatroom_messages: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -303,7 +303,6 @@ export default defineSchema({
     type: v.union(
       v.literal('message'),
       v.literal('handoff'),
-      v.literal('interrupt'),
       v.literal('join'),
       v.literal('progress')
     ),

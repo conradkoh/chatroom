@@ -22,7 +22,7 @@ export interface TeamReadiness {
 export interface ChatroomWithStatus {
   _id: string;
   _creationTime: number;
-  status: 'active' | 'interrupted' | 'completed';
+  status: 'active' | 'completed';
   name?: string;
   teamId?: string;
   teamName?: string;

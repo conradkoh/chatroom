@@ -349,19 +349,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       expiresAt: activeUntil,
     });
 
-    // Handle interrupt (if message is interrupt type)
-    if (message && message.type === 'interrupt') {
-      const interruptTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      console.log(`\n${'─'.repeat(50)}`);
-      console.log(`⚠️  RECONNECTION REQUIRED\n`);
-      console.log(`[${interruptTime}] Why: Interrupt message received from team`);
-      console.log(`Impact: You are no longer listening for tasks`);
-      console.log(`Action: Run this command immediately to resume availability\n`);
-      console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
-      console.log(`${'─'.repeat(50)}`);
-      process.exit(0);
-    }
-
     // Get the complete task delivery prompt from backend
     const taskDeliveryPrompt = await client.query(api.messages.getTaskDeliveryPrompt, {
       sessionId,

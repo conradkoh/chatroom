@@ -49,7 +49,7 @@ async function _sendMessageHandler(
     senderRole: string;
     content: string;
     targetRole?: string;
-    type: 'message' | 'handoff' | 'interrupt' | 'join';
+    type: 'message' | 'handoff' | 'join';
     attachedTaskIds?: Id<'chatroom_tasks'>[];
   }
 ) {
@@ -237,12 +237,7 @@ export const send = mutation({
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),
-    type: v.union(
-      v.literal('message'),
-      v.literal('handoff'),
-      v.literal('interrupt'),
-      v.literal('join')
-    ),
+    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join')),
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   },
   handler: async (ctx, args) => {
@@ -559,12 +554,7 @@ export const sendMessage = mutation({
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),
-    type: v.union(
-      v.literal('message'),
-      v.literal('handoff'),
-      v.literal('interrupt'),
-      v.literal('join')
-    ),
+    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join')),
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   },
   handler: async (ctx, args) => {
@@ -1385,11 +1375,6 @@ export const getLatestForRole = query({
       // Skip join messages
       if (message.type === 'join') {
         continue;
-      }
-
-      // Interrupt messages go to everyone
-      if (message.type === 'interrupt') {
-        return message;
       }
 
       // Targeted messages only go to target

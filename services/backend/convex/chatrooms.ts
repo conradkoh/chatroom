@@ -210,7 +210,7 @@ export const updateStatus = mutation({
   args: {
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
-    status: v.union(v.literal('active'), v.literal('interrupted'), v.literal('completed')),
+    status: v.union(v.literal('active'), v.literal('completed')),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access (chatroom not needed)
@@ -245,48 +245,6 @@ export const rename = mutation({
 
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { name: trimmedName });
     return { success: true, name: trimmedName };
-  },
-});
-
-/**
- * Interrupt a chatroom and reset all participants.
- * Sends an interrupt message and resets chatroom to active for new messages.
- * Requires CLI session authentication and chatroom access.
- */
-export const interrupt = mutation({
-  args: {
-    sessionId: v.string(),
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Update chatroom status
-    await ctx.db.patch('chatroom_rooms', args.chatroomId, { status: 'interrupted' });
-
-    // Delete all participants — agents must re-join after an interrupt.
-    // This avoids a liveness-ambiguous state; when agents loop back to
-    // wait-for-task they will call join() and re-register as 'waiting'.
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    for (const participant of participants) {
-      await ctx.db.delete('chatroom_participants', participant._id);
-    }
-
-    // Send interrupt message
-    await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: 'system',
-      content: 'Chatroom interrupted by user',
-      type: 'interrupt',
-    });
-
-    // Reset chatroom to active for new messages
-    await ctx.db.patch('chatroom_rooms', args.chatroomId, { status: 'active' });
   },
 });
 

@@ -17,7 +17,6 @@ import {
   Archive,
   ArrowRightLeft,
   LogIn,
-  AlertCircle,
   HelpCircle,
   Sparkles,
   RotateCcw,
@@ -101,12 +100,6 @@ const getMessageTypeBadge = (type: string) => {
         className: `${BADGE_BASE} bg-chatroom-status-purple/15 text-chatroom-status-purple`,
         label: 'handoff',
         icon: <ArrowRightLeft size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    case 'interrupt':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-error/15 text-chatroom-status-error`,
-        label: 'interrupt',
-        icon: <AlertCircle size={ICON_SIZE} className="flex-shrink-0" />,
       };
     case 'join':
       return {
