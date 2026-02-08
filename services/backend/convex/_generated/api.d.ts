@@ -29,6 +29,7 @@ import type * as lib_taskStateMachine from "../lib/taskStateMachine.js";
 import type * as lib_taskWorkflows from "../lib/taskWorkflows.js";
 import type * as machines from "../machines.js";
 import type * as messages from "../messages.js";
+import type * as migration from "../migration.js";
 import type * as participants from "../participants.js";
 import type * as presentations from "../presentations.js";
 import type * as prompts_webapp from "../prompts/webapp.js";
@@ -64,6 +65,7 @@ declare const fullApi: ApiFromModules<{
   "lib/taskWorkflows": typeof lib_taskWorkflows;
   machines: typeof machines;
   messages: typeof messages;
+  migration: typeof migration;
   participants: typeof participants;
   presentations: typeof presentations;
   "prompts/webapp": typeof prompts_webapp;

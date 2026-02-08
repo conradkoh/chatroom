@@ -271,7 +271,12 @@ export default defineSchema({
   chatroom_participants: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    status: v.union(v.literal('active'), v.literal('waiting')),
+    status: v.union(
+      v.literal('active'),
+      v.literal('waiting'),
+      /** @deprecated Will be removed after production migration. Existing idle participants should be deleted. */
+      v.literal('idle')
+    ),
     // Timestamp when this participant's readiness (waiting status) expires
     // After this time, a waiting participant is considered disconnected/stale
     // Used when status = 'waiting'
