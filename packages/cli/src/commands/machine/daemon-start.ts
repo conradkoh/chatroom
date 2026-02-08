@@ -261,7 +261,40 @@ export async function daemonStart(): Promise<void> {
 
   // Subscribe to pending commands
   const wsClient = await getConvexWsClient();
-  let processingCommand = false;
+
+  // In-memory queue to ensure commands aren't skipped when updates
+  // arrive while processing is in progress.
+  const commandQueue: MachineCommand[] = [];
+  const queuedCommandIds = new Set<string>();
+  let drainingQueue = false;
+
+  const enqueueCommands = (commands: MachineCommand[]) => {
+    for (const command of commands) {
+      const commandId = command._id.toString();
+      if (queuedCommandIds.has(commandId)) continue;
+      queuedCommandIds.add(commandId);
+      commandQueue.push(command);
+    }
+  };
+
+  const drainQueue = async () => {
+    if (drainingQueue) return;
+    drainingQueue = true;
+    try {
+      while (commandQueue.length > 0) {
+        const command = commandQueue.shift()!;
+        const commandId = command._id.toString();
+        queuedCommandIds.delete(commandId);
+        try {
+          await processCommand(client, typedSessionId, machineId, command);
+        } catch (error) {
+          console.error(`   ❌ Command processing failed: ${(error as Error).message}`);
+        }
+      }
+    } finally {
+      drainingQueue = false;
+    }
+  };
 
   wsClient.onUpdate(
     api.machines.getPendingCommands,
@@ -270,21 +303,10 @@ export async function daemonStart(): Promise<void> {
       machineId,
     },
     async (result: { commands: MachineCommand[] }) => {
-      // Prevent concurrent command processing
-      if (processingCommand) return;
       if (!result.commands || result.commands.length === 0) return;
 
-      processingCommand = true;
-
-      try {
-        for (const command of result.commands) {
-          await processCommand(client, typedSessionId, machineId, command);
-        }
-      } finally {
-        // IMPORTANT: Always reset the flag, even if processCommand throws.
-        // Without this, an unhandled error would permanently stop command processing.
-        processingCommand = false;
-      }
+      enqueueCommands(result.commands);
+      await drainQueue();
     }
   );
 
