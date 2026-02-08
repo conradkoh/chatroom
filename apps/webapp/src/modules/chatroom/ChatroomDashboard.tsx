@@ -193,6 +193,8 @@ interface TeamReadiness {
   missingRoles: string[];
   expiredRoles?: string[];
   participants?: ParticipantInfo[];
+  /** Whether the chatroom has non-join messages (i.e. has been used) */
+  hasHistory?: boolean;
 }
 
 // Hook to check if screen is small (< 768px)
@@ -408,8 +410,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     }
   }, [updateStatus, chatroomId, onBack]);
 
-  // Show setup checklist if not all members have joined
-  const isSetupMode = !allMembersJoined;
+  // Show setup checklist only when the chatroom is brand new:
+  // - No chat history (no user/handoff/progress messages)
+  // - Not all team members have joined yet
+  // Once the chatroom has been used (hasHistory), never show setup again
+  const isSetupMode = !allMembersJoined && !readiness?.hasHistory;
 
   // Check if team has disconnected (expired) agents
   const hasDisconnectedAgents = useMemo(() => {

@@ -298,6 +298,15 @@ export const getTeamReadiness = query({
     // Expired roles: present but expired
     const expiredRoles = participantInfo.filter((p) => p.isExpired).map((p) => p.role);
 
+    // Check if chatroom has any user/handoff/progress messages (not just "join" system messages)
+    // This indicates the chatroom has been used and should not show setup screen
+    const firstNonJoinMessage = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .filter((q) => q.neq(q.field('type'), 'join'))
+      .first();
+    const hasHistory = firstNonJoinMessage !== null;
+
     return {
       teamId: chatroom.teamId,
       teamName: chatroom.teamName ?? chatroom.teamId,
@@ -307,8 +316,10 @@ export const getTeamReadiness = query({
       expiredRoles,
       // isReady: all expected roles are present AND not expired
       isReady: missingRoles.length === 0,
-      // New field: detailed participant info with readyUntil
+      // Detailed participant info with readyUntil
       participants: participantInfo,
+      // Whether the chatroom has been used (has non-join messages)
+      hasHistory,
     };
   },
 });
