@@ -44,9 +44,7 @@ const getStatusBadgeClasses = (chatStatus: ChatroomWithStatus['chatStatus']) => 
 };
 
 // Agent status indicator - now uses effectiveStatus which accounts for expiration
-const getAgentIndicatorClasses = (
-  effectiveStatus: 'active' | 'waiting' | 'idle' | 'disconnected'
-) => {
+const getAgentIndicatorClasses = (effectiveStatus: 'active' | 'waiting' | 'disconnected') => {
   const base = 'w-1.5 h-1.5 flex-shrink-0';
   switch (effectiveStatus) {
     case 'active':
@@ -55,7 +53,6 @@ const getAgentIndicatorClasses = (
       return `${base} bg-chatroom-status-success`;
     case 'disconnected':
       return `${base} bg-chatroom-status-error`;
-    case 'idle':
     default:
       return `${base} bg-chatroom-text-muted`;
   }
@@ -311,7 +308,7 @@ const RecentChatroomCard = memo(function RecentChatroomCard({
           ? 'setup'
           : chatStatus === 'disconnected'
             ? 'disconnected'
-            : 'idle';
+            : 'partial';
 
   return (
     <button
@@ -433,7 +430,7 @@ const ChatroomCard = memo(function ChatroomCard({
             ? 'disconnected'
             : chatStatus === 'setup'
               ? 'setup'
-              : 'idle';
+              : 'partial';
 
   return (
     <div className="relative">
@@ -497,7 +494,7 @@ const ChatroomCard = memo(function ChatroomCard({
           {teamRoles.map((role) => {
             const agent = agentMap.get(role.toLowerCase());
             // Use effectiveStatus which is computed on backend and accounts for readyUntil expiration
-            const effectiveStatus = agent?.effectiveStatus || 'idle';
+            const effectiveStatus = agent?.effectiveStatus || 'disconnected';
             return (
               <div key={role} className="flex items-center gap-1.5">
                 <span className={getAgentIndicatorClasses(effectiveStatus)} />
@@ -623,7 +620,7 @@ const ChatroomTable = memo(function ChatroomTable({
                   ? 'disconnected'
                   : chatroom.chatStatus === 'setup'
                     ? 'setup'
-                    : 'idle';
+                    : 'partial';
 
         const formattedDate = new Date(chatroom._creationTime).toLocaleString('en-US', {
           month: 'short',
@@ -678,7 +675,7 @@ const ChatroomTable = memo(function ChatroomTable({
             <div className="flex items-center gap-2 min-w-[140px]">
               {teamRoles.map((role) => {
                 const agent = agentMap.get(role.toLowerCase());
-                const effectiveStatus = agent?.effectiveStatus || 'idle';
+                const effectiveStatus = agent?.effectiveStatus || 'disconnected';
                 return (
                   <div key={role} className="flex items-center gap-1">
                     <span className={getAgentIndicatorClasses(effectiveStatus)} />

@@ -197,9 +197,9 @@ export async function requireChatroomAccess(
 }
 
 /**
- * Check if all agents in the chatroom are ready (idle or waiting, not active).
+ * Check if all agents in the chatroom are ready (waiting, not active).
  * An agent is considered "active" if they are currently working on a task.
- * Returns true if no agents are active (all are idle/waiting).
+ * Returns true if no agents are active (all are waiting).
  */
 export async function areAllAgentsReady(
   ctx: QueryCtx | MutationCtx,

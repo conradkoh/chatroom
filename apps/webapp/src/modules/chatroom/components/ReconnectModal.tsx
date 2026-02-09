@@ -1,78 +1,32 @@
 'use client';
 
-import { RefreshCw, AlertTriangle, X, Copy, Check } from 'lucide-react';
-import React, { useCallback, memo, useMemo, useState, useEffect } from 'react';
+import { RefreshCw, AlertTriangle, X, Play } from 'lucide-react';
+import React, { useCallback, memo, useMemo, useEffect } from 'react';
+
+import { CopyButton } from './CopyButton';
 
 import { usePrompts } from '@/contexts/PromptsContext';
-
-interface ParticipantInfo {
-  role: string;
-  status: string;
-  readyUntil?: number;
-  isExpired: boolean;
-}
 
 interface ReconnectModalProps {
   isOpen: boolean;
   onClose: () => void;
   chatroomId: string;
-  teamName: string;
-  teamRoles: string[];
-  teamEntryPoint?: string;
   expiredRoles: string[];
-  // participants prop is available for future use (e.g., showing status)
-  participants?: ParticipantInfo[];
   onViewPrompt?: (role: string) => void;
-}
-
-/**
- * Copy button component styled for chatroom theme
- */
-function CopyPromptButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  }, [text]);
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="flex items-center gap-2 px-3 py-1.5 bg-chatroom-accent text-chatroom-text-on-accent text-[10px] font-bold uppercase tracking-wider transition-all hover:opacity-90"
-    >
-      {copied ? (
-        <>
-          <Check size={12} />
-          Copied!
-        </>
-      ) : (
-        <>
-          <Copy size={12} />
-          Copy Prompt
-        </>
-      )}
-    </button>
-  );
+  /** Called when user clicks "Start Agent Remotely" — opens the unified agents panel */
+  onStartAgent?: () => void;
 }
 
 export const ReconnectModal = memo(function ReconnectModal({
   isOpen,
   onClose,
-  chatroomId: _chatroomId,
-  teamName: _teamName,
-  teamRoles: _teamRoles,
-  teamEntryPoint: _teamEntryPoint,
+  chatroomId,
   expiredRoles,
-  participants: _participants, // Reserved for future use
   onViewPrompt,
+  onStartAgent,
 }: ReconnectModalProps) {
   const { getAgentPrompt } = usePrompts();
+  void chatroomId; // Kept for API compatibility
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -181,6 +135,18 @@ export const ReconnectModal = memo(function ReconnectModal({
 
                 {/* Card Content */}
                 <div className="p-3 space-y-3">
+                  {/* Start Agent Button - opens unified agents panel */}
+                  <button
+                    onClick={() => {
+                      onClose();
+                      onStartAgent?.();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-chatroom-status-info text-white text-xs font-bold uppercase tracking-wider hover:bg-chatroom-status-info/90 transition-colors"
+                  >
+                    <Play size={14} />
+                    Start Agent Remotely
+                  </button>
+
                   {/* Prompt Preview */}
                   {onViewPrompt && (
                     <button
@@ -199,7 +165,7 @@ export const ReconnectModal = memo(function ReconnectModal({
 
                   {/* Copy Button */}
                   <div className="flex justify-end">
-                    <CopyPromptButton text={prompt} />
+                    <CopyButton text={prompt} label="Copy Prompt" />
                   </div>
                 </div>
               </div>
@@ -211,7 +177,7 @@ export const ReconnectModal = memo(function ReconnectModal({
         <div className="px-4 py-3 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
           <div className="space-y-2 text-xs text-chatroom-text-secondary">
             <p className="font-bold uppercase tracking-wide text-chatroom-text-muted">
-              To reconnect each agent:
+              To reconnect manually:
             </p>
             <ol className="list-decimal list-inside space-y-1 ml-2">
               <li>Copy the prompt using the button above</li>

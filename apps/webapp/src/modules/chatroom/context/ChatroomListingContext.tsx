@@ -7,8 +7,8 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 // Types based on backend response from listByUserWithStatus
 export interface Agent {
   role: string;
-  status: 'idle' | 'active' | 'waiting';
-  effectiveStatus: 'idle' | 'active' | 'waiting' | 'disconnected';
+  status: 'active' | 'waiting';
+  effectiveStatus: 'active' | 'waiting' | 'disconnected';
   isExpired: boolean;
   readyUntil?: number;
 }
@@ -22,7 +22,7 @@ export interface TeamReadiness {
 export interface ChatroomWithStatus {
   _id: string;
   _creationTime: number;
-  status: 'active' | 'interrupted' | 'completed';
+  status: 'active' | 'completed';
   name?: string;
   teamId?: string;
   teamName?: string;

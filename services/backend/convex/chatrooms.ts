@@ -146,8 +146,6 @@ export const listByUserWithStatus = query({
             // Waiting agents expire based on readyUntil
             isExpired = p.readyUntil ? p.readyUntil < now : false;
           }
-          // Idle agents don't have timeouts
-
           // Effective status: if expired, treat as 'disconnected'
           const effectiveStatus = isExpired ? ('disconnected' as const) : p.status;
           return {
@@ -212,7 +210,7 @@ export const updateStatus = mutation({
   args: {
     sessionId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
-    status: v.union(v.literal('active'), v.literal('interrupted'), v.literal('completed')),
+    status: v.union(v.literal('active'), v.literal('completed')),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access (chatroom not needed)
@@ -247,46 +245,6 @@ export const rename = mutation({
 
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { name: trimmedName });
     return { success: true, name: trimmedName };
-  },
-});
-
-/**
- * Interrupt a chatroom and reset all participants.
- * Sends an interrupt message and resets chatroom to active for new messages.
- * Requires CLI session authentication and chatroom access.
- */
-export const interrupt = mutation({
-  args: {
-    sessionId: v.string(),
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Update chatroom status
-    await ctx.db.patch('chatroom_rooms', args.chatroomId, { status: 'interrupted' });
-
-    // Reset all participants to idle
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    for (const participant of participants) {
-      await ctx.db.patch('chatroom_participants', participant._id, { status: 'idle' });
-    }
-
-    // Send interrupt message
-    await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: 'system',
-      content: 'Chatroom interrupted by user',
-      type: 'interrupt',
-    });
-
-    // Reset chatroom to active for new messages
-    await ctx.db.patch('chatroom_rooms', args.chatroomId, { status: 'active' });
   },
 });
 
@@ -340,6 +298,17 @@ export const getTeamReadiness = query({
     // Expired roles: present but expired
     const expiredRoles = participantInfo.filter((p) => p.isExpired).map((p) => p.role);
 
+    // Check if a user has ever sent a message in this chatroom.
+    // A user message is the strongest signal that the chatroom has been used
+    // and should not show the setup screen again — even if all agents disconnect.
+    const firstUserMessage = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .first();
+    const hasHistory = firstUserMessage !== null;
+
     return {
       teamId: chatroom.teamId,
       teamName: chatroom.teamName ?? chatroom.teamId,
@@ -349,8 +318,10 @@ export const getTeamReadiness = query({
       expiredRoles,
       // isReady: all expected roles are present AND not expired
       isReady: missingRoles.length === 0,
-      // New field: detailed participant info with readyUntil
+      // Detailed participant info with readyUntil
       participants: participantInfo,
+      // Whether the chatroom has been used (a user has sent at least one message)
+      hasHistory,
     };
   },
 });

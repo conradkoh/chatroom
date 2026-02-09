@@ -1,324 +1,51 @@
-import { v } from 'convex/values';
-
-import { internal } from './_generated/api';
-import { internalAction, internalMutation, internalQuery } from './_generated/server';
-
-const BATCH_SIZE = 100; // Process 100 items per batch
-
-interface PaginationOpts {
-  numItems: number;
-  cursor: string | null;
-}
-
 /**
- * Internal mutation to remove deprecated expiration fields from a single session.
- * Part of the session expiration deprecation migration.
- */
-export const unsetSessionExpiration = internalMutation({
-  args: { sessionId: v.id('sessions') },
-  handler: async (ctx, args) => {
-    await ctx.db.patch('sessions', args.sessionId, {
-      expiresAt: undefined,
-      expiresAtLabel: undefined,
-    });
-  },
-});
-
-/**
- * Internal action to migrate all sessions by removing deprecated expiration fields.
- * Processes sessions in batches to avoid timeout issues.
- */
-export const migrateUnsetSessionExpiration = internalAction({
-  args: { cursor: v.optional(v.string()) }, // Convex cursor for pagination
-  handler: async (ctx, args) => {
-    const paginationOpts: PaginationOpts = {
-      numItems: BATCH_SIZE,
-      cursor: args.cursor ?? null,
-    };
-
-    // Fetch a batch of sessions
-    const results = await ctx.runQuery(internal.migration.getSessionsBatch, {
-      paginationOpts,
-    });
-
-    // Schedule mutations to update each session in the batch
-    for (const session of results.page) {
-      await ctx.runMutation(internal.migration.unsetSessionExpiration, {
-        sessionId: session._id,
-      });
-    }
-
-    // If there are more sessions, schedule the next batch
-    if (!results.isDone) {
-      await ctx.runAction(internal.migration.migrateUnsetSessionExpiration, {
-        cursor: results.continueCursor,
-      });
-    }
-  },
-});
-
-/**
- * Helper query to fetch sessions in batches for pagination during migration.
- */
-export const getSessionsBatch = internalQuery({
-  args: {
-    paginationOpts: v.object({
-      numItems: v.number(),
-      cursor: v.union(v.string(), v.null()),
-    }),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db.query('sessions').paginate(args.paginationOpts);
-  },
-});
-
-// ========================================
-// USER ACCESS LEVEL MIGRATION
-// ========================================
-
-/**
- * Internal mutation to set default accessLevel for a user if currently undefined.
- * Part of the user access level migration to ensure all users have explicit access levels.
- */
-export const setUserAccessLevelDefault = internalMutation({
-  args: { userId: v.id('users') },
-  handler: async (ctx, args) => {
-    const user = await ctx.db.get('users', args.userId);
-    if (!user) {
-      return; // User doesn't exist, skip
-    }
-
-    // Only update if accessLevel is undefined
-    if (user.accessLevel === undefined) {
-      await ctx.db.patch('users', args.userId, {
-        accessLevel: 'user',
-      });
-    }
-  },
-});
-
-/**
- * Internal mutation to set all users with undefined accessLevel to 'user' in a single batch.
- * Updates are executed in parallel for better performance.
- * WARNING: This processes all users at once and may timeout for large user bases.
- * For large datasets, use migrateUserAccessLevels (action) instead.
+ * Database Migrations
  *
- * @returns Object with count of users updated
+ * Internal mutations and actions for one-off data migrations.
+ * Run from the Convex dashboard as internal functions.
+ *
+ * Previously executed migrations (removed after completion):
+ * - Session expiration field removal (deprecated expiresAt/expiresAtLabel)
+ * - User access level defaults (set undefined → 'user')
+ * - Task origin normalization (set undefined → 'chat'/'backlog')
+ * - Tool → Harness field rename (availableTools → availableHarnesses, etc.)
  */
-export const setAllUndefinedAccessLevelsToUser = internalMutation({
+
+import { internalMutation } from './_generated/server';
+
+// ============================================================================
+// PENDING MIGRATIONS — Run these after deploying to production
+// ============================================================================
+
+/**
+ * Remove participants with deprecated "idle" status.
+ *
+ * The "idle" status was removed in this PR. Any existing participants with
+ * status "idle" should be deleted so the deprecated v.literal('idle') can
+ * be removed from the schema in a follow-up change.
+ *
+ * Run from the Convex dashboard:
+ *   migration:removeIdleParticipants
+ *
+ * After running successfully, the v.literal('idle') in the chatroom_participants
+ * schema can be removed in a follow-up PR.
+ */
+export const removeIdleParticipants = internalMutation({
   args: {},
   handler: async (ctx) => {
-    // Fetch all users with undefined accessLevel
-    const allUsers = await ctx.db.query('users').collect();
+    const allParticipants = await ctx.db.query('chatroom_participants').collect();
 
-    // Filter users that need updating
-    const usersToUpdate = allUsers.filter((user) => user.accessLevel === undefined);
-
-    // Update all users in parallel
-    await Promise.all(
-      usersToUpdate.map((user) =>
-        ctx.db.patch('users', user._id, {
-          accessLevel: 'user',
-        })
-      )
-    );
-
-    console.log(
-      `Migration complete: Updated ${usersToUpdate.length} users to accessLevel: 'user' (out of ${allUsers.length} total users)`
-    );
+    let deleted = 0;
+    for (const participant of allParticipants) {
+      if (participant.status === 'idle') {
+        await ctx.db.delete('chatroom_participants', participant._id);
+        deleted++;
+      }
+    }
 
     return {
-      success: true,
-      updatedCount: usersToUpdate.length,
-      totalUsers: allUsers.length,
+      total: allParticipants.length,
+      deletedIdle: deleted,
     };
-  },
-});
-
-/**
- * Internal action to migrate all users to have explicit accessLevel values.
- * Sets undefined accessLevel fields to 'user' as the default.
- * Processes users in batches to handle large datasets safely.
- * Updates within each batch are executed in parallel for better performance.
- */
-export const migrateUserAccessLevels = internalAction({
-  args: { cursor: v.optional(v.string()) }, // Convex cursor for pagination
-  handler: async (ctx, args) => {
-    const paginationOpts: PaginationOpts = {
-      numItems: BATCH_SIZE,
-      cursor: args.cursor ?? null,
-    };
-
-    // Fetch a batch of users
-    const results = await ctx.runQuery(internal.migration.getUsersBatch, {
-      paginationOpts,
-    });
-
-    // Filter users that need updating
-    const usersToUpdate = results.page.filter((user) => user.accessLevel === undefined);
-
-    // Schedule mutations to update all users in the batch in parallel
-    await Promise.all(
-      usersToUpdate.map((user) =>
-        ctx.runMutation(internal.migration.setUserAccessLevelDefault, {
-          userId: user._id,
-        })
-      )
-    );
-
-    console.log(`Processed batch: ${results.page.length} users, updated: ${usersToUpdate.length}`);
-
-    // If there are more users, schedule the next batch
-    if (!results.isDone) {
-      await ctx.runAction(internal.migration.migrateUserAccessLevels, {
-        cursor: results.continueCursor,
-      });
-    } else {
-      console.log('User access level migration completed');
-    }
-  },
-});
-
-/**
- * Helper query to fetch users in batches for pagination during migration.
- */
-export const getUsersBatch = internalQuery({
-  args: {
-    paginationOpts: v.object({
-      numItems: v.number(),
-      cursor: v.union(v.string(), v.null()),
-    }),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db.query('users').paginate(args.paginationOpts);
-  },
-});
-
-// ========================================
-// TASK ORIGIN FIELD MIGRATION
-// ========================================
-
-/**
- * Internal mutation to set origin field for a single task.
- * - Tasks with status 'backlog' → origin: 'backlog'
- * - All other tasks → origin: 'chat'
- */
-export const setTaskOrigin = internalMutation({
-  args: { taskId: v.id('chatroom_tasks') },
-  handler: async (ctx, args) => {
-    const task = await ctx.db.get('chatroom_tasks', args.taskId);
-    if (!task) {
-      return; // Task doesn't exist, skip
-    }
-
-    // Skip if origin is already set
-    if (task.origin !== undefined) {
-      return;
-    }
-
-    // Determine origin based on status - backlog status means backlog origin
-    const origin = task.status === 'backlog' ? 'backlog' : 'chat';
-
-    await ctx.db.patch('chatroom_tasks', args.taskId, {
-      origin,
-    });
-  },
-});
-
-/**
- * Internal mutation to set origin for all tasks without origin field in a single batch.
- * WARNING: This processes all tasks at once and may timeout for large datasets.
- * For large datasets, use migrateTaskOrigins (action) instead.
- *
- * @returns Object with count of tasks updated
- */
-export const normalizeAllTaskOrigins = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const allTasks = await ctx.db.query('chatroom_tasks').collect();
-
-    // Filter tasks that need updating: origin is undefined
-    const tasksToUpdate = allTasks.filter((task) => task.origin === undefined);
-
-    // Update all tasks in parallel
-    await Promise.all(
-      tasksToUpdate.map((task) => {
-        const origin = task.status === 'backlog' ? 'backlog' : 'chat';
-        return ctx.db.patch('chatroom_tasks', task._id, { origin });
-      })
-    );
-
-    const backlogCount = tasksToUpdate.filter((t) => t.status === 'backlog').length;
-
-    console.log(
-      `Migration complete: Set origin for ${tasksToUpdate.length} tasks ` +
-        `(${backlogCount} backlog, ${tasksToUpdate.length - backlogCount} chat) ` +
-        `out of ${allTasks.length} total tasks`
-    );
-
-    return {
-      success: true,
-      updatedCount: tasksToUpdate.length,
-      backlogOriginCount: backlogCount,
-      chatOriginCount: tasksToUpdate.length - backlogCount,
-      totalTasks: allTasks.length,
-    };
-  },
-});
-
-/**
- * Internal action to migrate all tasks to have explicit origin values.
- * Processes tasks in batches to handle large datasets safely.
- */
-export const migrateTaskOrigins = internalAction({
-  args: { cursor: v.optional(v.string()) }, // Convex cursor for pagination
-  handler: async (ctx, args) => {
-    const paginationOpts: PaginationOpts = {
-      numItems: BATCH_SIZE,
-      cursor: args.cursor ?? null,
-    };
-
-    // Fetch a batch of tasks
-    const results = await ctx.runQuery(internal.migration.getTasksBatch, {
-      paginationOpts,
-    });
-
-    // Filter tasks that need updating
-    const tasksToUpdate = results.page.filter((task) => task.origin === undefined);
-
-    // Schedule mutations to update all tasks in the batch in parallel
-    await Promise.all(
-      tasksToUpdate.map((task) =>
-        ctx.runMutation(internal.migration.setTaskOrigin, {
-          taskId: task._id,
-        })
-      )
-    );
-
-    console.log(`Processed batch: ${results.page.length} tasks, updated: ${tasksToUpdate.length}`);
-
-    // If there are more tasks, schedule the next batch
-    if (!results.isDone) {
-      await ctx.runAction(internal.migration.migrateTaskOrigins, {
-        cursor: results.continueCursor,
-      });
-    } else {
-      console.log('Task origin migration completed');
-    }
-  },
-});
-
-/**
- * Helper query to fetch tasks in batches for pagination during migration.
- */
-export const getTasksBatch = internalQuery({
-  args: {
-    paginationOpts: v.object({
-      numItems: v.number(),
-      cursor: v.union(v.string(), v.null()),
-    }),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db.query('chatroom_tasks').paginate(args.paginationOpts);
   },
 });

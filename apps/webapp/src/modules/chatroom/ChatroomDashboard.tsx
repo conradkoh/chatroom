@@ -193,6 +193,8 @@ interface TeamReadiness {
   missingRoles: string[];
   expiredRoles?: string[];
   participants?: ParticipantInfo[];
+  /** Whether the chatroom has non-join messages (i.e. has been used) */
+  hasHistory?: boolean;
 }
 
 // Hook to check if screen is small (< 768px)
@@ -224,6 +226,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Reconnect modal state
   const [reconnectModalOpen, setReconnectModalOpen] = useState(false);
+
+  // Agent list modal trigger (used when ReconnectModal's "Start Agent Remotely" is clicked)
+  const [agentListRequested, setAgentListRequested] = useState(false);
 
   // Sidebar visibility state - hidden by default on small screens
   const isSmallScreen = useIsSmallScreen();
@@ -380,6 +385,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     setReconnectModalOpen(false);
   }, []);
 
+  // Open the unified agents panel (triggered from ReconnectModal)
+  const handleOpenAgentList = useCallback(() => {
+    setAgentListRequested(true);
+  }, []);
+
+  const handleAgentListOpened = useCallback(() => {
+    setAgentListRequested(false);
+  }, []);
+
   // Mark complete handler
   const handleMarkComplete = useCallback(async () => {
     try {
@@ -396,8 +410,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     }
   }, [updateStatus, chatroomId, onBack]);
 
-  // Show setup checklist if not all members have joined
-  const isSetupMode = !allMembersJoined;
+  // Show setup checklist only when the chatroom is brand new:
+  // - No chat history (no user/handoff/progress messages)
+  // - Not all team members have joined yet
+  // Once the chatroom has been used (hasHistory), never show setup again
+  const isSetupMode = !allMembersJoined && !readiness?.hasHistory;
 
   // Check if team has disconnected (expired) agents
   const hasDisconnectedAgents = useMemo(() => {
@@ -627,12 +644,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 >
                   <AgentPanel
                     chatroomId={chatroomId}
-                    teamName={teamName}
                     teamRoles={teamRoles}
-                    teamEntryPoint={teamEntryPoint}
                     readiness={readiness}
                     onViewPrompt={handleViewPrompt}
                     onReconnect={handleOpenReconnect}
+                    openAgentListRequested={agentListRequested}
+                    onAgentListOpened={handleAgentListOpened}
                   />
                   <TaskQueue chatroomId={chatroomId} />
                   <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
@@ -658,12 +675,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             isOpen={reconnectModalOpen}
             onClose={handleCloseReconnect}
             chatroomId={chatroomId}
-            teamName={teamName}
-            teamRoles={teamRoles}
-            teamEntryPoint={teamEntryPoint}
             expiredRoles={readiness?.expiredRoles || []}
-            participants={readiness?.participants}
             onViewPrompt={handleViewPrompt}
+            onStartAgent={handleOpenAgentList}
           />
         </>
       </PromptsProvider>

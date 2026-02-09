@@ -12,18 +12,25 @@ import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
 import { api, type Id, type Chatroom, type TaskWithMessage } from '../api.js';
 import { DEFAULT_WAIT_TIMEOUT_MS, DEFAULT_ACTIVE_TIMEOUT_MS } from '../config.js';
+import { getDriverRegistry } from '../infrastructure/agent-drivers/index.js';
 import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
 import {
   getConvexUrl,
   getConvexClient,
   getConvexWsClient,
 } from '../infrastructure/convex/client.js';
+import {
+  ensureMachineRegistered,
+  updateAgentContext,
+  type AgentHarness,
+} from '../infrastructure/machine/index.js';
 
 interface WaitForTaskOptions {
   role: string;
   timeout?: number;
   duration?: string;
   silent?: boolean;
+  agentType?: AgentHarness;
 }
 
 /**
@@ -118,6 +125,68 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   if (!chatroom) {
     console.error(`❌ Chatroom ${chatroomId} not found or access denied`);
     process.exit(1);
+  }
+
+  // Register machine and sync config to backend
+  // This enables remote agent start from web UI
+  try {
+    // Ensure local machine config exists (idempotent - creates or refreshes)
+    const machineInfo = ensureMachineRegistered();
+
+    // Discover available models from installed harnesses (dynamic)
+    let availableModels: string[] = [];
+    try {
+      const registry = getDriverRegistry();
+      for (const driver of registry.all()) {
+        if (driver.capabilities.dynamicModelDiscovery) {
+          const models = await driver.listModels();
+          availableModels = availableModels.concat(models);
+        }
+      }
+    } catch {
+      // Model discovery is non-critical — continue with empty list
+    }
+
+    // Register/update machine in backend
+
+    await client.mutation(api.machines.register, {
+      sessionId: sessionId as any, // SessionId branded type from convex-helpers
+      machineId: machineInfo.machineId,
+      hostname: machineInfo.hostname,
+      os: machineInfo.os,
+      availableHarnesses: machineInfo.availableHarnesses,
+      harnessVersions: machineInfo.harnessVersions,
+      availableModels,
+    });
+
+    // Determine agent type (from flag or default to first available harness)
+    const agentType: AgentHarness | undefined =
+      options.agentType ??
+      (machineInfo.availableHarnesses.length > 0 ? machineInfo.availableHarnesses[0] : undefined);
+
+    if (agentType) {
+      // Store agent config for this chatroom+role (enables remote restart)
+      const workingDir = process.cwd();
+
+      // Update local config
+      updateAgentContext(chatroomId, role, agentType, workingDir);
+
+      // Sync to backend
+
+      await client.mutation(api.machines.updateAgentConfig, {
+        sessionId: sessionId as any, // SessionId branded type from convex-helpers
+        machineId: machineInfo.machineId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        role,
+        agentType,
+        workingDir,
+      });
+    }
+  } catch (machineError) {
+    // Machine registration is non-critical - log warning but continue
+    if (!silent) {
+      console.warn(`⚠️  Machine registration failed: ${(machineError as Error).message}`);
+    }
   }
 
   // Calculate readyUntil timestamp for this session
@@ -279,19 +348,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       status: 'active',
       expiresAt: activeUntil,
     });
-
-    // Handle interrupt (if message is interrupt type)
-    if (message && message.type === 'interrupt') {
-      const interruptTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      console.log(`\n${'─'.repeat(50)}`);
-      console.log(`⚠️  RECONNECTION REQUIRED\n`);
-      console.log(`[${interruptTime}] Why: Interrupt message received from team`);
-      console.log(`Impact: You are no longer listening for tasks`);
-      console.log(`Action: Run this command immediately to resume availability\n`);
-      console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
-      console.log(`${'─'.repeat(50)}`);
-      process.exit(0);
-    }
 
     // Get the complete task delivery prompt from backend
     const taskDeliveryPrompt = await client.query(api.messages.getTaskDeliveryPrompt, {

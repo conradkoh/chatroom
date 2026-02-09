@@ -1,7 +1,7 @@
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
-import { generateRolePrompt, generateTaskStartedReminder, generateInitPrompt } from '../prompts';
+import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
@@ -45,7 +45,7 @@ async function _sendMessageHandler(
     senderRole: string;
     content: string;
     targetRole?: string;
-    type: 'message' | 'handoff' | 'interrupt' | 'join';
+    type: 'message' | 'handoff' | 'join';
     attachedTaskIds?: Id<'chatroom_tasks'>[];
   }
 ) {
@@ -233,12 +233,7 @@ export const send = mutation({
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),
-    type: v.union(
-      v.literal('message'),
-      v.literal('handoff'),
-      v.literal('interrupt'),
-      v.literal('join')
-    ),
+    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join')),
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   },
   handler: async (ctx, args) => {
@@ -465,12 +460,12 @@ async function _handoffHandler(
   }
 
   // Step 6: Promote next queued task only if ALL agents are ready (not active)
-  // This ensures queued tasks are only promoted when the team is idle
+  // This ensures queued tasks are only promoted when the team is ready
   let promotedTaskId: Id<'chatroom_tasks'> | null = null;
 
   // Check if we're handing off to a specific agent (not the queue)
   // Handoffs to specific agents don't trigger queue promotion - the target agent gets a dedicated task
-  // Queue promotion only happens when all agents become idle
+  // Queue promotion only happens when all agents become ready (waiting)
   if (isHandoffToUser) {
     // When handing off to user, check if all agents are ready for queue promotion
     const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
@@ -555,12 +550,7 @@ export const sendMessage = mutation({
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),
-    type: v.union(
-      v.literal('message'),
-      v.literal('handoff'),
-      v.literal('interrupt'),
-      v.literal('join')
-    ),
+    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join')),
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   },
   handler: async (ctx, args) => {
@@ -1383,11 +1373,6 @@ export const getLatestForRole = query({
         continue;
       }
 
-      // Interrupt messages go to everyone
-      if (message.type === 'interrupt') {
-        return message;
-      }
-
       // Targeted messages only go to target
       if (message.targetRole) {
         if (message.targetRole.toLowerCase() === args.role.toLowerCase()) {
@@ -1660,17 +1645,26 @@ export const getInitPrompt = query({
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Generate the full initialization prompt
-    const prompt = generateInitPrompt({
+    const promptInput = {
       chatroomId: args.chatroomId,
       role: args.role,
       teamName: chatroom.teamName || 'Team',
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
-    });
+    };
 
-    return { prompt };
+    // Compose init prompt (system prompt + init message + combined)
+    const composed = composeInitPrompt(promptInput);
+
+    return {
+      /** Combined prompt for manual mode (harnesses without system prompt support) */
+      prompt: composed.initPrompt,
+      /** System prompt: general instructions + role identity (for machine mode) */
+      rolePrompt: composed.systemPrompt,
+      /** Init message: context-gaining and next steps (first user message in machine mode) */
+      initialMessage: composed.initMessage,
+    };
   },
 });
 

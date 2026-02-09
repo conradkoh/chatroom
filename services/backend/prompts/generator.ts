@@ -1,9 +1,25 @@
 /**
- * Role Prompt Generator
+ * Prompt Generator
  *
- * Generates role-specific prompts that are returned with each message.
- * These prompts are designed to be refreshed with every wait-for-task
- * to combat context rot in long conversations.
+ * Architecture:
+ *
+ * LOW-LEVEL GENERATORS (building blocks):
+ *   - generateGeneralInstructions() — general behavioral instructions
+ *     (future: customizable per chatroom / user level)
+ *     Currently used by the CLI envelope (wait-for-task.ts) for the init header.
+ *   - generateRolePrompt() — role-specific identity, guidance, workflow, and commands
+ *     (used on every wait-for-task message to combat context rot)
+ *
+ * FINAL OUTPUT COMPOSERS (compose low-level generators for specific delivery modes):
+ *   - composeSystemPrompt() — full agent setup prompt (role identity, getting started,
+ *     classification guide, workflow guidance, commands, next steps).
+ *     For harnesses that allow specifying the system prompt.
+ *   - composeInitMessage() — first user message (reserved for future use)
+ *   - composeInitPrompt() — returns all three forms so the caller can choose
+ *
+ * Note: General instructions (wait-for-task guidance) are provided by the CLI
+ * envelope (wait-for-task.ts), NOT embedded in server-side prompts, to avoid
+ * duplication.
  */
 
 import { handoffCommand } from './base/cli/handoff/command.js';
@@ -16,7 +32,10 @@ import { reportProgressCommand } from './base/cli/report-progress/command.js';
 import { getBuilderGuidance as getBaseBuilderGuidance } from './base/cli/roles/builder.js';
 import { getReviewerGuidance as getBaseReviewerGuidance } from './base/cli/roles/reviewer.js';
 import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
-import { getWaitForTaskReminder } from './base/cli/wait-for-task/reminder.js';
+import {
+  getWaitForTaskGuidance,
+  getWaitForTaskReminder,
+} from './base/cli/wait-for-task/reminder.js';
 import { getBuilderGuidance as getTeamBuilderGuidance } from './teams/pair/prompts/builder.js';
 import { getReviewerGuidance as getTeamReviewerGuidance } from './teams/pair/prompts/reviewer.js';
 import { getRoleTemplate } from './templates';
@@ -28,6 +47,37 @@ export { getReviewGuidelines } from './teams/pair/roles';
 export { getSecurityPolicy } from './policies/security';
 export { getDesignPolicy } from './policies/design';
 export { getPerformancePolicy } from './policies/performance';
+
+// =============================================================================
+// LOW-LEVEL GENERATORS
+// =============================================================================
+
+export interface GeneralInstructionsInput {
+  /** Chatroom-level custom instructions (future: user-configurable) */
+  chatroomInstructions?: string;
+}
+
+/**
+ * Generate general behavioral instructions for agents.
+ *
+ * This is the lowest-level prompt building block — it provides general
+ * behavioral directives that apply regardless of the agent's role.
+ *
+ * Future: This will be customizable at the chatroom and user level.
+ */
+export function generateGeneralInstructions(_input?: GeneralInstructionsInput): string {
+  // Currently returns the wait-for-task guidance as the core general instruction.
+  // Future: merge with chatroom-level and user-level custom instructions.
+  const sections: string[] = [];
+
+  sections.push(getWaitForTaskGuidance());
+
+  return sections.join('\n\n');
+}
+
+// =============================================================================
+// INTERNAL HELPERS
+// =============================================================================
 
 /**
  * Get team-specific role guidance
@@ -342,6 +392,10 @@ Task ID: ${taskId}`;
   return `Proceed with your task and hand off when complete.`;
 }
 
+// =============================================================================
+// FINAL OUTPUT COMPOSERS
+// =============================================================================
+
 export interface InitPromptInput {
   chatroomId: string;
   role: string;
@@ -352,21 +406,44 @@ export interface InitPromptInput {
 }
 
 /**
- * Generate a complete agent initialization prompt.
- * This is the full prompt shown when an agent first joins the chatroom.
+ * Composed prompt result for agent initialization.
+ *
+ * Consumers choose the appropriate fields based on their delivery mode:
+ *   - Machine mode (harness supports system prompt):
+ *       use `systemPrompt` as the system prompt + `initMessage` as first user message
+ *   - Manual mode (harness does NOT support system prompt override):
+ *       use `initPrompt` which combines everything into a single message
  */
-export function generateInitPrompt(input: InitPromptInput): string {
+export interface ComposedInitPrompt {
+  /** System prompt: general instructions + role prompt (for harnesses that support it) */
+  systemPrompt: string;
+  /** Init message: context-gaining instructions and task-started guidance (first user message) */
+  initMessage: string;
+  /** Combined init prompt: everything in one message (for harnesses without system prompt) */
+  initPrompt: string;
+}
+
+/**
+ * Compose a system prompt for harnesses that support setting the system prompt.
+ *
+ * Contains the full agent setup: team header, role identity, context-gaining
+ * instructions (Getting Started), task classification guide, role guidance,
+ * and CLI commands. This matches the original init prompt structure.
+ *
+ * Note: General instructions (wait-for-task guidance) are NOT included here
+ * because the CLI envelope (wait-for-task.ts) already provides them in the
+ * initialization header. Including them here would cause duplication.
+ */
+export function composeSystemPrompt(input: InitPromptInput): string {
   const { chatroomId, role, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
   const template = getRoleTemplate(role);
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
-  // Determine available handoff targets (other roles in the team + user)
-  const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
-  const handoffTargets = [...new Set([...otherRoles, 'user'])];
-
-  // Determine if this role is the entry point (receives user messages directly)
   const entryPoint = teamEntryPoint || teamRoles[0] || 'builder';
   const isEntryPoint = role.toLowerCase() === entryPoint.toLowerCase();
+
+  const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
+  const handoffTargets = [...new Set([...otherRoles, 'user'])];
 
   const roleCtx: RolePromptContext = {
     chatroomId,
@@ -385,35 +462,67 @@ export function generateInitPrompt(input: InitPromptInput): string {
     getTeamRoleGuidance(role, teamRoles, isEntryPoint, convexUrl) ??
     getBaseRoleGuidance(role, teamRoles, isEntryPoint, convexUrl);
 
-  const waitCmd = waitForTaskCommand({
-    chatroomId,
-    role,
-    cliEnvPrefix,
-  });
+  const waitCmd = waitForTaskCommand({ chatroomId, role, cliEnvPrefix });
 
   const sections: string[] = [];
-  sections.push(`# ${teamName} Team`);
+
+  // Team header and role identity
+  sections.push(`# ${teamName}`);
   sections.push(`## Your Role: ${template.title.toUpperCase()}`);
   sections.push(template.description);
 
-  // Add context-gaining guidance for agents joining mid-conversation
+  // Context-gaining: Getting Started commands (context read, wait-for-task)
   sections.push(getContextGainingGuidance({ chatroomId, role, convexUrl }));
 
-  // Add task-started guidance
+  // Task classification / acknowledgement commands
   if (isEntryPoint) {
-    // Entry point roles classify user messages
     sections.push(getTaskStartedPrompt({ chatroomId, role, cliEnvPrefix }));
   } else {
-    // Non-entry point roles just acknowledge handoffs (no classification)
     sections.push(getTaskStartedPromptForHandoffRecipient({ chatroomId, role, cliEnvPrefix }));
   }
 
+  // Role-specific guidance (team-aware workflow)
   sections.push(guidance);
+
+  // Command reference (handoff, progress, wait-for-task)
   sections.push(getCommandsSection(roleCtx));
+
+  // Next step
   sections.push(`### Next\n\nRun:\n\n\`\`\`bash\n${waitCmd}\n\`\`\``);
 
   return sections
     .filter((s) => s.trim())
     .join('\n\n')
     .trim();
+}
+
+/**
+ * Compose an init message — the first user message sent to the agent.
+ *
+ * For the combined init prompt (harnesses without system prompt support),
+ * this is appended after the system prompt. Currently empty since all
+ * content is in the system prompt, but exists as an extension point for
+ * future use (e.g., task-specific first messages).
+ */
+export function composeInitMessage(_input: InitPromptInput): string {
+  // All initialization content is now in the system prompt.
+  // The init message is reserved for future use (e.g., task-specific first messages).
+  return '';
+}
+
+/**
+ * Compose the full init prompt for agent initialization.
+ *
+ * Returns all three forms so the caller can choose based on harness capability:
+ *   - `systemPrompt` — for harnesses that support system prompt (general instructions + role)
+ *   - `initMessage` — first user message (context-gaining, task-started, next steps)
+ *   - `initPrompt` — combined single message (for harnesses without system prompt support)
+ */
+export function composeInitPrompt(input: InitPromptInput): ComposedInitPrompt {
+  const systemPrompt = composeSystemPrompt(input);
+  const initMessage = composeInitMessage(input);
+  // Combined prompt: system prompt + init message (if non-empty)
+  const initPrompt = initMessage ? `${systemPrompt}\n\n${initMessage}` : systemPrompt;
+
+  return { systemPrompt, initMessage, initPrompt };
 }

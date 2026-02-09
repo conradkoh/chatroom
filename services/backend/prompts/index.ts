@@ -1,13 +1,25 @@
 /**
  * Prompt system exports
+ *
+ * Architecture:
+ *   Low-level generators: generateGeneralInstructions, generateRolePrompt
+ *   Final output composers: composeSystemPrompt, composeInitMessage, composeInitPrompt
  */
 export { getRoleTemplate, type RoleTemplate } from './templates';
 export {
+  // Low-level generators
+  generateGeneralInstructions,
   generateRolePrompt,
   generateTaskStartedReminder,
-  generateInitPrompt,
+  // Final output composers
+  composeSystemPrompt,
+  composeInitMessage,
+  composeInitPrompt,
+  // Types
+  type GeneralInstructionsInput,
   type RolePromptContext,
   type InitPromptInput,
+  type ComposedInitPrompt,
 } from './generator';
 
 // CLI-specific prompts
