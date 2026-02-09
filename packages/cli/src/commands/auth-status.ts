@@ -1,11 +1,13 @@
 /**
  * Auth status command
- * Shows current authentication status
+ * Shows current authentication status and registers machine
  */
 
 import { api, type SessionValidation } from '../api.js';
 import { loadAuthData, getAuthFilePath, isAuthenticated } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
+import { ensureMachineRegistered } from '../infrastructure/machine/index.js';
+import { getVersion } from '../version.js';
 
 export async function authStatus(): Promise<void> {
   console.log(`\n${'═'.repeat(50)}`);
@@ -25,9 +27,8 @@ export async function authStatus(): Promise<void> {
   if (authData.deviceName) {
     console.log(`💻 Device: ${authData.deviceName}`);
   }
-  if (authData.cliVersion) {
-    console.log(`📦 CLI Version: ${authData.cliVersion}`);
-  }
+  // Always show current CLI version, not the version saved at login time
+  console.log(`📦 CLI Version: ${getVersion()}`);
 
   // Validate session with backend
   console.log(`\n⏳ Validating session...`);
@@ -42,6 +43,32 @@ export async function authStatus(): Promise<void> {
       console.log(`\n✅ Session is valid`);
       if (validation.userName) {
         console.log(`👤 User: ${validation.userName}`);
+      }
+
+      // Register machine with backend (idempotent)
+      // This ensures the daemon can find and use this machine
+      try {
+        const machineInfo = ensureMachineRegistered();
+
+        await client.mutation(api.machines.register, {
+          sessionId: authData.sessionId as any,
+          machineId: machineInfo.machineId,
+          hostname: machineInfo.hostname,
+          os: machineInfo.os,
+          availableHarnesses: machineInfo.availableHarnesses,
+          harnessVersions: machineInfo.harnessVersions,
+          availableModels: [],
+        });
+
+        console.log(`\n🖥️  Machine registered: ${machineInfo.hostname}`);
+        console.log(`   ID: ${machineInfo.machineId}`);
+        if (machineInfo.availableHarnesses.length > 0) {
+          console.log(`   Harnesses: ${machineInfo.availableHarnesses.join(', ')}`);
+        }
+      } catch (machineError) {
+        // Machine registration is non-critical — don't fail auth status
+        const err = machineError as Error;
+        console.log(`\n⚠️  Machine registration skipped: ${err.message}`);
       }
     } else {
       console.log(`\n❌ Session is invalid: ${validation.reason}`);
