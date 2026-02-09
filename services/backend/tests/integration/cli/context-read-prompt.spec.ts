@@ -179,7 +179,6 @@ describe('Context Read Command Output', () => {
       role: 'builder',
     });
 
-    // Find the user message (not join messages)
     const userMessage = context.messages.find((m) => m.senderRole === 'user');
     expect(userMessage).toBeDefined();
 
@@ -227,7 +226,6 @@ describe('Context Read Command Output', () => {
       role: 'builder',
     });
 
-    // Find the user message (not join messages)
     const userMessage = context.messages.find((m) => m.senderRole === 'user');
     expect(userMessage).toBeDefined();
 

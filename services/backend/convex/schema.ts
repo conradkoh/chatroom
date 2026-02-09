@@ -308,7 +308,7 @@ export default defineSchema({
     type: v.union(
       v.literal('message'),
       v.literal('handoff'),
-      v.literal('join'),
+      v.literal('join'), // Deprecated: no longer created, kept for backwards compat with existing data
       v.literal('progress')
     ),
     // Classification of user messages (set via task-started command)

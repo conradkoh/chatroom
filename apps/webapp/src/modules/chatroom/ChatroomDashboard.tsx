@@ -193,7 +193,7 @@ interface TeamReadiness {
   missingRoles: string[];
   expiredRoles?: string[];
   participants?: ParticipantInfo[];
-  /** Whether the chatroom has non-join messages (i.e. has been used) */
+  /** Whether the chatroom has been used (has user messages) */
   hasHistory?: boolean;
 }
 
@@ -411,7 +411,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }, [updateStatus, chatroomId, onBack]);
 
   // Show setup checklist only when the chatroom is brand new:
-  // - No chat history (no user/handoff/progress messages)
+  // - No chat history (no user messages)
   // - Not all team members have joined yet
   // Once the chatroom has been used (hasHistory), never show setup again
   const isSetupMode = !allMembersJoined && !readiness?.hasHistory;

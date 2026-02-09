@@ -16,7 +16,6 @@ import {
   XCircle,
   Archive,
   ArrowRightLeft,
-  LogIn,
   HelpCircle,
   Sparkles,
   RotateCcw,
@@ -100,12 +99,6 @@ const getMessageTypeBadge = (type: string) => {
         className: `${BADGE_BASE} bg-chatroom-status-purple/15 text-chatroom-status-purple`,
         label: 'handoff',
         icon: <ArrowRightLeft size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    case 'join':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`,
-        label: 'join',
-        icon: <LogIn size={ICON_SIZE} className="flex-shrink-0" />,
       };
     default:
       return null;
