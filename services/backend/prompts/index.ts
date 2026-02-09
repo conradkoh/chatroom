@@ -37,13 +37,19 @@ export {
 export {
   pairTeamConfig,
   getPairWorkflow,
-  getBuilderGuidance as getTeamBuilderGuidance,
-  getReviewerGuidance as getTeamReviewerGuidance,
-} from './teams/pair/index.js';
+  getPairBuilderGuidance as getTeamBuilderGuidance,
+  getPairReviewerGuidance as getTeamReviewerGuidance,
+  squadTeamConfig,
+  getSquadWorkflow,
+  getSquadPlannerGuidance,
+  getSquadBuilderGuidance,
+  getSquadReviewerGuidance,
+} from './teams/index.js';
 
 // Base prompts
 export {
   getBuilderGuidance as getBaseBuilderGuidance,
+  getPlannerGuidance as getBasePlannerGuidance,
   getReviewerGuidance as getBaseReviewerGuidance,
   getRoleSpecificGuidance,
 } from './base/cli/roles/index.js';

@@ -377,6 +377,9 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
        
        
 
+      ### Handoff Options
+      Available targets: reviewer, user
+
       ### Commands
 
       **Complete task and hand off:**
@@ -1791,6 +1794,9 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
        
        
 
+      ### Handoff Options
+      Available targets: builder, user
+
       ### Commands
 
       **Complete task and hand off:**
@@ -2330,6 +2336,9 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
        
        
 
+      ### Handoff Options
+      Available targets: reviewer, user
+
       ### Commands
 
       **Complete task and hand off:**
@@ -2571,6 +2580,9 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
        - If changes are needed → hand off to builder with specific feedback
        
        
+
+      ### Handoff Options
+      Available targets: builder, user
 
       ### Commands
 

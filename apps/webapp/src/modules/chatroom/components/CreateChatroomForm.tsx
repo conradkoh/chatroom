@@ -33,9 +33,9 @@ const DEFAULT_TEAMS_CONFIG: TeamsConfig = {
     },
     squad: {
       name: 'Squad',
-      description: 'Full team with manager, architects, builders, and reviewers',
-      roles: ['manager', 'architect', 'builder', 'frontend-designer', 'reviewer', 'tester'],
-      entryPoint: 'manager',
+      description: 'A planner, builder, and reviewer working as a coordinated team',
+      roles: ['planner', 'builder', 'reviewer'],
+      entryPoint: 'planner',
     },
   },
 };

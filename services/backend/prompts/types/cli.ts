@@ -95,6 +95,17 @@ export interface ReviewerGuidanceParams extends BasePromptParams {
 }
 
 /**
+ * Parameters for planner guidance generation
+ */
+export interface PlannerGuidanceParams extends BasePromptParams {
+  role: string;
+  teamRoles: string[];
+  isEntryPoint: boolean;
+  /** Currently available team members (for dynamic workflow adaptation) */
+  availableMembers?: string[];
+}
+
+/**
  * Parameters for context-gaining guidance
  */
 export interface ContextGainingParams extends BasePromptParams {

@@ -14,6 +14,7 @@ export interface RoleHierarchy {
  * Custom roles not in this list get a default priority of 100.
  */
 export const DEFAULT_ROLE_HIERARCHY: RoleHierarchy = {
+  planner: 0, // Planner is highest priority (squad team coordinator)
   manager: 1,
   architect: 2,
   builder: 3,

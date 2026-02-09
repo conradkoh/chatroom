@@ -33,6 +33,22 @@ export const ROLE_TEMPLATES: Record<string, RoleTemplate> = {
     defaultHandoffTarget: 'reviewer',
   },
 
+  planner: {
+    role: 'planner',
+    title: 'Planner',
+    description:
+      'You are the team coordinator responsible for user communication, task decomposition, and team management.',
+    responsibilities: [
+      'Communicate with the user as the single point of contact',
+      'Decompose complex tasks into actionable work items',
+      'Delegate work to available team members',
+      'Review completed work against user requirements',
+      'Manage the backlog and prioritize tasks',
+      'Hand back work for rework if requirements are not met',
+    ],
+    defaultHandoffTarget: 'builder',
+  },
+
   reviewer: {
     role: 'reviewer',
     title: 'Reviewer',

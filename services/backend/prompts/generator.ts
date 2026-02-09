@@ -30,14 +30,18 @@ import {
 } from './base/cli/index.js';
 import { reportProgressCommand } from './base/cli/report-progress/command.js';
 import { getBuilderGuidance as getBaseBuilderGuidance } from './base/cli/roles/builder.js';
+import { getPlannerGuidance as getBasePlannerGuidance } from './base/cli/roles/planner.js';
 import { getReviewerGuidance as getBaseReviewerGuidance } from './base/cli/roles/reviewer.js';
 import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
 import {
   getWaitForTaskGuidance,
   getWaitForTaskReminder,
 } from './base/cli/wait-for-task/reminder.js';
-import { getBuilderGuidance as getTeamBuilderGuidance } from './teams/pair/prompts/builder.js';
-import { getReviewerGuidance as getTeamReviewerGuidance } from './teams/pair/prompts/reviewer.js';
+import { getBuilderGuidance as getPairBuilderGuidance } from './teams/pair/prompts/builder.js';
+import { getReviewerGuidance as getPairReviewerGuidance } from './teams/pair/prompts/reviewer.js';
+import { getBuilderGuidance as getSquadBuilderGuidance } from './teams/squad/prompts/builder.js';
+import { getPlannerGuidance as getSquadPlannerGuidance } from './teams/squad/prompts/planner.js';
+import { getReviewerGuidance as getSquadReviewerGuidance } from './teams/squad/prompts/reviewer.js';
 import { getRoleTemplate } from './templates';
 import { getCliEnvPrefix } from './utils/index.js';
 
@@ -80,22 +84,64 @@ export function generateGeneralInstructions(_input?: GeneralInstructionsInput): 
 // =============================================================================
 
 /**
+ * Detect team type from team configuration
+ */
+function detectTeamType(teamRoles: string[], teamName?: string): 'pair' | 'squad' | 'unknown' {
+  const normalizedName = (teamName || '').toLowerCase();
+  if (normalizedName.includes('squad')) return 'squad';
+  if (normalizedName.includes('pair')) return 'pair';
+
+  // Detect by role composition
+  const hasPlanner = teamRoles.some((r) => r.toLowerCase() === 'planner');
+  if (hasPlanner) return 'squad';
+
+  const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
+  const hasReviewer = teamRoles.some((r) => r.toLowerCase() === 'reviewer');
+  if (hasBuilder && hasReviewer && teamRoles.length === 2) return 'pair';
+
+  return 'unknown';
+}
+
+/**
  * Get team-specific role guidance
  */
 function getTeamRoleGuidance(
   role: string,
   teamRoles: string[],
   isEntryPoint: boolean,
-  convexUrl: string
+  convexUrl: string,
+  teamName?: string,
+  availableMembers?: string[]
 ): string | null {
   const normalizedRole = role.toLowerCase();
+  const teamType = detectTeamType(teamRoles, teamName);
 
   try {
-    if (normalizedRole === 'builder') {
-      return getTeamBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
+    if (teamType === 'squad') {
+      if (normalizedRole === 'planner') {
+        return getSquadPlannerGuidance({
+          role,
+          teamRoles,
+          isEntryPoint,
+          convexUrl,
+          availableMembers,
+        });
+      }
+      if (normalizedRole === 'builder') {
+        return getSquadBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
+      }
+      if (normalizedRole === 'reviewer') {
+        return getSquadReviewerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
+      }
     }
-    if (normalizedRole === 'reviewer') {
-      return getTeamReviewerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
+
+    if (teamType === 'pair') {
+      if (normalizedRole === 'builder') {
+        return getPairBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
+      }
+      if (normalizedRole === 'reviewer') {
+        return getPairReviewerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
+      }
     }
   } catch {
     // Fall back to base guidance
@@ -115,6 +161,9 @@ function getBaseRoleGuidance(
 ): string {
   const normalizedRole = role.toLowerCase();
 
+  if (normalizedRole === 'planner') {
+    return getBasePlannerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
+  }
   if (normalizedRole === 'builder') {
     return getBaseBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
   }
@@ -162,7 +211,13 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   sections.push(template.description);
 
   // Role-specific guidance (team-aware)
-  const teamGuidance = getTeamRoleGuidance(ctx.role, ctx.teamRoles, isEntryPoint, ctx.convexUrl);
+  const teamGuidance = getTeamRoleGuidance(
+    ctx.role,
+    ctx.teamRoles,
+    isEntryPoint,
+    ctx.convexUrl,
+    ctx.teamName
+  );
   if (teamGuidance) {
     sections.push(teamGuidance);
   } else {
@@ -279,16 +334,80 @@ export function generateTaskStartedReminder(
   messageId?: string,
   taskId?: string,
   convexUrl?: string,
-  teamRoles: string[] = []
+  teamRoles: string[] = [],
+  teamName?: string
 ): string {
   const normalizedRole = role.toLowerCase();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
+  const teamType = detectTeamType(teamRoles, teamName);
 
   // Detect if this is a pair team (builder + reviewer)
-  const isPairTeam =
-    teamRoles.length === 2 &&
-    teamRoles.some((r) => r.toLowerCase() === 'builder') &&
-    teamRoles.some((r) => r.toLowerCase() === 'reviewer');
+  const isPairTeam = teamType === 'pair';
+  const isSquadTeam = teamType === 'squad';
+
+  // Planner-specific reminders (squad team)
+  if (normalizedRole === 'planner') {
+    switch (classification) {
+      case 'question': {
+        const handoffToUserCmd = handoffCommand({
+          chatroomId,
+          role: 'planner',
+          nextRole: 'user',
+          cliEnvPrefix,
+        });
+        return `✅ Task acknowledged as QUESTION.
+
+**Next steps:**
+1. Answer the user's question
+2. When done, hand off to user:
+
+\`\`\`bash
+${handoffToUserCmd}
+\`\`\`
+
+💡 You're working on:
+${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+      }
+      case 'new_feature': {
+        const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
+        const delegateTarget = hasBuilder ? 'builder' : 'reviewer';
+        const handoffToTeamCmd = handoffCommand({
+          chatroomId,
+          role: 'planner',
+          nextRole: delegateTarget,
+          cliEnvPrefix,
+        });
+        return `✅ Task acknowledged as NEW FEATURE.
+
+**Next steps:**
+1. Decompose the task into clear, actionable work items
+2. Delegate implementation to ${delegateTarget}:
+
+\`\`\`bash
+${handoffToTeamCmd}
+\`\`\`
+
+3. Review completed work before delivering to user
+4. Hand back for rework if requirements are not met
+
+💡 You're working on:
+${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+      }
+      case 'follow_up': {
+        return `✅ Task acknowledged as FOLLOW UP.
+
+**Next steps:**
+1. Review the follow-up request against previous work
+2. Delegate to appropriate team member or handle yourself
+3. Follow-up inherits the workflow rules from the original task:
+   - If original was a QUESTION → handle and hand off to user when done
+   - If original was a NEW FEATURE → delegate, review, and deliver to user
+
+💡 You're working on:
+${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+      }
+    }
+  }
 
   // Builder-specific reminders
   if (normalizedRole === 'builder') {
@@ -357,6 +476,31 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
 ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
         }
       }
+    } else if (isSquadTeam) {
+      // Squad team: builder hands off to reviewer or planner, never to user
+      const hasReviewer = teamRoles.some((r) => r.toLowerCase() === 'reviewer');
+      const handoffTarget = hasReviewer ? 'reviewer' : 'planner';
+      const handoffCmd = handoffCommand({
+        chatroomId,
+        role: 'builder',
+        nextRole: handoffTarget,
+        cliEnvPrefix,
+      });
+      return `✅ Task acknowledged as ${classification.toUpperCase().replace('_', ' ')}.
+
+**Next steps:**
+1. Implement the requested changes
+2. Send \`report-progress\` at milestones
+3. Hand off to ${handoffTarget} when complete:
+
+\`\`\`bash
+${handoffCmd}
+\`\`\`
+
+⚠️ In squad team, never hand off directly to user — go through the planner.
+
+💡 You're working on:
+${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
     } else {
       // Generic builder reminder (no specific team structure)
       const handoffCmd = handoffCommand({
@@ -378,7 +522,17 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
 
   // Reviewer should run task-started to acknowledge receipt
   if (normalizedRole === 'reviewer') {
-    // Check if the task involves reviewing completed work
+    if (isSquadTeam) {
+      // Squad team: reviewer hands off to planner, not user
+      if (taskId) {
+        return `Review the completed work. If the work meets requirements, hand off to planner for user delivery. If changes are needed, hand off to builder with specific feedback.
+
+💡 You're reviewing:
+Task ID: ${taskId}`;
+      }
+      return `Review the work. Hand off to planner when approved, or to builder for rework.`;
+    }
+    // Pair team or generic: hand off to user when approved
     if (taskId) {
       return `Review the completed work. If the user's goal is met, hand off to user. If not, provide specific feedback and hand off to builder.
 
@@ -441,9 +595,15 @@ export function composeSystemPrompt(input: InitPromptInput): string {
 
   const entryPoint = teamEntryPoint || teamRoles[0] || 'builder';
   const isEntryPoint = role.toLowerCase() === entryPoint.toLowerCase();
+  const teamType = detectTeamType(teamRoles, teamName);
 
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
-  const handoffTargets = [...new Set([...otherRoles, 'user'])];
+
+  // In squad team, only the planner can hand off to the user
+  const canHandoffToUser = teamType === 'squad' ? role.toLowerCase() === 'planner' : true;
+  const handoffTargets = canHandoffToUser
+    ? [...new Set([...otherRoles, 'user'])]
+    : [...new Set(otherRoles)];
 
   const roleCtx: RolePromptContext = {
     chatroomId,
@@ -453,13 +613,15 @@ export function composeSystemPrompt(input: InitPromptInput): string {
     teamEntryPoint,
     currentClassification: null,
     availableHandoffRoles: handoffTargets,
-    canHandoffToUser: true,
-    restrictionReason: null,
+    canHandoffToUser,
+    restrictionReason: canHandoffToUser
+      ? null
+      : 'In squad team, only the planner can hand off to the user.',
     convexUrl,
   };
 
   const guidance =
-    getTeamRoleGuidance(role, teamRoles, isEntryPoint, convexUrl) ??
+    getTeamRoleGuidance(role, teamRoles, isEntryPoint, convexUrl, teamName) ??
     getBaseRoleGuidance(role, teamRoles, isEntryPoint, convexUrl);
 
   const waitCmd = waitForTaskCommand({ chatroomId, role, cliEnvPrefix });
@@ -483,6 +645,9 @@ export function composeSystemPrompt(input: InitPromptInput): string {
 
   // Role-specific guidance (team-aware workflow)
   sections.push(guidance);
+
+  // Handoff options (includes restriction notice for squad non-planner roles)
+  sections.push(getHandoffSection(roleCtx));
 
   // Command reference (handoff, progress, wait-for-task)
   sections.push(getCommandsSection(roleCtx));
