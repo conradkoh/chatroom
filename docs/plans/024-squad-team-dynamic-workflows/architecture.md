@@ -8,7 +8,7 @@ This plan introduces:
 2. **Dynamic workflow logic** that adapts based on available participants
 3. **New role prompts** for the planner role
 4. **Team availability context** injected into system prompts
-5. **Backlog clearing mode** as a chatroom-level workflow flag
+5. **Prompt reuse** — builder/reviewer prompts shared between pair and squad via base role system
 
 ## New Components
 
@@ -66,13 +66,6 @@ services/backend/prompts/workflows/
 - Add `planner` role with priority 0 (highest, above manager)
 - Ensure planner routes correctly as entry point
 
-### Backend: Chatroom Schema
-
-**File**: `services/backend/convex/schema.ts`
-
-**Changes**:
-- Add optional `workflowMode` field to `chatroom_rooms` (`'normal' | 'backlog_clearing'`)
-
 ### Backend: Team Readiness
 
 **File**: `services/backend/convex/chatrooms.ts`
@@ -87,7 +80,6 @@ services/backend/prompts/workflows/
 
 **Changes**:
 - Pass team availability to prompt generator when composing init prompts
-- Include backlog clearing mode context when active
 
 ## Design Decisions
 
@@ -109,13 +101,7 @@ Team availability is checked when composing the system prompt (at `getInitPrompt
 
 **Rationale**: Tasks are short-lived, and mid-task availability changes are rare. Checking at prompt time is simple and avoids complex real-time adaptation.
 
-### D4: Backlog Clearing as Chatroom Mode
-
-Backlog clearing is a chatroom-level mode, not a per-agent mode. When active, the planner's prompt includes autonomous backlog processing instructions.
-
-**Rationale**: The mode affects the entire team's workflow (planner picks items, delegates to available members), so it should be a team-level setting.
-
-### D5: Handoff Validation Adapts to Available Roles
+### D4: Handoff Validation Adapts to Available Roles
 
 When the builder hands off, the system checks if the reviewer is available. If not, the handoff goes to the planner instead. This is handled at the validation/routing level, not just the prompt level.
 
@@ -123,22 +109,29 @@ When the builder hands off, the system checks if the reviewer is available. If n
 
 ## Data Model Changes
 
-### chatroom_rooms (modified)
-
-```typescript
-// New optional field
-workflowMode: v.optional(v.union(
-  v.literal('normal'),
-  v.literal('backlog_clearing')
-))
-```
-
 ### No New Tables Required
 
 The squad team uses existing infrastructure:
 - `chatroom_participants` for tracking role availability
 - `chatroom_tasks` for backlog management
 - `chatroom_messages` for routing
+
+## Prompt Reuse Architecture
+
+The existing prompt system uses a two-layer architecture:
+
+1. **Base role prompts** (`prompts/base/cli/roles/builder.ts`): Generic builder/reviewer guidance shared across all teams — workflow, git practices, classification, handoff rules
+2. **Team-specific prompts** (`prompts/teams/pair/prompts/builder.ts`): Wraps base guidance with team context (e.g., "Pair Team Context"), then includes the base guidance
+
+The squad team **reuses the same base role prompts** for builder and reviewer. The team-specific layer (`prompts/teams/squad/prompts/builder.ts`) adds squad context (e.g., "You work with a planner who coordinates", "Hand off to planner, not to user directly") but delegates core workflow to the shared base.
+
+```
+Base Builder Guidance (shared)
+├── Pair Team Builder (adds pair context)
+└── Squad Team Builder (adds squad context)
+```
+
+Only the **planner** role is new — it has no base role equivalent since it's a squad-specific concept.
 
 ## Prompt Structure
 

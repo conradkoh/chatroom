@@ -40,14 +40,6 @@
 
 **US-10**: As a planner, I want to decompose complex tasks before delegating, so that builders receive clear, actionable work.
 
-### Backlog Clearing Mode
-
-**US-11**: As a user, I want to put the planner in "backlog clearing" mode, so that it autonomously processes backlog items without waiting for me between tasks.
-
-**US-12**: As a planner in backlog clearing mode, I want to automatically pick the next highest-priority backlog item when the current task completes, so that the backlog is processed efficiently.
-
-**US-13**: As a user, I want to interrupt backlog clearing mode with a new message, so that urgent tasks take priority.
-
 ### Role Fallback
 
 **US-14**: As a builder, when the reviewer is unavailable, I want to hand off directly to the planner for review, so that the workflow continues.

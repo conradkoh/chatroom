@@ -87,37 +87,7 @@
 
 ---
 
-### Phase 4: Backlog Clearing Mode
-
-**Goal**: Enable autonomous backlog processing mode.
-
-**Tasks**:
-
-1. Add `workflowMode` field to chatroom schema
-2. Create mutation to toggle backlog clearing mode
-3. Update planner prompt to include backlog clearing instructions when active
-4. Add auto-pickup logic: after completing a backlog item, planner picks next
-5. Allow user messages to interrupt backlog clearing (user message takes priority)
-6. Add UI toggle for backlog clearing mode
-
-**Files**:
-
-- `services/backend/convex/schema.ts` (modify - add workflowMode)
-- `services/backend/convex/chatrooms.ts` (modify - add toggle mutation)
-- `services/backend/prompts/generator.ts` (modify - backlog mode prompt)
-- `apps/webapp/` (modify - add UI toggle)
-
-**Success Criteria**:
-
-- User can activate backlog clearing mode via UI
-- Planner automatically picks next backlog item after completing current
-- User messages interrupt backlog clearing
-- Backlog items are marked for user review after completion
-- Mode can be deactivated via UI
-
----
-
-### Phase 5: Testing & Documentation
+### Phase 4: Testing & Documentation
 
 **Goal**: Comprehensive testing and documentation.
 
@@ -143,9 +113,9 @@
 
 ## Recommended Approach
 
-Start with Phase 1 and 2 together (static squad definition + workflow), as they form the minimum viable squad team. Phase 3 (dynamic availability) builds on the static foundation. Phase 4 (backlog clearing) is independent and can be done in parallel with Phase 3 or after.
+Start with Phase 1 and 2 together (static squad definition + workflow), as they form the minimum viable squad team. Phase 3 (dynamic availability) builds on the static foundation.
 
 ```
-Phase 1 + 2 → Phase 3 → Phase 4 → Phase 5
-   (static)     (dynamic)  (backlog)  (testing)
+Phase 1 + 2 → Phase 3 → Phase 4
+   (static)     (dynamic)  (testing)
 ```

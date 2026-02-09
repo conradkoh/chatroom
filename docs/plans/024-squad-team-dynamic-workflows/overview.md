@@ -9,8 +9,7 @@ This plan redesigns the squad team model to use 3 focused roles (planner, builde
 1. **Simplified Squad Model** - Replace the 6-role squad (manager, architect, builder, frontend-designer, reviewer, tester) with a focused 3-role team: planner, builder, reviewer
 2. **Dynamic Workflows** - Automatically adapt the workflow based on which team members are currently active, with graceful degradation to fewer roles
 3. **Planner-Centric Communication** - All user communication flows through the planner; it is the only role that receives user messages and can hand back to the user
-4. **Backlog Clearing Mode** - Enable an autonomous mode where the planner continuously processes backlog items without waiting for user input between tasks
-5. **Role Fallback** - When a role is unavailable, the remaining roles absorb its responsibilities through prompt guidance
+4. **Role Fallback** - When a role is unavailable, the remaining roles absorb its responsibilities through prompt guidance
 
 ## Non-Goals
 
