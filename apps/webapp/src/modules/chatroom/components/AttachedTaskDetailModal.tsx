@@ -1,11 +1,10 @@
 'use client';
 
+import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
 import { X } from 'lucide-react';
 import React, { useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-
-import type { TaskStatus } from '../types/task';
 
 interface AttachedTask {
   _id: string;
