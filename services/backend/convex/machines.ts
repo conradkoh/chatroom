@@ -8,7 +8,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
@@ -65,29 +65,37 @@ function validateWorkingDir(workingDir: string): void {
 }
 
 /**
- * Get authenticated user from session. Throws if session is invalid.
+ * Authentication result returned by getAuthenticatedUser.
+ *
+ * Uses a discriminated union so callers can narrow the type:
+ *   const auth = await getAuthenticatedUser(ctx, sessionId);
+ *   if (!auth.isAuthenticated) return ...;  // handle gracefully
+ *   auth.user;  // TypeScript narrows to Doc<'users'>
  */
-async function getAuthenticatedUser(ctx: QueryCtx | MutationCtx, sessionId: string) {
+type AuthResult =
+  | { isAuthenticated: true; user: Doc<'users'> }
+  | { isAuthenticated: false; user: null };
+
+/**
+ * Get authenticated user from session.
+ *
+ * Returns a value object instead of throwing, allowing callers to handle
+ * auth failures gracefully (e.g., return empty data for queries, or
+ * throw their own error for mutations).
+ */
+async function getAuthenticatedUser(
+  ctx: QueryCtx | MutationCtx,
+  sessionId: string
+): Promise<AuthResult> {
   const result = await validateSession(ctx, sessionId);
   if (!result.valid) {
-    throw new Error('Authentication required');
+    return { isAuthenticated: false, user: null };
   }
   const user = await ctx.db.get('users', result.userId);
   if (!user) {
-    throw new Error('User not found');
+    return { isAuthenticated: false, user: null };
   }
-  return user;
-}
-
-/**
- * Get authenticated user from session. Returns null if invalid.
- */
-async function getAuthenticatedUserOptional(ctx: QueryCtx | MutationCtx, sessionId: string) {
-  try {
-    return await getAuthenticatedUser(ctx, sessionId);
-  } catch {
-    return null;
-  }
+  return { isAuthenticated: true, user };
 }
 
 /**
@@ -149,7 +157,11 @@ export const register = mutation({
     availableModels: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx, args.sessionId);
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    const user = auth.user;
     const now = Date.now();
 
     // Check if machine already exists
@@ -216,7 +228,11 @@ export const updateAgentConfig = mutation({
     model: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx, args.sessionId);
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    const user = auth.user;
     await getOwnedMachine(ctx, args.machineId, user._id);
 
     // Sanitize workingDir before storing
@@ -279,10 +295,11 @@ export const listMachines = query({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUserOptional(ctx, args.sessionId);
-    if (!user) {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
       return { machines: [] };
     }
+    const user = auth.user;
 
     const machines = await ctx.db
       .query('chatroom_machines')
@@ -315,10 +332,11 @@ export const getAgentConfigs = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUserOptional(ctx, args.sessionId);
-    if (!user) {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
       return { configs: [] };
     }
+    const user = auth.user;
 
     // Verify chatroom access
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
@@ -372,10 +390,11 @@ export const getPendingCommands = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUserOptional(ctx, args.sessionId);
-    if (!user) {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
       return { commands: [] };
     }
+    const user = auth.user;
 
     // Verify machine ownership
     const machine = await ctx.db
@@ -424,7 +443,11 @@ export const updateDaemonStatus = mutation({
     connected: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx, args.sessionId);
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    const user = auth.user;
     const machine = await getOwnedMachine(ctx, args.machineId, user._id);
 
     await ctx.db.patch('chatroom_machines', machine._id, {
@@ -465,7 +488,11 @@ export const sendCommand = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx, args.sessionId);
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    const user = auth.user;
     const machine = await getOwnedMachine(ctx, args.machineId, user._id);
 
     // Sanitize workingDir if provided in the payload
@@ -563,8 +590,11 @@ export const updateSpawnedAgent = mutation({
     pid: v.optional(v.number()), // null to clear
   },
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx, args.sessionId);
-    await getOwnedMachine(ctx, args.machineId, user._id);
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
     // Find the agent config
     const config = await ctx.db
@@ -602,14 +632,17 @@ export const ackCommand = mutation({
     result: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx, args.sessionId);
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
 
     const command = await ctx.db.get('chatroom_machineCommands', args.commandId);
     if (!command) {
       throw new Error('Command not found');
     }
 
-    await getOwnedMachine(ctx, command.machineId, user._id);
+    await getOwnedMachine(ctx, command.machineId, auth.user._id);
 
     const now = Date.now();
 
@@ -667,8 +700,9 @@ export const getAgentPreferences = query({
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUserOptional(ctx, args.sessionId);
-    if (!user) return null;
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return null;
+    const user = auth.user;
 
     const prefs = await ctx.db
       .query('chatroom_agentPreferences')
@@ -701,7 +735,11 @@ export const updateAgentPreferences = mutation({
     model: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx, args.sessionId);
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    const user = auth.user;
     const now = Date.now();
 
     // Find existing preferences
