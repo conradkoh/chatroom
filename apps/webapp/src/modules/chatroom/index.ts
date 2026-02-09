@@ -10,6 +10,7 @@ export { ChatroomDashboard } from './ChatroomDashboard';
 // Components
 export { AgentPanel } from './components/AgentPanel';
 export { ChatroomSelector } from './components/ChatroomSelector';
+export { ChatroomSidebar } from './components/ChatroomSidebar';
 export { CopyButton } from './components/CopyButton';
 export { CreateChatroomForm } from './components/CreateChatroomForm';
 export { ErrorBoundary } from './components/ErrorBoundary';

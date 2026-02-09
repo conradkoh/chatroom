@@ -3,6 +3,7 @@
 import { useSearchParams, useRouter } from 'next/navigation';
 
 import { ChatroomDashboard } from '@/modules/chatroom';
+import { ChatroomSidebar } from '@/modules/chatroom/components/ChatroomSidebar';
 
 export default function ChatroomPage() {
   const searchParams = useSearchParams();
@@ -64,5 +65,17 @@ export default function ChatroomPage() {
     );
   }
 
-  return <ChatroomDashboard chatroomId={chatroomId} onBack={handleBack} />;
+  return (
+    <div className="flex h-full overflow-hidden">
+      {/* Left sidebar - chatroom list (desktop only) */}
+      <div className="hidden lg:flex w-56 flex-shrink-0 border-r-2 border-chatroom-border bg-chatroom-bg-surface">
+        <ChatroomSidebar activeChatroomId={chatroomId} />
+      </div>
+
+      {/* Main chatroom area */}
+      <div className="flex-1 min-w-0">
+        <ChatroomDashboard chatroomId={chatroomId} onBack={handleBack} />
+      </div>
+    </div>
+  );
 }

@@ -288,6 +288,27 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Update status mutation (for marking complete)
   const updateStatus = useSessionMutation(chatroomApi.chatrooms.updateStatus);
 
+  // Mark chatroom as read mutation (for unread indicators)
+  const markAsRead = useSessionMutation(chatroomApi.chatrooms.markAsRead);
+
+  // Mark chatroom as read when it loads (and periodically while viewing)
+  useEffect(() => {
+    if (!chatroom) return;
+
+    // Mark as read immediately when viewing
+    markAsRead({ chatroomId: chatroomId as Id<'chatroom_rooms'> }).catch(() => {
+      // Silently ignore - non-critical
+    });
+
+    // Also mark as read periodically while viewing (every 30s)
+    // This ensures the cursor stays updated for long sessions
+    const interval = setInterval(() => {
+      markAsRead({ chatroomId: chatroomId as Id<'chatroom_rooms'> }).catch(() => {});
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [chatroom, chatroomId, markAsRead]);
+
   const participants = useSessionQuery(chatroomApi.participants.list, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Participant[] | undefined;
