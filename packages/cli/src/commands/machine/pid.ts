@@ -3,14 +3,36 @@
  *
  * Manages the daemon PID file to prevent multiple instances
  * and enable clean shutdown.
+ *
+ * PID files are scoped per Convex URL so that multiple daemons
+ * can run simultaneously for different environments.
+ * File naming: daemon-<urlHash>.pid (e.g., daemon-a1b2c3d4.pid)
  */
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { getConvexUrl } from '../../infrastructure/convex/client.js';
+
 const CHATROOM_DIR = join(homedir(), '.chatroom');
-const PID_FILE = 'daemon.pid';
+
+/**
+ * Generate a short hash of the Convex URL for PID file scoping.
+ * Uses first 8 chars of SHA-256 hex digest for uniqueness without excessive length.
+ */
+function getUrlHash(): string {
+  const url = getConvexUrl();
+  return createHash('sha256').update(url).digest('hex').substring(0, 8);
+}
+
+/**
+ * Get the PID filename scoped to the current Convex URL.
+ */
+function getPidFileName(): string {
+  return `daemon-${getUrlHash()}.pid`;
+}
 
 /**
  * Ensure the chatroom directory exists
@@ -23,10 +45,10 @@ function ensureChatroomDir(): void {
 }
 
 /**
- * Get the path to the PID file
+ * Get the path to the PID file for the current Convex URL
  */
 export function getPidFilePath(): string {
-  return join(CHATROOM_DIR, PID_FILE);
+  return join(CHATROOM_DIR, getPidFileName());
 }
 
 /**
@@ -123,7 +145,7 @@ export function acquireLock(): boolean {
   const { running, pid } = isDaemonRunning();
 
   if (running) {
-    console.error(`❌ Daemon already running (PID: ${pid})`);
+    console.error(`❌ Daemon already running for ${getConvexUrl()} (PID: ${pid})`);
     return false;
   }
 
