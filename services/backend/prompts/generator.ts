@@ -424,18 +424,6 @@ export interface ComposedInitPrompt {
 }
 
 /**
- * @deprecated Use `composeInitPrompt` instead. This alias is kept for backwards compatibility.
- */
-export interface SplitInitPrompt {
-  /** @deprecated Use ComposedInitPrompt.systemPrompt */
-  rolePrompt: string;
-  /** @deprecated Use ComposedInitPrompt.initMessage */
-  initialMessage: string;
-  /** @deprecated Use ComposedInitPrompt.initPrompt */
-  combined: string;
-}
-
-/**
  * Compose a system prompt for harnesses that support setting the system prompt.
  *
  * Contains the full agent setup: team header, role identity, context-gaining
@@ -537,17 +525,4 @@ export function composeInitPrompt(input: InitPromptInput): ComposedInitPrompt {
   const initPrompt = initMessage ? `${systemPrompt}\n\n${initMessage}` : systemPrompt;
 
   return { systemPrompt, initMessage, initPrompt };
-}
-
-/**
- * @deprecated Use `composeInitPrompt` instead.
- * Kept for backwards compatibility during migration.
- */
-export function generateSplitInitPrompt(input: InitPromptInput): SplitInitPrompt {
-  const composed = composeInitPrompt(input);
-  return {
-    rolePrompt: composed.systemPrompt,
-    initialMessage: composed.initMessage,
-    combined: composed.initPrompt,
-  };
 }

@@ -4,7 +4,6 @@
  * Architecture:
  *   Low-level generators: generateGeneralInstructions, generateRolePrompt
  *   Final output composers: composeSystemPrompt, composeInitMessage, composeInitPrompt
- *   Legacy (deprecated): generateSplitInitPrompt
  */
 export { getRoleTemplate, type RoleTemplate } from './templates';
 export {
@@ -16,14 +15,11 @@ export {
   composeSystemPrompt,
   composeInitMessage,
   composeInitPrompt,
-  // Deprecated — use composeInitPrompt instead
-  generateSplitInitPrompt,
   // Types
   type GeneralInstructionsInput,
   type RolePromptContext,
   type InitPromptInput,
   type ComposedInitPrompt,
-  type SplitInitPrompt,
 } from './generator';
 
 // CLI-specific prompts
