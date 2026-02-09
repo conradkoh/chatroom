@@ -298,14 +298,16 @@ export const getTeamReadiness = query({
     // Expired roles: present but expired
     const expiredRoles = participantInfo.filter((p) => p.isExpired).map((p) => p.role);
 
-    // Check if chatroom has any user/handoff/progress messages (not just "join" system messages)
-    // This indicates the chatroom has been used and should not show setup screen
-    const firstNonJoinMessage = await ctx.db
+    // Check if a user has ever sent a message in this chatroom.
+    // A user message is the strongest signal that the chatroom has been used
+    // and should not show the setup screen again — even if all agents disconnect.
+    const firstUserMessage = await ctx.db
       .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .filter((q) => q.neq(q.field('type'), 'join'))
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
       .first();
-    const hasHistory = firstNonJoinMessage !== null;
+    const hasHistory = firstUserMessage !== null;
 
     return {
       teamId: chatroom.teamId,
@@ -318,7 +320,7 @@ export const getTeamReadiness = query({
       isReady: missingRoles.length === 0,
       // Detailed participant info with readyUntil
       participants: participantInfo,
-      // Whether the chatroom has been used (has non-join messages)
+      // Whether the chatroom has been used (a user has sent at least one message)
       hasHistory,
     };
   },
