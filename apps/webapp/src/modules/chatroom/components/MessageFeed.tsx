@@ -206,6 +206,50 @@ interface ProgressMessage {
   _creationTime: number;
 }
 
+// Map task status to display label and CSS classes for attached task badges
+function getAttachedTaskStatusBadge(status?: string): { label: string; classes: string } {
+  switch (status) {
+    case 'in_progress':
+      return {
+        label: 'In Progress',
+        classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
+      };
+    case 'pending':
+    case 'acknowledged':
+    case 'backlog_acknowledged':
+      return {
+        label: status === 'pending' ? 'Pending' : 'Acknowledged',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
+    case 'queued':
+      return {
+        label: 'Queued',
+        classes: 'bg-chatroom-status-warning/15 text-chatroom-status-warning',
+      };
+    case 'pending_user_review':
+      return {
+        label: 'Pending Review',
+        classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
+      };
+    case 'completed':
+      return {
+        label: 'Completed',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
+    case 'closed':
+      return {
+        label: 'Closed',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
+    case 'backlog':
+    default:
+      return {
+        label: 'Not Started',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
+  }
+}
+
 // Format relative time for progress timeline
 function formatRelativeTime(timestamp: number): string {
   const now = Date.now();
@@ -531,15 +575,9 @@ const MessageItem = memo(function MessageItem({
                   </Markdown>
                 </div>
                 <span
-                  className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-                    task.backlogStatus === 'started'
-                      ? 'bg-chatroom-status-info/15 text-chatroom-status-info'
-                      : task.backlogStatus === 'complete'
-                        ? 'bg-chatroom-status-success/15 text-chatroom-status-success'
-                        : 'bg-chatroom-text-muted/15 text-chatroom-text-muted'
-                  }`}
+                  className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${getAttachedTaskStatusBadge(task.backlogStatus).classes}`}
                 >
-                  {task.backlogStatus || 'not started'}
+                  {getAttachedTaskStatusBadge(task.backlogStatus).label}
                 </span>
                 <ChevronRight
                   size={14}

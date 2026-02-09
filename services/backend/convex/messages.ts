@@ -1016,7 +1016,15 @@ export const listPaginated = query({
         }
 
         // Fetch attached task details if message has attached tasks
-        let attachedTasks: { _id: string; content: string; backlogStatus?: string }[] | undefined;
+        let attachedTasks:
+          | {
+              _id: string;
+              content: string;
+              backlogStatus?: string;
+              status: string;
+              origin?: string;
+            }[]
+          | undefined;
         if (message.attachedTaskIds && message.attachedTaskIds.length > 0) {
           const tasks = await Promise.all(
             message.attachedTaskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId))
@@ -1028,6 +1036,8 @@ export const listPaginated = query({
               content: t!.content,
               status: t!.status,
               origin: t!.origin,
+              // Compute backlogStatus from actual task status for display in the UI
+              backlogStatus: t!.status,
             }));
         }
 
