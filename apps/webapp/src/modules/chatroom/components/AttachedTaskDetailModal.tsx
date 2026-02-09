@@ -5,10 +5,12 @@ import React, { useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import type { TaskStatus } from '../types/task';
+
 interface AttachedTask {
   _id: string;
   content: string;
-  backlogStatus?: string;
+  backlogStatus?: TaskStatus;
 }
 
 interface AttachedTaskDetailModalProps {

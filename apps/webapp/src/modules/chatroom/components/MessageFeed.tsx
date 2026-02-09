@@ -41,6 +41,7 @@ import { FeatureDetailModal } from './FeatureDetailModal';
 import { compactMarkdownComponents, fullMarkdownComponents } from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
 import { WorkingIndicator } from './WorkingIndicator';
+import type { TaskStatus } from '../types/task';
 
 import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
 
@@ -84,7 +85,7 @@ interface Message {
 interface AttachedTask {
   _id: string;
   content: string;
-  backlogStatus?: 'not_started' | 'started' | 'complete' | 'closed';
+  backlogStatus?: TaskStatus;
 }
 
 // Shared badge styling constants
@@ -207,7 +208,7 @@ interface ProgressMessage {
 }
 
 // Map task status to display label and CSS classes for attached task badges
-function getAttachedTaskStatusBadge(status?: string): { label: string; classes: string } {
+function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; classes: string } {
   switch (status) {
     case 'in_progress':
       return {
