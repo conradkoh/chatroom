@@ -12,7 +12,7 @@ import {
 } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
-import { transitionTask } from './lib/taskStateMachine';
+import { transitionTask, type TaskStatus } from './lib/taskStateMachine';
 import { getCompletionStatus } from './lib/taskWorkflows';
 import { getAvailableActions } from '../prompts/base/cli/wait-for-task/available-actions.js';
 import { waitForTaskCommand } from '../prompts/base/cli/wait-for-task/command.js';
@@ -1009,14 +1009,22 @@ export const listPaginated = query({
     const enrichedPage = await Promise.all(
       result.page.map(async (message) => {
         // Fetch task status if message has a linked task
-        let taskStatus: string | undefined;
+        let taskStatus: TaskStatus | undefined;
         if (message.taskId) {
           const task = await ctx.db.get('chatroom_tasks', message.taskId);
           taskStatus = task?.status;
         }
 
         // Fetch attached task details if message has attached tasks
-        let attachedTasks: { _id: string; content: string; backlogStatus?: string }[] | undefined;
+        let attachedTasks:
+          | {
+              _id: string;
+              content: string;
+              backlogStatus?: TaskStatus;
+              status: TaskStatus;
+              origin?: string;
+            }[]
+          | undefined;
         if (message.attachedTaskIds && message.attachedTaskIds.length > 0) {
           const tasks = await Promise.all(
             message.attachedTaskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId))
@@ -1028,6 +1036,8 @@ export const listPaginated = query({
               content: t!.content,
               status: t!.status,
               origin: t!.origin,
+              // Compute backlogStatus from actual task status for display in the UI
+              backlogStatus: t!.status,
             }));
         }
 
@@ -2024,7 +2034,7 @@ export const listBySenderRole = query({
     // Enrich with task status
     const enrichedMessages = await Promise.all(
       messages.map(async (message) => {
-        let taskStatus: string | undefined;
+        let taskStatus: TaskStatus | undefined;
         if (message.taskId) {
           const task = await ctx.db.get('chatroom_tasks', message.taskId);
           taskStatus = task?.status;
@@ -2089,7 +2099,7 @@ export const listSinceMessage = query({
     // Enrich with task status
     const enrichedMessages = await Promise.all(
       messages.map(async (message) => {
-        let taskStatus: string | undefined;
+        let taskStatus: TaskStatus | undefined;
         if (message.taskId) {
           const task = await ctx.db.get('chatroom_tasks', message.taskId);
           taskStatus = task?.status;
@@ -2161,13 +2171,13 @@ export const getContextForRole = query({
     // Enrich messages with task information
     const enrichedMessages = await Promise.all(
       contextMessages.map(async (message) => {
-        let taskStatus: string | undefined;
+        let taskStatus: TaskStatus | undefined;
         let taskContent: string | undefined;
         let attachedTasks:
           | {
               _id: string;
               content: string;
-              status: string;
+              status: TaskStatus;
               createdAt: number;
             }[]
           | undefined;

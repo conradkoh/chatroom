@@ -1,5 +1,6 @@
 'use client';
 
+import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
 import { X } from 'lucide-react';
 import React, { useEffect } from 'react';
 import Markdown from 'react-markdown';
@@ -8,7 +9,7 @@ import remarkGfm from 'remark-gfm';
 interface AttachedTask {
   _id: string;
   content: string;
-  backlogStatus?: 'not_started' | 'started' | 'complete' | 'closed';
+  backlogStatus?: TaskStatus;
 }
 
 interface AttachedTaskDetailModalProps {
@@ -43,14 +44,31 @@ export function AttachedTaskDetailModal({ isOpen, task, onClose }: AttachedTaskD
 
   const getBacklogStatusBadge = () => {
     switch (task.backlogStatus) {
-      case 'started':
+      case 'in_progress':
         return {
-          label: 'Started',
+          label: 'In Progress',
           classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
         };
-      case 'complete':
+      case 'pending':
+      case 'acknowledged':
+      case 'backlog_acknowledged':
         return {
-          label: 'Complete',
+          label: task.backlogStatus === 'pending' ? 'Pending' : 'Acknowledged',
+          classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+        };
+      case 'queued':
+        return {
+          label: 'Queued',
+          classes: 'bg-chatroom-status-warning/15 text-chatroom-status-warning',
+        };
+      case 'pending_user_review':
+        return {
+          label: 'Pending Review',
+          classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
+        };
+      case 'completed':
+        return {
+          label: 'Completed',
           classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
         };
       case 'closed':
@@ -58,6 +76,7 @@ export function AttachedTaskDetailModal({ isOpen, task, onClose }: AttachedTaskD
           label: 'Closed',
           classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
         };
+      case 'backlog':
       default:
         return {
           label: 'Not Started',
