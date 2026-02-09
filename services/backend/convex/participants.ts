@@ -237,6 +237,36 @@ export const updateStatus = mutation({
 });
 
 /**
+ * Remove a participant from a chatroom.
+ * Called when an agent is stopped to ensure the UI no longer shows "Ready".
+ * Deletes the participant record so getTeamReadiness will report the role as missing.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const leave = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Find the participant
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .unique();
+
+    if (participant) {
+      await ctx.db.delete('chatroom_participants', participant._id);
+    }
+  },
+});
+
+/**
  * Get a participant by role.
  * Requires CLI session authentication and chatroom access.
  */
