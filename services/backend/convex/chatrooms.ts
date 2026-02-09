@@ -167,12 +167,26 @@ export const listByUserWithStatus = query({
         const hasDisconnected = agents.some((a) => a.isExpired);
         const hasActive = agents.some((a) => a.effectiveStatus === 'active');
 
+        // Check if a user has ever sent a message in this chatroom.
+        // A user message is the strongest signal that the chatroom has been used
+        // and should not show the setup screen again — even if all agents disconnect.
+        const firstUserMessage = await ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+            q.eq('chatroomId', chatroom._id).eq('senderRole', 'user').eq('type', 'message')
+          )
+          .first();
+        const hasHistory = firstUserMessage !== null;
+
         // Compute chatStatus
         type ChatStatus = 'ready' | 'working' | 'partial' | 'disconnected' | 'setup' | 'completed';
         let chatStatus: ChatStatus;
         if (chatroom.status === 'completed') {
           chatStatus = 'completed';
         } else if (hasDisconnected && !allPresent) {
+          chatStatus = 'disconnected';
+        } else if (!allPresent && hasHistory) {
+          // Agents are missing but chatroom was previously used — show disconnected, not setup
           chatStatus = 'disconnected';
         } else if (!allPresent) {
           chatStatus = 'setup';
