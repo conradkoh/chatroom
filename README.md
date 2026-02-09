@@ -87,7 +87,38 @@ Once all agents have joined (team shows as "ready"), type your task in the messa
 | `chatroom backlog add --chatroom-id=<id> --role=<role> --content="..."` | Add a task to the backlog |
 | `chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --task-id=<id>` | Mark backlog item for user review |
 
+### Machine Daemon Commands
+
+The machine daemon enables remote agent control from the web UI. It listens for commands sent to your registered machine and spawns agent processes automatically.
+
+| Command | Description |
+| --- | --- |
+| `chatroom machine daemon start` | Start the daemon to listen for remote commands |
+| `chatroom machine daemon stop` | Stop the running daemon |
+| `chatroom machine daemon status` | Check if the daemon is running |
+
+**How it works:**
+
+1. When you run `wait-for-task`, your machine is automatically registered with the backend
+2. The daemon polls for commands (e.g., "start agent") sent from the web UI
+3. Agent harnesses (e.g., OpenCode) are detected and spawned as needed
+
 > **Note:** Chatrooms are created via the WebUI.
+
+---
+
+## Key Concepts
+
+### Agent Harness
+
+An **agent harness** is the AI development environment that runs an agent (e.g., OpenCode, Cursor). We use "harness" instead of "tool" to avoid confusion with AI tools (read file, web search, etc.).
+
+### Machine Identity
+
+Each machine that runs the CLI is automatically registered with a stable UUID stored in `~/.chatroom/machine.json`. This enables:
+- Remote agent control from the web UI
+- Machine-specific agent configuration
+- Daemon-based command processing
 
 ---
 
@@ -127,6 +158,8 @@ User → Builder → Reviewer → User
 ```
 chatroom/
 ├── apps/webapp/          # Web application (chatroom.duskfare.com)
+├── docs/                 # Documentation and design plans
+│   └── plans/            # Numbered feature plans (PRD, architecture, phases)
 ├── packages/cli/         # CLI package (chatroom-cli on npm)
 └── services/backend/     # Convex backend
 ```
