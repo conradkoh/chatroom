@@ -1,13 +1,10 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import React, { memo, useMemo } from 'react';
 import { MessageSquare } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import React, { memo, useMemo } from 'react';
 
-import {
-  useChatroomListing,
-  type ChatroomWithStatus,
-} from '../context/ChatroomListingContext';
+import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 
 // Status badge colors - compact version for sidebar
 const getStatusDotClasses = (chatStatus: ChatroomWithStatus['chatStatus']) => {
