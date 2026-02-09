@@ -656,12 +656,10 @@ export const MessageFeed = memo(function MessageFeed({
     setSelectedMessage(null);
   }, []);
 
-  // Filter out join messages and progress messages, reverse to show oldest first
-  // Progress messages are now shown inline in TaskHeader instead of the main feed
+  // Reverse to show oldest first (backend already filters out join/progress messages)
   const displayMessages = useMemo(() => {
-    const filtered = (results || []).filter((m) => m.type !== 'join' && m.type !== 'progress');
     // Reverse because paginated query returns newest first, but we want oldest at top
-    return [...filtered].reverse();
+    return [...(results || [])].reverse();
   }, [results]);
 
   // Track if user is at bottom of scroll for auto-scroll behavior and floating button
