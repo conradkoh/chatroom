@@ -2159,6 +2159,191 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
   });
 });
 
+// =============================================================================
+// REMOTE AGENT SYSTEM PROMPT TESTS
+// =============================================================================
+// These tests verify the system prompt (rolePrompt) and init message
+// (initialMessage) returned by getInitPrompt for remote agents / machine mode.
+// The "prompt" field (combined) is tested above; these test the split outputs
+// that remote agents use when their harness supports a separate system prompt.
+// =============================================================================
+
+describe('Remote Agent System Prompt (rolePrompt)', () => {
+  test('builder rolePrompt contains full agent setup for remote agents', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-builder-role-prompt');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Get the init prompt for builder
+    const initPrompt = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(initPrompt).toBeDefined();
+
+    // ===== VERIFY rolePrompt (system prompt for remote agents) =====
+    const rolePrompt = initPrompt?.rolePrompt;
+    expect(rolePrompt).toBeDefined();
+    expect(typeof rolePrompt).toBe('string');
+    expect(rolePrompt!.length).toBeGreaterThan(0);
+
+    // Should have team and role header
+    expect(rolePrompt).toContain('# Pair Team');
+    expect(rolePrompt).toContain('## Your Role: BUILDER');
+
+    // Should have Getting Started section with CHATROOM_CONVEX_URL commands
+    expect(rolePrompt).toContain('## Getting Started');
+    expect(rolePrompt).toContain('### Read Context');
+    expect(rolePrompt).toContain('### Wait for Tasks');
+    expect(rolePrompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
+
+    // Should have classification section (builder is entry point)
+    expect(rolePrompt).toContain('### Classify Task');
+    expect(rolePrompt).toContain('#### Question');
+    expect(rolePrompt).toContain('#### Follow Up');
+    expect(rolePrompt).toContain('#### New Feature');
+
+    // Should have builder workflow instructions
+    expect(rolePrompt).toContain('## Builder Workflow');
+
+    // Should have commands section
+    expect(rolePrompt).toContain('### Commands');
+    expect(rolePrompt).toContain('**Complete task and hand off:**');
+    expect(rolePrompt).toContain('chatroom handoff');
+
+    // Should have next steps (wait-for-task command)
+    expect(rolePrompt).toContain('### Next');
+    expect(rolePrompt).toContain('chatroom wait-for-task');
+
+    // Snapshot the full rolePrompt for regression detection
+    expect(rolePrompt).toMatchSnapshot();
+  });
+
+  test('reviewer rolePrompt contains full agent setup for remote agents', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-reviewer-role-prompt');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Get the init prompt for reviewer
+    const initPrompt = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'reviewer',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(initPrompt).toBeDefined();
+
+    // ===== VERIFY rolePrompt (system prompt for remote agents) =====
+    const rolePrompt = initPrompt?.rolePrompt;
+    expect(rolePrompt).toBeDefined();
+    expect(typeof rolePrompt).toBe('string');
+    expect(rolePrompt!.length).toBeGreaterThan(0);
+
+    // Should have team and role header
+    expect(rolePrompt).toContain('# Pair Team');
+    expect(rolePrompt).toContain('## Your Role: REVIEWER');
+
+    // Should have Getting Started section with CHATROOM_CONVEX_URL commands
+    expect(rolePrompt).toContain('## Getting Started');
+    expect(rolePrompt).toContain('### Read Context');
+    expect(rolePrompt).toContain('### Wait for Tasks');
+    expect(rolePrompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
+
+    // Reviewer is NOT the entry point — should have Start Working, not Classify Task
+    expect(rolePrompt).toContain('### Start Working');
+    expect(rolePrompt).toContain('task-started --no-classify');
+    expect(rolePrompt).not.toContain('### Classify Task');
+    expect(rolePrompt).not.toContain('--origin-message-classification');
+
+    // Should have reviewer workflow instructions
+    expect(rolePrompt).toContain('## Reviewer Workflow');
+
+    // Should have commands section
+    expect(rolePrompt).toContain('### Commands');
+    expect(rolePrompt).toContain('**Complete task and hand off:**');
+    expect(rolePrompt).toContain('chatroom handoff');
+
+    // Should have next steps
+    expect(rolePrompt).toContain('### Next');
+    expect(rolePrompt).toContain('chatroom wait-for-task');
+
+    // Snapshot the full rolePrompt for regression detection
+    expect(rolePrompt).toMatchSnapshot();
+  });
+
+  test('rolePrompt equals combined prompt when initMessage is empty', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-role-prompt-equals-combined');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Get the init prompt
+    const initPrompt = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(initPrompt).toBeDefined();
+
+    // When initMessage is empty, rolePrompt should equal the combined prompt
+    // This ensures remote agents get the same content as CLI agents
+    if (!initPrompt?.initialMessage || initPrompt.initialMessage.trim() === '') {
+      expect(initPrompt?.rolePrompt).toBe(initPrompt?.prompt);
+    }
+  });
+});
+
+describe('Remote Agent Init Message (initialMessage)', () => {
+  test('builder initialMessage is currently empty (reserved for future use)', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-builder-init-message');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Get the init prompt
+    const initPrompt = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(initPrompt).toBeDefined();
+
+    // initialMessage is currently empty — reserved for future use
+    // This test will fail if content is added, prompting review
+    expect(initPrompt?.initialMessage).toBe('');
+  });
+
+  test('reviewer initialMessage is currently empty (reserved for future use)', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-reviewer-init-message');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Get the init prompt
+    const initPrompt = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'reviewer',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(initPrompt).toBeDefined();
+
+    // initialMessage is currently empty — reserved for future use
+    expect(initPrompt?.initialMessage).toBe('');
+  });
+});
+
 describe('Task-Complete Command', () => {
   test('materializes complete task-complete output', async () => {
     // ===== SETUP =====
@@ -2218,7 +2403,7 @@ describe('Task-Complete Command', () => {
          Tasks completed: 1
 
       ⏳ Now run wait-for-task to wait for your next assignment:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10089;chatroom_rooms --role=builder"
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10124;chatroom_rooms --role=builder"
     `);
 
     // Verify mutation result
