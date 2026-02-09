@@ -9,7 +9,6 @@
 | **Reviewer** | The quality role responsible for reviewing code and validating changes |
 | **Dynamic Workflow** | A workflow that adapts its routing based on which team members are currently active |
 | **Role Fallback** | When a role is unavailable, another role absorbs its responsibilities |
-| **Backlog Clearing Mode** | An autonomous mode where the planner processes backlog items continuously |
 | **Team Availability** | The set of roles that currently have active participants in the chatroom |
 
 ## User Stories

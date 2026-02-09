@@ -141,7 +141,7 @@ Only the **planner** role is new — it has no base role equivalent since it's a
 2. **Team Availability**: "## Your Team / Available members: [builder, reviewer]" (dynamic)
 3. **Getting Started**: CLI commands for context, wait-for-task, etc.
 4. **Workflow Guidance**: Adapted based on available members
-5. **Backlog Management**: Backlog commands and clearing mode instructions
+5. **Backlog Management**: Backlog commands
 6. **Handoff Rules**: Who to hand off to based on task type and availability
 7. **Commands**: Handoff, report-progress, wait-for-task
 
