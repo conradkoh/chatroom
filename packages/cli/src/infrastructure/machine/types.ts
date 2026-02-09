@@ -90,20 +90,6 @@ export interface MachineConfigFile {
 }
 
 /**
- * Legacy (pre-versioned) machine config format for migration.
- * This is the old flat format that was used before URL-indexing.
- */
-export interface LegacyMachineConfig {
-  machineId: string;
-  hostname: string;
-  os: string;
-  registeredAt: string;
-  lastSyncedAt: string;
-  availableHarnesses: AgentHarness[];
-  chatroomAgents: Record<string, Record<string, AgentContext>>;
-}
-
-/**
  * MachineConfig is now an alias for MachineEndpointConfig (for the active endpoint).
  * Callers that used loadMachineConfig() continue to get a single endpoint config.
  */

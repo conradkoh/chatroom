@@ -22,7 +22,6 @@ import { detectAvailableHarnesses, detectHarnessVersions } from './detection.js'
 import type {
   AgentContext,
   AgentHarness,
-  LegacyMachineConfig,
   MachineConfig,
   MachineConfigFile,
   MachineEndpointConfig,
@@ -53,41 +52,7 @@ export function getMachineConfigPath(): string {
 }
 
 /**
- * Check if a raw config object is the legacy (pre-versioned) format.
- * Legacy configs have `machineId` at the top level and no `version` field.
- */
-function isLegacyConfig(raw: Record<string, unknown>): boolean {
-  return 'machineId' in raw && !('version' in raw);
-}
-
-/**
- * Migrate a legacy config to the versioned format.
- * The legacy config becomes the entry for the current Convex URL.
- */
-function migrateLegacyConfig(legacy: LegacyMachineConfig): MachineConfigFile {
-  const convexUrl = getConvexUrl();
-
-  const endpointConfig: MachineEndpointConfig = {
-    machineId: legacy.machineId,
-    hostname: legacy.hostname,
-    os: legacy.os,
-    registeredAt: legacy.registeredAt,
-    lastSyncedAt: legacy.lastSyncedAt,
-    availableHarnesses: legacy.availableHarnesses,
-    harnessVersions: {},
-    chatroomAgents: legacy.chatroomAgents || {},
-  };
-
-  return {
-    version: MACHINE_CONFIG_VERSION,
-    machines: {
-      [convexUrl]: endpointConfig,
-    },
-  };
-}
-
-/**
- * Load the raw config file from disk, handling migration from legacy format.
+ * Load the raw config file from disk.
  */
 function loadConfigFile(): MachineConfigFile | null {
   const configPath = getMachineConfigPath();
@@ -98,17 +63,7 @@ function loadConfigFile(): MachineConfigFile | null {
 
   try {
     const content = readFileSync(configPath, 'utf-8');
-    const raw = JSON.parse(content) as Record<string, unknown>;
-
-    // Check for legacy format and migrate
-    if (isLegacyConfig(raw)) {
-      const migrated = migrateLegacyConfig(raw as unknown as LegacyMachineConfig);
-      // Save the migrated config back to disk
-      saveConfigFile(migrated);
-      return migrated;
-    }
-
-    return raw as unknown as MachineConfigFile;
+    return JSON.parse(content) as MachineConfigFile;
   } catch (error) {
     // Don't silently swallow errors — a corrupted config means the machine
     // will re-register with a new UUID, losing its identity and agent configs.
