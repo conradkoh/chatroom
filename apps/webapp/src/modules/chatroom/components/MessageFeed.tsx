@@ -735,6 +735,19 @@ export const MessageFeed = memo(function MessageFeed({
     prevMessageCountRef.current = displayMessages.length;
   }, [displayMessages.length]);
 
+  // Auto-load more messages when content doesn't fill the container
+  // This handles the edge case where initial messages are too few to create a scrollbar,
+  // making it impossible for the user to scroll up to trigger loading.
+  useEffect(() => {
+    if (feedRef.current && status === 'CanLoadMore') {
+      const { scrollHeight, clientHeight } = feedRef.current;
+      // If content doesn't overflow (no scrollbar), auto-load more
+      if (scrollHeight <= clientHeight) {
+        loadMore(LOAD_MORE_SIZE);
+      }
+    }
+  }, [status, loadMore, displayMessages.length]);
+
   // Handle scroll: load more when near top, track if at bottom
   const handleScroll = useCallback(() => {
     // Track if user is at bottom for auto-scroll behavior
@@ -782,12 +795,16 @@ export const MessageFeed = memo(function MessageFeed({
         ref={feedRef}
         onScroll={handleScroll}
       >
-        {/* Load More indicator at top - shows when more messages available */}
+        {/* Load More indicator at top - clickable to load older messages */}
         {status === 'CanLoadMore' && (
-          <div className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={() => loadMore(LOAD_MORE_SIZE)}
+            className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1 hover:text-chatroom-text-primary transition-colors cursor-pointer"
+          >
             <ChevronUp size={12} />
-            Scroll up to load older messages
-          </div>
+            Load older messages
+          </button>
         )}
         {status === 'LoadingMore' && (
           <div className="w-full py-2 mb-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
