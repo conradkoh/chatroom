@@ -268,38 +268,58 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       ══════════════════════════════════════════════════
 
-      🔗 STAYING CONNECTED TO YOUR TEAM
-
-      Your primary directive: Stay available to respond to user and team requests.
-
-      ⚠️  CRITICAL: Run wait-for-task in the FOREGROUND
-
-      Two requirements:
-
-      1. **Shell foreground** - Never use \`&\`, \`nohup\`, or backgrounding
-         • Must run directly in your active terminal
-         • Backgrounded processes cannot receive tasks
-
-      2. **Blocking execution** - Wait for command completion
-         • Do not respond to user or perform other work while running
-         • Only proceed after the command exits (timeout or task received)
-
-      ⏱️  UNDERSTANDING TIMEOUTS
-      • Timeouts are normal and expected - they keep agents responsive
-      • When the command terminates:
-        1. Do you have urgent pending work?
-        2. Without wait-for-task, your team cannot reach you
-        3. If no urgent work, reconnect immediately
-
-      📋 BACKLOG TASKS
-        chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
-        chatroom backlog --help
-
       # Pair Team
 
       ## Your Role: BUILDER
 
       You are the implementer responsible for writing code and building solutions.
+
+      ## Getting Started
+
+      ### Read Context
+      View the conversation history and pending tasks for your role.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=builder
+      \`\`\`
+
+      ### Wait for Tasks
+      Listen for incoming tasks assigned to your role.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+      \`\`\`
+
+      ### Classify Task
+      Acknowledge and classify user messages before starting work.
+
+      #### Question
+      User is asking for information or clarification.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=question
+      \`\`\`
+
+      #### Follow Up
+      User is responding to previous work or providing feedback.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=follow_up
+      \`\`\`
+
+      #### New Feature
+      User wants new functionality. Requires title, description, and tech specs.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=new_feature << 'EOF'
+      ---TITLE---
+      [Feature title]
+      ---DESCRIPTION---
+      [Feature description]
+      ---TECH_SPECS---
+      [Technical specifications]
+      EOF
+      \`\`\`
 
 
        ## Builder Workflow
@@ -388,53 +408,6 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       \`\`\`
 
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
-
-      ## Getting Started
-
-      ### Read Context
-      View the conversation history and pending tasks for your role.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=builder
-      \`\`\`
-
-      ### Wait for Tasks
-      Listen for incoming tasks assigned to your role.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
-      \`\`\`
-
-      ### Classify Task
-      Acknowledge and classify user messages before starting work.
-
-      #### Question
-      User is asking for information or clarification.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=question
-      \`\`\`
-
-      #### Follow Up
-      User is responding to previous work or providing feedback.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=follow_up
-      \`\`\`
-
-      #### New Feature
-      User wants new functionality. Requires title, description, and tech specs.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=new_feature << 'EOF'
-      ---TITLE---
-      [Feature title]
-      ---DESCRIPTION---
-      [Feature description]
-      ---TECH_SPECS---
-      [Technical specifications]
-      EOF
-      \`\`\`
 
       ### Next
 
@@ -1670,38 +1643,36 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       ══════════════════════════════════════════════════
 
-      🔗 STAYING CONNECTED TO YOUR TEAM
-
-      Your primary directive: Stay available to respond to user and team requests.
-
-      ⚠️  CRITICAL: Run wait-for-task in the FOREGROUND
-
-      Two requirements:
-
-      1. **Shell foreground** - Never use \`&\`, \`nohup\`, or backgrounding
-         • Must run directly in your active terminal
-         • Backgrounded processes cannot receive tasks
-
-      2. **Blocking execution** - Wait for command completion
-         • Do not respond to user or perform other work while running
-         • Only proceed after the command exits (timeout or task received)
-
-      ⏱️  UNDERSTANDING TIMEOUTS
-      • Timeouts are normal and expected - they keep agents responsive
-      • When the command terminates:
-        1. Do you have urgent pending work?
-        2. Without wait-for-task, your team cannot reach you
-        3. If no urgent work, reconnect immediately
-
-      📋 BACKLOG TASKS
-        chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
-        chatroom backlog --help
-
       # Pair Team
 
       ## Your Role: REVIEWER
 
       You are the quality guardian responsible for reviewing and validating code changes.
+
+      ## Getting Started
+
+      ### Read Context
+      View the conversation history and pending tasks for your role.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10078;chatroom_rooms --role=reviewer
+      \`\`\`
+
+      ### Wait for Tasks
+      Listen for incoming tasks assigned to your role.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=reviewer
+      \`\`\`
+
+      ### Start Working
+      Before starting work on a received message, acknowledge it:
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10078;chatroom_rooms --role=reviewer --task-id=<task-id> --no-classify
+      \`\`\`
+
+      This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.
 
 
        ## Reviewer Workflow
@@ -1851,31 +1822,6 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       \`\`\`
 
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
-
-      ## Getting Started
-
-      ### Read Context
-      View the conversation history and pending tasks for your role.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10078;chatroom_rooms --role=reviewer
-      \`\`\`
-
-      ### Wait for Tasks
-      Listen for incoming tasks assigned to your role.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=reviewer
-      \`\`\`
-
-      ### Start Working
-      Before starting work on a received message, acknowledge it:
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10078;chatroom_rooms --role=reviewer --task-id=<task-id> --no-classify
-      \`\`\`
-
-      This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.
 
       ### Next
 

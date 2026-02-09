@@ -6,15 +6,20 @@
  * LOW-LEVEL GENERATORS (building blocks):
  *   - generateGeneralInstructions() — general behavioral instructions
  *     (future: customizable per chatroom / user level)
+ *     Currently used by the CLI envelope (wait-for-task.ts) for the init header.
  *   - generateRolePrompt() — role-specific identity, guidance, workflow, and commands
+ *     (used on every wait-for-task message to combat context rot)
  *
  * FINAL OUTPUT COMPOSERS (compose low-level generators for specific delivery modes):
- *   - composeSystemPrompt() — for harnesses that allow specifying the system prompt
- *     (e.g. machine mode: system prompt + first user message)
- *   - composeInitPrompt() — for harnesses that do NOT allow overriding the system prompt
- *     (e.g. manual mode: everything in a single init message)
+ *   - composeSystemPrompt() — full agent setup prompt (role identity, getting started,
+ *     classification guide, workflow guidance, commands, next steps).
+ *     For harnesses that allow specifying the system prompt.
+ *   - composeInitMessage() — first user message (reserved for future use)
+ *   - composeInitPrompt() — returns all three forms so the caller can choose
  *
- * The role prompt is also refreshed on every wait-for-task to combat context rot.
+ * Note: General instructions (wait-for-task guidance) are provided by the CLI
+ * envelope (wait-for-task.ts), NOT embedded in server-side prompts, to avoid
+ * duplication.
  */
 
 import { handoffCommand } from './base/cli/handoff/command.js';
@@ -433,14 +438,18 @@ export interface SplitInitPrompt {
 /**
  * Compose a system prompt for harnesses that support setting the system prompt.
  *
- * Combines: general instructions + role prompt (team header, role identity,
- * guidance, commands).
+ * Contains the full agent setup: team header, role identity, context-gaining
+ * instructions (Getting Started), task classification guide, role guidance,
+ * and CLI commands. This matches the original init prompt structure.
  *
- * This is a pure composition of low-level generators.
+ * Note: General instructions (wait-for-task guidance) are NOT included here
+ * because the CLI envelope (wait-for-task.ts) already provides them in the
+ * initialization header. Including them here would cause duplication.
  */
 export function composeSystemPrompt(input: InitPromptInput): string {
   const { chatroomId, role, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
   const template = getRoleTemplate(role);
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   const entryPoint = teamEntryPoint || teamRoles[0] || 'builder';
   const isEntryPoint = role.toLowerCase() === entryPoint.toLowerCase();
@@ -465,17 +474,33 @@ export function composeSystemPrompt(input: InitPromptInput): string {
     getTeamRoleGuidance(role, teamRoles, isEntryPoint, convexUrl) ??
     getBaseRoleGuidance(role, teamRoles, isEntryPoint, convexUrl);
 
+  const waitCmd = waitForTaskCommand({ chatroomId, role, cliEnvPrefix });
+
   const sections: string[] = [];
 
-  // General instructions (behavioral directives, wait-for-task guidance)
-  sections.push(generateGeneralInstructions());
-
-  // Role prompt (identity, guidance, commands)
+  // Team header and role identity
   sections.push(`# ${teamName}`);
   sections.push(`## Your Role: ${template.title.toUpperCase()}`);
   sections.push(template.description);
+
+  // Context-gaining: Getting Started commands (context read, wait-for-task)
+  sections.push(getContextGainingGuidance({ chatroomId, role, convexUrl }));
+
+  // Task classification / acknowledgement commands
+  if (isEntryPoint) {
+    sections.push(getTaskStartedPrompt({ chatroomId, role, cliEnvPrefix }));
+  } else {
+    sections.push(getTaskStartedPromptForHandoffRecipient({ chatroomId, role, cliEnvPrefix }));
+  }
+
+  // Role-specific guidance (team-aware workflow)
   sections.push(guidance);
+
+  // Command reference (handoff, progress, wait-for-task)
   sections.push(getCommandsSection(roleCtx));
+
+  // Next step
+  sections.push(`### Next\n\nRun:\n\n\`\`\`bash\n${waitCmd}\n\`\`\``);
 
   return sections
     .filter((s) => s.trim())
@@ -486,34 +511,15 @@ export function composeSystemPrompt(input: InitPromptInput): string {
 /**
  * Compose an init message — the first user message sent to the agent.
  *
- * Contains context-gaining instructions, task-started guidance, and
- * the command to begin listening for tasks.
+ * For the combined init prompt (harnesses without system prompt support),
+ * this is appended after the system prompt. Currently empty since all
+ * content is in the system prompt, but exists as an extension point for
+ * future use (e.g., task-specific first messages).
  */
-export function composeInitMessage(input: InitPromptInput): string {
-  const { chatroomId, role, teamRoles, teamEntryPoint, convexUrl } = input;
-  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-
-  const entryPoint = teamEntryPoint || teamRoles[0] || 'builder';
-  const isEntryPoint = role.toLowerCase() === entryPoint.toLowerCase();
-
-  const waitCmd = waitForTaskCommand({ chatroomId, role, cliEnvPrefix });
-
-  const sections: string[] = [];
-
-  sections.push(getContextGainingGuidance({ chatroomId, role, convexUrl }));
-
-  if (isEntryPoint) {
-    sections.push(getTaskStartedPrompt({ chatroomId, role, cliEnvPrefix }));
-  } else {
-    sections.push(getTaskStartedPromptForHandoffRecipient({ chatroomId, role, cliEnvPrefix }));
-  }
-
-  sections.push(`### Next\n\nRun:\n\n\`\`\`bash\n${waitCmd}\n\`\`\``);
-
-  return sections
-    .filter((s) => s.trim())
-    .join('\n\n')
-    .trim();
+export function composeInitMessage(_input: InitPromptInput): string {
+  // All initialization content is now in the system prompt.
+  // The init message is reserved for future use (e.g., task-specific first messages).
+  return '';
 }
 
 /**
@@ -527,7 +533,8 @@ export function composeInitMessage(input: InitPromptInput): string {
 export function composeInitPrompt(input: InitPromptInput): ComposedInitPrompt {
   const systemPrompt = composeSystemPrompt(input);
   const initMessage = composeInitMessage(input);
-  const initPrompt = `${systemPrompt}\n\n${initMessage}`;
+  // Combined prompt: system prompt + init message (if non-empty)
+  const initPrompt = initMessage ? `${systemPrompt}\n\n${initMessage}` : systemPrompt;
 
   return { systemPrompt, initMessage, initPrompt };
 }
