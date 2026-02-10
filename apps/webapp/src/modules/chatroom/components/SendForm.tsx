@@ -10,6 +10,8 @@ import { useAttachedTasks } from '../context/AttachedTasksContext';
 
 interface SendFormProps {
   chatroomId: string;
+  /** Called after a message is successfully sent */
+  onMessageSent?: () => void;
 }
 
 /**
@@ -32,7 +34,7 @@ function useIsTouchDevice(): boolean | undefined {
   return mounted ? isTouch : undefined;
 }
 
-export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
+export const SendForm = memo(function SendForm({ chatroomId, onMessageSent }: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -80,6 +82,8 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
       if (attachedTasks.length > 0) {
         clearTasks();
       }
+      // Notify parent that a message was sent (e.g. to trigger auto-restart of offline agents)
+      onMessageSent?.();
       // Refocus the textarea after successful send
       // Use setTimeout to ensure focus happens after React re-renders
       setTimeout(() => {
@@ -90,7 +94,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
     } finally {
       setSending(false);
     }
-  }, [message, sending, sendMessage, chatroomId, attachedTasks, clearTasks]);
+  }, [message, sending, sendMessage, chatroomId, attachedTasks, clearTasks, onMessageSent]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

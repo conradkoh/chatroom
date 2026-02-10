@@ -14,8 +14,10 @@ import {
   CheckCircle,
   MoreVertical,
   Square,
+  RefreshCw,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
+import { toast } from 'sonner';
 
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
@@ -26,6 +28,7 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklist } from './components/SetupChecklist';
 import { TaskQueue } from './components/TaskQueue';
 import { AttachedTasksProvider } from './context/AttachedTasksContext';
+import { useAutoRestartAgents } from './hooks/useAutoRestartAgents';
 import type { TeamReadiness } from './types/readiness';
 // TeamStatus is now consolidated into AgentPanel
 
@@ -272,6 +275,29 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const readiness = useSessionQuery(api.chatrooms.getTeamReadiness, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamReadiness | null | undefined;
+
+  // Auto-restart offline agents when user sends a message
+  const { restartOfflineAgents, isRestarting: isRestartingAgents } = useAutoRestartAgents({
+    chatroomId,
+    readiness,
+  });
+
+  // Callback for SendForm — triggers auto-restart after successful message send
+  const handleMessageSent = useCallback(async () => {
+    const result = await restartOfflineAgents();
+    if (result && result.restarted.length > 0) {
+      toast.info(
+        `Restarting ${result.restarted.length === 1 ? 'agent' : 'agents'}: ${result.restarted.join(', ')}`,
+        { duration: 4000 }
+      );
+    }
+    if (result && result.restarted.length === 0 && result.skipped.length > 0) {
+      toast.warning(
+        `Offline agents could not be restarted (no machine config): ${result.skipped.join(', ')}`,
+        { duration: 5000 }
+      );
+    }
+  }, [restartOfflineAgents]);
 
   // Memoize derived values
   const teamRoles = useMemo(() => chatroom?.teamRoles || [], [chatroom?.teamRoles]);
@@ -604,7 +630,13 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 {/* Message Section */}
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                   <MessageFeed chatroomId={chatroomId} participants={participants || []} />
-                  <SendForm chatroomId={chatroomId} />
+                  {isRestartingAgents && (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border-t border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs">
+                      <RefreshCw size={12} className="animate-spin" />
+                      <span>Restarting offline agents...</span>
+                    </div>
+                  )}
+                  <SendForm chatroomId={chatroomId} onMessageSent={handleMessageSent} />
                 </div>
 
                 {/* Sidebar Overlay for mobile - below app header */}
