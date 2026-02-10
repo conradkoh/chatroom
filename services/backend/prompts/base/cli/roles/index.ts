@@ -34,3 +34,14 @@ export function getRoleSpecificGuidance(
 
 // Re-export individual role functions for direct access
 export { getBuilderGuidance, getPlannerGuidance, getReviewerGuidance };
+
+// Re-export SelectorContext-based adapters (Phase 1.2)
+export {
+  getBaseRoleGuidanceFromContext,
+  getBaseBuilderGuidanceFromContext,
+  getBaseReviewerGuidanceFromContext,
+  getBasePlannerGuidanceFromContext,
+  toBuilderParams,
+  toReviewerParams,
+  toPlannerParams,
+} from './fromContext';

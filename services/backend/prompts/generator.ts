@@ -30,6 +30,7 @@ import {
 } from './base/cli/index.js';
 import { reportProgressCommand } from './base/cli/report-progress/command.js';
 import { getBuilderGuidance as getBaseBuilderGuidance } from './base/cli/roles/builder.js';
+import { getBaseRoleGuidanceFromContext } from './base/cli/roles/fromContext.js';
 import { getPlannerGuidance as getBasePlannerGuidance } from './base/cli/roles/planner.js';
 import { getReviewerGuidance as getBaseReviewerGuidance } from './base/cli/roles/reviewer.js';
 import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
@@ -38,11 +39,14 @@ import {
   getWaitForTaskReminder,
 } from './base/cli/wait-for-task/reminder.js';
 import { getBuilderGuidance as getPairBuilderGuidance } from './teams/pair/prompts/builder.js';
+import { getPairRoleGuidanceFromContext } from './teams/pair/prompts/fromContext.js';
 import { getReviewerGuidance as getPairReviewerGuidance } from './teams/pair/prompts/reviewer.js';
 import { getBuilderGuidance as getSquadBuilderGuidance } from './teams/squad/prompts/builder.js';
+import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext.js';
 import { getPlannerGuidance as getSquadPlannerGuidance } from './teams/squad/prompts/planner.js';
 import { getReviewerGuidance as getSquadReviewerGuidance } from './teams/squad/prompts/reviewer.js';
 import { getRoleTemplate } from './templates';
+import type { SelectorContext } from './types/sections.js';
 import { getCliEnvPrefix } from './utils/index.js';
 
 // Guidelines and policies are exported for external use
@@ -176,6 +180,70 @@ function getBaseRoleGuidance(
 
   return '';
 }
+
+// =============================================================================
+// SELECTOR-CONTEXT BASED DISPATCHERS (Phase 1.2/1.3)
+// =============================================================================
+
+/**
+ * Build a SelectorContext from the various parameters used in the generator.
+ *
+ * This is the bridge from the current "spread of arguments" pattern to the
+ * unified SelectorContext type. As callers migrate, they can construct
+ * SelectorContext directly instead of going through this helper.
+ */
+export function buildSelectorContext(params: {
+  role: string;
+  teamRoles: string[];
+  teamName?: string;
+  teamEntryPoint?: string;
+  convexUrl: string;
+  chatroomId?: string;
+  availableMembers?: string[];
+  workflow?: 'new_feature' | 'question' | 'follow_up' | null;
+}): SelectorContext {
+  const entryPoint = params.teamEntryPoint || params.teamRoles[0] || 'builder';
+  return {
+    role: params.role,
+    team: detectTeamType(params.teamRoles, params.teamName),
+    workflow: params.workflow,
+    teamRoles: params.teamRoles,
+    availableMembers: params.availableMembers,
+    isEntryPoint: params.role.toLowerCase() === entryPoint.toLowerCase(),
+    convexUrl: params.convexUrl,
+    chatroomId: params.chatroomId,
+  };
+}
+
+/**
+ * Get role guidance using SelectorContext-based dispatching.
+ *
+ * Follows the same team → base fallback pattern as getTeamRoleGuidance/getBaseRoleGuidance
+ * but uses the unified SelectorContext type throughout.
+ *
+ * This is the new preferred entry point for getting role guidance.
+ */
+export function getRoleGuidanceFromContext(ctx: SelectorContext): string {
+  try {
+    if (ctx.team === 'squad') {
+      const result = getSquadRoleGuidanceFromContext(ctx);
+      if (result !== null) return result;
+    }
+
+    if (ctx.team === 'pair') {
+      const result = getPairRoleGuidanceFromContext(ctx);
+      if (result !== null) return result;
+    }
+  } catch {
+    // Fall back to base guidance
+  }
+
+  return getBaseRoleGuidanceFromContext(ctx);
+}
+
+// =============================================================================
+// ROLE PROMPT GENERATION
+// =============================================================================
 
 export interface RolePromptContext {
   chatroomId: string;
