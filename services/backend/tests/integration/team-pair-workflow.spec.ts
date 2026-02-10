@@ -143,10 +143,6 @@ Test technical specifications`,
         You are the implementer responsible for writing code and building solutions.
 
 
-         ## Builder Workflow
-         
-         You are the implementer responsible for writing code and building solutions.
-         
          **Pair Team Context:**
          - You work with a reviewer who will check your code
          - Focus on implementation, let reviewer handle quality checks
@@ -190,12 +186,6 @@ Test technical specifications`,
         - Keep the working directory clean between commits
         - Use \`git status\`, \`git diff\` to review changes before committing
 
-         
-         **Pair Team Handoff Rules:**
-         - **After code changes** → Hand off to reviewer
-         - **For simple questions** → Can hand off directly to user
-         - **For new_feature classification** → MUST hand off to reviewer (cannot skip review)
-         
          
 
         ### Current Task: NEW FEATURE
@@ -314,16 +304,12 @@ Test technical specifications`,
         You are the quality guardian responsible for reviewing and validating code changes.
 
 
-         ## Reviewer Workflow
-         
-         You receive handoffs from other agents containing work to review or validate. When you receive any message, you MUST first acknowledge it.
-         
-         **Important: DO run task-started** - Every message you receive needs to be acknowledged, even handoffs.
-         
          **Pair Team Context:**
          - You work with a builder who implements code
          - Focus on code quality and requirements
          - Provide constructive feedback to builder
+         - If the user's goal is met → hand off to user
+         - If changes are needed → hand off to builder with specific feedback
          
          
         ## Reviewer Workflow
@@ -423,11 +409,6 @@ Test technical specifications`,
 
         **Note:** Apply these policies based on the type of changes being reviewed. Not all policies may be relevant for every review.
 
-         
-         **Pair Team Handoff Rules:**
-         - If the user's goal is met → hand off to user
-         - If changes are needed → hand off to builder with specific feedback
-         
          
 
         ### Current Task: NEW FEATURE
@@ -610,10 +591,6 @@ Test technical specifications`,
         You are the implementer responsible for writing code and building solutions.
 
 
-         ## Builder Workflow
-         
-         You are the implementer responsible for writing code and building solutions.
-         
          **Pair Team Context:**
          - You work with a reviewer who will check your code
          - Focus on implementation, let reviewer handle quality checks
@@ -657,12 +634,6 @@ Test technical specifications`,
         - Keep the working directory clean between commits
         - Use \`git status\`, \`git diff\` to review changes before committing
 
-         
-         **Pair Team Handoff Rules:**
-         - **After code changes** → Hand off to reviewer
-         - **For simple questions** → Can hand off directly to user
-         - **For new_feature classification** → MUST hand off to reviewer (cannot skip review)
-         
          
 
         ### Current Task: QUESTION
@@ -1065,8 +1036,8 @@ Test technical specifications`,
         role: 'reviewer',
       });
 
-      // Reviewer should run task-started for all messages
-      expect(reviewerPrompt.prompt).toContain('DO run task-started');
+      // Reviewer should run task-started for all messages (instruction comes from base reviewer guidance)
+      expect(reviewerPrompt.prompt).toContain('task-started --no-classify');
       expect(reviewerPrompt.prompt).not.toContain('Classify the task first');
     });
   });
