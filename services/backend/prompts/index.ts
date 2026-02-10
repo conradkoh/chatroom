@@ -40,7 +40,6 @@ export {
   getPairBuilderGuidance as getTeamBuilderGuidance,
   getPairReviewerGuidance as getTeamReviewerGuidance,
   squadTeamConfig,
-  getSquadWorkflow,
   getSquadPlannerGuidance,
   getSquadBuilderGuidance,
   getSquadReviewerGuidance,

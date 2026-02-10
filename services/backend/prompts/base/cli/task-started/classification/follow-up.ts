@@ -47,6 +47,6 @@ export function getFollowUpClassificationGuidance(): string {
 - Acknowledge the user's feedback
 - Explain your approach to addressing their concerns
 - Test thoroughly to ensure you didn't break existing functionality
-- Documentations
+- Document changes for future reference
 `;
 }

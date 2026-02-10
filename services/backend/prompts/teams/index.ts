@@ -10,7 +10,7 @@ export {
 } from './pair/index.js';
 
 // Squad team
-export { squadTeamConfig, getSquadWorkflow } from './squad/index.js';
+export { squadTeamConfig } from './squad/index.js';
 export {
   getPlannerGuidance as getSquadPlannerGuidance,
   getBuilderGuidance as getSquadBuilderGuidance,
