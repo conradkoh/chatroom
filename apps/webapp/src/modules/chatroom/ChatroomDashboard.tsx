@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
 
-import { AgentPanel } from './components/AgentPanel';
+import { AgentPanel, type AgentStatus } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
 import { MessageFeed } from './components/MessageFeed';
 import { PromptModal } from './components/PromptModal';
@@ -179,7 +179,7 @@ interface Participant {
 
 interface ParticipantInfo {
   role: string;
-  status: string;
+  status: AgentStatus;
   readyUntil?: number;
   isExpired: boolean;
 }

@@ -30,10 +30,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { usePrompts } from '@/contexts/PromptsContext';
 
+// Agent status values matching STATUS_CONFIG keys
+export type AgentStatus = 'active' | 'waiting' | 'disconnected' | 'missing';
+
 // Participant info from readiness query - includes expiration data
 interface ParticipantInfo {
   role: string;
-  status: string;
+  status: AgentStatus;
   readyUntil?: number;
   isExpired: boolean;
 }
@@ -65,7 +68,7 @@ interface AgentPanelProps {
 // Status indicator colors - now includes disconnected state
 // ─── Status Utilities ────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
+const STATUS_CONFIG: Record<AgentStatus, { bg: string; text: string; label: string }> = {
   active: {
     bg: 'bg-chatroom-status-info',
     text: 'text-chatroom-status-info',
@@ -94,9 +97,9 @@ const DEFAULT_STATUS = {
   label: 'OFFLINE',
 };
 
-const getStatusConfig = (status: string) => STATUS_CONFIG[status] ?? DEFAULT_STATUS;
+const getStatusConfig = (status: AgentStatus) => STATUS_CONFIG[status] ?? DEFAULT_STATUS;
 
-const getStatusClasses = (effectiveStatus: string) =>
+const getStatusClasses = (effectiveStatus: AgentStatus) =>
   `w-2.5 h-2.5 flex-shrink-0 ${getStatusConfig(effectiveStatus).bg}`;
 
 // Compute effective status accounting for expiration
@@ -104,7 +107,7 @@ const getEffectiveStatus = (
   role: string,
   participantMap: Map<string, ParticipantInfo>,
   expiredRolesSet: Set<string>
-): { status: string; isExpired: boolean } => {
+): { status: AgentStatus; isExpired: boolean } => {
   const participant = participantMap.get(role.toLowerCase());
   if (!participant) {
     return { status: 'missing', isExpired: false };
@@ -131,7 +134,7 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   onOpenModal,
 }: CollapsedAgentGroupProps) {
   // Map variants to status keys so we reuse the shared STATUS_CONFIG colors
-  const variantStatusMap: Record<CollapsedAgentGroupProps['variant'], string> = {
+  const variantStatusMap: Record<CollapsedAgentGroupProps['variant'], AgentStatus> = {
     ready: 'waiting',
     offline: 'missing',
   };
@@ -176,7 +179,7 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
 // Agent info with status for the unified modal
 interface AgentWithStatus {
   role: string;
-  effectiveStatus: string;
+  effectiveStatus: AgentStatus;
 }
 
 // Types and constants imported from ../types/machine
@@ -184,7 +187,7 @@ interface AgentWithStatus {
 // Inline Agent Card - shows agent config, prompt, and controls directly in the modal
 interface InlineAgentCardProps {
   role: string;
-  effectiveStatus: string;
+  effectiveStatus: AgentStatus;
   prompt: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
@@ -489,7 +492,12 @@ export const AgentPanel = memo(function AgentPanel({
   // Build participant map from readiness data
   const participantMap = useMemo(() => {
     if (!readiness?.participants) return new Map<string, ParticipantInfo>();
-    return new Map(readiness.participants.map((p) => [p.role.toLowerCase(), p]));
+    return new Map(
+      readiness.participants.map((p) => [
+        p.role.toLowerCase(),
+        { ...p, status: p.status as AgentStatus },
+      ])
+    );
   }, [readiness?.participants]);
 
   // Build expired roles set for O(1) lookup
