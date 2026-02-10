@@ -268,13 +268,19 @@ The `TeamContext` block provides squad-specific rules. The `BaseBuilderGuidance`
 - [x] Dynamic availability (`availableMembers` wired through generator)
 - [x] Delivery layers (init, task delivery, task-started reminder)
 - [x] Knowledge/guidance separation (implicit in current section structure)
+- [x] SelectorContext type system (`types/sections.ts`)
+- [x] SelectorContext adapters for role guidance (`fromContext.ts` in base/squad/pair)
+- [x] Unified dispatcher (`getRoleGuidanceFromContext` in generator)
+- [x] Standalone team context section (`sections/team-context.ts`)
+- [x] Standalone role identity sections (`sections/role-identity.ts`)
+- [x] Delivery layers migrated to SelectorContext dispatching
+- [x] Task-started reminders using SelectorContext internally
+- [x] Comprehensive squad workflow integration tests (20 tests)
 
 ### Not Yet Implemented
-- [ ] Explicit selector functions (`getTeamContext`, `getWorkflowGuidance`)
-- [ ] Workflow dimension (currently hardcoded per classification, not composable)
-- [ ] Standalone section modules (sections are still embedded in role guidance functions)
 - [ ] Discovery workflow variant (no workflow beyond new_feature/question/follow_up)
 - [ ] Section registry (no central manifest of what sections exist and where they're used)
+- [ ] Full section-based compose path (delivery layers still use string assembly, not `composeSections()`)
 
 ---
 
