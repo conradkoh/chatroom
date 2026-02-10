@@ -12,6 +12,8 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  MoreHorizontal,
+  Settings,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -20,6 +22,12 @@ import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentCon
 import { CopyButton } from './CopyButton';
 import type { AgentHarness, MachineInfo, AgentConfig } from '../types/machine';
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { usePrompts } from '@/contexts/PromptsContext';
 
 // Participant info from readiness query - includes expiration data
@@ -50,6 +58,8 @@ interface AgentPanelProps {
   openAgentListRequested?: boolean;
   /** Called when the component has consumed the openAgentListRequested flag */
   onAgentListOpened?: () => void;
+  /** Called when user clicks Configure in the menu */
+  onConfigure?: () => void;
 }
 
 // Status indicator colors - now includes disconnected state
@@ -465,6 +475,7 @@ export const AgentPanel = memo(function AgentPanel({
   onReconnect,
   openAgentListRequested,
   onAgentListOpened,
+  onConfigure,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
 
@@ -630,7 +641,7 @@ export const AgentPanel = memo(function AgentPanel({
 
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-      {/* Header with status indicator */}
+      {/* Header with status indicator and menu */}
       <div className="flex items-center justify-between p-4 border-b-2 border-chatroom-border">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Agents
@@ -664,6 +675,23 @@ export const AgentPanel = memo(function AgentPanel({
           >
             {readiness.isReady ? 'Ready' : isDisconnected ? 'Disconnected' : 'Waiting'}
           </div>
+          {/* Settings Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors">
+                <MoreHorizontal size={14} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="chatroom-root">
+              <DropdownMenuItem
+                onClick={onConfigure}
+                className="flex items-center gap-2 text-xs cursor-pointer"
+              >
+                <Settings size={12} />
+                Configure
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       {/* Fixed height container for 2 rows to prevent layout jumping */}

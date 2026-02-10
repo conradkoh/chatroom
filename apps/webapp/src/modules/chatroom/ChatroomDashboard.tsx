@@ -18,6 +18,7 @@ import {
 import React, { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
 
 import { AgentPanel } from './components/AgentPanel';
+import { AgentSettingsModal } from './components/AgentSettingsModal';
 import { MessageFeed } from './components/MessageFeed';
 import { PromptModal } from './components/PromptModal';
 import { ReconnectModal } from './components/ReconnectModal';
@@ -227,6 +228,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Reconnect modal state
   const [reconnectModalOpen, setReconnectModalOpen] = useState(false);
 
+  // Agent settings modal state
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+
   // Agent list modal trigger (used when ReconnectModal's "Start Agent Remotely" is clicked)
   const [agentListRequested, setAgentListRequested] = useState(false);
 
@@ -383,6 +387,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   const handleCloseReconnect = useCallback(() => {
     setReconnectModalOpen(false);
+  }, []);
+
+  // Open settings modal
+  const handleOpenSettings = useCallback(() => {
+    setSettingsModalOpen(true);
+  }, []);
+
+  const handleCloseSettings = useCallback(() => {
+    setSettingsModalOpen(false);
   }, []);
 
   // Open the unified agents panel (triggered from ReconnectModal)
@@ -650,6 +663,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                     onReconnect={handleOpenReconnect}
                     openAgentListRequested={agentListRequested}
                     onAgentListOpened={handleAgentListOpened}
+                    onConfigure={handleOpenSettings}
                   />
                   <TaskQueue chatroomId={chatroomId} />
                   <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
@@ -678,6 +692,16 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             expiredRoles={readiness?.expiredRoles || []}
             onViewPrompt={handleViewPrompt}
             onStartAgent={handleOpenAgentList}
+          />
+
+          <AgentSettingsModal
+            isOpen={settingsModalOpen}
+            onClose={handleCloseSettings}
+            chatroomId={chatroomId}
+            currentTeamId={chatroom?.teamId}
+            currentTeamName={chatroom?.teamName}
+            currentTeamRoles={teamRoles}
+            currentTeamEntryPoint={chatroom?.teamEntryPoint}
           />
         </>
       </PromptsProvider>

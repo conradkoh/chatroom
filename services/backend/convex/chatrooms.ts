@@ -220,6 +220,33 @@ export const updateStatus = mutation({
 });
 
 /**
+ * Update the team configuration for an existing chatroom.
+ * Allows dynamic switching between team types (e.g., pair → squad).
+ * Active agents will need to reconnect after the switch.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const updateTeam = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    teamId: v.string(),
+    teamName: v.string(),
+    teamRoles: v.array(v.string()),
+    teamEntryPoint: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    await ctx.db.patch('chatroom_rooms', args.chatroomId, {
+      teamId: args.teamId,
+      teamName: args.teamName,
+      teamRoles: args.teamRoles,
+      teamEntryPoint: args.teamEntryPoint,
+    });
+  },
+});
+
+/**
  * Rename a chatroom.
  * Allows users to set a custom name for easier identification.
  * Requires CLI session authentication and chatroom access.
