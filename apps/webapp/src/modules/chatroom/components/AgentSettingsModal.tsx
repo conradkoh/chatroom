@@ -285,9 +285,19 @@ const TeamConfigContent = memo(function TeamConfigContent({
 const MachineContent = memo(function MachineContent(_props: { chatroomId: string }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chatroomApi = api as any;
-  const machines = useSessionQuery(chatroomApi.machines.listMachines, {}) as
-    | { _id: string; name: string; status: string; lastHeartbeat?: number }[]
+  const machinesResult = useSessionQuery(chatroomApi.machines.listMachines, {}) as
+    | {
+        machines: {
+          machineId: string;
+          hostname: string;
+          os: string;
+          daemonConnected: boolean;
+          lastSeenAt: number;
+          registeredAt: number;
+        }[];
+      }
     | undefined;
+  const machines = machinesResult?.machines;
 
   return (
     <div className="space-y-6">
@@ -318,27 +328,27 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
           <div className="space-y-1">
             {machines.map((machine) => (
               <div
-                key={machine._id}
+                key={machine.machineId}
                 className="flex items-center gap-3 p-3 border border-chatroom-border bg-chatroom-bg-surface"
               >
                 <div
                   className={`w-2.5 h-2.5 flex-shrink-0 ${
-                    machine.status === 'online'
+                    machine.daemonConnected
                       ? 'bg-chatroom-status-success'
                       : 'bg-chatroom-text-muted'
                   }`}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold text-chatroom-text-primary truncate">
-                    {machine.name}
+                    {machine.hostname}
                   </div>
                   <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-                    {machine.status}
+                    {machine.daemonConnected ? 'online' : 'offline'} · {machine.os}
                   </div>
                 </div>
-                {machine.lastHeartbeat && (
+                {machine.lastSeenAt && (
                   <div className="text-[10px] text-chatroom-text-muted">
-                    {new Date(machine.lastHeartbeat).toLocaleTimeString()}
+                    {new Date(machine.lastSeenAt).toLocaleTimeString()}
                   </div>
                 )}
               </div>
