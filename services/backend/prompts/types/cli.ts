@@ -83,6 +83,8 @@ export interface BuilderGuidanceParams extends BasePromptParams {
   role: string;
   teamRoles: string[];
   isEntryPoint: boolean;
+  /** Override the default question/simple-task handoff target (default: 'user') */
+  questionTarget?: string;
 }
 
 /**
@@ -92,6 +94,8 @@ export interface ReviewerGuidanceParams extends BasePromptParams {
   role: string;
   teamRoles: string[];
   isEntryPoint: boolean;
+  /** Override the default approval handoff target (default: 'user') */
+  approvalTarget?: string;
 }
 
 /**

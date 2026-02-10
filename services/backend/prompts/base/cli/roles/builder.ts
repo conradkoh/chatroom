@@ -10,8 +10,9 @@ import { taskStartedCommand } from '../task-started/command.js';
  * Generate builder-specific guidance
  */
 export function getBuilderGuidance(params: BuilderGuidanceParams): string {
-  const { isEntryPoint, convexUrl } = params;
+  const { isEntryPoint, convexUrl, questionTarget: questionTargetParam } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
+  const questionTarget = questionTargetParam ?? 'user';
   // Use command generator with env prefix
   const taskStartedExample = taskStartedCommand({ cliEnvPrefix });
 
@@ -21,7 +22,7 @@ export function getBuilderGuidance(params: BuilderGuidanceParams): string {
 As the entry point, you receive user messages directly. When you receive a user message:
 1. First run \`${taskStartedExample}\` to classify the original message (question, new_feature, or follow_up)
 2. Then do your work
-3. Hand off to reviewer for code changes, or directly to user for questions`
+3. Hand off to reviewer for code changes, or directly to ${questionTarget} for questions`
     : '';
 
   return `
@@ -38,7 +39,7 @@ ${classificationNote}
 
 **Handoff Rules:**
 - **After code changes** → Hand off to \`reviewer\`
-- **For simple questions** → Can hand off directly to \`user\`
+- **For simple questions** → Can hand off directly to \`${questionTarget}\`
 - **For \`new_feature\` classification** → MUST hand off to \`reviewer\` (cannot skip review)
 
 **When you receive handoffs from the reviewer:**

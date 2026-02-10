@@ -23,7 +23,7 @@ export function getReviewerGuidance(ctx: ReviewerGuidanceParams): string {
  - If changes needed → hand off to \`builder\` with specific feedback${!hasBuilder ? ' (or implement yourself)' : ''}
  - **NEVER hand off directly to \`user\`** — always go through the planner
  
- ${getBaseReviewerGuidance(ctx)}
+ ${getBaseReviewerGuidance({ ...ctx, approvalTarget: 'planner' })}
  
  ${getAvailablePolicies()}
  `;
