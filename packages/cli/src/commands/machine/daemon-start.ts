@@ -438,6 +438,7 @@ async function handleStartAgent(
           chatroomId,
           role,
           pid: startResult.handle.pid,
+          model,
         });
         console.log(`   Updated backend with PID: ${startResult.handle.pid}`);
 

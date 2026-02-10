@@ -588,6 +588,7 @@ export const updateSpawnedAgent = mutation({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     pid: v.optional(v.number()), // null to clear
+    model: v.optional(v.string()), // Save model alongside PID for config persistence
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
@@ -610,11 +611,12 @@ export const updateSpawnedAgent = mutation({
 
     const now = Date.now();
 
-    // Update the spawned agent info
+    // Update the spawned agent info (and model if provided)
     await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
       spawnedAgentPid: args.pid,
       spawnedAt: args.pid ? now : undefined,
       updatedAt: now,
+      ...(args.model !== undefined ? { model: args.model } : {}),
     });
 
     return { success: true };
