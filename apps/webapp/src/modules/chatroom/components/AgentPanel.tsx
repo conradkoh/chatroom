@@ -21,6 +21,7 @@ import { createPortal } from 'react-dom';
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
 import type { AgentHarness, MachineInfo, AgentConfig } from '../types/machine';
+import type { AgentStatus, ParticipantInfo, TeamReadiness } from '../types/readiness';
 
 import {
   DropdownMenu,
@@ -30,26 +31,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { usePrompts } from '@/contexts/PromptsContext';
 
-// Agent status values matching STATUS_CONFIG keys
-export type AgentStatus = 'active' | 'waiting' | 'disconnected' | 'missing';
-
-// Participant info from readiness query - includes expiration data
-interface ParticipantInfo {
-  role: string;
-  status: AgentStatus;
-  readyUntil?: number;
-  isExpired: boolean;
-}
-
-// Team readiness data from backend - single source of truth
-interface TeamReadiness {
-  isReady: boolean;
-  expectedRoles: string[];
-  presentRoles?: string[]; // Optional - not all callers provide this
-  missingRoles: string[];
-  expiredRoles?: string[];
-  participants?: ParticipantInfo[];
-}
+// Re-export AgentStatus for backward compatibility
+export type { AgentStatus } from '../types/readiness';
 
 interface AgentPanelProps {
   chatroomId: string;

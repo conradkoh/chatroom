@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
 
-import { AgentPanel, type AgentStatus } from './components/AgentPanel';
+import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
 import { MessageFeed } from './components/MessageFeed';
 import { PromptModal } from './components/PromptModal';
@@ -26,6 +26,7 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklist } from './components/SetupChecklist';
 import { TaskQueue } from './components/TaskQueue';
 import { AttachedTasksProvider } from './context/AttachedTasksContext';
+import type { TeamReadiness } from './types/readiness';
 // TeamStatus is now consolidated into AgentPanel
 
 import {
@@ -175,24 +176,6 @@ interface Participant {
   status: string;
   readyUntil?: number;
   activeUntil?: number;
-}
-
-interface ParticipantInfo {
-  role: string;
-  status: AgentStatus;
-  readyUntil?: number;
-  isExpired: boolean;
-}
-
-interface TeamReadiness {
-  isReady: boolean;
-  teamName: string;
-  expectedRoles: string[];
-  missingRoles: string[];
-  expiredRoles?: string[];
-  participants?: ParticipantInfo[];
-  /** Whether the chatroom has been used (has user messages) */
-  hasHistory?: boolean;
 }
 
 // Hook to check if screen is small (< 768px)
