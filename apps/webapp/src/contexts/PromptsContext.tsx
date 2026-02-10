@@ -6,9 +6,8 @@
  * Pre-fetches and caches agent prompts for all team roles through Convex subscriptions.
  * Components can synchronously access prompts for any role without additional queries.
  *
- * IMPORTANT: We use a fixed set of ALL_KNOWN_ROLES to ensure the number of useQuery
- * hooks never changes between renders (React Rules of Hooks). Roles not in the current
- * team are skipped via `"skip"` argument.
+ * Uses a single `getTeamPrompts` backend query that returns all role prompts in one call,
+ * avoiding React Rules of Hooks issues when the team (and number of roles) changes.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -37,15 +36,6 @@ interface PromptsContextValue {
 
 const PromptsContext = createContext<PromptsContextValue | null>(null);
 
-/**
- * Fixed set of all known roles across all team types.
- * This ensures the number of useQuery hooks is always constant,
- * avoiding React's Rules of Hooks violation when switching teams.
- *
- * When adding a new role, add it here.
- */
-const ALL_KNOWN_ROLES = ['planner', 'builder', 'reviewer'] as const;
-
 interface PromptsProviderProps {
   children: ReactNode;
   chatroomId: string;
@@ -63,62 +53,38 @@ export function PromptsProvider({
 }: PromptsProviderProps) {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 
-  // Memoize a Set for O(1) lookups
-  const activeRolesSet = useMemo(() => new Set(teamRoles.map((r) => r.toLowerCase())), [teamRoles]);
-
   // Check if URL is production
   const isProductionUrl = useQuery(api.prompts.webapp.checkIsProductionUrl, {
     convexUrl,
   });
 
-  // Pre-fetch prompts using a FIXED set of hooks (one per known role).
-  // Roles not in the current team are skipped via "skip".
-  // This ensures the hook count never changes between renders.
-  const promptSlot0 = useQuery(
-    api.prompts.webapp.getAgentPrompt,
-    activeRolesSet.has(ALL_KNOWN_ROLES[0])
-      ? { chatroomId, role: ALL_KNOWN_ROLES[0], teamName, teamRoles, teamEntryPoint, convexUrl }
-      : 'skip'
-  );
-  const promptSlot1 = useQuery(
-    api.prompts.webapp.getAgentPrompt,
-    activeRolesSet.has(ALL_KNOWN_ROLES[1])
-      ? { chatroomId, role: ALL_KNOWN_ROLES[1], teamName, teamRoles, teamEntryPoint, convexUrl }
-      : 'skip'
-  );
-  const promptSlot2 = useQuery(
-    api.prompts.webapp.getAgentPrompt,
-    activeRolesSet.has(ALL_KNOWN_ROLES[2])
-      ? { chatroomId, role: ALL_KNOWN_ROLES[2], teamName, teamRoles, teamEntryPoint, convexUrl }
-      : 'skip'
-  );
+  // Single query to fetch all team prompts at once.
+  // Returns Record<string, string> mapping role -> prompt.
+  // This avoids calling useQuery in a loop (which violates React Rules of Hooks
+  // when teamRoles changes size, e.g. pair→squad).
+  const teamPrompts = useQuery(api.prompts.webapp.getTeamPrompts, {
+    chatroomId,
+    teamName,
+    teamRoles,
+    teamEntryPoint,
+    convexUrl,
+  });
 
-  // Map each fixed slot back to its role
-  const promptSlots = useMemo(
-    () => [promptSlot0, promptSlot1, promptSlot2] as const,
-    [promptSlot0, promptSlot1, promptSlot2]
-  );
-
-  // Build a map of role -> prompt
+  // Build a map of role -> prompt from the backend response
   const promptMap = useMemo(() => {
     const map = new Map<string, string>();
-    ALL_KNOWN_ROLES.forEach((role, index) => {
-      const prompt = promptSlots[index];
-      if (prompt && activeRolesSet.has(role)) {
-        map.set(role, prompt);
+    if (teamPrompts) {
+      for (const [role, prompt] of Object.entries(teamPrompts)) {
+        map.set(role.toLowerCase(), prompt);
       }
-    });
+    }
     return map;
-  }, [promptSlots, activeRolesSet]);
+  }, [teamPrompts]);
 
-  // Check if all active role prompts are loaded
+  // Check if all prompts are loaded
   const isLoaded = useMemo(() => {
-    if (isProductionUrl === undefined) return false;
-    return ALL_KNOWN_ROLES.every((role, index) => {
-      if (!activeRolesSet.has(role)) return true; // skipped roles are "loaded"
-      return promptSlots[index] !== undefined;
-    });
-  }, [isProductionUrl, promptSlots, activeRolesSet]);
+    return isProductionUrl !== undefined && teamPrompts !== undefined;
+  }, [isProductionUrl, teamPrompts]);
 
   const contextValue = useMemo<PromptsContextValue>(
     () => ({
