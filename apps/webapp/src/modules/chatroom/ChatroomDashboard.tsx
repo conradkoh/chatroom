@@ -276,28 +276,25 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamReadiness | null | undefined;
 
-  // Auto-restart offline agents when user sends a message
-  const { restartOfflineAgents, isRestarting: isRestartingAgents } = useAutoRestartAgents({
+  // Auto-restart UI feedback — actual restart logic is on the backend.
+  // When a task targets an offline agent, the backend dispatches restart commands.
+  // This hook provides UI awareness (toasts, spinner banner).
+  const { notifyMessageSent, isRestarting: isRestartingAgents } = useAutoRestartAgents({
     chatroomId,
     readiness,
   });
 
-  // Callback for SendForm — triggers auto-restart after successful message send
-  const handleMessageSent = useCallback(async () => {
-    const result = await restartOfflineAgents();
-    if (result && result.restarted.length > 0) {
+  // Callback for SendForm — shows notification about backend auto-restart
+  const handleMessageSent = useCallback(() => {
+    const notification = notifyMessageSent();
+    if (notification && notification.restartingRoles.length > 0) {
+      const count = notification.restartingRoles.length;
       toast.info(
-        `Restarting ${result.restarted.length === 1 ? 'agent' : 'agents'}: ${result.restarted.join(', ')}`,
+        `Restarting offline ${count === 1 ? 'agent' : 'agents'}: ${notification.restartingRoles.join(', ')}`,
         { duration: 4000 }
       );
     }
-    if (result && result.restarted.length === 0 && result.skipped.length > 0) {
-      toast.warning(
-        `Offline agents could not be restarted (no machine config): ${result.skipped.join(', ')}`,
-        { duration: 5000 }
-      );
-    }
-  }, [restartOfflineAgents]);
+  }, [notifyMessageSent]);
 
   // Memoize derived values
   const teamRoles = useMemo(() => chatroom?.teamRoles || [], [chatroom?.teamRoles]);

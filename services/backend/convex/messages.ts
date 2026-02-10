@@ -31,6 +31,101 @@ interface TaskDeliveryPromptResponse {
 }
 
 // =============================================================================
+// AUTO-RESTART HELPER
+// =============================================================================
+
+/**
+ * Check if a target role's agent is offline and, if so, dispatch restart commands
+ * to bring it back online using its existing machine agent config.
+ *
+ * This fires on both user messages and agent handoffs, ensuring that offline agents
+ * are always restarted when work is directed to them.
+ *
+ * Only restarts if:
+ * 1. The target role has an existing agent config (machine, harness, workingDir)
+ * 2. The machine's daemon is currently connected
+ * 3. The participant is either missing or expired
+ */
+async function autoRestartOfflineAgent(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  targetRole: string,
+  userId: Id<'users'>
+): Promise<void> {
+  const now = Date.now();
+
+  // Check if the target role's participant is offline
+  const participants = await ctx.db
+    .query('chatroom_participants')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+    .collect();
+
+  const targetParticipant = participants.find(
+    (p) => p.role.toLowerCase() === targetRole.toLowerCase()
+  );
+
+  // Participant exists and is not expired — agent is online, no restart needed
+  if (targetParticipant) {
+    const isExpired = targetParticipant.readyUntil ? targetParticipant.readyUntil < now : false;
+    if (!isExpired) {
+      return; // Agent is online
+    }
+  }
+
+  // Agent is offline (missing or expired). Find a machine config to restart it.
+  const agentConfigs = await ctx.db
+    .query('chatroom_machineAgentConfigs')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+    .collect();
+
+  const roleConfig = agentConfigs.find((c) => c.role.toLowerCase() === targetRole.toLowerCase());
+
+  if (!roleConfig) {
+    return; // No config — can't restart (agent was never set up via UI)
+  }
+
+  // Check if the machine's daemon is connected
+  const machine = await ctx.db
+    .query('chatroom_machines')
+    .withIndex('by_machineId', (q) => q.eq('machineId', roleConfig.machineId))
+    .first();
+
+  if (!machine || !machine.daemonConnected) {
+    return; // Daemon is not connected — can't send commands
+  }
+
+  // Dispatch stop + start commands
+  // Stop first to clean up any stale process
+  await ctx.db.insert('chatroom_machineCommands', {
+    machineId: roleConfig.machineId,
+    type: 'stop-agent',
+    payload: {
+      chatroomId,
+      role: roleConfig.role,
+    },
+    status: 'pending',
+    sentBy: userId,
+    createdAt: now,
+  });
+
+  // Start command — uses the existing config
+  await ctx.db.insert('chatroom_machineCommands', {
+    machineId: roleConfig.machineId,
+    type: 'start-agent',
+    payload: {
+      chatroomId,
+      role: roleConfig.role,
+      agentHarness: roleConfig.agentType,
+      model: roleConfig.model,
+      workingDir: roleConfig.workingDir,
+    },
+    status: 'pending',
+    sentBy: userId,
+    createdAt: now + 1, // Ensure start comes after stop in FIFO order
+  });
+}
+
+// =============================================================================
 // SHARED HANDLERS - Internal functions that contain the actual logic
 // =============================================================================
 
@@ -50,8 +145,8 @@ async function _sendMessageHandler(
     attachedTaskIds?: Id<'chatroom_tasks'>[];
   }
 ) {
-  // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
-  const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+  // Validate session and check chatroom access - returns chatroom and session info
+  const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
   // Validate attached tasks if provided
   if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
@@ -209,6 +304,16 @@ async function _sendMessageHandler(
             );
           }
         }
+      }
+    }
+
+    // Auto-restart offline agents when a task is created for them
+    if (targetRole && targetRole.toLowerCase() !== 'user') {
+      try {
+        await autoRestartOfflineAgent(ctx, args.chatroomId, targetRole, session.userId);
+      } catch (error) {
+        // Log but don't fail — restart is best-effort, not critical path
+        console.error(`[auto-restart] Failed to restart agent for role "${targetRole}":`, error);
       }
     }
   }

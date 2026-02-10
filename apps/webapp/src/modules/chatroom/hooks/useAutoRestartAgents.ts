@@ -1,160 +1,94 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { useCallback, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useCallback } from 'react';
 
-import type { AgentConfig, AgentHarness, SendCommandFn } from '../types/machine';
 import type { TeamReadiness } from '../types/readiness';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-export interface AutoRestartResult {
-  /** Roles that were successfully restarted */
-  restarted: string[];
-  /** Roles that could not be restarted (no config) */
-  skipped: string[];
+export interface AutoRestartNotification {
+  /** Roles that are being restarted (by the backend) */
+  restartingRoles: string[];
+  /** Roles that could not be restarted (no machine config / daemon offline) */
+  skippedRoles: string[];
 }
 
 // ─── Hook ───────────────────────────────────────────────────────────
 
 /**
- * Hook that provides auto-restart functionality for offline agents.
+ * Hook that provides auto-restart awareness for the UI layer.
  *
- * When a user sends a message and agents are offline, this hook can
- * automatically send stop + start commands to restart them using their
- * existing agent configs (machine, harness, workingDir, model).
+ * The actual restart logic lives on the backend — when a task is created
+ * targeting an offline agent, the backend automatically dispatches
+ * stop + start commands. This hook provides UI feedback:
  *
- * Only restarts agents that have an existing agent config — if an agent
- * was never configured via the UI, it will be skipped.
+ * 1. Detects when a message was sent to offline agents
+ * 2. Returns notification state for toast/banner display
+ *
+ * It does NOT send any machine commands itself (the backend handles that).
  */
 export function useAutoRestartAgents({
-  chatroomId,
   readiness,
 }: {
   chatroomId: string;
   readiness: TeamReadiness | null | undefined;
 }) {
-  const sendCommand = useSessionMutation(api.machines.sendCommand) as unknown as SendCommandFn;
-
-  // Query agent configs for this chatroom
-  const configsResult = useSessionQuery(api.machines.getAgentConfigs, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as { configs: AgentConfig[] } | undefined;
-
   const [isRestarting, setIsRestarting] = useState(false);
-  const [lastResult, setLastResult] = useState<AutoRestartResult | null>(null);
+  const [lastNotification, setLastNotification] = useState<AutoRestartNotification | null>(null);
 
-  // Debounce: prevent multiple rapid restarts
-  const lastRestartTime = useRef<number>(0);
-  const RESTART_COOLDOWN_MS = 10_000; // 10 seconds between restarts
+  // Debounce: prevent multiple rapid notifications
+  const lastNotifyTime = useRef<number>(0);
+  const NOTIFY_COOLDOWN_MS = 10_000;
+
+  // Compute offline roles from readiness
+  const offlineRoles = useMemo(() => {
+    if (!readiness) return [];
+    const expired = readiness.expiredRoles || [];
+    const missing = readiness.missingRoles || [];
+    return [...new Set([...expired, ...missing].map((r) => r.toLowerCase()))];
+  }, [readiness]);
 
   /**
-   * Restart all offline agents that have an existing config.
-   * Returns which roles were restarted vs. skipped.
+   * Called after the user sends a message. Checks if agents are offline
+   * and returns a notification about what the backend is doing.
+   *
+   * The backend handles the actual restart — this just provides UI feedback.
    */
-  const restartOfflineAgents = useCallback(async (): Promise<AutoRestartResult | null> => {
-    // Guard: need readiness and configs data
-    if (!readiness || !configsResult?.configs) {
-      return null;
-    }
-
-    // Combine expired + missing roles as "offline"
-    const offlineRoles = [...(readiness.expiredRoles || []), ...(readiness.missingRoles || [])];
-
-    // Deduplicate (a role could appear in both lists)
-    const uniqueOfflineRoles = [...new Set(offlineRoles.map((r) => r.toLowerCase()))];
-
-    if (uniqueOfflineRoles.length === 0) {
-      return null; // All agents are online
+  const notifyMessageSent = useCallback((): AutoRestartNotification | null => {
+    if (offlineRoles.length === 0) {
+      return null; // All agents are online — nothing to notify about
     }
 
     // Cooldown check
     const now = Date.now();
-    if (now - lastRestartTime.current < RESTART_COOLDOWN_MS) {
+    if (now - lastNotifyTime.current < NOTIFY_COOLDOWN_MS) {
       return null;
     }
-    lastRestartTime.current = now;
+    lastNotifyTime.current = now;
 
+    // Show "restarting" state briefly
     setIsRestarting(true);
-    const restarted: string[] = [];
-    const skipped: string[] = [];
+    setTimeout(() => setIsRestarting(false), 5000); // Show for 5 seconds
 
-    try {
-      for (const role of uniqueOfflineRoles) {
-        // Find agent config for this role (from any connected machine)
-        const config = configsResult.configs.find(
-          (c) => c.role.toLowerCase() === role && c.daemonConnected
-        );
+    // All offline roles are being restarted by the backend
+    // (the backend will skip roles without configs, but we don't know that here)
+    const notification: AutoRestartNotification = {
+      restartingRoles: offlineRoles,
+      skippedRoles: [],
+    };
 
-        if (!config) {
-          // Try any config even if daemon isn't connected (it might come back)
-          const anyConfig = configsResult.configs.find((c) => c.role.toLowerCase() === role);
-
-          if (!anyConfig) {
-            skipped.push(role);
-            continue;
-          }
-
-          // Machine daemon is not connected — skip, can't restart
-          skipped.push(role);
-          continue;
-        }
-
-        try {
-          // Stop the agent first (cleans up stale process)
-          await sendCommand({
-            machineId: config.machineId,
-            type: 'stop-agent',
-            payload: {
-              chatroomId: chatroomId as Id<'chatroom_rooms'>,
-              role: config.role,
-            },
-          });
-
-          // Brief delay between stop and start
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-
-          // Start the agent
-          await sendCommand({
-            machineId: config.machineId,
-            type: 'start-agent',
-            payload: {
-              chatroomId: chatroomId as Id<'chatroom_rooms'>,
-              role: config.role,
-              model: config.model,
-              agentHarness: config.agentType as AgentHarness,
-              workingDir: config.workingDir,
-            },
-          });
-
-          restarted.push(role);
-        } catch (err) {
-          console.error(`Failed to restart agent for role "${role}":`, err);
-          skipped.push(role);
-        }
-      }
-
-      const result: AutoRestartResult = { restarted, skipped };
-      setLastResult(result);
-      return result;
-    } finally {
-      setIsRestarting(false);
-    }
-  }, [readiness, configsResult, sendCommand, chatroomId]);
+    setLastNotification(notification);
+    return notification;
+  }, [offlineRoles]);
 
   return {
-    /** Trigger restart of all offline agents */
-    restartOfflineAgents,
-    /** Whether a restart is currently in progress */
+    /** Notify that a message was sent — returns UI notification info */
+    notifyMessageSent,
+    /** Whether agents are currently being restarted (for spinner display) */
     isRestarting,
-    /** Result of the last restart attempt */
-    lastResult,
-    /** Whether there are offline agents that could potentially be restarted */
-    hasOfflineAgents: Boolean(
-      readiness &&
-        ((readiness.expiredRoles?.length ?? 0) > 0 || (readiness.missingRoles?.length ?? 0) > 0)
-    ),
+    /** Last notification result */
+    lastNotification,
+    /** Whether there are offline agents */
+    hasOfflineAgents: offlineRoles.length > 0,
   };
 }
