@@ -20,7 +20,7 @@ import { createPortal } from 'react-dom';
 
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
-import type { AgentHarness, MachineInfo, AgentConfig } from '../types/machine';
+import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
 import type { AgentStatus, ParticipantInfo, TeamReadiness } from '../types/readiness';
 
 import {
@@ -177,17 +177,7 @@ interface InlineAgentCardProps {
   agentConfigs: AgentConfig[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
-  sendCommand: (args: {
-    machineId: string;
-    type: 'start-agent' | 'stop-agent' | 'ping' | 'status';
-    payload?: {
-      chatroomId?: Id<'chatroom_rooms'>;
-      role?: string;
-      model?: string;
-      agentHarness?: AgentHarness;
-      workingDir?: string;
-    };
-  }) => Promise<unknown>;
+  sendCommand: SendCommandFn;
   onViewPrompt?: (role: string) => void;
   /** Saved preferences for default selections */
   preferences?: {
