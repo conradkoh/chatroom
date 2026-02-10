@@ -29,22 +29,14 @@ import {
   getContextGainingGuidance,
 } from './base/cli/index.js';
 import { reportProgressCommand } from './base/cli/report-progress/command.js';
-import { getBuilderGuidance as getBaseBuilderGuidance } from './base/cli/roles/builder.js';
 import { getBaseRoleGuidanceFromContext } from './base/cli/roles/fromContext.js';
-import { getPlannerGuidance as getBasePlannerGuidance } from './base/cli/roles/planner.js';
-import { getReviewerGuidance as getBaseReviewerGuidance } from './base/cli/roles/reviewer.js';
 import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
 import {
   getWaitForTaskGuidance,
   getWaitForTaskReminder,
 } from './base/cli/wait-for-task/reminder.js';
-import { getBuilderGuidance as getPairBuilderGuidance } from './teams/pair/prompts/builder.js';
 import { getPairRoleGuidanceFromContext } from './teams/pair/prompts/fromContext.js';
-import { getReviewerGuidance as getPairReviewerGuidance } from './teams/pair/prompts/reviewer.js';
-import { getBuilderGuidance as getSquadBuilderGuidance } from './teams/squad/prompts/builder.js';
 import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext.js';
-import { getPlannerGuidance as getSquadPlannerGuidance } from './teams/squad/prompts/planner.js';
-import { getReviewerGuidance as getSquadReviewerGuidance } from './teams/squad/prompts/reviewer.js';
 import { getRoleTemplate } from './templates';
 import type { SelectorContext } from './types/sections.js';
 import { getCliEnvPrefix } from './utils/index.js';
@@ -109,77 +101,9 @@ function detectTeamType(teamRoles: string[], teamName?: string): 'pair' | 'squad
   return 'unknown';
 }
 
-/**
- * Get team-specific role guidance
- */
-function getTeamRoleGuidance(
-  role: string,
-  teamRoles: string[],
-  isEntryPoint: boolean,
-  convexUrl: string,
-  teamName?: string,
-  availableMembers?: string[]
-): string | null {
-  const normalizedRole = role.toLowerCase();
-  const teamType = detectTeamType(teamRoles, teamName);
-
-  try {
-    if (teamType === 'squad') {
-      if (normalizedRole === 'planner') {
-        return getSquadPlannerGuidance({
-          role,
-          teamRoles,
-          isEntryPoint,
-          convexUrl,
-          availableMembers,
-        });
-      }
-      if (normalizedRole === 'builder') {
-        return getSquadBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
-      }
-      if (normalizedRole === 'reviewer') {
-        return getSquadReviewerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
-      }
-    }
-
-    if (teamType === 'pair') {
-      if (normalizedRole === 'builder') {
-        return getPairBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
-      }
-      if (normalizedRole === 'reviewer') {
-        return getPairReviewerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
-      }
-    }
-  } catch {
-    // Fall back to base guidance
-  }
-
-  return null;
-}
-
-/**
- * Get base role guidance
- */
-function getBaseRoleGuidance(
-  role: string,
-  teamRoles: string[],
-  isEntryPoint: boolean,
-  convexUrl: string
-): string {
-  const normalizedRole = role.toLowerCase();
-
-  if (normalizedRole === 'planner') {
-    return getBasePlannerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
-  }
-  if (normalizedRole === 'builder') {
-    return getBaseBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
-  }
-  if (normalizedRole === 'reviewer') {
-    return getBaseReviewerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
-  }
-
-  return '';
-}
+// Note: getTeamRoleGuidance and getBaseRoleGuidance were removed in Phase 3.
+// Their functionality is now handled by getRoleGuidanceFromContext which uses
+// SelectorContext-based dispatching through the fromContext adapters.
 
 // =============================================================================
 // SELECTOR-CONTEXT BASED DISPATCHERS (Phase 1.2/1.3)
@@ -273,9 +197,18 @@ export interface RolePromptContext {
  */
 export function generateRolePrompt(ctx: RolePromptContext): string {
   const template = getRoleTemplate(ctx.role);
-  const normalizedRole = ctx.role.toLowerCase();
-  const entryPoint = ctx.teamEntryPoint || ctx.teamRoles[0] || 'builder';
-  const isEntryPoint = normalizedRole === entryPoint.toLowerCase();
+
+  // Build SelectorContext for unified dispatching (Phase 3)
+  const selectorCtx = buildSelectorContext({
+    role: ctx.role,
+    teamRoles: ctx.teamRoles,
+    teamName: ctx.teamName,
+    teamEntryPoint: ctx.teamEntryPoint,
+    convexUrl: ctx.convexUrl,
+    chatroomId: ctx.chatroomId,
+    availableMembers: ctx.availableMembers,
+    workflow: ctx.currentClassification,
+  });
 
   const sections: string[] = [];
 
@@ -283,21 +216,8 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   sections.push(`## Your Role: ${template.title.toUpperCase()}`);
   sections.push(template.description);
 
-  // Role-specific guidance (team-aware)
-  const teamGuidance = getTeamRoleGuidance(
-    ctx.role,
-    ctx.teamRoles,
-    isEntryPoint,
-    ctx.convexUrl,
-    ctx.teamName,
-    ctx.availableMembers
-  );
-  if (teamGuidance) {
-    sections.push(teamGuidance);
-  } else {
-    // Fall back to base guidance
-    sections.push(getBaseRoleGuidance(ctx.role, ctx.teamRoles, isEntryPoint, ctx.convexUrl));
-  }
+  // Role-specific guidance (team-aware) via SelectorContext
+  sections.push(getRoleGuidanceFromContext(selectorCtx));
 
   // Current task context
   if (ctx.currentClassification) {
@@ -669,14 +589,21 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   const template = getRoleTemplate(role);
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
-  const entryPoint = teamEntryPoint || teamRoles[0] || 'builder';
-  const isEntryPoint = role.toLowerCase() === entryPoint.toLowerCase();
-  const teamType = detectTeamType(teamRoles, teamName);
+  // Build SelectorContext for unified dispatching (Phase 3)
+  const selectorCtx = buildSelectorContext({
+    role,
+    teamRoles,
+    teamName,
+    teamEntryPoint,
+    convexUrl,
+    chatroomId,
+    availableMembers: input.availableMembers,
+  });
 
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
 
   // In squad team, only the planner can hand off to the user
-  const canHandoffToUser = teamType === 'squad' ? role.toLowerCase() === 'planner' : true;
+  const canHandoffToUser = selectorCtx.team === 'squad' ? role.toLowerCase() === 'planner' : true;
   const handoffTargets = canHandoffToUser
     ? [...new Set([...otherRoles, 'user'])]
     : [...new Set(otherRoles)];
@@ -696,15 +623,8 @@ export function composeSystemPrompt(input: InitPromptInput): string {
     convexUrl,
   };
 
-  const guidance =
-    getTeamRoleGuidance(
-      role,
-      teamRoles,
-      isEntryPoint,
-      convexUrl,
-      teamName,
-      input.availableMembers
-    ) ?? getBaseRoleGuidance(role, teamRoles, isEntryPoint, convexUrl);
+  // Get role guidance via SelectorContext (Phase 3)
+  const guidance = getRoleGuidanceFromContext(selectorCtx);
 
   const waitCmd = waitForTaskCommand({ chatroomId, role, cliEnvPrefix });
 
@@ -719,7 +639,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   sections.push(getContextGainingGuidance({ chatroomId, role, convexUrl }));
 
   // Task classification / acknowledgement commands
-  if (isEntryPoint) {
+  if (selectorCtx.isEntryPoint) {
     sections.push(getTaskStartedPrompt({ chatroomId, role, cliEnvPrefix }));
   } else {
     sections.push(getTaskStartedPromptForHandoffRecipient({ chatroomId, role, cliEnvPrefix }));
