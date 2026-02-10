@@ -1645,6 +1645,14 @@ export const getInitPrompt = query({
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
+    // Look up actual participants to provide real availability data
+    const participants = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    const availableMembers = participants.filter((p) => p.status === 'waiting').map((p) => p.role);
+
     const promptInput = {
       chatroomId: args.chatroomId,
       role: args.role,
@@ -1652,6 +1660,7 @@ export const getInitPrompt = query({
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
+      availableMembers,
     };
 
     // Compose init prompt (system prompt + init message + combined)
@@ -1746,6 +1755,8 @@ export const getTaskDeliveryPrompt = query({
     const availableHandoffRoles = canHandoffToUser ? [...availableRoles, 'user'] : availableRoles;
 
     // Generate role-specific prompt
+    const availableMembers = waitingParticipants.map((p) => p.role);
+
     const rolePromptText = generateRolePrompt({
       chatroomId: args.chatroomId,
       role: args.role,
@@ -1757,6 +1768,7 @@ export const getTaskDeliveryPrompt = query({
       canHandoffToUser,
       restrictionReason,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
+      availableMembers,
     });
 
     // Get context window (reuse getContextWindow logic)

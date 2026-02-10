@@ -188,6 +188,8 @@ export interface RolePromptContext {
   canHandoffToUser: boolean;
   restrictionReason?: string | null;
   convexUrl: string; // Required Convex URL for env var prefix generation
+  /** Currently available (waiting) team members for dynamic workflow adaptation */
+  availableMembers?: string[];
   // User context for reviewers - the original request that needs to be validated
   userContext?: {
     originalRequest: string;
@@ -219,7 +221,8 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
     ctx.teamRoles,
     isEntryPoint,
     ctx.convexUrl,
-    ctx.teamName
+    ctx.teamName,
+    ctx.availableMembers
   );
   if (teamGuidance) {
     sections.push(teamGuidance);
@@ -560,6 +563,8 @@ export interface InitPromptInput {
   teamRoles: string[];
   teamEntryPoint?: string;
   convexUrl: string; // Required Convex URL for env var prefix generation
+  /** Currently available (waiting) team members. Falls back to teamRoles if not provided. */
+  availableMembers?: string[];
 }
 
 /**
@@ -624,8 +629,14 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   };
 
   const guidance =
-    getTeamRoleGuidance(role, teamRoles, isEntryPoint, convexUrl, teamName) ??
-    getBaseRoleGuidance(role, teamRoles, isEntryPoint, convexUrl);
+    getTeamRoleGuidance(
+      role,
+      teamRoles,
+      isEntryPoint,
+      convexUrl,
+      teamName,
+      input.availableMembers
+    ) ?? getBaseRoleGuidance(role, teamRoles, isEntryPoint, convexUrl);
 
   const waitCmd = waitForTaskCommand({ chatroomId, role, cliEnvPrefix });
 
