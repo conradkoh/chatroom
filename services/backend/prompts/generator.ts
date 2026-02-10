@@ -320,6 +320,8 @@ ${getWaitForTaskReminder()}`;
 /**
  * Generate a focused reminder for task-started based on role + classification.
  * Returns a short, specific prompt reminding the agent of the expected action.
+ *
+ * Uses SelectorContext internally for team/role detection (Phase 4).
  */
 export function generateTaskStartedReminder(
   role: string,
@@ -331,13 +333,21 @@ export function generateTaskStartedReminder(
   teamRoles: string[] = [],
   teamName?: string
 ): string {
+  // Build SelectorContext for consistent team/role detection (Phase 4)
+  const ctx = buildSelectorContext({
+    role,
+    teamRoles,
+    teamName,
+    convexUrl: convexUrl ?? '',
+    chatroomId,
+    workflow: classification,
+  });
+
   const normalizedRole = role.toLowerCase();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  const teamType = detectTeamType(teamRoles, teamName);
 
-  // Detect if this is a pair team (builder + reviewer)
-  const isPairTeam = teamType === 'pair';
-  const isSquadTeam = teamType === 'squad';
+  const isPairTeam = ctx.team === 'pair';
+  const isSquadTeam = ctx.team === 'squad';
 
   // Planner-specific reminders (squad team)
   if (normalizedRole === 'planner') {
