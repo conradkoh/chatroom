@@ -308,6 +308,7 @@ export default defineSchema({
     type: v.union(
       v.literal('message'),
       v.literal('handoff'),
+      /** @deprecated Join messages are no longer created. Kept for backward compatibility with existing data. */
       v.literal('join'),
       v.literal('progress')
     ),

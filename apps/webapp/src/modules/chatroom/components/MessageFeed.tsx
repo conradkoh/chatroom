@@ -17,7 +17,6 @@ import {
   XCircle,
   Archive,
   ArrowRightLeft,
-  LogIn,
   HelpCircle,
   Sparkles,
   RotateCcw,
@@ -105,12 +104,6 @@ const getMessageTypeBadge = (type: string) => {
         className: `${BADGE_BASE} bg-chatroom-status-purple/15 text-chatroom-status-purple`,
         label: 'handoff',
         icon: <ArrowRightLeft size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    case 'join':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`,
-        label: 'join',
-        icon: <LogIn size={ICON_SIZE} className="flex-shrink-0" />,
       };
     default:
       return null;
@@ -701,8 +694,10 @@ export const MessageFeed = memo(function MessageFeed({
     setSelectedMessage(null);
   }, []);
 
-  // Filter out join messages and progress messages, reverse to show oldest first
-  // Progress messages are now shown inline in TaskHeader instead of the main feed
+  // Filter out join and progress messages, reverse to show oldest first
+  // Join messages are deprecated (no longer created by backend).
+  // Progress messages are shown inline in TaskHeader, not in the main feed.
+  // Filtering is done client-side to avoid using .filter() with .paginate() on the backend.
   const displayMessages = useMemo(() => {
     const filtered = (results || []).filter((m) => m.type !== 'join' && m.type !== 'progress');
     // Reverse because paginated query returns newest first, but we want oldest at top
@@ -780,6 +775,19 @@ export const MessageFeed = memo(function MessageFeed({
     prevMessageCountRef.current = displayMessages.length;
   }, [displayMessages.length]);
 
+  // Auto-load more messages when content doesn't fill the container
+  // This handles the edge case where initial messages are too few to create a scrollbar,
+  // making it impossible for the user to scroll up to trigger loading.
+  useEffect(() => {
+    if (feedRef.current && status === 'CanLoadMore') {
+      const { scrollHeight, clientHeight } = feedRef.current;
+      // If content doesn't overflow (no scrollbar), auto-load more
+      if (scrollHeight <= clientHeight) {
+        loadMore(LOAD_MORE_SIZE);
+      }
+    }
+  }, [status, loadMore, displayMessages.length]);
+
   // Handle scroll: load more when near top, track if at bottom
   const handleScroll = useCallback(() => {
     // Track if user is at bottom for auto-scroll behavior
@@ -827,12 +835,16 @@ export const MessageFeed = memo(function MessageFeed({
         ref={feedRef}
         onScroll={handleScroll}
       >
-        {/* Load More indicator at top - shows when more messages available */}
+        {/* Load More indicator at top - clickable to load older messages */}
         {status === 'CanLoadMore' && (
-          <div className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={() => loadMore(LOAD_MORE_SIZE)}
+            className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1 hover:text-chatroom-text-primary transition-colors cursor-pointer"
+          >
             <ChevronUp size={12} />
-            Scroll up to load older messages
-          </div>
+            Load older messages
+          </button>
         )}
         {status === 'LoadingMore' && (
           <div className="w-full py-2 mb-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">

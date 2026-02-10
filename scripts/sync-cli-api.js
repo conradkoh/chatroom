@@ -88,7 +88,7 @@ export interface Message {
   chatroomId: Id<'chatroom_rooms'>;
   senderRole: string;
   content: string;
-  type: 'message' | 'handoff' | 'interrupt' | 'join';
+  type: 'message' | 'handoff' | 'interrupt';
   targetRole?: string;
   claimedByRole?: string;
   classification?: 'question' | 'new_feature' | 'follow_up';
