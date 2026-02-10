@@ -45,7 +45,7 @@ async function _sendMessageHandler(
     senderRole: string;
     content: string;
     targetRole?: string;
-    type: 'message' | 'handoff' | 'join';
+    type: 'message' | 'handoff';
     attachedTaskIds?: Id<'chatroom_tasks'>[];
   }
 ) {
@@ -233,7 +233,7 @@ export const send = mutation({
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),
-    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join')),
+    type: v.union(v.literal('message'), v.literal('handoff')),
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   },
   handler: async (ctx, args) => {
@@ -550,7 +550,7 @@ export const sendMessage = mutation({
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),
-    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join')),
+    type: v.union(v.literal('message'), v.literal('handoff')),
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   },
   handler: async (ctx, args) => {
@@ -999,13 +999,12 @@ export const listPaginated = query({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Paginate with descending order (newest first)
-    // Filter out join and progress messages at the DB level so pagination
-    // counts only displayable messages. Without this, a page of 5 could
-    // contain all join/progress messages, resulting in an empty feed.
+    // Join messages are deprecated (no longer created).
+    // Progress messages are filtered client-side since they are few and
+    // fetched separately via getProgressForTask for inline display.
     const result = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .filter((q) => q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress')))
       .order('desc')
       .paginate(args.paginationOpts);
 
@@ -1372,7 +1371,7 @@ export const getLatestForRole = query({
         continue;
       }
 
-      // Skip join messages
+      // Skip join messages (deprecated - no longer created, but may exist in legacy data)
       if (message.type === 'join') {
         continue;
       }

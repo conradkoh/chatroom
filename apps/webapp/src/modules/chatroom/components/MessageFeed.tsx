@@ -16,7 +16,6 @@ import {
   XCircle,
   Archive,
   ArrowRightLeft,
-  LogIn,
   HelpCircle,
   Sparkles,
   RotateCcw,
@@ -100,12 +99,6 @@ const getMessageTypeBadge = (type: string) => {
         className: `${BADGE_BASE} bg-chatroom-status-purple/15 text-chatroom-status-purple`,
         label: 'handoff',
         icon: <ArrowRightLeft size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    case 'join':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`,
-        label: 'join',
-        icon: <LogIn size={ICON_SIZE} className="flex-shrink-0" />,
       };
     default:
       return null;
@@ -656,10 +649,14 @@ export const MessageFeed = memo(function MessageFeed({
     setSelectedMessage(null);
   }, []);
 
-  // Reverse to show oldest first (backend already filters out join/progress messages)
+  // Filter out join and progress messages, reverse to show oldest first
+  // Join messages are deprecated (no longer created by backend).
+  // Progress messages are shown inline in TaskHeader, not in the main feed.
+  // Filtering is done client-side to avoid using .filter() with .paginate() on the backend.
   const displayMessages = useMemo(() => {
+    const filtered = (results || []).filter((m) => m.type !== 'join' && m.type !== 'progress');
     // Reverse because paginated query returns newest first, but we want oldest at top
-    return [...(results || [])].reverse();
+    return [...filtered].reverse();
   }, [results]);
 
   // Track if user is at bottom of scroll for auto-scroll behavior and floating button
