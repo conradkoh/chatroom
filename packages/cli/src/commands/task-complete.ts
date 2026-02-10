@@ -50,8 +50,7 @@ export async function taskComplete(
   let result;
   try {
     result = (await client.mutation(api.tasks.completeTask, {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      sessionId: sessionId as any,
+      sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
     })) as {

@@ -1,5 +1,6 @@
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
+import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
@@ -12,7 +13,7 @@ import {
 } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
-import { transitionTask } from './lib/taskStateMachine';
+import { transitionTask, type TaskStatus } from './lib/taskStateMachine';
 import { getCompletionStatus } from './lib/taskWorkflows';
 import { getAvailableActions } from '../prompts/base/cli/wait-for-task/available-actions.js';
 import { waitForTaskCommand } from '../prompts/base/cli/wait-for-task/command.js';
@@ -228,7 +229,7 @@ async function _sendMessageHandler(
  */
 export const send = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     content: v.string(),
@@ -522,7 +523,7 @@ async function _handoffHandler(
  */
 export const sendHandoff = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     content: v.string(),
@@ -545,7 +546,7 @@ export const sendHandoff = mutation({
  */
 export const sendMessage = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     content: v.string(),
@@ -573,7 +574,7 @@ export const sendMessage = mutation({
  */
 export const handoff = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     content: v.string(),
@@ -602,7 +603,7 @@ export const handoff = mutation({
  */
 export const reportProgress = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     content: v.string(),
@@ -667,7 +668,7 @@ export const reportProgress = mutation({
  */
 export const taskStarted = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     originMessageClassification: v.optional(
@@ -892,7 +893,7 @@ export const taskStarted = mutation({
  */
 export const getAllowedHandoffRoles = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
   },
@@ -960,7 +961,7 @@ export const getAllowedHandoffRoles = query({
  */
 export const list = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     limit: v.optional(v.number()),
   },
@@ -990,7 +991,7 @@ export const list = query({
  */
 export const listPaginated = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     paginationOpts: paginationOptsValidator,
   },
@@ -1013,7 +1014,7 @@ export const listPaginated = query({
     const enrichedPage = await Promise.all(
       result.page.map(async (message) => {
         // Fetch task status if message has a linked task
-        let taskStatus: string | undefined;
+        let taskStatus: TaskStatus | undefined;
         if (message.taskId) {
           const task = await ctx.db.get('chatroom_tasks', message.taskId);
           taskStatus = task?.status;
@@ -1101,7 +1102,7 @@ export const listPaginated = query({
  */
 export const getProgressForTask = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     taskId: v.id('chatroom_tasks'),
   },
@@ -1148,7 +1149,7 @@ export const getProgressForTask = query({
  */
 export const getContextWindow = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
@@ -1275,7 +1276,7 @@ export const getContextWindow = query({
  */
 export const claimMessage = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     messageId: v.id('chatroom_messages'),
     role: v.string(),
   },
@@ -1319,7 +1320,7 @@ export const claimMessage = mutation({
  */
 export const getLatestForRole = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     afterMessageId: v.optional(v.id('chatroom_messages')),
@@ -1406,7 +1407,7 @@ export const getLatestForRole = query({
  */
 export const listFeatures = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     limit: v.optional(v.number()),
   },
@@ -1451,7 +1452,7 @@ export const listFeatures = query({
  */
 export const inspectFeature = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     messageId: v.id('chatroom_messages'),
   },
@@ -1551,7 +1552,7 @@ export const inspectFeature = query({
  */
 export const getRolePrompt = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     convexUrl: v.optional(v.string()),
@@ -1636,7 +1637,7 @@ export const getRolePrompt = query({
  */
 export const getInitPrompt = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     convexUrl: v.optional(v.string()),
@@ -1676,7 +1677,7 @@ export const getInitPrompt = query({
  */
 export const getTaskDeliveryPrompt = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     taskId: v.id('chatroom_tasks'),
@@ -1830,7 +1831,7 @@ export const getTaskDeliveryPrompt = query({
     // Fetch attached task details
     const attachedTasksMap = new Map<
       string,
-      { id: string; content: string; status: string; createdBy: string; backlogStatus?: string }
+      { id: string; content: string; status: TaskStatus; createdBy: string; backlogStatus?: string }
     >();
     if (allAttachedTaskIds.length > 0) {
       const uniqueTaskIds = [...new Set(allAttachedTaskIds)];
@@ -1998,7 +1999,7 @@ export const getWebappDisplayPrompt = query({
  */
 export const listBySenderRole = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     limit: v.optional(v.number()),
@@ -2023,7 +2024,7 @@ export const listBySenderRole = query({
     // Enrich with task status
     const enrichedMessages = await Promise.all(
       messages.map(async (message) => {
-        let taskStatus: string | undefined;
+        let taskStatus: TaskStatus | undefined;
         if (message.taskId) {
           const task = await ctx.db.get('chatroom_tasks', message.taskId);
           taskStatus = task?.status;
@@ -2047,7 +2048,7 @@ export const listBySenderRole = query({
  */
 export const listSinceMessage = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     sinceMessageId: v.id('chatroom_messages'),
     limit: v.optional(v.number()),
@@ -2088,7 +2089,7 @@ export const listSinceMessage = query({
     // Enrich with task status
     const enrichedMessages = await Promise.all(
       messages.map(async (message) => {
-        let taskStatus: string | undefined;
+        let taskStatus: TaskStatus | undefined;
         if (message.taskId) {
           const task = await ctx.db.get('chatroom_tasks', message.taskId);
           taskStatus = task?.status;
@@ -2119,7 +2120,7 @@ export const listSinceMessage = query({
  */
 export const getContextForRole = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
   },
@@ -2160,7 +2161,7 @@ export const getContextForRole = query({
     // Enrich messages with task information
     const enrichedMessages = await Promise.all(
       contextMessages.map(async (message) => {
-        let taskStatus: string | undefined;
+        let taskStatus: TaskStatus | undefined;
         let taskContent: string | undefined;
         let attachedTasks:
           | {

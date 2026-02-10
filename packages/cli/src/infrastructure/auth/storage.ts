@@ -9,14 +9,16 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from '
 import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 
+import type { SessionId } from 'convex-helpers/server/sessions';
+
 import { getConvexUrl } from '../convex/client.js';
 
 const CHATROOM_DIR = join(homedir(), '.chatroom');
 const AUTH_FILE = 'auth.jsonc';
 
 interface AuthData {
-  // The CLI session ID
-  sessionId: string;
+  // The CLI session ID (branded type for Convex API compatibility)
+  sessionId: SessionId;
   // When the session was created
   createdAt: string;
   // The device name used during auth
@@ -245,7 +247,7 @@ export function isAuthenticated(): boolean {
 /**
  * Get the current session ID
  */
-export function getSessionId(): string | null {
+export function getSessionId(): SessionId | null {
   const data = loadAuthData();
   return data?.sessionId ?? null;
 }

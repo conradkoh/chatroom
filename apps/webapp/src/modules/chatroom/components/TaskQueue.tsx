@@ -178,29 +178,25 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   const [isPendingReviewModalOpen, setIsPendingReviewModalOpen] = useState(false);
   const [isCurrentTasksModalOpen, setIsCurrentTasksModalOpen] = useState(false);
 
-  // Type assertion workaround for Convex API
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tasksApi = api as any;
-
   // Query tasks
-  const tasks = useSessionQuery(tasksApi.tasks.listTasks, {
+  const tasks = useSessionQuery(api.tasks.listTasks, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     statusFilter: 'active',
     limit: 100, // Match MAX_TASK_LIST_LIMIT from backend
   }) as Task[] | undefined;
 
   // Query task counts
-  const counts = useSessionQuery(tasksApi.tasks.getTaskCounts, {
+  const counts = useSessionQuery(api.tasks.getTaskCounts, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TaskCounts | undefined;
 
   // Query queue health
-  const queueHealth = useSessionQuery(tasksApi.tasks.checkQueueHealth, {
+  const queueHealth = useSessionQuery(api.tasks.checkQueueHealth, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as QueueHealth | undefined;
 
   // Query pending review tasks (tasks with pending_user_review status)
-  const pendingReviewTasks = useSessionQuery(tasksApi.tasks.listTasks, {
+  const pendingReviewTasks = useSessionQuery(api.tasks.listTasks, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     statusFilter: 'pending_review',
     limit: 100, // Match MAX_TASK_LIST_LIMIT from backend
@@ -211,7 +207,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
 
   // Query archived tasks (only when expanded)
   const archivedTasks = useSessionQuery(
-    tasksApi.tasks.listTasks,
+    api.tasks.listTasks,
     isArchivedExpanded
       ? {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -222,14 +218,14 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
   ) as Task[] | undefined;
 
   // Mutations
-  const createTask = useSessionMutation(tasksApi.tasks.createTask);
-  const promoteNextTask = useSessionMutation(tasksApi.tasks.promoteNextTask);
-  const updateTask = useSessionMutation(tasksApi.tasks.updateTask);
-  const cancelTask = useSessionMutation(tasksApi.tasks.cancelTask);
-  const completeTaskById = useSessionMutation(tasksApi.tasks.completeTaskById);
-  const markBacklogComplete = useSessionMutation(tasksApi.tasks.markBacklogComplete);
-  const closeBacklogTask = useSessionMutation(tasksApi.tasks.closeBacklogTask);
-  const reopenBacklogTask = useSessionMutation(tasksApi.tasks.reopenBacklogTask);
+  const createTask = useSessionMutation(api.tasks.createTask);
+  const promoteNextTask = useSessionMutation(api.tasks.promoteNextTask);
+  const updateTask = useSessionMutation(api.tasks.updateTask);
+  const cancelTask = useSessionMutation(api.tasks.cancelTask);
+  const completeTaskById = useSessionMutation(api.tasks.completeTaskById);
+  const markBacklogComplete = useSessionMutation(api.tasks.markBacklogComplete);
+  const closeBacklogTask = useSessionMutation(api.tasks.closeBacklogTask);
+  const reopenBacklogTask = useSessionMutation(api.tasks.reopenBacklogTask);
 
   // Categorize tasks by status
   // Backlog items sorted by priority descending (higher first), then by createdAt descending

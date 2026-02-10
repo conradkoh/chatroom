@@ -48,12 +48,8 @@ const ChatroomListingContext = createContext<ChatroomListingContextValue | null>
  * when navigating between chatroom pages.
  */
 export function ChatroomListingProvider({ children }: { children: ReactNode }) {
-  // Type assertion workaround for Convex API
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-
   // Single query - Convex subscriptions maintain data across navigations
-  const chatrooms = useSessionQuery(chatroomApi.chatrooms.listByUserWithStatus) as
+  const chatrooms = useSessionQuery(api.chatrooms.listByUserWithStatus) as
     | ChatroomWithStatus[]
     | undefined;
 

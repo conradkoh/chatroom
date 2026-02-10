@@ -41,14 +41,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
   // Attached tasks context
   const { attachedTasks, removeTask, clearTasks } = useAttachedTasks();
 
-  // Type assertion workaround: The Convex API types are not fully generated
-  // until `npx convex dev` is run. This assertion allows us to use the API
-  // without full type safety. The correct types will be available after
-  // running `npx convex dev` in the backend service.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-
-  const sendMessage = useSessionMutation(chatroomApi.messages.send);
+  const sendMessage = useSessionMutation(api.messages.send);
 
   // Auto-resize textarea based on content
   // Use a stable base height to prevent layout shift

@@ -150,7 +150,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     // Register/update machine in backend
 
     await client.mutation(api.machines.register, {
-      sessionId: sessionId as any, // SessionId branded type from convex-helpers
+      sessionId,
       machineId: machineInfo.machineId,
       hostname: machineInfo.hostname,
       os: machineInfo.os,
@@ -174,7 +174,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       // Sync to backend
 
       await client.mutation(api.machines.updateAgentConfig, {
-        sessionId: sessionId as any, // SessionId branded type from convex-helpers
+        sessionId,
         machineId: machineInfo.machineId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,

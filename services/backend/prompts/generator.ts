@@ -99,6 +99,9 @@ function detectTeamType(teamRoles: string[], teamName?: string): 'pair' | 'squad
   const hasReviewer = teamRoles.some((r) => r.toLowerCase() === 'reviewer');
   if (hasBuilder && hasReviewer && teamRoles.length === 2) return 'pair';
 
+  // 'unknown' is intentional: custom teams get generic base guidance rather than
+  // pair-specific rules which could impose incorrect handoff constraints.
+  // Base guidance provides safe defaults for any team structure.
   return 'unknown';
 }
 

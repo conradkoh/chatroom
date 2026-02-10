@@ -1,4 +1,5 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
+import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
@@ -9,7 +10,7 @@ import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
  */
 export const create = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     teamId: v.string(),
     teamName: v.string(),
     teamRoles: v.array(v.string()),
@@ -40,7 +41,7 @@ export const create = mutation({
  */
 export const get = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
@@ -57,7 +58,7 @@ export const get = query({
  */
 export const listByUser = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
   },
   handler: async (ctx, args) => {
     // Validate session
@@ -94,7 +95,7 @@ export const listByUser = query({
  */
 export const listByUserWithStatus = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
   },
   handler: async (ctx, args) => {
     // Validate session
@@ -208,7 +209,7 @@ export const listByUserWithStatus = query({
  */
 export const updateStatus = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     status: v.union(v.literal('active'), v.literal('completed')),
   },
@@ -227,7 +228,7 @@ export const updateStatus = mutation({
  */
 export const updateTeam = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     teamId: v.string(),
     teamName: v.string(),
@@ -237,6 +238,19 @@ export const updateTeam = mutation({
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Structural validation: team must have at least one role
+    if (args.teamRoles.length === 0) {
+      throw new ConvexError('Team must have at least one role');
+    }
+
+    // If entry point is specified, it must be one of the team roles
+    if (args.teamEntryPoint && !args.teamRoles.includes(args.teamEntryPoint)) {
+      throw new ConvexError(
+        `Entry point '${args.teamEntryPoint}' must be one of the team roles: ${args.teamRoles.join(', ')}`
+      );
+    }
+
     await ctx.db.patch('chatroom_rooms', args.chatroomId, {
       teamId: args.teamId,
       teamName: args.teamName,
@@ -253,7 +267,7 @@ export const updateTeam = mutation({
  */
 export const rename = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     name: v.string(),
   },
@@ -285,7 +299,7 @@ export const rename = mutation({
  */
 export const getTeamReadiness = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
@@ -364,7 +378,7 @@ export const getTeamReadiness = query({
  */
 export const toggleFavorite = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
@@ -401,7 +415,7 @@ export const toggleFavorite = mutation({
  */
 export const isFavorite = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {

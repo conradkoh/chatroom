@@ -75,7 +75,7 @@ export async function createArtifact(
 
   try {
     const artifactId = await client.mutation(api.artifacts.create, {
-      sessionId: sessionId as any, // SessionId branded type from convex-helpers
+      sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       filename: options.filename,
       description: options.description,
@@ -137,7 +137,7 @@ export async function viewArtifact(
 
   try {
     const artifact = await client.query(api.artifacts.get, {
-      sessionId: sessionId as any, // SessionId branded type from convex-helpers
+      sessionId,
       artifactId: options.artifactId as Id<'chatroom_artifacts'>,
     });
 
@@ -216,7 +216,7 @@ export async function viewManyArtifacts(
 
   try {
     const artifacts = await client.query(api.artifacts.getMany, {
-      sessionId: sessionId as any, // SessionId branded type from convex-helpers
+      sessionId,
       artifactIds: options.artifactIds as Id<'chatroom_artifacts'>[],
     });
 

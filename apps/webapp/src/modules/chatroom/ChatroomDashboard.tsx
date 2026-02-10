@@ -60,10 +60,7 @@ const ChatroomTitleEditor = memo(function ChatroomTitleEditor({
   const [isPending, setIsPending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Type assertion workaround for Convex API
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-  const renameChatroom = useSessionMutation(chatroomApi.chatrooms.rename);
+  const renameChatroom = useSessionMutation(api.chatrooms.rename);
 
   const handleStartEdit = useCallback(() => {
     setEditedName(displayName);
@@ -278,25 +275,18 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Header portal integration
   const { setContent: setHeaderContent, clearContent: clearHeaderContent } = useSetHeaderPortal();
 
-  // Type assertion workaround: The Convex API types are not fully generated
-  // until `npx convex dev` is run. This assertion allows us to use the API
-  // without full type safety. The correct types will be available after
-  // running `npx convex dev` in the backend service.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-
-  const chatroom = useSessionQuery(chatroomApi.chatrooms.get, {
+  const chatroom = useSessionQuery(api.chatrooms.get, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Chatroom | null | undefined;
 
   // Update status mutation (for marking complete)
-  const updateStatus = useSessionMutation(chatroomApi.chatrooms.updateStatus);
+  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
 
-  const participants = useSessionQuery(chatroomApi.participants.list, {
+  const participants = useSessionQuery(api.participants.list, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Participant[] | undefined;
 
-  const readiness = useSessionQuery(chatroomApi.chatrooms.getTeamReadiness, {
+  const readiness = useSessionQuery(api.chatrooms.getTeamReadiness, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamReadiness | null | undefined;
 

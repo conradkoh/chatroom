@@ -120,10 +120,7 @@ interface ArtifactContentProps {
 }
 
 function ArtifactContent({ artifactId, mimeType }: ArtifactContentProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-
-  const artifact = useSessionQuery(chatroomApi.artifacts.get, {
+  const artifact = useSessionQuery(api.artifacts.get, {
     artifactId: artifactId as Id<'chatroom_artifacts'>,
   }) as ArtifactFull | null | undefined;
 

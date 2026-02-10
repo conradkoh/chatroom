@@ -28,10 +28,10 @@ export interface AgentConfigTabsProps {
   daemonStartCommand: string;
   sendCommand: (args: {
     machineId: string;
-    type: string;
-    payload: {
-      chatroomId: Id<'chatroom_rooms'>;
-      role: string;
+    type: 'start-agent' | 'stop-agent' | 'ping' | 'status';
+    payload?: {
+      chatroomId?: Id<'chatroom_rooms'>;
+      role?: string;
       model?: string;
       agentHarness?: AgentHarness;
       workingDir?: string;

@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
@@ -16,7 +17,7 @@ import { getRolePriority } from './lib/hierarchy';
  */
 export const join = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     // Optional timestamp when this participant's readiness expires
@@ -160,7 +161,7 @@ export const join = mutation({
  */
 export const list = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
@@ -183,7 +184,7 @@ export const list = query({
  */
 export const updateStatus = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     status: v.union(v.literal('active'), v.literal('waiting')),
@@ -234,7 +235,7 @@ export const updateStatus = mutation({
  */
 export const getByRole = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
   },
@@ -258,7 +259,7 @@ export const getByRole = query({
  */
 export const getHighestPriorityWaitingRole = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
@@ -291,7 +292,7 @@ export const getHighestPriorityWaitingRole = query({
  */
 export const getConnectionId = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
   },

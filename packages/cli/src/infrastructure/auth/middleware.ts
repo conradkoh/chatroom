@@ -3,12 +3,14 @@
  * Verifies CLI is authenticated before running commands
  */
 
+import type { SessionId } from 'convex-helpers/server/sessions';
+
 import { getSessionId, isAuthenticated, getAuthFilePath, getOtherSessionUrls } from './storage.js';
 import { api, type SessionValidation } from '../../api.js';
 import { getConvexClient, getConvexUrl } from '../convex/client.js';
 
 export interface AuthContext {
-  sessionId: string;
+  sessionId: SessionId;
   userId: string;
   userName?: string;
 }

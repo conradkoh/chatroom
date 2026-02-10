@@ -46,10 +46,7 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Type assertion workaround for Convex API
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-  const createChatroom = useSessionMutation(chatroomApi.chatrooms.create);
+  const createChatroom = useSessionMutation(api.chatrooms.create);
 
   const handleCreate = useCallback(async () => {
     if (!selectedTeam) return;

@@ -193,10 +193,10 @@ interface InlineAgentCardProps {
   daemonStartCommand: string;
   sendCommand: (args: {
     machineId: string;
-    type: string;
-    payload: {
-      chatroomId: Id<'chatroom_rooms'>;
-      role: string;
+    type: 'start-agent' | 'stop-agent' | 'ping' | 'status';
+    payload?: {
+      chatroomId?: Id<'chatroom_rooms'>;
+      role?: string;
       model?: string;
       agentHarness?: AgentHarness;
       workingDir?: string;
@@ -320,8 +320,6 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   chatroomId,
   onViewPrompt,
 }: UnifiedAgentListModalProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const machinesApi = api as any;
   const { isProductionUrl } = usePrompts();
 
   // Compute the full daemon start command with env var if needed
@@ -334,19 +332,19 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   }, [isProductionUrl]);
 
   // Fetch machines and agent configs for all agents in one go
-  const machinesResult = useSessionQuery(machinesApi.machines.listMachines, {}) as
+  const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
     | { machines: MachineInfo[] }
     | undefined;
 
-  const configsResult = useSessionQuery(machinesApi.machines.getAgentConfigs, {
+  const configsResult = useSessionQuery(api.machines.getAgentConfigs, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as { configs: AgentConfig[] } | undefined;
 
-  const sendCommand = useSessionMutation(machinesApi.machines.sendCommand);
-  const updatePreferences = useSessionMutation(machinesApi.machines.updateAgentPreferences);
+  const sendCommand = useSessionMutation(api.machines.sendCommand);
+  const updatePreferences = useSessionMutation(api.machines.updateAgentPreferences);
 
   // Load agent preferences for this chatroom
-  const preferencesResult = useSessionQuery(machinesApi.machines.getAgentPreferences, {
+  const preferencesResult = useSessionQuery(api.machines.getAgentPreferences, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as
     | {

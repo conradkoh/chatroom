@@ -231,10 +231,8 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Fetch progress history when expanded
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
   const progressMessages = useSessionQuery(
-    chatroomApi.messages.getProgressForTask,
+    api.messages.getProgressForTask,
     isExpanded && message.taskId
       ? {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -578,15 +576,8 @@ export const MessageFeed = memo(function MessageFeed({
   chatroomId,
   participants,
 }: MessageFeedProps) {
-  // Type assertion workaround: The Convex API types are not fully generated
-  // until `npx convex dev` is run. This assertion allows us to use the API
-  // without full type safety. The correct types will be available after
-  // running `npx convex dev` in the backend service.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-
   const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
-    chatroomApi.messages.listPaginated,
+    api.messages.listPaginated,
     { chatroomId: chatroomId as Id<'chatroom_rooms'> },
     { initialNumItems: INITIAL_PAGE_SIZE }
   ) as {
@@ -726,9 +717,14 @@ export const MessageFeed = memo(function MessageFeed({
     prevMessageCountRef.current = displayMessages.length;
   }, [displayMessages.length]);
 
-  // Auto-load more messages when content doesn't fill the container
+  // Auto-load more messages when content doesn't fill the container.
   // This handles the edge case where initial messages are too few to create a scrollbar,
   // making it impossible for the user to scroll up to trigger loading.
+  //
+  // Loop safety: This progressively loads until either:
+  // 1. Content fills the viewport (scrollHeight > clientHeight), or
+  // 2. All data is loaded (status becomes 'Exhausted')
+  // The status === 'CanLoadMore' guard prevents re-triggering during 'LoadingMore'.
   useEffect(() => {
     if (feedRef.current && status === 'CanLoadMore') {
       const { scrollHeight, clientHeight } = feedRef.current;

@@ -13,6 +13,7 @@
  */
 
 import { v } from 'convex/values';
+import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 
@@ -182,7 +183,7 @@ export const getAuthRequestDetails = query({
 export const approveAuthRequest = mutation({
   args: {
     requestId: v.string(),
-    sessionId: v.string(), // The user's web session ID for auth verification
+    ...SessionIdArg, // The user's web session ID for auth verification
   },
   returns: v.union(
     v.object({
@@ -259,7 +260,7 @@ export const approveAuthRequest = mutation({
 export const denyAuthRequest = mutation({
   args: {
     requestId: v.string(),
-    sessionId: v.string(), // The user's web session ID for auth verification
+    ...SessionIdArg, // The user's web session ID for auth verification
   },
   returns: v.union(
     v.object({
@@ -310,7 +311,7 @@ export const denyAuthRequest = mutation({
  */
 export const validateSession = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
   },
   returns: v.union(
     v.object({
@@ -361,7 +362,7 @@ export const validateSession = query({
  */
 export const touchSession = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
@@ -444,7 +445,7 @@ export const revokeSession = mutation({
  */
 export const listUserSessions = query({
   args: {
-    sessionId: v.string(), // The user's web session ID for auth verification
+    ...SessionIdArg, // The user's web session ID for auth verification
   },
   returns: v.array(
     v.object({

@@ -132,9 +132,7 @@ const TeamConfigContent = memo(function TeamConfigContent({
   const [isSaving, setIsSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<'success' | 'error' | null>(null);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-  const updateTeam = useSessionMutation(chatroomApi.chatrooms.updateTeam);
+  const updateTeam = useSessionMutation(api.chatrooms.updateTeam);
 
   const hasChanges = selectedTeam !== (currentTeamId || 'pair');
   const selectedTeamData = TEAMS_CONFIG.teams[selectedTeam];
@@ -283,9 +281,7 @@ const TeamConfigContent = memo(function TeamConfigContent({
  * Machine tab — placeholder for future machine integration
  */
 const MachineContent = memo(function MachineContent(_props: { chatroomId: string }) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-  const machinesResult = useSessionQuery(chatroomApi.machines.listMachines, {}) as
+  const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
     | {
         machines: {
           machineId: string;

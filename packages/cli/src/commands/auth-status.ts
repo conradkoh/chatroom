@@ -51,7 +51,7 @@ export async function authStatus(): Promise<void> {
         const machineInfo = ensureMachineRegistered();
 
         await client.mutation(api.machines.register, {
-          sessionId: authData.sessionId as any,
+          sessionId: authData.sessionId,
           machineId: machineInfo.machineId,
           hostname: machineInfo.hostname,
           os: machineInfo.os,

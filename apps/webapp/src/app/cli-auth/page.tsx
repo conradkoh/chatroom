@@ -2,6 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useMutation, useQuery } from 'convex/react';
+import type { SessionId } from 'convex-helpers/server/sessions';
 import { AlertCircle, Check, Loader2, Monitor, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
@@ -12,10 +13,6 @@ import { useAuthState } from '@/modules/auth/AuthProvider';
 /**
  * CLI Auth page - approves CLI device authorization requests
  */
-
-// Type assertion for CLI auth API
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const cliAuthApi = api as any;
 
 interface AuthRequestDetails {
   found: boolean;
@@ -36,21 +33,21 @@ function CliAuthContent() {
   const [actionState, setActionState] = useState<'idle' | 'approving' | 'denying' | 'done'>('idle');
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Get session ID from localStorage
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  // Get session ID from localStorage — cast once at the source
+  const [sessionId, setSessionId] = useState<SessionId | null>(null);
   useEffect(() => {
-    setSessionId(localStorage.getItem('sessionId'));
+    setSessionId(localStorage.getItem('sessionId') as SessionId | null);
   }, []);
 
   // Query auth request details
   const requestDetails = useQuery(
-    cliAuthApi.cliAuth?.getAuthRequestDetails,
+    api.cliAuth?.getAuthRequestDetails,
     requestId ? { requestId } : 'skip'
   ) as AuthRequestDetails | undefined;
 
   // Mutations
-  const approveRequest = useMutation(cliAuthApi.cliAuth?.approveAuthRequest);
-  const denyRequest = useMutation(cliAuthApi.cliAuth?.denyAuthRequest);
+  const approveRequest = useMutation(api.cliAuth?.approveAuthRequest);
+  const denyRequest = useMutation(api.cliAuth?.denyAuthRequest);
 
   const handleApprove = useCallback(async () => {
     if (!requestId || !sessionId) return;
