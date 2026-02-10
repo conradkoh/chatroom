@@ -43,12 +43,6 @@ interface SetupAgentCardProps {
   daemonStartCommand: string;
   sendCommand: SendCommandFn;
   onViewPrompt: (role: string) => void;
-  preferences?: {
-    machineId?: string;
-    harnessByRole?: Record<string, string>;
-    modelByRole?: Record<string, string>;
-  } | null;
-  onSavePreferences?: (role: string, machineId: string, harness: string, model?: string) => void;
 }
 
 const SetupAgentCard = memo(function SetupAgentCard({
@@ -63,8 +57,6 @@ const SetupAgentCard = memo(function SetupAgentCard({
   daemonStartCommand,
   sendCommand,
   onViewPrompt,
-  preferences,
-  onSavePreferences,
 }: SetupAgentCardProps) {
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>('remote');
 
@@ -74,8 +66,6 @@ const SetupAgentCard = memo(function SetupAgentCard({
     connectedMachines,
     agentConfigs,
     sendCommand,
-    preferences,
-    onSavePreferences,
   });
 
   return (
@@ -156,37 +146,6 @@ export const SetupChecklist = memo(function SetupChecklist({
   }) as { configs: AgentConfig[] } | undefined;
 
   const sendCommand = useSessionMutation(api.machines.sendCommand);
-  const updatePreferences = useSessionMutation(api.machines.updateAgentPreferences);
-
-  // Load agent preferences for this chatroom
-  const preferencesResult = useSessionQuery(api.machines.getAgentPreferences, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as
-    | {
-        machineId?: string;
-        harnessByRole?: Record<string, string>;
-        modelByRole?: Record<string, string>;
-      }
-    | null
-    | undefined;
-
-  // Save preferences callback (called on agent start)
-  const savePreferences = useCallback(
-    async (role: string, machineId: string, harness: string, model?: string) => {
-      try {
-        await updatePreferences({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          machineId,
-          role,
-          harness,
-          model,
-        });
-      } catch {
-        // Non-critical — don't block agent start if preferences fail to save
-      }
-    },
-    [updatePreferences, chatroomId]
-  );
 
   const connectedMachines = useMemo(() => {
     if (!machinesResult?.machines) return [];
@@ -313,8 +272,6 @@ export const SetupChecklist = memo(function SetupChecklist({
               daemonStartCommand={daemonStartCommand}
               sendCommand={sendCommand}
               onViewPrompt={onViewPrompt}
-              preferences={preferencesResult}
-              onSavePreferences={savePreferences}
             />
           );
         })}

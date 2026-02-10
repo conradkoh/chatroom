@@ -179,14 +179,6 @@ interface InlineAgentCardProps {
   daemonStartCommand: string;
   sendCommand: SendCommandFn;
   onViewPrompt?: (role: string) => void;
-  /** Saved preferences for default selections */
-  preferences?: {
-    machineId?: string;
-    harnessByRole?: Record<string, string>;
-    modelByRole?: Record<string, string>;
-  } | null;
-  /** Callback to save preferences when starting an agent */
-  onSavePreferences?: (role: string, machineId: string, harness: string, model?: string) => void;
 }
 
 const InlineAgentCard = memo(function InlineAgentCard({
@@ -200,8 +192,6 @@ const InlineAgentCard = memo(function InlineAgentCard({
   daemonStartCommand,
   sendCommand,
   onViewPrompt,
-  preferences,
-  onSavePreferences,
 }: InlineAgentCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>('remote');
@@ -212,8 +202,6 @@ const InlineAgentCard = memo(function InlineAgentCard({
     connectedMachines,
     agentConfigs,
     sendCommand,
-    preferences,
-    onSavePreferences,
   });
 
   const statusInfo = getStatusConfig(effectiveStatus);
@@ -317,37 +305,6 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   }) as { configs: AgentConfig[] } | undefined;
 
   const sendCommand = useSessionMutation(api.machines.sendCommand);
-  const updatePreferences = useSessionMutation(api.machines.updateAgentPreferences);
-
-  // Load agent preferences for this chatroom
-  const preferencesResult = useSessionQuery(api.machines.getAgentPreferences, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as
-    | {
-        machineId?: string;
-        harnessByRole?: Record<string, string>;
-        modelByRole?: Record<string, string>;
-      }
-    | null
-    | undefined;
-
-  // Save preferences callback (called on agent start)
-  const savePreferences = useCallback(
-    async (role: string, machineId: string, harness: string, model?: string) => {
-      try {
-        await updatePreferences({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          machineId,
-          role,
-          harness,
-          model,
-        });
-      } catch {
-        // Non-critical — don't block agent start if preferences fail to save
-      }
-    },
-    [updatePreferences, chatroomId]
-  );
 
   const connectedMachines = useMemo(() => {
     if (!machinesResult?.machines) return [];
@@ -430,8 +387,6 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
               daemonStartCommand={daemonStartCommand}
               sendCommand={sendCommand}
               onViewPrompt={onViewPrompt}
-              preferences={preferencesResult}
-              onSavePreferences={savePreferences}
             />
           ))}
         </div>

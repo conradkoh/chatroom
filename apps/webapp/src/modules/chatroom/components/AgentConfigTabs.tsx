@@ -34,14 +34,6 @@ export interface AgentConfigTabsProps {
   daemonStartCommand: string;
   sendCommand: SendCommandFn;
   onViewPrompt?: (role: string) => void;
-  /** Saved preferences for default selections */
-  preferences?: {
-    machineId?: string;
-    harnessByRole?: Record<string, string>;
-    modelByRole?: Record<string, string>;
-  } | null;
-  /** Callback to save preferences when starting an agent */
-  onSavePreferences?: (role: string, machineId: string, harness: string, model?: string) => void;
 }
 
 // ─── Hook: useAgentControls ─────────────────────────────────────────
@@ -55,16 +47,12 @@ export function useAgentControls({
   connectedMachines,
   agentConfigs,
   sendCommand,
-  preferences,
-  onSavePreferences,
 }: {
   role: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
   agentConfigs: AgentConfig[];
   sendCommand: AgentConfigTabsProps['sendCommand'];
-  preferences: AgentConfigTabsProps['preferences'];
-  onSavePreferences: AgentConfigTabsProps['onSavePreferences'];
 }) {
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedHarness, setSelectedHarness] = useState<AgentHarness | null>(null);
@@ -99,16 +87,11 @@ export function useAgentControls({
     return machine?.harnessVersions || {};
   }, [selectedMachineId, connectedMachines]);
 
-  // Auto-select machine (priority: running agent > preferences > role config > first available)
+  // Auto-select machine (priority: running agent > role config > first available)
   useEffect(() => {
     if (!selectedMachineId && connectedMachines.length > 0) {
       if (runningAgentConfig) {
         setSelectedMachineId(runningAgentConfig.machineId);
-      } else if (
-        preferences?.machineId &&
-        connectedMachines.some((m) => m.machineId === preferences.machineId)
-      ) {
-        setSelectedMachineId(preferences.machineId);
       } else if (roleConfigs.length > 0) {
         const configMachine = connectedMachines.find((m) =>
           roleConfigs.some((c) => c.machineId === m.machineId)
@@ -122,7 +105,7 @@ export function useAgentControls({
         setSelectedMachineId(connectedMachines[0].machineId);
       }
     }
-  }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs, preferences]);
+  }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs]);
 
   // Available models from the selected machine (discovered dynamically)
   const availableModelsForHarness = useMemo(() => {
@@ -131,7 +114,7 @@ export function useAgentControls({
     return machine?.availableModels || [];
   }, [selectedMachineId, selectedHarness, connectedMachines]);
 
-  // Auto-select harness (priority: role config > preferences > single available harness)
+  // Auto-select harness (priority: role config > single available harness)
   useEffect(() => {
     if (selectedMachineId) {
       const config = roleConfigs.find((c) => c.machineId === selectedMachineId);
@@ -139,18 +122,13 @@ export function useAgentControls({
         setSelectedHarness(config.agentType);
         return;
       }
-      const prefHarness = preferences?.harnessByRole?.[role] as AgentHarness | undefined;
-      if (prefHarness && availableHarnessesForMachine.includes(prefHarness)) {
-        setSelectedHarness(prefHarness);
-        return;
-      }
       if (availableHarnessesForMachine.length === 1) {
         setSelectedHarness(availableHarnessesForMachine[0]);
       }
     }
-  }, [selectedMachineId, roleConfigs, availableHarnessesForMachine, preferences, role]);
+  }, [selectedMachineId, roleConfigs, availableHarnessesForMachine]);
 
-  // Auto-select model when harness or machine changes (priority: role config > preferences > first model)
+  // Auto-select model when harness or machine changes (priority: role config > first model)
   useEffect(() => {
     if (selectedHarness) {
       const models = availableModelsForHarness;
@@ -163,23 +141,11 @@ export function useAgentControls({
         setSelectedModel(config.model);
         return;
       }
-      const prefModel = preferences?.modelByRole?.[role];
-      if (prefModel && models.includes(prefModel)) {
-        setSelectedModel(prefModel);
-        return;
-      }
       setSelectedModel(models[0]);
     } else {
       setSelectedModel(null);
     }
-  }, [
-    selectedHarness,
-    availableModelsForHarness,
-    roleConfigs,
-    selectedMachineId,
-    preferences,
-    role,
-  ]);
+  }, [selectedHarness, availableModelsForHarness, roleConfigs, selectedMachineId]);
 
   // Pre-populate workingDir from existing config when switching machines
   useEffect(() => {
@@ -230,7 +196,6 @@ export function useAgentControls({
           workingDir: workingDir.trim() || undefined,
         },
       });
-      onSavePreferences?.(role, selectedMachineId, selectedHarness, selectedModel || undefined);
       setSuccess('Start command sent!');
       setTimeout(() => setSuccess(null), 2000);
     } catch (err) {
@@ -246,7 +211,6 @@ export function useAgentControls({
     sendCommand,
     chatroomId,
     role,
-    onSavePreferences,
   ]);
 
   const handleStopAgent = useCallback(async () => {
