@@ -5,6 +5,8 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { baseMarkdownComponents } from './markdown-utils';
+
 interface BacklogCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -145,7 +147,9 @@ When users try to login on mobile devices, the form submits but nothing happens.
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 prose dark:prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-code:text-xs prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-pre:bg-chatroom-bg-tertiary prose-pre:text-chatroom-text-primary">
                   {content.trim() ? (
-                    <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
+                    <Markdown remarkPlugins={[remarkGfm]} components={baseMarkdownComponents}>
+                      {content}
+                    </Markdown>
                   ) : (
                     <p className="text-chatroom-text-muted italic">Preview will appear here...</p>
                   )}
