@@ -45,7 +45,7 @@ export const compactMarkdownComponents = {
   strong: ({ children }: { children?: React.ReactNode }) => (
     <strong className="font-bold">{children}</strong>
   ),
-  // Links: underlined with proper color
+  // Links: underlined with proper color, always open in new window
   a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
     <a
       href={href}
@@ -141,11 +141,32 @@ export function CodeBlock({
 }
 
 /**
+ * Shared link component that always opens in a new window/tab.
+ * Used across all markdown component sets for consistent behavior.
+ */
+const MarkdownLink = ({ children, href }: { children?: React.ReactNode; href?: string }) => (
+  <a href={href} target="_blank" rel="noopener noreferrer">
+    {children}
+  </a>
+);
+
+/**
+ * Base markdown components with just the link override.
+ * Use this for Markdown instances that don't need compact or full styling
+ * but still need links to open in a new window.
+ */
+export const baseMarkdownComponents = {
+  a: MarkdownLink,
+};
+
+/**
  * Full markdown components with enhanced code block rendering.
  * Includes copy button for fenced code blocks.
  * Use with react-markdown's `components` prop.
  */
 export const fullMarkdownComponents = {
+  // Links: always open in a new window
+  a: MarkdownLink,
   // Wrap pre elements with CodeBlock for copy functionality
   pre: ({ children }: { children?: React.ReactNode }) => {
     // The children of pre is usually a code element
