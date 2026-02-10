@@ -417,7 +417,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
       onClick={handleBackdropClick}
     >
-      <div className="chatroom-root w-full max-w-3xl max-h-[85vh] flex bg-chatroom-bg-primary border-2 border-chatroom-border-strong overflow-hidden">
+      <div className="chatroom-root w-full max-w-3xl h-[85vh] flex bg-chatroom-bg-primary border-2 border-chatroom-border-strong overflow-hidden">
         {/* Side Navigation */}
         <div className="w-48 flex-shrink-0 bg-chatroom-bg-surface border-r-2 border-chatroom-border-strong flex flex-col">
           {/* Modal Title */}
