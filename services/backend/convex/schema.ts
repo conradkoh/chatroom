@@ -308,7 +308,9 @@ export default defineSchema({
     type: v.union(
       v.literal('message'),
       v.literal('handoff'),
+      /** @deprecated Join messages are no longer created. Kept for backward compatibility with existing data. */
       v.literal('join'),
+      /** @deprecated Progress is now denormalized on chatroom_tasks. Kept for backward compatibility with existing data. */
       v.literal('progress')
     ),
     // Classification of user messages (set via task-started command)
@@ -411,6 +413,13 @@ export default defineSchema({
 
     // Queue ordering (lower = earlier in queue)
     queuePosition: v.number(),
+
+    // Denormalized progress tracking
+    // Updated by reportProgress mutation instead of creating separate progress messages.
+    // This avoids polluting the message table and eliminates N+1 queries in listPaginated.
+    lastProgressContent: v.optional(v.string()),
+    lastProgressSenderRole: v.optional(v.string()),
+    lastProgressAt: v.optional(v.number()),
 
     // Scoring fields for backlog prioritization (set by agents or users)
     // Complexity: low = easy to implement, high = complex/risky

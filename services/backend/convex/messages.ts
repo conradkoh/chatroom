@@ -45,7 +45,7 @@ async function _sendMessageHandler(
     senderRole: string;
     content: string;
     targetRole?: string;
-    type: 'message' | 'handoff' | 'join';
+    type: 'message' | 'handoff';
     attachedTaskIds?: Id<'chatroom_tasks'>[];
   }
 ) {
@@ -233,7 +233,7 @@ export const send = mutation({
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),
-    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join')),
+    type: v.union(v.literal('message'), v.literal('handoff')),
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   },
   handler: async (ctx, args) => {
@@ -550,7 +550,7 @@ export const sendMessage = mutation({
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),
-    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join')),
+    type: v.union(v.literal('message'), v.literal('handoff')),
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   },
   handler: async (ctx, args) => {
@@ -630,7 +630,7 @@ export const reportProgress = mutation({
       });
     }
 
-    // Find the current in-progress task for this role to link the progress message
+    // Find the current in-progress task for this role to update with progress
     const inProgressTask = await ctx.db
       .query('chatroom_tasks')
       .withIndex('by_chatroom_status', (q) =>
@@ -639,23 +639,25 @@ export const reportProgress = mutation({
       .filter((q) => q.eq(q.field('assignedTo'), args.senderRole))
       .first();
 
-    // Create the progress message linked to the task (if found)
-    const messageId = await ctx.db.insert('chatroom_messages', {
-      chatroomId: args.chatroomId,
-      senderRole: args.senderRole,
-      content: args.content,
-      type: 'progress',
-      // Link to the in-progress task for inline rendering
-      ...(inProgressTask && { taskId: inProgressTask._id }),
-    });
+    const now = Date.now();
+
+    // Denormalize progress onto the task instead of creating a separate message.
+    // This keeps the chatroom_messages table clean for pagination and eliminates
+    // N+1 queries when enriching messages in listPaginated.
+    if (inProgressTask) {
+      await ctx.db.patch('chatroom_tasks', inProgressTask._id, {
+        lastProgressContent: args.content,
+        lastProgressSenderRole: args.senderRole,
+        lastProgressAt: now,
+      });
+    }
 
     // Update chatroom's lastActivityAt for sorting by recent activity
-    const now = Date.now();
     await ctx.db.patch('chatroom_rooms', args.chatroomId, {
       lastActivityAt: now,
     });
 
-    return { success: true, messageId };
+    return { success: true, taskId: inProgressTask?._id ?? null };
   },
 });
 
@@ -1005,14 +1007,25 @@ export const listPaginated = query({
       .order('desc')
       .paginate(args.paginationOpts);
 
-    // Enrich messages with task status and attached task details
+    // Enrich messages with task status, progress, and attached task details
     const enrichedPage = await Promise.all(
       result.page.map(async (message) => {
-        // Fetch task status if message has a linked task
+        // Fetch task if message has a linked task (single fetch for both status and progress)
         let taskStatus: TaskStatus | undefined;
+        let latestProgress:
+          | { content: string; senderRole: string; _creationTime: number }
+          | undefined;
         if (message.taskId) {
           const task = await ctx.db.get('chatroom_tasks', message.taskId);
           taskStatus = task?.status;
+          // Read denormalized progress from the task (no extra query needed)
+          if (task?.lastProgressContent && task.lastProgressSenderRole && task.lastProgressAt) {
+            latestProgress = {
+              content: task.lastProgressContent,
+              senderRole: task.lastProgressSenderRole,
+              _creationTime: task.lastProgressAt,
+            };
+          }
         }
 
         // Fetch attached task details if message has attached tasks
@@ -1061,27 +1074,6 @@ export const listPaginated = query({
             }));
         }
 
-        // Fetch latest progress message for tasks (for inline progress display)
-        let latestProgress:
-          | { content: string; senderRole: string; _creationTime: number }
-          | undefined;
-        if (message.taskId) {
-          const progressMessages = await ctx.db
-            .query('chatroom_messages')
-            .withIndex('by_taskId', (q) => q.eq('taskId', message.taskId))
-            .filter((q) => q.eq(q.field('type'), 'progress'))
-            .order('desc')
-            .take(1);
-          if (progressMessages.length > 0) {
-            const latest = progressMessages[0];
-            latestProgress = {
-              content: latest.content,
-              senderRole: latest.senderRole,
-              _creationTime: latest._creationTime,
-            };
-          }
-        }
-
         return {
           ...message,
           ...(taskStatus && { taskStatus }),
@@ -1100,9 +1092,9 @@ export const listPaginated = query({
 });
 
 /**
- * Get all progress messages for a specific task.
- * Returns progress messages in chronological order (oldest first) for timeline display.
- * Used when user expands the inline progress to see full history.
+ * Get the latest progress for a specific task.
+ * Returns the denormalized progress from the task record.
+ * Progress is now stored directly on the task (no separate messages).
  * Requires CLI session authentication and chatroom access.
  */
 export const getProgressForTask = query({
@@ -1121,20 +1113,19 @@ export const getProgressForTask = query({
       return [];
     }
 
-    // Fetch all progress messages for this task, ordered chronologically
-    const progressMessages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_taskId', (q) => q.eq('taskId', args.taskId))
-      .filter((q) => q.eq(q.field('type'), 'progress'))
-      .order('asc')
-      .collect();
+    // Return denormalized progress as a single-element array for backward compatibility
+    if (task.lastProgressContent && task.lastProgressSenderRole && task.lastProgressAt) {
+      return [
+        {
+          _id: task._id, // Use task ID as progress ID
+          content: task.lastProgressContent,
+          senderRole: task.lastProgressSenderRole,
+          _creationTime: task.lastProgressAt,
+        },
+      ];
+    }
 
-    return progressMessages.map((msg) => ({
-      _id: msg._id,
-      content: msg.content,
-      senderRole: msg.senderRole,
-      _creationTime: msg._creationTime,
-    }));
+    return [];
   },
 });
 
@@ -1378,7 +1369,7 @@ export const getLatestForRole = query({
         continue;
       }
 
-      // Skip join messages
+      // Skip join messages (deprecated - no longer created, but may exist in legacy data)
       if (message.type === 'join') {
         continue;
       }

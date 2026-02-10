@@ -97,14 +97,6 @@ export const join = mutation({
         connectionId: args.connectionId, // Track current connection for concurrent process detection
         // activeUntil not set - will be set when transitioning to active
       });
-
-      // Send join message
-      await ctx.db.insert('chatroom_messages', {
-        chatroomId: args.chatroomId,
-        senderRole: args.role,
-        content: `${args.role} joined the chatroom`,
-        type: 'join',
-      });
     }
 
     // Auto-promote queued tasks when the entry point (primary) role joins
