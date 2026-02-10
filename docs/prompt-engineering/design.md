@@ -280,7 +280,7 @@ The `TeamContext` block provides squad-specific rules. The `BaseBuilderGuidance`
 ### Not Yet Implemented
 - [ ] Discovery workflow variant (no workflow beyond new_feature/question/follow_up)
 - [ ] Section registry (no central manifest of what sections exist and where they're used)
-- [ ] Full section-based compose path (delivery layers still use string assembly, not `composeSections()`)
+- [x] Full section-based compose path — `composeSystemPrompt` and `generateRolePrompt` now assemble `PromptSection[]` and call `composeSections()`
 
 ---
 
