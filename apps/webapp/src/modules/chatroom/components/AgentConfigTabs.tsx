@@ -63,6 +63,10 @@ export function useAgentControls({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Track if user has manually set these values (prevents auto-selection override)
+  const [isModelManuallySet, setIsModelManuallySet] = useState(false);
+  const [isWorkingDirManuallySet, setIsWorkingDirManuallySet] = useState(false);
+
   // Get configs for this role
   const roleConfigs = useMemo(() => {
     return agentConfigs.filter((c) => c.role.toLowerCase() === role.toLowerCase());
@@ -129,7 +133,10 @@ export function useAgentControls({
   }, [selectedMachineId, roleConfigs, availableHarnessesForMachine]);
 
   // Auto-select model when harness or machine changes (priority: role config > first model)
+  // Skip if user has manually set the model
   useEffect(() => {
+    if (isModelManuallySet) return; // User manually selected, don't override
+
     if (selectedHarness) {
       const models = availableModelsForHarness;
       if (models.length === 0) {
@@ -145,10 +152,19 @@ export function useAgentControls({
     } else {
       setSelectedModel(null);
     }
-  }, [selectedHarness, availableModelsForHarness, roleConfigs, selectedMachineId]);
+  }, [
+    selectedHarness,
+    availableModelsForHarness,
+    roleConfigs,
+    selectedMachineId,
+    isModelManuallySet,
+  ]);
 
   // Pre-populate workingDir from existing config when switching machines
+  // Skip if user has manually set the working directory
   useEffect(() => {
+    if (isWorkingDirManuallySet) return; // User manually set, don't override
+
     if (selectedMachineId) {
       const existingConfig = roleConfigs.find((c) => c.machineId === selectedMachineId);
       if (existingConfig?.workingDir) {
@@ -164,7 +180,7 @@ export function useAgentControls({
       }
     }
     setWorkingDir('');
-  }, [selectedMachineId, roleConfigs]);
+  }, [selectedMachineId, roleConfigs, isWorkingDirManuallySet]);
 
   const isAgentRunning = !!runningAgentConfig;
   const isBusy = isStarting || isStopping;
@@ -266,6 +282,35 @@ export function useAgentControls({
     }
   }, [runningAgentConfig, selectedModel, sendCommand, chatroomId, role]);
 
+  // Wrapper for machine change - resets manual flags since options change
+  const handleMachineChange = useCallback((machineId: string | null) => {
+    setSelectedMachineId(machineId);
+    setSelectedHarness(null);
+    // Reset manual flags since machine change means different available options
+    setIsModelManuallySet(false);
+    setIsWorkingDirManuallySet(false);
+  }, []);
+
+  // Wrapper for harness change - resets model manual flag since models may differ
+  const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
+    setSelectedHarness(harness);
+    setSelectedModel(null);
+    // Reset model manual flag since harness change means different available models
+    setIsModelManuallySet(false);
+  }, []);
+
+  // Wrapper for user manually selecting a model
+  const handleModelChange = useCallback((model: string | null) => {
+    setSelectedModel(model);
+    setIsModelManuallySet(true);
+  }, []);
+
+  // Wrapper for user manually changing working directory
+  const handleWorkingDirChange = useCallback((dir: string) => {
+    setWorkingDir(dir);
+    setIsWorkingDirManuallySet(true);
+  }, []);
+
   return {
     selectedMachineId,
     setSelectedMachineId,
@@ -293,6 +338,11 @@ export function useAgentControls({
     handleStartAgent,
     handleStopAgent,
     handleRestartAgent,
+    // New wrapper functions that track manual changes
+    handleMachineChange,
+    handleHarnessChange,
+    handleModelChange,
+    handleWorkingDirChange,
   };
 }
 
@@ -315,13 +365,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 }: RemoteTabContentProps) {
   const {
     selectedMachineId,
-    setSelectedMachineId,
     selectedHarness,
-    setSelectedHarness,
     selectedModel,
-    setSelectedModel,
     workingDir,
-    setWorkingDir,
     isStarting,
     isStopping,
     availableHarnessesForMachine,
@@ -336,6 +382,11 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleStartAgent,
     handleStopAgent,
     handleRestartAgent,
+    // Use wrapper functions that track manual changes
+    handleMachineChange,
+    handleHarnessChange,
+    handleModelChange,
+    handleWorkingDirChange,
   } = controls;
 
   const hasNoMachines = !isLoadingMachines && connectedMachines.length === 0;
@@ -374,10 +425,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             <div className="relative flex-1 min-w-0">
               <select
                 value={selectedMachineId || ''}
-                onChange={(e) => {
-                  setSelectedMachineId(e.target.value || null);
-                  setSelectedHarness(null);
-                }}
+                onChange={(e) => handleMachineChange(e.target.value || null)}
                 disabled={isBusy || isAgentRunning}
                 className="w-full appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent truncate"
                 title="Select Machine"
@@ -397,10 +445,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             <div className="relative flex-1 min-w-0">
               <select
                 value={selectedHarness || ''}
-                onChange={(e) => {
-                  setSelectedHarness((e.target.value as AgentHarness) || null);
-                  setSelectedModel(null);
-                }}
+                onChange={(e) => handleHarnessChange((e.target.value as AgentHarness) || null)}
                 disabled={
                   isBusy ||
                   isAgentRunning ||
@@ -433,7 +478,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             <input
               type="text"
               value={workingDir}
-              onChange={(e) => setWorkingDir(e.target.value)}
+              onChange={(e) => handleWorkingDirChange(e.target.value)}
               placeholder="/path/to/project"
               disabled={isBusy || isAgentRunning}
               className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-mono text-chatroom-text-primary px-2 py-1.5 placeholder:text-chatroom-text-muted/50 focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
@@ -457,7 +502,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               <div className="relative flex-1 min-w-0">
                 <select
                   value={selectedModel || ''}
-                  onChange={(e) => setSelectedModel(e.target.value || null)}
+                  onChange={(e) => handleModelChange(e.target.value || null)}
                   disabled={isBusy || isAgentRunning || !selectedHarness}
                   className="w-full appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent truncate"
                   title="Select Model"
