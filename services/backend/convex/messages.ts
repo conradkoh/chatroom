@@ -1,5 +1,6 @@
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
+import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
@@ -30,6 +31,113 @@ interface TaskDeliveryPromptResponse {
 }
 
 // =============================================================================
+// AUTO-RESTART HELPER
+// =============================================================================
+
+/**
+ * Check if a target role's agent is offline and, if so, dispatch restart commands
+ * to bring it back online using its existing machine agent config.
+ *
+ * This fires on both user messages and agent handoffs, ensuring that offline agents
+ * are always restarted when work is directed to them.
+ *
+ * Only restarts if:
+ * 1. The target role has an existing agent config (machine, harness, workingDir)
+ * 2. The machine's daemon is currently connected
+ * 3. The participant is either missing or expired
+ */
+async function autoRestartOfflineAgent(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  targetRole: string,
+  userId: Id<'users'>
+): Promise<void> {
+  const now = Date.now();
+
+  // Check if the target role's participant is offline
+  const participants = await ctx.db
+    .query('chatroom_participants')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+    .collect();
+
+  const targetParticipant = participants.find(
+    (p) => p.role.toLowerCase() === targetRole.toLowerCase()
+  );
+
+  // Participant exists and is not expired — agent is online, no restart needed
+  if (targetParticipant) {
+    const isExpired = targetParticipant.readyUntil ? targetParticipant.readyUntil < now : false;
+    if (!isExpired) {
+      return; // Agent is online
+    }
+  }
+
+  // Agent is offline (missing or expired).
+  // Check team agent config to determine if this is a remote agent that should be auto-restarted.
+  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  if (!chatroom) return;
+
+  const teamId = chatroom.teamId || chatroom._id;
+  const teamRoleKey = `team_${teamId}#role_${targetRole.toLowerCase()}`;
+
+  const teamConfig = await ctx.db
+    .query('chatroom_teamAgentConfigs')
+    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+    .first();
+
+  // If no team config exists or type is 'custom', skip auto-restart.
+  // Only remote agents should be auto-restarted.
+  if (!teamConfig || teamConfig.type !== 'remote') {
+    return; // Agent is custom or not configured — don't auto-restart
+  }
+
+  // Ensure the team config has the required machine info
+  if (!teamConfig.machineId) {
+    return; // No machine ID — can't restart
+  }
+
+  // Check if the machine's daemon is connected
+  const machine = await ctx.db
+    .query('chatroom_machines')
+    .withIndex('by_machineId', (q) => q.eq('machineId', teamConfig.machineId!))
+    .first();
+
+  if (!machine || !machine.daemonConnected) {
+    return; // Daemon is not connected — can't send commands
+  }
+
+  // Dispatch stop + start commands using team config parameters
+  // Stop first to clean up any stale process
+  await ctx.db.insert('chatroom_machineCommands', {
+    machineId: teamConfig.machineId,
+    type: 'stop-agent',
+    payload: {
+      chatroomId,
+      role: teamConfig.role,
+    },
+    status: 'pending',
+    sentBy: userId,
+    createdAt: now,
+  });
+
+  // Start command — uses the team agent config
+  await ctx.db.insert('chatroom_machineCommands', {
+    machineId: teamConfig.machineId,
+    type: 'start-agent',
+    payload: {
+      chatroomId,
+      role: teamConfig.role,
+      agentHarness: teamConfig.agentHarness,
+      model: teamConfig.model,
+      workingDir: teamConfig.workingDir,
+    },
+    status: 'pending',
+    sentBy: userId,
+    createdAt: now + 1, // Ensure start comes after stop in FIFO order
+  });
+}
+
+// =============================================================================
 // SHARED HANDLERS - Internal functions that contain the actual logic
 // =============================================================================
 
@@ -45,12 +153,12 @@ async function _sendMessageHandler(
     senderRole: string;
     content: string;
     targetRole?: string;
-    type: 'message' | 'handoff' | 'join';
+    type: 'message' | 'handoff';
     attachedTaskIds?: Id<'chatroom_tasks'>[];
   }
 ) {
-  // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
-  const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+  // Validate session and check chatroom access - returns chatroom and session info
+  const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
   // Validate attached tasks if provided
   if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
@@ -210,6 +318,16 @@ async function _sendMessageHandler(
         }
       }
     }
+
+    // Auto-restart offline agents when a task is created for them
+    if (targetRole && targetRole.toLowerCase() !== 'user') {
+      try {
+        await autoRestartOfflineAgent(ctx, args.chatroomId, targetRole, session.userId);
+      } catch (error) {
+        // Log but don't fail — restart is best-effort, not critical path
+        console.error(`[auto-restart] Failed to restart agent for role "${targetRole}":`, error);
+      }
+    }
   }
 
   return messageId;
@@ -228,12 +346,12 @@ async function _sendMessageHandler(
  */
 export const send = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),
-    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join')),
+    type: v.union(v.literal('message'), v.literal('handoff')),
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   },
   handler: async (ctx, args) => {
@@ -522,7 +640,7 @@ async function _handoffHandler(
  */
 export const sendHandoff = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     content: v.string(),
@@ -545,12 +663,12 @@ export const sendHandoff = mutation({
  */
 export const sendMessage = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.optional(v.string()),
-    type: v.union(v.literal('message'), v.literal('handoff'), v.literal('join')),
+    type: v.union(v.literal('message'), v.literal('handoff')),
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
   },
   handler: async (ctx, args) => {
@@ -573,7 +691,7 @@ export const sendMessage = mutation({
  */
 export const handoff = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     content: v.string(),
@@ -602,7 +720,7 @@ export const handoff = mutation({
  */
 export const reportProgress = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     content: v.string(),
@@ -667,7 +785,7 @@ export const reportProgress = mutation({
  */
 export const taskStarted = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     originMessageClassification: v.optional(
@@ -892,7 +1010,7 @@ export const taskStarted = mutation({
  */
 export const getAllowedHandoffRoles = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
   },
@@ -960,7 +1078,7 @@ export const getAllowedHandoffRoles = query({
  */
 export const list = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     limit: v.optional(v.number()),
   },
@@ -990,7 +1108,7 @@ export const list = query({
  */
 export const listPaginated = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     paginationOpts: paginationOptsValidator,
   },
@@ -999,9 +1117,13 @@ export const listPaginated = query({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Paginate with descending order (newest first)
+    // Filter out progress messages (shown inline in task headers) and
+    // legacy join messages (no longer created) at the DB level so pagination
+    // counts only displayable messages.
     const result = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .filter((q) => q.and(q.neq(q.field('type'), 'join'), q.neq(q.field('type'), 'progress')))
       .order('desc')
       .paginate(args.paginationOpts);
 
@@ -1107,7 +1229,7 @@ export const listPaginated = query({
  */
 export const getProgressForTask = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     taskId: v.id('chatroom_tasks'),
   },
@@ -1154,7 +1276,7 @@ export const getProgressForTask = query({
  */
 export const getContextWindow = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
@@ -1281,7 +1403,7 @@ export const getContextWindow = query({
  */
 export const claimMessage = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     messageId: v.id('chatroom_messages'),
     role: v.string(),
   },
@@ -1325,7 +1447,7 @@ export const claimMessage = mutation({
  */
 export const getLatestForRole = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     afterMessageId: v.optional(v.id('chatroom_messages')),
@@ -1378,11 +1500,6 @@ export const getLatestForRole = query({
         continue;
       }
 
-      // Skip join messages
-      if (message.type === 'join') {
-        continue;
-      }
-
       // Targeted messages only go to target
       if (message.targetRole) {
         if (message.targetRole.toLowerCase() === args.role.toLowerCase()) {
@@ -1417,7 +1534,7 @@ export const getLatestForRole = query({
  */
 export const listFeatures = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     limit: v.optional(v.number()),
   },
@@ -1462,7 +1579,7 @@ export const listFeatures = query({
  */
 export const inspectFeature = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     messageId: v.id('chatroom_messages'),
   },
@@ -1562,7 +1679,7 @@ export const inspectFeature = query({
  */
 export const getRolePrompt = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     convexUrl: v.optional(v.string()),
@@ -1647,13 +1764,21 @@ export const getRolePrompt = query({
  */
 export const getInitPrompt = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Look up actual participants to provide real availability data
+    const participants = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    const availableMembers = participants.filter((p) => p.status === 'waiting').map((p) => p.role);
 
     const promptInput = {
       chatroomId: args.chatroomId,
@@ -1662,6 +1787,7 @@ export const getInitPrompt = query({
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
+      availableMembers,
     };
 
     // Compose init prompt (system prompt + init message + combined)
@@ -1687,7 +1813,7 @@ export const getInitPrompt = query({
  */
 export const getTaskDeliveryPrompt = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     taskId: v.id('chatroom_tasks'),
@@ -1756,6 +1882,8 @@ export const getTaskDeliveryPrompt = query({
     const availableHandoffRoles = canHandoffToUser ? [...availableRoles, 'user'] : availableRoles;
 
     // Generate role-specific prompt
+    const availableMembers = waitingParticipants.map((p) => p.role);
+
     const rolePromptText = generateRolePrompt({
       chatroomId: args.chatroomId,
       role: args.role,
@@ -1767,6 +1895,7 @@ export const getTaskDeliveryPrompt = query({
       canHandoffToUser,
       restrictionReason,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
+      availableMembers,
     });
 
     // Get context window (reuse getContextWindow logic)
@@ -1823,6 +1952,21 @@ export const getTaskDeliveryPrompt = query({
       }
     }
 
+    // Calculate follow-up count since origin message
+    let followUpCountSinceOrigin = 0;
+    if (originIndex >= 0) {
+      for (let i = originIndex + 1; i < contextMessages.length; i++) {
+        const msg = contextMessages[i];
+        if (
+          msg.senderRole.toLowerCase() === 'user' &&
+          msg.type === 'message' &&
+          msg.classification === 'follow_up'
+        ) {
+          followUpCountSinceOrigin++;
+        }
+      }
+    }
+
     // Get messages from origin onwards
     const contextMessagesSlice =
       originIndex >= 0 ? contextMessages.slice(originIndex) : contextMessages;
@@ -1841,7 +1985,7 @@ export const getTaskDeliveryPrompt = query({
     // Fetch attached task details
     const attachedTasksMap = new Map<
       string,
-      { id: string; content: string; status: string; createdBy: string; backlogStatus?: string }
+      { id: string; content: string; status: TaskStatus; createdBy: string; backlogStatus?: string }
     >();
     if (allAttachedTaskIds.length > 0) {
       const uniqueTaskIds = [...new Set(allAttachedTaskIds)];
@@ -1923,6 +2067,9 @@ export const getTaskDeliveryPrompt = query({
           }[],
         })),
         classification: originMessage?.classification || null,
+        // Staleness metadata for warning display
+        originMessageCreatedAt: originMessage?._creationTime ?? null,
+        followUpCountSinceOrigin,
       },
       rolePrompt: {
         prompt: rolePromptText,
@@ -2009,7 +2156,7 @@ export const getWebappDisplayPrompt = query({
  */
 export const listBySenderRole = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
     limit: v.optional(v.number()),
@@ -2058,7 +2205,7 @@ export const listBySenderRole = query({
  */
 export const listSinceMessage = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     sinceMessageId: v.id('chatroom_messages'),
     limit: v.optional(v.number()),
@@ -2130,7 +2277,7 @@ export const listSinceMessage = query({
  */
 export const getContextForRole = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
   },

@@ -12,33 +12,27 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  MoreHorizontal,
+  Settings,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
-import type { AgentHarness, MachineInfo, AgentConfig } from '../types/machine';
+import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
+import type { AgentStatus, ParticipantInfo, TeamReadiness } from '../types/readiness';
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { usePrompts } from '@/contexts/PromptsContext';
 
-// Participant info from readiness query - includes expiration data
-interface ParticipantInfo {
-  role: string;
-  status: string;
-  readyUntil?: number;
-  isExpired: boolean;
-}
-
-// Team readiness data from backend - single source of truth
-interface TeamReadiness {
-  isReady: boolean;
-  expectedRoles: string[];
-  presentRoles?: string[]; // Optional - not all callers provide this
-  missingRoles: string[];
-  expiredRoles?: string[];
-  participants?: ParticipantInfo[];
-}
+// Re-export AgentStatus for backward compatibility
+export type { AgentStatus } from '../types/readiness';
 
 interface AgentPanelProps {
   chatroomId: string;
@@ -50,12 +44,14 @@ interface AgentPanelProps {
   openAgentListRequested?: boolean;
   /** Called when the component has consumed the openAgentListRequested flag */
   onAgentListOpened?: () => void;
+  /** Called when user clicks Configure in the menu */
+  onConfigure?: () => void;
 }
 
 // Status indicator colors - now includes disconnected state
 // ─── Status Utilities ────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
+const STATUS_CONFIG: Record<AgentStatus, { bg: string; text: string; label: string }> = {
   active: {
     bg: 'bg-chatroom-status-info',
     text: 'text-chatroom-status-info',
@@ -84,9 +80,9 @@ const DEFAULT_STATUS = {
   label: 'OFFLINE',
 };
 
-const getStatusConfig = (status: string) => STATUS_CONFIG[status] ?? DEFAULT_STATUS;
+const getStatusConfig = (status: AgentStatus) => STATUS_CONFIG[status] ?? DEFAULT_STATUS;
 
-const getStatusClasses = (effectiveStatus: string) =>
+const getStatusClasses = (effectiveStatus: AgentStatus) =>
   `w-2.5 h-2.5 flex-shrink-0 ${getStatusConfig(effectiveStatus).bg}`;
 
 // Compute effective status accounting for expiration
@@ -94,7 +90,7 @@ const getEffectiveStatus = (
   role: string,
   participantMap: Map<string, ParticipantInfo>,
   expiredRolesSet: Set<string>
-): { status: string; isExpired: boolean } => {
+): { status: AgentStatus; isExpired: boolean } => {
   const participant = participantMap.get(role.toLowerCase());
   if (!participant) {
     return { status: 'missing', isExpired: false };
@@ -121,7 +117,7 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   onOpenModal,
 }: CollapsedAgentGroupProps) {
   // Map variants to status keys so we reuse the shared STATUS_CONFIG colors
-  const variantStatusMap: Record<CollapsedAgentGroupProps['variant'], string> = {
+  const variantStatusMap: Record<CollapsedAgentGroupProps['variant'], AgentStatus> = {
     ready: 'waiting',
     offline: 'missing',
   };
@@ -166,7 +162,7 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
 // Agent info with status for the unified modal
 interface AgentWithStatus {
   role: string;
-  effectiveStatus: string;
+  effectiveStatus: AgentStatus;
 }
 
 // Types and constants imported from ../types/machine
@@ -174,33 +170,15 @@ interface AgentWithStatus {
 // Inline Agent Card - shows agent config, prompt, and controls directly in the modal
 interface InlineAgentCardProps {
   role: string;
-  effectiveStatus: string;
+  effectiveStatus: AgentStatus;
   prompt: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
   agentConfigs: AgentConfig[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
-  sendCommand: (args: {
-    machineId: string;
-    type: string;
-    payload: {
-      chatroomId: Id<'chatroom_rooms'>;
-      role: string;
-      model?: string;
-      agentHarness?: AgentHarness;
-      workingDir?: string;
-    };
-  }) => Promise<unknown>;
+  sendCommand: SendCommandFn;
   onViewPrompt?: (role: string) => void;
-  /** Saved preferences for default selections */
-  preferences?: {
-    machineId?: string;
-    harnessByRole?: Record<string, string>;
-    modelByRole?: Record<string, string>;
-  } | null;
-  /** Callback to save preferences when starting an agent */
-  onSavePreferences?: (role: string, machineId: string, harness: string, model?: string) => void;
 }
 
 const InlineAgentCard = memo(function InlineAgentCard({
@@ -214,8 +192,6 @@ const InlineAgentCard = memo(function InlineAgentCard({
   daemonStartCommand,
   sendCommand,
   onViewPrompt,
-  preferences,
-  onSavePreferences,
 }: InlineAgentCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>('remote');
@@ -226,8 +202,6 @@ const InlineAgentCard = memo(function InlineAgentCard({
     connectedMachines,
     agentConfigs,
     sendCommand,
-    preferences,
-    onSavePreferences,
   });
 
   const statusInfo = getStatusConfig(effectiveStatus);
@@ -310,8 +284,6 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   chatroomId,
   onViewPrompt,
 }: UnifiedAgentListModalProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const machinesApi = api as any;
   const { isProductionUrl } = usePrompts();
 
   // Compute the full daemon start command with env var if needed
@@ -324,46 +296,15 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   }, [isProductionUrl]);
 
   // Fetch machines and agent configs for all agents in one go
-  const machinesResult = useSessionQuery(machinesApi.machines.listMachines, {}) as
+  const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
     | { machines: MachineInfo[] }
     | undefined;
 
-  const configsResult = useSessionQuery(machinesApi.machines.getAgentConfigs, {
+  const configsResult = useSessionQuery(api.machines.getAgentConfigs, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as { configs: AgentConfig[] } | undefined;
 
-  const sendCommand = useSessionMutation(machinesApi.machines.sendCommand);
-  const updatePreferences = useSessionMutation(machinesApi.machines.updateAgentPreferences);
-
-  // Load agent preferences for this chatroom
-  const preferencesResult = useSessionQuery(machinesApi.machines.getAgentPreferences, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as
-    | {
-        machineId?: string;
-        harnessByRole?: Record<string, string>;
-        modelByRole?: Record<string, string>;
-      }
-    | null
-    | undefined;
-
-  // Save preferences callback (called on agent start)
-  const savePreferences = useCallback(
-    async (role: string, machineId: string, harness: string, model?: string) => {
-      try {
-        await updatePreferences({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          machineId,
-          role,
-          harness,
-          model,
-        });
-      } catch {
-        // Non-critical — don't block agent start if preferences fail to save
-      }
-    },
-    [updatePreferences, chatroomId]
-  );
+  const sendCommand = useSessionMutation(api.machines.sendCommand);
 
   const connectedMachines = useMemo(() => {
     if (!machinesResult?.machines) return [];
@@ -446,8 +387,6 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
               daemonStartCommand={daemonStartCommand}
               sendCommand={sendCommand}
               onViewPrompt={onViewPrompt}
-              preferences={preferencesResult}
-              onSavePreferences={savePreferences}
             />
           ))}
         </div>
@@ -465,6 +404,7 @@ export const AgentPanel = memo(function AgentPanel({
   onReconnect,
   openAgentListRequested,
   onAgentListOpened,
+  onConfigure,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
 
@@ -480,7 +420,12 @@ export const AgentPanel = memo(function AgentPanel({
   // Build participant map from readiness data
   const participantMap = useMemo(() => {
     if (!readiness?.participants) return new Map<string, ParticipantInfo>();
-    return new Map(readiness.participants.map((p) => [p.role.toLowerCase(), p]));
+    return new Map(
+      readiness.participants.map((p) => [
+        p.role.toLowerCase(),
+        { ...p, status: p.status as AgentStatus },
+      ])
+    );
   }, [readiness?.participants]);
 
   // Build expired roles set for O(1) lookup
@@ -630,8 +575,8 @@ export const AgentPanel = memo(function AgentPanel({
 
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-      {/* Header with status indicator */}
-      <div className="flex items-center justify-between p-4 border-b-2 border-chatroom-border">
+      {/* Header with status indicator and menu */}
+      <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Agents
         </div>
@@ -664,10 +609,27 @@ export const AgentPanel = memo(function AgentPanel({
           >
             {readiness.isReady ? 'Ready' : isDisconnected ? 'Disconnected' : 'Waiting'}
           </div>
+          {/* Settings Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors">
+                <MoreHorizontal size={14} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="chatroom-root">
+              <DropdownMenuItem
+                onClick={onConfigure}
+                className="flex items-center gap-2 text-xs cursor-pointer"
+              >
+                <Settings size={12} />
+                Configure
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
-      {/* Fixed height container for 2 rows to prevent layout jumping */}
-      <div className="overflow-y-auto h-[108px]">
+      {/* Scrollable container for agent rows */}
+      <div className="overflow-y-auto">
         {/* Active Agents - always shown prominently at top */}
         {categorizedAgents.active.map(renderAgentRow)}
 

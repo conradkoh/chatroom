@@ -101,20 +101,20 @@ export async function listBacklog(
     let tasks: Task[];
     if (statusFilter === 'active') {
       tasks = (await client.query(api.tasks.listActiveTasks, {
-        sessionId: sessionId as any,
+        sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         limit: options.limit || 100,
       })) as Task[];
     } else if (statusFilter === 'archived') {
       tasks = (await client.query(api.tasks.listArchivedTasks, {
-        sessionId: sessionId as any,
+        sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         limit: options.limit || 100,
       })) as Task[];
     } else {
       // For specific status filters or 'all', use original listTasks
       tasks = (await client.query(api.tasks.listTasks, {
-        sessionId: sessionId as any,
+        sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         statusFilter:
           statusFilter === 'all'

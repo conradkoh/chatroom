@@ -3,6 +3,8 @@
  * Implements device authorization flow for CLI authentication
  */
 
+import type { SessionId } from 'convex-helpers/server/sessions';
+
 import { api, type AuthRequestResult, type AuthRequestStatus } from '../api.js';
 import {
   saveAuthData,
@@ -165,7 +167,7 @@ export async function authLogin(options: AuthLoginOptions): Promise<void> {
       if (status.status === 'approved' && status.sessionId) {
         // Success! Save the session
         saveAuthData({
-          sessionId: status.sessionId,
+          sessionId: status.sessionId as SessionId,
           createdAt: new Date().toISOString(),
           deviceName,
           cliVersion,

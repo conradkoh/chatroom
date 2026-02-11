@@ -2,7 +2,7 @@
  * Role Hierarchy System
  *
  * Defines priority ordering for agent roles in the chatroom system.
- * Lower numbers indicate higher priority (e.g., manager=1 is highest priority).
+ * Lower numbers indicate higher priority (e.g., planner=0 is highest priority).
  */
 
 export interface RoleHierarchy {
@@ -10,17 +10,15 @@ export interface RoleHierarchy {
 }
 
 /**
- * Default role hierarchy for common agent roles.
+ * Default role hierarchy for the pair and squad team configurations.
  * Custom roles not in this list get a default priority of 100.
+ * Add new roles here as new team configurations are introduced.
  */
 export const DEFAULT_ROLE_HIERARCHY: RoleHierarchy = {
-  manager: 1,
-  architect: 2,
-  builder: 3,
-  'frontend-designer': 4,
-  reviewer: 5,
-  tester: 6,
-  user: 999, // User is always lowest priority
+  planner: 0,
+  builder: 1,
+  reviewer: 2,
+  user: 999,
 };
 
 /**

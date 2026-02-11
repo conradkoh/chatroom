@@ -59,8 +59,7 @@ export async function reportProgress(
   // Call the reportProgress mutation
   try {
     const result = await client.mutation(api.messages.reportProgress, {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      sessionId: sessionId as any, // SessionId branded type from convex-helpers
+      sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       senderRole: role,
       content: message,

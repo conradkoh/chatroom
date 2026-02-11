@@ -157,7 +157,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   // This happens for both --no-classify and classification modes
   try {
     await client.mutation(api.tasks.startTask, {
-      sessionId: sessionId as any,
+      sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
       taskId: taskId as Id<'chatroom_tasks'>, // Pass the specific task ID
@@ -181,7 +181,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   // This is only for entry point roles receiving user messages
   try {
     const result = (await client.mutation(api.messages.taskStarted, {
-      sessionId: sessionId as any, // SessionId branded type from convex-helpers
+      sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
       taskId: taskId as Id<'chatroom_tasks'>,

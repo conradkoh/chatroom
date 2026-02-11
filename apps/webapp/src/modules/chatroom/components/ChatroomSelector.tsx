@@ -274,12 +274,7 @@ const RecentChatroomCard = memo(function RecentChatroomCard({
   chatroom,
   onSelect,
 }: RecentChatroomCardProps) {
-  // Type assertion workaround for Convex API
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-
-  // Mutation to toggle favorite
-  const toggleFavorite = useSessionMutation(chatroomApi.chatrooms.toggleFavorite);
+  const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
 
   const handleToggleFavorite = useCallback(
     async (e: React.MouseEvent) => {
@@ -351,14 +346,8 @@ const ChatroomCard = memo(function ChatroomCard({
   onSelect,
   activeTab,
 }: ChatroomCardProps) {
-  // Type assertion workaround for Convex API
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-
-  // Mutation to mark chatroom as complete
-  const updateStatus = useSessionMutation(chatroomApi.chatrooms.updateStatus);
-  // Mutation to toggle favorite
-  const toggleFavorite = useSessionMutation(chatroomApi.chatrooms.toggleFavorite);
+  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
+  const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
 
   const handleToggleFavorite = useCallback(
     async (e: React.MouseEvent) => {
@@ -526,14 +515,8 @@ const ChatroomTable = memo(function ChatroomTable({
   onSelect,
   activeTab,
 }: ChatroomTableProps) {
-  // Type assertion workaround for Convex API
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-
-  // Mutation to mark chatroom as complete
-  const updateStatus = useSessionMutation(chatroomApi.chatrooms.updateStatus);
-  // Mutation to toggle favorite
-  const toggleFavorite = useSessionMutation(chatroomApi.chatrooms.toggleFavorite);
+  const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
+  const toggleFavorite = useSessionMutation(api.chatrooms.toggleFavorite);
 
   const handleToggleFavorite = useCallback(
     async (e: React.MouseEvent, chatroomId: string) => {

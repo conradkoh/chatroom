@@ -438,6 +438,7 @@ async function handleStartAgent(
           chatroomId,
           role,
           pid: startResult.handle.pid,
+          model,
         });
         console.log(`   Updated backend with PID: ${startResult.handle.pid}`);
 
@@ -664,6 +665,58 @@ async function processCommand(ctx: DaemonContext, command: MachineCommand): Prom
   }
 }
 
+// ─── Model Discovery ─────────────────────────────────────────────────────────
+
+/** Interval for periodic model discovery refresh (5 minutes). */
+const MODEL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+
+/**
+ * Discover available models from all installed harnesses that support
+ * dynamic model discovery. Returns an array of model identifiers.
+ * Non-critical: returns empty array on failure.
+ */
+async function discoverModels(): Promise<string[]> {
+  const models: string[] = [];
+  try {
+    const registry = getDriverRegistry();
+    for (const driver of registry.all()) {
+      if (driver.capabilities.dynamicModelDiscovery) {
+        const driverModels = await driver.listModels();
+        models.push(...driverModels);
+      }
+    }
+  } catch {
+    // Model discovery is non-critical
+  }
+  return models;
+}
+
+/**
+ * Re-discover models and update the backend registration.
+ * Called periodically to keep the model list fresh.
+ */
+async function refreshModels(ctx: DaemonContext): Promise<void> {
+  const models = await discoverModels();
+  if (!ctx.config) return;
+
+  try {
+    await ctx.client.mutation(api.machines.register, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      hostname: ctx.config.hostname,
+      os: ctx.config.os,
+      availableHarnesses: ctx.config.availableHarnesses,
+      harnessVersions: ctx.config.harnessVersions,
+      availableModels: models,
+    });
+    console.log(
+      `[${formatTimestamp()}] 🔄 Model refresh: ${models.length > 0 ? `${models.length} models` : 'none discovered'}`
+    );
+  } catch (error) {
+    console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${(error as Error).message}`);
+  }
+}
+
 // ─── Daemon Initialization ───────────────────────────────────────────────────
 
 /**
@@ -713,6 +766,32 @@ async function initDaemon(): Promise<DaemonContext> {
   // between our storage format and Convex's branded type system.
   const typedSessionId: SessionId = sessionId;
 
+  // Load and cache machine config (read once, reused by handlers)
+  const config = loadMachineConfig();
+
+  // Discover available models from installed harnesses (dynamic)
+  // This ensures models are available in the UI as soon as the daemon connects
+  const availableModels = await discoverModels();
+
+  // Register/update machine info in backend (includes harnesses and models)
+  // This ensures the web UI has current machine capabilities
+  if (config) {
+    try {
+      await client.mutation(api.machines.register, {
+        sessionId: typedSessionId,
+        machineId,
+        hostname: config.hostname,
+        os: config.os,
+        availableHarnesses: config.availableHarnesses,
+        harnessVersions: config.harnessVersions,
+        availableModels,
+      });
+    } catch (error) {
+      // Registration failure is non-critical — daemon can still work
+      console.warn(`⚠️  Machine registration update failed: ${(error as Error).message}`);
+    }
+  }
+
   // Update daemon status to connected
   try {
     await client.mutation(api.machines.updateDaemonStatus, {
@@ -726,15 +805,15 @@ async function initDaemon(): Promise<DaemonContext> {
     process.exit(1);
   }
 
-  // Load and cache machine config (read once, reused by handlers)
-  const config = loadMachineConfig();
-
   const ctx: DaemonContext = { client, sessionId: typedSessionId, machineId, config };
 
   console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
   console.log(`   Machine ID: ${machineId}`);
   console.log(`   Hostname: ${config?.hostname ?? 'Unknown'}`);
   console.log(`   Available harnesses: ${config?.availableHarnesses.join(', ') || 'none'}`);
+  console.log(
+    `   Available models: ${availableModels.length > 0 ? availableModels.length : 'none discovered'}`
+  );
   console.log(`   PID: ${process.pid}`);
 
   // Recover agent state from previous daemon session
@@ -838,6 +917,17 @@ async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       await drainQueue();
     }
   );
+
+  // Periodic model discovery refresh — keeps the model list current
+  // in case new providers are configured while the daemon is running
+  const modelRefreshTimer = setInterval(() => {
+    refreshModels(ctx).catch((err) => {
+      console.warn(`[${formatTimestamp()}] ⚠️  Model refresh error: ${(err as Error).message}`);
+    });
+  }, MODEL_REFRESH_INTERVAL_MS);
+
+  // Unref the timer so it doesn't prevent process exit during shutdown
+  modelRefreshTimer.unref();
 
   // Keep process alive
   return await new Promise(() => {});

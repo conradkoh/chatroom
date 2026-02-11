@@ -88,6 +88,36 @@ export const getAllRoleTemplates = query({
 });
 
 /**
+ * Get all agent prompts for an entire team in a single query.
+ * Returns a record mapping each role to its full prompt string.
+ * This avoids the need for multiple individual useQuery calls on the frontend,
+ * which would violate React's Rules of Hooks when the team changes.
+ */
+export const getTeamPrompts = query({
+  args: {
+    chatroomId: v.string(),
+    teamName: v.string(),
+    teamRoles: v.array(v.string()),
+    teamEntryPoint: v.optional(v.string()),
+    convexUrl: v.optional(v.string()),
+  },
+  handler: async (_ctx, args) => {
+    const prompts: Record<string, string> = {};
+    for (const role of args.teamRoles) {
+      prompts[role] = generateAgentPrompt({
+        chatroomId: args.chatroomId,
+        role,
+        teamName: args.teamName,
+        teamRoles: args.teamRoles,
+        teamEntryPoint: args.teamEntryPoint,
+        convexUrl: args.convexUrl,
+      });
+    }
+    return prompts;
+  },
+});
+
+/**
  * Check if a Convex URL is the production URL.
  * Helps the webapp determine if env var overrides are needed in CLI commands.
  */

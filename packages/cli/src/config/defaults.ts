@@ -14,9 +14,9 @@ export const DEFAULT_CONFIG: ChatroomConfig = {
     },
     squad: {
       name: 'Squad',
-      description: 'Full team with manager, architects, builders, and reviewers',
-      roles: ['manager', 'architect', 'builder', 'frontend-designer', 'reviewer', 'tester'],
-      entryPoint: 'manager',
+      description: 'A planner, builder, and reviewer working as a coordinated team',
+      roles: ['planner', 'builder', 'reviewer'],
+      entryPoint: 'planner',
     },
   },
 };
@@ -43,12 +43,12 @@ export const DEFAULT_CONFIG_JSONC = `{
       "entryPoint": "builder"
     },
     
-    // Squad: A full team for complex tasks
+    // Squad: A coordinated team for complex tasks
     "squad": {
       "name": "Squad",
-      "description": "Full team with manager, architects, builders, and reviewers",
-      "roles": ["manager", "architect", "builder", "frontend-designer", "reviewer", "tester"],
-      "entryPoint": "manager"
+      "description": "A planner, builder, and reviewer working as a coordinated team",
+      "roles": ["planner", "builder", "reviewer"],
+      "entryPoint": "planner"
     }
   }
   

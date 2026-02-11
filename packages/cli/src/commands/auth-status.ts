@@ -50,20 +50,38 @@ export async function authStatus(): Promise<void> {
       try {
         const machineInfo = ensureMachineRegistered();
 
+        // Discover available models from installed harnesses
+        let availableModels: string[] = [];
+        try {
+          const { getDriverRegistry } = await import('../infrastructure/agent-drivers/index.js');
+          const registry = getDriverRegistry();
+          for (const driver of registry.all()) {
+            if (driver.capabilities.dynamicModelDiscovery) {
+              const models = await driver.listModels();
+              availableModels = availableModels.concat(models);
+            }
+          }
+        } catch {
+          // Model discovery is non-critical — continue with empty list
+        }
+
         await client.mutation(api.machines.register, {
-          sessionId: authData.sessionId as any,
+          sessionId: authData.sessionId,
           machineId: machineInfo.machineId,
           hostname: machineInfo.hostname,
           os: machineInfo.os,
           availableHarnesses: machineInfo.availableHarnesses,
           harnessVersions: machineInfo.harnessVersions,
-          availableModels: [],
+          availableModels,
         });
 
         console.log(`\n🖥️  Machine registered: ${machineInfo.hostname}`);
         console.log(`   ID: ${machineInfo.machineId}`);
         if (machineInfo.availableHarnesses.length > 0) {
           console.log(`   Harnesses: ${machineInfo.availableHarnesses.join(', ')}`);
+        }
+        if (availableModels.length > 0) {
+          console.log(`   Models: ${availableModels.length} discovered`);
         }
       } catch (machineError) {
         // Machine registration is non-critical — don't fail auth status

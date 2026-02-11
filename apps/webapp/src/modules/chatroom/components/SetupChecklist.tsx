@@ -8,7 +8,7 @@ import React, { useMemo, useCallback, memo, useState } from 'react';
 
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
-import type { AgentHarness, MachineInfo, AgentConfig } from '../types/machine';
+import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
 
 import { usePrompts } from '@/contexts/PromptsContext';
 
@@ -26,6 +26,8 @@ interface SetupChecklistProps {
   teamEntryPoint?: string;
   participants: Participant[];
   onViewPrompt: (role: string) => void;
+  /** Hide the header section (used when rendered inside a modal with its own header) */
+  hideHeader?: boolean;
 }
 
 // ─── Setup Agent Card ───────────────────────────────────────────────
@@ -41,24 +43,8 @@ interface SetupAgentCardProps {
   agentConfigs: AgentConfig[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
-  sendCommand: (args: {
-    machineId: string;
-    type: string;
-    payload: {
-      chatroomId: Id<'chatroom_rooms'>;
-      role: string;
-      model?: string;
-      agentHarness?: AgentHarness;
-      workingDir?: string;
-    };
-  }) => Promise<unknown>;
+  sendCommand: SendCommandFn;
   onViewPrompt: (role: string) => void;
-  preferences?: {
-    machineId?: string;
-    harnessByRole?: Record<string, string>;
-    modelByRole?: Record<string, string>;
-  } | null;
-  onSavePreferences?: (role: string, machineId: string, harness: string, model?: string) => void;
 }
 
 const SetupAgentCard = memo(function SetupAgentCard({
@@ -73,8 +59,6 @@ const SetupAgentCard = memo(function SetupAgentCard({
   daemonStartCommand,
   sendCommand,
   onViewPrompt,
-  preferences,
-  onSavePreferences,
 }: SetupAgentCardProps) {
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>('remote');
 
@@ -84,8 +68,6 @@ const SetupAgentCard = memo(function SetupAgentCard({
     connectedMachines,
     agentConfigs,
     sendCommand,
-    preferences,
-    onSavePreferences,
   });
 
   return (
@@ -153,53 +135,20 @@ export const SetupChecklist = memo(function SetupChecklist({
   teamEntryPoint: _teamEntryPoint,
   participants,
   onViewPrompt,
+  hideHeader = false,
 }: SetupChecklistProps) {
   const { getAgentPrompt, isProductionUrl } = usePrompts();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const machinesApi = api as any;
-
   // ── Machine data (same pattern as UnifiedAgentListModal) ──────────
-  const machinesResult = useSessionQuery(machinesApi.machines.listMachines, {}) as
+  const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
     | { machines: MachineInfo[] }
     | undefined;
 
-  const configsResult = useSessionQuery(machinesApi.machines.getAgentConfigs, {
+  const configsResult = useSessionQuery(api.machines.getAgentConfigs, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as { configs: AgentConfig[] } | undefined;
 
-  const sendCommand = useSessionMutation(machinesApi.machines.sendCommand);
-  const updatePreferences = useSessionMutation(machinesApi.machines.updateAgentPreferences);
-
-  // Load agent preferences for this chatroom
-  const preferencesResult = useSessionQuery(machinesApi.machines.getAgentPreferences, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as
-    | {
-        machineId?: string;
-        harnessByRole?: Record<string, string>;
-        modelByRole?: Record<string, string>;
-      }
-    | null
-    | undefined;
-
-  // Save preferences callback (called on agent start)
-  const savePreferences = useCallback(
-    async (role: string, machineId: string, harness: string, model?: string) => {
-      try {
-        await updatePreferences({
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          machineId,
-          role,
-          harness,
-          model,
-        });
-      } catch {
-        // Non-critical — don't block agent start if preferences fail to save
-      }
-    },
-    [updatePreferences, chatroomId]
-  );
+  const sendCommand = useSessionMutation(api.machines.sendCommand);
 
   const connectedMachines = useMemo(() => {
     if (!machinesResult?.machines) return [];
@@ -256,15 +205,17 @@ export const SetupChecklist = memo(function SetupChecklist({
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      {/* Header */}
-      <div className="mb-6 pb-6 border-b-2 border-chatroom-border">
-        <h2 className="flex items-center gap-2 text-lg font-bold uppercase tracking-widest text-chatroom-text-primary mb-2">
-          <Rocket size={20} /> Setup Your Team
-        </h2>
-        <p className="text-sm text-chatroom-text-muted">
-          {joinedCount} of {teamRoles.length} agents ready
-        </p>
-      </div>
+      {/* Header - hidden when used in modal */}
+      {!hideHeader && (
+        <div className="mb-6 pb-6 border-b-2 border-chatroom-border">
+          <h2 className="flex items-center gap-2 text-lg font-bold uppercase tracking-widest text-chatroom-text-primary mb-2">
+            <Rocket size={20} /> Setup Your Team
+          </h2>
+          <p className="text-sm text-chatroom-text-muted">
+            {joinedCount} of {teamRoles.length} agents ready
+          </p>
+        </div>
+      )}
 
       {/* Auth Login Section - shown for non-production */}
       {!isProductionUrl && (
@@ -326,8 +277,6 @@ export const SetupChecklist = memo(function SetupChecklist({
               daemonStartCommand={daemonStartCommand}
               sendCommand={sendCommand}
               onViewPrompt={onViewPrompt}
-              preferences={preferencesResult}
-              onSavePreferences={savePreferences}
             />
           );
         })}

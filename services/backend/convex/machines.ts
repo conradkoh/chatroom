@@ -552,6 +552,38 @@ export const sendCommand = mutation({
       if (!machine.availableHarnesses.includes(agentHarness!)) {
         throw new Error(`Agent harness '${agentHarness}' is not available on this machine`);
       }
+
+      // Save team agent config so auto-restart knows this is a remote agent
+      const chatroom = await ctx.db.get('chatroom_rooms', args.payload.chatroomId);
+      if (chatroom) {
+        const teamRoleKey = buildTeamRoleKey(chatroom, args.payload.role);
+        const existingTeamConfig = await ctx.db
+          .query('chatroom_teamAgentConfigs')
+          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+          .first();
+
+        const teamConfigNow = Date.now();
+        const teamConfig = {
+          teamRoleKey,
+          chatroomId: args.payload.chatroomId,
+          role: args.payload.role,
+          type: 'remote' as const,
+          machineId: args.machineId,
+          agentHarness,
+          model: args.payload.model,
+          workingDir: resolvedWorkingDir,
+          updatedAt: teamConfigNow,
+        };
+
+        if (existingTeamConfig) {
+          await ctx.db.patch('chatroom_teamAgentConfigs', existingTeamConfig._id, teamConfig);
+        } else {
+          await ctx.db.insert('chatroom_teamAgentConfigs', {
+            ...teamConfig,
+            createdAt: teamConfigNow,
+          });
+        }
+      }
     }
 
     const now = Date.now();
@@ -588,6 +620,7 @@ export const updateSpawnedAgent = mutation({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     pid: v.optional(v.number()), // null to clear
+    model: v.optional(v.string()), // Save model alongside PID for config persistence
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
@@ -610,11 +643,12 @@ export const updateSpawnedAgent = mutation({
 
     const now = Date.now();
 
-    // Update the spawned agent info
+    // Update the spawned agent info (and model if provided)
     await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
       spawnedAgentPid: args.pid,
       spawnedAt: args.pid ? now : undefined,
       updatedAt: now,
+      ...(args.model !== undefined ? { model: args.model } : {}),
     });
 
     return { success: true };
@@ -686,103 +720,92 @@ export const ackCommand = mutation({
 });
 
 // ============================================================================
-// AGENT PREFERENCES
-// Chatroom-level preferences for agent start defaults
+// TEAM AGENT CONFIGS
+// Team-level agent configuration for auto-restart decisions
 // ============================================================================
 
 /**
- * Get agent start preferences for a chatroom.
- * Returns the current user's preferences for the given chatroom.
+ * Build a unique teamRoleKey from a chatroom and role.
+ * Format: team_<teamId>#role_<roleLowerCase>
  */
-export const getAgentPreferences = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return null;
-    const user = auth.user;
-
-    const prefs = await ctx.db
-      .query('chatroom_agentPreferences')
-      .withIndex('by_chatroom_user', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('userId', user._id)
-      )
-      .first();
-
-    if (!prefs) return null;
-
-    return {
-      machineId: prefs.machineId,
-      harnessByRole: prefs.harnessByRole,
-      modelByRole: prefs.modelByRole,
-    };
-  },
-});
+function buildTeamRoleKey(chatroom: Doc<'chatroom_rooms'>, role: string): string {
+  const teamId = chatroom.teamId || chatroom._id;
+  return `team_${teamId}#role_${role.toLowerCase()}`;
+}
 
 /**
- * Update agent start preferences for a chatroom.
- * Called each time a user starts an agent from the UI to remember their selections.
+ * Save or update team agent configuration.
+ * Called when a user starts (or restarts) an agent to record how it was started.
+ * The auto-restart logic uses this to decide whether to auto-restart.
  */
-export const updateAgentPreferences = mutation({
+export const saveTeamAgentConfig = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    type: v.union(v.literal('remote'), v.literal('custom')),
+    // Remote-specific fields (expected when type === 'remote')
     machineId: v.optional(v.string()),
-    role: v.optional(v.string()),
-    harness: v.optional(v.string()),
+    agentHarness: v.optional(agentHarnessValidator),
     model: v.optional(v.string()),
+    workingDir: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.isAuthenticated) {
       throw new Error('Authentication required');
     }
-    const user = auth.user;
-    const now = Date.now();
 
-    // Find existing preferences
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) throw new Error('Chatroom not found');
+
+    const teamRoleKey = buildTeamRoleKey(chatroom, args.role);
+
+    // Upsert by teamRoleKey
     const existing = await ctx.db
-      .query('chatroom_agentPreferences')
-      .withIndex('by_chatroom_user', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('userId', user._id)
-      )
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
       .first();
 
+    const now = Date.now();
+    const config = {
+      teamRoleKey,
+      chatroomId: args.chatroomId,
+      role: args.role,
+      type: args.type,
+      machineId: args.type === 'remote' ? args.machineId : undefined,
+      agentHarness: args.type === 'remote' ? args.agentHarness : undefined,
+      model: args.type === 'remote' ? args.model : undefined,
+      workingDir: args.type === 'remote' ? args.workingDir : undefined,
+      updatedAt: now,
+    };
+
     if (existing) {
-      // Update existing preferences
-      const updates: Record<string, unknown> = { updatedAt: now };
-
-      if (args.machineId !== undefined) {
-        updates.machineId = args.machineId;
-      }
-
-      // Update harness for specific role
-      if (args.role && args.harness) {
-        const harnessByRole = { ...(existing.harnessByRole ?? {}), [args.role]: args.harness };
-        updates.harnessByRole = harnessByRole;
-      }
-
-      // Update model for specific role
-      if (args.role && args.model) {
-        const modelByRole = { ...(existing.modelByRole ?? {}), [args.role]: args.model };
-        updates.modelByRole = modelByRole;
-      }
-
-      await ctx.db.patch('chatroom_agentPreferences', existing._id, updates);
+      await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, config);
     } else {
-      // Create new preferences
-      await ctx.db.insert('chatroom_agentPreferences', {
-        chatroomId: args.chatroomId,
-        userId: user._id,
-        machineId: args.machineId,
-        harnessByRole: args.role && args.harness ? { [args.role]: args.harness } : undefined,
-        modelByRole: args.role && args.model ? { [args.role]: args.model } : undefined,
-        updatedAt: now,
-      });
+      await ctx.db.insert('chatroom_teamAgentConfigs', { ...config, createdAt: now });
     }
 
     return { success: true };
+  },
+});
+
+/**
+ * Get team agent configs for a chatroom.
+ * Returns all team-level agent configurations for the given chatroom.
+ */
+export const getTeamAgentConfigs = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return [];
+
+    return await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
   },
 });

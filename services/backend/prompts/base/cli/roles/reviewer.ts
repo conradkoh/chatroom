@@ -10,12 +10,13 @@ import { handoffCommand } from '../handoff/command.js';
  * Generate reviewer-specific guidance
  */
 export function getReviewerGuidance(params: ReviewerGuidanceParams): string {
-  const { teamRoles, convexUrl } = params;
+  const { teamRoles, convexUrl, approvalTarget: approvalTargetParam } = params;
   const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
+  const approvalTarget = approvalTargetParam ?? 'user';
 
   const feedbackHandoffCmd = handoffCommand({ nextRole: 'builder', cliEnvPrefix });
-  const approvalHandoffCmd = handoffCommand({ nextRole: 'user', cliEnvPrefix });
+  const approvalHandoffCmd = handoffCommand({ nextRole: approvalTarget, cliEnvPrefix });
 
   return `
 ## Reviewer Workflow

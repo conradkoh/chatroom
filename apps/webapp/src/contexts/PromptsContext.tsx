@@ -5,6 +5,9 @@
  *
  * Pre-fetches and caches agent prompts for all team roles through Convex subscriptions.
  * Components can synchronously access prompts for any role without additional queries.
+ *
+ * Uses a single `getTeamPrompts` backend query that returns all role prompts in one call,
+ * avoiding React Rules of Hooks issues when the team (and number of roles) changes.
  */
 
 import { api } from '@workspace/backend/convex/_generated/api';
@@ -55,36 +58,33 @@ export function PromptsProvider({
     convexUrl,
   });
 
-  // Pre-fetch prompts for all team roles
-  // Each useQuery call creates a subscription that stays up-to-date
-  const promptQueries = teamRoles.map((role) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useQuery(api.prompts.webapp.getAgentPrompt, {
-      chatroomId,
-      role,
-      teamName,
-      teamRoles,
-      teamEntryPoint,
-      convexUrl,
-    });
+  // Single query to fetch all team prompts at once.
+  // Returns Record<string, string> mapping role -> prompt.
+  // This avoids calling useQuery in a loop (which violates React Rules of Hooks
+  // when teamRoles changes size, e.g. pair→squad).
+  const teamPrompts = useQuery(api.prompts.webapp.getTeamPrompts, {
+    chatroomId,
+    teamName,
+    teamRoles,
+    teamEntryPoint,
+    convexUrl,
   });
 
-  // Build a map of role -> prompt
+  // Build a map of role -> prompt from the backend response
   const promptMap = useMemo(() => {
     const map = new Map<string, string>();
-    teamRoles.forEach((role, index) => {
-      const prompt = promptQueries[index];
-      if (prompt) {
+    if (teamPrompts) {
+      for (const [role, prompt] of Object.entries(teamPrompts)) {
         map.set(role.toLowerCase(), prompt);
       }
-    });
+    }
     return map;
-  }, [teamRoles, promptQueries]);
+  }, [teamPrompts]);
 
   // Check if all prompts are loaded
   const isLoaded = useMemo(() => {
-    return isProductionUrl !== undefined && promptQueries.every((prompt) => prompt !== undefined);
-  }, [isProductionUrl, promptQueries]);
+    return isProductionUrl !== undefined && teamPrompts !== undefined;
+  }, [isProductionUrl, teamPrompts]);
 
   const contextValue = useMemo<PromptsContextValue>(
     () => ({

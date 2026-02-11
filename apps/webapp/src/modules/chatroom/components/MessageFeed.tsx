@@ -17,7 +17,6 @@ import {
   XCircle,
   Archive,
   ArrowRightLeft,
-  LogIn,
   HelpCircle,
   Sparkles,
   RotateCcw,
@@ -105,12 +104,6 @@ const getMessageTypeBadge = (type: string) => {
         className: `${BADGE_BASE} bg-chatroom-status-purple/15 text-chatroom-status-purple`,
         label: 'handoff',
         icon: <ArrowRightLeft size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    case 'join':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`,
-        label: 'join',
-        icon: <LogIn size={ICON_SIZE} className="flex-shrink-0" />,
       };
     default:
       return null;
@@ -287,10 +280,8 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Fetch progress history when expanded
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
   const progressMessages = useSessionQuery(
-    chatroomApi.messages.getProgressForTask,
+    api.messages.getProgressForTask,
     isExpanded && message.taskId
       ? {
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -630,15 +621,8 @@ export const MessageFeed = memo(function MessageFeed({
   chatroomId,
   participants,
 }: MessageFeedProps) {
-  // Type assertion workaround: The Convex API types are not fully generated
-  // until `npx convex dev` is run. This assertion allows us to use the API
-  // without full type safety. The correct types will be available after
-  // running `npx convex dev` in the backend service.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-
   const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
-    chatroomApi.messages.listPaginated,
+    api.messages.listPaginated,
     { chatroomId: chatroomId as Id<'chatroom_rooms'> },
     { initialNumItems: INITIAL_PAGE_SIZE }
   ) as {
@@ -701,12 +685,10 @@ export const MessageFeed = memo(function MessageFeed({
     setSelectedMessage(null);
   }, []);
 
-  // Filter out join messages and progress messages, reverse to show oldest first
-  // Progress messages are now shown inline in TaskHeader instead of the main feed
+  // Reverse to show oldest first (backend already filters out join/progress messages)
   const displayMessages = useMemo(() => {
-    const filtered = (results || []).filter((m) => m.type !== 'join' && m.type !== 'progress');
     // Reverse because paginated query returns newest first, but we want oldest at top
-    return [...filtered].reverse();
+    return [...(results || [])].reverse();
   }, [results]);
 
   // Track if user is at bottom of scroll for auto-scroll behavior and floating button
@@ -780,6 +762,24 @@ export const MessageFeed = memo(function MessageFeed({
     prevMessageCountRef.current = displayMessages.length;
   }, [displayMessages.length]);
 
+  // Auto-load more messages when content doesn't fill the container.
+  // This handles the edge case where initial messages are too few to create a scrollbar,
+  // making it impossible for the user to scroll up to trigger loading.
+  //
+  // Loop safety: This progressively loads until either:
+  // 1. Content fills the viewport (scrollHeight > clientHeight), or
+  // 2. All data is loaded (status becomes 'Exhausted')
+  // The status === 'CanLoadMore' guard prevents re-triggering during 'LoadingMore'.
+  useEffect(() => {
+    if (feedRef.current && status === 'CanLoadMore') {
+      const { scrollHeight, clientHeight } = feedRef.current;
+      // If content doesn't overflow (no scrollbar), auto-load more
+      if (scrollHeight <= clientHeight) {
+        loadMore(LOAD_MORE_SIZE);
+      }
+    }
+  }, [status, loadMore, displayMessages.length]);
+
   // Handle scroll: load more when near top, track if at bottom
   const handleScroll = useCallback(() => {
     // Track if user is at bottom for auto-scroll behavior
@@ -827,12 +827,16 @@ export const MessageFeed = memo(function MessageFeed({
         ref={feedRef}
         onScroll={handleScroll}
       >
-        {/* Load More indicator at top - shows when more messages available */}
+        {/* Load More indicator at top - clickable to load older messages */}
         {status === 'CanLoadMore' && (
-          <div className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={() => loadMore(LOAD_MORE_SIZE)}
+            className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1 hover:text-chatroom-text-primary transition-colors cursor-pointer"
+          >
             <ChevronUp size={12} />
-            Scroll up to load older messages
-          </div>
+            Load older messages
+          </button>
         )}
         {status === 'LoadingMore' && (
           <div className="w-full py-2 mb-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">

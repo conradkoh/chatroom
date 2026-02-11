@@ -308,7 +308,7 @@ export default defineSchema({
     type: v.union(
       v.literal('message'),
       v.literal('handoff'),
-      v.literal('join'),
+      v.literal('join'), // Deprecated: no longer created, kept for backwards compat with existing data
       v.literal('progress')
     ),
     // Classification of user messages (set via task-started command)
@@ -661,22 +661,38 @@ export default defineSchema({
   }).index('by_machineId_status', ['machineId', 'status']),
 
   /**
-   * Agent start preferences per chatroom.
-   * Updated each time a user starts a remote agent from the UI.
-   * Used to improve default selections for machine, harness, and model.
+   * Team-level agent configuration.
+   * Tracks how agents for each team/role are configured to start.
+   * Used by auto-restart logic to determine if an agent should be auto-restarted.
+   *
+   * When type is 'remote', the config contains machine/harness/model info
+   * needed to restart the agent via the daemon.
+   * When type is 'custom' (or no config exists), auto-restart is skipped.
    */
-  chatroom_agentPreferences: defineTable({
-    // Chatroom this preference belongs to
+  chatroom_teamAgentConfigs: defineTable({
+    // Unique key: team_<teamId>#role_<role>
+    teamRoleKey: v.string(),
+
+    // Reference to the chatroom (for cascading deletes/queries)
     chatroomId: v.id('chatroom_rooms'),
-    // User who set the preference
-    userId: v.id('users'),
-    // Last selected machine ID
+
+    // The role this config is for
+    role: v.string(),
+
+    // Config type discriminator
+    type: v.union(v.literal('remote'), v.literal('custom')),
+
+    // Remote agent config (only present when type === 'remote')
     machineId: v.optional(v.string()),
-    // Last selected agent harness per role (e.g. { "builder": "opencode" })
-    harnessByRole: v.optional(v.record(v.string(), v.string())),
-    // Last selected model per role (e.g. { "builder": "github-copilot/claude-sonnet-4.5" })
-    modelByRole: v.optional(v.record(v.string(), v.string())),
-    // Last updated timestamp
+    agentHarness: v.optional(v.literal('opencode')),
+    model: v.optional(v.string()),
+    workingDir: v.optional(v.string()),
+
+    // Timestamps
+    createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_chatroom_user', ['chatroomId', 'userId']),
+  })
+    .index('by_teamRoleKey', ['teamRoleKey'])
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_role', ['chatroomId', 'role']),
 });

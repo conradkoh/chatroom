@@ -57,8 +57,7 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
   if (attachedArtifactIds.length > 0) {
     try {
       const areValid = await client.query(api.artifacts.validateArtifactIds, {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        sessionId: sessionId as any, // SessionId branded type from convex-helpers
+        sessionId,
         artifactIds: attachedArtifactIds as Id<'chatroom_artifacts'>[],
       });
 
@@ -90,8 +89,7 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
   let result;
   try {
     result = (await client.mutation(api.messages.sendHandoff, {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      sessionId: sessionId as any, // SessionId branded type from convex-helpers
+      sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       senderRole: role,
       content: message,

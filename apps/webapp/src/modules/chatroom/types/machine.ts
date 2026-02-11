@@ -15,6 +15,14 @@
 
 // ─── Types ──────────────────────────────────────────────────────────
 
+// ─── Send Command (discriminated union) ─────────────────────────────
+
+/**
+ * Discriminated union for machine command arguments.
+ * Each command type carries only the payload it needs.
+ */
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+
 export type AgentHarness = 'opencode';
 
 export interface HarnessVersionInfo {
@@ -47,6 +55,37 @@ export interface AgentConfig {
   spawnedAgentPid?: number;
   spawnedAt?: number;
 }
+
+export type SendCommandArgs =
+  | {
+      machineId: string;
+      type: 'start-agent';
+      payload: {
+        chatroomId: Id<'chatroom_rooms'>;
+        role: string;
+        model?: string;
+        agentHarness: AgentHarness;
+        workingDir?: string;
+      };
+    }
+  | {
+      machineId: string;
+      type: 'stop-agent';
+      payload: {
+        chatroomId: Id<'chatroom_rooms'>;
+        role: string;
+      };
+    }
+  | {
+      machineId: string;
+      type: 'ping';
+    }
+  | {
+      machineId: string;
+      type: 'status';
+    };
+
+export type SendCommandFn = (args: SendCommandArgs) => Promise<unknown>;
 
 // ─── Constants ──────────────────────────────────────────────────────
 

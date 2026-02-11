@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { internalMutation, mutation, query } from './_generated/server';
 import {
@@ -31,7 +32,7 @@ const MAX_TASK_LIST_LIMIT = 100;
  */
 export const createTask = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     content: v.string(),
     createdBy: v.string(),
@@ -101,7 +102,7 @@ export const createTask = mutation({
  */
 export const claimTask = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
   },
@@ -150,7 +151,7 @@ export const claimTask = mutation({
  */
 export const startTask = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     taskId: v.optional(v.id('chatroom_tasks')), // Optional: specific task to start
@@ -214,7 +215,7 @@ export const startTask = mutation({
  */
 export const completeTask = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
   },
@@ -314,7 +315,7 @@ export const completeTask = mutation({
  */
 export const cancelTask = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     taskId: v.id('chatroom_tasks'),
     force: v.optional(v.boolean()),
   },
@@ -413,7 +414,7 @@ export const cancelTask = mutation({
  */
 export const completeTaskById = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     taskId: v.id('chatroom_tasks'),
     force: v.optional(v.boolean()),
   },
@@ -508,7 +509,7 @@ export const completeTaskById = mutation({
  */
 export const updateTask = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     taskId: v.id('chatroom_tasks'),
     content: v.string(),
   },
@@ -546,7 +547,7 @@ export const updateTask = mutation({
  */
 export const moveToQueue = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     taskId: v.id('chatroom_tasks'),
     // Optional custom message to send instead of task content
     customMessage: v.optional(v.string()),
@@ -636,7 +637,7 @@ export const moveToQueue = mutation({
  */
 export const markBacklogComplete = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     taskId: v.id('chatroom_tasks'),
   },
   handler: async (ctx, args) => {
@@ -679,7 +680,7 @@ export const markBacklogComplete = mutation({
  */
 export const markBacklogForReview = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     taskId: v.id('chatroom_tasks'),
   },
   handler: async (ctx, args) => {
@@ -718,7 +719,7 @@ export const markBacklogForReview = mutation({
  */
 export const closeBacklogTask = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     taskId: v.id('chatroom_tasks'),
   },
   handler: async (ctx, args) => {
@@ -756,7 +757,7 @@ export const closeBacklogTask = mutation({
  */
 export const reopenBacklogTask = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     taskId: v.id('chatroom_tasks'),
   },
   handler: async (ctx, args) => {
@@ -795,7 +796,7 @@ export const reopenBacklogTask = mutation({
  */
 export const sendBackForRework = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     taskId: v.id('chatroom_tasks'),
     // Optional feedback message for the agent
     feedback: v.optional(v.string()),
@@ -876,7 +877,7 @@ export const sendBackForRework = mutation({
  */
 export const patchTask = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     taskId: v.id('chatroom_tasks'),
     complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
     value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
@@ -932,7 +933,7 @@ export const patchTask = mutation({
  */
 export const resetStuckTask = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     taskId: v.id('chatroom_tasks'),
   },
   handler: async (ctx, args) => {
@@ -976,7 +977,7 @@ export const resetStuckTask = mutation({
  */
 export const listTasks = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     statusFilter: v.optional(
       v.union(
@@ -1061,7 +1062,7 @@ export const listTasks = query({
  */
 export const listActiveTasks = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     limit: v.optional(v.number()),
   },
@@ -1107,7 +1108,7 @@ export const listActiveTasks = query({
  */
 export const listArchivedTasks = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     limit: v.optional(v.number()),
   },
@@ -1143,7 +1144,7 @@ export const listArchivedTasks = query({
  */
 export const getActiveTask = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
@@ -1183,7 +1184,7 @@ export const getActiveTask = query({
  */
 export const promoteNextTask = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
@@ -1249,7 +1250,7 @@ export const promoteNextTask = mutation({
  */
 export const checkQueueHealth = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
@@ -1296,7 +1297,7 @@ export const checkQueueHealth = query({
  */
 export const getTaskCounts = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
   },
   handler: async (ctx, args) => {
@@ -1330,7 +1331,7 @@ export const getTaskCounts = query({
  */
 export const getPendingTasksForRole = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
   },
@@ -1391,7 +1392,7 @@ export const getPendingTasksForRole = query({
  */
 export const getTasksByIds = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     taskIds: v.array(v.id('chatroom_tasks')),
   },
   handler: async (ctx, args) => {
@@ -1429,7 +1430,7 @@ export const getTasksByIds = query({
  */
 export const getTask = query({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     taskId: v.id('chatroom_tasks'),
   },

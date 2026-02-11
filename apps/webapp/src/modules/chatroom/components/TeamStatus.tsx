@@ -3,20 +3,7 @@
 import { CheckCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
 import React, { memo } from 'react';
 
-interface ParticipantInfo {
-  role: string;
-  status: string;
-  readyUntil?: number;
-  isExpired: boolean;
-}
-
-interface TeamReadiness {
-  isReady: boolean;
-  expectedRoles: string[];
-  missingRoles: string[];
-  expiredRoles?: string[];
-  participants?: ParticipantInfo[];
-}
+import type { TeamReadiness } from '../types/readiness';
 
 interface TeamStatusProps {
   readiness: TeamReadiness | null | undefined;

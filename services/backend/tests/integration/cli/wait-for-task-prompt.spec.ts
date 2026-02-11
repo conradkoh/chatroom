@@ -322,10 +322,6 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       \`\`\`
 
 
-       ## Builder Workflow
-       
-       You are the implementer responsible for writing code and building solutions.
-       
        **Pair Team Context:**
        - You work with a reviewer who will check your code
        - Focus on implementation, let reviewer handle quality checks
@@ -370,12 +366,9 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       - Use \`git status\`, \`git diff\` to review changes before committing
 
        
-       **Pair Team Handoff Rules:**
-       - **After code changes** → Hand off to reviewer
-       - **For simple questions** → Can hand off directly to user
-       - **For new_feature classification** → MUST hand off to reviewer (cannot skip review)
-       
-       
+
+      ### Handoff Options
+      Available targets: reviewer, user
 
       ### Commands
 
@@ -425,14 +418,14 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       ============================================================
       🆔 TASK INFORMATION
       ============================================================
-      Task ID: 10009;chatroom_tasks
-      Message ID: 10008;chatroom_messages
+      Task ID: 10007;chatroom_tasks
+      Message ID: 10006;chatroom_messages
 
       📋 NEXT STEPS
       ============================================================
       To acknowledge and classify this message, run:
 
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10009;chatroom_tasks --origin-message-classification=<type>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=<type>
 
       📝 Classification Requirements:
          • question: No additional fields required
@@ -440,7 +433,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
          • new_feature: REQUIRES --title, --description, --tech-specs
 
       💡 Example for new_feature:
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10009;chatroom_tasks --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       <title>
       ---DESCRIPTION---
@@ -508,10 +501,6 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       You are the implementer responsible for writing code and building solutions.
 
 
-       ## Builder Workflow
-       
-       You are the implementer responsible for writing code and building solutions.
-       
        **Pair Team Context:**
        - You work with a reviewer who will check your code
        - Focus on implementation, let reviewer handle quality checks
@@ -555,12 +544,6 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       - Keep the working directory clean between commits
       - Use \`git status\`, \`git diff\` to review changes before committing
 
-       
-       **Pair Team Handoff Rules:**
-       - **After code changes** → Hand off to reviewer
-       - **For simple questions** → Can hand off directly to user
-       - **For new_feature classification** → MUST hand off to reviewer (cannot skip review)
-       
        
 
       ### Handoff Options
@@ -626,7 +609,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       ============================================================
 
       1. Mark task as started:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10009;chatroom_tasks --origin-message-classification=follow_up
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=follow_up
 
       2. Do the work
 
@@ -941,13 +924,13 @@ Use React Context + CSS variables`,
       4. MUST hand off to reviewer for approval:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10030;chatroom_rooms --role=builder --next-role=reviewer << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10024;chatroom_rooms --role=builder --next-role=reviewer << 'EOF'
       [Your message here]
       EOF
       \`\`\`
 
       💡 You're working on:
-      Message ID: 10035;chatroom_messages"
+      Message ID: 10027;chatroom_messages"
     `);
 
     // Verify reminder structure
@@ -1014,20 +997,20 @@ Use React Context + CSS variables`,
       💡 ✅ Task acknowledged as QUESTION.
 
       **Next steps:**
-      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10039;chatroom_rooms --role=builder << 'EOF'
+      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10031;chatroom_rooms --role=builder << 'EOF'
       [Your progress message here]
       EOF\`
       2. Answer the user's question
       3. When done, hand off directly to user:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10039;chatroom_rooms --role=builder --next-role=user << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10031;chatroom_rooms --role=builder --next-role=user << 'EOF'
       [Your message here]
       EOF
       \`\`\`
 
       💡 You're working on:
-      Message ID: 10044;chatroom_messages"
+      Message ID: 10034;chatroom_messages"
     `);
 
     // Verify reminder structure
@@ -1101,7 +1084,7 @@ Use React Context + CSS variables`,
          - If original was a NEW FEATURE → hand off to reviewer when done
 
       💡 You're working on:
-      Message ID: 10053;chatroom_messages"
+      Message ID: 10041;chatroom_messages"
     `);
 
     // Verify reminder structure
@@ -1184,7 +1167,7 @@ Testing: Toggle in settings switches between light/dark`;
       Testing: Toggle in settings switches between light/dark
 
       ⏳ Now run wait-for-task to wait for your next assignment:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10057;chatroom_rooms --role=builder"
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10045;chatroom_rooms --role=builder"
     `);
 
     // Verify mutation result
@@ -1277,7 +1260,7 @@ See docs/auth.md for more details.`;
       🎉 Workflow complete! Control returned to user.
 
       ⏳ Now run wait-for-task to wait for your next assignment:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10068;chatroom_rooms --role=builder"
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10054;chatroom_rooms --role=builder"
     `);
 
     // Verify mutation result
@@ -1655,36 +1638,32 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       View the conversation history and pending tasks for your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10078;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10062;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### Wait for Tasks
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### Start Working
       Before starting work on a received message, acknowledge it:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10078;chatroom_rooms --role=reviewer --task-id=<task-id> --no-classify
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10062;chatroom_rooms --role=reviewer --task-id=<task-id> --no-classify
       \`\`\`
 
       This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.
 
 
-       ## Reviewer Workflow
-       
-       You receive handoffs from other agents containing work to review or validate. When you receive any message, you MUST first acknowledge it.
-       
-       **Important: DO run task-started** - Every message you receive needs to be acknowledged, even handoffs.
-       
        **Pair Team Context:**
        - You work with a builder who implements code
        - Focus on code quality and requirements
        - Provide constructive feedback to builder
+       - If the user's goal is met → hand off to user
+       - If changes are needed → hand off to builder with specific feedback
        
        
       ## Reviewer Workflow
@@ -1785,18 +1764,16 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       **Note:** Apply these policies based on the type of changes being reviewed. Not all policies may be relevant for every review.
 
        
-       **Pair Team Handoff Rules:**
-       - If the user's goal is met → hand off to user
-       - If changes are needed → hand off to builder with specific feedback
-       
-       
+
+      ### Handoff Options
+      Available targets: builder, user
 
       ### Commands
 
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10078;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10062;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
       [Your message here]
       EOF
       \`\`\`
@@ -1809,7 +1786,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10078;chatroom_rooms --role=reviewer << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10062;chatroom_rooms --role=reviewer << 'EOF'
       [Your progress message here]
       EOF
       \`\`\`
@@ -1818,7 +1795,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
       \`\`\`
 
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -1828,7 +1805,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
       \`\`\`
 
       ══════════════════════════════════════════════════
@@ -1839,14 +1816,14 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       ============================================================
       🆔 TASK INFORMATION
       ============================================================
-      Task ID: 10086;chatroom_tasks
-      Message ID: 10085;chatroom_messages
+      Task ID: 10068;chatroom_tasks
+      Message ID: 10067;chatroom_messages
 
       📋 NEXT STEPS
       ============================================================
       To start working on this task, run:
 
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10078;chatroom_rooms --role=reviewer --task-id=10086;chatroom_tasks --no-classify
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10062;chatroom_rooms --role=reviewer --task-id=10068;chatroom_tasks --no-classify
 
       ⚠️  Note: This task was handed off to you, so classification was already done by the entry point role.
       ============================================================
@@ -1871,14 +1848,14 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       View the latest relevant chat history. Use when starting a new session or when context is unclear.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10078;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10062;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### List Messages
       Query specific messages with filters.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=10078;chatroom_rooms --role=reviewer --sender-role=user --limit=5 --full
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=10062;chatroom_rooms --role=reviewer --sender-role=user --limit=5 --full
       \`\`\`
 
       ### View Code Changes
@@ -1892,26 +1869,26 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       Mark current task as complete without handing off to another role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=10078;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=10062;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### Backlog
       The chatroom has a task backlog. View items with:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10078;chatroom_rooms --role=reviewer --status=backlog
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10062;chatroom_rooms --role=reviewer --status=backlog
       \`\`\`
 
       **After completing work on a backlog item**, mark it for user review:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog mark-for-review --chatroom-id=10078;chatroom_rooms --role=reviewer --task-id=<task-id>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog mark-for-review --chatroom-id=10062;chatroom_rooms --role=reviewer --task-id=<task-id>
       \`\`\`
 
       This transitions the task to \`pending_user_review\` where the user can confirm completion or send it back for rework.
 
       #### Backlog Scoring and Maintenance
-      When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10078;chatroom_rooms --role=reviewer --status=backlog\` to view items, then provide recommendations.
+      When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10062;chatroom_rooms --role=reviewer --status=backlog\` to view items, then provide recommendations.
 
       More actions: \`chatroom backlog --help\`
 
@@ -1920,16 +1897,12 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       You are the quality guardian responsible for reviewing and validating code changes.
 
 
-       ## Reviewer Workflow
-       
-       You receive handoffs from other agents containing work to review or validate. When you receive any message, you MUST first acknowledge it.
-       
-       **Important: DO run task-started** - Every message you receive needs to be acknowledged, even handoffs.
-       
        **Pair Team Context:**
        - You work with a builder who implements code
        - Focus on code quality and requirements
        - Provide constructive feedback to builder
+       - If the user's goal is met → hand off to user
+       - If changes are needed → hand off to builder with specific feedback
        
        
       ## Reviewer Workflow
@@ -2030,11 +2003,6 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       **Note:** Apply these policies based on the type of changes being reviewed. Not all policies may be relevant for every review.
 
        
-       **Pair Team Handoff Rules:**
-       - If the user's goal is met → hand off to user
-       - If changes are needed → hand off to builder with specific feedback
-       
-       
 
       ### Current Task: NEW FEATURE
       New functionality request. MUST go through reviewer before returning to user.
@@ -2047,7 +2015,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10078;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10062;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
       [Your message here]
       EOF
       \`\`\`
@@ -2060,7 +2028,7 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10078;chatroom_rooms --role=reviewer << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10062;chatroom_rooms --role=reviewer << 'EOF'
       [Your progress message here]
       EOF
       \`\`\`
@@ -2069,14 +2037,14 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
       \`\`\`
 
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
       Remember to listen for new messages using \`wait-for-task\` after handoff. Otherwise your team might get stuck not be able to reach you.
 
-          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10078;chatroom_rooms --role=reviewer
+          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
 
       ============================================================
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -2233,14 +2201,14 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       View the conversation history and pending tasks for your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10089;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10071;chatroom_rooms --role=builder
       \`\`\`
 
       ### Wait for Tasks
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10089;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10071;chatroom_rooms --role=builder
       \`\`\`
 
       ### Classify Task
@@ -2250,21 +2218,21 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       User is asking for information or clarification.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10089;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=question
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10071;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=question
       \`\`\`
 
       #### Follow Up
       User is responding to previous work or providing feedback.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10089;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=follow_up
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10071;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=follow_up
       \`\`\`
 
       #### New Feature
       User wants new functionality. Requires title, description, and tech specs.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10089;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10071;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       [Feature title]
       ---DESCRIPTION---
@@ -2275,10 +2243,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       \`\`\`
 
 
-       ## Builder Workflow
-       
-       You are the implementer responsible for writing code and building solutions.
-       
        **Pair Team Context:**
        - You work with a reviewer who will check your code
        - Focus on implementation, let reviewer handle quality checks
@@ -2323,19 +2287,16 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - Use \`git status\`, \`git diff\` to review changes before committing
 
        
-       **Pair Team Handoff Rules:**
-       - **After code changes** → Hand off to reviewer
-       - **For simple questions** → Can hand off directly to user
-       - **For new_feature classification** → MUST hand off to reviewer (cannot skip review)
-       
-       
+
+      ### Handoff Options
+      Available targets: reviewer, user
 
       ### Commands
 
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10089;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10071;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
       [Your message here]
       EOF
       \`\`\`
@@ -2348,7 +2309,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10089;chatroom_rooms --role=builder << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10071;chatroom_rooms --role=builder << 'EOF'
       [Your progress message here]
       EOF
       \`\`\`
@@ -2357,7 +2318,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10089;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10071;chatroom_rooms --role=builder
       \`\`\`
 
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -2367,7 +2328,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10089;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10071;chatroom_rooms --role=builder
       \`\`\`"
     `);
   });
@@ -2436,36 +2397,32 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       View the conversation history and pending tasks for your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10096;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10076;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### Wait for Tasks
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10096;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10076;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### Start Working
       Before starting work on a received message, acknowledge it:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10096;chatroom_rooms --role=reviewer --task-id=<task-id> --no-classify
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10076;chatroom_rooms --role=reviewer --task-id=<task-id> --no-classify
       \`\`\`
 
       This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.
 
 
-       ## Reviewer Workflow
-       
-       You receive handoffs from other agents containing work to review or validate. When you receive any message, you MUST first acknowledge it.
-       
-       **Important: DO run task-started** - Every message you receive needs to be acknowledged, even handoffs.
-       
        **Pair Team Context:**
        - You work with a builder who implements code
        - Focus on code quality and requirements
        - Provide constructive feedback to builder
+       - If the user's goal is met → hand off to user
+       - If changes are needed → hand off to builder with specific feedback
        
        
       ## Reviewer Workflow
@@ -2566,18 +2523,16 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **Note:** Apply these policies based on the type of changes being reviewed. Not all policies may be relevant for every review.
 
        
-       **Pair Team Handoff Rules:**
-       - If the user's goal is met → hand off to user
-       - If changes are needed → hand off to builder with specific feedback
-       
-       
+
+      ### Handoff Options
+      Available targets: builder, user
 
       ### Commands
 
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10096;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10076;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
       [Your message here]
       EOF
       \`\`\`
@@ -2590,7 +2545,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10096;chatroom_rooms --role=reviewer << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10076;chatroom_rooms --role=reviewer << 'EOF'
       [Your progress message here]
       EOF
       \`\`\`
@@ -2599,7 +2554,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10096;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10076;chatroom_rooms --role=reviewer
       \`\`\`
 
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -2609,7 +2564,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10096;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10076;chatroom_rooms --role=reviewer
       \`\`\`"
     `);
   });
@@ -2740,7 +2695,7 @@ describe('Task-Complete Command', () => {
          Tasks completed: 1
 
       ⏳ Now run wait-for-task to wait for your next assignment:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10124;chatroom_rooms --role=builder"
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10096;chatroom_rooms --role=builder"
     `);
 
     // Verify mutation result

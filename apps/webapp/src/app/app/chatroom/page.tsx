@@ -68,7 +68,7 @@ export default function ChatroomPage() {
   return (
     <div className="flex h-full overflow-hidden">
       {/* Left sidebar - chatroom list (desktop only) */}
-      <div className="hidden lg:flex w-56 flex-shrink-0 border-r-2 border-chatroom-border bg-chatroom-bg-surface">
+      <div className="chatroom-root hidden lg:flex w-56 flex-shrink-0 border-r-2 border-chatroom-border-strong bg-chatroom-bg-surface">
         <ChatroomSidebar activeChatroomId={chatroomId} />
       </div>
 

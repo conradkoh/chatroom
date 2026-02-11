@@ -23,22 +23,26 @@
  */
 
 import { handoffCommand } from './base/cli/handoff/command.js';
-import {
-  getTaskStartedPrompt,
-  getTaskStartedPromptForHandoffRecipient,
-  getContextGainingGuidance,
-} from './base/cli/index.js';
 import { reportProgressCommand } from './base/cli/report-progress/command.js';
-import { getBuilderGuidance as getBaseBuilderGuidance } from './base/cli/roles/builder.js';
-import { getReviewerGuidance as getBaseReviewerGuidance } from './base/cli/roles/reviewer.js';
-import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
+import { getBaseRoleGuidanceFromContext } from './base/cli/roles/fromContext.js';
+import { getWaitForTaskGuidance } from './base/cli/wait-for-task/reminder.js';
+import { getClassificationGuideSection } from './sections/classification-guide.js';
+import { getCommandsReferenceSection } from './sections/commands-reference.js';
+import { getCurrentClassificationSection } from './sections/current-classification.js';
+import { getGettingStartedSection } from './sections/getting-started.js';
+import { getHandoffOptionsSection } from './sections/handoff-options.js';
+import { getNextStepSection } from './sections/next-step.js';
+import { getRoleGuidanceSection } from './sections/role-guidance.js';
 import {
-  getWaitForTaskGuidance,
-  getWaitForTaskReminder,
-} from './base/cli/wait-for-task/reminder.js';
-import { getBuilderGuidance as getTeamBuilderGuidance } from './teams/pair/prompts/builder.js';
-import { getReviewerGuidance as getTeamReviewerGuidance } from './teams/pair/prompts/reviewer.js';
-import { getRoleTemplate } from './templates';
+  getTeamHeaderSection,
+  getRoleTitleSection,
+  getRoleDescriptionSection,
+} from './sections/role-identity.js';
+import { getPairRoleGuidanceFromContext } from './teams/pair/prompts/fromContext.js';
+import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext.js';
+// getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
+import type { SelectorContext, PromptSection } from './types/sections.js';
+import { composeSections } from './types/sections.js';
 import { getCliEnvPrefix } from './utils/index.js';
 
 // Guidelines and policies are exported for external use
@@ -80,50 +84,94 @@ export function generateGeneralInstructions(_input?: GeneralInstructionsInput): 
 // =============================================================================
 
 /**
- * Get team-specific role guidance
+ * Detect team type from team configuration
  */
-function getTeamRoleGuidance(
-  role: string,
-  teamRoles: string[],
-  isEntryPoint: boolean,
-  convexUrl: string
-): string | null {
-  const normalizedRole = role.toLowerCase();
+function detectTeamType(teamRoles: string[], teamName?: string): 'pair' | 'squad' | 'unknown' {
+  const normalizedName = (teamName || '').toLowerCase();
+  if (normalizedName.includes('squad')) return 'squad';
+  if (normalizedName.includes('pair')) return 'pair';
 
+  // Detect by role composition
+  const hasPlanner = teamRoles.some((r) => r.toLowerCase() === 'planner');
+  if (hasPlanner) return 'squad';
+
+  const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
+  const hasReviewer = teamRoles.some((r) => r.toLowerCase() === 'reviewer');
+  if (hasBuilder && hasReviewer && teamRoles.length === 2) return 'pair';
+
+  // 'unknown' is intentional: custom teams get generic base guidance rather than
+  // pair-specific rules which could impose incorrect handoff constraints.
+  // Base guidance provides safe defaults for any team structure.
+  return 'unknown';
+}
+
+// Note: getTeamRoleGuidance and getBaseRoleGuidance were removed in Phase 3.
+// Their functionality is now handled by getRoleGuidanceFromContext which uses
+// SelectorContext-based dispatching through the fromContext adapters.
+
+// =============================================================================
+// SELECTOR-CONTEXT BASED DISPATCHERS (Phase 1.2/1.3)
+// =============================================================================
+
+/**
+ * Build a SelectorContext from the various parameters used in the generator.
+ *
+ * This is the bridge from the current "spread of arguments" pattern to the
+ * unified SelectorContext type. As callers migrate, they can construct
+ * SelectorContext directly instead of going through this helper.
+ */
+export function buildSelectorContext(params: {
+  role: string;
+  teamRoles: string[];
+  teamName?: string;
+  teamEntryPoint?: string;
+  convexUrl: string;
+  chatroomId?: string;
+  availableMembers?: string[];
+  workflow?: 'new_feature' | 'question' | 'follow_up' | null;
+}): SelectorContext {
+  const entryPoint = params.teamEntryPoint || params.teamRoles[0] || 'builder';
+  return {
+    role: params.role,
+    team: detectTeamType(params.teamRoles, params.teamName),
+    workflow: params.workflow,
+    teamRoles: params.teamRoles,
+    availableMembers: params.availableMembers,
+    isEntryPoint: params.role.toLowerCase() === entryPoint.toLowerCase(),
+    convexUrl: params.convexUrl,
+    chatroomId: params.chatroomId,
+  };
+}
+
+/**
+ * Get role guidance using SelectorContext-based dispatching.
+ *
+ * Follows the same team → base fallback pattern as getTeamRoleGuidance/getBaseRoleGuidance
+ * but uses the unified SelectorContext type throughout.
+ *
+ * This is the new preferred entry point for getting role guidance.
+ */
+export function getRoleGuidanceFromContext(ctx: SelectorContext): string {
   try {
-    if (normalizedRole === 'builder') {
-      return getTeamBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
+    if (ctx.team === 'squad') {
+      const result = getSquadRoleGuidanceFromContext(ctx);
+      if (result !== null) return result;
     }
-    if (normalizedRole === 'reviewer') {
-      return getTeamReviewerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
+
+    if (ctx.team === 'pair') {
+      const result = getPairRoleGuidanceFromContext(ctx);
+      if (result !== null) return result;
     }
   } catch {
     // Fall back to base guidance
   }
 
-  return null;
+  return getBaseRoleGuidanceFromContext(ctx);
 }
 
-/**
- * Get base role guidance
- */
-function getBaseRoleGuidance(
-  role: string,
-  teamRoles: string[],
-  isEntryPoint: boolean,
-  convexUrl: string
-): string {
-  const normalizedRole = role.toLowerCase();
-
-  if (normalizedRole === 'builder') {
-    return getBaseBuilderGuidance({ role, teamRoles, isEntryPoint, convexUrl });
-  }
-  if (normalizedRole === 'reviewer') {
-    return getBaseReviewerGuidance({ role, teamRoles, isEntryPoint, convexUrl });
-  }
-
-  return '';
-}
+// =============================================================================
+// ROLE PROMPT GENERATION
+// =============================================================================
 
 export interface RolePromptContext {
   chatroomId: string;
@@ -136,6 +184,8 @@ export interface RolePromptContext {
   canHandoffToUser: boolean;
   restrictionReason?: string | null;
   convexUrl: string; // Required Convex URL for env var prefix generation
+  /** Currently available (waiting) team members for dynamic workflow adaptation */
+  availableMembers?: string[];
   // User context for reviewers - the original request that needs to be validated
   userContext?: {
     originalRequest: string;
@@ -148,129 +198,67 @@ export interface RolePromptContext {
 /**
  * Generate a role-specific prompt for the given context.
  * This is called on every message to provide fresh context.
+ *
+ * Uses PromptSection[] assembly for traceability and composability.
  */
 export function generateRolePrompt(ctx: RolePromptContext): string {
-  const template = getRoleTemplate(ctx.role);
-  const normalizedRole = ctx.role.toLowerCase();
-  const entryPoint = ctx.teamEntryPoint || ctx.teamRoles[0] || 'builder';
-  const isEntryPoint = normalizedRole === entryPoint.toLowerCase();
+  // Build SelectorContext for unified dispatching
+  const selectorCtx = buildSelectorContext({
+    role: ctx.role,
+    teamRoles: ctx.teamRoles,
+    teamName: ctx.teamName,
+    teamEntryPoint: ctx.teamEntryPoint,
+    convexUrl: ctx.convexUrl,
+    chatroomId: ctx.chatroomId,
+    availableMembers: ctx.availableMembers,
+    workflow: ctx.currentClassification,
+  });
 
-  const sections: string[] = [];
+  const sections: PromptSection[] = [];
 
-  // Role header
-  sections.push(`## Your Role: ${template.title.toUpperCase()}`);
-  sections.push(template.description);
+  // Role identity
+  sections.push(getRoleTitleSection(selectorCtx));
+  sections.push(getRoleDescriptionSection(selectorCtx));
 
   // Role-specific guidance (team-aware)
-  const teamGuidance = getTeamRoleGuidance(ctx.role, ctx.teamRoles, isEntryPoint, ctx.convexUrl);
-  if (teamGuidance) {
-    sections.push(teamGuidance);
-  } else {
-    // Fall back to base guidance
-    sections.push(getBaseRoleGuidance(ctx.role, ctx.teamRoles, isEntryPoint, ctx.convexUrl));
-  }
+  sections.push(getRoleGuidanceSection(selectorCtx));
 
   // Current task context
   if (ctx.currentClassification) {
-    sections.push(getClassificationContext(ctx.currentClassification));
+    sections.push(getCurrentClassificationSection(ctx.currentClassification));
   }
 
   // Available handoff options
-  sections.push(getHandoffSection(ctx));
+  sections.push(
+    getHandoffOptionsSection({
+      availableHandoffRoles: ctx.availableHandoffRoles,
+      canHandoffToUser: ctx.canHandoffToUser,
+      restrictionReason: ctx.restrictionReason,
+    })
+  );
 
   // Commands reference
-  sections.push(getCommandsSection(ctx));
+  sections.push(
+    getCommandsReferenceSection({
+      chatroomId: ctx.chatroomId,
+      role: ctx.role,
+      convexUrl: ctx.convexUrl,
+    })
+  );
 
-  return sections.join('\n\n');
+  return composeSections(sections);
 }
 
-function getClassificationContext(
-  classification: 'question' | 'new_feature' | 'follow_up'
-): string {
-  const info: Record<typeof classification, { label: string; description: string }> = {
-    question: {
-      label: 'QUESTION',
-      description: 'User is asking a question. Can respond directly after answering.',
-    },
-    new_feature: {
-      label: 'NEW FEATURE',
-      description: 'New functionality request. MUST go through reviewer before returning to user.',
-    },
-    follow_up: {
-      label: 'FOLLOW-UP',
-      description: 'Follow-up to previous task. Same rules as the original apply.',
-    },
-  };
-
-  const { label, description } = info[classification];
-  return `### Current Task: ${label}\n${description}`;
-}
-
-function getHandoffSection(ctx: RolePromptContext): string {
-  const roles = ctx.availableHandoffRoles.join(', ');
-  let section = `### Handoff Options\nAvailable targets: ${roles}`;
-
-  if (!ctx.canHandoffToUser && ctx.restrictionReason) {
-    section += `\n\n⚠️ **Restriction:** ${ctx.restrictionReason}`;
-  }
-
-  return section;
-}
-
-function getCommandsSection(ctx: RolePromptContext): string {
-  const cliEnvPrefix = getCliEnvPrefix(ctx.convexUrl);
-
-  const handoffCmd = handoffCommand({
-    chatroomId: ctx.chatroomId,
-    role: ctx.role,
-    nextRole: '<target>',
-    cliEnvPrefix,
-  });
-
-  const waitCmd = waitForTaskCommand({
-    chatroomId: ctx.chatroomId,
-    role: ctx.role,
-    cliEnvPrefix,
-  });
-
-  const progressCmd = reportProgressCommand({
-    chatroomId: ctx.chatroomId,
-    role: ctx.role,
-    cliEnvPrefix,
-  });
-
-  return `### Commands
-
-**Complete task and hand off:**
-
-\`\`\`bash
-${handoffCmd}
-\`\`\`
-
-Replace \`[Your message here]\` with:
-- **Summary**: Brief description of what was done
-- **Changes Made**: Key changes (bullets)
-- **Testing**: How to verify the work
-
-**Report progress on current task:**
-
-\`\`\`bash
-${progressCmd}
-\`\`\`
-
-Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
-
-**Continue receiving messages after \`handoff\`:**
-\`\`\`
-${waitCmd}
-\`\`\`
-
-${getWaitForTaskReminder()}`;
-}
+// Note: getClassificationContext, getHandoffSection, and getCommandsSection were
+// replaced by PromptSection-producing functions in sections/ directory.
+// See sections/current-classification.ts, sections/handoff-options.ts,
+// sections/commands-reference.ts
 
 /**
  * Generate a focused reminder for task-started based on role + classification.
  * Returns a short, specific prompt reminding the agent of the expected action.
+ *
+ * Uses SelectorContext internally for team/role detection (Phase 4).
  */
 export function generateTaskStartedReminder(
   role: string,
@@ -279,16 +267,88 @@ export function generateTaskStartedReminder(
   messageId?: string,
   taskId?: string,
   convexUrl?: string,
-  teamRoles: string[] = []
+  teamRoles: string[] = [],
+  teamName?: string
 ): string {
+  // Build SelectorContext for consistent team/role detection (Phase 4)
+  const ctx = buildSelectorContext({
+    role,
+    teamRoles,
+    teamName,
+    convexUrl: convexUrl ?? '',
+    chatroomId,
+    workflow: classification,
+  });
+
   const normalizedRole = role.toLowerCase();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
-  // Detect if this is a pair team (builder + reviewer)
-  const isPairTeam =
-    teamRoles.length === 2 &&
-    teamRoles.some((r) => r.toLowerCase() === 'builder') &&
-    teamRoles.some((r) => r.toLowerCase() === 'reviewer');
+  const isPairTeam = ctx.team === 'pair';
+  const isSquadTeam = ctx.team === 'squad';
+
+  // Planner-specific reminders (squad team)
+  if (normalizedRole === 'planner') {
+    switch (classification) {
+      case 'question': {
+        const handoffToUserCmd = handoffCommand({
+          chatroomId,
+          role: 'planner',
+          nextRole: 'user',
+          cliEnvPrefix,
+        });
+        return `✅ Task acknowledged as QUESTION.
+
+**Next steps:**
+1. Answer the user's question
+2. When done, hand off to user:
+
+\`\`\`bash
+${handoffToUserCmd}
+\`\`\`
+
+💡 You're working on:
+${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+      }
+      case 'new_feature': {
+        const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
+        const delegateTarget = hasBuilder ? 'builder' : 'reviewer';
+        const handoffToTeamCmd = handoffCommand({
+          chatroomId,
+          role: 'planner',
+          nextRole: delegateTarget,
+          cliEnvPrefix,
+        });
+        return `✅ Task acknowledged as NEW FEATURE.
+
+**Next steps:**
+1. Decompose the task into clear, actionable work items
+2. Delegate implementation to ${delegateTarget}:
+
+\`\`\`bash
+${handoffToTeamCmd}
+\`\`\`
+
+3. Review completed work before delivering to user
+4. Hand back for rework if requirements are not met
+
+💡 You're working on:
+${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+      }
+      case 'follow_up': {
+        return `✅ Task acknowledged as FOLLOW UP.
+
+**Next steps:**
+1. Review the follow-up request against previous work
+2. Delegate to appropriate team member or handle yourself
+3. Follow-up inherits the workflow rules from the original task:
+   - If original was a QUESTION → handle and hand off to user when done
+   - If original was a NEW FEATURE → delegate, review, and deliver to user
+
+💡 You're working on:
+${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+      }
+    }
+  }
 
   // Builder-specific reminders
   if (normalizedRole === 'builder') {
@@ -357,6 +417,31 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
 ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
         }
       }
+    } else if (isSquadTeam) {
+      // Squad team: builder hands off to reviewer or planner, never to user
+      const hasReviewer = teamRoles.some((r) => r.toLowerCase() === 'reviewer');
+      const handoffTarget = hasReviewer ? 'reviewer' : 'planner';
+      const handoffCmd = handoffCommand({
+        chatroomId,
+        role: 'builder',
+        nextRole: handoffTarget,
+        cliEnvPrefix,
+      });
+      return `✅ Task acknowledged as ${classification.toUpperCase().replace('_', ' ')}.
+
+**Next steps:**
+1. Implement the requested changes
+2. Send \`report-progress\` at milestones
+3. Hand off to ${handoffTarget} when complete:
+
+\`\`\`bash
+${handoffCmd}
+\`\`\`
+
+⚠️ In squad team, never hand off directly to user — go through the planner.
+
+💡 You're working on:
+${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
     } else {
       // Generic builder reminder (no specific team structure)
       const handoffCmd = handoffCommand({
@@ -378,7 +463,17 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
 
   // Reviewer should run task-started to acknowledge receipt
   if (normalizedRole === 'reviewer') {
-    // Check if the task involves reviewing completed work
+    if (isSquadTeam) {
+      // Squad team: reviewer hands off to planner, not user
+      if (taskId) {
+        return `Review the completed work. If the work meets requirements, hand off to planner for user delivery. If changes are needed, hand off to builder with specific feedback.
+
+💡 You're reviewing:
+Task ID: ${taskId}`;
+      }
+      return `Review the work. Hand off to planner when approved, or to builder for rework.`;
+    }
+    // Pair team or generic: hand off to user when approved
     if (taskId) {
       return `Review the completed work. If the user's goal is met, hand off to user. If not, provide specific feedback and hand off to builder.
 
@@ -403,6 +498,8 @@ export interface InitPromptInput {
   teamRoles: string[];
   teamEntryPoint?: string;
   convexUrl: string; // Required Convex URL for env var prefix generation
+  /** Currently available (waiting) team members. Falls back to teamRoles if not provided. */
+  availableMembers?: string[];
 }
 
 /**
@@ -436,64 +533,66 @@ export interface ComposedInitPrompt {
  */
 export function composeSystemPrompt(input: InitPromptInput): string {
   const { chatroomId, role, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
-  const template = getRoleTemplate(role);
-  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
-  const entryPoint = teamEntryPoint || teamRoles[0] || 'builder';
-  const isEntryPoint = role.toLowerCase() === entryPoint.toLowerCase();
+  // Build SelectorContext for unified dispatching
+  const selectorCtx = buildSelectorContext({
+    role,
+    teamRoles,
+    teamName,
+    teamEntryPoint,
+    convexUrl,
+    chatroomId,
+    availableMembers: input.availableMembers,
+  });
 
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
-  const handoffTargets = [...new Set([...otherRoles, 'user'])];
 
-  const roleCtx: RolePromptContext = {
-    chatroomId,
-    role,
-    teamName,
-    teamRoles,
-    teamEntryPoint,
-    currentClassification: null,
-    availableHandoffRoles: handoffTargets,
-    canHandoffToUser: true,
-    restrictionReason: null,
-    convexUrl,
-  };
+  // In squad team, only the planner can hand off to the user
+  const canHandoffToUser = selectorCtx.team === 'squad' ? role.toLowerCase() === 'planner' : true;
+  const handoffTargets = canHandoffToUser
+    ? [...new Set([...otherRoles, 'user'])]
+    : [...new Set(otherRoles)];
 
-  const guidance =
-    getTeamRoleGuidance(role, teamRoles, isEntryPoint, convexUrl) ??
-    getBaseRoleGuidance(role, teamRoles, isEntryPoint, convexUrl);
-
-  const waitCmd = waitForTaskCommand({ chatroomId, role, cliEnvPrefix });
-
-  const sections: string[] = [];
+  const sections: PromptSection[] = [];
 
   // Team header and role identity
-  sections.push(`# ${teamName}`);
-  sections.push(`## Your Role: ${template.title.toUpperCase()}`);
-  sections.push(template.description);
+  sections.push(getTeamHeaderSection(teamName));
+  sections.push(getRoleTitleSection(selectorCtx));
+  sections.push(getRoleDescriptionSection(selectorCtx));
 
   // Context-gaining: Getting Started commands (context read, wait-for-task)
-  sections.push(getContextGainingGuidance({ chatroomId, role, convexUrl }));
+  sections.push(getGettingStartedSection(selectorCtx));
 
   // Task classification / acknowledgement commands
-  if (isEntryPoint) {
-    sections.push(getTaskStartedPrompt({ chatroomId, role, cliEnvPrefix }));
-  } else {
-    sections.push(getTaskStartedPromptForHandoffRecipient({ chatroomId, role, cliEnvPrefix }));
-  }
+  sections.push(getClassificationGuideSection(selectorCtx));
 
   // Role-specific guidance (team-aware workflow)
-  sections.push(guidance);
+  sections.push(getRoleGuidanceSection(selectorCtx));
+
+  // Handoff options (includes restriction notice for squad non-planner roles)
+  sections.push(
+    getHandoffOptionsSection({
+      availableHandoffRoles: handoffTargets,
+      canHandoffToUser,
+      restrictionReason: canHandoffToUser
+        ? null
+        : 'In squad team, only the planner can hand off to the user.',
+    })
+  );
 
   // Command reference (handoff, progress, wait-for-task)
-  sections.push(getCommandsSection(roleCtx));
+  sections.push(
+    getCommandsReferenceSection({
+      chatroomId,
+      role,
+      convexUrl,
+    })
+  );
 
   // Next step
-  sections.push(`### Next\n\nRun:\n\n\`\`\`bash\n${waitCmd}\n\`\`\``);
+  sections.push(getNextStepSection({ chatroomId, role, convexUrl }));
 
-  return sections
-    .filter((s) => s.trim())
-    .join('\n\n')
-    .trim();
+  return composeSections(sections);
 }
 
 /**
