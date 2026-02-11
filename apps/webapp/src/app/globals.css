@@ -252,7 +252,7 @@ input,
   /* Background Colors */
   --chatroom-bg-primary: #f5f5f5;           /* neutral-100 */
   --chatroom-bg-secondary: rgba(255, 255, 255, 0.6);  /* white/60 with glass effect */
-  --chatroom-bg-tertiary: #ffffff;          /* white */
+  --chatroom-bg-tertiary: #ebebeb;          /* neutral-150 - subtle gray for section headers */
   --chatroom-bg-hover: #e5e5e5;             /* neutral-200 */
   --chatroom-bg-surface: rgba(255, 255, 255, 0.6);    /* glassmorphism surface */
   
