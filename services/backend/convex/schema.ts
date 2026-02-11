@@ -502,6 +502,22 @@ export default defineSchema({
     .index('by_chatroomId', ['chatroomId']),
 
   /**
+   * Read cursors for tracking the last message a user has seen in each chatroom.
+   * Used to compute unread indicators efficiently without subscribing to full message history.
+   * One record per user per chatroom.
+   */
+  chatroom_read_cursors: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    userId: v.id('users'),
+    // Timestamp of the last message the user has seen (compared against message _creationTime)
+    lastSeenAt: v.number(),
+    // When this cursor was last updated
+    updatedAt: v.number(),
+  })
+    .index('by_userId', ['userId'])
+    .index('by_userId_chatroomId', ['userId', 'chatroomId']),
+
+  /**
    * Artifacts for chatroom collaboration.
    * Stores versioned documents that can be attached to handoffs.
    */

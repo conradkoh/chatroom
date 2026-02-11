@@ -520,6 +520,19 @@ async function handleStopAgent(
     console.log(`   ⚠️  PID ${pidToKill} does not appear to belong to the expected agent`);
     await clearAgentPidEverywhere(ctx, chatroomId, role);
     console.log(`   Cleared stale PID`);
+
+    // Remove the participant so the UI no longer shows "Ready"
+    try {
+      await ctx.client.mutation(api.participants.leave, {
+        sessionId: ctx.sessionId,
+        chatroomId,
+        role,
+      });
+      console.log(`   Removed participant record`);
+    } catch {
+      // Non-critical
+    }
+
     return {
       result: `PID ${pidToKill} appears stale (process not found or belongs to different program)`,
       failed: true,
@@ -539,11 +552,35 @@ async function handleStopAgent(
     console.log(`   ✅ ${msg}`);
     await clearAgentPidEverywhere(ctx, chatroomId, role);
     console.log(`   Cleared PID`);
+
+    // Remove the participant so the UI no longer shows "Ready"
+    try {
+      await ctx.client.mutation(api.participants.leave, {
+        sessionId: ctx.sessionId,
+        chatroomId,
+        role,
+      });
+      console.log(`   Removed participant record`);
+    } catch (leaveErr) {
+      // Non-critical: participant will eventually expire via readyUntil
+      console.log(`   ⚠️  Could not remove participant: ${(leaveErr as Error).message}`);
+    }
+
     return { result: msg, failed: false };
   } catch (e) {
     const err = e as NodeJS.ErrnoException;
     if (err.code === 'ESRCH') {
       await clearAgentPidEverywhere(ctx, chatroomId, role);
+      // Remove the participant so the UI no longer shows "Ready"
+      try {
+        await ctx.client.mutation(api.participants.leave, {
+          sessionId: ctx.sessionId,
+          chatroomId,
+          role,
+        });
+      } catch {
+        // Non-critical
+      }
       const msg = 'Process not found (may have already exited)';
       console.log(`   ⚠️  ${msg}`);
       return { result: msg, failed: true };

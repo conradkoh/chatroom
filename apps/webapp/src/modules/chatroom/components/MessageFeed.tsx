@@ -2,6 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ChevronUp,
@@ -37,7 +38,11 @@ import remarkGfm from 'remark-gfm';
 import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
-import { compactMarkdownComponents, fullMarkdownComponents } from './markdown-utils';
+import {
+  baseMarkdownComponents,
+  compactMarkdownComponents,
+  fullMarkdownComponents,
+} from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
 import { WorkingIndicator } from './WorkingIndicator';
 
@@ -83,7 +88,7 @@ interface Message {
 interface AttachedTask {
   _id: string;
   content: string;
-  backlogStatus?: 'not_started' | 'started' | 'complete' | 'closed';
+  backlogStatus?: TaskStatus;
 }
 
 // Shared badge styling constants
@@ -197,6 +202,50 @@ interface ProgressMessage {
   content: string;
   senderRole: string;
   _creationTime: number;
+}
+
+// Map task status to display label and CSS classes for attached task badges
+function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; classes: string } {
+  switch (status) {
+    case 'in_progress':
+      return {
+        label: 'In Progress',
+        classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
+      };
+    case 'pending':
+    case 'acknowledged':
+    case 'backlog_acknowledged':
+      return {
+        label: status === 'pending' ? 'Pending' : 'Acknowledged',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
+    case 'queued':
+      return {
+        label: 'Queued',
+        classes: 'bg-chatroom-status-warning/15 text-chatroom-status-warning',
+      };
+    case 'pending_user_review':
+      return {
+        label: 'Pending Review',
+        classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
+      };
+    case 'completed':
+      return {
+        label: 'Completed',
+        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
+      };
+    case 'closed':
+      return {
+        label: 'Closed',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
+    case 'backlog':
+    default:
+      return {
+        label: 'Not Started',
+        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
+      };
+  }
 }
 
 // Format relative time for progress timeline
@@ -492,7 +541,9 @@ const MessageItem = memo(function MessageItem({
           className="w-full text-left cursor-pointer hover:bg-chatroom-accent-subtle transition-colors -mx-2 px-2 py-1 rounded"
         >
           <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-hidden line-clamp-2 prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:my-0 prose-p:my-0 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:hidden prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-table:hidden prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
-            <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+            <Markdown remarkPlugins={[remarkGfm]} components={baseMarkdownComponents}>
+              {message.content}
+            </Markdown>
           </div>
           <span className="text-[10px] text-chatroom-text-muted mt-1 block">Tap to expand</span>
         </button>
@@ -522,15 +573,9 @@ const MessageItem = memo(function MessageItem({
                   </Markdown>
                 </div>
                 <span
-                  className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-                    task.backlogStatus === 'started'
-                      ? 'bg-chatroom-status-info/15 text-chatroom-status-info'
-                      : task.backlogStatus === 'complete'
-                        ? 'bg-chatroom-status-success/15 text-chatroom-status-success'
-                        : 'bg-chatroom-text-muted/15 text-chatroom-text-muted'
-                  }`}
+                  className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${getAttachedTaskStatusBadge(task.backlogStatus).classes}`}
                 >
-                  {task.backlogStatus || 'not started'}
+                  {getAttachedTaskStatusBadge(task.backlogStatus).label}
                 </span>
                 <ChevronRight
                   size={14}

@@ -119,12 +119,19 @@ export const listByUserWithStatus = query({
 
     const now = Date.now();
 
-    // Fetch all favorites for this user in one query
-    const favorites = await ctx.db
-      .query('chatroom_favorites')
-      .withIndex('by_userId', (q) => q.eq('userId', sessionResult.userId))
-      .collect();
+    // Fetch all favorites and read cursors for this user in parallel
+    const [favorites, readCursors] = await Promise.all([
+      ctx.db
+        .query('chatroom_favorites')
+        .withIndex('by_userId', (q) => q.eq('userId', sessionResult.userId))
+        .collect(),
+      ctx.db
+        .query('chatroom_read_cursors')
+        .withIndex('by_userId', (q) => q.eq('userId', sessionResult.userId))
+        .collect(),
+    ]);
     const favoriteIds = new Set(favorites.map((f) => f.chatroomId));
+    const readCursorMap = new Map(readCursors.map((c) => [c.chatroomId.toString(), c.lastSeenAt]));
 
     // Fetch all participant data and compute statuses
     const chatroomsWithStatus = await Promise.all(
@@ -168,12 +175,26 @@ export const listByUserWithStatus = query({
         const hasDisconnected = agents.some((a) => a.isExpired);
         const hasActive = agents.some((a) => a.effectiveStatus === 'active');
 
+        // Check if a user has ever sent a message in this chatroom.
+        // A user message is the strongest signal that the chatroom has been used
+        // and should not show the setup screen again — even if all agents disconnect.
+        const firstUserMessage = await ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+            q.eq('chatroomId', chatroom._id).eq('senderRole', 'user').eq('type', 'message')
+          )
+          .first();
+        const hasHistory = firstUserMessage !== null;
+
         // Compute chatStatus
         type ChatStatus = 'ready' | 'working' | 'partial' | 'disconnected' | 'setup' | 'completed';
         let chatStatus: ChatStatus;
         if (chatroom.status === 'completed') {
           chatStatus = 'completed';
         } else if (hasDisconnected && !allPresent) {
+          chatStatus = 'disconnected';
+        } else if (!allPresent && hasHistory) {
+          // Agents are missing but chatroom was previously used — show disconnected, not setup
           chatStatus = 'disconnected';
         } else if (!allPresent) {
           chatStatus = 'setup';
@@ -185,11 +206,35 @@ export const listByUserWithStatus = query({
           chatStatus = 'partial';
         }
 
+        // Check for unread messages (efficiently using read cursor)
+        // Only check if user has a read cursor; otherwise all messages are "unread"
+        const lastSeenAt = readCursorMap.get(chatroom._id.toString());
+        let hasUnread = false;
+        if (lastSeenAt !== undefined) {
+          // Check if there's any message newer than the cursor
+          // Use the chatroom index and filter by creation time
+          const newerMessage = await ctx.db
+            .query('chatroom_messages')
+            .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+            .order('desc')
+            .first();
+          hasUnread = newerMessage !== null && newerMessage._creationTime > lastSeenAt;
+        } else {
+          // No cursor means user has never opened this chatroom
+          // Check if there are any messages at all
+          const anyMessage = await ctx.db
+            .query('chatroom_messages')
+            .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+            .first();
+          hasUnread = anyMessage !== null;
+        }
+
         return {
           ...chatroom,
           agents,
           chatStatus,
           isFavorite: favoriteIds.has(chatroom._id),
+          hasUnread,
           teamReadiness: {
             isReady: allPresent && !hasDisconnected,
             missingRoles: teamRoles.filter((r) => !presentRoles.has(r.toLowerCase())),
@@ -430,5 +475,49 @@ export const isFavorite = query({
       .first();
 
     return { isFavorite: !!favorite };
+  },
+});
+
+// ============================================================================
+// READ CURSORS (for unread indicators)
+// ============================================================================
+
+/**
+ * Mark a chatroom as read by updating the user's read cursor.
+ * Called when the user opens/views a chatroom.
+ * Sets the cursor to the current time so future messages will be unread.
+ * Requires session authentication and chatroom access.
+ */
+export const markAsRead = mutation({
+  args: {
+    sessionId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    const { session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const now = Date.now();
+
+    // Check if cursor already exists
+    const existing = await ctx.db
+      .query('chatroom_read_cursors')
+      .withIndex('by_userId_chatroomId', (q) =>
+        q.eq('userId', session.userId).eq('chatroomId', args.chatroomId)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch('chatroom_read_cursors', existing._id, {
+        lastSeenAt: now,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert('chatroom_read_cursors', {
+        chatroomId: args.chatroomId,
+        userId: session.userId,
+        lastSeenAt: now,
+        updatedAt: now,
+      });
+    }
   },
 });

@@ -32,6 +32,7 @@ export interface ChatroomWithStatus {
   agents: Agent[];
   chatStatus: 'ready' | 'working' | 'partial' | 'disconnected' | 'setup' | 'completed';
   isFavorite: boolean;
+  hasUnread: boolean;
   teamReadiness: TeamReadiness;
 }
 
