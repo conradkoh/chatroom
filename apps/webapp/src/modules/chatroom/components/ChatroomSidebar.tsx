@@ -148,7 +148,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
           <>
             <div className="px-3 py-2 flex items-center gap-1.5 bg-chatroom-bg-tertiary">
               <Star size={10} className="text-yellow-500" fill="currentColor" />
-              <span className="text-[10px] font-medium uppercase tracking-wide text-chatroom-text-muted">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
                 Favorites
               </span>
             </div>
@@ -169,7 +169,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
             <div
               className={`px-3 py-2 flex items-center gap-1.5 bg-chatroom-bg-tertiary ${favorites.length > 0 ? 'border-t border-chatroom-border' : ''}`}
             >
-              <span className="text-[10px] font-medium uppercase tracking-wide text-chatroom-text-muted">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
                 Recent
               </span>
             </div>
@@ -191,7 +191,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
               className="w-full px-3 py-2 bg-chatroom-bg-tertiary border-t border-chatroom-border flex items-center justify-between hover:bg-chatroom-bg-hover"
               onClick={() => setCompletedExpanded(!completedExpanded)}
             >
-              <span className="text-[10px] font-medium uppercase tracking-wide text-chatroom-text-muted">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
                 Completed ({completed.length})
               </span>
               <ChevronDown
