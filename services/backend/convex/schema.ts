@@ -643,4 +643,40 @@ export default defineSchema({
     createdAt: v.number(),
     processedAt: v.optional(v.number()),
   }).index('by_machineId_status', ['machineId', 'status']),
+
+  /**
+   * Team-level agent configuration.
+   * Tracks how agents for each team/role are configured to start.
+   * Used by auto-restart logic to determine if an agent should be auto-restarted.
+   *
+   * When type is 'remote', the config contains machine/harness/model info
+   * needed to restart the agent via the daemon.
+   * When type is 'custom' (or no config exists), auto-restart is skipped.
+   */
+  chatroom_teamAgentConfigs: defineTable({
+    // Unique key: team_<teamId>#role_<role>
+    teamRoleKey: v.string(),
+
+    // Reference to the chatroom (for cascading deletes/queries)
+    chatroomId: v.id('chatroom_rooms'),
+
+    // The role this config is for
+    role: v.string(),
+
+    // Config type discriminator
+    type: v.union(v.literal('remote'), v.literal('custom')),
+
+    // Remote agent config (only present when type === 'remote')
+    machineId: v.optional(v.string()),
+    agentHarness: v.optional(v.literal('opencode')),
+    model: v.optional(v.string()),
+    workingDir: v.optional(v.string()),
+
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_teamRoleKey', ['teamRoleKey'])
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_role', ['chatroomId', 'role']),
 });

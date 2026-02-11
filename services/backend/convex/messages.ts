@@ -72,52 +72,64 @@ async function autoRestartOfflineAgent(
     }
   }
 
-  // Agent is offline (missing or expired). Find a machine config to restart it.
-  const agentConfigs = await ctx.db
-    .query('chatroom_machineAgentConfigs')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .collect();
+  // Agent is offline (missing or expired).
+  // Check team agent config to determine if this is a remote agent that should be auto-restarted.
+  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  if (!chatroom) return;
 
-  const roleConfig = agentConfigs.find((c) => c.role.toLowerCase() === targetRole.toLowerCase());
+  const teamId = chatroom.teamId || chatroom._id;
+  const teamRoleKey = `team_${teamId}#role_${targetRole.toLowerCase()}`;
 
-  if (!roleConfig) {
-    return; // No config — can't restart (agent was never set up via UI)
+  const teamConfig = await ctx.db
+    .query('chatroom_teamAgentConfigs')
+    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+    .first();
+
+  // If no team config exists or type is 'custom', skip auto-restart.
+  // Only remote agents should be auto-restarted.
+  if (!teamConfig || teamConfig.type !== 'remote') {
+    return; // Agent is custom or not configured — don't auto-restart
+  }
+
+  // Ensure the team config has the required machine info
+  if (!teamConfig.machineId) {
+    return; // No machine ID — can't restart
   }
 
   // Check if the machine's daemon is connected
   const machine = await ctx.db
     .query('chatroom_machines')
-    .withIndex('by_machineId', (q) => q.eq('machineId', roleConfig.machineId))
+    .withIndex('by_machineId', (q) => q.eq('machineId', teamConfig.machineId!))
     .first();
 
   if (!machine || !machine.daemonConnected) {
     return; // Daemon is not connected — can't send commands
   }
 
-  // Dispatch stop + start commands
+  // Dispatch stop + start commands using team config parameters
   // Stop first to clean up any stale process
   await ctx.db.insert('chatroom_machineCommands', {
-    machineId: roleConfig.machineId,
+    machineId: teamConfig.machineId,
     type: 'stop-agent',
     payload: {
       chatroomId,
-      role: roleConfig.role,
+      role: teamConfig.role,
     },
     status: 'pending',
     sentBy: userId,
     createdAt: now,
   });
 
-  // Start command — uses the existing config
+  // Start command — uses the team agent config
   await ctx.db.insert('chatroom_machineCommands', {
-    machineId: roleConfig.machineId,
+    machineId: teamConfig.machineId,
     type: 'start-agent',
     payload: {
       chatroomId,
-      role: roleConfig.role,
-      agentHarness: roleConfig.agentType,
-      model: roleConfig.model,
-      workingDir: roleConfig.workingDir,
+      role: teamConfig.role,
+      agentHarness: teamConfig.agentHarness,
+      model: teamConfig.model,
+      workingDir: teamConfig.workingDir,
     },
     status: 'pending',
     sentBy: userId,
