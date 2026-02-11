@@ -136,7 +136,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
   return (
     <div className="chatroom-root flex flex-col w-full h-full overflow-hidden bg-chatroom-bg-surface">
       {/* Header - consistent with AgentPanel */}
-      <div className="flex items-center justify-between p-4 border-b-2 border-chatroom-border">
+      <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Chatrooms
         </div>

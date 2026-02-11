@@ -576,7 +576,7 @@ export const AgentPanel = memo(function AgentPanel({
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
       {/* Header with status indicator and menu */}
-      <div className="flex items-center justify-between p-4 border-b-2 border-chatroom-border">
+      <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Agents
         </div>
