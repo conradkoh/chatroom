@@ -51,8 +51,8 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
       {/* Status indicator - square per theme guidelines */}
       <span className={getStatusIndicatorClasses(chatroom.chatStatus)} />
 
-      {/* Name only - color square is the signal, no redundant status text */}
-      <span className="text-[11px] font-medium truncate text-chatroom-text-primary flex-1">
+      {/* Name - uppercase per design system, matching AgentPanel styling */}
+      <span className="text-xs font-bold uppercase tracking-wide truncate text-chatroom-text-primary flex-1">
         {displayName}
       </span>
 
@@ -136,7 +136,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
   return (
     <div className="chatroom-root flex flex-col w-full h-full overflow-hidden bg-chatroom-bg-surface">
       {/* Header - consistent with AgentPanel */}
-      <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
+      <div className="flex items-center justify-between p-4 border-b-2 border-chatroom-border">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Chatrooms
         </div>
