@@ -1952,6 +1952,21 @@ export const getTaskDeliveryPrompt = query({
       }
     }
 
+    // Calculate follow-up count since origin message
+    let followUpCountSinceOrigin = 0;
+    if (originIndex >= 0) {
+      for (let i = originIndex + 1; i < contextMessages.length; i++) {
+        const msg = contextMessages[i];
+        if (
+          msg.senderRole.toLowerCase() === 'user' &&
+          msg.type === 'message' &&
+          msg.classification === 'follow_up'
+        ) {
+          followUpCountSinceOrigin++;
+        }
+      }
+    }
+
     // Get messages from origin onwards
     const contextMessagesSlice =
       originIndex >= 0 ? contextMessages.slice(originIndex) : contextMessages;
@@ -2052,6 +2067,9 @@ export const getTaskDeliveryPrompt = query({
           }[],
         })),
         classification: originMessage?.classification || null,
+        // Staleness metadata for warning display
+        originMessageCreatedAt: originMessage?._creationTime ?? null,
+        followUpCountSinceOrigin,
       },
       rolePrompt: {
         prompt: rolePromptText,

@@ -451,6 +451,28 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
         }
       }
 
+      // Show staleness warnings if applicable
+      const followUpCount = taskDeliveryPrompt.json?.contextWindow?.followUpCountSinceOrigin ?? 0;
+      const originCreatedAt = taskDeliveryPrompt.json?.contextWindow?.originMessageCreatedAt;
+
+      // Warning 1: Many follow-ups since this pinned message
+      if (followUpCount >= 5) {
+        console.log(`\n⚠️  WARNING: ${followUpCount} follow-up messages since this pinned message.`);
+        console.log(`   The user may have moved on to a different topic.`);
+        console.log(`   Consider asking if this context is still relevant.`);
+      }
+
+      // Warning 2: Old pinned message
+      if (originCreatedAt) {
+        const ageMs = Date.now() - originCreatedAt;
+        const ageHours = ageMs / (1000 * 60 * 60);
+        if (ageHours >= 24) {
+          const ageDays = Math.floor(ageHours / 24);
+          console.log(`\n⚠️  WARNING: This pinned message is ${ageDays} day(s) old.`);
+          console.log(`   The context may be outdated.`);
+        }
+      }
+
       console.log(`</user-message>`);
     }
 
