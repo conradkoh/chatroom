@@ -134,7 +134,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="chatroom-root flex flex-col w-full h-full overflow-hidden bg-chatroom-bg-surface">
       {/* Scrollable list */}
       <div className="flex-1 overflow-y-auto">
         {/* Favorites Section */}
