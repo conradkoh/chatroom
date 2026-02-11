@@ -3,7 +3,6 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ChevronUp,
   ChevronDown,
@@ -17,12 +16,10 @@ import {
   XCircle,
   Archive,
   ArrowRightLeft,
-  LogIn,
   HelpCircle,
   Sparkles,
   RotateCcw,
   ArrowRight,
-  Square,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -105,12 +102,6 @@ const getMessageTypeBadge = (type: string) => {
         className: `${BADGE_BASE} bg-chatroom-status-purple/15 text-chatroom-status-purple`,
         label: 'handoff',
         icon: <ArrowRightLeft size={ICON_SIZE} className="flex-shrink-0" />,
-      };
-    case 'join':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-success/15 text-chatroom-status-success`,
-        label: 'join',
-        icon: <LogIn size={ICON_SIZE} className="flex-shrink-0" />,
       };
     default:
       return null;
@@ -203,14 +194,6 @@ const getClassificationBadge = (classification: Message['classification']) => {
   }
 };
 
-// Progress message type for timeline
-interface ProgressMessage {
-  _id: string;
-  content: string;
-  senderRole: string;
-  _creationTime: number;
-}
-
 // Map task status to display label and CSS classes for attached task badges
 function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; classes: string } {
   switch (status) {
@@ -274,7 +257,7 @@ function formatRelativeTime(timestamp: number): string {
 
 // Sticky Task Header - renders before user messages as a section header
 // Shows shimmer while awaiting classification, then displays task title
-// Now includes inline progress display with expandable timeline
+// Includes inline progress display (latest progress from denormalized task field)
 // Tappable to show full message details in a slide-in modal
 interface TaskHeaderProps {
   message: Message;
@@ -282,34 +265,17 @@ interface TaskHeaderProps {
   onTap?: (message: Message) => void;
 }
 
-const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: TaskHeaderProps) {
-  // State for expanded progress timeline
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  // Fetch progress history when expanded
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chatroomApi = api as any;
-  const progressMessages = useSessionQuery(
-    chatroomApi.messages.getProgressForTask,
-    isExpanded && message.taskId
-      ? {
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          taskId: message.taskId as Id<'chatroom_tasks'>,
-        }
-      : 'skip'
-  ) as ProgressMessage[] | undefined;
-
+const TaskHeader = memo(function TaskHeader({
+  message,
+  chatroomId: _chatroomId,
+  onTap,
+}: TaskHeaderProps) {
   // useCallback must be called before any conditional returns (React hooks rules)
   const handleClick = useCallback(() => {
     if (onTap) {
       onTap(message);
     }
   }, [onTap, message]);
-
-  const handleProgressClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering the header click
-    setIsExpanded((prev) => !prev);
-  }, []);
 
   // Only show for user messages
   if (message.senderRole.toLowerCase() !== 'user') {
@@ -385,81 +351,26 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
         </div>
       </button>
 
-      {/* Inline progress row - shown when task has any progress history */}
+      {/* Inline progress row - shows latest progress from denormalized task field */}
       {hasProgress && (
-        <>
-          <button
-            onClick={handleProgressClick}
-            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-chatroom-bg-hover transition-colors cursor-pointer border-t border-chatroom-border/50"
-          >
-            {isTaskActive ? (
-              <Loader2
-                size={12}
-                className={`flex-shrink-0 text-chatroom-status-info ${isProgressFresh ? 'animate-spin' : ''}`}
-              />
-            ) : (
-              <Check size={12} className="flex-shrink-0 text-chatroom-status-success" />
-            )}
-            <span
-              className={`text-[11px] text-chatroom-text-secondary truncate flex-1 ${isProgressFresh ? 'animate-pulse' : ''}`}
-            >
-              {message.latestProgress!.content}
-            </span>
-            <ChevronDown
+        <div className="w-full text-left px-3 py-1.5 flex items-center gap-2 border-t border-chatroom-border/50">
+          {isTaskActive ? (
+            <Loader2
               size={12}
-              className={`flex-shrink-0 text-chatroom-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+              className={`flex-shrink-0 text-chatroom-status-info ${isProgressFresh ? 'animate-spin' : ''}`}
             />
-          </button>
-
-          {/* Expanded timeline - inline below the progress row */}
-          {isExpanded && (
-            <div className="px-3 py-2 border-t border-chatroom-border/50 bg-chatroom-bg-surface/50">
-              {progressMessages === undefined ? (
-                <div className="flex items-center justify-center py-2">
-                  <Loader2 size={14} className="animate-spin text-chatroom-status-info" />
-                </div>
-              ) : progressMessages.length === 0 ? (
-                <div className="text-[10px] text-chatroom-text-muted text-center py-2">
-                  No progress history
-                </div>
-              ) : (
-                <div className="relative">
-                  {/* Timeline line */}
-                  <div className="absolute left-[5px] top-1 bottom-1 w-0.5 bg-chatroom-border" />
-
-                  {/* Timeline items */}
-                  <div className="space-y-2">
-                    {progressMessages.map((progress, index) => {
-                      const isLatest = index === progressMessages.length - 1;
-                      return (
-                        <div key={progress._id} className="relative pl-4">
-                          {/* Timeline indicator - square per theme.md */}
-                          <Square
-                            size={11}
-                            className={`absolute left-0 top-1 ${
-                              isLatest
-                                ? 'text-chatroom-status-info fill-chatroom-status-info'
-                                : 'text-chatroom-border fill-chatroom-bg-surface'
-                            }`}
-                          />
-                          {/* Content */}
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="text-[11px] text-chatroom-text-secondary flex-1">
-                              {progress.content}
-                            </span>
-                            <span className="text-[9px] text-chatroom-text-muted flex-shrink-0">
-                              {formatRelativeTime(progress._creationTime)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
+          ) : (
+            <Check size={12} className="flex-shrink-0 text-chatroom-status-success" />
           )}
-        </>
+          <span
+            className={`text-[11px] text-chatroom-text-secondary truncate flex-1 ${isProgressFresh ? 'animate-pulse' : ''}`}
+          >
+            {message.latestProgress!.content}
+          </span>
+          <span className="text-[9px] text-chatroom-text-muted flex-shrink-0">
+            {formatRelativeTime(message.latestProgress!._creationTime)}
+          </span>
+        </div>
       )}
     </div>
   );
@@ -613,8 +524,10 @@ const MessageItem = memo(function MessageItem({
 });
 
 // Number of messages to load initially and per page
-const INITIAL_PAGE_SIZE = 5;
-const LOAD_MORE_SIZE = 10;
+// Initial size is larger to ensure enough messages fill the viewport on first load.
+// Since join/progress messages are no longer in the feed, all fetched messages are displayable.
+const INITIAL_PAGE_SIZE = 15;
+const LOAD_MORE_SIZE = 15;
 // Threshold in pixels from top to trigger auto-load
 const SCROLL_THRESHOLD = 100;
 
@@ -701,12 +614,12 @@ export const MessageFeed = memo(function MessageFeed({
     setSelectedMessage(null);
   }, []);
 
-  // Filter out join messages and progress messages, reverse to show oldest first
-  // Progress messages are now shown inline in TaskHeader instead of the main feed
+  // Reverse to show oldest first
+  // Join and progress messages are no longer created, so no client-side filtering needed.
+  // Legacy join/progress messages may still exist but will be rare and harmless to display.
   const displayMessages = useMemo(() => {
-    const filtered = (results || []).filter((m) => m.type !== 'join' && m.type !== 'progress');
     // Reverse because paginated query returns newest first, but we want oldest at top
-    return [...filtered].reverse();
+    return [...(results || [])].reverse();
   }, [results]);
 
   // Track if user is at bottom of scroll for auto-scroll behavior and floating button
