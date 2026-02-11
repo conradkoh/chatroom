@@ -496,6 +496,25 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       More actions: \`chatroom backlog --help\`
 
+      ### Context Management
+      When the conversation drifts or after significant progress, create a new context to keep agents focused on the current goal.
+
+      **Create new context:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder --content="<summary of current focus>"
+      \`\`\`
+
+      **List previous contexts:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context list --chatroom-id=10002;chatroom_rooms --role=builder --limit=10
+      \`\`\`
+
+      When to create a new context:
+      - After completing a major task or milestone
+      - When user shifts to a new topic
+      - When the pinned context shows staleness warnings (many messages or old timestamp)
+      - After summarizing progress at user's request
+
       ## Your Role: BUILDER
 
       You are the implementer responsible for writing code and building solutions.
@@ -1891,6 +1910,25 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10062;chatroom_rooms --role=reviewer --status=backlog\` to view items, then provide recommendations.
 
       More actions: \`chatroom backlog --help\`
+
+      ### Context Management
+      When the conversation drifts or after significant progress, create a new context to keep agents focused on the current goal.
+
+      **Create new context:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10062;chatroom_rooms --role=reviewer --content="<summary of current focus>"
+      \`\`\`
+
+      **List previous contexts:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context list --chatroom-id=10062;chatroom_rooms --role=reviewer --limit=10
+      \`\`\`
+
+      When to create a new context:
+      - After completing a major task or milestone
+      - When user shifts to a new topic
+      - When the pinned context shows staleness warnings (many messages or old timestamp)
+      - After summarizing progress at user's request
 
       ## Your Role: REVIEWER
 
