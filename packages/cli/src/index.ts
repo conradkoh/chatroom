@@ -443,6 +443,30 @@ backlogCommand
   );
 
 backlogCommand
+  .command('score')
+  .description('Score a backlog task by complexity, value, and priority')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--task-id <taskId>', 'Task ID to score')
+  .option('--complexity <level>', 'Complexity level: low, medium, high')
+  .option('--value <level>', 'Value level: low, medium, high')
+  .option('--priority <n>', 'Priority number (higher = more important)')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      taskId: string;
+      complexity?: string;
+      value?: string;
+      priority?: string;
+    }) => {
+      await maybeRequireAuth();
+      const { scoreBacklog } = await import('./commands/backlog.js');
+      await scoreBacklog(options.chatroomId, options);
+    }
+  );
+
+backlogCommand
   .command('reset-task')
   .description('Reset a stuck in_progress task back to pending')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
