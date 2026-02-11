@@ -1824,6 +1824,42 @@ export const getTaskDeliveryPrompt = query({
     // Validate session and check chatroom access
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
+    // Fetch current context for explicit context management
+    let currentContext: {
+      _id: string;
+      content: string;
+      createdBy: string;
+      createdAt: number;
+      messagesSinceContext: number;
+      elapsedHours: number;
+    } | null = null;
+
+    if (chatroom.currentContextId) {
+      const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
+      if (context) {
+        // Get current message count to compute staleness
+        const allMessages = await ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+          .collect();
+        const currentMessageCount = allMessages.length;
+        const messagesSinceContext = currentMessageCount - (context.messageCountAtCreation ?? 0);
+
+        // Compute time elapsed since context creation
+        const elapsedMs = Date.now() - context.createdAt;
+        const elapsedHours = elapsedMs / (1000 * 60 * 60);
+
+        currentContext = {
+          _id: context._id,
+          content: context.content,
+          createdBy: context.createdBy,
+          createdAt: context.createdAt,
+          messagesSinceContext,
+          elapsedHours,
+        };
+      }
+    }
+
     // Fetch the task
     const task = await ctx.db.get('chatroom_tasks', args.taskId);
     if (!task) {
@@ -2028,6 +2064,9 @@ export const getTaskDeliveryPrompt = query({
         status: p.status,
       })),
       contextWindow: {
+        // Explicit context (new system)
+        currentContext,
+        // Origin message (legacy, for fallback when no context set)
         originMessage: originMessage
           ? {
               _id: originMessage._id,

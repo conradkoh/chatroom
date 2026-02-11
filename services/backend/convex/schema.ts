@@ -259,10 +259,33 @@ export default defineSchema({
     // Incremented atomically when creating tasks to prevent race conditions
     // Optional for backward compatibility - defaults to 0 for existing chatrooms
     nextQueuePosition: v.optional(v.number()),
+    // Current active context for this chatroom (explicit context management)
+    currentContextId: v.optional(v.id('chatroom_contexts')),
   })
     .index('by_status', ['status'])
     .index('by_ownerId', ['ownerId'])
     .index('by_ownerId_lastActivity', ['ownerId', 'lastActivityAt']),
+
+  /**
+   * Explicit contexts for chatroom conversations.
+   * Replaces the fragile pinned message system with explicit context management.
+   * Allows users/agents to create, list, and inspect conversation contexts.
+   */
+  chatroom_contexts: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    // Content summary of the context (provided by user or agent)
+    content: v.string(),
+    // Who created this context (role name, e.g. 'user', 'planner', 'builder')
+    createdBy: v.string(),
+    // When the context was created
+    createdAt: v.number(),
+    // Optional reference to message that triggered context creation
+    triggerMessageId: v.optional(v.id('chatroom_messages')),
+    // Track message count at context creation time (for staleness detection)
+    messageCountAtCreation: v.optional(v.number()),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_latest', ['chatroomId', 'createdAt']),
 
   /**
    * Participants in chatrooms.

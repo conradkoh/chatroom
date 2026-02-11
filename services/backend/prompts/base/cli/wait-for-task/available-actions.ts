@@ -70,5 +70,24 @@ This transitions the task to \`pending_user_review\` where the user can confirm 
 #### Backlog Scoring and Maintenance
 When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog\` to view items, then provide recommendations.
 
-More actions: \`chatroom backlog --help\``;
+More actions: \`chatroom backlog --help\`
+
+### Context Management
+When the conversation drifts or after significant progress, create a new context to keep agents focused on the current goal.
+
+**Create new context:**
+\`\`\`bash
+${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary of current focus>"
+\`\`\`
+
+**List previous contexts:**
+\`\`\`bash
+${cliEnvPrefix}chatroom context list --chatroom-id=${chatroomId} --role=${role} --limit=10
+\`\`\`
+
+When to create a new context:
+- After completing a major task or milestone
+- When user shifts to a new topic
+- When the pinned context shows staleness warnings (many messages or old timestamp)
+- After summarizing progress at user's request`;
 }

@@ -532,7 +532,9 @@ messagesCommand
 // CONTEXT COMMANDS (auth required)
 // ============================================================================
 
-const contextCommand = program.command('context').description('Get chatroom context and state');
+const contextCommand = program
+  .command('context')
+  .description('Manage chatroom context and state (explicit context management)');
 
 contextCommand
   .command('read')
@@ -543,6 +545,45 @@ contextCommand
     await maybeRequireAuth();
     const { readContext } = await import('./commands/context.js');
     await readContext(options.chatroomId, options);
+  });
+
+contextCommand
+  .command('new')
+  .description('Create a new context and pin it for all agents')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role (creator of the context)')
+  .requiredOption('--content <content>', 'Context summary/description')
+  .action(async (options: { chatroomId: string; role: string; content: string }) => {
+    await maybeRequireAuth();
+    const { newContext } = await import('./commands/context.js');
+    await newContext(options.chatroomId, options);
+  });
+
+contextCommand
+  .command('list')
+  .description('List recent contexts for a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--limit <n>', 'Maximum number of contexts to show (default: 10)')
+  .action(async (options: { chatroomId: string; role: string; limit?: string }) => {
+    await maybeRequireAuth();
+    const { listContexts } = await import('./commands/context.js');
+    await listContexts(options.chatroomId, {
+      role: options.role,
+      limit: options.limit ? parseInt(options.limit, 10) : 10,
+    });
+  });
+
+contextCommand
+  .command('inspect')
+  .description('View a specific context with staleness information')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--context-id <contextId>', 'Context ID to inspect')
+  .action(async (options: { chatroomId: string; role: string; contextId: string }) => {
+    await maybeRequireAuth();
+    const { inspectContext } = await import('./commands/context.js');
+    await inspectContext(options.chatroomId, options);
   });
 
 // ============================================================================
