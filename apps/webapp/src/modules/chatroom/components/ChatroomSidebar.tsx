@@ -41,10 +41,10 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
 
   return (
     <button
-      className={`w-full text-left px-3 py-1.5 flex items-center gap-2 transition-all duration-100 border-l-2 ${
+      className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-all duration-100 border-b border-chatroom-border ${
         isActive
-          ? 'bg-chatroom-bg-hover border-chatroom-accent'
-          : 'border-transparent hover:bg-chatroom-bg-hover hover:border-chatroom-border'
+          ? 'bg-chatroom-bg-hover border-l-2 border-l-chatroom-accent'
+          : 'border-l-2 border-l-transparent hover:bg-chatroom-bg-hover hover:border-l-chatroom-border'
       }`}
       onClick={() => onSelect(chatroom._id)}
     >
@@ -52,36 +52,13 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
       <span className={getStatusIndicatorClasses(chatroom.chatStatus)} />
 
       {/* Name only - color square is the signal, no redundant status text */}
-      <span className="text-[11px] font-bold uppercase tracking-wide truncate text-chatroom-text-primary flex-1">
+      <span className="text-[11px] font-medium truncate text-chatroom-text-primary flex-1">
         {displayName}
       </span>
 
       {/* Unread indicator - square per theme guidelines */}
       {chatroom.hasUnread && <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />}
     </button>
-  );
-});
-
-interface SectionHeaderProps {
-  children: React.ReactNode;
-  icon?: React.ReactNode;
-  className?: string;
-}
-
-const SectionHeader = memo(function SectionHeader({
-  children,
-  icon,
-  className = '',
-}: SectionHeaderProps) {
-  return (
-    <div
-      className={`px-3 py-1.5 border-b-2 border-chatroom-border flex items-center gap-1.5 ${className}`}
-    >
-      {icon}
-      <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-        {children}
-      </span>
-    </div>
   );
 });
 
@@ -158,23 +135,17 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="px-3 py-2 border-b-2 border-chatroom-border flex-shrink-0">
-        <h2 className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-          Chatrooms
-        </h2>
-      </div>
-
       {/* Scrollable list */}
       <div className="flex-1 overflow-y-auto">
         {/* Favorites Section */}
         {favorites.length > 0 && (
           <>
-            <SectionHeader
-              icon={<Star size={10} className="text-yellow-500" fill="currentColor" />}
-            >
-              Favorites
-            </SectionHeader>
+            <div className="px-3 py-2 flex items-center gap-1.5 bg-chatroom-bg-tertiary">
+              <Star size={10} className="text-yellow-500" fill="currentColor" />
+              <span className="text-[10px] font-medium uppercase tracking-wide text-chatroom-text-muted">
+                Favorites
+              </span>
+            </div>
             {favorites.map((chatroom) => (
               <ChatroomSidebarItem
                 key={chatroom._id}
@@ -189,7 +160,13 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
         {/* Recent Section */}
         {recent.length > 0 && (
           <>
-            <SectionHeader className={favorites.length > 0 ? 'mt-2' : ''}>Recent</SectionHeader>
+            <div
+              className={`px-3 py-2 flex items-center gap-1.5 bg-chatroom-bg-tertiary ${favorites.length > 0 ? 'border-t border-chatroom-border' : ''}`}
+            >
+              <span className="text-[10px] font-medium uppercase tracking-wide text-chatroom-text-muted">
+                Recent
+              </span>
+            </div>
             {recent.map((chatroom) => (
               <ChatroomSidebarItem
                 key={chatroom._id}
@@ -205,10 +182,10 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
         {completed.length > 0 && (
           <>
             <button
-              className="w-full px-3 py-1.5 mt-2 border-t-2 border-chatroom-border flex items-center justify-between hover:bg-chatroom-bg-hover"
+              className="w-full px-3 py-2 bg-chatroom-bg-tertiary border-t border-chatroom-border flex items-center justify-between hover:bg-chatroom-bg-hover"
               onClick={() => setCompletedExpanded(!completedExpanded)}
             >
-              <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-chatroom-text-muted">
                 Completed ({completed.length})
               </span>
               <ChevronDown
