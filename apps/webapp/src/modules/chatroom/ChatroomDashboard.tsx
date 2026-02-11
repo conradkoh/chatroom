@@ -15,6 +15,7 @@ import {
   MoreVertical,
   Square,
   RefreshCw,
+  Settings2,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
 import { toast } from 'sonner';
@@ -25,7 +26,7 @@ import { MessageFeed } from './components/MessageFeed';
 import { PromptModal } from './components/PromptModal';
 import { ReconnectModal } from './components/ReconnectModal';
 import { SendForm } from './components/SendForm';
-import { SetupChecklist } from './components/SetupChecklist';
+import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { TaskQueue } from './components/TaskQueue';
 import { AttachedTasksProvider } from './context/AttachedTasksContext';
 import { useAutoRestartAgents } from './hooks/useAutoRestartAgents';
@@ -213,6 +214,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Agent settings modal state
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+
+  // Setup checklist modal state - starts open
+  const [setupModalOpen, setSetupModalOpen] = useState(true);
 
   // Agent list modal trigger (used when ReconnectModal's "Start Agent Remotely" is clicked)
   const [agentListRequested, setAgentListRequested] = useState(false);
@@ -415,6 +419,15 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     setSettingsModalOpen(false);
   }, []);
 
+  // Open/close setup modal
+  const handleOpenSetup = useCallback(() => {
+    setSetupModalOpen(true);
+  }, []);
+
+  const handleCloseSetup = useCallback(() => {
+    setSetupModalOpen(false);
+  }, []);
+
   // Open the unified agents panel (triggered from ReconnectModal)
   const handleOpenAgentList = useCallback(() => {
     setAgentListRequested(true);
@@ -523,29 +536,37 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             >
               {isTeamDisconnected ? 'Disconnected' : isSetupMode ? 'Setting Up' : chatroom.status}
             </span>
-            {/* Sidebar Toggle Button with Status Indicator */}
-            {!isSetupMode && (
+            {/* Setup Button - shown when setup modal is dismissed but still in setup mode */}
+            {isSetupMode && !setupModalOpen && (
               <button
-                className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary relative"
-                onClick={toggleSidebar}
-                title={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
+                className="bg-chatroom-status-warning/15 border-2 border-chatroom-status-warning/30 text-chatroom-status-warning w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-status-warning/25 hover:border-chatroom-status-warning/50"
+                onClick={handleOpenSetup}
+                title="Open setup"
               >
-                {sidebarVisible ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
-                {/* Aggregate status indicator - shown when sidebar is hidden */}
-                {!sidebarVisible && aggregateStatus !== 'none' && (
-                  <Square
-                    size={8}
-                    className={`absolute -top-1 -right-1 ${
-                      aggregateStatus === 'working'
-                        ? 'text-chatroom-status-info fill-chatroom-status-info'
-                        : aggregateStatus === 'ready'
-                          ? 'text-chatroom-status-success fill-chatroom-status-success'
-                          : 'text-chatroom-text-muted fill-chatroom-text-muted'
-                    }`}
-                  />
-                )}
+                <Settings2 size={16} />
               </button>
             )}
+            {/* Sidebar Toggle Button with Status Indicator */}
+            <button
+              className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-8 h-8 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary relative"
+              onClick={toggleSidebar}
+              title={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
+            >
+              {sidebarVisible ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+              {/* Aggregate status indicator - shown when sidebar is hidden */}
+              {!sidebarVisible && aggregateStatus !== 'none' && (
+                <Square
+                  size={8}
+                  className={`absolute -top-1 -right-1 ${
+                    aggregateStatus === 'working'
+                      ? 'text-chatroom-status-info fill-chatroom-status-info'
+                      : aggregateStatus === 'ready'
+                        ? 'text-chatroom-status-success fill-chatroom-status-success'
+                        : 'text-chatroom-text-muted fill-chatroom-text-muted'
+                  }`}
+                />
+              )}
+            </button>
             {/* Actions Menu - only show when not completed */}
             {chatroom.status !== 'completed' && (
               <DropdownMenu>
@@ -588,6 +609,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     getStatusBadgeClasses,
     displayName,
     handleMarkComplete,
+    setupModalOpen,
+    handleOpenSetup,
   ]);
 
   // Wait for all required data and hydration before rendering to prevent flickering
@@ -626,50 +649,32 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
       >
         <>
           <div className="chatroom-root flex flex-col h-full overflow-hidden bg-chatroom-bg-primary text-chatroom-text-primary font-sans">
-            {isSetupMode ? (
-              <div className="setup-content flex flex-col h-full overflow-hidden">
-                <div className="flex-1 overflow-y-auto">
-                  <SetupChecklist
-                    chatroomId={chatroomId}
-                    teamName={teamName}
-                    teamRoles={teamRoles}
-                    teamEntryPoint={teamEntryPoint}
-                    participants={participants || []}
-                    onViewPrompt={handleViewPrompt}
-                  />
-                </div>
-                {/* Backlog access during setup - collapsible at bottom */}
-                <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
-                  <TaskQueue chatroomId={chatroomId} />
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-1 overflow-hidden relative">
-                {/* Message Section */}
-                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                  <MessageFeed chatroomId={chatroomId} participants={participants || []} />
-                  {isRestartingAgents && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border-t border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs">
-                      <RefreshCw size={12} className="animate-spin" />
-                      <span>Restarting offline agents...</span>
-                    </div>
-                  )}
-                  <SendForm chatroomId={chatroomId} onMessageSent={handleMessageSent} />
-                </div>
-
-                {/* Sidebar Overlay for mobile - below app header */}
-                {sidebarVisible && isSmallScreen && (
-                  <div
-                    className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
-                    onClick={toggleSidebar}
-                  />
+            <div className="flex flex-1 overflow-hidden relative">
+              {/* Message Section */}
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <MessageFeed chatroomId={chatroomId} participants={participants || []} />
+                {isRestartingAgents && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border-t border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs">
+                    <RefreshCw size={12} className="animate-spin" />
+                    <span>Restarting offline agents...</span>
+                  </div>
                 )}
+                <SendForm chatroomId={chatroomId} onMessageSent={handleMessageSent} />
+              </div>
 
-                {/* Sidebar - positioned below app header on mobile */}
-                {/* On desktop: transitions width to 0 when hidden so chat fills space */}
-                {/* On mobile: uses fixed positioning with translate for overlay effect */}
+              {/* Sidebar Overlay for mobile - below app header */}
+              {sidebarVisible && isSmallScreen && (
                 <div
-                  className={`
+                  className="fixed inset-0 top-14 bg-black/50 z-30 md:hidden"
+                  onClick={toggleSidebar}
+                />
+              )}
+
+              {/* Sidebar - positioned below app header on mobile */}
+              {/* On desktop: transitions width to 0 when hidden so chat fills space */}
+              {/* On mobile: uses fixed positioning with translate for overlay effect */}
+              <div
+                className={`
                 ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain w-80' : 'relative overflow-hidden'}
                 ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
@@ -677,29 +682,28 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 transition-all duration-300 ease-in-out
                 ${isSmallScreen ? (sidebarVisible ? 'translate-x-0' : 'translate-x-full') : ''}
               `}
-                >
-                  <AgentPanel
-                    chatroomId={chatroomId}
-                    teamRoles={teamRoles}
-                    readiness={readiness}
-                    onViewPrompt={handleViewPrompt}
-                    onReconnect={handleOpenReconnect}
-                    openAgentListRequested={agentListRequested}
-                    onAgentListOpened={handleAgentListOpened}
-                    onConfigure={handleOpenSettings}
-                  />
-                  <TaskQueue chatroomId={chatroomId} />
-                  <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
-                      Chatroom ID
-                    </div>
-                    <div className="font-mono text-[10px] font-bold text-chatroom-text-secondary break-all p-2 bg-chatroom-bg-tertiary">
-                      {chatroomId}
-                    </div>
+              >
+                <AgentPanel
+                  chatroomId={chatroomId}
+                  teamRoles={teamRoles}
+                  readiness={readiness}
+                  onViewPrompt={handleViewPrompt}
+                  onReconnect={handleOpenReconnect}
+                  openAgentListRequested={agentListRequested}
+                  onAgentListOpened={handleAgentListOpened}
+                  onConfigure={handleOpenSettings}
+                />
+                <TaskQueue chatroomId={chatroomId} />
+                <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
+                    Chatroom ID
+                  </div>
+                  <div className="font-mono text-[10px] font-bold text-chatroom-text-secondary break-all p-2 bg-chatroom-bg-tertiary">
+                    {chatroomId}
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
           <PromptModal
@@ -725,6 +729,18 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             currentTeamName={chatroom?.teamName}
             currentTeamRoles={teamRoles}
             currentTeamEntryPoint={chatroom?.teamEntryPoint}
+          />
+
+          {/* Setup modal - only shown during setup mode */}
+          <SetupChecklistModal
+            isOpen={isSetupMode && setupModalOpen}
+            onClose={handleCloseSetup}
+            chatroomId={chatroomId}
+            teamName={teamName}
+            teamRoles={teamRoles}
+            teamEntryPoint={teamEntryPoint}
+            participants={participants || []}
+            onViewPrompt={handleViewPrompt}
           />
         </>
       </PromptsProvider>

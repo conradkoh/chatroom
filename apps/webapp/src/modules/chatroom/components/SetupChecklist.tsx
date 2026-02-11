@@ -26,6 +26,8 @@ interface SetupChecklistProps {
   teamEntryPoint?: string;
   participants: Participant[];
   onViewPrompt: (role: string) => void;
+  /** Hide the header section (used when rendered inside a modal with its own header) */
+  hideHeader?: boolean;
 }
 
 // ─── Setup Agent Card ───────────────────────────────────────────────
@@ -133,6 +135,7 @@ export const SetupChecklist = memo(function SetupChecklist({
   teamEntryPoint: _teamEntryPoint,
   participants,
   onViewPrompt,
+  hideHeader = false,
 }: SetupChecklistProps) {
   const { getAgentPrompt, isProductionUrl } = usePrompts();
 
@@ -202,15 +205,17 @@ export const SetupChecklist = memo(function SetupChecklist({
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      {/* Header */}
-      <div className="mb-6 pb-6 border-b-2 border-chatroom-border">
-        <h2 className="flex items-center gap-2 text-lg font-bold uppercase tracking-widest text-chatroom-text-primary mb-2">
-          <Rocket size={20} /> Setup Your Team
-        </h2>
-        <p className="text-sm text-chatroom-text-muted">
-          {joinedCount} of {teamRoles.length} agents ready
-        </p>
-      </div>
+      {/* Header - hidden when used in modal */}
+      {!hideHeader && (
+        <div className="mb-6 pb-6 border-b-2 border-chatroom-border">
+          <h2 className="flex items-center gap-2 text-lg font-bold uppercase tracking-widest text-chatroom-text-primary mb-2">
+            <Rocket size={20} /> Setup Your Team
+          </h2>
+          <p className="text-sm text-chatroom-text-muted">
+            {joinedCount} of {teamRoles.length} agents ready
+          </p>
+        </div>
+      )}
 
       {/* Auth Login Section - shown for non-production */}
       {!isProductionUrl && (
