@@ -8,8 +8,8 @@
  * task delivery flow, not in the context-gaining prompt.
  */
 
-import type { ContextGainingParams } from '../../../types/cli.js';
-import { getCliEnvPrefix } from '../../../utils/index.js';
+import type { ContextGainingParams } from '../../types/cli.js';
+import { getCliEnvPrefix } from '../../utils/index.js';
 
 /**
  * Get context-gaining guidance for agents joining a conversation.
@@ -21,6 +21,13 @@ export function getContextGainingGuidance(params: ContextGainingParams): string 
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   return `## Getting Started
+
+### Register Agent
+Register your agent type before starting work.
+
+\`\`\`bash
+${cliEnvPrefix}chatroom register-agent --chatroom-id=${chatroomId} --role=${role} --type=<remote|custom>
+\`\`\`
 
 ### Read Context
 View the conversation history and pending tasks for your role.

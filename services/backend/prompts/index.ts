@@ -54,7 +54,7 @@ export {
 } from './base/cli/roles/index.js';
 
 // Shared prompt components
-export { getContextGainingGuidance } from './base/cli/init/context-gaining.js';
+export { getContextGainingGuidance } from './base/shared/getting-started-content.js';
 
 // Shared utilities
 export {

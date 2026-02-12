@@ -20,7 +20,7 @@ export const {
 export { getWaitForTaskReminder, getWaitForTaskGuidance } from './wait-for-task/reminder.js';
 
 // Re-export init functions
-export { getContextGainingGuidance } from './init/context-gaining.js';
+export { getContextGainingGuidance } from '../shared/getting-started-content.js';
 
 // Handoff CLI prompts (to be implemented)
 // export {
