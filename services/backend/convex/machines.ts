@@ -428,6 +428,39 @@ export const getPendingCommands = query({
   },
 });
 
+/**
+ * Get the status of a specific command.
+ * Used by the frontend to reactively watch ping/command results.
+ */
+export const getCommandStatus = query({
+  args: {
+    ...SessionIdArg,
+    commandId: v.id('chatroom_machineCommands'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return null;
+
+    const command = await ctx.db.get('chatroom_machineCommands', args.commandId);
+    if (!command) return null;
+
+    // Verify the user owns the machine
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', command.machineId))
+      .first();
+    if (!machine || machine.userId !== auth.user._id) return null;
+
+    return {
+      status: command.status,
+      result: command.result,
+      type: command.type,
+      createdAt: command.createdAt,
+      processedAt: command.processedAt,
+    };
+  },
+});
+
 // ============================================================================
 // COMMAND MANAGEMENT
 // ============================================================================
