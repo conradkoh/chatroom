@@ -167,6 +167,16 @@ interface AgentWithStatus {
 
 // Types and constants imported from ../types/machine
 
+// Team agent config shape matching the backend response
+interface TeamAgentConfig {
+  role: string;
+  type: 'remote' | 'custom';
+  machineId?: string;
+  agentHarness?: 'opencode';
+  model?: string;
+  workingDir?: string;
+}
+
 // Inline Agent Card - shows agent config, prompt, and controls directly in the modal
 interface InlineAgentCardProps {
   role: string;
@@ -179,6 +189,17 @@ interface InlineAgentCardProps {
   daemonStartCommand: string;
   sendCommand: SendCommandFn;
   onViewPrompt?: (role: string) => void;
+  teamConfig?: TeamAgentConfig;
+}
+
+// Resolve machine hostname from connected machines by machineId
+function resolveMachineHostname(
+  machineId: string | undefined,
+  connectedMachines: MachineInfo[]
+): string | undefined {
+  if (!machineId) return undefined;
+  const machine = connectedMachines.find((m) => m.machineId === machineId);
+  return machine?.hostname;
 }
 
 const InlineAgentCard = memo(function InlineAgentCard({
@@ -192,6 +213,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
   daemonStartCommand,
   sendCommand,
   onViewPrompt,
+  teamConfig,
 }: InlineAgentCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>('remote');
@@ -208,6 +230,25 @@ const InlineAgentCard = memo(function InlineAgentCard({
   const statusLabel = statusInfo.label;
   const statusClass = statusInfo.bg;
   const statusColorClass = statusInfo.text;
+
+  // Resolve machine hostname for remote agents
+  const machineHostname = useMemo(
+    () => resolveMachineHostname(teamConfig?.machineId, connectedMachines),
+    [teamConfig?.machineId, connectedMachines]
+  );
+
+  // Build agent type detail parts for the subtitle line
+  const agentTypeDetails = useMemo(() => {
+    if (!teamConfig) return null;
+
+    const parts: string[] = [teamConfig.type.toUpperCase()];
+    if (teamConfig.type === 'remote') {
+      if (teamConfig.agentHarness) parts.push(teamConfig.agentHarness);
+      if (machineHostname) parts.push(machineHostname);
+      else if (teamConfig.machineId) parts.push(teamConfig.machineId.slice(0, 8));
+    }
+    return parts;
+  }, [teamConfig, machineHostname]);
 
   return (
     <div className="border-b-2 border-chatroom-border last:border-b-0">
@@ -226,14 +267,34 @@ const InlineAgentCard = memo(function InlineAgentCard({
           }
         }}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <div className={`w-2.5 h-2.5 flex-shrink-0 ${statusClass}`} />
-          <span className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-            {role}
-          </span>
-          <span className={`text-[10px] font-bold uppercase tracking-wide ${statusColorClass}`}>
-            {statusLabel}
-          </span>
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <div className="flex items-center gap-2">
+            <div className={`w-2.5 h-2.5 flex-shrink-0 ${statusClass}`} />
+            <span className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+              {role}
+            </span>
+            <span className={`text-[10px] font-bold uppercase tracking-wide ${statusColorClass}`}>
+              {statusLabel}
+            </span>
+          </div>
+          {/* Agent type subtitle line */}
+          <div className="flex items-center gap-1 pl-[18px]">
+            {agentTypeDetails ? (
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wide ${
+                  teamConfig?.type === 'remote'
+                    ? 'text-chatroom-status-info'
+                    : 'text-chatroom-text-secondary'
+                }`}
+              >
+                {agentTypeDetails.join(' · ')}
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-status-warning">
+                NOT REGISTERED
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" variant="compact" />
@@ -248,6 +309,61 @@ const InlineAgentCard = memo(function InlineAgentCard({
       {/* Expanded Content - shown inline */}
       {isExpanded && (
         <div className="px-4 pb-4 space-y-3">
+          {/* Resolved configuration details */}
+          {teamConfig && (
+            <div className="text-[11px] text-chatroom-text-muted bg-chatroom-bg-surface border border-chatroom-border p-3 space-y-1">
+              <div className="font-bold uppercase tracking-wide text-chatroom-text-secondary text-[10px] mb-1.5">
+                Agent Configuration
+              </div>
+              <div className="flex gap-2">
+                <span className="text-chatroom-text-muted w-16 shrink-0">Type</span>
+                <span className="text-chatroom-text-primary font-medium">
+                  {teamConfig.type.toUpperCase()}
+                </span>
+              </div>
+              {teamConfig.type === 'remote' && (
+                <>
+                  {teamConfig.agentHarness && (
+                    <div className="flex gap-2">
+                      <span className="text-chatroom-text-muted w-16 shrink-0">Harness</span>
+                      <span className="text-chatroom-text-primary font-medium">
+                        {teamConfig.agentHarness}
+                      </span>
+                    </div>
+                  )}
+                  {(machineHostname || teamConfig.machineId) && (
+                    <div className="flex gap-2">
+                      <span className="text-chatroom-text-muted w-16 shrink-0">Machine</span>
+                      <span className="text-chatroom-text-primary font-medium">
+                        {machineHostname || teamConfig.machineId}
+                      </span>
+                    </div>
+                  )}
+                  {teamConfig.model && (
+                    <div className="flex gap-2">
+                      <span className="text-chatroom-text-muted w-16 shrink-0">Model</span>
+                      <span className="text-chatroom-text-primary font-medium">
+                        {teamConfig.model}
+                      </span>
+                    </div>
+                  )}
+                  {teamConfig.workingDir && (
+                    <div className="flex gap-2">
+                      <span className="text-chatroom-text-muted w-16 shrink-0">Dir</span>
+                      <span className="text-chatroom-text-primary font-medium font-mono text-[10px] truncate">
+                        {teamConfig.workingDir}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+              {teamConfig.type === 'custom' && (
+                <div className="text-chatroom-text-muted italic">
+                  Manually started agent (custom)
+                </div>
+              )}
+            </div>
+          )}
           <AgentStatusBanner controls={controls} />
           <AgentConfigTabs
             activeTab={activeTab}
@@ -304,6 +420,11 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as { configs: AgentConfig[] } | undefined;
 
+  // Fetch team agent configs to show registration status
+  const teamAgentConfigs = useSessionQuery(api.machines.getTeamAgentConfigs, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  }) as TeamAgentConfig[] | undefined;
+
   const sendCommand = useSessionMutation(api.machines.sendCommand);
 
   const connectedMachines = useMemo(() => {
@@ -316,6 +437,12 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   }, [configsResult?.configs]);
 
   const isLoadingMachines = machinesResult === undefined || configsResult === undefined;
+
+  // Build a lookup map from teamAgentConfigs keyed by role (lowercase)
+  const teamConfigMap = useMemo(() => {
+    if (!teamAgentConfigs) return new Map<string, TeamAgentConfig>();
+    return new Map(teamAgentConfigs.map((c) => [c.role.toLowerCase(), c]));
+  }, [teamAgentConfigs]);
 
   // Handle backdrop click
   const handleBackdropClick = useCallback(
@@ -387,6 +514,7 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
               daemonStartCommand={daemonStartCommand}
               sendCommand={sendCommand}
               onViewPrompt={onViewPrompt}
+              teamConfig={teamConfigMap.get(role.toLowerCase())}
             />
           ))}
         </div>
