@@ -908,10 +908,30 @@ async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       if (!result.commands || result.commands.length === 0) return;
 
       // Parse raw commands into type-safe discriminated unions.
-      // Invalid commands (missing required fields) are filtered out.
-      const parsed = result.commands
-        .map(parseMachineCommand)
-        .filter((c): c is MachineCommand => c !== null);
+      // Invalid commands (missing required fields) are acked as failed
+      // to prevent them from accumulating as stale pending commands.
+      const parsed: MachineCommand[] = [];
+      for (const raw of result.commands) {
+        const command = parseMachineCommand(raw);
+        if (command !== null) {
+          parsed.push(command);
+        } else {
+          // Ack invalid commands as failed so they don't stay pending forever
+          try {
+            await ctx.client.mutation(api.machines.ackCommand, {
+              sessionId: ctx.sessionId,
+              commandId: raw._id,
+              status: 'failed',
+              result: `Invalid command: type="${raw.type}" missing required payload fields`,
+            });
+            console.warn(
+              `[${formatTimestamp()}] ⚠️  Acked invalid command ${raw._id} (type=${raw.type}) as failed`
+            );
+          } catch {
+            // Ignore ack errors — will be retried on next poll
+          }
+        }
+      }
 
       enqueueCommands(parsed);
       await drainQueue();
