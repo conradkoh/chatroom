@@ -3,12 +3,19 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Settings, Users, Server, X, Check, AlertTriangle } from 'lucide-react';
+import { Settings, Users, Server, Check, AlertTriangle } from 'lucide-react';
 import React, { useState, useCallback, memo, useEffect, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
 
 import { CopyButton } from './CopyButton';
 
+import {
+  FixedModal,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+  FixedModalBody,
+  FixedModalSidebar,
+} from '@/components/ui/fixed-modal';
 import { usePrompts } from '@/contexts/PromptsContext';
 
 // ─── Types ──────────────────────────────────────────────────────────────
@@ -568,105 +575,53 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
 }: AgentSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('setup');
 
-  // Lock body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      const originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = originalOverflow;
-      };
-    }
-  }, [isOpen]);
+  return (
+    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">
+      {/* Side Navigation */}
+      <FixedModalSidebar className="w-48">
+        {/* Sidebar Title — uses FixedModalHeader for consistent height alignment */}
+        <FixedModalHeader>
+          <FixedModalTitle>Settings</FixedModalTitle>
+        </FixedModalHeader>
 
-  // Handle backdrop click
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
-  // Handle Escape key
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-  if (typeof document === 'undefined') return null;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={handleBackdropClick}
-    >
-      <div className="chatroom-root w-full max-w-5xl h-[70vh] flex bg-chatroom-bg-primary border-2 border-chatroom-border-strong overflow-hidden">
-        {/* Side Navigation */}
-        <div className="w-48 flex-shrink-0 bg-chatroom-bg-surface border-r-2 border-chatroom-border-strong flex flex-col">
-          {/* Modal Title */}
-          <div className="px-4 py-3 border-b-2 border-chatroom-border-strong">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
-              Settings
-            </h2>
-          </div>
-
-          {/* Navigation Items */}
-          <nav className="flex-1 py-1">
-            {TAB_CONFIG.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-chatroom-accent/10 text-chatroom-accent border-r-2 border-chatroom-accent'
-                    : 'text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover'
-                }`}
-              >
-                <span className="flex-shrink-0">{tab.icon}</span>
-                <span className="text-xs font-bold uppercase tracking-wide">{tab.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Content Area */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Header with close button */}
-          <div className="flex items-center justify-between px-6 py-3 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface">
-            <div className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted">
-              {TAB_CONFIG.find((t) => t.id === activeTab)?.label}
-            </div>
+        {/* Navigation Items */}
+        <nav className="flex-1 py-1">
+          {TAB_CONFIG.map((tab) => (
             <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-chatroom-accent/10 text-chatroom-accent border-r-2 border-chatroom-accent'
+                  : 'text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover'
+              }`}
             >
-              <X size={18} />
+              <span className="flex-shrink-0">{tab.icon}</span>
+              <span className="text-xs font-bold uppercase tracking-wide">{tab.label}</span>
             </button>
-          </div>
+          ))}
+        </nav>
+      </FixedModalSidebar>
 
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto p-6">
-            {activeTab === 'setup' && <SetupContent chatroomId={chatroomId} />}
-            {activeTab === 'team' && (
-              <TeamConfigContent
-                chatroomId={chatroomId}
-                currentTeamId={currentTeamId}
-                currentTeamRoles={currentTeamRoles}
-              />
-            )}
-            {activeTab === 'machine' && <MachineContent chatroomId={chatroomId} />}
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body
+      {/* Content Area */}
+      <FixedModalContent>
+        <FixedModalHeader onClose={onClose}>
+          <FixedModalTitle>{TAB_CONFIG.find((t) => t.id === activeTab)?.label}</FixedModalTitle>
+        </FixedModalHeader>
+
+        <FixedModalBody className="p-6">
+          {activeTab === 'setup' && <SetupContent chatroomId={chatroomId} />}
+          {activeTab === 'team' && (
+            <TeamConfigContent
+              chatroomId={chatroomId}
+              currentTeamId={currentTeamId}
+              currentTeamRoles={currentTeamRoles}
+            />
+          )}
+          {activeTab === 'machine' && <MachineContent chatroomId={chatroomId} />}
+        </FixedModalBody>
+      </FixedModalContent>
+    </FixedModal>
   );
 });

@@ -9,14 +9,12 @@ import {
   AlertTriangle,
   Clock,
   RefreshCw,
-  X,
   ChevronDown,
   ChevronUp,
   MoreHorizontal,
   Settings,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
@@ -29,6 +27,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  FixedModal,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+  FixedModalBody,
+} from '@/components/ui/fixed-modal';
 import { usePrompts } from '@/contexts/PromptsContext';
 
 // Re-export AgentStatus for backward compatibility
@@ -444,63 +449,13 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     return new Map(teamAgentConfigs.map((c) => [c.role.toLowerCase(), c]));
   }, [teamAgentConfigs]);
 
-  // Handle backdrop click
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
-  // Handle escape key
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  // Lock body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      const originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = originalOverflow;
-      };
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-  if (typeof document === 'undefined') return null;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={handleBackdropClick}
-    >
-      <div className="chatroom-root w-full max-w-lg max-h-[85vh] flex flex-col bg-chatroom-bg-primary border-2 border-chatroom-border-strong overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-            All Agents ({agents.length})
-          </h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Agent List - inline cards for each agent */}
-        <div className="flex-1 overflow-y-auto">
+  return (
+    <FixedModal isOpen={isOpen} onClose={onClose}>
+      <FixedModalContent>
+        <FixedModalHeader onClose={onClose}>
+          <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
+        </FixedModalHeader>
+        <FixedModalBody>
           {agents.map(({ role, effectiveStatus }) => (
             <InlineAgentCard
               key={role}
@@ -517,10 +472,9 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
               teamConfig={teamConfigMap.get(role.toLowerCase())}
             />
           ))}
-        </div>
-      </div>
-    </div>,
-    document.body
+        </FixedModalBody>
+      </FixedModalContent>
+    </FixedModal>
   );
 });
 
