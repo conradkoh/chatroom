@@ -46,6 +46,13 @@ import {
 import { MessageDetailModal } from './MessageDetailModal';
 import { WorkingIndicator } from './WorkingIndicator';
 
+import {
+  FixedModal,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+  FixedModalBody,
+} from '@/components/ui/fixed-modal';
 import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
 
 interface Participant {
@@ -466,48 +473,62 @@ interface MessageItemProps {
 // System notification message (e.g. context change)
 // Clickable to expand/collapse, shows markdown content when expanded
 const SystemMessage = memo(function SystemMessage({ message }: { message: Message }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleToggle = useCallback(() => {
-    setIsExpanded((prev) => !prev);
+  const handleOpen = useCallback(() => {
+    setIsModalOpen(true);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIsModalOpen(false);
   }, []);
 
   return (
-    <div className="sticky top-0 z-10 bg-chatroom-bg-primary border-b border-chatroom-border backdrop-blur-sm px-4 py-3">
-      {/* Collapsed: clickable divider row */}
-      <button
-        onClick={handleToggle}
-        className="w-full flex items-center gap-3 group cursor-pointer"
-      >
-        <div className="flex-1 h-px bg-chatroom-status-info/30" />
-        <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info bg-chatroom-status-info/10 border border-chatroom-status-info/30 group-hover:bg-chatroom-status-info/20 transition-colors">
-          <Sparkles size={10} className="flex-shrink-0" />
-          <span>New Context</span>
-          <span className="text-chatroom-status-info/50">—</span>
-          <span className="normal-case font-medium tracking-normal max-w-[300px] truncate text-chatroom-text-secondary [&_*]:inline">
-            <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
-              {message.content}
-            </Markdown>
-          </span>
-          <ChevronDown
-            size={10}
-            className={`flex-shrink-0 text-chatroom-status-info/60 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-          />
-        </div>
-        <div className="flex-1 h-px bg-chatroom-status-info/30" />
-      </button>
-
-      {/* Expanded: full content with markdown rendering */}
-      {isExpanded && (
-        <div className="mt-2 mx-auto max-w-lg px-4 py-3 bg-chatroom-bg-tertiary border border-chatroom-status-info/20">
-          <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-secondary prose-blockquote:text-chatroom-text-secondary">
-            <Markdown remarkPlugins={[remarkGfm]} components={fullMarkdownComponents}>
-              {message.content}
-            </Markdown>
+    <>
+      <div className="sticky top-0 z-10 bg-chatroom-bg-primary border-b border-chatroom-border backdrop-blur-sm px-4 py-3">
+        {/* Clickable divider row - opens modal */}
+        <button
+          onClick={handleOpen}
+          className="w-full flex items-center gap-3 group cursor-pointer"
+        >
+          <div className="flex-1 h-px bg-chatroom-status-info/30" />
+          <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info bg-chatroom-status-info/10 border border-chatroom-status-info/30 group-hover:bg-chatroom-status-info/20 transition-colors">
+            <Sparkles size={10} className="flex-shrink-0" />
+            <span>New Context</span>
+            <span className="text-chatroom-status-info/50">—</span>
+            <span className="normal-case font-medium tracking-normal max-w-[300px] truncate text-chatroom-text-secondary [&_*]:inline">
+              <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+                {message.content}
+              </Markdown>
+            </span>
           </div>
-        </div>
-      )}
-    </div>
+          <div className="flex-1 h-px bg-chatroom-status-info/30" />
+        </button>
+      </div>
+
+      {/* Context detail modal */}
+      <FixedModal isOpen={isModalOpen} onClose={handleClose} maxWidth="max-w-2xl">
+        <FixedModalContent>
+          <FixedModalHeader onClose={handleClose}>
+            <FixedModalTitle>
+              <span className="flex items-center gap-2">
+                <Sparkles size={14} className="text-chatroom-status-info" />
+                New Context
+              </span>
+            </FixedModalTitle>
+          </FixedModalHeader>
+          <FixedModalBody>
+            <div className="p-6">
+              <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-secondary prose-blockquote:text-chatroom-text-secondary">
+                <Markdown remarkPlugins={[remarkGfm]} components={fullMarkdownComponents}>
+                  {message.content}
+                </Markdown>
+              </div>
+            </div>
+          </FixedModalBody>
+        </FixedModalContent>
+      </FixedModal>
+    </>
   );
 });
 
