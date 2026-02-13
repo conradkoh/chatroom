@@ -12,6 +12,7 @@ import { reportProgressCommand } from '../../../prompts/base/cli/report-progress
 import { getTaskStartedPrompt } from '../../../prompts/base/cli/task-started/main-prompt';
 import { getAvailableActions } from '../../../prompts/base/cli/wait-for-task/available-actions';
 import { getContextGainingGuidance } from '../../../prompts/base/shared/getting-started-content';
+import { generateAgentPrompt } from '../../../prompts/base/webapp/init/generator';
 import { getConfig } from '../../../prompts/config/index';
 
 // Test URLs for different environments
@@ -57,6 +58,70 @@ describe('Context Gaining Prompt', () => {
     });
 
     expect(guidance).toContain('chatroom wait-for-task --chatroom-id=abc123 --role=reviewer');
+  });
+
+  test('defaults to <remote|custom> placeholder when agentType is not specified', () => {
+    const guidance = getContextGainingGuidance({
+      chatroomId: 'test-123',
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(guidance).toContain('--type=<remote|custom>');
+  });
+
+  test('uses --type=custom when agentType is custom', () => {
+    const guidance = getContextGainingGuidance({
+      chatroomId: 'test-123',
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+      agentType: 'custom',
+    });
+
+    expect(guidance).toContain('--type=custom');
+    expect(guidance).not.toContain('--type=<remote|custom>');
+  });
+
+  test('uses --type=remote when agentType is remote', () => {
+    const guidance = getContextGainingGuidance({
+      chatroomId: 'test-123',
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+      agentType: 'remote',
+    });
+
+    expect(guidance).toContain('--type=remote');
+    expect(guidance).not.toContain('--type=<remote|custom>');
+  });
+});
+
+describe('Webapp Agent Prompt', () => {
+  test('generates register-agent command with --type=custom', () => {
+    const prompt = generateAgentPrompt({
+      chatroomId: 'test-chatroom-456',
+      role: 'planner',
+      teamName: 'Squad',
+      teamRoles: ['planner', 'builder', 'reviewer'],
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Webapp prompts should always use --type=custom
+    expect(prompt).toContain('--type=custom');
+    expect(prompt).not.toContain('--type=<remote|custom>');
+  });
+
+  test('webapp prompt includes correct register-agent command format', () => {
+    const prompt = generateAgentPrompt({
+      chatroomId: 'my-chatroom-id',
+      role: 'builder',
+      teamName: 'Pair',
+      teamRoles: ['builder', 'reviewer'],
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(prompt).toContain(
+      'chatroom register-agent --chatroom-id=my-chatroom-id --role=builder --type=custom'
+    );
   });
 });
 
