@@ -34,11 +34,11 @@ Two requirements:
 
 2. **Blocking execution** - Wait for command completion
    • Do not respond to user or perform other work while running
-   • Only proceed after the command exits (timeout or task received)
+   • Only proceed after the command exits (signal or task received)
 
-⏱️  UNDERSTANDING TIMEOUTS
-• Timeouts are normal and expected - they keep agents responsive
-• When the command terminates:
+⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
+• Your harness may kill long-running commands after a set duration
+• When the command terminates unexpectedly:
   1. Do you have urgent pending work?
   2. Without wait-for-task, your team cannot reach you
   3. If no urgent work, reconnect immediately

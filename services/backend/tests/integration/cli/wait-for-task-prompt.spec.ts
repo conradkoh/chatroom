@@ -1305,54 +1305,6 @@ See docs/auth.md for more details.`;
 });
 
 describe('Wait-for-Task Error Prompts', () => {
-  test('materializes complete timeout reconnection prompt', () => {
-    // This test validates the timeout prompt shown to agents when wait-for-task times out
-    const chatroomId = 'jx750h696te75x67z5q6cbwkph7zvm2x';
-    const role = 'reviewer';
-    const cliEnvPrefix = 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210';
-
-    // Simulate the exact prompt shown when timeout occurs
-    const timeoutTime = '2026-01-26 11:30:45'; // Example timestamp
-    const fullTimeoutPrompt = `
-──────────────────────────────────────────────────
-⚠️  RECONNECTION REQUIRED
-
-[${timeoutTime}] Why: Session timeout reached (normal and expected behavior)
-Impact: You are no longer listening for tasks
-Action: Run this command immediately to resume availability
-
-${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
-──────────────────────────────────────────────────
-`;
-
-    // Verify the complete prompt matches expected format
-    expect(fullTimeoutPrompt).toMatchInlineSnapshot(`
-      "
-      ──────────────────────────────────────────────────
-      ⚠️  RECONNECTION REQUIRED
-
-      [2026-01-26 11:30:45] Why: Session timeout reached (normal and expected behavior)
-      Impact: You are no longer listening for tasks
-      Action: Run this command immediately to resume availability
-
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=jx750h696te75x67z5q6cbwkph7zvm2x --role=reviewer
-      ──────────────────────────────────────────────────
-      "
-    `);
-
-    // Verify key components are present
-    expect(fullTimeoutPrompt).toContain('RECONNECTION REQUIRED');
-    expect(fullTimeoutPrompt).toContain('Session timeout reached');
-    expect(fullTimeoutPrompt).toContain('normal and expected behavior');
-    expect(fullTimeoutPrompt).toContain('You are no longer listening for tasks');
-    expect(fullTimeoutPrompt).toContain('Run this command immediately');
-    expect(fullTimeoutPrompt).toContain(cliEnvPrefix);
-    expect(fullTimeoutPrompt).toContain(
-      `chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`
-    );
-    expect(fullTimeoutPrompt).toContain(`[${timeoutTime}]`);
-  });
-
   test('materializes complete interrupt signal reconnection prompt', () => {
     // This test validates the prompt shown when process receives interrupt signal (SIGINT, SIGTERM, SIGHUP)
     const chatroomId = 'jx750h696te75x67z5q6cbwkph7zvm2x';
@@ -1409,20 +1361,6 @@ ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role
     const timestamp = '2026-01-26 12:00:00';
 
     const prompts = [
-      {
-        name: 'Timeout',
-        prompt: `
-──────────────────────────────────────────────────
-⚠️  RECONNECTION REQUIRED
-
-[${timestamp}] Why: Session timeout reached (normal and expected behavior)
-Impact: You are no longer listening for tasks
-Action: Run this command immediately to resume availability
-
-${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
-──────────────────────────────────────────────────
-`,
-      },
       {
         name: 'Signal Interrupt',
         prompt: `

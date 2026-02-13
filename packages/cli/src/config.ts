@@ -7,9 +7,6 @@
 /** Polling interval for the create command (monitoring chatroom) */
 export const CREATE_POLL_INTERVAL_MS = 1000;
 
-/** Default timeout for wait-for-task (10 minutes) */
-export const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
-
 /** Default active work timeout (1 hour) - how long an active agent has before being considered crashed */
 export const DEFAULT_ACTIVE_TIMEOUT_MS = 60 * 60 * 1000;
 

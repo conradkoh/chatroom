@@ -110,35 +110,14 @@ program
   .description('Join a chatroom and wait for tasks')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Role to join as (e.g., builder, reviewer)')
-  .option('--timeout <ms>', 'Optional timeout in milliseconds (deprecated, use --duration)')
-  .option('--duration <duration>', 'How long to wait (e.g., "1m", "5m", "30s")')
-  .action(
-    async (options: { chatroomId: string; role: string; timeout?: string; duration?: string }) => {
-      await maybeRequireAuth();
-      const { waitForTask, parseDuration } = await import('./commands/wait-for-task.js');
+  .action(async (options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+    const { waitForTask } = await import('./commands/wait-for-task.js');
 
-      // Parse duration if provided, otherwise fall back to timeout
-      let timeoutMs: number | undefined;
-      if (options.duration) {
-        const parsed = parseDuration(options.duration);
-        if (parsed === null) {
-          console.error(
-            `❌ Invalid duration format: "${options.duration}". Use formats like "1m", "5m", "30s".`
-          );
-          process.exit(1);
-        }
-        timeoutMs = parsed;
-      } else if (options.timeout) {
-        timeoutMs = parseInt(options.timeout, 10);
-      }
-
-      await waitForTask(options.chatroomId, {
-        role: options.role,
-        timeout: timeoutMs,
-        duration: options.duration,
-      });
-    }
-  );
+    await waitForTask(options.chatroomId, {
+      role: options.role,
+    });
+  });
 
 program
   .command('task-started')

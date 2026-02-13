@@ -11,7 +11,7 @@ import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
 import { api, type Id, type Chatroom, type TaskWithMessage } from '../api.js';
-import { DEFAULT_WAIT_TIMEOUT_MS, DEFAULT_ACTIVE_TIMEOUT_MS } from '../config.js';
+import { DEFAULT_ACTIVE_TIMEOUT_MS } from '../config.js';
 import { getDriverRegistry } from '../infrastructure/agent-drivers/index.js';
 import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
 import {
@@ -27,49 +27,13 @@ import {
 
 interface WaitForTaskOptions {
   role: string;
-  timeout?: number;
-  duration?: string;
   silent?: boolean;
   agentType?: AgentHarness;
 }
 
-/**
- * Parse a duration string (e.g., "1m", "5m", "30s") into milliseconds.
- * Returns null if the format is invalid.
- */
-export function parseDuration(duration: string): number | null {
-  const match = duration
-    .trim()
-    .match(/^(\d+(?:\.\d+)?)\s*(s|sec|second|seconds|m|min|minute|minutes|h|hr|hour|hours)?$/i);
-  if (!match) return null;
-
-  const value = parseFloat(match[1]!);
-  const unit = (match[2] || 's').toLowerCase();
-
-  switch (unit) {
-    case 's':
-    case 'sec':
-    case 'second':
-    case 'seconds':
-      return value * 1000;
-    case 'm':
-    case 'min':
-    case 'minute':
-    case 'minutes':
-      return value * 60 * 1000;
-    case 'h':
-    case 'hr':
-    case 'hour':
-    case 'hours':
-      return value * 60 * 60 * 1000;
-    default:
-      return null;
-  }
-}
-
 export async function waitForTask(chatroomId: string, options: WaitForTaskOptions): Promise<void> {
   const client = await getConvexClient();
-  const { role, timeout, silent } = options;
+  const { role, silent } = options;
 
   // Get Convex URL and CLI env prefix for generating commands
   const convexUrl = getConvexUrl();
@@ -189,22 +153,16 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     }
   }
 
-  // Calculate readyUntil timestamp for this session
-  // If no timeout specified, use configured default (10 minutes)
-  const effectiveTimeout = timeout || DEFAULT_WAIT_TIMEOUT_MS;
-  const readyUntil = Date.now() + effectiveTimeout;
-
   // Generate a unique connection ID for this wait-for-task session
   // This allows detection of concurrent wait-for-task processes
   // If another process starts, it will update the connectionId and this process will exit
   const connectionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-  // Join the chatroom with readyUntil timestamp and connectionId
+  // Join the chatroom with connectionId (no readyUntil — process stays alive until harness kills it)
   await client.mutation(api.participants.join, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     role,
-    readyUntil,
     connectionId,
   });
 
@@ -255,20 +213,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   let taskProcessed = false;
   let unsubscribe: (() => void) | null = null;
 
-  // Set up timeout - now always has a default value
-  const timeoutHandle = setTimeout(() => {
-    if (unsubscribe) unsubscribe();
-    const timeoutTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    console.log(`\n${'─'.repeat(50)}`);
-    console.log(`⚠️  RECONNECTION REQUIRED\n`);
-    console.log(`[${timeoutTime}] Why: Session timeout reached (normal and expected behavior)`);
-    console.log(`Impact: You are no longer listening for tasks`);
-    console.log(`Action: Run this command immediately to resume availability\n`);
-    console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
-    console.log(`${'─'.repeat(50)}`);
-    process.exit(0); // Exit with 0 since this is expected behavior
-  }, effectiveTimeout);
-
   // Handle task processing when we receive pending tasks via subscription
   const handlePendingTasks = async (pendingTasks: TaskWithMessage[]) => {
     // Prevent duplicate processing
@@ -285,7 +229,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (currentConnectionId && currentConnectionId !== connectionId) {
       // Another process has taken over - exit gracefully
       if (unsubscribe) unsubscribe();
-      clearTimeout(timeoutHandle);
       const takeoverTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
       console.log(`\n${'─'.repeat(50)}`);
       console.log(`⚠️  CONNECTION SUPERSEDED\n`);
@@ -336,7 +279,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     // SUCCESS: This agent has exclusive claim on the task
     if (unsubscribe) unsubscribe();
-    clearTimeout(timeoutHandle);
 
     // Update participant status to active with activeUntil timeout
     // This gives the agent ~1 hour to complete the task before being considered crashed
@@ -578,7 +520,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // Handle interrupt signals - These are UNEXPECTED terminations that require immediate restart
   const handleSignal = (_signal: string) => {
     if (unsubscribe) unsubscribe();
-    clearTimeout(timeoutHandle);
     const signalTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
     console.log(`\n${'─'.repeat(50)}`);
     console.log(`⚠️  RECONNECTION REQUIRED\n`);
