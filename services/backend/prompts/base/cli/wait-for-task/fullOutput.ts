@@ -7,10 +7,9 @@
  *
  * The output includes:
  * - Task Information section (task ID, message ID)
- * - Next Steps section (classification or handoff instructions)
- * - Context wrapper (available actions & role instructions)
  * - Pinned section (context or user message, attached backlog, classification)
- * - Process section (4-step workflow)
+ * - Process section (step-by-step workflow)
+ * - Next Steps section (directive classification or handoff instructions)
  * - Reminder footer
  */
 
@@ -96,6 +95,8 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   const lines: string[] = [];
   const SEP_EQUAL = '='.repeat(60);
 
+  const isUserMessage = message && message.senderRole.toLowerCase() === 'user';
+
   // ── Task Information ──────────────────────────────────────────────────────
 
   lines.push(SEP_EQUAL);
@@ -105,67 +106,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   if (message) {
     lines.push(`Message ID: ${message._id}`);
   }
-
-  // ── Next Steps ────────────────────────────────────────────────────────────
-
-  lines.push('');
-  lines.push('📋 NEXT STEPS');
-  lines.push(SEP_EQUAL);
-
-  const isUserMessage = message && message.senderRole.toLowerCase() === 'user';
-
-  if (isUserMessage) {
-    lines.push('To acknowledge and classify this message, run:');
-    lines.push('');
-
-    // Base command with <type> placeholder
-    const baseCmd = taskStartedCommand({
-      chatroomId,
-      role,
-      taskId: task._id,
-      classification: 'question',
-      cliEnvPrefix,
-    }).replace(
-      '--origin-message-classification=question',
-      '--origin-message-classification=<type>'
-    );
-    lines.push(baseCmd);
-
-    // Classification requirements
-    lines.push('');
-    lines.push('📝 Classification Requirements:');
-    lines.push('   • question: No additional fields required');
-    lines.push('   • follow_up: No additional fields required');
-    lines.push('   • new_feature: REQUIRES --title, --description, --tech-specs');
-
-    // new_feature example
-    lines.push('');
-    lines.push('💡 Example for new_feature:');
-    lines.push(
-      taskStartedCommand({
-        chatroomId,
-        role,
-        taskId: task._id,
-        classification: 'new_feature',
-        title: '<title>',
-        description: '<description>',
-        techSpecs: '<tech-specs>',
-        cliEnvPrefix,
-      })
-    );
-
-    lines.push('');
-    lines.push('Classification types: question, new_feature, follow_up');
-  } else if (message) {
-    lines.push(`Task handed off from ${message.senderRole}.`);
-    lines.push(
-      'The original user message was already classified - you can start work immediately.'
-    );
-  } else {
-    lines.push(`No message found. Task ID: ${task._id}`);
-  }
-
-  lines.push(SEP_EQUAL);
 
   // ── Pinned section ────────────────────────────────────────────────────────
 
@@ -356,6 +296,71 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('');
   lines.push(`${stepNum}. Resume listening:`);
   lines.push(`   ${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}`);
+
+  // ── Next Steps (directive classification/handoff instructions) ───────────
+
+  lines.push('');
+  lines.push(SEP_EQUAL);
+  lines.push('📋 NEXT STEPS');
+  lines.push(SEP_EQUAL);
+
+  if (isUserMessage) {
+    lines.push('');
+    lines.push('Step 1. Acknowledge and classify this message:');
+    lines.push('');
+
+    // Base command with <type> placeholder
+    const baseCmd = taskStartedCommand({
+      chatroomId,
+      role,
+      taskId: task._id,
+      classification: 'question',
+      cliEnvPrefix,
+    }).replace(
+      '--origin-message-classification=question',
+      '--origin-message-classification=<type>'
+    );
+    lines.push(baseCmd);
+
+    lines.push('');
+    lines.push('Classification types: question, new_feature, follow_up');
+    lines.push('');
+    lines.push('📝 Classification Requirements:');
+    lines.push('   • question: No additional fields required');
+    lines.push('   • follow_up: No additional fields required');
+    lines.push('   • new_feature: REQUIRES --title, --description, --tech-specs');
+
+    // new_feature example
+    lines.push('');
+    lines.push('💡 Example for new_feature:');
+    lines.push(
+      taskStartedCommand({
+        chatroomId,
+        role,
+        taskId: task._id,
+        classification: 'new_feature',
+        title: '<title>',
+        description: '<description>',
+        techSpecs: '<tech-specs>',
+        cliEnvPrefix,
+      })
+    );
+
+    lines.push('');
+    lines.push('Step 2. Do the work following the PROCESS section above.');
+    lines.push('');
+    lines.push('Step 3. Hand off when complete.');
+  } else if (message) {
+    lines.push('');
+    lines.push(`Step 1. Task handed off from ${message.senderRole} — start work immediately.`);
+    lines.push('');
+    lines.push('Step 2. Do the work following the PROCESS section above.');
+    lines.push('');
+    lines.push('Step 3. Hand off when complete.');
+  } else {
+    lines.push('');
+    lines.push(`No message found. Task ID: ${task._id}`);
+  }
 
   // ── Reminder footer ───────────────────────────────────────────────────────
 

@@ -356,30 +356,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       Task ID: 10007;chatroom_tasks
       Message ID: 10006;chatroom_messages
 
-      📋 NEXT STEPS
-      ============================================================
-      To acknowledge and classify this message, run:
-
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=<type>
-
-      📝 Classification Requirements:
-         • question: No additional fields required
-         • follow_up: No additional fields required
-         • new_feature: REQUIRES --title, --description, --tech-specs
-
-      💡 Example for new_feature:
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=new_feature << 'EOF'
-      ---TITLE---
-      <title>
-      ---DESCRIPTION---
-      <description>
-      ---TECH_SPECS---
-      <tech-specs>
-      EOF
-
-      Classification types: question, new_feature, follow_up
-      ============================================================
-
       ============================================================
       📍 PINNED - Work on this immediately
       ============================================================
@@ -424,6 +400,35 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       5. Resume listening:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+
+      ============================================================
+      📋 NEXT STEPS
+      ============================================================
+
+      Step 1. Acknowledge and classify this message:
+
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=<type>
+
+      Classification types: question, new_feature, follow_up
+
+      📝 Classification Requirements:
+         • question: No additional fields required
+         • follow_up: No additional fields required
+         • new_feature: REQUIRES --title, --description, --tech-specs
+
+      💡 Example for new_feature:
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=new_feature << 'EOF'
+      ---TITLE---
+      <title>
+      ---DESCRIPTION---
+      <description>
+      ---TECH_SPECS---
+      <tech-specs>
+      EOF
+
+      Step 2. Do the work following the PROCESS section above.
+
+      Step 3. Hand off when complete.
 
       ============================================================
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -1523,12 +1528,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       Task ID: 10068;chatroom_tasks
       Message ID: 10067;chatroom_messages
 
-      📋 NEXT STEPS
-      ============================================================
-      Task handed off from builder.
-      The original user message was already classified - you can start work immediately.
-      ============================================================
-
       ============================================================
       📍 PINNED - Work on this immediately
       ============================================================
@@ -1572,6 +1571,16 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       4. Resume listening:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
+
+      ============================================================
+      📋 NEXT STEPS
+      ============================================================
+
+      Step 1. Task handed off from builder — start work immediately.
+
+      Step 2. Do the work following the PROCESS section above.
+
+      Step 3. Hand off when complete.
 
       ============================================================
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
