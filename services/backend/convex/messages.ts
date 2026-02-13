@@ -15,8 +15,6 @@ import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
 import { transitionTask, type TaskStatus } from './lib/taskStateMachine';
 import { getCompletionStatus } from './lib/taskWorkflows';
-import { getAvailableActions } from '../prompts/base/cli/wait-for-task/available-actions.js';
-import { waitForTaskCommand } from '../prompts/base/cli/wait-for-task/command.js';
 import { generateFullCliOutput } from '../prompts/base/cli/wait-for-task/fullOutput.js';
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
@@ -2173,24 +2171,10 @@ export const getTaskDeliveryPrompt = query({
 
     // Build and return the complete prompt
     const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
-    const waitCommand = waitForTaskCommand({
-      chatroomId: args.chatroomId,
-      role: args.role,
-      cliEnvPrefix,
-    });
-    const reminderMessage = `Remember to listen for new messages using \`wait-for-task\` after handoff. Otherwise your team might get stuck not be able to reach you.\n\n    ${waitCommand}`;
 
-    // Get available actions for this task delivery
+    // Determine entry point status for context management
     const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
     const isEntryPoint = entryPoint ? args.role.toLowerCase() === entryPoint.toLowerCase() : true; // Default to true if no entry point configured
-    const availableActionsText = getAvailableActions({
-      chatroomId: args.chatroomId,
-      role: args.role,
-      convexUrl: config.getConvexURLWithFallback(args.convexUrl),
-      isEntryPoint,
-    });
-
-    const humanReadable = `${availableActionsText}\n\n${rolePromptText}\n\n${reminderMessage}`;
 
     // Generate the complete CLI output (backend-generated, CLI just prints it)
     const fullCliOutput = generateFullCliOutput({
@@ -2208,7 +2192,6 @@ export const getTaskDeliveryPrompt = query({
             content: message.content,
           }
         : null,
-      humanReadable,
       currentContext,
       originMessage: originMessage
         ? {
@@ -2227,7 +2210,6 @@ export const getTaskDeliveryPrompt = query({
       followUpCountSinceOrigin,
       originMessageCreatedAt: originMessage?._creationTime ?? null,
       isEntryPoint,
-      hasSystemPromptControl: await getHasSystemPromptControl(ctx, args.chatroomId, args.role),
       availableHandoffTargets: availableHandoffRoles,
     });
 

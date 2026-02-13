@@ -39,9 +39,6 @@ export interface FullCliOutputParams {
     content: string;
   } | null;
 
-  /** Pre-generated available actions + role prompt + reminder (the humanReadable field) */
-  humanReadable: string;
-
   /** Explicit context (new system) */
   currentContext: {
     content: string;
@@ -69,9 +66,6 @@ export interface FullCliOutputParams {
   /** Whether this role is the team entry point (planner/coordinator). Only entry points can create contexts. */
   isEntryPoint: boolean;
 
-  /** Whether the agent has system prompt control (e.g. remote agents). If true, role prompt is omitted from output. */
-  hasSystemPromptControl: boolean;
-
   /** Available handoff targets for this role (e.g. ['builder', 'reviewer', 'user']) */
   availableHandoffTargets: string[];
 }
@@ -91,13 +85,11 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     cliEnvPrefix,
     task,
     message,
-    humanReadable,
     currentContext,
     originMessage,
     followUpCountSinceOrigin,
     originMessageCreatedAt,
     isEntryPoint,
-    hasSystemPromptControl,
     availableHandoffTargets,
   } = params;
 
@@ -174,15 +166,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   }
 
   lines.push(SEP_EQUAL);
-
-  // ── Context wrapper (available actions & role instructions) ────────────────
-  // Skip for agents with system prompt control — they already have these instructions
-  if (!hasSystemPromptControl) {
-    lines.push('');
-    lines.push('<!-- CONTEXT: Available Actions & Role Instructions');
-    lines.push(humanReadable);
-    lines.push('-->');
-  }
 
   // ── Pinned section ────────────────────────────────────────────────────────
 
