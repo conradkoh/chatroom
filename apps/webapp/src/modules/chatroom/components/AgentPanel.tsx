@@ -9,14 +9,12 @@ import {
   AlertTriangle,
   Clock,
   RefreshCw,
-  X,
   ChevronDown,
   ChevronUp,
   MoreHorizontal,
   Settings,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
@@ -29,6 +27,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  FixedModal,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+  FixedModalBody,
+} from '@/components/ui/fixed-modal';
 import { usePrompts } from '@/contexts/PromptsContext';
 
 // Re-export AgentStatus for backward compatibility
@@ -125,10 +130,10 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   const classes = { indicator: statusConfig.bg };
 
   return (
-    <div className="border-b border-border last:border-b-0">
+    <div className="border-b border-chatroom-border last:border-b-0">
       {/* Clickable Header - opens unified modal */}
       <div
-        className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-accent/50"
+        className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-chatroom-bg-hover"
         role="button"
         tabIndex={0}
         aria-label={`${title} agents (${agents.length}). Click to view all agents.`}
@@ -144,16 +149,16 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
         <div className={`w-2.5 h-2.5 flex-shrink-0 ${classes.indicator}`} />
         {/* Group Info */}
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-bold uppercase tracking-wider text-foreground">
+          <div className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
             {title}
-            <span className="ml-1.5 text-muted-foreground">({agents.length})</span>
+            <span className="ml-1.5 text-chatroom-text-muted">({agents.length})</span>
           </div>
-          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted truncate">
             {agents.map((r) => r.toUpperCase()).join(', ')}
           </div>
         </div>
         {/* View More Indicator */}
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        <ChevronRight className="h-4 w-4 text-chatroom-text-muted" />
       </div>
     </div>
   );
@@ -167,6 +172,16 @@ interface AgentWithStatus {
 
 // Types and constants imported from ../types/machine
 
+// Team agent config shape matching the backend response
+interface TeamAgentConfig {
+  role: string;
+  type: 'remote' | 'custom';
+  machineId?: string;
+  agentHarness?: 'opencode';
+  model?: string;
+  workingDir?: string;
+}
+
 // Inline Agent Card - shows agent config, prompt, and controls directly in the modal
 interface InlineAgentCardProps {
   role: string;
@@ -179,6 +194,17 @@ interface InlineAgentCardProps {
   daemonStartCommand: string;
   sendCommand: SendCommandFn;
   onViewPrompt?: (role: string) => void;
+  teamConfig?: TeamAgentConfig;
+}
+
+// Resolve machine hostname from connected machines by machineId
+function resolveMachineHostname(
+  machineId: string | undefined,
+  connectedMachines: MachineInfo[]
+): string | undefined {
+  if (!machineId) return undefined;
+  const machine = connectedMachines.find((m) => m.machineId === machineId);
+  return machine?.hostname;
 }
 
 const InlineAgentCard = memo(function InlineAgentCard({
@@ -192,6 +218,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
   daemonStartCommand,
   sendCommand,
   onViewPrompt,
+  teamConfig,
 }: InlineAgentCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>('remote');
@@ -208,6 +235,25 @@ const InlineAgentCard = memo(function InlineAgentCard({
   const statusLabel = statusInfo.label;
   const statusClass = statusInfo.bg;
   const statusColorClass = statusInfo.text;
+
+  // Resolve machine hostname for remote agents
+  const machineHostname = useMemo(
+    () => resolveMachineHostname(teamConfig?.machineId, connectedMachines),
+    [teamConfig?.machineId, connectedMachines]
+  );
+
+  // Build agent type detail parts for the subtitle line
+  const agentTypeDetails = useMemo(() => {
+    if (!teamConfig) return null;
+
+    const parts: string[] = [teamConfig.type.toUpperCase()];
+    if (teamConfig.type === 'remote') {
+      if (teamConfig.agentHarness) parts.push(teamConfig.agentHarness);
+      if (machineHostname) parts.push(machineHostname);
+      else if (teamConfig.machineId) parts.push(teamConfig.machineId.slice(0, 8));
+    }
+    return parts;
+  }, [teamConfig, machineHostname]);
 
   return (
     <div className="border-b-2 border-chatroom-border last:border-b-0">
@@ -226,14 +272,34 @@ const InlineAgentCard = memo(function InlineAgentCard({
           }
         }}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <div className={`w-2.5 h-2.5 flex-shrink-0 ${statusClass}`} />
-          <span className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-            {role}
-          </span>
-          <span className={`text-[10px] font-bold uppercase tracking-wide ${statusColorClass}`}>
-            {statusLabel}
-          </span>
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <div className="flex items-center gap-2">
+            <div className={`w-2.5 h-2.5 flex-shrink-0 ${statusClass}`} />
+            <span className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
+              {role}
+            </span>
+            <span className={`text-[10px] font-bold uppercase tracking-wide ${statusColorClass}`}>
+              {statusLabel}
+            </span>
+          </div>
+          {/* Agent type subtitle line */}
+          <div className="flex items-center gap-1 pl-[18px]">
+            {agentTypeDetails ? (
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wide ${
+                  teamConfig?.type === 'remote'
+                    ? 'text-chatroom-status-info'
+                    : 'text-chatroom-text-secondary'
+                }`}
+              >
+                {agentTypeDetails.join(' · ')}
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-status-warning">
+                NOT REGISTERED
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" variant="compact" />
@@ -248,6 +314,61 @@ const InlineAgentCard = memo(function InlineAgentCard({
       {/* Expanded Content - shown inline */}
       {isExpanded && (
         <div className="px-4 pb-4 space-y-3">
+          {/* Resolved configuration details */}
+          {teamConfig && (
+            <div className="text-[11px] text-chatroom-text-muted bg-chatroom-bg-surface border border-chatroom-border p-3 space-y-1">
+              <div className="font-bold uppercase tracking-wide text-chatroom-text-secondary text-[10px] mb-1.5">
+                Agent Configuration
+              </div>
+              <div className="flex gap-2">
+                <span className="text-chatroom-text-muted w-16 shrink-0">Type</span>
+                <span className="text-chatroom-text-primary font-medium">
+                  {teamConfig.type.toUpperCase()}
+                </span>
+              </div>
+              {teamConfig.type === 'remote' && (
+                <>
+                  {teamConfig.agentHarness && (
+                    <div className="flex gap-2">
+                      <span className="text-chatroom-text-muted w-16 shrink-0">Harness</span>
+                      <span className="text-chatroom-text-primary font-medium">
+                        {teamConfig.agentHarness}
+                      </span>
+                    </div>
+                  )}
+                  {(machineHostname || teamConfig.machineId) && (
+                    <div className="flex gap-2">
+                      <span className="text-chatroom-text-muted w-16 shrink-0">Machine</span>
+                      <span className="text-chatroom-text-primary font-medium">
+                        {machineHostname || teamConfig.machineId}
+                      </span>
+                    </div>
+                  )}
+                  {teamConfig.model && (
+                    <div className="flex gap-2">
+                      <span className="text-chatroom-text-muted w-16 shrink-0">Model</span>
+                      <span className="text-chatroom-text-primary font-medium">
+                        {teamConfig.model}
+                      </span>
+                    </div>
+                  )}
+                  {teamConfig.workingDir && (
+                    <div className="flex gap-2">
+                      <span className="text-chatroom-text-muted w-16 shrink-0">Dir</span>
+                      <span className="text-chatroom-text-primary font-medium font-mono text-[10px] truncate">
+                        {teamConfig.workingDir}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+              {teamConfig.type === 'custom' && (
+                <div className="text-chatroom-text-muted italic">
+                  Manually started agent (custom)
+                </div>
+              )}
+            </div>
+          )}
           <AgentStatusBanner controls={controls} />
           <AgentConfigTabs
             activeTab={activeTab}
@@ -304,6 +425,11 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as { configs: AgentConfig[] } | undefined;
 
+  // Fetch team agent configs to show registration status
+  const teamAgentConfigs = useSessionQuery(api.machines.getTeamAgentConfigs, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  }) as TeamAgentConfig[] | undefined;
+
   const sendCommand = useSessionMutation(api.machines.sendCommand);
 
   const connectedMachines = useMemo(() => {
@@ -317,63 +443,19 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
 
   const isLoadingMachines = machinesResult === undefined || configsResult === undefined;
 
-  // Handle backdrop click
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        onClose();
-      }
-    },
-    [onClose]
-  );
+  // Build a lookup map from teamAgentConfigs keyed by role (lowercase)
+  const teamConfigMap = useMemo(() => {
+    if (!teamAgentConfigs) return new Map<string, TeamAgentConfig>();
+    return new Map(teamAgentConfigs.map((c) => [c.role.toLowerCase(), c]));
+  }, [teamAgentConfigs]);
 
-  // Handle escape key
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  // Lock body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      const originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = originalOverflow;
-      };
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-  if (typeof document === 'undefined') return null;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={handleBackdropClick}
-    >
-      <div className="chatroom-root w-full max-w-lg max-h-[85vh] flex flex-col bg-chatroom-bg-primary border-2 border-chatroom-border-strong overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
-            All Agents ({agents.length})
-          </h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Agent List - inline cards for each agent */}
-        <div className="flex-1 overflow-y-auto">
+  return (
+    <FixedModal isOpen={isOpen} onClose={onClose}>
+      <FixedModalContent>
+        <FixedModalHeader onClose={onClose}>
+          <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
+        </FixedModalHeader>
+        <FixedModalBody>
           {agents.map(({ role, effectiveStatus }) => (
             <InlineAgentCard
               key={role}
@@ -387,12 +469,12 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
               daemonStartCommand={daemonStartCommand}
               sendCommand={sendCommand}
               onViewPrompt={onViewPrompt}
+              teamConfig={teamConfigMap.get(role.toLowerCase())}
             />
           ))}
-        </div>
-      </div>
-    </div>,
-    document.body
+        </FixedModalBody>
+      </FixedModalContent>
+    </FixedModal>
   );
 });
 

@@ -276,6 +276,13 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       ## Getting Started
 
+      ### Register Agent
+      Register your agent type before starting work.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10002;chatroom_rooms --role=builder --type=<remote|custom>
+      \`\`\`
+
       ### Read Context
       View the conversation history and pending tasks for your role.
 
@@ -1653,6 +1660,13 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       ## Getting Started
 
+      ### Register Agent
+      Register your agent type before starting work.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10062;chatroom_rooms --role=reviewer --type=<remote|custom>
+      \`\`\`
+
       ### Read Context
       View the conversation history and pending tasks for your role.
 
@@ -2235,6 +2249,13 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       ## Getting Started
 
+      ### Register Agent
+      Register your agent type before starting work.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10071;chatroom_rooms --role=builder --type=<remote|custom>
+      \`\`\`
+
       ### Read Context
       View the conversation history and pending tasks for your role.
 
@@ -2430,6 +2451,13 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       You are the quality guardian responsible for reviewing and validating code changes.
 
       ## Getting Started
+
+      ### Register Agent
+      Register your agent type before starting work.
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10076;chatroom_rooms --role=reviewer --type=<remote|custom>
+      \`\`\`
 
       ### Read Context
       View the conversation history and pending tasks for your role.

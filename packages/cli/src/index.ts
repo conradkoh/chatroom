@@ -84,6 +84,28 @@ program
 // ============================================================================
 
 program
+  .command('register-agent')
+  .description('Register agent type for a chatroom role')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Role to register as (e.g., builder, reviewer)')
+  .requiredOption('--type <type>', 'Agent type: remote or custom')
+  .action(async (options: { chatroomId: string; role: string; type: string }) => {
+    await maybeRequireAuth();
+
+    // Validate type
+    if (options.type !== 'remote' && options.type !== 'custom') {
+      console.error(`❌ Invalid agent type: "${options.type}". Must be "remote" or "custom".`);
+      process.exit(1);
+    }
+
+    const { registerAgent } = await import('./commands/register-agent.js');
+    await registerAgent(options.chatroomId, {
+      role: options.role,
+      type: options.type as 'remote' | 'custom',
+    });
+  });
+
+program
   .command('wait-for-task')
   .description('Join a chatroom and wait for tasks')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
@@ -439,6 +461,30 @@ backlogCommand
       await maybeRequireAuth();
       const { patchBacklog } = await import('./commands/backlog.js');
       await patchBacklog(options.chatroomId, options);
+    }
+  );
+
+backlogCommand
+  .command('score')
+  .description('Score a backlog task by complexity, value, and priority')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--task-id <taskId>', 'Task ID to score')
+  .option('--complexity <level>', 'Complexity level: low, medium, high')
+  .option('--value <level>', 'Value level: low, medium, high')
+  .option('--priority <n>', 'Priority number (higher = more important)')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      taskId: string;
+      complexity?: string;
+      value?: string;
+      priority?: string;
+    }) => {
+      await maybeRequireAuth();
+      const { scoreBacklog } = await import('./commands/backlog.js');
+      await scoreBacklog(options.chatroomId, options);
     }
   );
 

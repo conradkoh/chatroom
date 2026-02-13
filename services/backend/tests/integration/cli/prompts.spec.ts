@@ -8,10 +8,10 @@
 import { describe, expect, test } from 'vitest';
 
 import { handoffCommand } from '../../../prompts/base/cli/handoff/command';
-import { getContextGainingGuidance } from '../../../prompts/base/cli/init/context-gaining';
 import { reportProgressCommand } from '../../../prompts/base/cli/report-progress/command';
 import { getTaskStartedPrompt } from '../../../prompts/base/cli/task-started/main-prompt';
 import { getAvailableActions } from '../../../prompts/base/cli/wait-for-task/available-actions';
+import { getContextGainingGuidance } from '../../../prompts/base/shared/getting-started-content';
 import { getConfig } from '../../../prompts/config/index';
 
 // Test URLs for different environments

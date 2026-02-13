@@ -7,6 +7,7 @@
  */
 
 import { getRoleTemplate } from './templates.js';
+import { getContextGainingGuidance } from '../../shared/getting-started-content.js';
 import { getCliEnvPrefix } from '../utils/env.js';
 
 export interface PromptContext {
@@ -26,7 +27,14 @@ export interface PromptContext {
 export function generateAgentPrompt(context: PromptContext): string {
   const { chatroomId, role, teamName, teamRoles, convexUrl } = context;
   const template = getRoleTemplate(role);
-  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
+
+  // Use shared getting started content
+  // convexUrl should be provided by webapp, but fallback to empty string for type safety
+  const gettingStarted = getContextGainingGuidance({
+    chatroomId,
+    role,
+    convexUrl: convexUrl ?? '',
+  });
 
   return `# ${teamName} Team
 
@@ -37,35 +45,7 @@ ${template.description}
 **Responsibilities:**
 ${template.responsibilities.map((r) => `- ${r}`).join('\n')}
 
-## Getting Started
-
-### Step 1: Gain Context
-
-Before waiting for tasks, understand the conversation history:
-
-\`\`\`bash
-${cliEnvPrefix}chatroom context read --chatroom-id=${chatroomId} --role=${role}
-\`\`\`
-
-This shows:
-- Origin message and classification
-- Full conversation history
-- Pending tasks for your role
-- Current work status
-
-### Step 2: Wait for Tasks
-
-After gaining context, run:
-
-\`\`\`bash
-${cliEnvPrefix}chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
-\`\`\`
-
-The CLI will provide:
-- Detailed workflow instructions
-- Command examples
-- Role-specific guidance
-- Team collaboration patterns
+${gettingStarted}
 
 ## Team Roles
 
@@ -73,8 +53,8 @@ ${teamRoles.join(', ')}
 
 ## Next Steps
 
-1. Copy the **context read** command above
-2. Review the conversation history
+1. Run the **register-agent** command above to register your agent type
+2. Copy the **context read** command to review conversation history
 3. Run **wait-for-task** to receive your first task
 4. Follow the detailed instructions provided by the CLI
 `;

@@ -5,7 +5,7 @@
  * Wraps getContextGainingGuidance into a PromptSection.
  */
 
-import { getContextGainingGuidance } from '../base/cli/index.js';
+import { getContextGainingGuidance } from '../base/shared/getting-started-content.js';
 import type { SelectorContext, PromptSection } from '../types/sections.js';
 import { createSection } from '../types/sections.js';
 

@@ -106,6 +106,17 @@ async function autoRestartOfflineAgent(
     return; // Daemon is not connected — can't send commands
   }
 
+  // Validate required fields for start command before dispatching
+  // Without agentHarness or workingDir, the daemon silently drops the command
+  if (!teamConfig.agentHarness || !teamConfig.workingDir) {
+    console.warn(
+      `[auto-restart] Missing agentHarness or workingDir for role "${targetRole}" ` +
+        `(agentHarness=${teamConfig.agentHarness ?? 'undefined'}, ` +
+        `workingDir=${teamConfig.workingDir ?? 'undefined'}), skipping restart`
+    );
+    return;
+  }
+
   // Dispatch stop + start commands using team config parameters
   // Stop first to clean up any stale process
   await ctx.db.insert('chatroom_machineCommands', {
@@ -375,9 +386,11 @@ async function _handoffHandler(
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
   let chatroom;
+  let session;
   try {
     const result = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     chatroom = result.chatroom;
+    session = result.session;
   } catch (error) {
     // Convert generic Error to structured error response
     return {
@@ -525,6 +538,19 @@ async function _handoffHandler(
 
     // Link message to task
     await ctx.db.patch('chatroom_messages', messageId, { taskId: newTaskId });
+
+    // Auto-restart the target agent if offline (Fix: handoff path was missing auto-restart)
+    if (session) {
+      try {
+        await autoRestartOfflineAgent(ctx, args.chatroomId, args.targetRole, session.userId);
+      } catch (error) {
+        // Log but don't fail — restart is best-effort, not critical path
+        console.error(
+          `[handoff][auto-restart] Failed to restart agent for role "${args.targetRole}":`,
+          error
+        );
+      }
+    }
   }
 
   // Step 4: Update sender's participant status to waiting (before checking queue promotion)

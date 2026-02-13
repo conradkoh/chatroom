@@ -29,9 +29,12 @@ export interface AutoRestartNotification {
  */
 export function useAutoRestartAgents({
   readiness,
+  teamEntryPoint,
 }: {
   chatroomId: string;
   readiness: TeamReadiness | null | undefined;
+  /** Only show restart UI when the entry-point agent is offline */
+  teamEntryPoint?: string;
 }) {
   const [isRestarting, setIsRestarting] = useState(false);
   const [lastNotification, setLastNotification] = useState<AutoRestartNotification | null>(null);
@@ -40,13 +43,23 @@ export function useAutoRestartAgents({
   const lastNotifyTime = useRef<number>(0);
   const NOTIFY_COOLDOWN_MS = 10_000;
 
-  // Compute offline roles from readiness
+  // Compute offline roles from readiness.
+  // Only consider the entry-point role — other agents being offline is expected
+  // when the user is working with a solo planner or partial team.
   const offlineRoles = useMemo(() => {
     if (!readiness) return [];
     const expired = readiness.expiredRoles || [];
     const missing = readiness.missingRoles || [];
-    return [...new Set([...expired, ...missing].map((r) => r.toLowerCase()))];
-  }, [readiness]);
+    const allOffline = [...new Set([...expired, ...missing].map((r) => r.toLowerCase()))];
+
+    // If we know the entry point, only show restart UI for that role
+    if (teamEntryPoint) {
+      const entryPointLower = teamEntryPoint.toLowerCase();
+      return allOffline.filter((r) => r === entryPointLower);
+    }
+
+    return allOffline;
+  }, [readiness, teamEntryPoint]);
 
   /**
    * Called after the user sends a message. Checks if agents are offline

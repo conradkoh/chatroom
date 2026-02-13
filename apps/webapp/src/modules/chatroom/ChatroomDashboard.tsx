@@ -18,7 +18,6 @@ import {
   Settings2,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
-import { toast } from 'sonner';
 
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
@@ -303,22 +302,18 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Auto-restart UI feedback — actual restart logic is on the backend.
   // When a task targets an offline agent, the backend dispatches restart commands.
-  // This hook provides UI awareness (toasts, spinner banner).
+  // This hook provides UI awareness (spinner banner).
+  // Only shows the banner when the entry-point agent is offline — other agents
+  // being offline is expected when working with a partial team.
   const { notifyMessageSent, isRestarting: isRestartingAgents } = useAutoRestartAgents({
     chatroomId,
     readiness,
+    teamEntryPoint: chatroom?.teamEntryPoint || chatroom?.teamRoles?.[0],
   });
 
-  // Callback for SendForm — shows notification about backend auto-restart
+  // Callback for SendForm — notifies the hook about message sent
   const handleMessageSent = useCallback(() => {
-    const notification = notifyMessageSent();
-    if (notification && notification.restartingRoles.length > 0) {
-      const count = notification.restartingRoles.length;
-      toast.info(
-        `Restarting offline ${count === 1 ? 'agent' : 'agents'}: ${notification.restartingRoles.join(', ')}`,
-        { duration: 4000 }
-      );
-    }
+    notifyMessageSent();
   }, [notifyMessageSent]);
 
   // Memoize derived values
@@ -678,7 +673,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain w-80' : 'relative overflow-hidden'}
                 ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
-                flex flex-col bg-chatroom-bg-surface backdrop-blur-xl border-l-2 border-chatroom-border-strong
+                flex flex-col border-l-2 border-chatroom-border-strong
+                ${isSmallScreen ? 'bg-chatroom-bg-primary' : 'bg-chatroom-bg-surface backdrop-blur-xl'}
                 transition-all duration-300 ease-in-out
                 ${isSmallScreen ? (sidebarVisible ? 'translate-x-0' : 'translate-x-full') : ''}
               `}
