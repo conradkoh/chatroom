@@ -241,7 +241,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       process.exit(0);
     }
 
-    // Get the oldest pending task (first in array)
+    // Get the first task (pending tasks come first, then acknowledged)
     const taskWithMessage = pendingTasks.length > 0 ? pendingTasks[0] : null;
 
     if (!taskWithMessage) {
@@ -251,18 +251,39 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     const { task, message } = taskWithMessage;
 
-    // Claim the task (transition: pending → acknowledged)
-    // This is atomic and handles race conditions - only one agent can claim a task
-    try {
-      await client.mutation(api.tasks.claimTask, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-      });
-    } catch (_claimError) {
-      // Task was already claimed by another agent, subscription will update with new state
-      console.log(`🔄 Task already claimed by another agent, continuing to wait...`);
-      return;
+    // Handle based on task status
+    if (task.status === 'acknowledged') {
+      // This is an acknowledged task that may need recovery
+      const acknowledgedAt = task.acknowledgedAt || task.updatedAt;
+      const elapsedMs = Date.now() - acknowledgedAt;
+      const RECOVERY_GRACE_PERIOD_MS = 60 * 1000; // 1 minute
+
+      if (elapsedMs < RECOVERY_GRACE_PERIOD_MS) {
+        // Recently acknowledged — another agent may still be working on it
+        const remainingSec = Math.ceil((RECOVERY_GRACE_PERIOD_MS - elapsedMs) / 1000);
+        console.log(
+          `🔄 Task was recently acknowledged (${remainingSec}s remaining). ` +
+            `Re-run wait-for-task in 1 minute to recover it if the other agent is unresponsive.`
+        );
+        return;
+      }
+
+      // Stale acknowledged task (>1 min) — recover it
+      // No claim needed since task is already acknowledged for this role
+    } else {
+      // Pending task — claim it (transition: pending → acknowledged)
+      // This is atomic and handles race conditions - only one agent can claim a task
+      try {
+        await client.mutation(api.tasks.claimTask, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+        });
+      } catch (_claimError) {
+        // Task was already claimed by another agent, subscription will update with new state
+        console.log(`🔄 Task already claimed by another agent, continuing to wait...`);
+        return;
+      }
     }
 
     // Mark as processed to prevent duplicate handling

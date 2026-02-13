@@ -1349,6 +1349,17 @@ export const getPendingTasksForRole = query({
     const normalizedRole = args.role.toLowerCase();
     const normalizedEntryPoint = entryPoint?.toLowerCase();
 
+    // Helper to check if a task is relevant for this role
+    const isRelevantForRole = (task: { assignedTo?: string; createdBy: string }) => {
+      if (task.assignedTo) {
+        return task.assignedTo.toLowerCase() === normalizedRole;
+      }
+      if (task.createdBy === 'user') {
+        return normalizedRole === normalizedEntryPoint;
+      }
+      return normalizedRole === normalizedEntryPoint;
+    };
+
     // Get all pending tasks
     const pendingTasks = await ctx.db
       .query('chatroom_tasks')
@@ -1357,20 +1368,21 @@ export const getPendingTasksForRole = query({
       )
       .collect();
 
-    // Filter for tasks assigned to this role or user-created tasks routed to entry point
-    // Status is now the single source of truth - no need to check timestamps
-    const relevantTasks = pendingTasks.filter((task) => {
-      // If task has explicit assignment, check it matches
-      if (task.assignedTo) {
-        return task.assignedTo.toLowerCase() === normalizedRole;
-      }
-      // User-created tasks go to entry point
-      if (task.createdBy === 'user') {
-        return normalizedRole === normalizedEntryPoint;
-      }
-      // Backlog/manual tasks without assignment - entry point handles
-      return normalizedRole === normalizedEntryPoint;
-    });
+    // Also get acknowledged tasks for recovery
+    // An acknowledged task may be orphaned if the agent that claimed it died
+    const acknowledgedTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+      )
+      .collect();
+
+    // Filter for tasks relevant to this role
+    const relevantPending = pendingTasks.filter(isRelevantForRole);
+    const relevantAcknowledged = acknowledgedTasks.filter(isRelevantForRole);
+
+    // Combine: pending first, then acknowledged (pending tasks have priority)
+    const relevantTasks = [...relevantPending, ...relevantAcknowledged];
 
     // Sort by queuePosition (oldest first)
     relevantTasks.sort((a, b) => a.queuePosition - b.queuePosition);
