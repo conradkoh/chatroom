@@ -3,7 +3,6 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ChevronUp,
   ChevronDown,
@@ -13,7 +12,6 @@ import {
   Loader2,
   Timer,
   CheckCircle2,
-  Check,
   XCircle,
   Archive,
   ArrowRightLeft,
@@ -21,7 +19,6 @@ import {
   Sparkles,
   RotateCcw,
   ArrowRight,
-  Square,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -203,14 +200,6 @@ const getClassificationBadge = (classification: Message['classification']) => {
   }
 };
 
-// Progress message type for timeline
-interface ProgressMessage {
-  _id: string;
-  content: string;
-  senderRole: string;
-  _creationTime: number;
-}
-
 // Map task status to display label and CSS classes for attached task badges
 function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; classes: string } {
   switch (status) {
@@ -255,26 +244,8 @@ function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; class
   }
 }
 
-// Format relative time for progress timeline
-function formatRelativeTime(timestamp: number): string {
-  const now = Date.now();
-  const diff = now - timestamp;
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-
-  if (seconds < 60) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  return new Date(timestamp).toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-// Sticky Task Header - renders before user messages as a section header
+// Task Header - renders before user messages as a section header
 // Shows shimmer while awaiting classification, then displays task title
-// Now includes inline progress display with expandable timeline
 // Tappable to show full message details in a slide-in modal
 interface TaskHeaderProps {
   message: Message;
@@ -282,32 +253,17 @@ interface TaskHeaderProps {
   onTap?: (message: Message) => void;
 }
 
-const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: TaskHeaderProps) {
-  // State for expanded progress timeline
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  // Fetch progress history when expanded
-  const progressMessages = useSessionQuery(
-    api.messages.getProgressForTask,
-    isExpanded && message.taskId
-      ? {
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          taskId: message.taskId as Id<'chatroom_tasks'>,
-        }
-      : 'skip'
-  ) as ProgressMessage[] | undefined;
-
+const TaskHeader = memo(function TaskHeader({
+  message,
+  chatroomId: _chatroomId,
+  onTap,
+}: TaskHeaderProps) {
   // useCallback must be called before any conditional returns (React hooks rules)
   const handleClick = useCallback(() => {
     if (onTap) {
       onTap(message);
     }
   }, [onTap, message]);
-
-  const handleProgressClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering the header click
-    setIsExpanded((prev) => !prev);
-  }, []);
 
   // Only show for user messages
   if (message.senderRole.toLowerCase() !== 'user') {
@@ -316,10 +272,6 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
 
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
-  // Show progress if we have any latestProgress data (not just when in_progress)
-  const hasProgress = !!message.latestProgress;
-  // Track if task is actively in progress for animations
-  const isTaskActive = message.taskStatus === 'in_progress';
 
   // Determine what to display:
   // - No classification yet AND task not finished: shimmer (waiting for classification)
@@ -336,15 +288,8 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
     return text.replace(/\n+/g, ' ').trim();
   };
 
-  // Check if progress is "fresh" (within last 30 seconds) for pulse animation
-  // Only animate if task is still active
-  const isProgressFresh =
-    hasProgress && isTaskActive && Date.now() - message.latestProgress!._creationTime < 30000;
-
-  // Dynamic height: h-8 when no progress, auto when progress is shown
-  // Modern design: neutral grey background with colorized elements
   return (
-    <div className="sticky top-0 z-10 w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong backdrop-blur-sm">
+    <div className="w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong">
       {/* Main header row - clickable */}
       <button
         onClick={handleClick}
@@ -382,83 +327,6 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
           )}
         </div>
       </button>
-
-      {/* Inline progress row - shown when task has any progress history */}
-      {hasProgress && (
-        <>
-          <button
-            onClick={handleProgressClick}
-            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-chatroom-bg-hover transition-colors cursor-pointer border-t border-chatroom-border/50"
-          >
-            {isTaskActive ? (
-              <Loader2
-                size={12}
-                className={`flex-shrink-0 text-chatroom-status-info ${isProgressFresh ? 'animate-spin' : ''}`}
-              />
-            ) : (
-              <Check size={12} className="flex-shrink-0 text-chatroom-status-success" />
-            )}
-            <span
-              className={`text-[11px] text-chatroom-text-secondary truncate flex-1 ${isProgressFresh ? 'animate-pulse' : ''}`}
-            >
-              {message.latestProgress!.content}
-            </span>
-            <ChevronDown
-              size={12}
-              className={`flex-shrink-0 text-chatroom-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-            />
-          </button>
-
-          {/* Expanded timeline - inline below the progress row */}
-          {isExpanded && (
-            <div className="px-3 py-2 border-t border-chatroom-border/50 bg-chatroom-bg-surface/50">
-              {progressMessages === undefined ? (
-                <div className="flex items-center justify-center py-2">
-                  <Loader2 size={14} className="animate-spin text-chatroom-status-info" />
-                </div>
-              ) : progressMessages.length === 0 ? (
-                <div className="text-[10px] text-chatroom-text-muted text-center py-2">
-                  No progress history
-                </div>
-              ) : (
-                <div className="relative">
-                  {/* Timeline line */}
-                  <div className="absolute left-[5px] top-1 bottom-1 w-0.5 bg-chatroom-border" />
-
-                  {/* Timeline items */}
-                  <div className="space-y-2">
-                    {progressMessages.map((progress, index) => {
-                      const isLatest = index === progressMessages.length - 1;
-                      return (
-                        <div key={progress._id} className="relative pl-4">
-                          {/* Timeline indicator - square per theme.md */}
-                          <Square
-                            size={11}
-                            className={`absolute left-0 top-1 ${
-                              isLatest
-                                ? 'text-chatroom-status-info fill-chatroom-status-info'
-                                : 'text-chatroom-border fill-chatroom-bg-surface'
-                            }`}
-                          />
-                          {/* Content */}
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="text-[11px] text-chatroom-text-secondary flex-1">
-                              {progress.content}
-                            </span>
-                            <span className="text-[9px] text-chatroom-text-muted flex-shrink-0">
-                              {formatRelativeTime(progress._creationTime)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
     </div>
   );
 });
