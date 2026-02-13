@@ -10,10 +10,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { getWaitForTaskGuidance, getWaitForTaskReminder } from '../../../prompts/base/cli/index.js';
-import { taskStartedCommand } from '../../../prompts/base/cli/task-started/command.js';
-import { waitForTaskCommand } from '../../../prompts/base/cli/wait-for-task/command.js';
-import { getCliEnvPrefix } from '../../../prompts/utils/env.js';
+import { getWaitForTaskGuidance, getWaitForTaskReminder } from '../../../prompts/base/cli/index';
 import { t } from '../../../test.setup';
 
 /**
@@ -122,18 +119,8 @@ describe('Wait-for-Task Full Prompt', () => {
 
     // ===== OUTPUT COMPLETE CLI MESSAGE FOR REVIEW =====
     // This materializes the exact message structure sent from server to wait-for-task command
+    // Init section (CLI-generated) + Task delivery section (backend-generated via fullCliOutput)
 
-    const taskId = startResult.taskId;
-    const messageId = userMessageId;
-    const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
-    const existingClassification = originMessage?.classification;
-
-    // Note: Timestamps will vary, so we use placeholders in expected output
-    // Task content comes from the task object
-    const taskContent = taskDeliveryPrompt.json.task?.content || 'NO TASK CONTENT';
-
-    // Use the same functions the CLI uses to generate commands
-    const cliEnvPrefix = getCliEnvPrefix('http://127.0.0.1:3210');
     const role = 'builder';
 
     const fullCliMessage = `
@@ -157,71 +144,7 @@ ${initPrompt?.prompt || 'NO INIT PROMPT GENERATED'}
 
 [TIMESTAMP] 📨 Task received!
 
-============================================================
-🆔 TASK INFORMATION
-============================================================
-Task ID: ${taskId}
-Message ID: ${messageId}
-
-📋 NEXT STEPS
-============================================================
-To acknowledge and classify this message, run:
-
-${taskStartedCommand({ chatroomId, role, taskId, classification: 'question', cliEnvPrefix }).replace('--origin-message-classification=question', '--origin-message-classification=<type>')}
-
-📝 Classification Requirements:
-   • question: No additional fields required
-   • follow_up: No additional fields required
-   • new_feature: REQUIRES --title, --description, --tech-specs
-
-💡 Example for new_feature:
-${taskStartedCommand({ chatroomId, role, taskId, classification: 'new_feature', title: '<title>', description: '<description>', techSpecs: '<tech-specs>', cliEnvPrefix })}
-
-Classification types: question, new_feature, follow_up
-============================================================
-
-<!-- CONTEXT: Available Actions & Role Instructions
-${taskDeliveryPrompt.humanReadable}
--->
-
-============================================================
-📍 PINNED - Work on this immediately
-============================================================
-
-## User Message
-<user-message>
-${originMessage?.content || 'NO CONTENT'}
-${
-  originMessage?.attachedTasks && originMessage.attachedTasks.length > 0
-    ? `
-ATTACHED BACKLOG (${originMessage.attachedTasks.length})
-${originMessage.attachedTasks.map((t: { content: string }) => t.content).join('\n\n')}`
-    : ''
-}
-</user-message>
-
-## Task
-${taskContent}
-${existingClassification ? `\nClassification: ${existingClassification.toUpperCase()}` : ''}
-
-============================================================
-📋 PROCESS
-============================================================
-
-1. Mark task as started:
-   ${taskStartedCommand({ chatroomId, role, taskId, classification: 'follow_up', cliEnvPrefix })}
-
-2. Do the work
-
-3. Hand off when complete:
-   ${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target>
-
-4. Resume listening:
-   ${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}
-
-============================================================
-${getWaitForTaskReminder()}
-============================================================
+${taskDeliveryPrompt.fullCliOutput}
 `;
 
     // Verify the complete message structure matches expected format
@@ -624,16 +547,15 @@ ${getWaitForTaskReminder()}
       ## User Message
       <user-message>
       Can we add a backlog section to the available actions? Keep it concise and follow current format.
-
-      ATTACHED BACKLOG (1)
-      Fix: Agent lacks knowledge of backlog listing
-
-      Add backlog section to wait-for-task
       </user-message>
 
       ## Task
       Can we add a backlog section to the available actions? Keep it concise and follow current format.
 
+      ## Attached Backlog (1)
+      - [BACKLOG_ACKNOWLEDGED] Fix: Agent lacks knowledge of backlog listing
+
+      Add backlog section to wait-for-task
 
       ============================================================
       📋 PROCESS
@@ -1483,16 +1405,10 @@ Testing: Toggle in settings switches between light/dark modes`,
 
     // ===== OUTPUT COMPLETE CLI MESSAGE FOR REVIEW =====
     // This materializes the exact message structure sent from server to wait-for-task command
+    // Init section (CLI-generated) + Task delivery section (backend-generated via fullCliOutput)
 
-    const taskId = reviewerStartResult.taskId;
-    const messageId = handoffResult.messageId;
-    const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
-
-    // Use the same functions the CLI uses to generate commands
-    const cliEnvPrefix = getCliEnvPrefix('http://127.0.0.1:3210');
     const role = 'reviewer';
 
-    // Note: Timestamps will vary, so we use placeholders in expected output
     const fullCliMessage = `
 [TIMESTAMP] ⏳ Connecting to chatroom as "${role}"...
 [TIMESTAMP] ✅ Connected. Waiting for task...
@@ -1514,44 +1430,7 @@ ${initPrompt?.prompt || 'NO INIT PROMPT GENERATED'}
 
 [TIMESTAMP] 📨 Task received!
 
-============================================================
-🆔 TASK INFORMATION
-============================================================
-Task ID: ${taskId}
-Message ID: ${messageId}
-
-📋 NEXT STEPS
-============================================================
-To start working on this task, run:
-
-${cliEnvPrefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=${taskId} --no-classify
-
-⚠️  Note: This task was handed off to you, so classification was already done by the entry point role.
-============================================================
-
-## 📍 Pinned
-### Primary User Directive
-<user-message>
-${originMessage?.content || 'NO CONTENT'}
-${
-  originMessage?.classification
-    ? `
-
-Classification: ${originMessage.classification.toUpperCase()}`
-    : ''
-}
-</user-message>
-
-### Task Context
-Handed off from: builder
-Original classification: ${originMessage?.classification || 'Not classified'}
-============================================================
-
-${taskDeliveryPrompt.humanReadable}
-
-============================================================
-${getWaitForTaskReminder()}
-============================================================
+${taskDeliveryPrompt.fullCliOutput}
 `;
 
     // Verify the complete message structure matches expected format
@@ -1798,27 +1677,11 @@ ${getWaitForTaskReminder()}
 
       📋 NEXT STEPS
       ============================================================
-      To start working on this task, run:
-
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10062;chatroom_rooms --role=reviewer --task-id=10068;chatroom_tasks --no-classify
-
-      ⚠️  Note: This task was handed off to you, so classification was already done by the entry point role.
+      Task handed off from builder.
+      The original user message was already classified - you can start work immediately.
       ============================================================
 
-      ## 📍 Pinned
-      ### Primary User Directive
-      <user-message>
-      Add dark mode toggle to the application
-
-
-      Classification: NEW_FEATURE
-      </user-message>
-
-      ### Task Context
-      Handed off from: builder
-      Original classification: new_feature
-      ============================================================
-
+      <!-- CONTEXT: Available Actions & Role Instructions
       ## Available Actions
 
       ### Gain Context
@@ -2041,6 +1904,43 @@ ${getWaitForTaskReminder()}
       Remember to listen for new messages using \`wait-for-task\` after handoff. Otherwise your team might get stuck not be able to reach you.
 
           CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
+      -->
+
+      ============================================================
+      📍 PINNED - Work on this immediately
+      ============================================================
+
+      ## User Message
+      <user-message>
+      Add dark mode toggle to the application
+      </user-message>
+
+      ## Task
+      Implemented dark mode toggle. Please review.
+
+      Changes:
+      - Added ThemeProvider context
+      - Created toggle component in Settings
+      - Applied CSS variables for theming
+
+      Testing: Toggle in settings switches between light/dark modes
+
+      Classification: NEW_FEATURE
+
+      ============================================================
+      📋 PROCESS
+      ============================================================
+
+      1. Mark task as started:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10062;chatroom_rooms --role=reviewer --task-id=10068;chatroom_tasks --no-classify
+
+      2. Do the work
+
+      3. Hand off when complete:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10062;chatroom_rooms --role=reviewer --next-role=<target>
+
+      4. Resume listening:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
 
       ============================================================
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -2754,5 +2654,165 @@ describe('Task-Complete Command', () => {
     expect(result.completed).toBe(false);
     expect(result.completedCount).toBe(0);
     expect(result.promoted).toBeNull();
+  });
+});
+
+describe('Wait-for-Task Recent Improvements', () => {
+  test('guidance text contains updated content (no longer references timeouts)', () => {
+    const guidance = getWaitForTaskGuidance();
+    const reminder = getWaitForTaskReminder();
+
+    // Updated guidance should contain the new sections
+    expect(guidance).toContain('STAYING CONNECTED TO YOUR TEAM');
+    expect(guidance).toContain('CRITICAL: Run wait-for-task in the FOREGROUND');
+    expect(guidance).toContain('WHEN THE PROCESS IS TERMINATED OR TIMED OUT');
+    expect(guidance).toContain('BACKLOG TASKS');
+
+    // Should NOT contain the old timeout-specific language
+    expect(guidance).not.toContain('HOW WAIT-FOR-TASK WORKS');
+    expect(guidance).not.toContain('The command may timeout before a task arrives');
+
+    // Reminder should be a single-line reminder
+    expect(reminder).toContain('Message availability is critical');
+    expect(reminder).toContain('wait-for-task');
+  });
+
+  test('attached backlog tasks appear in task delivery prompt JSON', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-attached-backlog-in-prompt');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Create a backlog task
+    const backlogResult = await t.mutation(api.tasks.createTask, {
+      sessionId,
+      chatroomId,
+      content: 'Recovery of acknowledged tasks: implement 1-min grace period',
+      createdBy: 'user',
+      isBacklog: true,
+    });
+    const backlogTaskId = backlogResult.taskId;
+
+    // User sends message with the backlog task attached
+    const userMessageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Can we work on this task?',
+      type: 'message',
+      attachedTaskIds: [backlogTaskId],
+    });
+
+    // Builder claims and starts the task
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Get the task delivery prompt
+    const taskDeliveryPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: startResult.taskId,
+      messageId: userMessageId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Verify attached backlog tasks appear in the prompt JSON
+    const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
+    expect(originMessage).toBeDefined();
+    expect(originMessage?.attachedTasks).toBeDefined();
+    expect(originMessage?.attachedTasks?.length).toBe(1);
+
+    const attachedTask = originMessage?.attachedTasks?.[0];
+    expect(attachedTask?.content).toBe(
+      'Recovery of acknowledged tasks: implement 1-min grace period'
+    );
+    expect(attachedTask?.status).toBeDefined();
+
+    // Verify the human-readable prompt also exists
+    expect(taskDeliveryPrompt.humanReadable).toBeDefined();
+    expect(taskDeliveryPrompt.humanReadable.length).toBeGreaterThan(0);
+  });
+
+  test('getPendingTasksForRole returns acknowledged tasks for recovery', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-acknowledged-task-recovery');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends a message (creates a pending task for builder)
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Please implement the dark mode feature',
+      type: 'message',
+    });
+
+    // Verify pending task is returned
+    const pendingResult = await t.query(api.tasks.getPendingTasksForRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    expect(pendingResult.length).toBe(1);
+    expect(pendingResult[0].task.status).toBe('pending');
+
+    // Builder claims the task (transitions to acknowledged)
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Verify acknowledged task is STILL returned by getPendingTasksForRole
+    const acknowledgedResult = await t.query(api.tasks.getPendingTasksForRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    expect(acknowledgedResult.length).toBe(1);
+    expect(acknowledgedResult[0].task.status).toBe('acknowledged');
+
+    // Verify the message is included with the task
+    expect(acknowledgedResult[0].message).toBeDefined();
+    expect(acknowledgedResult[0].message?.content).toBe('Please implement the dark mode feature');
+  });
+
+  test('init prompt contains backlog and guidance sections', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-init-prompt-sections');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Get the init prompt
+    const initPrompt = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(initPrompt).toBeDefined();
+    expect(initPrompt?.prompt).toBeDefined();
+
+    // Init prompt should contain the role setup and commands
+    const prompt = initPrompt!.prompt;
+    expect(prompt).toContain('## Your Role: BUILDER');
+    expect(prompt).toContain('## Getting Started');
+    expect(prompt).toContain('chatroom wait-for-task');
+    expect(prompt).toContain('chatroom context read');
+
+    // Init prompt should contain the wait-for-task reminder
+    expect(prompt).toContain(getWaitForTaskReminder());
   });
 });

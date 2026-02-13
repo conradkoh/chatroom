@@ -17,6 +17,7 @@ import { transitionTask, type TaskStatus } from './lib/taskStateMachine';
 import { getCompletionStatus } from './lib/taskWorkflows';
 import { getAvailableActions } from '../prompts/base/cli/wait-for-task/available-actions.js';
 import { waitForTaskCommand } from '../prompts/base/cli/wait-for-task/command.js';
+import { generateFullCliOutput } from '../prompts/base/cli/wait-for-task/fullOutput.js';
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
 import { getCliEnvPrefix } from '../prompts/utils/index.js';
@@ -26,6 +27,7 @@ const config = getConfig();
 // Types for task delivery prompt response
 interface TaskDeliveryPromptResponse {
   humanReadable: string;
+  fullCliOutput: string; // Complete CLI output for task delivery (backend-generated)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   json: any; // Dynamic JSON structure from prompt generator
 }
@@ -2163,8 +2165,47 @@ export const getTaskDeliveryPrompt = query({
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
     });
 
+    const humanReadable = `${availableActionsText}\n\n${rolePromptText}\n\n${reminderMessage}`;
+
+    // Generate the complete CLI output (backend-generated, CLI just prints it)
+    const fullCliOutput = generateFullCliOutput({
+      chatroomId: args.chatroomId,
+      role: args.role,
+      cliEnvPrefix,
+      task: {
+        _id: task._id,
+        content: task.content,
+      },
+      message: message
+        ? {
+            _id: message._id,
+            senderRole: message.senderRole,
+            content: message.content,
+          }
+        : null,
+      humanReadable,
+      currentContext,
+      originMessage: originMessage
+        ? {
+            senderRole: originMessage.senderRole,
+            content: originMessage.content,
+            classification: originMessage.classification,
+            attachedTasks: originMessage.attachedTaskIds
+              ?.map((id) => attachedTasksMap.get(id))
+              .filter(Boolean)
+              .map((t) => ({
+                status: t!.status,
+                content: t!.content,
+              })),
+          }
+        : null,
+      followUpCountSinceOrigin,
+      originMessageCreatedAt: originMessage?._creationTime ?? null,
+    });
+
     return {
-      humanReadable: `${availableActionsText}\n\n${rolePromptText}\n\n${reminderMessage}`,
+      humanReadable,
+      fullCliOutput,
       json: deliveryContext,
     };
   },
