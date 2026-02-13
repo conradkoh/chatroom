@@ -1820,6 +1820,17 @@ export const getInitPrompt = query({
     // Compose init prompt (system prompt + init message + combined)
     const composed = composeInitPrompt(promptInput);
 
+    // Check if this role's agent has system prompt control (remote agents do)
+    const teamAgentConfigs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+    const roleConfig = teamAgentConfigs.find(
+      (c) => c.role.toLowerCase() === args.role.toLowerCase()
+    );
+    // Remote agents can control their system prompt, so we don't need to inject reminders
+    const hasSystemPromptControl = roleConfig?.type === 'remote';
+
     return {
       /** Combined prompt for manual mode (harnesses without system prompt support) */
       prompt: composed.initPrompt,
@@ -1827,6 +1838,8 @@ export const getInitPrompt = query({
       rolePrompt: composed.systemPrompt,
       /** Init message: context-gaining and next steps (first user message in machine mode) */
       initialMessage: composed.initMessage,
+      /** Whether the agent has system prompt control (remote agents). If true, init prompt can be skipped. */
+      hasSystemPromptControl,
     };
   },
 });

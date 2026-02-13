@@ -177,29 +177,33 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
       convexUrl,
-    })) as { prompt: string } | null;
+    })) as { prompt: string; hasSystemPromptControl?: boolean } | null;
 
     if (initPromptResult?.prompt) {
       // Log successful connection with timestamp
       const connectedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
       console.log(`[${connectedTime}] ✅ Connected. Waiting for task...\n`);
 
-      // Wrap reference content in HTML comments for LLM skimming
-      console.log('<!-- REFERENCE: Agent Initialization');
-      console.log('');
-      console.log('═'.repeat(50));
-      console.log('📋 AGENT INITIALIZATION PROMPT');
-      console.log('═'.repeat(50));
-      console.log('');
-      console.log(getWaitForTaskGuidance());
-      console.log('');
-      console.log('═'.repeat(50));
-      console.log('');
-      console.log(initPromptResult.prompt);
-      console.log('');
-      console.log('═'.repeat(50));
-      console.log('-->');
-      console.log('');
+      // Skip init prompt for agents with system prompt control (e.g. remote agents)
+      // These agents already have the instructions in their system prompt
+      if (!initPromptResult.hasSystemPromptControl) {
+        // Wrap reference content in HTML comments for LLM skimming
+        console.log('<!-- REFERENCE: Agent Initialization');
+        console.log('');
+        console.log('═'.repeat(50));
+        console.log('📋 AGENT INITIALIZATION PROMPT');
+        console.log('═'.repeat(50));
+        console.log('');
+        console.log(getWaitForTaskGuidance());
+        console.log('');
+        console.log('═'.repeat(50));
+        console.log('');
+        console.log(initPromptResult.prompt);
+        console.log('');
+        console.log('═'.repeat(50));
+        console.log('-->');
+        console.log('');
+      }
     }
   } catch {
     // Fallback - init prompt not critical, continue without it
