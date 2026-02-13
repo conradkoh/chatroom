@@ -68,6 +68,9 @@ export interface FullCliOutputParams {
 
   /** Whether this role is the team entry point (planner/coordinator). Only entry points can create contexts. */
   isEntryPoint: boolean;
+
+  /** Whether the agent has system prompt control (e.g. remote agents). If true, role prompt is omitted from output. */
+  hasSystemPromptControl: boolean;
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -91,6 +94,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     followUpCountSinceOrigin,
     originMessageCreatedAt,
     isEntryPoint,
+    hasSystemPromptControl,
   } = params;
 
   const lines: string[] = [];
@@ -168,11 +172,13 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push(SEP_EQUAL);
 
   // ── Context wrapper (available actions & role instructions) ────────────────
-
-  lines.push('');
-  lines.push('<!-- CONTEXT: Available Actions & Role Instructions');
-  lines.push(humanReadable);
-  lines.push('-->');
+  // Skip for agents with system prompt control — they already have these instructions
+  if (!hasSystemPromptControl) {
+    lines.push('');
+    lines.push('<!-- CONTEXT: Available Actions & Role Instructions');
+    lines.push(humanReadable);
+    lines.push('-->');
+  }
 
   // ── Pinned section ────────────────────────────────────────────────────────
 
