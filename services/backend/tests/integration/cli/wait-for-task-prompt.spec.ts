@@ -606,36 +606,36 @@ ${taskDeliveryPrompt.fullCliOutput}
 
     // ===== VERIFY TASK DELIVERY PROMPT =====
     expect(taskDeliveryPrompt).toBeDefined();
-    expect(taskDeliveryPrompt.humanReadable).toBeDefined();
+    expect(taskDeliveryPrompt.fullCliOutput).toBeDefined();
     expect(taskDeliveryPrompt.json).toBeDefined();
 
-    // ===== VERIFY HUMAN READABLE FORMAT =====
-    const humanPrompt = taskDeliveryPrompt.humanReadable;
+    // ===== VERIFY FULL CLI OUTPUT FORMAT =====
+    const fullOutput = taskDeliveryPrompt.fullCliOutput;
 
-    // Should have available actions section
-    expect(humanPrompt).toContain('## Available Actions');
-    expect(humanPrompt).toContain('### Gain Context');
-    expect(humanPrompt).toContain('### List Messages');
-    expect(humanPrompt).toContain('### View Code Changes');
-    expect(humanPrompt).toContain('### Complete Task');
-    expect(humanPrompt).toContain('### Backlog');
+    // Should have available actions section (embedded in CONTEXT wrapper)
+    expect(fullOutput).toContain('## Available Actions');
+    expect(fullOutput).toContain('### Gain Context');
+    expect(fullOutput).toContain('### List Messages');
+    expect(fullOutput).toContain('### View Code Changes');
+    expect(fullOutput).toContain('### Complete Task');
+    expect(fullOutput).toContain('### Backlog');
 
     // Should have backlog section with commands
-    expect(humanPrompt).toContain('The chatroom has a task backlog');
-    expect(humanPrompt).toContain(`chatroom backlog list --chatroom-id=${chatroomId}`);
-    expect(humanPrompt).toContain('chatroom backlog --help');
+    expect(fullOutput).toContain('The chatroom has a task backlog');
+    expect(fullOutput).toContain(`chatroom backlog list --chatroom-id=${chatroomId}`);
+    expect(fullOutput).toContain('chatroom backlog --help');
 
     // Should have role prompt
-    expect(humanPrompt).toContain('## Your Role: BUILDER');
-    expect(humanPrompt).toContain('## Builder Workflow');
+    expect(fullOutput).toContain('## Your Role: BUILDER');
+    expect(fullOutput).toContain('## Builder Workflow');
 
     // Should have wait-for-task reminder
-    expect(humanPrompt).toContain('wait-for-task');
-    expect(humanPrompt).toContain(chatroomId);
-    expect(humanPrompt).toContain('--role=builder');
+    expect(fullOutput).toContain('wait-for-task');
+    expect(fullOutput).toContain(chatroomId);
+    expect(fullOutput).toContain('--role=builder');
 
     // Should have environment variable prefix
-    expect(humanPrompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
+    expect(fullOutput).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
     // ===== VERIFY JSON CONTEXT =====
     const jsonContext = taskDeliveryPrompt.json;
@@ -1974,24 +1974,24 @@ ${taskDeliveryPrompt.fullCliOutput}
 
     // ===== VERIFY TASK DELIVERY PROMPT =====
     expect(taskDeliveryPrompt).toBeDefined();
-    expect(taskDeliveryPrompt.humanReadable).toBeDefined();
+    expect(taskDeliveryPrompt.fullCliOutput).toBeDefined();
     expect(taskDeliveryPrompt.json).toBeDefined();
 
-    // ===== VERIFY HUMAN READABLE FORMAT =====
-    const humanPrompt = taskDeliveryPrompt.humanReadable;
+    // ===== VERIFY FULL CLI OUTPUT FORMAT =====
+    const fullOutput = taskDeliveryPrompt.fullCliOutput;
 
-    // Should have available actions section
-    expect(humanPrompt).toContain('## Available Actions');
-    expect(humanPrompt).toContain('### Gain Context');
+    // Should have available actions section (embedded in CONTEXT wrapper)
+    expect(fullOutput).toContain('## Available Actions');
+    expect(fullOutput).toContain('### Gain Context');
 
     // Should have role prompt
-    expect(humanPrompt).toContain('## Your Role: REVIEWER');
-    expect(humanPrompt).toContain('## Reviewer Workflow');
+    expect(fullOutput).toContain('## Your Role: REVIEWER');
+    expect(fullOutput).toContain('## Reviewer Workflow');
 
     // Should have wait-for-task reminder
-    expect(humanPrompt).toContain('wait-for-task');
-    expect(humanPrompt).toContain(chatroomId);
-    expect(humanPrompt).toContain('--role=reviewer');
+    expect(fullOutput).toContain('wait-for-task');
+    expect(fullOutput).toContain(chatroomId);
+    expect(fullOutput).toContain('--role=reviewer');
 
     // ===== VERIFY JSON CONTEXT =====
     const jsonContext = taskDeliveryPrompt.json;
@@ -2738,9 +2738,9 @@ describe('Wait-for-Task Recent Improvements', () => {
     );
     expect(attachedTask?.status).toBeDefined();
 
-    // Verify the human-readable prompt also exists
-    expect(taskDeliveryPrompt.humanReadable).toBeDefined();
-    expect(taskDeliveryPrompt.humanReadable.length).toBeGreaterThan(0);
+    // Verify the full CLI output also exists
+    expect(taskDeliveryPrompt.fullCliOutput).toBeDefined();
+    expect(taskDeliveryPrompt.fullCliOutput.length).toBeGreaterThan(0);
   });
 
   test('getPendingTasksForRole returns acknowledged tasks for recovery', async () => {

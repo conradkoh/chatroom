@@ -1351,14 +1351,14 @@ OAuth2`,
         taskId,
       });
 
-      expect(taskPrompt.humanReadable).toBeDefined();
-      expect(taskPrompt.humanReadable).toContain('wait-for-task');
+      expect(taskPrompt.fullCliOutput).toBeDefined();
+      expect(taskPrompt.fullCliOutput).toContain('wait-for-task');
 
       const hasWaitForTaskReminder =
-        taskPrompt.humanReadable.includes('Message availability') ||
-        taskPrompt.humanReadable.includes('stay connected') ||
-        taskPrompt.humanReadable.includes('foreground') ||
-        taskPrompt.humanReadable.includes('background');
+        taskPrompt.fullCliOutput.includes('Message availability') ||
+        taskPrompt.fullCliOutput.includes('stay connected') ||
+        taskPrompt.fullCliOutput.includes('foreground') ||
+        taskPrompt.fullCliOutput.includes('background');
 
       expect(hasWaitForTaskReminder).toBe(true);
     });

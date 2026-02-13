@@ -26,7 +26,6 @@ const config = getConfig();
 
 // Types for task delivery prompt response
 interface TaskDeliveryPromptResponse {
-  humanReadable: string;
   fullCliOutput: string; // Complete CLI output for task delivery (backend-generated)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   json: any; // Dynamic JSON structure from prompt generator
@@ -2204,7 +2203,6 @@ export const getTaskDeliveryPrompt = query({
     });
 
     return {
-      humanReadable,
       fullCliOutput,
       json: deliveryContext,
     };
