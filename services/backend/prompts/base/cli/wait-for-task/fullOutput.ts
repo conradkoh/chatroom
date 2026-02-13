@@ -98,6 +98,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   // ── Task section (IDs + context + content + backlog) ──────────────────────
 
+  lines.push('<task>');
   lines.push(SEP_EQUAL);
   lines.push('📋 TASK');
   lines.push(SEP_EQUAL);
@@ -222,9 +223,12 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     lines.push(`Classification: ${existingClassification.toUpperCase()}`);
   }
 
+  lines.push('</task>');
+
   // ── Process section (consolidated with inline guidance) ──────────────────
 
   lines.push('');
+  lines.push('<process>');
   lines.push(SEP_EQUAL);
   lines.push('📋 PROCESS');
   lines.push(SEP_EQUAL);
@@ -289,9 +293,12 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push(`${stepNum}. Resume listening:`);
   lines.push(`   ${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}`);
 
+  lines.push('</process>');
+
   // ── Next Steps (directive classification/handoff instructions) ───────────
 
   lines.push('');
+  lines.push('<next-steps>');
   lines.push(SEP_EQUAL);
   lines.push('📋 NEXT STEPS');
   lines.push(SEP_EQUAL);
@@ -353,6 +360,8 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     lines.push('');
     lines.push(`No message found. Task ID: ${task._id}`);
   }
+
+  lines.push('</next-steps>');
 
   // ── Reminder footer ───────────────────────────────────────────────────────
 

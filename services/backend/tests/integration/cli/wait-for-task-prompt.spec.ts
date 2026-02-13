@@ -350,6 +350,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       [TIMESTAMP] 📨 Task received!
 
+      <task>
       ============================================================
       📋 TASK
       ============================================================
@@ -368,7 +369,9 @@ ${taskDeliveryPrompt.fullCliOutput}
       - [BACKLOG_ACKNOWLEDGED] Fix: Agent lacks knowledge of backlog listing
 
       Add backlog section to wait-for-task
+      </task>
 
+      <process>
       ============================================================
       📋 PROCESS
       ============================================================
@@ -396,7 +399,9 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       5. Resume listening:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+      </process>
 
+      <next-steps>
       ============================================================
       📋 NEXT STEPS
       ============================================================
@@ -425,6 +430,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       Step 2. Do the work following the PROCESS section above.
 
       Step 3. Hand off when complete.
+      </next-steps>
 
       ============================================================
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -1518,6 +1524,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       [TIMESTAMP] 📨 Task received!
 
+      <task>
       ============================================================
       📋 TASK
       ============================================================
@@ -1540,7 +1547,9 @@ ${taskDeliveryPrompt.fullCliOutput}
       Testing: Toggle in settings switches between light/dark modes
 
       Classification: NEW_FEATURE
+      </task>
 
+      <process>
       ============================================================
       📋 PROCESS
       ============================================================
@@ -1563,7 +1572,9 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       4. Resume listening:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
+      </process>
 
+      <next-steps>
       ============================================================
       📋 NEXT STEPS
       ============================================================
@@ -1573,6 +1584,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       Step 2. Do the work following the PROCESS section above.
 
       Step 3. Hand off when complete.
+      </next-steps>
 
       ============================================================
       Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
