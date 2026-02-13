@@ -463,6 +463,54 @@ interface MessageItemProps {
   onMessageContentClick?: (message: Message) => void;
 }
 
+// System notification message (e.g. context change)
+// Clickable to expand/collapse, shows markdown content when expanded
+const SystemMessage = memo(function SystemMessage({ message }: { message: Message }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const handleToggle = useCallback(() => {
+    setIsExpanded((prev) => !prev);
+  }, []);
+
+  return (
+    <div className="px-4 py-4">
+      {/* Collapsed: clickable divider row */}
+      <button
+        onClick={handleToggle}
+        className="w-full flex items-center gap-3 group cursor-pointer"
+      >
+        <div className="flex-1 h-px bg-chatroom-status-info/30" />
+        <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info bg-chatroom-status-info/10 border border-chatroom-status-info/30 group-hover:bg-chatroom-status-info/20 transition-colors">
+          <Sparkles size={10} className="flex-shrink-0" />
+          <span>New Context</span>
+          <span className="text-chatroom-status-info/50">—</span>
+          <span className="normal-case font-medium tracking-normal max-w-[300px] truncate text-chatroom-text-secondary [&_*]:inline">
+            <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+              {message.content}
+            </Markdown>
+          </span>
+          <ChevronDown
+            size={10}
+            className={`flex-shrink-0 text-chatroom-status-info/60 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+          />
+        </div>
+        <div className="flex-1 h-px bg-chatroom-status-info/30" />
+      </button>
+
+      {/* Expanded: full content with markdown rendering */}
+      {isExpanded && (
+        <div className="mt-2 mx-auto max-w-lg px-4 py-3 bg-chatroom-bg-tertiary border border-chatroom-status-info/20">
+          <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-secondary prose-blockquote:text-chatroom-text-secondary">
+            <Markdown remarkPlugins={[remarkGfm]} components={fullMarkdownComponents}>
+              {message.content}
+            </Markdown>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
 // Memoized message item to prevent re-renders of all messages when one changes
 const MessageItem = memo(function MessageItem({
   message,
@@ -470,8 +518,6 @@ const MessageItem = memo(function MessageItem({
   onAttachedTaskClick,
   onMessageContentClick,
 }: MessageItemProps) {
-  const messageTypeBadge = getMessageTypeBadge(message.type);
-
   // Check if this is a new_feature message with a title
   const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
 
@@ -487,6 +533,13 @@ const MessageItem = memo(function MessageItem({
       onMessageContentClick(message);
     }
   }, [message, onMessageContentClick]);
+
+  // Render system messages as visual dividers (after all hooks)
+  if (message.type === 'system') {
+    return <SystemMessage message={message} />;
+  }
+
+  const messageTypeBadge = getMessageTypeBadge(message.type);
 
   // Check if this is a user message (for truncation and duplicate removal)
   const isUserMessage = message.senderRole.toLowerCase() === 'user';

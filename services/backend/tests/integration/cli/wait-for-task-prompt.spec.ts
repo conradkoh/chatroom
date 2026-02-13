@@ -328,6 +328,13 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       EOF
       \`\`\`
 
+      **Note:** When classifying as \`new_feature\`, or when the message is unrelated to the current context, start a new context first to keep the conversation focused:
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      <summary of current focus>
+      EOF
+      \`\`\`
+
 
        **Pair Team Context:**
        - You work with a reviewer who will check your code
@@ -508,7 +515,9 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       **Create new context:**
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder --content="<summary of current focus>"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      <summary of current focus>
+      EOF
       \`\`\`
 
       **List previous contexts:**
@@ -517,10 +526,8 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       \`\`\`
 
       When to create a new context:
-      - After completing a major task or milestone
-      - When user shifts to a new topic
-      - When the pinned context shows staleness warnings (many messages or old timestamp)
-      - After summarizing progress at user's request
+      - When a new user message arrives that is unrelated to the current context (e.g. a new feature request or topic shift)
+      - When the pinned context shows staleness warnings — summarize recent progress in the new context
 
       ## Your Role: BUILDER
 
@@ -1930,7 +1937,9 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       **Create new context:**
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10062;chatroom_rooms --role=reviewer --content="<summary of current focus>"
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10062;chatroom_rooms --role=reviewer << 'EOF'
+      <summary of current focus>
+      EOF
       \`\`\`
 
       **List previous contexts:**
@@ -1939,10 +1948,8 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       \`\`\`
 
       When to create a new context:
-      - After completing a major task or milestone
-      - When user shifts to a new topic
-      - When the pinned context shows staleness warnings (many messages or old timestamp)
-      - After summarizing progress at user's request
+      - When a new user message arrives that is unrelated to the current context (e.g. a new feature request or topic shift)
+      - When the pinned context shows staleness warnings — summarize recent progress in the new context
 
       ## Your Role: REVIEWER
 
@@ -2298,6 +2305,13 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       [Feature description]
       ---TECH_SPECS---
       [Technical specifications]
+      EOF
+      \`\`\`
+
+      **Note:** When classifying as \`new_feature\`, or when the message is unrelated to the current context, start a new context first to keep the conversation focused:
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10071;chatroom_rooms --role=builder << 'EOF'
+      <summary of current focus>
       EOF
       \`\`\`
 

@@ -10,12 +10,14 @@ export interface ContextNewParams {
 }
 
 /**
- * Generate a context new command string.
+ * Generate a context new command string using heredoc format for multi-line content.
  */
 export function contextNewCommand(params: ContextNewParams): string {
   const prefix = params.cliEnvPrefix || '';
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';
 
-  return `${prefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary of current focus>"`;
+  return `${prefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} << 'EOF'
+<summary of current focus>
+EOF`;
 }

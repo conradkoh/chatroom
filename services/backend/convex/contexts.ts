@@ -43,6 +43,14 @@ export const createContext = mutation({
       currentContextId: contextId,
     });
 
+    // Insert system notification message so the context change is visible in the chat
+    await ctx.db.insert('chatroom_messages', {
+      chatroomId: args.chatroomId,
+      senderRole: 'system',
+      content: args.content,
+      type: 'system',
+    });
+
     return contextId;
   },
 });

@@ -598,11 +598,32 @@ contextCommand
   .description('Create a new context and pin it for all agents')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role (creator of the context)')
-  .requiredOption('--content <content>', 'Context summary/description')
-  .action(async (options: { chatroomId: string; role: string; content: string }) => {
+  .option(
+    '--content <content>',
+    'Context summary/description (alternative: provide via stdin/heredoc)'
+  )
+  .action(async (options: { chatroomId: string; role: string; content?: string }) => {
     await maybeRequireAuth();
+
+    // Resolve content: flag takes priority, fall back to stdin/heredoc
+    let content: string;
+    if (options.content && options.content.trim().length > 0) {
+      content = options.content.trim();
+    } else {
+      const stdinContent = await readStdin();
+      if (!stdinContent.trim()) {
+        console.error('❌ Context content cannot be empty.');
+        console.error('   Provide content via --content="..." or stdin (heredoc):');
+        console.error("   chatroom context new --chatroom-id=<id> --role=<role> << 'EOF'");
+        console.error('   Your context summary here');
+        console.error('   EOF');
+        process.exit(1);
+      }
+      content = stdinContent.trim();
+    }
+
     const { newContext } = await import('./commands/context.js');
-    await newContext(options.chatroomId, options);
+    await newContext(options.chatroomId, { ...options, content });
   });
 
 contextCommand
