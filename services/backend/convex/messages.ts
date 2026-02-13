@@ -2228,6 +2228,7 @@ export const getTaskDeliveryPrompt = query({
       originMessageCreatedAt: originMessage?._creationTime ?? null,
       isEntryPoint,
       hasSystemPromptControl: await getHasSystemPromptControl(ctx, args.chatroomId, args.role),
+      availableHandoffTargets: availableHandoffRoles,
     });
 
     return {

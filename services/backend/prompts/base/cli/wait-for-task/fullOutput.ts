@@ -71,6 +71,9 @@ export interface FullCliOutputParams {
 
   /** Whether the agent has system prompt control (e.g. remote agents). If true, role prompt is omitted from output. */
   hasSystemPromptControl: boolean;
+
+  /** Available handoff targets for this role (e.g. ['builder', 'reviewer', 'user']) */
+  availableHandoffTargets: string[];
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -95,6 +98,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     originMessageCreatedAt,
     isEntryPoint,
     hasSystemPromptControl,
+    availableHandoffTargets,
   } = params;
 
   const lines: string[] = [];
@@ -303,7 +307,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     lines.push(`Classification: ${existingClassification.toUpperCase()}`);
   }
 
-  // ── Process section ───────────────────────────────────────────────────────
+  // ── Process section (consolidated with inline guidance) ──────────────────
 
   lines.push('');
   lines.push(SEP_EQUAL);
@@ -312,7 +316,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   let stepNum = 1;
 
-  // Entry point roles should set context when code changes are expected
+  // Step: Set context (entry point only, when code changes expected)
   if (isEntryPoint) {
     lines.push('');
     lines.push(`${stepNum}. If code changes / commits are expected, set a new context:`);
@@ -320,6 +324,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     stepNum++;
   }
 
+  // Step: Mark task as started
   lines.push('');
   lines.push(`${stepNum}. Mark task as started:`);
   if (isUserMessage) {
@@ -333,17 +338,38 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   }
   stepNum++;
 
+  // Step: Do the work (with available commands)
   lines.push('');
   lines.push(`${stepNum}. Do the work`);
+  lines.push('');
+  lines.push('   Available commands:');
+  lines.push(
+    `   • Read context: ${cliEnvPrefix}chatroom context read --chatroom-id=${chatroomId} --role=${role}`
+  );
+  lines.push(
+    `   • List messages: ${cliEnvPrefix}chatroom messages list --chatroom-id=${chatroomId} --role=${role} --sender-role=user --limit=5 --full`
+  );
+  lines.push('   • View code changes: git log --oneline -10');
+  lines.push(
+    `   • Complete task (no handoff): ${cliEnvPrefix}chatroom task-complete --chatroom-id=${chatroomId} --role=${role}`
+  );
+  lines.push(
+    `   • View backlog: ${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog`
+  );
   stepNum++;
 
+  // Step: Hand off when complete (with targets)
   lines.push('');
   lines.push(`${stepNum}. Hand off when complete:`);
   lines.push(
     `   ${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target>`
   );
+  if (availableHandoffTargets.length > 0) {
+    lines.push(`   Available targets: ${availableHandoffTargets.join(', ')}`);
+  }
   stepNum++;
 
+  // Step: Resume listening
   lines.push('');
   lines.push(`${stepNum}. Resume listening:`);
   lines.push(`   ${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}`);
