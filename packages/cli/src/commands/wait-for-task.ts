@@ -419,14 +419,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       console.log(`<user-message>`);
       console.log(originMessage.content);
 
-      // Show attached tasks if available
-      if (originMessage.attachedTasks && originMessage.attachedTasks.length > 0) {
-        console.log(`\nATTACHED BACKLOG (${originMessage.attachedTasks.length})`);
-        for (const attachedTask of originMessage.attachedTasks) {
-          console.log(`${attachedTask.content}`);
-        }
-      }
-
       // Show staleness warnings if applicable
       const followUpCount = taskDeliveryPrompt.json?.contextWindow?.followUpCountSinceOrigin ?? 0;
       const originCreatedAt = taskDeliveryPrompt.json?.contextWindow?.originMessageCreatedAt;
@@ -461,6 +453,14 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     // Show task content (what needs to be done)
     console.log(`\n## Task`);
     console.log(task.content);
+
+    // Always show attached backlog tasks from the origin message (regardless of context)
+    if (originMessage?.attachedTasks && originMessage.attachedTasks.length > 0) {
+      console.log(`\n## Attached Backlog (${originMessage.attachedTasks.length})`);
+      for (const attachedTask of originMessage.attachedTasks) {
+        console.log(`- [${attachedTask.status.toUpperCase()}] ${attachedTask.content}`);
+      }
+    }
 
     // Show classification status
     const existingClassification = originMessage?.classification;
