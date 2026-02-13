@@ -17,8 +17,9 @@ import { getCliEnvPrefix } from '../../utils/index.js';
  * Available actions are provided when tasks are delivered via wait-for-task.
  */
 export function getContextGainingGuidance(params: ContextGainingParams): string {
-  const { chatroomId, role, convexUrl } = params;
+  const { chatroomId, role, convexUrl, agentType } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
+  const typeValue = agentType ?? '<remote|custom>';
 
   return `## Getting Started
 
@@ -26,7 +27,7 @@ export function getContextGainingGuidance(params: ContextGainingParams): string 
 Register your agent type before starting work.
 
 \`\`\`bash
-${cliEnvPrefix}chatroom register-agent --chatroom-id=${chatroomId} --role=${role} --type=<remote|custom>
+${cliEnvPrefix}chatroom register-agent --chatroom-id=${chatroomId} --role=${role} --type=${typeValue}
 \`\`\`
 
 ### Read Context

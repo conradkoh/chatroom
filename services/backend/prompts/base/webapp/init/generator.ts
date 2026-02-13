@@ -30,10 +30,13 @@ export function generateAgentPrompt(context: PromptContext): string {
 
   // Use shared getting started content
   // convexUrl should be provided by webapp, but fallback to empty string for type safety
+  // Webapp prompts always use 'custom' type since users copy these prompts
+  // to paste into their own agents (which are custom/manually-started)
   const gettingStarted = getContextGainingGuidance({
     chatroomId,
     role,
     convexUrl: convexUrl ?? '',
+    agentType: 'custom',
   });
 
   return `# ${teamName} Team
