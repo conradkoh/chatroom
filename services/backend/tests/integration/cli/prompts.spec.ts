@@ -66,6 +66,7 @@ describe('Available Actions (Task Delivery)', () => {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       convexUrl: 'http://127.0.0.1:3210',
+      isEntryPoint: true,
     });
 
     // Should use Available Actions header
@@ -87,6 +88,7 @@ describe('Available Actions (Task Delivery)', () => {
       chatroomId: 'abc123',
       role: 'reviewer',
       convexUrl: 'http://localhost:3000',
+      isEntryPoint: false,
     });
 
     expect(actions).toContain('git log --oneline -10');

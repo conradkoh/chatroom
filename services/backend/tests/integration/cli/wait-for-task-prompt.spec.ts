@@ -249,7 +249,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       EOF
       \`\`\`
 
-      **Note:** When classifying as \`new_feature\`, or when the message is unrelated to the current context, start a new context first to keep the conversation focused:
+      **Context Rule:** When a new commit is expected, set a new context first to keep the conversation focused. Only the entry point role can set contexts:
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
       <summary of current focus>
@@ -432,7 +432,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       More actions: \`chatroom backlog --help\`
 
       ### Context Management
-      When the conversation drifts or after significant progress, create a new context to keep agents focused on the current goal.
+      Only the entry point role can create new contexts. Set a new context when a new commit is expected, to keep agents focused on the current goal.
 
       **Create new context:**
       \`\`\`bash
@@ -447,7 +447,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       \`\`\`
 
       When to create a new context:
-      - When a new user message arrives that is unrelated to the current context (e.g. a new feature request or topic shift)
+      - When a new commit is expected — summarize the planned changes in the new context
       - When the pinned context shows staleness warnings — summarize recent progress in the new context
 
       ## Your Role: BUILDER
@@ -1732,25 +1732,6 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       More actions: \`chatroom backlog --help\`
 
-      ### Context Management
-      When the conversation drifts or after significant progress, create a new context to keep agents focused on the current goal.
-
-      **Create new context:**
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10062;chatroom_rooms --role=reviewer << 'EOF'
-      <summary of current focus>
-      EOF
-      \`\`\`
-
-      **List previous contexts:**
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context list --chatroom-id=10062;chatroom_rooms --role=reviewer --limit=10
-      \`\`\`
-
-      When to create a new context:
-      - When a new user message arrives that is unrelated to the current context (e.g. a new feature request or topic shift)
-      - When the pinned context shows staleness warnings — summarize recent progress in the new context
-
       ## Your Role: REVIEWER
 
       You are the quality guardian responsible for reviewing and validating code changes.
@@ -2145,7 +2126,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       EOF
       \`\`\`
 
-      **Note:** When classifying as \`new_feature\`, or when the message is unrelated to the current context, start a new context first to keep the conversation focused:
+      **Context Rule:** When a new commit is expected, set a new context first to keep the conversation focused. Only the entry point role can set contexts:
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10071;chatroom_rooms --role=builder << 'EOF'
       <summary of current focus>

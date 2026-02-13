@@ -19,7 +19,16 @@ export const createContext = mutation({
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Only the team entry point (planner/coordinator) can create contexts
+    const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
+    if (entryPoint && args.role.toLowerCase() !== entryPoint.toLowerCase()) {
+      throw new ConvexError({
+        code: 'CONTEXT_RESTRICTED',
+        message: `Only the ${entryPoint} role can create contexts. Your role: ${args.role}`,
+      });
+    }
 
     // Get current message count in chatroom for staleness detection
     const messages = await ctx.db

@@ -64,6 +64,9 @@ export interface FullCliOutputParams {
 
   /** Timestamp of origin message creation */
   originMessageCreatedAt: number | null;
+
+  /** Whether this role is the team entry point (planner/coordinator). Only entry points can create contexts. */
+  isEntryPoint: boolean;
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -86,6 +89,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     originMessage,
     followUpCountSinceOrigin,
     originMessageCreatedAt,
+    isEntryPoint,
   } = params;
 
   const lines: string[] = [];
@@ -189,11 +193,17 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       lines.push(
         `⚠️  WARNING: ${currentContext.messagesSinceContext} messages since this context was set.`
       );
-      lines.push('   Consider updating the context with a summary of recent developments.');
-      lines.push('   Create a new context with:');
-      lines.push(
-        `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
-      );
+      if (isEntryPoint) {
+        lines.push('   Consider updating the context with a summary of recent developments.');
+        lines.push('   Create a new context with:');
+        lines.push(
+          `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
+        );
+      } else {
+        lines.push(
+          '   The context may be outdated. The entry point role will update it when needed.'
+        );
+      }
     }
 
     // Staleness warning: old context
@@ -201,10 +211,16 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       const ageDays = Math.floor(currentContext.elapsedHours / 24);
       lines.push('');
       lines.push(`⚠️  WARNING: This context is ${ageDays} day(s) old.`);
-      lines.push('   Consider creating a new context with updated summary.');
-      lines.push(
-        `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
-      );
+      if (isEntryPoint) {
+        lines.push('   Consider creating a new context with updated summary.');
+        lines.push(
+          `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
+        );
+      } else {
+        lines.push(
+          '   The context may be outdated. The entry point role will update it when needed.'
+        );
+      }
     }
 
     lines.push('</context>');
@@ -223,10 +239,16 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         `⚠️  WARNING: ${followUpCountSinceOrigin} follow-up messages since this pinned message.`
       );
       lines.push('   The user may have moved on to a different topic.');
-      lines.push('   Consider creating a context with:');
-      lines.push(
-        `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
-      );
+      if (isEntryPoint) {
+        lines.push('   Consider creating a context with:');
+        lines.push(
+          `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
+        );
+      } else {
+        lines.push(
+          '   The context may be outdated. The entry point role will update it when needed.'
+        );
+      }
     }
 
     // Staleness warning: old pinned message
@@ -237,10 +259,16 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         const ageDays = Math.floor(ageHours / 24);
         lines.push('');
         lines.push(`⚠️  WARNING: This pinned message is ${ageDays} day(s) old.`);
-        lines.push('   Consider creating a context with:');
-        lines.push(
-          `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
-        );
+        if (isEntryPoint) {
+          lines.push('   Consider creating a context with:');
+          lines.push(
+            `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
+          );
+        } else {
+          lines.push(
+            '   The context may be outdated. The entry point role will update it when needed.'
+          );
+        }
       }
     }
 

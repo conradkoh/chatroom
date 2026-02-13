@@ -70,7 +70,7 @@ User wants new functionality. Requires title, description, and tech specs.
 ${newFeatureCmd}
 \`\`\`
 
-**Note:** When classifying as \`new_feature\`, or when the message is unrelated to the current context, start a new context first to keep the conversation focused:
+**Context Rule:** When a new commit is expected, set a new context first to keep the conversation focused. Only the entry point role can set contexts:
 \`\`\`bash
 ${contextNewCmd}
 \`\`\``;

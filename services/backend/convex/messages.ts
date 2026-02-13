@@ -2158,10 +2158,13 @@ export const getTaskDeliveryPrompt = query({
     const reminderMessage = `Remember to listen for new messages using \`wait-for-task\` after handoff. Otherwise your team might get stuck not be able to reach you.\n\n    ${waitCommand}`;
 
     // Get available actions for this task delivery
+    const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
+    const isEntryPoint = entryPoint ? args.role.toLowerCase() === entryPoint.toLowerCase() : true; // Default to true if no entry point configured
     const availableActionsText = getAvailableActions({
       chatroomId: args.chatroomId,
       role: args.role,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
+      isEntryPoint,
     });
 
     const humanReadable = `${availableActionsText}\n\n${rolePromptText}\n\n${reminderMessage}`;
@@ -2200,6 +2203,7 @@ export const getTaskDeliveryPrompt = query({
         : null,
       followUpCountSinceOrigin,
       originMessageCreatedAt: originMessage?._creationTime ?? null,
+      isEntryPoint,
     });
 
     return {

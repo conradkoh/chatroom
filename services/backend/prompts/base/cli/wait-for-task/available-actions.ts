@@ -12,7 +12,9 @@ import { taskCompleteCommand } from '../task-complete/command.js';
 export interface AvailableActionsParams {
   chatroomId: string;
   role: string;
-  convexUrl?: string;
+  convexUrl: string;
+  /** Whether this role is the team entry point (planner/coordinator). Only entry points can manage contexts. */
+  isEntryPoint: boolean;
 }
 
 /**
@@ -20,10 +22,12 @@ export interface AvailableActionsParams {
  * These are the core actions available to agents at any stage.
  */
 export function getAvailableActions(params: AvailableActionsParams): string {
-  const { chatroomId, role, convexUrl } = params;
+  const { chatroomId, role, convexUrl, isEntryPoint } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
-  return `## Available Actions
+  const sections: string[] = [];
+
+  sections.push(`## Available Actions
 
 ### Gain Context
 View the latest relevant chat history. Use when starting a new session or when context is unclear.
@@ -71,10 +75,13 @@ This transitions the task to \`pending_user_review\` where the user can confirm 
 #### Backlog Scoring and Maintenance
 When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog\` to view items, then provide recommendations.
 
-More actions: \`chatroom backlog --help\`
+More actions: \`chatroom backlog --help\``);
 
+  // Context management is restricted to the entry point (planner) role only
+  if (isEntryPoint) {
+    sections.push(`
 ### Context Management
-When the conversation drifts or after significant progress, create a new context to keep agents focused on the current goal.
+Only the entry point role can create new contexts. Set a new context when a new commit is expected, to keep agents focused on the current goal.
 
 **Create new context:**
 \`\`\`bash
@@ -87,6 +94,9 @@ ${cliEnvPrefix}chatroom context list --chatroom-id=${chatroomId} --role=${role} 
 \`\`\`
 
 When to create a new context:
-- When a new user message arrives that is unrelated to the current context (e.g. a new feature request or topic shift)
-- When the pinned context shows staleness warnings — summarize recent progress in the new context`;
+- When a new commit is expected — summarize the planned changes in the new context
+- When the pinned context shows staleness warnings — summarize recent progress in the new context`);
+  }
+
+  return sections.join('\n');
 }
