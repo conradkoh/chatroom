@@ -130,10 +130,10 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   const classes = { indicator: statusConfig.bg };
 
   return (
-    <div className="border-b border-border last:border-b-0">
+    <div className="border-b border-chatroom-border last:border-b-0">
       {/* Clickable Header - opens unified modal */}
       <div
-        className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-accent/50"
+        className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-chatroom-bg-hover"
         role="button"
         tabIndex={0}
         aria-label={`${title} agents (${agents.length}). Click to view all agents.`}
@@ -149,16 +149,16 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
         <div className={`w-2.5 h-2.5 flex-shrink-0 ${classes.indicator}`} />
         {/* Group Info */}
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-bold uppercase tracking-wider text-foreground">
+          <div className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
             {title}
-            <span className="ml-1.5 text-muted-foreground">({agents.length})</span>
+            <span className="ml-1.5 text-chatroom-text-muted">({agents.length})</span>
           </div>
-          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted truncate">
             {agents.map((r) => r.toUpperCase()).join(', ')}
           </div>
         </div>
         {/* View More Indicator */}
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        <ChevronRight className="h-4 w-4 text-chatroom-text-muted" />
       </div>
     </div>
   );
