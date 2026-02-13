@@ -659,8 +659,13 @@ export const markBacklogComplete = mutation({
       throw new Error(`Task is already ${task.status}`);
     }
 
-    // Allow completion from pending_user_review (normal flow) or backlog (force complete)
-    if (task.status !== 'pending_user_review' && task.status !== 'backlog') {
+    // Allow completion from pending_user_review (normal flow), backlog (force complete),
+    // or backlog_acknowledged (attached to message but needs force complete)
+    if (
+      task.status !== 'pending_user_review' &&
+      task.status !== 'backlog' &&
+      task.status !== 'backlog_acknowledged'
+    ) {
       throw new Error(`Cannot complete task with status: ${task.status}`);
     }
 
