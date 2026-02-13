@@ -303,9 +303,11 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('📋 NEXT STEPS');
   lines.push(SEP_EQUAL);
 
+  let nextStepNum = 1;
+
   if (isUserMessage) {
     lines.push('');
-    lines.push('Step 1. Acknowledge and classify this message:');
+    lines.push(`Step ${nextStepNum}. Acknowledge and classify this message:`);
     lines.push('');
 
     // Base command with <type> placeholder
@@ -344,18 +346,45 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         cliEnvPrefix,
       })
     );
+    nextStepNum++;
+
+    // Context creation step (entry point only)
+    if (isEntryPoint) {
+      lines.push('');
+      lines.push(
+        `Step ${nextStepNum}. If code changes are expected, create a new context before starting work:`
+      );
+      lines.push(`   ${contextNewCommand({ chatroomId, role, cliEnvPrefix })}`);
+      nextStepNum++;
+    }
 
     lines.push('');
-    lines.push('Step 2. Do the work following the PROCESS section above.');
+    lines.push(`Step ${nextStepNum}. Do the work following the PROCESS section above.`);
+    nextStepNum++;
     lines.push('');
-    lines.push('Step 3. Hand off when complete.');
+    lines.push(`Step ${nextStepNum}. Hand off when complete.`);
   } else if (message) {
     lines.push('');
-    lines.push(`Step 1. Task handed off from ${message.senderRole} — start work immediately.`);
+    lines.push(
+      `Step ${nextStepNum}. Task handed off from ${message.senderRole} — start work immediately.`
+    );
+    nextStepNum++;
+
+    // Context creation step (entry point only)
+    if (isEntryPoint) {
+      lines.push('');
+      lines.push(
+        `Step ${nextStepNum}. If code changes are expected, create a new context before starting work:`
+      );
+      lines.push(`   ${contextNewCommand({ chatroomId, role, cliEnvPrefix })}`);
+      nextStepNum++;
+    }
+
     lines.push('');
-    lines.push('Step 2. Do the work following the PROCESS section above.');
+    lines.push(`Step ${nextStepNum}. Do the work following the PROCESS section above.`);
+    nextStepNum++;
     lines.push('');
-    lines.push('Step 3. Hand off when complete.');
+    lines.push(`Step ${nextStepNum}. Hand off when complete.`);
   } else {
     lines.push('');
     lines.push(`No message found. Task ID: ${task._id}`);

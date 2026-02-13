@@ -427,9 +427,14 @@ ${taskDeliveryPrompt.fullCliOutput}
       <tech-specs>
       EOF
 
-      Step 2. Do the work following the PROCESS section above.
+      Step 2. If code changes are expected, create a new context before starting work:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      <summary of current focus>
+      EOF
 
-      Step 3. Hand off when complete.
+      Step 3. Do the work following the PROCESS section above.
+
+      Step 4. Hand off when complete.
       </next-steps>
 
       ============================================================
