@@ -351,14 +351,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       [TIMESTAMP] 📨 Task received!
 
       ============================================================
-      🆔 TASK INFORMATION
+      📋 TASK
       ============================================================
       Task ID: 10007;chatroom_tasks
       Message ID: 10006;chatroom_messages
-
-      ============================================================
-      📍 PINNED - Work on this immediately
-      ============================================================
 
       ## User Message
       <user-message>
@@ -575,14 +571,14 @@ ${taskDeliveryPrompt.fullCliOutput}
     // Verify JSON contains all necessary info for CLI to format task info section
     const jsonContext = taskDeliveryPrompt.json;
 
-    // CLI needs task ID to show in TASK INFORMATION section
+    // CLI needs task ID to show in TASK section
     expect(jsonContext.task._id).toBeDefined();
     expect(typeof jsonContext.task._id).toBe('string');
 
     // CLI needs message ID if present
     expect(jsonContext.message?._id).toBeDefined();
 
-    // CLI needs origin message for PINNED section
+    // CLI needs origin message for TASK section
     expect(jsonContext.contextWindow.originMessage).toBeDefined();
     expect(jsonContext.contextWindow.originMessage?.content).toBe('Fix the dark mode toggle');
     expect(jsonContext.contextWindow.originMessage?.senderRole).toBe('user');
@@ -1523,14 +1519,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       [TIMESTAMP] 📨 Task received!
 
       ============================================================
-      🆔 TASK INFORMATION
+      📋 TASK
       ============================================================
       Task ID: 10068;chatroom_tasks
       Message ID: 10067;chatroom_messages
-
-      ============================================================
-      📍 PINNED - Work on this immediately
-      ============================================================
 
       ## User Message
       <user-message>

@@ -6,8 +6,7 @@
  * making the CLI a thin client that just prints the result.
  *
  * The output includes:
- * - Task Information section (task ID, message ID)
- * - Pinned section (context or user message, attached backlog, classification)
+ * - Task section (IDs, context, task content, attached backlog, classification)
  * - Process section (step-by-step workflow)
  * - Next Steps section (directive classification or handoff instructions)
  * - Reminder footer
@@ -97,22 +96,15 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   const isUserMessage = message && message.senderRole.toLowerCase() === 'user';
 
-  // ── Task Information ──────────────────────────────────────────────────────
+  // ── Task section (IDs + context + content + backlog) ──────────────────────
 
   lines.push(SEP_EQUAL);
-  lines.push('🆔 TASK INFORMATION');
+  lines.push('📋 TASK');
   lines.push(SEP_EQUAL);
   lines.push(`Task ID: ${task._id}`);
   if (message) {
     lines.push(`Message ID: ${message._id}`);
   }
-
-  // ── Pinned section ────────────────────────────────────────────────────────
-
-  lines.push('');
-  lines.push(SEP_EQUAL);
-  lines.push('📍 PINNED - Work on this immediately');
-  lines.push(SEP_EQUAL);
 
   // Display explicit context if available (new system)
   if (currentContext) {
