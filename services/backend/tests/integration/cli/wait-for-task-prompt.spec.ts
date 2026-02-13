@@ -10,6 +10,10 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
+import { getWaitForTaskGuidance, getWaitForTaskReminder } from '../../../prompts/base/cli/index.js';
+import { taskStartedCommand } from '../../../prompts/base/cli/task-started/command.js';
+import { waitForTaskCommand } from '../../../prompts/base/cli/wait-for-task/command.js';
+import { getCliEnvPrefix } from '../../../prompts/utils/env.js';
 import { t } from '../../../test.setup';
 
 /**
@@ -128,8 +132,12 @@ describe('Wait-for-Task Full Prompt', () => {
     // Task content comes from the task object
     const taskContent = taskDeliveryPrompt.json.task?.content || 'NO TASK CONTENT';
 
+    // Use the same functions the CLI uses to generate commands
+    const cliEnvPrefix = getCliEnvPrefix('http://127.0.0.1:3210');
+    const role = 'builder';
+
     const fullCliMessage = `
-[TIMESTAMP] ⏳ Connecting to chatroom as "builder"...
+[TIMESTAMP] ⏳ Connecting to chatroom as "${role}"...
 [TIMESTAMP] ✅ Connected. Waiting for task...
 
 <!-- REFERENCE: Agent Initialization
@@ -138,21 +146,7 @@ describe('Wait-for-Task Full Prompt', () => {
 📋 AGENT INITIALIZATION PROMPT
 ══════════════════════════════════════════════════
 
-Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
-
-Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgrounding) - backgrounded processes cannot receive tasks
-
-⏱️  HOW WAIT-FOR-TASK WORKS:
-• While wait-for-task runs, you remain "frozen" - the tool continues executing while you wait
-• The command may timeout before a task arrives. This is normal and expected behavior
-• The shell host enforces timeouts to ensure agents remain responsive and can pick up new jobs
-• When wait-for-task terminates (timeout or after task completion), restart it immediately
-• Restarting quickly ensures users and other agents don't have to wait for your availability
-
-📋 BACKLOG:
-The chatroom has a task backlog. View items with:
-  chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
-More actions: \`chatroom backlog --help\`
+${getWaitForTaskGuidance()}
 
 ══════════════════════════════════════════════════
 
@@ -173,7 +167,7 @@ Message ID: ${messageId}
 ============================================================
 To acknowledge and classify this message, run:
 
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=${chatroomId} --role=builder --task-id=${taskId} --origin-message-classification=<type>
+${taskStartedCommand({ chatroomId, role, taskId, classification: 'question', cliEnvPrefix }).replace('--origin-message-classification=question', '--origin-message-classification=<type>')}
 
 📝 Classification Requirements:
    • question: No additional fields required
@@ -181,14 +175,7 @@ CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=${
    • new_feature: REQUIRES --title, --description, --tech-specs
 
 💡 Example for new_feature:
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=${chatroomId} --role=builder --task-id=${taskId} --origin-message-classification=new_feature << 'EOF'
----TITLE---
-<title>
----DESCRIPTION---
-<description>
----TECH_SPECS---
-<tech-specs>
-EOF
+${taskStartedCommand({ chatroomId, role, taskId, classification: 'new_feature', title: '<title>', description: '<description>', techSpecs: '<tech-specs>', cliEnvPrefix })}
 
 Classification types: question, new_feature, follow_up
 ============================================================
@@ -222,18 +209,18 @@ ${existingClassification ? `\nClassification: ${existingClassification.toUpperCa
 ============================================================
 
 1. Mark task as started:
-   CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=${chatroomId} --role=builder --task-id=${taskId} --origin-message-classification=follow_up
+   ${taskStartedCommand({ chatroomId, role, taskId, classification: 'follow_up', cliEnvPrefix })}
 
 2. Do the work
 
 3. Hand off when complete:
-   CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=${chatroomId} --role=builder --next-role=<target>
+   ${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target>
 
 4. Resume listening:
-   CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=${chatroomId} --role=builder
+   ${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}
 
 ============================================================
-Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+${getWaitForTaskReminder()}
 ============================================================
 `;
 
@@ -250,21 +237,32 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       📋 AGENT INITIALIZATION PROMPT
       ══════════════════════════════════════════════════
 
-      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      🔗 STAYING CONNECTED TO YOUR TEAM
 
-      Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgrounding) - backgrounded processes cannot receive tasks
+      Your primary directive: Stay available to respond to user and team requests.
 
-      ⏱️  HOW WAIT-FOR-TASK WORKS:
-      • While wait-for-task runs, you remain "frozen" - the tool continues executing while you wait
-      • The command may timeout before a task arrives. This is normal and expected behavior
-      • The shell host enforces timeouts to ensure agents remain responsive and can pick up new jobs
-      • When wait-for-task terminates (timeout or after task completion), restart it immediately
-      • Restarting quickly ensures users and other agents don't have to wait for your availability
+      ⚠️  CRITICAL: Run wait-for-task in the FOREGROUND
 
-      📋 BACKLOG:
-      The chatroom has a task backlog. View items with:
+      Two requirements:
+
+      1. **Shell foreground** - Never use \`&\`, \`nohup\`, or backgrounding
+         • Must run directly in your active terminal
+         • Backgrounded processes cannot receive tasks
+
+      2. **Blocking execution** - Wait for command completion
+         • Do not respond to user or perform other work while running
+         • Only proceed after the command exits (signal or task received)
+
+      ⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
+      • Your harness may kill long-running commands after a set duration
+      • When the command terminates unexpectedly:
+        1. Do you have urgent pending work?
+        2. Without wait-for-task, your team cannot reach you
+        3. If no urgent work, reconnect immediately
+
+      📋 BACKLOG TASKS
         chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
-      More actions: \`chatroom backlog --help\`
+        chatroom backlog --help
 
       ══════════════════════════════════════════════════
 
@@ -1490,9 +1488,13 @@ Testing: Toggle in settings switches between light/dark modes`,
     const messageId = handoffResult.messageId;
     const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
 
+    // Use the same functions the CLI uses to generate commands
+    const cliEnvPrefix = getCliEnvPrefix('http://127.0.0.1:3210');
+    const role = 'reviewer';
+
     // Note: Timestamps will vary, so we use placeholders in expected output
     const fullCliMessage = `
-[TIMESTAMP] ⏳ Connecting to chatroom as "reviewer"...
+[TIMESTAMP] ⏳ Connecting to chatroom as "${role}"...
 [TIMESTAMP] ✅ Connected. Waiting for task...
 
 <!-- REFERENCE: Agent Initialization
@@ -1501,21 +1503,7 @@ Testing: Toggle in settings switches between light/dark modes`,
 📋 AGENT INITIALIZATION PROMPT
 ══════════════════════════════════════════════════
 
-Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
-
-Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgrounding) - backgrounded processes cannot receive tasks
-
-⏱️  HOW WAIT-FOR-TASK WORKS:
-• While wait-for-task runs, you remain "frozen" - the tool continues executing while you wait
-• The command may timeout before a task arrives. This is normal and expected behavior
-• The shell host enforces timeouts to ensure agents remain responsive and can pick up new jobs
-• When wait-for-task terminates (timeout or after task completion), restart it immediately
-• Restarting quickly ensures users and other agents don't have to wait for your availability
-
-📋 BACKLOG:
-The chatroom has a task backlog. View items with:
-  chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
-More actions: \`chatroom backlog --help\`
+${getWaitForTaskGuidance()}
 
 ══════════════════════════════════════════════════
 
@@ -1536,7 +1524,7 @@ Message ID: ${messageId}
 ============================================================
 To start working on this task, run:
 
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=${chatroomId} --role=reviewer --task-id=${taskId} --no-classify
+${cliEnvPrefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=${taskId} --no-classify
 
 ⚠️  Note: This task was handed off to you, so classification was already done by the entry point role.
 ============================================================
@@ -1562,7 +1550,7 @@ Original classification: ${originMessage?.classification || 'Not classified'}
 ${taskDeliveryPrompt.humanReadable}
 
 ============================================================
-Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+${getWaitForTaskReminder()}
 ============================================================
 `;
 
@@ -1579,21 +1567,32 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       📋 AGENT INITIALIZATION PROMPT
       ══════════════════════════════════════════════════
 
-      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      🔗 STAYING CONNECTED TO YOUR TEAM
 
-      Run \`wait-for-task\` directly (not with \`&\`, \`nohup\`, or other backgrounding) - backgrounded processes cannot receive tasks
+      Your primary directive: Stay available to respond to user and team requests.
 
-      ⏱️  HOW WAIT-FOR-TASK WORKS:
-      • While wait-for-task runs, you remain "frozen" - the tool continues executing while you wait
-      • The command may timeout before a task arrives. This is normal and expected behavior
-      • The shell host enforces timeouts to ensure agents remain responsive and can pick up new jobs
-      • When wait-for-task terminates (timeout or after task completion), restart it immediately
-      • Restarting quickly ensures users and other agents don't have to wait for your availability
+      ⚠️  CRITICAL: Run wait-for-task in the FOREGROUND
 
-      📋 BACKLOG:
-      The chatroom has a task backlog. View items with:
+      Two requirements:
+
+      1. **Shell foreground** - Never use \`&\`, \`nohup\`, or backgrounding
+         • Must run directly in your active terminal
+         • Backgrounded processes cannot receive tasks
+
+      2. **Blocking execution** - Wait for command completion
+         • Do not respond to user or perform other work while running
+         • Only proceed after the command exits (signal or task received)
+
+      ⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
+      • Your harness may kill long-running commands after a set duration
+      • When the command terminates unexpectedly:
+        1. Do you have urgent pending work?
+        2. Without wait-for-task, your team cannot reach you
+        3. If no urgent work, reconnect immediately
+
+      📋 BACKLOG TASKS
         chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
-      More actions: \`chatroom backlog --help\`
+        chatroom backlog --help
 
       ══════════════════════════════════════════════════
 
