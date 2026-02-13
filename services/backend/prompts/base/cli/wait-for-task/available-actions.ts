@@ -6,6 +6,7 @@
  */
 
 import { getCliEnvPrefix } from '../../../utils/index.js';
+import { contextNewCommand } from '../context/new.js';
 import { taskCompleteCommand } from '../task-complete/command.js';
 
 export interface AvailableActionsParams {
@@ -77,7 +78,7 @@ When the conversation drifts or after significant progress, create a new context
 
 **Create new context:**
 \`\`\`bash
-${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary of current focus>"
+${contextNewCommand({ chatroomId, role, cliEnvPrefix })}
 \`\`\`
 
 **List previous contexts:**
@@ -86,8 +87,6 @@ ${cliEnvPrefix}chatroom context list --chatroom-id=${chatroomId} --role=${role} 
 \`\`\`
 
 When to create a new context:
-- After completing a major task or milestone
-- When user shifts to a new topic
-- When the pinned context shows staleness warnings (many messages or old timestamp)
-- After summarizing progress at user's request`;
+- When a new user message arrives that is unrelated to the current context (e.g. a new feature request or topic shift)
+- When the pinned context shows staleness warnings — summarize recent progress in the new context`;
 }
