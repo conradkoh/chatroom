@@ -52,6 +52,10 @@ import {
 } from '@/components/ui/fixed-modal';
 import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
 
+// Stable reference for remarkPlugins — avoids re-allocation on every render
+// which would cause react-markdown to re-parse the AST unnecessarily
+const REMARK_PLUGINS = [remarkGfm];
+
 interface Participant {
   _id?: string;
   role: string;
@@ -249,15 +253,10 @@ function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; class
 // Tappable to show full message details in a slide-in modal
 interface TaskHeaderProps {
   message: Message;
-  chatroomId: string;
   onTap?: (message: Message) => void;
 }
 
-const TaskHeader = memo(function TaskHeader({
-  message,
-  chatroomId: _chatroomId,
-  onTap,
-}: TaskHeaderProps) {
+const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps) {
   // useCallback must be called before any conditional returns (React hooks rules)
   const handleClick = useCallback(() => {
     if (onTap) {
@@ -365,7 +364,7 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
             <span>New Context</span>
             <span className="text-chatroom-status-info/50">—</span>
             <span className="normal-case font-medium tracking-normal max-w-[300px] truncate text-chatroom-text-secondary [&_*]:inline">
-              <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+              <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
                 {message.content}
               </Markdown>
             </span>
@@ -388,7 +387,7 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
           <FixedModalBody>
             <div className="p-6">
               <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-secondary prose-blockquote:text-chatroom-text-secondary">
-                <Markdown remarkPlugins={[remarkGfm]} components={fullMarkdownComponents}>
+                <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
                   {message.content}
                 </Markdown>
               </div>
@@ -483,7 +482,7 @@ const MessageItem = memo(function MessageItem({
           className="w-full text-left cursor-pointer hover:bg-chatroom-accent-subtle transition-colors -mx-2 px-2 py-1 rounded"
         >
           <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-hidden line-clamp-2 prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:my-0 prose-p:my-0 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:hidden prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-table:hidden prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
-            <Markdown remarkPlugins={[remarkGfm]} components={baseMarkdownComponents}>
+            <Markdown remarkPlugins={REMARK_PLUGINS} components={baseMarkdownComponents}>
               {message.content}
             </Markdown>
           </div>
@@ -491,7 +490,7 @@ const MessageItem = memo(function MessageItem({
         </button>
       ) : (
         <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
-          <Markdown remarkPlugins={[remarkGfm]} components={fullMarkdownComponents}>
+          <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
             {message.content}
           </Markdown>
         </div>
@@ -502,30 +501,33 @@ const MessageItem = memo(function MessageItem({
           <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
             Attached Backlog ({message.attachedTasks.length})
           </div>
-          {message.attachedTasks.map((task) => (
-            <button
-              key={task._id}
-              onClick={() => onAttachedTaskClick?.(task)}
-              className="w-full text-left border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0 hover:bg-chatroom-accent-subtle transition-colors cursor-pointer group"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-                  <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
-                    {task.content}
-                  </Markdown>
+          {message.attachedTasks.map((task) => {
+            const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
+            return (
+              <button
+                key={task._id}
+                onClick={() => onAttachedTaskClick?.(task)}
+                className="w-full text-left border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0 hover:bg-chatroom-accent-subtle transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
+                    <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
+                      {task.content}
+                    </Markdown>
+                  </div>
+                  <span
+                    className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${statusBadge.classes}`}
+                  >
+                    {statusBadge.label}
+                  </span>
+                  <ChevronRight
+                    size={14}
+                    className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
+                  />
                 </div>
-                <span
-                  className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${getAttachedTaskStatusBadge(task.backlogStatus).classes}`}
-                >
-                  {getAttachedTaskStatusBadge(task.backlogStatus).label}
-                </span>
-                <ChevronRight
-                  size={14}
-                  className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
-                />
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       )}
       {/* Attached Artifacts */}
@@ -626,6 +628,11 @@ export const MessageFeed = memo(function MessageFeed({
   const handleCloseMessageDetailModal = useCallback(() => {
     setSelectedMessage(null);
   }, []);
+
+  // Load more messages handler - stable reference for button onClick
+  const handleLoadMore = useCallback(() => {
+    loadMore(LOAD_MORE_SIZE);
+  }, [loadMore]);
 
   // Reverse to show oldest first (backend already filters out join/progress messages)
   const displayMessages = useMemo(() => {
@@ -773,7 +780,7 @@ export const MessageFeed = memo(function MessageFeed({
         {status === 'CanLoadMore' && (
           <button
             type="button"
-            onClick={() => loadMore(LOAD_MORE_SIZE)}
+            onClick={handleLoadMore}
             className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1 hover:text-chatroom-text-primary transition-colors cursor-pointer"
           >
             <ChevronUp size={12} />
@@ -789,11 +796,7 @@ export const MessageFeed = memo(function MessageFeed({
         {displayMessages.map((message) => (
           <React.Fragment key={message._id}>
             {/* Task Header - sticky section header for user messages, tappable */}
-            <TaskHeader
-              message={message}
-              chatroomId={chatroomId}
-              onTap={handleMessageDetailClick}
-            />
+            <TaskHeader message={message} onTap={handleMessageDetailClick} />
             <MessageItem
               message={message}
               onFeatureClick={handleFeatureClick}
