@@ -3,7 +3,6 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ChevronUp,
   ChevronDown,
@@ -13,7 +12,6 @@ import {
   Loader2,
   Timer,
   CheckCircle2,
-  Check,
   XCircle,
   Archive,
   ArrowRightLeft,
@@ -21,7 +19,6 @@ import {
   Sparkles,
   RotateCcw,
   ArrowRight,
-  Square,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -46,7 +43,18 @@ import {
 import { MessageDetailModal } from './MessageDetailModal';
 import { WorkingIndicator } from './WorkingIndicator';
 
+import {
+  FixedModal,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+  FixedModalBody,
+} from '@/components/ui/fixed-modal';
 import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
+
+// Stable reference for remarkPlugins — avoids re-allocation on every render
+// which would cause react-markdown to re-parse the AST unnecessarily
+const REMARK_PLUGINS = [remarkGfm];
 
 interface Participant {
   _id?: string;
@@ -196,14 +204,6 @@ const getClassificationBadge = (classification: Message['classification']) => {
   }
 };
 
-// Progress message type for timeline
-interface ProgressMessage {
-  _id: string;
-  content: string;
-  senderRole: string;
-  _creationTime: number;
-}
-
 // Map task status to display label and CSS classes for attached task badges
 function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; classes: string } {
   switch (status) {
@@ -248,59 +248,21 @@ function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; class
   }
 }
 
-// Format relative time for progress timeline
-function formatRelativeTime(timestamp: number): string {
-  const now = Date.now();
-  const diff = now - timestamp;
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-
-  if (seconds < 60) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  return new Date(timestamp).toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-// Sticky Task Header - renders before user messages as a section header
+// Task Header - renders before user messages as a section header
 // Shows shimmer while awaiting classification, then displays task title
-// Now includes inline progress display with expandable timeline
 // Tappable to show full message details in a slide-in modal
 interface TaskHeaderProps {
   message: Message;
-  chatroomId: string;
   onTap?: (message: Message) => void;
 }
 
-const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: TaskHeaderProps) {
-  // State for expanded progress timeline
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  // Fetch progress history when expanded
-  const progressMessages = useSessionQuery(
-    api.messages.getProgressForTask,
-    isExpanded && message.taskId
-      ? {
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          taskId: message.taskId as Id<'chatroom_tasks'>,
-        }
-      : 'skip'
-  ) as ProgressMessage[] | undefined;
-
+const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps) {
   // useCallback must be called before any conditional returns (React hooks rules)
   const handleClick = useCallback(() => {
     if (onTap) {
       onTap(message);
     }
   }, [onTap, message]);
-
-  const handleProgressClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering the header click
-    setIsExpanded((prev) => !prev);
-  }, []);
 
   // Only show for user messages
   if (message.senderRole.toLowerCase() !== 'user') {
@@ -309,10 +271,6 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
 
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
-  // Show progress if we have any latestProgress data (not just when in_progress)
-  const hasProgress = !!message.latestProgress;
-  // Track if task is actively in progress for animations
-  const isTaskActive = message.taskStatus === 'in_progress';
 
   // Determine what to display:
   // - No classification yet AND task not finished: shimmer (waiting for classification)
@@ -329,15 +287,8 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
     return text.replace(/\n+/g, ' ').trim();
   };
 
-  // Check if progress is "fresh" (within last 30 seconds) for pulse animation
-  // Only animate if task is still active
-  const isProgressFresh =
-    hasProgress && isTaskActive && Date.now() - message.latestProgress!._creationTime < 30000;
-
-  // Dynamic height: h-8 when no progress, auto when progress is shown
-  // Modern design: neutral grey background with colorized elements
   return (
-    <div className="sticky top-0 z-10 w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong backdrop-blur-sm">
+    <div className="w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong">
       {/* Main header row - clickable */}
       <button
         onClick={handleClick}
@@ -375,83 +326,6 @@ const TaskHeader = memo(function TaskHeader({ message, chatroomId, onTap }: Task
           )}
         </div>
       </button>
-
-      {/* Inline progress row - shown when task has any progress history */}
-      {hasProgress && (
-        <>
-          <button
-            onClick={handleProgressClick}
-            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-chatroom-bg-hover transition-colors cursor-pointer border-t border-chatroom-border/50"
-          >
-            {isTaskActive ? (
-              <Loader2
-                size={12}
-                className={`flex-shrink-0 text-chatroom-status-info ${isProgressFresh ? 'animate-spin' : ''}`}
-              />
-            ) : (
-              <Check size={12} className="flex-shrink-0 text-chatroom-status-success" />
-            )}
-            <span
-              className={`text-[11px] text-chatroom-text-secondary truncate flex-1 ${isProgressFresh ? 'animate-pulse' : ''}`}
-            >
-              {message.latestProgress!.content}
-            </span>
-            <ChevronDown
-              size={12}
-              className={`flex-shrink-0 text-chatroom-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-            />
-          </button>
-
-          {/* Expanded timeline - inline below the progress row */}
-          {isExpanded && (
-            <div className="px-3 py-2 border-t border-chatroom-border/50 bg-chatroom-bg-surface/50">
-              {progressMessages === undefined ? (
-                <div className="flex items-center justify-center py-2">
-                  <Loader2 size={14} className="animate-spin text-chatroom-status-info" />
-                </div>
-              ) : progressMessages.length === 0 ? (
-                <div className="text-[10px] text-chatroom-text-muted text-center py-2">
-                  No progress history
-                </div>
-              ) : (
-                <div className="relative">
-                  {/* Timeline line */}
-                  <div className="absolute left-[5px] top-1 bottom-1 w-0.5 bg-chatroom-border" />
-
-                  {/* Timeline items */}
-                  <div className="space-y-2">
-                    {progressMessages.map((progress, index) => {
-                      const isLatest = index === progressMessages.length - 1;
-                      return (
-                        <div key={progress._id} className="relative pl-4">
-                          {/* Timeline indicator - square per theme.md */}
-                          <Square
-                            size={11}
-                            className={`absolute left-0 top-1 ${
-                              isLatest
-                                ? 'text-chatroom-status-info fill-chatroom-status-info'
-                                : 'text-chatroom-border fill-chatroom-bg-surface'
-                            }`}
-                          />
-                          {/* Content */}
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="text-[11px] text-chatroom-text-secondary flex-1">
-                              {progress.content}
-                            </span>
-                            <span className="text-[9px] text-chatroom-text-muted flex-shrink-0">
-                              {formatRelativeTime(progress._creationTime)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
     </div>
   );
 });
@@ -463,6 +337,68 @@ interface MessageItemProps {
   onMessageContentClick?: (message: Message) => void;
 }
 
+// System notification message (e.g. context change)
+// Clickable to expand/collapse, shows markdown content when expanded
+const SystemMessage = memo(function SystemMessage({ message }: { message: Message }) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleOpen = useCallback(() => {
+    setIsModalOpen(true);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIsModalOpen(false);
+  }, []);
+
+  return (
+    <>
+      <div className="sticky top-0 z-10 bg-chatroom-bg-primary border-b border-chatroom-border backdrop-blur-sm px-4 py-3">
+        {/* Clickable divider row - opens modal */}
+        <button
+          onClick={handleOpen}
+          className="w-full flex items-center gap-3 group cursor-pointer"
+        >
+          <div className="flex-1 h-px bg-chatroom-status-info/30" />
+          <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info bg-chatroom-status-info/10 border border-chatroom-status-info/30 group-hover:bg-chatroom-status-info/20 transition-colors">
+            <Sparkles size={10} className="flex-shrink-0" />
+            <span>New Context</span>
+            <span className="text-chatroom-status-info/50">—</span>
+            <span className="normal-case font-medium tracking-normal max-w-[300px] truncate text-chatroom-text-secondary [&_*]:inline">
+              <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
+                {message.content}
+              </Markdown>
+            </span>
+          </div>
+          <div className="flex-1 h-px bg-chatroom-status-info/30" />
+        </button>
+      </div>
+
+      {/* Context detail modal */}
+      <FixedModal isOpen={isModalOpen} onClose={handleClose} maxWidth="max-w-2xl">
+        <FixedModalContent>
+          <FixedModalHeader onClose={handleClose}>
+            <FixedModalTitle>
+              <span className="flex items-center gap-2">
+                <Sparkles size={14} className="text-chatroom-status-info" />
+                New Context
+              </span>
+            </FixedModalTitle>
+          </FixedModalHeader>
+          <FixedModalBody>
+            <div className="p-6">
+              <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-secondary prose-blockquote:text-chatroom-text-secondary">
+                <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+                  {message.content}
+                </Markdown>
+              </div>
+            </div>
+          </FixedModalBody>
+        </FixedModalContent>
+      </FixedModal>
+    </>
+  );
+});
+
 // Memoized message item to prevent re-renders of all messages when one changes
 const MessageItem = memo(function MessageItem({
   message,
@@ -470,8 +406,6 @@ const MessageItem = memo(function MessageItem({
   onAttachedTaskClick,
   onMessageContentClick,
 }: MessageItemProps) {
-  const messageTypeBadge = getMessageTypeBadge(message.type);
-
   // Check if this is a new_feature message with a title
   const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
 
@@ -487,6 +421,13 @@ const MessageItem = memo(function MessageItem({
       onMessageContentClick(message);
     }
   }, [message, onMessageContentClick]);
+
+  // Render new-context messages as sticky visual dividers (after all hooks)
+  if (message.type === 'new-context') {
+    return <SystemMessage message={message} />;
+  }
+
+  const messageTypeBadge = getMessageTypeBadge(message.type);
 
   // Check if this is a user message (for truncation and duplicate removal)
   const isUserMessage = message.senderRole.toLowerCase() === 'user';
@@ -541,7 +482,7 @@ const MessageItem = memo(function MessageItem({
           className="w-full text-left cursor-pointer hover:bg-chatroom-accent-subtle transition-colors -mx-2 px-2 py-1 rounded"
         >
           <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-hidden line-clamp-2 prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:my-0 prose-p:my-0 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:hidden prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-table:hidden prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
-            <Markdown remarkPlugins={[remarkGfm]} components={baseMarkdownComponents}>
+            <Markdown remarkPlugins={REMARK_PLUGINS} components={baseMarkdownComponents}>
               {message.content}
             </Markdown>
           </div>
@@ -549,7 +490,7 @@ const MessageItem = memo(function MessageItem({
         </button>
       ) : (
         <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
-          <Markdown remarkPlugins={[remarkGfm]} components={fullMarkdownComponents}>
+          <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
             {message.content}
           </Markdown>
         </div>
@@ -560,30 +501,33 @@ const MessageItem = memo(function MessageItem({
           <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
             Attached Backlog ({message.attachedTasks.length})
           </div>
-          {message.attachedTasks.map((task) => (
-            <button
-              key={task._id}
-              onClick={() => onAttachedTaskClick?.(task)}
-              className="w-full text-left border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0 hover:bg-chatroom-accent-subtle transition-colors cursor-pointer group"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-                  <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
-                    {task.content}
-                  </Markdown>
+          {message.attachedTasks.map((task) => {
+            const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
+            return (
+              <button
+                key={task._id}
+                onClick={() => onAttachedTaskClick?.(task)}
+                className="w-full text-left border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0 hover:bg-chatroom-accent-subtle transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
+                    <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
+                      {task.content}
+                    </Markdown>
+                  </div>
+                  <span
+                    className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${statusBadge.classes}`}
+                  >
+                    {statusBadge.label}
+                  </span>
+                  <ChevronRight
+                    size={14}
+                    className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
+                  />
                 </div>
-                <span
-                  className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${getAttachedTaskStatusBadge(task.backlogStatus).classes}`}
-                >
-                  {getAttachedTaskStatusBadge(task.backlogStatus).label}
-                </span>
-                <ChevronRight
-                  size={14}
-                  className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
-                />
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       )}
       {/* Attached Artifacts */}
@@ -684,6 +628,11 @@ export const MessageFeed = memo(function MessageFeed({
   const handleCloseMessageDetailModal = useCallback(() => {
     setSelectedMessage(null);
   }, []);
+
+  // Load more messages handler - stable reference for button onClick
+  const handleLoadMore = useCallback(() => {
+    loadMore(LOAD_MORE_SIZE);
+  }, [loadMore]);
 
   // Reverse to show oldest first (backend already filters out join/progress messages)
   const displayMessages = useMemo(() => {
@@ -831,7 +780,7 @@ export const MessageFeed = memo(function MessageFeed({
         {status === 'CanLoadMore' && (
           <button
             type="button"
-            onClick={() => loadMore(LOAD_MORE_SIZE)}
+            onClick={handleLoadMore}
             className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center gap-1 hover:text-chatroom-text-primary transition-colors cursor-pointer"
           >
             <ChevronUp size={12} />
@@ -847,11 +796,7 @@ export const MessageFeed = memo(function MessageFeed({
         {displayMessages.map((message) => (
           <React.Fragment key={message._id}>
             {/* Task Header - sticky section header for user messages, tappable */}
-            <TaskHeader
-              message={message}
-              chatroomId={chatroomId}
-              onTap={handleMessageDetailClick}
-            />
+            <TaskHeader message={message} onTap={handleMessageDetailClick} />
             <MessageItem
               message={message}
               onFeatureClick={handleFeatureClick}

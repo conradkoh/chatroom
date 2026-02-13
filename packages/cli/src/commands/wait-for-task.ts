@@ -432,13 +432,47 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     console.log(taskDeliveryPrompt.humanReadable);
     console.log(`-->`);
 
-    // Print pinned section with primary user directive (visible, not in comments)
+    // Print pinned section with context or user message (visible, not in comments)
+    const currentContext = taskDeliveryPrompt.json?.contextWindow?.currentContext;
     const originMessage = taskDeliveryPrompt.json?.contextWindow?.originMessage;
     console.log(`\n${'='.repeat(60)}`);
     console.log(`📍 PINNED - Work on this immediately`);
     console.log(`${'='.repeat(60)}`);
 
-    if (originMessage && originMessage.senderRole.toLowerCase() === 'user') {
+    // Display explicit context if available (new system)
+    if (currentContext) {
+      console.log(`\n## Context`);
+      console.log(`<context>`);
+      console.log(currentContext.content);
+
+      // Show staleness warnings for context
+      const messagesSinceContext = currentContext.messagesSinceContext ?? 0;
+      const elapsedHours = currentContext.elapsedHours ?? 0;
+
+      // Warning 1: Many messages since this context was set
+      if (messagesSinceContext >= 10) {
+        console.log(`\n⚠️  WARNING: ${messagesSinceContext} messages since this context was set.`);
+        console.log(`   Consider updating the context with a summary of recent developments.`);
+        console.log(`   Create a new context with:`);
+        console.log(
+          `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
+        );
+      }
+
+      // Warning 2: Old context
+      if (elapsedHours >= 24) {
+        const ageDays = Math.floor(elapsedHours / 24);
+        console.log(`\n⚠️  WARNING: This context is ${ageDays} day(s) old.`);
+        console.log(`   Consider creating a new context with updated summary.`);
+        console.log(
+          `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
+        );
+      }
+
+      console.log(`</context>`);
+    }
+    // Fallback to origin message if no context (legacy behavior)
+    else if (originMessage && originMessage.senderRole.toLowerCase() === 'user') {
       console.log(`\n## User Message`);
       console.log(`<user-message>`);
       console.log(originMessage.content);
@@ -459,7 +493,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       if (followUpCount >= 5) {
         console.log(`\n⚠️  WARNING: ${followUpCount} follow-up messages since this pinned message.`);
         console.log(`   The user may have moved on to a different topic.`);
-        console.log(`   Consider asking if this context is still relevant.`);
+        console.log(`   Consider creating a context with:`);
+        console.log(
+          `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
+        );
       }
 
       // Warning 2: Old pinned message
@@ -469,7 +506,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
         if (ageHours >= 24) {
           const ageDays = Math.floor(ageHours / 24);
           console.log(`\n⚠️  WARNING: This pinned message is ${ageDays} day(s) old.`);
-          console.log(`   The context may be outdated.`);
+          console.log(`   Consider creating a context with:`);
+          console.log(
+            `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
+          );
         }
       }
 

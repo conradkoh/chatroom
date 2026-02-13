@@ -1,5 +1,11 @@
 /**
  * Context commands for understanding chatroom state
+ *
+ * Includes:
+ * - readContext: Read conversation history and task status
+ * - newContext: Create a new explicit context (replaces pinned message)
+ * - listContexts: List recent contexts for a chatroom
+ * - inspectContext: View a specific context with details
  */
 
 import { api, type Id } from '../api.js';
@@ -159,6 +165,220 @@ export async function readContext(
     console.log('\n' + '═'.repeat(60));
   } catch (err) {
     console.error(`❌ Failed to read context: ${(err as Error).message}`);
+    process.exit(1);
+  }
+}
+
+/**
+ * Create a new explicit context for a chatroom.
+ * This replaces the pinned message system with explicit context management.
+ */
+export async function newContext(
+  chatroomId: string,
+  options: {
+    role: string;
+    content: string;
+  }
+): Promise<void> {
+  const client = await getConvexClient();
+
+  // Get session ID for authentication
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    process.exit(1);
+  }
+
+  // Validate chatroom ID format
+  if (
+    !chatroomId ||
+    typeof chatroomId !== 'string' ||
+    chatroomId.length < 20 ||
+    chatroomId.length > 40
+  ) {
+    console.error(
+      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
+    );
+    process.exit(1);
+  }
+
+  // Validate content is not empty
+  if (!options.content || options.content.trim().length === 0) {
+    console.error(`❌ Context content cannot be empty`);
+    process.exit(1);
+  }
+
+  try {
+    const contextId = await client.mutation(api.contexts.createContext, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      content: options.content,
+      role: options.role,
+    });
+
+    console.log(`✅ Context created successfully`);
+    console.log(`   Context ID: ${contextId}`);
+    console.log(`   Created by: ${options.role}`);
+    console.log(`\n📌 This context is now pinned for all agents in this chatroom.`);
+  } catch (err) {
+    console.error(`❌ Failed to create context: ${(err as Error).message}`);
+    process.exit(1);
+  }
+}
+
+interface ContextRecord {
+  _id: string;
+  _creationTime: number;
+  content: string;
+  createdBy: string;
+  createdAt: number;
+  messageCountAtCreation?: number;
+}
+
+/**
+ * List recent contexts for a chatroom.
+ */
+export async function listContexts(
+  chatroomId: string,
+  options: {
+    role: string;
+    limit?: number;
+  }
+): Promise<void> {
+  const client = await getConvexClient();
+
+  // Get session ID for authentication
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    process.exit(1);
+  }
+
+  // Validate chatroom ID format
+  if (
+    !chatroomId ||
+    typeof chatroomId !== 'string' ||
+    chatroomId.length < 20 ||
+    chatroomId.length > 40
+  ) {
+    console.error(
+      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
+    );
+    process.exit(1);
+  }
+
+  try {
+    const contexts = (await client.query(api.contexts.listContexts, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      limit: options.limit ?? 10,
+    })) as ContextRecord[];
+
+    if (contexts.length === 0) {
+      console.log(`\n📭 No contexts found for this chatroom`);
+      console.log(`\n💡 Create a context with:`);
+      console.log(
+        `   chatroom context new --chatroom-id=${chatroomId} --role=${options.role} --content="Your context summary"`
+      );
+      return;
+    }
+
+    console.log(`\n📚 CONTEXTS (${contexts.length} found)`);
+    console.log('═'.repeat(60));
+
+    for (const context of contexts) {
+      const timestamp = new Date(context.createdAt).toLocaleString();
+
+      console.log(`\n🔹 Context ID: ${context._id}`);
+      console.log(`   Created by: ${context.createdBy}`);
+      console.log(`   Created at: ${timestamp}`);
+      if (context.messageCountAtCreation !== undefined) {
+        console.log(`   Messages at creation: ${context.messageCountAtCreation}`);
+      }
+      console.log(`   Content:`);
+      // Truncate to first 200 chars for list view
+      const truncatedContent =
+        context.content.length > 200 ? context.content.slice(0, 200) + '...' : context.content;
+      console.log(
+        truncatedContent
+          .split('\n')
+          .map((l) => `      ${l}`)
+          .join('\n')
+      );
+    }
+
+    console.log('\n' + '═'.repeat(60));
+  } catch (err) {
+    console.error(`❌ Failed to list contexts: ${(err as Error).message}`);
+    process.exit(1);
+  }
+}
+
+interface ContextWithStaleness extends ContextRecord {
+  messagesSinceContext: number;
+  elapsedHours: number;
+}
+
+/**
+ * Inspect a specific context with staleness information.
+ */
+export async function inspectContext(
+  chatroomId: string,
+  options: {
+    role: string;
+    contextId: string;
+  }
+): Promise<void> {
+  const client = await getConvexClient();
+
+  // Get session ID for authentication
+  const sessionId = getSessionId();
+  if (!sessionId) {
+    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
+    process.exit(1);
+  }
+
+  try {
+    const context = (await client.query(api.contexts.getContext, {
+      sessionId,
+      contextId: options.contextId as Id<'chatroom_contexts'>,
+    })) as ContextWithStaleness;
+
+    console.log(`\n📋 CONTEXT DETAILS`);
+    console.log('═'.repeat(60));
+
+    console.log(`\n🔹 Context ID: ${context._id}`);
+    console.log(`   Created by: ${context.createdBy}`);
+    console.log(`   Created at: ${new Date(context.createdAt).toLocaleString()}`);
+
+    // Staleness information
+    console.log(`\n📊 Staleness:`);
+    console.log(`   Messages since context: ${context.messagesSinceContext}`);
+    console.log(`   Time elapsed: ${context.elapsedHours.toFixed(1)} hours`);
+
+    // Staleness warnings
+    if (context.messagesSinceContext >= 10) {
+      console.log(`\n⚠️  Many messages since this context was created.`);
+      console.log(`   Consider creating a new context with an updated summary.`);
+    }
+    if (context.elapsedHours >= 24) {
+      console.log(`\n⚠️  This context is over 24 hours old.`);
+      console.log(`   Consider creating a new context with an updated summary.`);
+    }
+
+    console.log(`\n📝 Content:`);
+    console.log('─'.repeat(60));
+    console.log(context.content);
+    console.log('─'.repeat(60));
+
+    console.log(`\n💡 To create a new context:`);
+    console.log(
+      `   chatroom context new --chatroom-id=${chatroomId} --role=${options.role} --content="Your updated summary"`
+    );
+
+    console.log('\n' + '═'.repeat(60));
+  } catch (err) {
+    console.error(`❌ Failed to inspect context: ${(err as Error).message}`);
     process.exit(1);
   }
 }

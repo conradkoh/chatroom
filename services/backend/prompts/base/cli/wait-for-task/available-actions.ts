@@ -6,6 +6,7 @@
  */
 
 import { getCliEnvPrefix } from '../../../utils/index.js';
+import { contextNewCommand } from '../context/new.js';
 import { taskCompleteCommand } from '../task-complete/command.js';
 
 export interface AvailableActionsParams {
@@ -70,5 +71,22 @@ This transitions the task to \`pending_user_review\` where the user can confirm 
 #### Backlog Scoring and Maintenance
 When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog\` to view items, then provide recommendations.
 
-More actions: \`chatroom backlog --help\``;
+More actions: \`chatroom backlog --help\`
+
+### Context Management
+When the conversation drifts or after significant progress, create a new context to keep agents focused on the current goal.
+
+**Create new context:**
+\`\`\`bash
+${contextNewCommand({ chatroomId, role, cliEnvPrefix })}
+\`\`\`
+
+**List previous contexts:**
+\`\`\`bash
+${cliEnvPrefix}chatroom context list --chatroom-id=${chatroomId} --role=${role} --limit=10
+\`\`\`
+
+When to create a new context:
+- When a new user message arrives that is unrelated to the current context (e.g. a new feature request or topic shift)
+- When the pinned context shows staleness warnings — summarize recent progress in the new context`;
 }

@@ -328,6 +328,13 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       EOF
       \`\`\`
 
+      **Note:** When classifying as \`new_feature\`, or when the message is unrelated to the current context, start a new context first to keep the conversation focused:
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      <summary of current focus>
+      EOF
+      \`\`\`
+
 
        **Pair Team Context:**
        - You work with a reviewer who will check your code
@@ -502,6 +509,25 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
       When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10002;chatroom_rooms --role=builder --status=backlog\` to view items, then provide recommendations.
 
       More actions: \`chatroom backlog --help\`
+
+      ### Context Management
+      When the conversation drifts or after significant progress, create a new context to keep agents focused on the current goal.
+
+      **Create new context:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      <summary of current focus>
+      EOF
+      \`\`\`
+
+      **List previous contexts:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context list --chatroom-id=10002;chatroom_rooms --role=builder --limit=10
+      \`\`\`
+
+      When to create a new context:
+      - When a new user message arrives that is unrelated to the current context (e.g. a new feature request or topic shift)
+      - When the pinned context shows staleness warnings — summarize recent progress in the new context
 
       ## Your Role: BUILDER
 
@@ -1906,6 +1932,25 @@ Message availability is critical: Use \`wait-for-task\` in the foreground to sta
 
       More actions: \`chatroom backlog --help\`
 
+      ### Context Management
+      When the conversation drifts or after significant progress, create a new context to keep agents focused on the current goal.
+
+      **Create new context:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10062;chatroom_rooms --role=reviewer << 'EOF'
+      <summary of current focus>
+      EOF
+      \`\`\`
+
+      **List previous contexts:**
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context list --chatroom-id=10062;chatroom_rooms --role=reviewer --limit=10
+      \`\`\`
+
+      When to create a new context:
+      - When a new user message arrives that is unrelated to the current context (e.g. a new feature request or topic shift)
+      - When the pinned context shows staleness warnings — summarize recent progress in the new context
+
       ## Your Role: REVIEWER
 
       You are the quality guardian responsible for reviewing and validating code changes.
@@ -2260,6 +2305,13 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       [Feature description]
       ---TECH_SPECS---
       [Technical specifications]
+      EOF
+      \`\`\`
+
+      **Note:** When classifying as \`new_feature\`, or when the message is unrelated to the current context, start a new context first to keep the conversation focused:
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10071;chatroom_rooms --role=builder << 'EOF'
+      <summary of current focus>
       EOF
       \`\`\`
 

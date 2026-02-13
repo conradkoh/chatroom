@@ -3,6 +3,7 @@
  */
 
 import { taskStartedCommand } from './command.js';
+import { contextNewCommand } from '../context/new.js';
 
 /**
  * Generate the main CLI prompt for task-started command (entry point roles)
@@ -39,6 +40,12 @@ export function getTaskStartedPrompt(ctx: {
     cliEnvPrefix,
   });
 
+  const contextNewCmd = contextNewCommand({
+    chatroomId: ctx.chatroomId,
+    role: ctx.role,
+    cliEnvPrefix,
+  });
+
   return `### Classify Task
 Acknowledge and classify user messages before starting work.
 
@@ -61,6 +68,11 @@ User wants new functionality. Requires title, description, and tech specs.
 
 \`\`\`bash
 ${newFeatureCmd}
+\`\`\`
+
+**Note:** When classifying as \`new_feature\`, or when the message is unrelated to the current context, start a new context first to keep the conversation focused:
+\`\`\`bash
+${contextNewCmd}
 \`\`\``;
 }
 
