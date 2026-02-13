@@ -384,7 +384,14 @@ ${taskDeliveryPrompt.fullCliOutput}
       2. Mark task as started:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=follow_up
 
-      3. Do the work
+      3. Report progress frequently — small, incremental updates as you work:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      [Your progress message here]
+      EOF
+
+         Keep updates short and frequent (e.g. after each milestone or subtask).
+
+      4. Do the work
 
          Available commands:
          • Read context: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=builder
@@ -393,11 +400,11 @@ ${taskDeliveryPrompt.fullCliOutput}
          • Complete task (no handoff): CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=10002;chatroom_rooms --role=builder
          • View backlog: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10002;chatroom_rooms --role=builder --status=backlog
 
-      4. Hand off when complete:
+      5. Hand off when complete:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target>
          Available targets: reviewer, user
 
-      5. Resume listening:
+      6. Resume listening:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
       </process>
 
@@ -1562,7 +1569,14 @@ ${taskDeliveryPrompt.fullCliOutput}
       1. Mark task as started:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10062;chatroom_rooms --role=reviewer --task-id=10068;chatroom_tasks --no-classify
 
-      2. Do the work
+      2. Report progress frequently — small, incremental updates as you work:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10062;chatroom_rooms --role=reviewer << 'EOF'
+      [Your progress message here]
+      EOF
+
+         Keep updates short and frequent (e.g. after each milestone or subtask).
+
+      3. Do the work
 
          Available commands:
          • Read context: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10062;chatroom_rooms --role=reviewer
@@ -1571,11 +1585,11 @@ ${taskDeliveryPrompt.fullCliOutput}
          • Complete task (no handoff): CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=10062;chatroom_rooms --role=reviewer
          • View backlog: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10062;chatroom_rooms --role=reviewer --status=backlog
 
-      3. Hand off when complete:
+      4. Hand off when complete:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10062;chatroom_rooms --role=reviewer --next-role=<target>
          Available targets: builder, user
 
-      4. Resume listening:
+      5. Resume listening:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
       </process>
 

@@ -15,6 +15,7 @@
 import { waitForTaskCommand } from './command.js';
 import { getWaitForTaskReminder } from './reminder.js';
 import { contextNewCommand } from '../context/new.js';
+import { reportProgressCommand } from '../report-progress/command.js';
 import { taskStartedCommand } from '../task-started/command.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -255,6 +256,14 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       `   ${cliEnvPrefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=${task._id} --no-classify`
     );
   }
+  stepNum++;
+
+  // Step: Report progress
+  lines.push('');
+  lines.push(`${stepNum}. Report progress frequently — small, incremental updates as you work:`);
+  lines.push(`   ${reportProgressCommand({ chatroomId, role, cliEnvPrefix })}`);
+  lines.push('');
+  lines.push('   Keep updates short and frequent (e.g. after each milestone or subtask).');
   stepNum++;
 
   // Step: Do the work (with available commands)
