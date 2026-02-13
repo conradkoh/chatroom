@@ -106,6 +106,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push(`Task ID: ${task._id}`);
   if (message) {
     lines.push(`Message ID: ${message._id}`);
+    lines.push(`From: ${message.senderRole}`);
   }
 
   // Display explicit context if available (new system)

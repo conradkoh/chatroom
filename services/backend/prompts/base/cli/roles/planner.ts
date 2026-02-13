@@ -63,10 +63,12 @@ ${workflowGuidance}
 - **Backlog Management**: You have exclusive access to manage the backlog. Prioritize and assign tasks.
 
 **Delegation Guidelines:**
-- Provide clear, specific instructions when delegating to team members
+- Break complex tasks into small, focused phases — delegate ONE phase at a time
+- Each delegation should be a single, well-scoped unit of work (e.g. one file, one feature, one fix)
 - Include acceptance criteria so team members know when they're done
-- Review all completed work before delivering to the user
-- If work doesn't meet requirements, send it back with specific feedback
+- After receiving completed work, review it before delegating the next phase
+- If work doesn't meet requirements, send it back with specific feedback before moving on
+- Do NOT send a full implementation plan to the builder — feed tasks incrementally
 
 **Handoff Rules:**
 - **To delegate implementation** → Hand off to \`builder\` with clear requirements
@@ -95,41 +97,47 @@ function getFullTeamWorkflow(): string {
   return `**Current Workflow: Full Team (Planner + Builder + Reviewer)**
 
 \`\`\`
-User → Planner → Builder → Reviewer → Planner → User
+User → Planner → [Builder → Reviewer → Planner] (repeat per phase) → User
 \`\`\`
 
-1. Receive task from user and decompose it
-2. Delegate implementation to **builder** with clear requirements
-3. Builder completes work and hands off to **reviewer**
+1. Receive task from user and decompose into phases
+2. Delegate ONE phase at a time to **builder** with focused requirements
+3. Builder completes the phase and hands off to **reviewer**
 4. Reviewer validates and hands off back to **planner**
-5. You review the final result and deliver to **user**`;
+5. Review the phase result — if acceptable, delegate next phase; if not, hand back to **builder**
+6. Repeat steps 2–5 until all phases are complete
+7. Deliver final result to **user**`;
 }
 
 function getPlannerPlusBuilderWorkflow(): string {
   return `**Current Workflow: Planner + Builder (no reviewer)**
 
 \`\`\`
-User → Planner → Builder → Planner(reviews) → User
+User → Planner → [Builder → Planner(reviews)] (repeat per phase) → User
 \`\`\`
 
-1. Receive task from user and decompose it
-2. Delegate implementation to **builder** with clear requirements
-3. Builder completes work and hands off back to **planner**
+1. Receive task from user and decompose into phases
+2. Delegate ONE phase at a time to **builder** with focused requirements
+3. Builder completes the phase and hands off back to **planner**
 4. You review the work yourself (acting as reviewer)
-5. If acceptable, deliver to **user**. If not, hand back to **builder** with feedback.`;
+5. If acceptable, delegate next phase; if not, hand back to **builder** with feedback
+6. Repeat steps 2–5 until all phases are complete
+7. Deliver final result to **user**`;
 }
 
 function getPlannerPlusReviewerWorkflow(): string {
   return `**Current Workflow: Planner + Reviewer (no builder)**
 
 \`\`\`
-User → Planner → Reviewer(implements) → Planner → User
+User → Planner → [Reviewer(implements) → Planner] (repeat per phase) → User
 \`\`\`
 
-1. Receive task from user and decompose it
-2. Delegate implementation to **reviewer** (who acts as builder)
-3. Reviewer completes work and hands off back to **planner**
-4. You review the final result and deliver to **user**`;
+1. Receive task from user and decompose into phases
+2. Delegate ONE phase at a time to **reviewer** (who acts as builder) with focused requirements
+3. Reviewer completes the phase and hands off back to **planner**
+4. Review the phase result — if acceptable, delegate next phase; if not, hand back to **reviewer**
+5. Repeat steps 2–4 until all phases are complete
+6. Deliver final result to **user**`;
 }
 
 function getPlannerSoloWorkflow(): string {

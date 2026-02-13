@@ -356,6 +356,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       ============================================================
       Task ID: 10007;chatroom_tasks
       Message ID: 10006;chatroom_messages
+      From: user
 
       ## User Message
       <user-message>
@@ -1542,6 +1543,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       ============================================================
       Task ID: 10068;chatroom_tasks
       Message ID: 10067;chatroom_messages
+      From: builder
 
       ## User Message
       <user-message>
