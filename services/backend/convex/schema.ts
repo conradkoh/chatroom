@@ -333,7 +333,7 @@ export default defineSchema({
       v.literal('handoff'),
       v.literal('join'), // Deprecated: no longer created, kept for backwards compat with existing data
       v.literal('progress'),
-      v.literal('system') // System notifications (e.g. context changes)
+      v.literal('new-context') // Displayed when a new context is created
     ),
     // Classification of user messages (set via task-started command)
     // Used to determine allowed handoff paths and context window

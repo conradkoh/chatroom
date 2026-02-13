@@ -473,7 +473,7 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
   }, []);
 
   return (
-    <div className="px-4 py-4">
+    <div className="sticky top-0 z-10 bg-chatroom-bg-primary border-b border-chatroom-border backdrop-blur-sm px-4 py-3">
       {/* Collapsed: clickable divider row */}
       <button
         onClick={handleToggle}
@@ -534,8 +534,8 @@ const MessageItem = memo(function MessageItem({
     }
   }, [message, onMessageContentClick]);
 
-  // Render system messages as visual dividers (after all hooks)
-  if (message.type === 'system') {
+  // Render new-context messages as sticky visual dividers (after all hooks)
+  if (message.type === 'new-context') {
     return <SystemMessage message={message} />;
   }
 
