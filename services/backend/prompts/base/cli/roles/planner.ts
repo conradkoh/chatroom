@@ -26,8 +26,9 @@ export function getPlannerGuidance(params: PlannerGuidanceParams): string {
 **Classification (Entry Point Role):**
 As the entry point, you receive user messages directly. When you receive a user message:
 1. First run \`${taskStartedExample}\` to classify the original message (question, new_feature, or follow_up)
-2. Decompose the task into actionable work items if needed
-3. Delegate to the appropriate team member or handle it yourself`
+2. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
+3. Decompose the task into actionable work items if needed
+4. Delegate to the appropriate team member or handle it yourself`
     : '';
 
   // Build workflow guidance based on available members

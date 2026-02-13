@@ -16,6 +16,7 @@
 
 import { waitForTaskCommand } from './command.js';
 import { getWaitForTaskReminder } from './reminder.js';
+import { contextNewCommand } from '../context/new.js';
 import { taskStartedCommand } from '../task-started/command.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -303,8 +304,18 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('📋 PROCESS');
   lines.push(SEP_EQUAL);
 
+  let stepNum = 1;
+
+  // Entry point roles should set context when code changes are expected
+  if (isEntryPoint) {
+    lines.push('');
+    lines.push(`${stepNum}. If code changes / commits are expected, set a new context:`);
+    lines.push(`   ${contextNewCommand({ chatroomId, role, cliEnvPrefix })}`);
+    stepNum++;
+  }
+
   lines.push('');
-  lines.push('1. Mark task as started:');
+  lines.push(`${stepNum}. Mark task as started:`);
   if (isUserMessage) {
     lines.push(
       `   ${taskStartedCommand({ chatroomId, role, taskId: task._id, classification: 'follow_up', cliEnvPrefix })}`
@@ -314,15 +325,21 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       `   ${cliEnvPrefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=${task._id} --no-classify`
     );
   }
+  stepNum++;
+
   lines.push('');
-  lines.push('2. Do the work');
+  lines.push(`${stepNum}. Do the work`);
+  stepNum++;
+
   lines.push('');
-  lines.push('3. Hand off when complete:');
+  lines.push(`${stepNum}. Hand off when complete:`);
   lines.push(
     `   ${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target>`
   );
+  stepNum++;
+
   lines.push('');
-  lines.push('4. Resume listening:');
+  lines.push(`${stepNum}. Resume listening:`);
   lines.push(`   ${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}`);
 
   // ── Reminder footer ───────────────────────────────────────────────────────

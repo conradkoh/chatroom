@@ -561,15 +561,20 @@ ${taskDeliveryPrompt.fullCliOutput}
       📋 PROCESS
       ============================================================
 
-      1. Mark task as started:
+      1. If code changes / commits are expected, set a new context:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      <summary of current focus>
+      EOF
+
+      2. Mark task as started:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=follow_up
 
-      2. Do the work
+      3. Do the work
 
-      3. Hand off when complete:
+      4. Hand off when complete:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target>
 
-      4. Resume listening:
+      5. Resume listening:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
 
       ============================================================
