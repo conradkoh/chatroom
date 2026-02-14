@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
@@ -152,6 +153,53 @@ export const join = mutation({
     }
 
     return participantId;
+  },
+});
+
+/**
+ * Refresh a participant's readyUntil timestamp (heartbeat).
+ *
+ * Called periodically by the `wait-for-task` CLI to prove the process is still
+ * alive. The connectionId is verified so that stale processes (from a previous
+ * wait-for-task invocation) cannot extend liveness for the current one.
+ *
+ * Requires CLI session authentication and chatroom access.
+ */
+export const heartbeat = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    connectionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Find the participant
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .unique();
+
+    if (!participant) {
+      throw new Error(`Participant ${args.role} not found in chatroom — cannot send heartbeat`);
+    }
+
+    // Reject heartbeats from stale connections
+    if (participant.connectionId && participant.connectionId !== args.connectionId) {
+      throw new Error(
+        `Heartbeat rejected: connectionId mismatch (expected ${participant.connectionId}, got ${args.connectionId}). ` +
+          `A newer wait-for-task process has taken over.`
+      );
+    }
+
+    // Refresh readyUntil
+    await ctx.db.patch('chatroom_participants', participant._id, {
+      readyUntil: Date.now() + HEARTBEAT_TTL_MS,
+    });
   },
 });
 

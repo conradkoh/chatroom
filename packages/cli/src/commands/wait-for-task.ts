@@ -2,6 +2,7 @@
  * Wait for tasks in a chatroom
  */
 
+import { HEARTBEAT_INTERVAL_MS, HEARTBEAT_TTL_MS } from '@workspace/backend/config/reliability.js';
 import { getWaitForTaskGuidance } from '@workspace/backend/prompts/base/cli/index.js';
 import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
@@ -154,11 +155,12 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // If another process starts, it will update the connectionId and this process will exit
   const connectionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-  // Join the chatroom with connectionId (no readyUntil — process stays alive until harness kills it)
+  // Join the chatroom with connectionId and initial readyUntil (heartbeat-based liveness)
   await client.mutation(api.participants.join, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     role,
+    readyUntil: Date.now() + HEARTBEAT_TTL_MS,
     connectionId,
   });
 
@@ -209,6 +211,49 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     // Fallback - init prompt not critical, continue without it
   }
 
+  // --- Heartbeat timer ---
+  // Periodically refresh readyUntil so the backend knows this process is alive.
+  // The interval is cleared on every exit path (task received, signal, error, superseded).
+  const heartbeatTimer = setInterval(() => {
+    client
+      .mutation(api.participants.heartbeat, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        role,
+        connectionId,
+      })
+      .catch((err) => {
+        // Log but don't crash — a single missed heartbeat is tolerated by the TTL
+        if (!silent) {
+          console.warn(`⚠️  Heartbeat failed: ${(err as Error).message}`);
+        }
+      });
+  }, HEARTBEAT_INTERVAL_MS);
+
+  // Ensure the timer doesn't keep the Node process alive when we want to exit
+  heartbeatTimer.unref();
+
+  /**
+   * Cleanup helper — call on EVERY exit path.
+   * Clears the heartbeat interval and tells the backend this participant has left.
+   * Safe to call multiple times (idempotent).
+   */
+  let cleanedUp = false;
+  const cleanup = async () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    clearInterval(heartbeatTimer);
+    try {
+      await client.mutation(api.participants.leave, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        role,
+      });
+    } catch {
+      // Best-effort — if the backend is unreachable the heartbeat TTL will expire naturally
+    }
+  };
+
   // Track if we've already processed a task (prevent duplicate processing)
   let taskProcessed = false;
   let unsubscribe: (() => void) | null = null;
@@ -229,6 +274,9 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (currentConnectionId && currentConnectionId !== connectionId) {
       // Another process has taken over - exit gracefully
       if (unsubscribe) unsubscribe();
+      // Cleanup heartbeat (don't call participants.leave — the new process owns the participant)
+      clearInterval(heartbeatTimer);
+      cleanedUp = true; // Prevent cleanup() from calling leave
       const takeoverTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
       console.log(`\n${'─'.repeat(50)}`);
       console.log(`⚠️  CONNECTION SUPERSEDED\n`);
@@ -301,6 +349,12 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     // SUCCESS: This agent has exclusive claim on the task
     if (unsubscribe) unsubscribe();
 
+    // Stop heartbeat — the agent is transitioning from "waiting" to "active".
+    // We do NOT call participants.leave here because the agent is still present,
+    // just switching to active work mode.
+    clearInterval(heartbeatTimer);
+    cleanedUp = true; // Prevent cleanup() from calling leave on exit
+
     // Update participant status to active with activeUntil timeout
     // This gives the agent ~1 hour to complete the task before being considered crashed
     const activeUntil = Date.now() + DEFAULT_ACTIVE_TIMEOUT_MS;
@@ -353,15 +407,18 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // Handle interrupt signals - These are UNEXPECTED terminations that require immediate restart
   const handleSignal = (_signal: string) => {
     if (unsubscribe) unsubscribe();
-    const signalTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    console.log(`\n${'─'.repeat(50)}`);
-    console.log(`⚠️  RECONNECTION REQUIRED\n`);
-    console.log(`[${signalTime}] Why: Process interrupted (unexpected termination)`);
-    console.log(`Impact: You are no longer listening for tasks`);
-    console.log(`Action: Run this command immediately to resume availability\n`);
-    console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
-    console.log(`${'─'.repeat(50)}`);
-    process.exit(0);
+    // Clean up heartbeat and notify backend that this participant has left
+    cleanup().finally(() => {
+      const signalTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.log(`\n${'─'.repeat(50)}`);
+      console.log(`⚠️  RECONNECTION REQUIRED\n`);
+      console.log(`[${signalTime}] Why: Process interrupted (unexpected termination)`);
+      console.log(`Impact: You are no longer listening for tasks`);
+      console.log(`Action: Run this command immediately to resume availability\n`);
+      console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
+      console.log(`${'─'.repeat(50)}`);
+      process.exit(0);
+    });
   };
 
   // SIGINT: Ctrl+C or interrupt signal
