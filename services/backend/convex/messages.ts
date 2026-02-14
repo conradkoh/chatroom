@@ -159,6 +159,32 @@ async function autoRestartOfflineAgent(
     );
   }
 
+  // --- Dedup check ---
+  // Prevent duplicate restart commands when multiple messages arrive for the
+  // same offline agent in quick succession. If a pending start-agent command
+  // already exists for this machine + chatroom + role, skip the restart.
+  const pendingCommands = await ctx.db
+    .query('chatroom_machineCommands')
+    .withIndex('by_machineId_status', (q) =>
+      q.eq('machineId', teamConfig.machineId!).eq('status', 'pending')
+    )
+    .collect();
+
+  const hasPendingRestart = pendingCommands.some(
+    (cmd) =>
+      cmd.type === 'start-agent' &&
+      cmd.payload.chatroomId === chatroomId &&
+      cmd.payload.role?.toLowerCase() === targetRole.toLowerCase()
+  );
+
+  if (hasPendingRestart) {
+    console.warn(
+      `[auto-restart] Skipping duplicate restart for role "${targetRole}" ` +
+        `in chatroom ${chatroomId} — a pending start-agent command already exists`
+    );
+    return;
+  }
+
   // Dispatch stop + start commands using team config parameters
   // Stop first to clean up any stale process
   await ctx.db.insert('chatroom_machineCommands', {
