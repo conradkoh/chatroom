@@ -20,7 +20,12 @@ import type { AgentCapabilities, AgentHandle, AgentStartOptions } from './types.
 class TestProcessDriver extends ProcessDriver {
   readonly harness = 'opencode' as const;
   readonly capabilities: AgentCapabilities = {
-    stdinPrompt: false,
+    sessionPersistence: false,
+    abort: false,
+    modelSelection: false,
+    compaction: false,
+    eventStreaming: false,
+    messageInjection: false,
     dynamicModelDiscovery: false,
   };
 
@@ -73,6 +78,7 @@ describe('ProcessDriver.stop()', () => {
       harness: 'opencode',
       type: 'process',
       pid,
+      workingDir: '/tmp',
     };
 
     // stop() should send SIGTERM and the sleep process should exit
@@ -105,6 +111,7 @@ describe('ProcessDriver.stop()', () => {
       harness: 'opencode',
       type: 'process',
       pid,
+      workingDir: '/tmp',
     };
 
     // stop() should send SIGTERM, wait 5s, then SIGKILL
@@ -124,6 +131,7 @@ describe('ProcessDriver.stop()', () => {
     const handle: AgentHandle = {
       harness: 'opencode',
       type: 'session', // Not a process handle
+      workingDir: '/tmp',
     };
 
     await expect(driver.stop(handle)).rejects.toThrow(/Cannot stop/);
