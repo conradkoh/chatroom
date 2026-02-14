@@ -229,6 +229,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
     connectedMachines,
     agentConfigs,
     sendCommand,
+    teamConfigModel: teamConfig?.model,
   });
 
   const statusInfo = getStatusConfig(effectiveStatus);

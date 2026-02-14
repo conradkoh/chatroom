@@ -47,12 +47,15 @@ export function useAgentControls({
   connectedMachines,
   agentConfigs,
   sendCommand,
+  teamConfigModel,
 }: {
   role: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
   agentConfigs: AgentConfig[];
   sendCommand: AgentConfigTabsProps['sendCommand'];
+  /** Model from team config — used as fallback when machine config has no model */
+  teamConfigModel?: string;
 }) {
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedHarness, setSelectedHarness] = useState<AgentHarness | null>(null);
@@ -132,7 +135,8 @@ export function useAgentControls({
     }
   }, [selectedMachineId, roleConfigs, availableHarnessesForMachine]);
 
-  // Auto-select model when harness or machine changes (priority: role config > first model)
+  // Auto-select model when harness or machine changes
+  // Priority: machine config model > team config model > first available model
   // Skip if user has manually set the model
   useEffect(() => {
     if (isModelManuallySet) return; // User manually selected, don't override
@@ -143,11 +147,18 @@ export function useAgentControls({
         setSelectedModel(null);
         return;
       }
+      // Try machine config model first
       const config = roleConfigs.find((c) => c.machineId === selectedMachineId && c.model);
       if (config?.model && models.includes(config.model)) {
         setSelectedModel(config.model);
         return;
       }
+      // Fall back to team config model
+      if (teamConfigModel && models.includes(teamConfigModel)) {
+        setSelectedModel(teamConfigModel);
+        return;
+      }
+      // Last resort: first available model
       setSelectedModel(models[0]);
     } else {
       setSelectedModel(null);
@@ -158,6 +169,7 @@ export function useAgentControls({
     roleConfigs,
     selectedMachineId,
     isModelManuallySet,
+    teamConfigModel,
   ]);
 
   // Pre-populate workingDir from existing config when switching machines
