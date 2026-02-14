@@ -134,6 +134,23 @@ async function autoRestartOfflineAgent(
     return;
   }
 
+  // Resolve model: prefer team config, fall back to machine agent config
+  let resolvedModel = teamConfig.model;
+  if (!resolvedModel) {
+    const machineConfig = await ctx.db
+      .query('chatroom_machineAgentConfigs')
+      .withIndex('by_machine_chatroom_role', (q) =>
+        q
+          .eq('machineId', teamConfig.machineId!)
+          .eq('chatroomId', chatroomId)
+          .eq('role', targetRole.toLowerCase())
+      )
+      .first();
+    if (machineConfig?.model) {
+      resolvedModel = machineConfig.model;
+    }
+  }
+
   // Dispatch stop + start commands using team config parameters
   // Stop first to clean up any stale process
   await ctx.db.insert('chatroom_machineCommands', {
@@ -148,7 +165,7 @@ async function autoRestartOfflineAgent(
     createdAt: now,
   });
 
-  // Start command — uses the team agent config
+  // Start command — uses the team agent config with resolved model
   await ctx.db.insert('chatroom_machineCommands', {
     machineId: teamConfig.machineId,
     type: 'start-agent',
@@ -156,7 +173,7 @@ async function autoRestartOfflineAgent(
       chatroomId,
       role: teamConfig.role,
       agentHarness: teamConfig.agentHarness,
-      model: teamConfig.model,
+      model: resolvedModel,
       workingDir: teamConfig.workingDir,
     },
     status: 'pending',

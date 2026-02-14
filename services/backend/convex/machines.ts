@@ -596,6 +596,8 @@ export const sendCommand = mutation({
           .first();
 
         const teamConfigNow = Date.now();
+        // Preserve existing model if the new value is undefined
+        const resolvedTeamModel = args.payload.model ?? existingTeamConfig?.model;
         const teamConfig = {
           teamRoleKey,
           chatroomId: args.payload.chatroomId,
@@ -603,7 +605,7 @@ export const sendCommand = mutation({
           type: 'remote' as const,
           machineId: args.machineId,
           agentHarness,
-          model: args.payload.model,
+          model: resolvedTeamModel,
           workingDir: resolvedWorkingDir,
           updatedAt: teamConfigNow,
         };
@@ -801,6 +803,9 @@ export const saveTeamAgentConfig = mutation({
       .first();
 
     const now = Date.now();
+    // Preserve existing model if the new value is undefined (e.g. register-agent doesn't pass model)
+    const resolvedModel = args.type === 'remote' ? (args.model ?? existing?.model) : undefined;
+
     const config = {
       teamRoleKey,
       chatroomId: args.chatroomId,
@@ -808,7 +813,7 @@ export const saveTeamAgentConfig = mutation({
       type: args.type,
       machineId: args.type === 'remote' ? args.machineId : undefined,
       agentHarness: args.type === 'remote' ? args.agentHarness : undefined,
-      model: args.type === 'remote' ? args.model : undefined,
+      model: resolvedModel,
       workingDir: args.type === 'remote' ? args.workingDir : undefined,
       updatedAt: now,
     };
