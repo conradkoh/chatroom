@@ -399,6 +399,111 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       expect(movedTask?.status).toBe('pending');
     });
 
+    test('moveToQueue uses FSM for pending_user_review → pending transition', async () => {
+      const { sessionId } = await createTestSession('test-fsm-move-pur-pending');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+      // Create backlog task and move it through the workflow to pending_user_review
+      const backlogTask = await t.mutation(api.tasks.createTask, {
+        sessionId,
+        chatroomId,
+        content: 'Backlog item for review',
+        createdBy: 'user',
+        isBacklog: true,
+      });
+
+      // Mark for review to get to pending_user_review
+      await t.mutation(api.tasks.markBacklogForReview, {
+        sessionId,
+        taskId: backlogTask.taskId,
+      });
+
+      // Verify it's in pending_user_review
+      let tasks = await t.query(api.tasks.listTasks, {
+        sessionId,
+        chatroomId,
+        limit: 100,
+      });
+      const task = tasks.find((t) => t._id === backlogTask.taskId);
+      expect(task?.status).toBe('pending_user_review');
+
+      // Move to queue — no active tasks, so should go to pending
+      const moveResult = await t.mutation(api.tasks.moveToQueue, {
+        sessionId,
+        taskId: backlogTask.taskId,
+      });
+
+      expect(moveResult.success).toBe(true);
+      expect(moveResult.newStatus).toBe('pending');
+
+      // Verify task transitioned correctly
+      tasks = await t.query(api.tasks.listTasks, {
+        sessionId,
+        chatroomId,
+        statusFilter: 'pending',
+      });
+      const movedTask = tasks.find((t) => t._id === backlogTask.taskId);
+      expect(movedTask?.status).toBe('pending');
+    });
+
+    test('moveToQueue uses FSM for pending_user_review → queued transition', async () => {
+      const { sessionId } = await createTestSession('test-fsm-move-pur-queued');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+      // Create a regular task first (so there's an active task blocking queue promotion)
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        content: 'Active task',
+        senderRole: 'user',
+        type: 'message',
+      });
+
+      // Create backlog task and move it to pending_user_review
+      const backlogTask = await t.mutation(api.tasks.createTask, {
+        sessionId,
+        chatroomId,
+        content: 'Backlog item for review then queue',
+        createdBy: 'user',
+        isBacklog: true,
+      });
+
+      // Mark for review to get to pending_user_review
+      await t.mutation(api.tasks.markBacklogForReview, {
+        sessionId,
+        taskId: backlogTask.taskId,
+      });
+
+      // Verify it's in pending_user_review
+      let tasks = await t.query(api.tasks.listTasks, {
+        sessionId,
+        chatroomId,
+        limit: 100,
+      });
+      let task = tasks.find((t) => t._id === backlogTask.taskId);
+      expect(task?.status).toBe('pending_user_review');
+
+      // Move to queue — there's an active pending task, so should go to queued
+      const moveResult = await t.mutation(api.tasks.moveToQueue, {
+        sessionId,
+        taskId: backlogTask.taskId,
+      });
+
+      expect(moveResult.success).toBe(true);
+      expect(moveResult.newStatus).toBe('queued');
+
+      // Verify task transitioned correctly
+      tasks = await t.query(api.tasks.listTasks, {
+        sessionId,
+        chatroomId,
+        limit: 100,
+      });
+      task = tasks.find((t) => t._id === backlogTask.taskId);
+      expect(task?.status).toBe('queued');
+    });
+
     test('promoteNextTask uses FSM for queued → pending transition', async () => {
       const { sessionId } = await createTestSession('test-fsm-promote-next');
       const chatroomId = await createPairTeamChatroom(sessionId);

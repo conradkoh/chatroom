@@ -280,6 +280,22 @@ const TRANSITIONS: TransitionRule[] = [
     clearFields: ['startedAt', 'assignedTo', 'completedAt', 'acknowledgedAt'],
   },
 
+  {
+    from: 'pending_user_review',
+    to: 'pending',
+    trigger: 'moveToQueue',
+    setFields: {},
+    clearFields: ['completedAt'],
+  },
+
+  {
+    from: 'pending_user_review',
+    to: 'queued',
+    trigger: 'moveToQueue',
+    setFields: {},
+    clearFields: ['completedAt'],
+  },
+
   // ==========================================================================
   // CANCELLATION: any active state → closed
   // ==========================================================================

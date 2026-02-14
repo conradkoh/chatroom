@@ -85,8 +85,15 @@ async function autoRestartOfflineAgent(
 
   // Participant exists and is not expired — agent is online, no restart needed
   if (targetParticipant) {
-    const isExpired = targetParticipant.readyUntil ? targetParticipant.readyUntil < now : false;
-    if (!isExpired) {
+    const isWaitingExpired =
+      targetParticipant.status === 'waiting' &&
+      targetParticipant.readyUntil &&
+      targetParticipant.readyUntil < now;
+    const isActiveExpired =
+      targetParticipant.status === 'active' &&
+      targetParticipant.activeUntil &&
+      targetParticipant.activeUntil < now;
+    if (!isWaitingExpired && !isActiveExpired) {
       return; // Agent is online
     }
   }

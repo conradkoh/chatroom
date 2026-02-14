@@ -13,6 +13,7 @@ import { t } from '../../test.setup';
 import {
   createTestSession,
   createPairTeamChatroom,
+  joinParticipant,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
   getPendingCommands,
@@ -113,5 +114,83 @@ describe('Auto-restart Deduplication', () => {
     const startCommands = secondBatch.filter((c: { type: string }) => c.type === 'start-agent');
 
     expect(startCommands.length).toBe(1);
+  });
+});
+
+describe('Auto-restart with activeUntil', () => {
+  test('active participant with expired activeUntil triggers auto-restart', async () => {
+    const { sessionId } = await createTestSession('test-active-expired');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const { machineId } = await registerMachineWithDaemon(sessionId, 'machine-active-expired');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    // Join builder as active with an already-expired activeUntil
+    await joinParticipant(sessionId, chatroomId, 'builder', Date.now() + 10 * 60 * 1000);
+
+    // Transition to active with expired activeUntil
+    await t.mutation(api.participants.updateStatus, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      status: 'active',
+      expiresAt: Date.now() - 10_000, // expired 10 seconds ago
+    });
+
+    // Verify participant is active with expired activeUntil
+    const participant = await t.query(api.participants.getByRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    expect(participant).not.toBeNull();
+    expect(participant!.status).toBe('active');
+    expect(participant!.activeUntil).toBeLessThan(Date.now());
+
+    // Send a message — should trigger auto-restart because active participant is expired
+    await t.mutation(api.messages.send, {
+      sessionId,
+      chatroomId,
+      content: 'Please do something',
+      senderRole: 'user',
+      type: 'message' as const,
+    });
+
+    // Verify auto-restart was triggered
+    const pending = await getPendingCommands(sessionId, machineId);
+    const startCommands = pending.filter((c: { type: string }) => c.type === 'start-agent');
+    expect(startCommands.length).toBe(1);
+  });
+
+  test('active participant with valid activeUntil does NOT trigger auto-restart', async () => {
+    const { sessionId } = await createTestSession('test-active-valid');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const { machineId } = await registerMachineWithDaemon(sessionId, 'machine-active-valid');
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    // Join builder as active with a valid (future) activeUntil
+    await joinParticipant(sessionId, chatroomId, 'builder', Date.now() + 10 * 60 * 1000);
+
+    // Transition to active with valid activeUntil (1 hour from now)
+    await t.mutation(api.participants.updateStatus, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      status: 'active',
+      expiresAt: Date.now() + 60 * 60 * 1000, // 1 hour from now
+    });
+
+    // Send a message — should NOT trigger auto-restart because active participant is valid
+    await t.mutation(api.messages.send, {
+      sessionId,
+      chatroomId,
+      content: 'Please do something',
+      senderRole: 'user',
+      type: 'message' as const,
+    });
+
+    // Verify NO auto-restart was triggered
+    const pending = await getPendingCommands(sessionId, machineId);
+    const startCommands = pending.filter((c: { type: string }) => c.type === 'start-agent');
+    expect(startCommands.length).toBe(0);
   });
 });
