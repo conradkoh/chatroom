@@ -78,8 +78,9 @@ ${workflowGuidance}
 
 **When you receive work back from team members:**
 1. Review the completed work against the original user request
-2. If requirements are met → deliver to user
-3. If requirements are NOT met → hand back to the appropriate team member with specific feedback
+2. If requirements are met → deliver to \`user\`
+3. If requirements are NOT met → hand back to \`builder\` for rework
+4. **NEVER hand off back to the sender** — do not acknowledge, thank, or loop back
 `;
 }
 
