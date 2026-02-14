@@ -2,7 +2,7 @@
 
 ## Phase Breakdown
 
-### Phase 1: Heartbeat Infrastructure (P0)
+### Phase 1: Heartbeat Infrastructure (P0) ✅ DONE
 
 **Goal:** Establish heartbeat-based liveness detection for all agents using `wait-for-task`.
 
@@ -29,7 +29,7 @@
 
 ---
 
-### Phase 2: Process Death Monitoring (P0)
+### Phase 2: Process Death Monitoring (P0) ✅ DONE
 
 **Goal:** Detect when a daemon-spawned agent process dies unexpectedly and clean up immediately.
 
@@ -51,7 +51,7 @@
 
 ---
 
-### Phase 3: Auto-Restart Deduplication (P1)
+### Phase 3: Auto-Restart Deduplication (P1) ✅ DONE
 
 **Goal:** Prevent multiple concurrent auto-restart commands for the same role.
 
@@ -73,7 +73,7 @@
 
 ---
 
-### Phase 4: Task Timeout Recovery (P1)
+### Phase 4: Task Timeout Recovery (P1) ✅ DONE
 
 **Goal:** Automatically recover tasks stuck in `pending` or `acknowledged` when the target agent is unreachable.
 
@@ -136,11 +136,11 @@ Phase 3 (Dedup) ──────────── independent      Phase 5 (F
 
 ## Total Estimated Effort
 
-| Phase | Effort | Priority |
-|-------|--------|----------|
-| Phase 1: Heartbeat | 2 days | P0 |
-| Phase 2: Process Death | 1 day | P0 |
-| Phase 3: Dedup | 1 day | P1 |
-| Phase 4: Task Timeout | 2 days | P1 |
-| Phase 5: FSM Formalization | 0.5 day | P2 |
-| **Total** | **6.5 days** | |
+| Phase | Effort | Priority | Status |
+|-------|--------|----------|--------|
+| Phase 1: Heartbeat | 2 days | P0 | ✅ Done |
+| Phase 2: Process Death | 1 day | P0 | ✅ Done |
+| Phase 3: Dedup | 1 day | P1 | ✅ Done |
+| Phase 4: Task Timeout | 2 days | P1 | ✅ Done |
+| Phase 5: FSM Formalization | 0.5 day | P2 | Open |
+| **Total** | **6.5 days** | | |

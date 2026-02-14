@@ -7,103 +7,20 @@
  * - Stuck pending tasks log warnings for custom agents
  */
 
-import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { TASK_ACKNOWLEDGED_TIMEOUT_MS, TASK_PENDING_TIMEOUT_MS } from '../../config/reliability';
 import { api, internal } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-async function createTestSession(sessionId: string): Promise<{ sessionId: SessionId }> {
-  const login = await t.mutation(api.auth.loginAnon, {
-    sessionId: sessionId as SessionId,
-  });
-  expect(login.success).toBe(true);
-  return { sessionId: sessionId as SessionId };
-}
-
-async function createPairChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
-  return await t.mutation(api.chatrooms.create, {
-    sessionId,
-    teamId: 'pair',
-    teamName: 'Pair Team',
-    teamRoles: ['builder', 'reviewer'],
-    teamEntryPoint: 'builder',
-  });
-}
-
-async function joinParticipant(
-  sessionId: SessionId,
-  chatroomId: Id<'chatroom_rooms'>,
-  role: string,
-  readyUntil: number
-): Promise<void> {
-  await t.mutation(api.participants.join, {
-    sessionId,
-    chatroomId,
-    role,
-    readyUntil,
-  });
-}
-
-async function registerMachineWithDaemon(
-  sessionId: SessionId,
-  machineId: string
-): Promise<{ machineId: string }> {
-  await t.mutation(api.machines.register, {
-    sessionId,
-    machineId,
-    hostname: 'test-host',
-    os: 'darwin',
-    availableHarnesses: ['opencode'],
-    availableModels: ['claude-sonnet-4'],
-  });
-  await t.mutation(api.machines.updateDaemonStatus, {
-    sessionId,
-    machineId,
-    connected: true,
-  });
-  return { machineId };
-}
-
-async function setupRemoteAgentConfig(
-  sessionId: SessionId,
-  chatroomId: Id<'chatroom_rooms'>,
-  machineId: string,
-  role: string
-): Promise<void> {
-  await t.mutation(api.machines.sendCommand, {
-    sessionId,
-    machineId,
-    type: 'start-agent',
-    payload: {
-      chatroomId,
-      role,
-      model: 'claude-sonnet-4',
-      agentHarness: 'opencode',
-      workingDir: '/test/workspace',
-    },
-  });
-  // Ack all commands
-  const commands = (await t.query(api.machines.getPendingCommands, { sessionId, machineId }))
-    .commands;
-  for (const cmd of commands) {
-    await t.mutation(api.machines.ackCommand, {
-      sessionId,
-      commandId: cmd._id,
-      status: 'completed' as const,
-    });
-  }
-}
-
-async function getPendingCommands(sessionId: SessionId, machineId: string) {
-  return (await t.query(api.machines.getPendingCommands, { sessionId, machineId })).commands;
-}
+import {
+  createTestSession,
+  createPairTeamChatroom,
+  joinParticipant,
+  registerMachineWithDaemon,
+  setupRemoteAgentConfig,
+  getPendingCommands,
+} from '../helpers/integration';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -113,7 +30,7 @@ describe('Task Timeout Recovery', () => {
   describe('Stuck acknowledged tasks', () => {
     test('acknowledged task with missing participant is reset to pending', async () => {
       const { sessionId } = await createTestSession('test-ack-recovery-1');
-      const chatroomId = await createPairChatroom(sessionId);
+      const chatroomId = await createPairTeamChatroom(sessionId);
 
       // Join builder so we can send a message and have it create a task
       const readyUntil = Date.now() + 10 * 60 * 1000;
@@ -157,11 +74,6 @@ describe('Task Timeout Recovery', () => {
       });
 
       // Manually patch the task's acknowledgedAt to be older than TASK_ACKNOWLEDGED_TIMEOUT_MS
-      // We need to use a direct DB operation. Since we can't do that in tests easily,
-      // we'll use a workaround: the task's updatedAt is used as fallback for acknowledgedAt.
-      // The cleanup checks `task.acknowledgedAt || task.updatedAt`.
-      // We need the task to appear old enough. Let's patch it via a mutation.
-      // Actually, in convex-test we can use t.run to execute arbitrary code.
       await t.run(async (ctx) => {
         const task = await ctx.db.get('chatroom_tasks', taskId);
         if (task) {
@@ -188,7 +100,7 @@ describe('Task Timeout Recovery', () => {
 
     test('recently acknowledged task with valid participant is NOT recovered', async () => {
       const { sessionId } = await createTestSession('test-ack-recovery-2');
-      const chatroomId = await createPairChatroom(sessionId);
+      const chatroomId = await createPairTeamChatroom(sessionId);
 
       const readyUntil = Date.now() + 10 * 60 * 1000;
       await joinParticipant(sessionId, chatroomId, 'builder', readyUntil);
@@ -231,7 +143,7 @@ describe('Task Timeout Recovery', () => {
   describe('Stuck pending tasks', () => {
     test('stuck pending task triggers auto-restart for remote agent', async () => {
       const { sessionId } = await createTestSession('test-pending-recovery-1');
-      const chatroomId = await createPairChatroom(sessionId);
+      const chatroomId = await createPairTeamChatroom(sessionId);
       const { machineId } = await registerMachineWithDaemon(sessionId, 'machine-recovery-1');
       await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
@@ -287,7 +199,7 @@ describe('Task Timeout Recovery', () => {
 
     test('stuck pending task with custom agent logs warning (no auto-restart)', async () => {
       const { sessionId } = await createTestSession('test-pending-recovery-2');
-      const chatroomId = await createPairChatroom(sessionId);
+      const chatroomId = await createPairTeamChatroom(sessionId);
 
       // Register as custom agent (not remote)
       await t.mutation(api.machines.saveTeamAgentConfig, {

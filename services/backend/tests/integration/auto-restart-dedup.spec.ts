@@ -6,102 +6,17 @@
  * per message).
  */
 
-import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-async function createTestSession(sessionId: string): Promise<{ sessionId: SessionId }> {
-  const login = await t.mutation(api.auth.loginAnon, {
-    sessionId: sessionId as SessionId,
-  });
-  expect(login.success).toBe(true);
-  return { sessionId: sessionId as SessionId };
-}
-
-async function createPairChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
-  return await t.mutation(api.chatrooms.create, {
-    sessionId,
-    teamId: 'pair',
-    teamName: 'Pair Team',
-    teamRoles: ['builder', 'reviewer'],
-    teamEntryPoint: 'builder',
-  });
-}
-
-async function registerMachineWithDaemon(
-  sessionId: SessionId,
-  machineId: string
-): Promise<{ machineId: string }> {
-  await t.mutation(api.machines.register, {
-    sessionId,
-    machineId,
-    hostname: 'test-host',
-    os: 'darwin',
-    availableHarnesses: ['opencode'],
-    availableModels: ['claude-sonnet-4'],
-  });
-  await t.mutation(api.machines.updateDaemonStatus, {
-    sessionId,
-    machineId,
-    connected: true,
-  });
-  return { machineId };
-}
-
-/**
- * Set up a remote agent config so auto-restart knows this is a remote agent.
- * The agent is NOT joined as a participant (offline).
- */
-async function setupRemoteAgentConfig(
-  sessionId: SessionId,
-  chatroomId: Id<'chatroom_rooms'>,
-  machineId: string,
-  role: string
-): Promise<void> {
-  // Start agent via sendCommand to create both team and machine agent configs
-  await t.mutation(api.machines.sendCommand, {
-    sessionId,
-    machineId,
-    type: 'start-agent',
-    payload: {
-      chatroomId,
-      role,
-      model: 'claude-sonnet-4',
-      agentHarness: 'opencode',
-      workingDir: '/test/workspace',
-    },
-  });
-
-  // Ack all commands so they're no longer pending
-  const commands = (
-    await t.query(api.machines.getPendingCommands, {
-      sessionId,
-      machineId,
-    })
-  ).commands;
-  for (const cmd of commands) {
-    await t.mutation(api.machines.ackCommand, {
-      sessionId,
-      commandId: cmd._id,
-      status: 'completed' as const,
-    });
-  }
-}
-
-async function getPendingCommands(sessionId: SessionId, machineId: string) {
-  const result = await t.query(api.machines.getPendingCommands, {
-    sessionId,
-    machineId,
-  });
-  return result.commands;
-}
+import {
+  createTestSession,
+  createPairTeamChatroom,
+  registerMachineWithDaemon,
+  setupRemoteAgentConfig,
+  getPendingCommands,
+} from '../helpers/integration';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -110,7 +25,7 @@ async function getPendingCommands(sessionId: SessionId, machineId: string) {
 describe('Auto-restart Deduplication', () => {
   test('multiple messages to offline agent produce at most 1 stop+start pair', async () => {
     const { sessionId } = await createTestSession('test-dedup-1');
-    const chatroomId = await createPairChatroom(sessionId);
+    const chatroomId = await createPairTeamChatroom(sessionId);
     const { machineId } = await registerMachineWithDaemon(sessionId, 'machine-dedup-1');
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
@@ -137,7 +52,7 @@ describe('Auto-restart Deduplication', () => {
 
   test('first message still triggers auto-restart', async () => {
     const { sessionId } = await createTestSession('test-dedup-2');
-    const chatroomId = await createPairChatroom(sessionId);
+    const chatroomId = await createPairTeamChatroom(sessionId);
     const { machineId } = await registerMachineWithDaemon(sessionId, 'machine-dedup-2');
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
@@ -161,7 +76,7 @@ describe('Auto-restart Deduplication', () => {
 
   test('new restart allowed after previous commands are acked', async () => {
     const { sessionId } = await createTestSession('test-dedup-3');
-    const chatroomId = await createPairChatroom(sessionId);
+    const chatroomId = await createPairTeamChatroom(sessionId);
     const { machineId } = await registerMachineWithDaemon(sessionId, 'machine-dedup-3');
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 

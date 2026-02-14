@@ -5,35 +5,12 @@
  * as part of the agent reliability / liveness detection system.
  */
 
-import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
 import { HEARTBEAT_TTL_MS } from '../../config/reliability';
 import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-async function createTestSession(sessionId: string): Promise<{ sessionId: SessionId }> {
-  const login = await t.mutation(api.auth.loginAnon, {
-    sessionId: sessionId as SessionId,
-  });
-  expect(login.success).toBe(true);
-  return { sessionId: sessionId as SessionId };
-}
-
-async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'>> {
-  return await t.mutation(api.chatrooms.create, {
-    sessionId,
-    teamId: 'pair',
-    teamName: 'Pair',
-    teamRoles: ['builder', 'reviewer'],
-    teamEntryPoint: 'builder',
-  });
-}
+import { createTestSession, createPairTeamChatroom } from '../helpers/integration';
 
 // ---------------------------------------------------------------------------
 // Tests
