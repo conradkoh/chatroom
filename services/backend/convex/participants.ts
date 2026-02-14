@@ -5,6 +5,7 @@ import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
+import { transitionTask } from './lib/taskStateMachine';
 
 /**
  * Join a chatroom as a participant.
@@ -63,14 +64,8 @@ export const join = mutation({
         .filter((q) => q.eq(q.field('assignedTo'), args.role))
         .collect();
 
-      const now = Date.now();
       for (const task of orphanedTasks) {
-        await ctx.db.patch('chatroom_tasks', task._id, {
-          status: 'pending',
-          assignedTo: undefined,
-          startedAt: undefined,
-          updatedAt: now,
-        });
+        await transitionTask(ctx, task._id, 'pending', 'resetStuckTask');
         console.warn(
           `[State Recovery] chatroomId=${args.chatroomId} role=${args.role} taskId=${task._id} ` +
             `action=reset_to_pending reason=agent_rejoined`
@@ -134,11 +129,7 @@ export const join = mutation({
           queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
           const nextTask = queuedTasks[0];
 
-          const now = Date.now();
-          await ctx.db.patch('chatroom_tasks', nextTask._id, {
-            status: 'pending',
-            updatedAt: now,
-          });
+          await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
 
           console.warn(
             `[Auto-Promote on Join] Primary role "${args.role}" joined (all agents ready). Promoted task ${nextTask._id} to pending. ` +

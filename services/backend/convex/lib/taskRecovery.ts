@@ -1,11 +1,10 @@
+import { transitionTask } from './taskStateMachine';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 
 /**
  * Shared helper to recover orphaned in_progress tasks for a given role.
- * Used by both:
- * - participants.join (agent rejoin recovery)
- * - cleanupStaleAgents (cron-based cleanup)
+ * Used by cleanupStaleAgents (cron-based cleanup).
  *
  * Returns array of recovered task IDs for logging.
  */
@@ -23,15 +22,9 @@ export async function recoverOrphanedTasks(
     .collect();
 
   const recoveredIds: string[] = [];
-  const now = Date.now();
 
   for (const task of orphanedTasks) {
-    await ctx.db.patch('chatroom_tasks', task._id, {
-      status: 'pending',
-      assignedTo: undefined,
-      startedAt: undefined,
-      updatedAt: now,
-    });
+    await transitionTask(ctx, task._id, 'pending', 'resetStuckTask');
     recoveredIds.push(task._id);
   }
 
