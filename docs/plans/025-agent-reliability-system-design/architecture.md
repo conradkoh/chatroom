@@ -1,462 +1,288 @@
-# Plan 025: Agent Reliability System Design
+# Plan 025: Architecture — Agent Reliability
 
-## Problem Statement
+## Changes Overview
 
-Agents in the chatroom system can become unresponsive without the system detecting it. This leads to tasks stuck in `pending`/`acknowledged`, ghost participants that block auto-restart, and duplicate restart commands. The root cause is that **liveness is inferred from stale state rather than proven by continuous signals**.
+Introduce a two-model liveness detection system that handles remote and custom agents differently, add heartbeat infrastructure, deduplicate auto-restart commands, and extend task recovery to cover `pending` and `acknowledged` states.
 
 ## First Principle
 
-> **An agent is alive if and only if it has recently proven it is alive.**
+> **An agent is reachable if and only if it can receive and respond to tasks within a bounded time.**
 
-Everything else — PIDs, participant records, daemon flags — is secondary evidence that can become stale. The system must be designed around **continuous proof of liveness** (heartbeat), not **absence of proof of death** (timeout on stale records).
+This shifts from "prove you're alive" to "prove you can do work." Liveness ≠ reachability:
+- A custom agent in Cursor is alive but not reachable between `wait-for-task` calls
+- A remote agent with a daemon is reachable as long as the daemon can restart it
 
----
+## Two-Model Liveness
 
-## Current Architecture (As-Is)
-
-### Component Roles
-
-| Component | Responsibility |
-|-----------|---------------|
-| **Frontend (webapp)** | Sends start/stop commands, displays agent status |
-| **Backend (Convex)** | Stores state, routes messages, triggers auto-restart |
-| **CLI (wait-for-task)** | Subscribes to tasks, joins as participant |
-| **Daemon** | Spawns/kills agent processes, processes machine commands |
-| **Agent Process** | Runs the AI agent (e.g., opencode) |
-
-### Current Liveness Detection
-
-```
-Frontend ──sendCommand──▶ Backend ──machineCommand──▶ Daemon ──spawn──▶ Agent
-                              │                                          │
-                              │◀──── (no heartbeat) ────────────────────│
-                              │                                          │
-                         participants table                    wait-for-task CLI
-                         (readyUntil: undefined)               (no keepalive)
-```
-
-**Problem:** After spawn, the backend has no continuous signal from the agent. It relies on:
-- `readyUntil` / `activeUntil` timestamps (never set by wait-for-task)
-- `daemonConnected` flag (only tells if daemon is up, not if agent is alive)
-- `spawnedAgentPid` (stale if process dies without cleanup)
+| Agent Type | Reachability Signal | Detection Time | Recovery Mechanism |
+|-----------|--------------------|----|---|
+| **Remote** (daemon-managed) | Heartbeat from `wait-for-task` process | ~60s (heartbeat TTL) | Auto-restart via daemon |
+| **Custom** (user-managed) | Task acknowledgement within timeout | ~5 min (configurable) | Notify user (cannot auto-restart) |
 
 ---
 
 ## Sequence Diagrams
 
-### 1. Happy Path: User Message → Agent Processing
+### Happy Path: Remote Agent
 
 ```
-User        Frontend       Backend        Daemon        Agent/CLI
+User        Frontend       Backend        Daemon        CLI/Agent
  │              │              │              │              │
- │──message────▶│              │              │              │
- │              │──send()─────▶│              │              │
- │              │              │──createTask──▶│              │
+ │──message────▶│──send()─────▶│──createTask──▶              │
  │              │              │              │              │
- │              │              │  isAgentOnline?              │
- │              │              │  ✓ participant exists         │
- │              │              │  ✓ readyUntil not expired     │
+ │              │              │  participant exists          │
+ │              │              │  readyUntil > now ✓          │
+ │              │              │  → agent is reachable        │
  │              │              │              │              │
- │              │              │──notify──────────────────────▶│
- │              │              │              │              │
+ │              │              │──notify(task)────────────────▶│
  │              │              │◀─claimTask───────────────────│
  │              │              │◀─startTask───────────────────│
  │              │              │◀─handoff─────────────────────│
- │              │              │              │              │
  │◀─response───│◀─────────────│              │              │
 ```
 
-**No failure here.** Agent is connected, claims task, processes it.
-
-### 2. Failure: Agent Dies, System Doesn't Know
+### Failure + Recovery: Remote Agent Crash
 
 ```
-User        Frontend       Backend        Daemon        Agent/CLI
- │              │              │              │              │
- │              │              │              │    Agent dies (crash/kill)
- │              │              │              │         ✗ (no exit handler)
- │              │              │              │              │
- │              │              │  participant still exists     │
- │              │              │  readyUntil: undefined        │
- │              │              │  → never expires              │
- │              │              │  spawnedAgentPid: stale       │
- │              │              │              │              │
- │──message────▶│              │              │              │
- │              │──send()─────▶│              │              │
- │              │              │──createTask──▶│              │
- │              │              │              │              │
- │              │              │  isAgentOnline?              │
- │              │              │  ✓ participant exists (STALE) │
- │              │              │  ✓ readyUntil: undefined      │
- │              │              │  → THINKS AGENT IS ONLINE     │
- │              │              │  → NO AUTO-RESTART            │
- │              │              │              │              │
- │              │              │  Task stays in `pending`      │
- │              │              │  forever...                   │
- │              │              │              │              │
+CLI/Agent       Backend              Daemon
+    │               │                    │
+    │──heartbeat───▶│ readyUntil=now+60s │
+    │               │                    │
+    ✗ (crash)       │                    │
+                    │                    │
+    (30s later)     │                    │
+                    │ no heartbeat       │
+    (60s later)     │                    │
+                    │ readyUntil < now   │
+                    │ → EXPIRED          │
+                    │                    │
+    (cleanup cron)  │                    │
+                    │──removeParticipant │
+                    │──recoverTasks      │
+                    │                    │
+    (new message)   │                    │
+                    │ no participant     │
+                    │ → auto-restart ────▶│
+                    │                    │──spawn new agent
+                    │◀───────────────────│
 ```
 
-**Root cause:** No heartbeat, no `readyUntil`, no exit cleanup.
-
-### 3. Failure: Duplicate Auto-Restart
+### Failure + Recovery: Custom Agent Disconnects
 
 ```
-User        Frontend       Backend                    Daemon
- │              │              │                          │
- │──msg1───────▶│──send()─────▶│                          │
- │──msg2───────▶│──send()─────▶│                          │
- │              │              │                          │
- │              │              │  msg1: isAgentOnline? NO  │
- │              │              │  msg2: isAgentOnline? NO  │
- │              │              │  (concurrent, both see    │
- │              │              │   same offline state)     │
- │              │              │                          │
- │              │              │──stop+start (from msg1)──▶│
- │              │              │──stop+start (from msg2)──▶│
- │              │              │                          │
- │              │              │  Daemon processes:        │
- │              │              │  1. stop (nothing to stop)│
- │              │              │  2. start → Agent A       │
- │              │              │  3. stop → kills Agent A  │
- │              │              │  4. start → Agent B       │
- │              │              │                          │
- │              │              │  Result: Agent A's work   │
- │              │              │  is lost, Agent B starts  │
- │              │              │  fresh                    │
+Custom Agent    Backend              User (webapp)
+    │               │                    │
+    │──wait-for-task▶│ participant joins  │
+    │◀─task─────────│                    │
+    │               │ participant leaves │
+    │               │ (or heartbeat      │
+    │               │  expires)          │
+    │               │                    │
+    │ (working...)  │                    │
+    │               │                    │
+    │ (agent dies   │                    │
+    │  or forgets   │                    │
+    │  to reconnect)│                    │
+    │               │                    │
+    (5 min later)   │                    │
+                    │ task still pending  │
+                    │ no participant      │
+                    │ type=custom         │
+                    │ → CANNOT auto-restart
+                    │                    │
+                    │──notification──────▶│
+                    │                    │ "Agent X appears
+                    │                    │  unresponsive"
 ```
 
-**Root cause:** No deduplication of restart commands.
-
-### 4. Failure: Task Stuck in `acknowledged`
+### Failure + Recovery: Duplicate Auto-Restart Prevention
 
 ```
-Backend                     Agent/CLI
- │                              │
- │──task pending───────────────▶│
- │◀─claimTask (acknowledged)───│
- │                              │
- │                    Agent dies before startTask
- │                              ✗
- │                              │
- │  Task status: acknowledged   │
- │  assignedTo: dead agent      │
- │                              │
- │  cleanupStaleAgents runs...  │
- │  → only recovers in_progress │
- │  → acknowledged is IGNORED   │
- │                              │
- │  Task stuck forever          │
+Backend (msg1)     Backend (msg2)     Commands Table
+    │                   │                   │
+    │ isOffline? YES    │                   │
+    │                   │ isOffline? YES    │
+    │                   │                   │
+    │ check pending     │                   │
+    │ start-agent cmd   │                   │
+    │ → none found      │                   │
+    │                   │                   │
+    │──insert stop+start────────────────────▶│
+    │                   │                   │
+    │                   │ check pending     │
+    │                   │ start-agent cmd   │
+    │                   │ → FOUND (from msg1)│
+    │                   │ → SKIP            │
+    │                   │                   │
+    Result: only 1 restart pair
 ```
 
-**Root cause:** FSM recovery only handles `in_progress`, not `acknowledged`.
+### Failure + Recovery: Stuck `acknowledged` Task
+
+```
+Backend              Cleanup Cron
+    │                    │
+    │ task: acknowledged  │
+    │ assignedTo: agentX  │
+    │                    │
+    │ (agentX dies)      │
+    │                    │
+    │ (2 min later)      │
+    │                    │──check acknowledged tasks
+    │                    │  participant for agentX?
+    │                    │  → expired or missing
+    │                    │
+    │                    │──transitionTask:
+    │                    │  acknowledged → pending
+    │                    │  (trigger: recoverStuck)
+    │                    │
+    │                    │──autoRestartIfRemote
+    │                    │
+    │ task: pending       │
+    │ ready for new claim │
+```
 
 ---
 
-## Proposed Architecture (To-Be)
+## New Components
 
-### Core Design: Heartbeat-Based Liveness
+### `participants.heartbeat` (Backend Mutation)
 
-```
-Agent/CLI ──heartbeat(every 30s)──▶ Backend
-                                       │
-                                       ├── Update participant.readyUntil = now + 60s
-                                       ├── If expired → mark offline
-                                       └── If offline + pending task → auto-restart
-```
-
-**Invariant:** `readyUntil` is always set and always refreshed. If it expires, the agent is dead.
-
-### Component Changes
-
-#### 1. CLI (`wait-for-task`)
-
-```
-┌─────────────────────────────────────┐
-│ wait-for-task                       │
-│                                     │
-│  ┌──────────┐   ┌───────────────┐  │
-│  │ Task Sub  │   │ Heartbeat     │  │
-│  │ (ws)      │   │ Timer (30s)   │  │
-│  └─────┬─────┘   └──────┬────────┘  │
-│        │                │           │
-│        │    participants.heartbeat() │
-│        │                │           │
-│  On task received:      On exit:    │
-│  → process task         → leave()   │
-│  → leave()                          │
-│  → exit                             │
-└─────────────────────────────────────┘
-```
-
-**Changes:**
-- Add `setInterval` heartbeat that calls `participants.heartbeat` every 30s
-- Set `readyUntil = now + 60s` on join and each heartbeat
-- Call `participants.leave` on all exit paths (task received, signal, error)
-
-#### 2. Backend (`participants`)
-
-New mutation: `participants.heartbeat`
-```typescript
-export const heartbeat = mutation({
-  args: { sessionId, chatroomId, role, connectionId },
-  handler: async (ctx, args) => {
-    const participant = await findParticipant(ctx, args);
-    if (!participant) return;
-    if (participant.connectionId !== args.connectionId) return; // stale process
-    await ctx.db.patch(participant._id, {
-      readyUntil: Date.now() + 60_000, // 60s TTL
-    });
-  },
-});
-```
-
-#### 3. Backend (`cleanupStaleAgents`)
-
-Enhanced to handle all stuck states:
+Refreshes a participant's `readyUntil` timestamp. Called periodically by the `wait-for-task` CLI.
 
 ```typescript
-// Current: only cleans expired readyUntil/activeUntil
-// Proposed: also handles stuck tasks
-
-async function cleanupStaleAgents(ctx) {
-  const now = Date.now();
-  
-  for (const participant of allParticipants) {
-    // Existing: clean expired participants
-    if (participant.readyUntil && now > participant.readyUntil) {
-      await removeParticipant(ctx, participant);
-      await recoverOrphanedTasks(ctx, participant);
-    }
-  }
-  
-  // NEW: Check for stuck tasks (no participant or expired participant)
-  for (const task of pendingAndAcknowledgedTasks) {
-    const targetRole = task.targetRole;
-    const participant = await getParticipantForRole(ctx, targetRole);
-    
-    if (!participant || isExpired(participant)) {
-      if (task.status === 'acknowledged') {
-        // Reset to pending so it can be re-claimed
-        await transitionTask(ctx, task, 'pending', 'recoverStuckAcknowledged');
-      }
-      // Trigger auto-restart for the role
-      await autoRestartOfflineAgent(ctx, task.chatroomId, targetRole);
-    }
-  }
+interface HeartbeatArgs {
+  sessionId: string;
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  connectionId: string;
 }
 ```
 
-#### 4. Backend (`autoRestartOfflineAgent`)
+**Behavior:**
+- Find participant by chatroomId + role
+- Verify `connectionId` matches (reject stale processes)
+- Update `readyUntil = Date.now() + HEARTBEAT_TTL_MS`
 
-Add deduplication:
+### Heartbeat Timer (CLI)
+
+A `setInterval` inside `wait-for-task` that calls `participants.heartbeat` every `HEARTBEAT_INTERVAL_MS`.
+
+### Process Exit Watcher (Daemon)
+
+A `child.on('exit')` handler in the daemon's `handleStartAgent` that clears the PID and notifies the backend when a spawned agent process dies unexpectedly.
+
+## Modified Components
+
+### `wait-for-task` CLI Command
+
+- **Add:** Set `readyUntil` on `participants.join` call
+- **Add:** Start heartbeat interval after joining
+- **Add:** Call `participants.leave` on all exit paths (task received, signal, error)
+- **Add:** Clear heartbeat interval on exit
+
+### `cleanupStaleAgents` (Backend Cron)
+
+- **Extend:** After cleaning expired participants, also check for stuck tasks:
+  - `pending` tasks with no reachable participant for the target role → trigger auto-restart (remote) or notify (custom)
+  - `acknowledged` tasks with expired/missing participant → reset to `pending`
+
+### `autoRestartOfflineAgent` (Backend)
+
+- **Add:** Check for existing pending `start-agent` command for the same role before inserting
+- **Add:** Skip if a pending restart already exists (deduplication)
+
+### `handleStartAgent` (Daemon)
+
+- **Add:** `child.on('exit')` handler to clear PID in backend on unexpected process death
+
+### Task State Machine
+
+- **Add:** `recoverStuckAcknowledged` trigger: `acknowledged` → `pending`
+- **Add:** `recoverStuckPending` trigger: `pending` → `pending` (reset + auto-restart)
+
+## New Contracts
 
 ```typescript
-async function autoRestartOfflineAgent(ctx, chatroomId, targetRole) {
-  // Check for existing pending start-agent command for this role
-  const existingCmd = await ctx.db
-    .query('chatroom_machineCommands')
-    .withIndex('by_machine', ...)
-    .filter(q => 
-      q.eq(q.field('status'), 'pending') &&
-      q.eq(q.field('type'), 'start-agent') &&
-      q.eq(q.field('payload.role'), targetRole)
-    )
-    .first();
-  
-  if (existingCmd) {
-    // Already a pending restart — skip
-    return;
-  }
-  
-  // Proceed with stop + start
-  ...
+// Heartbeat configuration constants
+interface HeartbeatConfig {
+  /** How often the CLI sends a heartbeat (ms). Default: 30000 */
+  HEARTBEAT_INTERVAL_MS: number;
+  /** How long a participant is considered reachable after last heartbeat (ms). Default: 60000 */
+  HEARTBEAT_TTL_MS: number;
+  /** How long a task can be pending before triggering recovery (ms). Default: 300000 (5 min) */
+  TASK_PENDING_TIMEOUT_MS: number;
+  /** How long a task can be acknowledged before triggering recovery (ms). Default: 120000 (2 min) */
+  TASK_ACKNOWLEDGED_TIMEOUT_MS: number;
+}
+
+// Participant heartbeat mutation args
+interface ParticipantHeartbeatArgs {
+  sessionId: string;
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  connectionId: string;
+}
+
+// Extended cleanup result
+interface CleanupResult {
+  expiredParticipants: number;
+  stuckPendingTasks: number;
+  stuckAcknowledgedTasks: number;
+  autoRestartsTriggered: number;
+  userNotificationsSent: number;
 }
 ```
 
-#### 5. Daemon (process death monitoring)
+## Modified Contracts
+
+### `chatroom_participants` Schema
+
+No schema change needed — `readyUntil` already exists as an optional field. The change is behavioral: `wait-for-task` will now always set it.
+
+### Task FSM Transitions
+
+Add new triggers:
 
 ```typescript
-function handleStartAgent(command) {
-  const child = spawn(...);
-  
-  // NEW: Watch for unexpected exit
-  child.on('exit', async (code, signal) => {
-    console.log(`Agent ${role} exited: code=${code} signal=${signal}`);
-    
-    // Clear PID in backend
-    await clearSpawnedAgent(machineId, chatroomId, role);
-    
-    // Clear participant (agent is no longer connected)
-    // The heartbeat will expire naturally, but this is faster
-    await notifyAgentDeath(machineId, chatroomId, role);
-  });
-  
-  return child.pid;
-}
+// New FSM transitions
+{ from: 'acknowledged', to: 'pending', trigger: 'recoverStuckAcknowledged' }
+{ from: 'in_progress', to: 'pending', trigger: 'recoverOrphaned' } // formalize existing behavior
+```
+
+## Data Flow Changes
+
+### Current Flow (No Liveness Detection)
+
+```
+Agent joins → participant created (readyUntil: undefined) → never expires → ghost on death
+```
+
+### Proposed Flow (Heartbeat-Based)
+
+```
+Agent joins → participant created (readyUntil: now+60s)
+  → heartbeat every 30s refreshes readyUntil
+  → on death: heartbeat stops → readyUntil expires in ≤60s
+  → cleanup cron removes participant → recovers tasks → triggers restart
+```
+
+### Proposed Flow (Task-Timeout for Custom)
+
+```
+Custom agent joins → participant created (readyUntil: now+60s)
+  → wait-for-task exits → participant.leave() called → immediate cleanup
+  → agent works (no participant) → task created for role
+  → no participant → task pending timeout (5 min) → notify user
 ```
 
 ---
 
-## State Machines
+## Provable Invariants
 
-### Participant State Machine
-
-```
-                    join(readyUntil)
-    ┌──────────┐ ──────────────────▶ ┌──────────┐
-    │DISCONNECTED│                    │ WAITING  │◀──┐
-    └──────────┘ ◀──────────────────  └──────────┘   │
-                    leave() or                │       │ heartbeat()
-                    readyUntil expired        │       │ (refresh readyUntil)
-                                              │       │
-                                    claimTask │       │
-                                              ▼       │
-                                         ┌──────────┐│
-                                         │  ACTIVE  │┘
-                                         └──────────┘
-                                              │
-                                    leave() or│
-                                    activeUntil expired
-                                              │
-                                              ▼
-                                         ┌──────────┐
-                                         │DISCONNECTED│
-                                         └──────────┘
-```
-
-**Transitions:**
-| From | To | Trigger | Side Effects |
-|------|-----|---------|-------------|
-| DISCONNECTED | WAITING | `join()` | Set `readyUntil` |
-| WAITING | WAITING | `heartbeat()` | Refresh `readyUntil` |
-| WAITING | ACTIVE | `claimTask()` | Set `activeUntil` |
-| ACTIVE | ACTIVE | `heartbeat()` | Refresh `activeUntil` |
-| ACTIVE | DISCONNECTED | `leave()` or timeout | Recover orphaned tasks |
-| WAITING | DISCONNECTED | `leave()` or timeout | Trigger auto-restart if pending tasks |
-
-### Task State Machine (Extended)
-
-```
-                 ┌─────────┐
-                 │ QUEUED   │
-                 └────┬─────┘
-                      │ promoteNextTask
-                      ▼
-                 ┌─────────┐  timeout (5 min)   ┌──────────────┐
-                 │ PENDING  │──────────────────▶│ PENDING       │
-                 └────┬─────┘  no participant   │ + auto-restart│
-                      │                         └──────┬────────┘
-                      │ claimTask                      │
-                      ▼                                │
-                 ┌─────────────┐  timeout (2 min)      │
-                 │ ACKNOWLEDGED │──────────────────────▶│
-                 └────┬────────┘  agent died            │
-                      │                                │
-                      │ startTask                      │
-                      ▼                                │
-                 ┌─────────────┐  agent disconnected   │
-                 │ IN_PROGRESS  │──────────────────────▶│
-                 └────┬────────┘  (existing recovery)  │
-                      │                                │
-                      │ completeTask                   │
-                      ▼                                │
-                 ┌─────────────┐                       │
-                 │ COMPLETED    │                       │
-                 └──────────────┘                       │
-```
-
-**New transitions:**
-| From | To | Trigger | Timeout |
-|------|-----|---------|---------|
-| PENDING | PENDING + auto-restart | No participant for role | 5 min |
-| ACKNOWLEDGED | PENDING + auto-restart | Agent disconnected | 2 min |
-
----
-
-## Failure Cases and Solutions
-
-### F1: Agent process crashes
-
-| Step | Current | Proposed |
-|------|---------|----------|
-| Detection | Never (ghost participant) | Heartbeat expires in 60s |
-| Recovery | Manual | Auto: participant removed, task reset, auto-restart triggered |
-| Time to recover | ∞ | ~2 min (60s heartbeat expiry + 60s cleanup cycle) |
-
-### F2: Daemon crashes
-
-| Step | Current | Proposed |
-|------|---------|----------|
-| Detection | `daemonConnected` goes false on next check | Same, plus heartbeat expiry for all agents |
-| Recovery | Daemon restart runs `recoverAgentState()` | Same, plus backend-side cleanup via heartbeat expiry |
-| Time to recover | Until daemon restarts | ~2 min for task recovery, daemon restart for agent respawn |
-
-### F3: Duplicate auto-restart
-
-| Step | Current | Proposed |
-|------|---------|----------|
-| Detection | None | Check for existing pending `start-agent` command |
-| Recovery | Multiple stop+start pairs | Single restart, duplicates skipped |
-
-### F4: Task stuck in `acknowledged`
-
-| Step | Current | Proposed |
-|------|---------|----------|
-| Detection | Never | `cleanupStaleAgents` checks acknowledged tasks |
-| Recovery | Manual | Auto: reset to `pending`, trigger auto-restart |
-| Time to recover | ∞ | ~4 min (2 min timeout + 2 min cleanup cycle) |
-
-### F5: Network partition (CLI loses WebSocket)
-
-| Step | Current | Proposed |
-|------|---------|----------|
-| Detection | Never (no heartbeat) | Heartbeat fails → `readyUntil` expires |
-| Recovery | None | Participant cleaned up, tasks recovered |
-| Time to recover | ∞ | ~2 min |
-
-### F6: Agent harness kills wait-for-task (timeout)
-
-| Step | Current | Proposed |
-|------|---------|----------|
-| Detection | Never (no `leave()` call) | `leave()` called in exit handler + heartbeat expiry as backup |
-| Recovery | None | Immediate via `leave()`, or 60s via heartbeat |
-
----
-
-## Implementation Phases
-
-### Phase 1: Heartbeat (P0, ~2 days)
-1. Add `participants.heartbeat` mutation
-2. Set `readyUntil` in `wait-for-task` on join
-3. Add heartbeat interval (30s) in `wait-for-task`
-4. Call `participants.leave` on all exit paths
-5. Tests: verify heartbeat refresh, verify expiry triggers cleanup
-
-### Phase 2: Process Death Monitoring (P0, ~1 day)
-1. Add `child.on('exit')` in daemon's `handleStartAgent`
-2. Clear PID in backend on unexpected exit
-3. Tests: verify PID cleanup on process death
-
-### Phase 3: Auto-Restart Dedup (P1, ~1 day)
-1. Check for existing pending `start-agent` before inserting
-2. Tests: verify no duplicate commands
-
-### Phase 4: Task Timeout Recovery (P1, ~2 days)
-1. Extend `cleanupStaleAgents` to check `pending` and `acknowledged` tasks
-2. Add `recoverStuckAcknowledged` trigger to task FSM
-3. Add timeout constants (configurable)
-4. Tests: verify stuck task recovery
-
-### Phase 5: Task Recovery via FSM (P2, ~0.5 day)
-1. Replace `db.patch` in `recoverOrphanedTasks` with `transitionTask`
-2. Add `recover` trigger to FSM
-
----
-
-## Invariants (Provable Properties)
-
-1. **Heartbeat invariant:** If an agent is alive, `readyUntil > now` is always true (refreshed every 30s, TTL 60s).
+1. **Heartbeat invariant:** If a `wait-for-task` process is running, `readyUntil > now` is always true (refreshed every 30s, TTL 60s).
 2. **Cleanup invariant:** If `readyUntil < now`, the participant WILL be removed within 2 minutes (cleanup runs every 2 min).
-3. **Task recovery invariant:** If a task is `pending` or `acknowledged` and no valid participant exists for the target role, the task WILL be reset and auto-restart WILL be attempted within 4 minutes.
+3. **Task recovery invariant:** If a task is `pending` or `acknowledged` and no valid participant exists for the target role, the task WILL be recovered within `max(TASK_PENDING_TIMEOUT_MS, TASK_ACKNOWLEDGED_TIMEOUT_MS) + 2 min`.
 4. **Dedup invariant:** At most one pending `start-agent` command exists per role per chatroom at any time.
-5. **Exit invariant:** When `wait-for-task` exits (any reason), `participants.leave` is called, providing immediate cleanup rather than waiting for heartbeat expiry.
+5. **Exit invariant:** When `wait-for-task` exits (any reason), `participants.leave` is called, providing immediate cleanup.
+6. **Type-aware recovery:** Remote agents trigger auto-restart; custom agents trigger user notification. The system never attempts to auto-restart a custom agent.
