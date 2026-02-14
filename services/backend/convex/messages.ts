@@ -151,6 +151,14 @@ async function autoRestartOfflineAgent(
     }
   }
 
+  // Warn if no model could be resolved — daemon will use its default
+  if (!resolvedModel) {
+    console.warn(
+      `[auto-restart] No model found for role "${targetRole}" ` +
+        `(checked teamConfig and machineConfig). The daemon will use its default model.`
+    );
+  }
+
   // Dispatch stop + start commands using team config parameters
   // Stop first to clean up any stale process
   await ctx.db.insert('chatroom_machineCommands', {

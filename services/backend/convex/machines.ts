@@ -589,6 +589,14 @@ export const sendCommand = mutation({
         throw new Error(`Agent harness '${agentHarness}' is not available on this machine`);
       }
 
+      // Validate model is present for start-agent commands
+      if (!args.payload.model && !config?.model) {
+        console.warn(
+          `[sendCommand] start-agent for role "${args.payload.role}" has no model. ` +
+            `The daemon will use its default model.`
+        );
+      }
+
       // Save team agent config so auto-restart knows this is a remote agent
       const chatroom = await ctx.db.get('chatroom_rooms', args.payload.chatroomId);
       if (chatroom) {
