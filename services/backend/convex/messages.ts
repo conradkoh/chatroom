@@ -2,6 +2,7 @@ import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
@@ -629,7 +630,10 @@ async function _handoffHandler(
     .unique();
 
   if (participant) {
-    await ctx.db.patch('chatroom_participants', participant._id, { status: 'waiting' });
+    await ctx.db.patch('chatroom_participants', participant._id, {
+      status: 'waiting',
+      readyUntil: Date.now() + HEARTBEAT_TTL_MS,
+    });
   }
 
   // Step 5: Update attached backlog tasks to pending_user_review when handing off to user

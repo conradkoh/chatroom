@@ -198,8 +198,10 @@ export async function requireChatroomAccess(
 
 /**
  * Check if all agents in the chatroom are ready (waiting, not active).
- * An agent is considered "active" if they are currently working on a task.
- * Returns true if no agents are active (all are waiting).
+ * An agent is considered "not ready" if they are:
+ * - Currently working on a task (status === 'active')
+ * - Waiting but with an expired readyUntil (ghost participant — disconnected)
+ * Returns true if all agents are waiting and have valid (non-expired) readyUntil.
  */
 export async function areAllAgentsReady(
   ctx: QueryCtx | MutationCtx,
@@ -210,10 +212,15 @@ export async function areAllAgentsReady(
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
     .collect();
 
-  // Check if any participant is active (working on a task)
-  const hasActiveParticipant = participants.some((p) => p.status === 'active');
+  const now = Date.now();
+  const hasActiveOrExpiredParticipant = participants.some((p) => {
+    if (p.status === 'active') return true;
+    // Expired waiting participants are not "ready" (ghost participants)
+    if (p.status === 'waiting' && p.readyUntil && p.readyUntil < now) return true;
+    return false;
+  });
 
-  return !hasActiveParticipant;
+  return !hasActiveOrExpiredParticipant;
 }
 
 /**
