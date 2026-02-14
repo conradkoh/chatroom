@@ -21,6 +21,7 @@ import type {
   AgentStartOptions,
   AgentHarnessDriver,
   DriverStartResult,
+  ProcessExitCallback,
 } from './types.js';
 import type { AgentHarness } from '../machine/types.js';
 
@@ -163,6 +164,12 @@ export abstract class ProcessDriver implements AgentHarnessDriver {
         success: true,
         message: 'Agent spawned successfully',
         handle,
+        // Expose the child process exit event so the daemon can detect unexpected death
+        onExit: (callback: ProcessExitCallback) => {
+          childProcess.on('exit', (code, signal) => {
+            callback(code, signal);
+          });
+        },
       };
     } catch (error) {
       return {

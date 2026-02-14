@@ -447,6 +447,24 @@ async function handleStartAgent(
       } catch (e) {
         console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
       }
+
+      // Monitor for unexpected process death.
+      // When the spawned agent exits, immediately clear the PID in the backend
+      // and local state so the UI reflects the agent as stopped.
+      if (startResult.onExit) {
+        const spawnedPid = startResult.handle.pid;
+        startResult.onExit((code, signal) => {
+          const ts = formatTimestamp();
+          console.log(
+            `[${ts}] ⚠️  Agent process exited unexpectedly ` +
+              `(PID: ${spawnedPid}, role: ${role}, code: ${code}, signal: ${signal})`
+          );
+          // Fire-and-forget: clear PID in backend and local state
+          clearAgentPidEverywhere(ctx, chatroomId, role).catch((err) => {
+            console.log(`   ⚠️  Failed to clear PID after exit: ${(err as Error).message}`);
+          });
+        });
+      }
     }
     return { result: msg, failed: false };
   }
