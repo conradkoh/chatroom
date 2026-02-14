@@ -238,7 +238,7 @@ export const updateStatus = mutation({
     status: v.union(v.literal('active'), v.literal('waiting')),
     // Optional: timestamp when the new status expires
     // For 'active': when agent is considered crashed (~1 hour)
-    // For 'waiting': when agent is considered disconnected (~10 min)
+    // For 'waiting': when agent is considered disconnected (~1 min, governed by HEARTBEAT_TTL_MS)
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -285,7 +285,7 @@ export const updateStatus = mutation({
  */
 export const leave = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
   },

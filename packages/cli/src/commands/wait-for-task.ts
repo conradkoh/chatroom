@@ -173,7 +173,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
   // On first session, fetch and display the full initialization prompt from backend
   try {
-    const convexUrl = getConvexUrl();
     const initPromptResult = (await client.query(api.messages.getInitPrompt, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,

@@ -62,6 +62,7 @@ interface TaskDeliveryPromptResponse {
  * 1. The target role has an existing agent config (machine, harness, workingDir)
  * 2. The machine's daemon is currently connected
  * 3. The participant is either missing or expired
+ * 4. No pending `start-agent` command exists for this machine + chatroom + role (dedup)
  */
 async function autoRestartOfflineAgent(
   ctx: MutationCtx,
@@ -607,17 +608,15 @@ async function _handoffHandler(
     // Link message to task
     await ctx.db.patch('chatroom_messages', messageId, { taskId: newTaskId });
 
-    // Auto-restart the target agent if offline (Fix: handoff path was missing auto-restart)
-    if (session) {
-      try {
-        await autoRestartOfflineAgent(ctx, args.chatroomId, args.targetRole, session.userId);
-      } catch (error) {
-        // Log but don't fail — restart is best-effort, not critical path
-        console.error(
-          `[handoff][auto-restart] Failed to restart agent for role "${args.targetRole}":`,
-          error
-        );
-      }
+    // Auto-restart the target agent if offline
+    try {
+      await autoRestartOfflineAgent(ctx, args.chatroomId, args.targetRole, session.userId);
+    } catch (error) {
+      // Log but don't fail — restart is best-effort, not critical path
+      console.error(
+        `[handoff][auto-restart] Failed to restart agent for role "${args.targetRole}":`,
+        error
+      );
     }
   }
 

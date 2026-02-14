@@ -78,7 +78,7 @@ export interface AgentHandle {
   workingDir: string;
 }
 
-// ─── Spawn Result (backward compat) ─────────────────────────────────────────
+// ─── Driver Start Result ─────────────────────────────────────────────────────
 
 /**
  * Callback signature for process exit events.

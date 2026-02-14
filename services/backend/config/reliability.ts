@@ -6,11 +6,11 @@
  */
 
 /** How often the CLI sends a heartbeat to refresh readyUntil (ms). */
-export const HEARTBEAT_INTERVAL_MS = 30_000;
+export const HEARTBEAT_INTERVAL_MS = 30_000; // 30s
 
 /** How long a participant is considered reachable after the last heartbeat (ms).
  *  Must be > HEARTBEAT_INTERVAL_MS to tolerate one missed beat. */
-export const HEARTBEAT_TTL_MS = 60_000;
+export const HEARTBEAT_TTL_MS = 60_000; // 1 min
 
 /** How long a task can be stuck in `pending` before triggering recovery (ms).
  *  For remote agents: triggers auto-restart. For custom agents: logs a warning. */
