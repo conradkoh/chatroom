@@ -98,7 +98,7 @@
 
 ---
 
-### Phase 5: Formalize Task Recovery via FSM (P2)
+### Phase 5: Formalize Task Recovery via FSM (P2) ✅ DONE
 
 **Goal:** Ensure all task state transitions go through the FSM, including recovery operations.
 
@@ -142,5 +142,5 @@ Phase 3 (Dedup) ──────────── independent      Phase 5 (F
 | Phase 2: Process Death | 1 day | P0 | ✅ Done |
 | Phase 3: Dedup | 1 day | P1 | ✅ Done |
 | Phase 4: Task Timeout | 2 days | P1 | ✅ Done |
-| Phase 5: FSM Formalization | 0.5 day | P2 | Open |
+| Phase 5: FSM Formalization | 0.5 day | P2 | ✅ Done |
 | **Total** | **6.5 days** | | |
