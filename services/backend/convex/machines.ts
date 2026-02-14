@@ -258,12 +258,15 @@ export const updateAgentConfig = mutation({
       )
       .first();
 
+    // Preserve existing model if the new value is undefined (e.g. wait-for-task doesn't pass model)
+    const resolvedModel = args.model ?? existing?.model;
+
     if (existing) {
       // Update existing config
       await ctx.db.patch('chatroom_machineAgentConfigs', existing._id, {
         agentType: args.agentType,
         workingDir: args.workingDir,
-        model: args.model,
+        model: resolvedModel,
         updatedAt: now,
       });
     } else {
@@ -274,7 +277,7 @@ export const updateAgentConfig = mutation({
         role: args.role,
         agentType: args.agentType,
         workingDir: args.workingDir,
-        model: args.model,
+        model: resolvedModel,
         updatedAt: now,
       });
     }

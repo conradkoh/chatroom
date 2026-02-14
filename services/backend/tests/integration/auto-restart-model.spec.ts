@@ -185,4 +185,57 @@ describe('Auto-restart Model Selection', () => {
     expect(startAgentCmd).toBeDefined();
     expect(startAgentCmd!.payload.model).toBe('claude-opus-4');
   });
+
+  test('updateAgentConfig preserves model in machine config when called without model', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-auto-restart-model-3');
+    const chatroomId = await createPairChatroom(sessionId);
+    const { machineId } = await registerMachine(sessionId, 'machine-model-test-3');
+
+    // ===== START AGENT WITH SPECIFIC MODEL =====
+    // This saves model to both team config and machine config
+    await t.mutation(api.machines.sendCommand, {
+      sessionId,
+      machineId,
+      type: 'start-agent',
+      payload: {
+        chatroomId,
+        role: 'builder',
+        model: 'claude-opus-4',
+        agentHarness: 'opencode',
+        workingDir: '/test/workspace',
+      },
+    });
+
+    // Ack all pending commands
+    const cmds = await getPendingCommands(sessionId, machineId);
+    for (const cmd of cmds) {
+      await t.mutation(api.machines.ackCommand, {
+        sessionId,
+        commandId: cmd._id,
+        status: 'completed' as const,
+      });
+    }
+
+    // ===== SIMULATE wait-for-task CALLING updateAgentConfig WITHOUT MODEL =====
+    await t.mutation(api.machines.updateAgentConfig, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      agentType: 'opencode',
+      workingDir: '/test/workspace',
+      // NOTE: no model field — simulates wait-for-task CLI behavior
+    });
+
+    // ===== VERIFY: machine config should still have the model =====
+    const configsResult = await t.query(api.machines.getAgentConfigs, {
+      sessionId,
+      chatroomId,
+    });
+    const builderConfig = configsResult.configs.find((c: { role: string }) => c.role === 'builder');
+
+    expect(builderConfig).toBeDefined();
+    expect(builderConfig!.model).toBe('claude-opus-4');
+  });
 });
