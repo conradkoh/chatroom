@@ -194,7 +194,11 @@ export abstract class ProcessDriver implements AgentHarnessDriver {
     const pid = handle.pid;
 
     // Send SIGTERM first
-    process.kill(pid, 'SIGTERM');
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch {
+      return; // Process already exited (ESRCH)
+    }
 
     // Wait up to 5 seconds for graceful exit
     const KILL_TIMEOUT_MS = 5000;
