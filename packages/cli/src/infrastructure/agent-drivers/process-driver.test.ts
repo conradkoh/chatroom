@@ -125,6 +125,26 @@ describe('ProcessDriver.stop()', () => {
     expect(isProcessAlive(pid)).toBe(false);
   }, 15_000); // 15s timeout for this test
 
+  it('succeeds silently when process is already dead (ESRCH)', async () => {
+    const driver = new TestProcessDriver();
+    const pid = spawnSleepProcess(60);
+
+    // Kill the process before calling stop()
+    process.kill(pid, 'SIGKILL');
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(isProcessAlive(pid)).toBe(false);
+
+    const handle: AgentHandle = {
+      harness: 'opencode',
+      type: 'process',
+      pid,
+      workingDir: '/tmp',
+    };
+
+    // stop() should not throw — ESRCH is handled gracefully
+    await expect(driver.stop(handle)).resolves.toBeUndefined();
+  });
+
   it('throws if handle has no PID', async () => {
     const driver = new TestProcessDriver();
 
