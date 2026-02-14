@@ -7,6 +7,8 @@
 import { execSync } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 
+import { DAEMON_HEARTBEAT_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
+
 import { acquireLock, releaseLock } from './pid.js';
 import { api, type Id } from '../../api.js';
 import { getDriverRegistry } from '../../infrastructure/agent-drivers/index.js';
@@ -854,8 +856,29 @@ async function initDaemon(): Promise<DaemonContext> {
  */
 async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Set up graceful shutdown
+  // ── Daemon Heartbeat ──────────────────────────────────────────────────
+  // Periodically update lastSeenAt so the backend can detect daemon crashes.
+  // If the daemon is killed with SIGKILL, heartbeats stop and the backend
+  // will mark the daemon as disconnected after DAEMON_HEARTBEAT_TTL_MS.
+  const heartbeatTimer = setInterval(() => {
+    ctx.client
+      .mutation(api.machines.daemonHeartbeat, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+      })
+      .catch((err: Error) => {
+        console.warn(`[${formatTimestamp()}] ⚠️  Daemon heartbeat failed: ${err.message}`);
+      });
+  }, DAEMON_HEARTBEAT_INTERVAL_MS);
+
+  // Don't let the heartbeat timer keep the process alive during shutdown
+  heartbeatTimer.unref();
+
   const shutdown = async () => {
     console.log(`\n[${formatTimestamp()}] Shutting down...`);
+
+    // Stop heartbeat timer
+    clearInterval(heartbeatTimer);
 
     try {
       // Update daemon status to disconnected

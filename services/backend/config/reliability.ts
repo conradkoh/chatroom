@@ -19,3 +19,12 @@ export const TASK_PENDING_TIMEOUT_MS = 300_000; // 5 min
 /** How long a task can be stuck in `acknowledged` before being reset to `pending` (ms).
  *  If the assigned participant is missing or expired, the task is recovered. */
 export const TASK_ACKNOWLEDGED_TIMEOUT_MS = 120_000; // 2 min
+
+// ─── Daemon Heartbeat ────────────────────────────────────────────────────────
+
+/** How often the daemon sends a heartbeat to refresh lastSeenAt (ms). */
+export const DAEMON_HEARTBEAT_INTERVAL_MS = 30_000; // 30s
+
+/** How long a daemon is considered alive after the last heartbeat (ms).
+ *  Must be > DAEMON_HEARTBEAT_INTERVAL_MS to tolerate missed beats (allows 2 missed). */
+export const DAEMON_HEARTBEAT_TTL_MS = 90_000; // 90s

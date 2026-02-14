@@ -2,7 +2,7 @@ import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { HEARTBEAT_TTL_MS } from '../config/reliability';
+import { DAEMON_HEARTBEAT_TTL_MS, HEARTBEAT_TTL_MS } from '../config/reliability';
 import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
@@ -130,6 +130,19 @@ async function autoRestartOfflineAgent(
 
   if (!machine || !machine.daemonConnected) {
     return; // Daemon is not connected — can't send commands
+  }
+
+  // Check daemon heartbeat freshness — if lastSeenAt is stale, the daemon
+  // may have crashed without disconnecting. Skip restart to avoid sending
+  // commands that will never be processed.
+  const timeSinceLastSeen = now - machine.lastSeenAt;
+  if (timeSinceLastSeen > DAEMON_HEARTBEAT_TTL_MS) {
+    console.warn(
+      `[auto-restart] Daemon on machine "${machine.hostname}" (${machine.machineId}) ` +
+        `appears stale — last seen ${timeSinceLastSeen}ms ago (TTL: ${DAEMON_HEARTBEAT_TTL_MS}ms). ` +
+        `Skipping restart for role "${targetRole}".`
+    );
+    return;
   }
 
   // Validate required fields for start command before dispatching

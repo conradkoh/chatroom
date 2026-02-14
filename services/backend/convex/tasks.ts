@@ -1,7 +1,11 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { TASK_ACKNOWLEDGED_TIMEOUT_MS, TASK_PENDING_TIMEOUT_MS } from '../config/reliability';
+import {
+  DAEMON_HEARTBEAT_TTL_MS,
+  TASK_ACKNOWLEDGED_TIMEOUT_MS,
+  TASK_PENDING_TIMEOUT_MS,
+} from '../config/reliability';
 import { internalMutation, mutation, query } from './_generated/server';
 import {
   areAllAgentsReady,
@@ -1730,6 +1734,32 @@ export const cleanupStaleAgents = internalMutation({
           `found ${stuckPendingCount} stuck pending tasks, ` +
           `triggered ${autoRestartsTriggered} auto-restarts`
       );
+    }
+
+    // ─── Stale Daemon Detection ─────────────────────────────────────────
+    // After participant and task cleanup, check for daemons that stopped
+    // sending heartbeats (e.g. SIGKILL, machine crash). Mark them as
+    // disconnected so the UI and auto-restart logic don't rely on them.
+    const allMachines = await ctx.db.query('chatroom_machines').collect();
+    let staleDaemonCount = 0;
+
+    for (const machine of allMachines) {
+      if (!machine.daemonConnected) continue;
+
+      const timeSinceLastSeen = now - machine.lastSeenAt;
+      if (timeSinceLastSeen > DAEMON_HEARTBEAT_TTL_MS) {
+        await ctx.db.patch('chatroom_machines', machine._id, {
+          daemonConnected: false,
+        });
+        staleDaemonCount++;
+        console.warn(
+          `[Daemon Cleanup] Machine "${machine.hostname}" (${machine.machineId}) daemon marked disconnected — last seen ${timeSinceLastSeen}ms ago`
+        );
+      }
+    }
+
+    if (staleDaemonCount > 0) {
+      console.warn(`[Daemon Cleanup] Marked ${staleDaemonCount} stale daemon(s) as disconnected`);
     }
   },
 });
