@@ -180,13 +180,42 @@ export abstract class ProcessDriver implements AgentHarnessDriver {
   }
 
   /**
-   * Stop an agent by sending SIGTERM to its PID.
+   * Stop an agent by sending SIGTERM, then SIGKILL if it doesn't exit.
+   *
+   * 1. Sends SIGTERM for graceful shutdown
+   * 2. Polls every 200ms for up to 5 seconds
+   * 3. If still alive, sends SIGKILL as a last resort
    */
   async stop(handle: AgentHandle): Promise<void> {
     if (handle.type !== 'process' || !handle.pid) {
       throw new Error(`Cannot stop: handle has no PID (type=${handle.type})`);
     }
-    process.kill(handle.pid, 'SIGTERM');
+
+    const pid = handle.pid;
+
+    // Send SIGTERM first
+    process.kill(pid, 'SIGTERM');
+
+    // Wait up to 5 seconds for graceful exit
+    const KILL_TIMEOUT_MS = 5000;
+    const POLL_INTERVAL_MS = 200;
+    const deadline = Date.now() + KILL_TIMEOUT_MS;
+
+    while (Date.now() < deadline) {
+      try {
+        process.kill(pid, 0); // Check if still alive
+      } catch {
+        return; // Process exited
+      }
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+
+    // Still alive — force kill
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // Process may have exited between check and kill
+    }
   }
 
   /**
