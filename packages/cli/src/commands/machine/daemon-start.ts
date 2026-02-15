@@ -28,6 +28,7 @@ import {
   persistAgentPid,
   updateAgentContext,
 } from '../../infrastructure/machine/index.js';
+import { getVersion } from '../../version.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -828,6 +829,7 @@ async function initDaemon(): Promise<DaemonContext> {
   const ctx: DaemonContext = { client, sessionId: typedSessionId, machineId, config };
 
   console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
+  console.log(`   CLI version: ${getVersion()}`);
   console.log(`   Machine ID: ${machineId}`);
   console.log(`   Hostname: ${config?.hostname ?? 'Unknown'}`);
   console.log(`   Available harnesses: ${config?.availableHarnesses.join(', ') || 'none'}`);
@@ -860,11 +862,16 @@ async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Periodically update lastSeenAt so the backend can detect daemon crashes.
   // If the daemon is killed with SIGKILL, heartbeats stop and the backend
   // will mark the daemon as disconnected after DAEMON_HEARTBEAT_TTL_MS.
+  let heartbeatCount = 0;
   const heartbeatTimer = setInterval(() => {
     ctx.client
       .mutation(api.machines.daemonHeartbeat, {
         sessionId: ctx.sessionId,
         machineId: ctx.machineId,
+      })
+      .then(() => {
+        heartbeatCount++;
+        console.log(`[${formatTimestamp()}] 💓 Daemon heartbeat #${heartbeatCount} OK`);
       })
       .catch((err: Error) => {
         console.warn(`[${formatTimestamp()}] ⚠️  Daemon heartbeat failed: ${err.message}`);
