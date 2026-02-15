@@ -28,6 +28,7 @@ import {
   persistAgentPid,
   updateAgentContext,
 } from '../../infrastructure/machine/index.js';
+import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
 import { getVersion } from '../../version.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -821,7 +822,11 @@ async function initDaemon(): Promise<DaemonContext> {
       connected: true,
     });
   } catch (error) {
-    console.error(`❌ Failed to update daemon status: ${(error as Error).message}`);
+    if (isNetworkError(error)) {
+      formatConnectivityError(error, convexUrl);
+    } else {
+      console.error(`❌ Failed to update daemon status: ${(error as Error).message}`);
+    }
     releaseLock();
     process.exit(1);
   }

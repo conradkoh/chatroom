@@ -63,3 +63,43 @@ export function formatChatroomIdError(chatroomId: string | undefined): void {
     '20-40 character string'
   );
 }
+
+/**
+ * Check if an error is a network/connectivity error (backend unreachable)
+ * as opposed to an application-level error (auth invalid, etc.)
+ */
+export function isNetworkError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const code = (error as { code?: string })?.code;
+  return (
+    msg.includes('fetch failed') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('econnrefused') ||
+    msg.includes('enotfound') ||
+    msg.includes('etimedout') ||
+    msg.includes('network') ||
+    msg.includes('connection refused') ||
+    msg.includes('socket hang up') ||
+    msg.includes('dns') ||
+    code === 'ECONNREFUSED' ||
+    code === 'ENOTFOUND' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ECONNRESET'
+  );
+}
+
+/**
+ * Format a connectivity error message for when the backend is unreachable
+ */
+export function formatConnectivityError(error: unknown, backendUrl?: string): void {
+  const err = error instanceof Error ? error : new Error(String(error));
+  console.error(`\n❌ Could not reach the backend${backendUrl ? ` at ${backendUrl}` : ''}`);
+  console.error(`   ${err.message}`);
+  console.error(`\n   Your session may still be valid. Please check:`);
+  console.error(`   • Network connectivity`);
+  console.error(`   • Whether the backend service is running`);
+  if (backendUrl) {
+    console.error(`   • CHATROOM_CONVEX_URL is correct (currently: ${backendUrl})`);
+  }
+  console.error(`\n   Try again once the backend is reachable.`);
+}
