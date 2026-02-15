@@ -31,6 +31,14 @@ import {
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
 import { getVersion } from '../../version.js';
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+/** Maximum number of restart attempts after an agent process crashes. */
+const MAX_CRASH_RESTART_ATTEMPTS = 3;
+
+/** Delay between crash restart attempts (in milliseconds). */
+const CRASH_RESTART_DELAY_MS = 3000;
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 /**
@@ -272,6 +280,78 @@ async function clearAgentPidEverywhere(
   clearAgentPid(ctx.machineId, chatroomId, role);
 }
 
+// ─── Crash Recovery ─────────────────────────────────────────────────────────
+
+/**
+ * Handle agent process crash recovery.
+ * Called when an agent process exits unexpectedly. Performs:
+ * 1. Clear PID from backend and local state
+ * 2. Mark agent as offline (participants.leave) so tasks can be recovered
+ * 3. Auto-restart the agent with retry logic (up to MAX_CRASH_RESTART_ATTEMPTS)
+ *
+ * If restart fails after MAX_CRASH_RESTART_ATTEMPTS, logs a warning and stops.
+ */
+async function handleAgentCrashRecovery(
+  ctx: DaemonContext,
+  originalCommand: StartAgentCommand,
+  _crashedPid: number | undefined
+): Promise<void> {
+  const { chatroomId, role } = originalCommand.payload;
+  const ts = formatTimestamp();
+
+  // Step 1: Clear PID from backend and local state
+  await clearAgentPidEverywhere(ctx, chatroomId, role).catch((err) => {
+    console.log(`   ⚠️  Failed to clear PID after exit: ${(err as Error).message}`);
+  });
+
+  // Step 2: Mark agent as offline so tasks are recoverable
+  try {
+    await ctx.client.mutation(api.participants.leave, {
+      sessionId: ctx.sessionId,
+      chatroomId,
+      role,
+    });
+    console.log(`[${ts}]    Marked ${role} as offline (participant removed)`);
+  } catch (leaveErr) {
+    // Non-critical: participant will eventually expire via readyUntil/activeUntil
+    console.log(`[${ts}]    ⚠️  Could not remove participant: ${(leaveErr as Error).message}`);
+  }
+
+  // Step 3: Auto-restart with retry logic
+  console.log(
+    `[${ts}] 🔄 Attempting to restart ${role} (max ${MAX_CRASH_RESTART_ATTEMPTS} attempts)...`
+  );
+
+  for (let attempt = 1; attempt <= MAX_CRASH_RESTART_ATTEMPTS; attempt++) {
+    const attemptTs = formatTimestamp();
+    console.log(`[${attemptTs}]    Restart attempt ${attempt}/${MAX_CRASH_RESTART_ATTEMPTS}...`);
+
+    // Wait before restart to avoid tight restart loops
+    await new Promise((resolve) => setTimeout(resolve, CRASH_RESTART_DELAY_MS));
+
+    try {
+      const result = await handleStartAgent(ctx, originalCommand);
+      if (!result.failed) {
+        const successTs = formatTimestamp();
+        console.log(`[${successTs}] ✅ ${role} restarted successfully on attempt ${attempt}`);
+        return;
+      }
+      console.log(`[${attemptTs}]    ⚠️  Restart attempt ${attempt} failed: ${result.result}`);
+    } catch (restartErr) {
+      console.log(
+        `[${attemptTs}]    ⚠️  Restart attempt ${attempt} error: ${(restartErr as Error).message}`
+      );
+    }
+  }
+
+  // All attempts exhausted
+  const failTs = formatTimestamp();
+  console.log(
+    `[${failTs}] ❌ Failed to restart ${role} after ${MAX_CRASH_RESTART_ATTEMPTS} attempts. ` +
+      `The agent will need to be restarted manually or via the webapp.`
+  );
+}
+
 // ─── State Recovery ──────────────────────────────────────────────────────────
 
 /**
@@ -453,8 +533,10 @@ async function handleStartAgent(
       }
 
       // Monitor for unexpected process death.
-      // When the spawned agent exits, immediately clear the PID in the backend
-      // and local state so the UI reflects the agent as stopped.
+      // When the spawned agent exits:
+      // 1. Clear PID so UI reflects agent as stopped
+      // 2. Mark agent offline (participants.leave) so tasks can be recovered
+      // 3. Auto-restart with retry logic (up to MAX_CRASH_RESTART_ATTEMPTS)
       if (startResult.onExit) {
         const spawnedPid = startResult.handle.pid;
         startResult.onExit((code, signal) => {
@@ -463,9 +545,9 @@ async function handleStartAgent(
             `[${ts}] ⚠️  Agent process exited unexpectedly ` +
               `(PID: ${spawnedPid}, role: ${role}, code: ${code}, signal: ${signal})`
           );
-          // Fire-and-forget: clear PID in backend and local state
-          clearAgentPidEverywhere(ctx, chatroomId, role).catch((err) => {
-            console.log(`   ⚠️  Failed to clear PID after exit: ${(err as Error).message}`);
+          // Run crash recovery asynchronously
+          handleAgentCrashRecovery(ctx, command, spawnedPid).catch((err) => {
+            console.log(`   ⚠️  Crash recovery failed for ${role}: ${(err as Error).message}`);
           });
         });
       }
