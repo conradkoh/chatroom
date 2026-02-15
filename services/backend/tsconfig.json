@@ -12,6 +12,7 @@
   },
   "include": [
     "config/**/*",
+    "convex/**/*",
     "modules/**/*",
     "prompts/**/*",
     "utils/**/*",
@@ -19,5 +20,5 @@
     "test.setup.ts",
     "vitest.config.mts"
   ],
-  "exclude": ["convex", "node_modules", "dist"]
+  "exclude": ["node_modules", "dist"]
 }

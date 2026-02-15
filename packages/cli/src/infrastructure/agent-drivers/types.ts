@@ -78,7 +78,13 @@ export interface AgentHandle {
   workingDir: string;
 }
 
-// ─── Spawn Result (backward compat) ─────────────────────────────────────────
+// ─── Driver Start Result ─────────────────────────────────────────────────────
+
+/**
+ * Callback signature for process exit events.
+ * Invoked when a spawned agent process exits (expected or unexpected).
+ */
+export type ProcessExitCallback = (code: number | null, signal: string | null) => void;
 
 /**
  * Result of a driver's start() call, including backward-compatible fields.
@@ -88,6 +94,14 @@ export interface DriverStartResult {
   success: boolean;
   message: string;
   handle?: AgentHandle;
+  /**
+   * Register a callback to be invoked when the spawned process exits.
+   * Only available for process-based drivers. The daemon uses this to
+   * detect unexpected agent death and clear the PID in the backend.
+   *
+   * The callback receives the exit code and signal (one of which may be null).
+   */
+  onExit?: (callback: ProcessExitCallback) => void;
 }
 
 // ─── Driver Interface ────────────────────────────────────────────────────────

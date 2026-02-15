@@ -1,6 +1,11 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import {
+  DAEMON_HEARTBEAT_TTL_MS,
+  TASK_ACKNOWLEDGED_TIMEOUT_MS,
+  TASK_PENDING_TIMEOUT_MS,
+} from '../config/reliability';
 import { internalMutation, mutation, query } from './_generated/server';
 import {
   areAllAgentsReady,
@@ -1545,6 +1550,216 @@ export const cleanupStaleAgents = internalMutation({
         `[Stale Cleanup] Cleaned ${cleanedCount} participants, recovered ${affectedTasks.length} tasks. ` +
           `taskIds=${affectedTasks.join(',') || 'none'}`
       );
+    }
+
+    // ─── Stuck Task Recovery ───────────────────────────────────────────
+    // After participant cleanup, check for tasks that are stuck because
+    // their assigned agent is no longer reachable.
+
+    let stuckAcknowledgedCount = 0;
+    let stuckPendingCount = 0;
+    let autoRestartsTriggered = 0;
+
+    // Build a fresh map of all current participants (after cleanup above)
+    const allParticipants = await ctx.db.query('chatroom_participants').collect();
+    const participantsByKey = new Map(
+      allParticipants.map((p) => [`${p.chatroomId}:${p.role.toLowerCase()}`, p])
+    );
+
+    // --- Stuck acknowledged tasks ---
+    // Tasks stuck in `acknowledged` for longer than TASK_ACKNOWLEDGED_TIMEOUT_MS
+    // with no valid (non-expired) participant are reset to `pending`.
+    const acknowledgedTasks = await ctx.db
+      .query('chatroom_tasks')
+      .filter((q) => q.eq(q.field('status'), 'acknowledged'))
+      .collect();
+
+    for (const task of acknowledgedTasks) {
+      const acknowledgedAt = task.acknowledgedAt || task.updatedAt;
+      if (now - acknowledgedAt < TASK_ACKNOWLEDGED_TIMEOUT_MS) continue;
+
+      // Check if the assigned participant is still valid
+      const assignedRole = task.assignedTo;
+      if (!assignedRole) {
+        // No assigned role — recover immediately
+      } else {
+        const key = `${task.chatroomId}:${assignedRole.toLowerCase()}`;
+        const participant = participantsByKey.get(key);
+        if (participant) {
+          // Participant exists — check if expired
+          const isExpired =
+            (participant.status === 'waiting' &&
+              participant.readyUntil &&
+              participant.readyUntil < now) ||
+            (participant.status === 'active' &&
+              participant.activeUntil &&
+              participant.activeUntil < now);
+          if (!isExpired) continue; // Participant is valid — skip
+        }
+      }
+
+      // Participant is missing or expired — recover the task via FSM
+      try {
+        await transitionTask(ctx, task._id, 'pending', 'recoverStuckAcknowledged');
+        stuckAcknowledgedCount++;
+        console.warn(
+          `[Task Recovery] Task ${task._id} (acknowledged) reset to pending ` +
+            `— assigned participant "${assignedRole}" is missing or expired`
+        );
+      } catch (err) {
+        console.warn(
+          `[Task Recovery] Failed to recover acknowledged task ${task._id}: ${(err as Error).message}`
+        );
+      }
+    }
+
+    // --- Stuck pending tasks ---
+    // Tasks stuck in `pending` for longer than TASK_PENDING_TIMEOUT_MS
+    // with no participant for the target role.
+    const pendingTasks = await ctx.db
+      .query('chatroom_tasks')
+      .filter((q) => q.eq(q.field('status'), 'pending'))
+      .collect();
+
+    for (const task of pendingTasks) {
+      if (now - task.updatedAt < TASK_PENDING_TIMEOUT_MS) continue;
+
+      // Determine the target role for this task.
+      // For pending tasks, the target role is typically the entry point role
+      // of the chatroom (the first role that should pick it up).
+      const chatroom = await ctx.db.get('chatroom_rooms', task.chatroomId);
+      if (!chatroom) continue;
+
+      const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
+      if (!entryPoint) continue;
+
+      const key = `${task.chatroomId}:${entryPoint.toLowerCase()}`;
+      const participant = participantsByKey.get(key);
+
+      // If participant exists and is not expired, skip
+      if (participant) {
+        const isExpired =
+          (participant.status === 'waiting' &&
+            participant.readyUntil &&
+            participant.readyUntil < now) ||
+          (participant.status === 'active' &&
+            participant.activeUntil &&
+            participant.activeUntil < now);
+        if (!isExpired) continue;
+      }
+
+      // No valid participant — check team agent config to decide recovery action
+      stuckPendingCount++;
+      const teamId = chatroom.teamId || chatroom._id;
+      const teamRoleKey = `team_${teamId}#role_${entryPoint.toLowerCase()}`;
+
+      const teamConfig = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+        .first();
+
+      if (teamConfig?.type === 'remote' && teamConfig.machineId) {
+        // Remote agent — attempt auto-restart
+        const machine = await ctx.db
+          .query('chatroom_machines')
+          .withIndex('by_machineId', (q) => q.eq('machineId', teamConfig.machineId!))
+          .first();
+
+        if (machine?.daemonConnected && teamConfig.agentHarness && teamConfig.workingDir) {
+          // Check for existing pending restart (dedup)
+          const pendingCmds = await ctx.db
+            .query('chatroom_machineCommands')
+            .withIndex('by_machineId_status', (q) =>
+              q.eq('machineId', teamConfig.machineId!).eq('status', 'pending')
+            )
+            .collect();
+
+          const hasPendingRestart = pendingCmds.some(
+            (cmd) =>
+              cmd.type === 'start-agent' &&
+              cmd.payload.chatroomId === task.chatroomId &&
+              cmd.payload.role?.toLowerCase() === entryPoint.toLowerCase()
+          );
+
+          if (!hasPendingRestart) {
+            // Dispatch stop + start commands (use chatroom owner as sentBy)
+            await ctx.db.insert('chatroom_machineCommands', {
+              machineId: teamConfig.machineId,
+              type: 'stop-agent',
+              payload: { chatroomId: task.chatroomId, role: entryPoint },
+              status: 'pending',
+              sentBy: chatroom.ownerId,
+              createdAt: now,
+            });
+            await ctx.db.insert('chatroom_machineCommands', {
+              machineId: teamConfig.machineId,
+              type: 'start-agent',
+              payload: {
+                chatroomId: task.chatroomId,
+                role: entryPoint,
+                agentHarness: teamConfig.agentHarness,
+                model: teamConfig.model,
+                workingDir: teamConfig.workingDir,
+              },
+              status: 'pending',
+              sentBy: chatroom.ownerId,
+              createdAt: now + 1,
+            });
+            autoRestartsTriggered++;
+            console.warn(
+              `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
+                `Auto-restarting remote agent "${entryPoint}" on machine ${teamConfig.machineId}`
+            );
+          }
+        }
+      } else if (teamConfig?.type === 'custom') {
+        // Custom agent — cannot auto-restart, log warning
+        console.warn(
+          `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
+            `Agent "${entryPoint}" is custom (user-managed) — cannot auto-restart. ` +
+            `User notification would go here in a future enhancement.`
+        );
+      } else {
+        console.warn(
+          `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
+            `No team agent config found for role "${entryPoint}" — cannot recover.`
+        );
+      }
+    }
+
+    // Summary log for task recovery
+    if (stuckAcknowledgedCount > 0 || stuckPendingCount > 0) {
+      console.warn(
+        `[Task Recovery] Recovered ${stuckAcknowledgedCount} acknowledged tasks, ` +
+          `found ${stuckPendingCount} stuck pending tasks, ` +
+          `triggered ${autoRestartsTriggered} auto-restarts`
+      );
+    }
+
+    // ─── Stale Daemon Detection ─────────────────────────────────────────
+    // After participant and task cleanup, check for daemons that stopped
+    // sending heartbeats (e.g. SIGKILL, machine crash). Mark them as
+    // disconnected so the UI and auto-restart logic don't rely on them.
+    const allMachines = await ctx.db.query('chatroom_machines').collect();
+    let staleDaemonCount = 0;
+
+    for (const machine of allMachines) {
+      if (!machine.daemonConnected) continue;
+
+      const timeSinceLastSeen = now - machine.lastSeenAt;
+      if (timeSinceLastSeen > DAEMON_HEARTBEAT_TTL_MS) {
+        await ctx.db.patch('chatroom_machines', machine._id, {
+          daemonConnected: false,
+        });
+        staleDaemonCount++;
+        console.warn(
+          `[Daemon Cleanup] Machine "${machine.hostname}" (${machine.machineId}) daemon marked disconnected — last seen ${timeSinceLastSeen}ms ago`
+        );
+      }
+    }
+
+    if (staleDaemonCount > 0) {
+      console.warn(`[Daemon Cleanup] Marked ${staleDaemonCount} stale daemon(s) as disconnected`);
     }
   },
 });

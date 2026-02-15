@@ -496,6 +496,33 @@ export const updateDaemonStatus = mutation({
 });
 
 /**
+ * Daemon heartbeat — update lastSeenAt for liveness detection.
+ * Called periodically by the daemon to prove it is still alive.
+ * If the daemon crashes (e.g. SIGKILL), heartbeats stop and the backend
+ * can detect the stale daemon via DAEMON_HEARTBEAT_TTL_MS.
+ */
+export const daemonHeartbeat = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    const user = auth.user;
+    const machine = await getOwnedMachine(ctx, args.machineId, user._id);
+
+    await ctx.db.patch('chatroom_machines', machine._id, {
+      lastSeenAt: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
+/**
  * Send a command to a machine (from web UI).
  * Only the machine owner can send commands.
  *

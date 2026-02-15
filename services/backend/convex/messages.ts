@@ -2,6 +2,7 @@ import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { DAEMON_HEARTBEAT_TTL_MS, HEARTBEAT_TTL_MS } from '../config/reliability';
 import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
@@ -62,6 +63,7 @@ interface TaskDeliveryPromptResponse {
  * 1. The target role has an existing agent config (machine, harness, workingDir)
  * 2. The machine's daemon is currently connected
  * 3. The participant is either missing or expired
+ * 4. No pending `start-agent` command exists for this machine + chatroom + role (dedup)
  */
 async function autoRestartOfflineAgent(
   ctx: MutationCtx,
@@ -83,8 +85,15 @@ async function autoRestartOfflineAgent(
 
   // Participant exists and is not expired — agent is online, no restart needed
   if (targetParticipant) {
-    const isExpired = targetParticipant.readyUntil ? targetParticipant.readyUntil < now : false;
-    if (!isExpired) {
+    const isWaitingExpired =
+      targetParticipant.status === 'waiting' &&
+      targetParticipant.readyUntil &&
+      targetParticipant.readyUntil < now;
+    const isActiveExpired =
+      targetParticipant.status === 'active' &&
+      targetParticipant.activeUntil &&
+      targetParticipant.activeUntil < now;
+    if (!isWaitingExpired && !isActiveExpired) {
       return; // Agent is online
     }
   }
@@ -123,6 +132,19 @@ async function autoRestartOfflineAgent(
     return; // Daemon is not connected — can't send commands
   }
 
+  // Check daemon heartbeat freshness — if lastSeenAt is stale, the daemon
+  // may have crashed without disconnecting. Skip restart to avoid sending
+  // commands that will never be processed.
+  const timeSinceLastSeen = now - machine.lastSeenAt;
+  if (timeSinceLastSeen > DAEMON_HEARTBEAT_TTL_MS) {
+    console.warn(
+      `[auto-restart] Daemon on machine "${machine.hostname}" (${machine.machineId}) ` +
+        `appears stale — last seen ${timeSinceLastSeen}ms ago (TTL: ${DAEMON_HEARTBEAT_TTL_MS}ms). ` +
+        `Skipping restart for role "${targetRole}".`
+    );
+    return;
+  }
+
   // Validate required fields for start command before dispatching
   // Without agentHarness or workingDir, the daemon silently drops the command
   if (!teamConfig.agentHarness || !teamConfig.workingDir) {
@@ -157,6 +179,32 @@ async function autoRestartOfflineAgent(
       `[auto-restart] No model found for role "${targetRole}" ` +
         `(checked teamConfig and machineConfig). The daemon will use its default model.`
     );
+  }
+
+  // --- Dedup check ---
+  // Prevent duplicate restart commands when multiple messages arrive for the
+  // same offline agent in quick succession. If a pending start-agent command
+  // already exists for this machine + chatroom + role, skip the restart.
+  const pendingCommands = await ctx.db
+    .query('chatroom_machineCommands')
+    .withIndex('by_machineId_status', (q) =>
+      q.eq('machineId', teamConfig.machineId!).eq('status', 'pending')
+    )
+    .collect();
+
+  const hasPendingRestart = pendingCommands.some(
+    (cmd) =>
+      cmd.type === 'start-agent' &&
+      cmd.payload.chatroomId === chatroomId &&
+      cmd.payload.role?.toLowerCase() === targetRole.toLowerCase()
+  );
+
+  if (hasPendingRestart) {
+    console.warn(
+      `[auto-restart] Skipping duplicate restart for role "${targetRole}" ` +
+        `in chatroom ${chatroomId} — a pending start-agent command already exists`
+    );
+    return;
   }
 
   // Dispatch stop + start commands using team config parameters
@@ -581,17 +629,15 @@ async function _handoffHandler(
     // Link message to task
     await ctx.db.patch('chatroom_messages', messageId, { taskId: newTaskId });
 
-    // Auto-restart the target agent if offline (Fix: handoff path was missing auto-restart)
-    if (session) {
-      try {
-        await autoRestartOfflineAgent(ctx, args.chatroomId, args.targetRole, session.userId);
-      } catch (error) {
-        // Log but don't fail — restart is best-effort, not critical path
-        console.error(
-          `[handoff][auto-restart] Failed to restart agent for role "${args.targetRole}":`,
-          error
-        );
-      }
+    // Auto-restart the target agent if offline
+    try {
+      await autoRestartOfflineAgent(ctx, args.chatroomId, args.targetRole, session.userId);
+    } catch (error) {
+      // Log but don't fail — restart is best-effort, not critical path
+      console.error(
+        `[handoff][auto-restart] Failed to restart agent for role "${args.targetRole}":`,
+        error
+      );
     }
   }
 
@@ -604,7 +650,10 @@ async function _handoffHandler(
     .unique();
 
   if (participant) {
-    await ctx.db.patch('chatroom_participants', participant._id, { status: 'waiting' });
+    await ctx.db.patch('chatroom_participants', participant._id, {
+      status: 'waiting',
+      readyUntil: Date.now() + HEARTBEAT_TTL_MS,
+    });
   }
 
   // Step 5: Update attached backlog tasks to pending_user_review when handing off to user

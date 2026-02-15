@@ -3,7 +3,8 @@
  *
  * This module enforces strict state transitions for task lifecycle management.
  * Status is the SINGLE SOURCE OF TRUTH for workflow state.
- * Timestamps are metadata only - never used for business logic.
+ * Timestamps are primarily metadata, but `acknowledgedAt` and `updatedAt`
+ * are also used by the stuck-task recovery logic in `cleanupStaleAgents`.
  *
  * All task state transitions MUST go through transitionTask() to ensure:
  * - Only valid transitions are allowed
@@ -106,7 +107,6 @@ const TRANSITIONS: TransitionRule[] = [
       acknowledgedAt: 'NOW',
       assignedTo: 'PROVIDED',
     },
-    clearFields: [],
   },
 
   {
@@ -116,7 +116,6 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {
       startedAt: 'NOW',
     },
-    clearFields: [],
   },
 
   {
@@ -126,7 +125,6 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {
       completedAt: 'NOW',
     },
-    clearFields: [],
   },
 
   {
@@ -134,7 +132,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'pending_user_review',
     trigger: 'completeTask',
     setFields: {},
-    clearFields: [],
   },
 
   // ==========================================================================
@@ -149,7 +146,6 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {
       parentTaskIds: 'PROVIDED',
     },
-    clearFields: [],
   },
 
   {
@@ -157,7 +153,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'pending_user_review',
     trigger: 'parentTaskAcknowledged',
     setFields: {},
-    clearFields: [],
   },
 
   {
@@ -165,7 +160,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'pending_user_review',
     trigger: 'parentTaskAcknowledged',
     setFields: {},
-    clearFields: [],
   },
 
   {
@@ -173,7 +167,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'pending_user_review',
     trigger: 'parentTaskAcknowledged',
     setFields: {},
-    clearFields: [],
   },
 
   {
@@ -181,7 +174,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'pending_user_review',
     trigger: 'parentTaskAcknowledged',
     setFields: {},
-    clearFields: [],
   },
 
   {
@@ -189,7 +181,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'pending_user_review',
     trigger: 'parentTaskAcknowledged',
     setFields: {},
-    clearFields: [],
   },
 
   {
@@ -197,7 +188,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'pending_user_review',
     trigger: 'parentTaskAcknowledged',
     setFields: {},
-    clearFields: [],
   },
 
   {
@@ -207,7 +197,6 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {
       completedAt: 'NOW',
     },
-    clearFields: [],
   },
 
   {
@@ -217,7 +206,6 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {
       completedAt: 'NOW',
     },
-    clearFields: [],
   },
 
   {
@@ -227,7 +215,6 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {
       completedAt: 'NOW',
     },
-    clearFields: [],
   },
 
   // ==========================================================================
@@ -239,7 +226,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'pending_user_review',
     trigger: 'markForReview',
     setFields: {},
-    clearFields: [],
   },
 
   // ==========================================================================
@@ -294,6 +280,22 @@ const TRANSITIONS: TransitionRule[] = [
     clearFields: ['startedAt', 'assignedTo', 'completedAt', 'acknowledgedAt'],
   },
 
+  {
+    from: 'pending_user_review',
+    to: 'pending',
+    trigger: 'moveToQueue',
+    setFields: {},
+    clearFields: ['completedAt'],
+  },
+
+  {
+    from: 'pending_user_review',
+    to: 'queued',
+    trigger: 'moveToQueue',
+    setFields: {},
+    clearFields: ['completedAt'],
+  },
+
   // ==========================================================================
   // CANCELLATION: any active state → closed
   // ==========================================================================
@@ -303,7 +305,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'closed',
     trigger: 'cancelTask',
     setFields: {},
-    clearFields: [],
   },
 
   {
@@ -311,7 +312,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'closed',
     trigger: 'cancelTask',
     setFields: {},
-    clearFields: [],
   },
 
   {
@@ -319,7 +319,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'closed',
     trigger: 'cancelTask',
     setFields: {},
-    clearFields: [],
   },
 
   {
@@ -327,7 +326,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'closed',
     trigger: 'cancelTask',
     setFields: {},
-    clearFields: [],
   },
 
   {
@@ -335,7 +333,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'closed',
     trigger: 'cancelTask',
     setFields: {},
-    clearFields: [],
   },
 
   {
@@ -343,7 +340,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'closed',
     trigger: 'cancelTask',
     setFields: {},
-    clearFields: [],
   },
 
   {
@@ -351,11 +347,10 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'closed',
     trigger: 'cancelTask',
     setFields: {},
-    clearFields: [],
   },
 
   // ==========================================================================
-  // RECOVERY: in_progress → pending
+  // RECOVERY: in_progress → pending, acknowledged → pending
   // ==========================================================================
 
   {
@@ -364,6 +359,14 @@ const TRANSITIONS: TransitionRule[] = [
     trigger: 'resetStuckTask',
     setFields: {},
     clearFields: ['startedAt', 'assignedTo', 'acknowledgedAt'],
+  },
+
+  {
+    from: 'acknowledged',
+    to: 'pending',
+    trigger: 'recoverStuckAcknowledged',
+    setFields: {},
+    clearFields: ['assignedTo', 'acknowledgedAt'],
   },
 
   // ==========================================================================
@@ -399,7 +402,6 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {
       completedAt: 'NOW',
     },
-    clearFields: [],
   },
 
   {
@@ -409,7 +411,6 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {
       completedAt: 'NOW',
     },
-    clearFields: [],
   },
 
   {
@@ -419,7 +420,6 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {
       completedAt: 'NOW',
     },
-    clearFields: [],
   },
 
   {
@@ -429,7 +429,6 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {
       completedAt: 'NOW',
     },
-    clearFields: [],
   },
 
   {
@@ -439,7 +438,6 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {
       completedAt: 'NOW',
     },
-    clearFields: [],
   },
   {
     from: 'backlog_acknowledged',
@@ -448,7 +446,6 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {
       completedAt: 'NOW',
     },
-    clearFields: [],
   },
 ];
 
@@ -474,7 +471,7 @@ export function canTransition(task: Task, newStatus: TaskStatus): boolean {
     return false;
   }
 
-  // Check custom validation
+  // Check custom validation — return true only if at least one transition passes
   for (const transition of validTransitions) {
     if (transition.validate && !transition.validate(task)) {
       continue;
@@ -482,7 +479,7 @@ export function canTransition(task: Task, newStatus: TaskStatus): boolean {
     return true;
   }
 
-  return validTransitions.length > 0;
+  return false;
 }
 
 /**

@@ -90,9 +90,10 @@ Custom Agent    Backend              User (webapp)
                     │ type=custom         │
                     │ → CANNOT auto-restart
                     │                    │
-                    │──notification──────▶│
-                    │                    │ "Agent X appears
-                    │                    │  unresponsive"
+                    │──log warning        │
+                    │  (notification      │
+                    │   planned for       │
+                    │   future release)   │
 ```
 
 ### Failure + Recovery: Duplicate Auto-Restart Prevention
@@ -170,7 +171,7 @@ A `setInterval` inside `wait-for-task` that calls `participants.heartbeat` every
 
 ### Process Exit Watcher (Daemon)
 
-A `child.on('exit')` handler in the daemon's `handleStartAgent` that clears the PID and notifies the backend when a spawned agent process dies unexpectedly.
+Uses the driver's `onExit` callback (registered via `DriverStartResult.onExit`) in the daemon's `handleStartAgent` to detect when a spawned agent process dies unexpectedly. On exit, the handler clears the PID in the backend and local state.
 
 ## Modified Components
 
@@ -194,12 +195,12 @@ A `child.on('exit')` handler in the daemon's `handleStartAgent` that clears the 
 
 ### `handleStartAgent` (Daemon)
 
-- **Add:** `child.on('exit')` handler to clear PID in backend on unexpected process death
+- **Add:** Register `onExit` callback from `DriverStartResult` to clear PID in backend on unexpected process death
 
 ### Task State Machine
 
 - **Add:** `recoverStuckAcknowledged` trigger: `acknowledged` → `pending`
-- **Add:** `recoverStuckPending` trigger: `pending` → `pending` (reset + auto-restart)
+- **Note:** Stuck `pending` tasks remain in `pending` status (no FSM transition needed). Recovery actions (auto-restart for remote agents, log warning for custom agents) are triggered without changing the task state.
 
 ## New Contracts
 
@@ -224,14 +225,12 @@ interface ParticipantHeartbeatArgs {
   connectionId: string;
 }
 
-// Extended cleanup result
-interface CleanupResult {
-  expiredParticipants: number;
-  stuckPendingTasks: number;
-  stuckAcknowledgedTasks: number;
-  autoRestartsTriggered: number;
-  userNotificationsSent: number;
-}
+// Cleanup result
+// Note: `cleanupStaleAgents` returns `void` and logs summary information
+// to the console instead of returning a structured result. The counts below
+// are tracked internally and emitted via `console.warn` for observability.
+// Fields: expiredParticipants, stuckPendingTasks, stuckAcknowledgedTasks,
+//         autoRestartsTriggered
 ```
 
 ## Modified Contracts
@@ -285,4 +284,4 @@ Custom agent joins → participant created (readyUntil: now+60s)
 3. **Task recovery invariant:** If a task is `pending` or `acknowledged` and no valid participant exists for the target role, the task WILL be recovered within `max(TASK_PENDING_TIMEOUT_MS, TASK_ACKNOWLEDGED_TIMEOUT_MS) + 2 min`.
 4. **Dedup invariant:** At most one pending `start-agent` command exists per role per chatroom at any time.
 5. **Exit invariant:** When `wait-for-task` exits (any reason), `participants.leave` is called, providing immediate cleanup.
-6. **Type-aware recovery:** Remote agents trigger auto-restart; custom agents trigger user notification. The system never attempts to auto-restart a custom agent.
+6. **Type-aware recovery:** Remote agents trigger auto-restart; custom agents log a warning (user notification is planned for a future enhancement). The system never attempts to auto-restart a custom agent.

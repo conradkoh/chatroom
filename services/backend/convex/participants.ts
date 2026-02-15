@@ -1,9 +1,11 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
+import { transitionTask } from './lib/taskStateMachine';
 
 /**
  * Join a chatroom as a participant.
@@ -62,14 +64,8 @@ export const join = mutation({
         .filter((q) => q.eq(q.field('assignedTo'), args.role))
         .collect();
 
-      const now = Date.now();
       for (const task of orphanedTasks) {
-        await ctx.db.patch('chatroom_tasks', task._id, {
-          status: 'pending',
-          assignedTo: undefined,
-          startedAt: undefined,
-          updatedAt: now,
-        });
+        await transitionTask(ctx, task._id, 'pending', 'resetStuckTask');
         console.warn(
           `[State Recovery] chatroomId=${args.chatroomId} role=${args.role} taskId=${task._id} ` +
             `action=reset_to_pending reason=agent_rejoined`
@@ -133,11 +129,7 @@ export const join = mutation({
           queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
           const nextTask = queuedTasks[0];
 
-          const now = Date.now();
-          await ctx.db.patch('chatroom_tasks', nextTask._id, {
-            status: 'pending',
-            updatedAt: now,
-          });
+          await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
 
           console.warn(
             `[Auto-Promote on Join] Primary role "${args.role}" joined (all agents ready). Promoted task ${nextTask._id} to pending. ` +
@@ -152,6 +144,59 @@ export const join = mutation({
     }
 
     return participantId;
+  },
+});
+
+/**
+ * Refresh a participant's readyUntil timestamp (heartbeat).
+ *
+ * Called periodically by the `wait-for-task` CLI to prove the process is still
+ * alive. The connectionId is verified so that stale processes (from a previous
+ * wait-for-task invocation) cannot extend liveness for the current one.
+ *
+ * Requires CLI session authentication and chatroom access.
+ */
+export const heartbeat = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    connectionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Find the participant
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .unique();
+
+    if (!participant) {
+      // Participant was cleaned up (e.g. by cleanupStaleAgents) but the CLI
+      // heartbeat timer is still running. This is expected — silently ignore.
+      console.warn(
+        `[heartbeat] Participant ${args.role} not found in chatroom — ignoring stale heartbeat`
+      );
+      return;
+    }
+
+    // Reject heartbeats from stale connections — a newer wait-for-task has taken over
+    if (participant.connectionId && participant.connectionId !== args.connectionId) {
+      console.warn(
+        `[heartbeat] Rejected stale heartbeat for ${args.role}: connectionId mismatch ` +
+          `(expected ${participant.connectionId}, got ${args.connectionId})`
+      );
+      return;
+    }
+
+    // Refresh readyUntil
+    await ctx.db.patch('chatroom_participants', participant._id, {
+      readyUntil: Date.now() + HEARTBEAT_TTL_MS,
+    });
   },
 });
 
@@ -190,7 +235,7 @@ export const updateStatus = mutation({
     status: v.union(v.literal('active'), v.literal('waiting')),
     // Optional: timestamp when the new status expires
     // For 'active': when agent is considered crashed (~1 hour)
-    // For 'waiting': when agent is considered disconnected (~10 min)
+    // For 'waiting': when agent is considered disconnected (~1 min, governed by HEARTBEAT_TTL_MS)
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -237,7 +282,7 @@ export const updateStatus = mutation({
  */
 export const leave = mutation({
   args: {
-    sessionId: v.string(),
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
   },
