@@ -97,8 +97,7 @@ const getStatusClasses = (effectiveStatus: AgentStatus) =>
 // Compute effective status using the FSM displayStatus field (Plan 026)
 const getEffectiveStatus = (
   role: string,
-  participantMap: Map<string, ParticipantInfo>,
-  _expiredRolesSet: Set<string>
+  participantMap: Map<string, ParticipantInfo>
 ): { status: AgentStatus; isExpired: boolean } => {
   const participant = participantMap.get(role.toLowerCase());
   if (!participant) {
@@ -507,12 +506,6 @@ export const AgentPanel = memo(function AgentPanel({
     return new Map(readiness.participants.map((p) => [p.role.toLowerCase(), p as ParticipantInfo]));
   }, [readiness?.participants]);
 
-  // Build expired roles set for O(1) lookup
-  const expiredRolesSet = useMemo(() => {
-    if (!readiness?.expiredRoles) return new Set<string>();
-    return new Set(readiness.expiredRoles.map((r) => r.toLowerCase()));
-  }, [readiness?.expiredRoles]);
-
   // Determine which roles to show (memoized)
   const rolesToShow = useMemo(
     () => (teamRoles.length > 0 ? teamRoles : readiness?.expectedRoles || []),
@@ -526,7 +519,7 @@ export const AgentPanel = memo(function AgentPanel({
     const other: string[] = []; // offline, dead, dead_failed_revive
 
     for (const role of rolesToShow) {
-      const { status } = getEffectiveStatus(role, participantMap, expiredRolesSet);
+      const { status } = getEffectiveStatus(role, participantMap);
       if (status === 'working' || status === 'restarting') {
         active.push(role);
       } else if (status === 'ready') {
@@ -538,7 +531,7 @@ export const AgentPanel = memo(function AgentPanel({
     }
 
     return { active, ready, other };
-  }, [rolesToShow, participantMap, expiredRolesSet]);
+  }, [rolesToShow, participantMap]);
 
   // Memoize prompt generation function
   const generatePrompt = useCallback(
@@ -552,9 +545,9 @@ export const AgentPanel = memo(function AgentPanel({
   const allAgentsWithStatus = useMemo(() => {
     return rolesToShow.map((role) => ({
       role,
-      effectiveStatus: getEffectiveStatus(role, participantMap, expiredRolesSet).status,
+      effectiveStatus: getEffectiveStatus(role, participantMap).status,
     }));
-  }, [rolesToShow, participantMap, expiredRolesSet]);
+  }, [rolesToShow, participantMap]);
 
   // Open unified agent list modal
   const openAgentListModal = useCallback(() => {
@@ -598,7 +591,7 @@ export const AgentPanel = memo(function AgentPanel({
 
   // Helper to render an agent row in the sidebar
   const renderAgentRow = (role: string) => {
-    const { status: effectiveStatus } = getEffectiveStatus(role, participantMap, expiredRolesSet);
+    const { status: effectiveStatus } = getEffectiveStatus(role, participantMap);
 
     const statusLabel = getStatusConfig(effectiveStatus).label;
 
