@@ -3,7 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { BACKEND_ERROR_CODES, type BackendError } from '../config/errorCodes';
 import { DEAD_STATES } from '../config/participantStates';
-import { HEARTBEAT_TTL_MS } from '../config/reliability';
+import { CHALLENGE_TIMEOUT_MS, HEARTBEAT_TTL_MS } from '../config/reliability';
 import { internalMutation, mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
@@ -439,9 +439,6 @@ export const updateAgentStatus = mutation({
 // ============================================================================
 // CHALLENGE-RESPONSE LIVENESS VERIFICATION
 // ============================================================================
-
-/** Timeout for agents to respond to a challenge (90 seconds). */
-const CHALLENGE_TIMEOUT_MS = 90_000;
 
 /**
  * Issue liveness challenges to all waiting participants.

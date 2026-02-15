@@ -22,6 +22,14 @@ export const TASK_ACKNOWLEDGED_TIMEOUT_MS = 120_000; // 2 min
 
 // ─── Daemon Heartbeat ────────────────────────────────────────────────────────
 
+// ─── Challenge-Response Liveness ─────────────────────────────────────────────
+
+/** How long an agent has to respond to a liveness challenge before it's
+ *  considered unresponsive (ms). Used by `issueChallenge` / `cleanupStaleAgents`. */
+export const CHALLENGE_TIMEOUT_MS = 90_000; // 90s
+
+// ─── Daemon Heartbeat ────────────────────────────────────────────────────────
+
 /** How often the daemon sends a heartbeat to refresh lastSeenAt (ms). */
 export const DAEMON_HEARTBEAT_INTERVAL_MS = 30_000; // 30s
 
