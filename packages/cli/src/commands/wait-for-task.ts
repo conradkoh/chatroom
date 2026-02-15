@@ -25,6 +25,14 @@ import {
 } from '../infrastructure/machine/index.js';
 import { isNetworkError, formatConnectivityError } from '../utils/error-formatting.js';
 
+/** Shape returned by the backend `getChallenge` query subscription. */
+interface ChallengeState {
+  challengeId: string;
+  challengeSentAt: number | undefined;
+  challengeExpiresAt: number | undefined;
+  challengeStatus: 'pending' | 'resolved' | undefined;
+}
+
 interface WaitForTaskOptions {
   role: string;
   silent?: boolean;
@@ -506,14 +514,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
     },
-    (
-      challenge: {
-        challengeId: string;
-        challengeSentAt: number | undefined;
-        challengeExpiresAt: number | undefined;
-        challengeStatus: 'pending' | 'resolved' | undefined;
-      } | null
-    ) => {
+    (challenge: ChallengeState | null) => {
       if (challenge?.challengeStatus === 'pending' && challenge.challengeId) {
         // Auto-resolve the challenge silently
         client
