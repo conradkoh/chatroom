@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { BACKEND_ERROR_CODES, type BackendError } from '../config/errorCodes';
+import { DEAD_STATES } from '../config/participantStates';
 import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { internalMutation, mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
@@ -415,8 +416,7 @@ export const updateAgentStatus = mutation({
     if (!participant) {
       // If participant doesn't exist and we're setting a dead/recovery state,
       // create a minimal participant record to hold the status
-      const deadStates = ['dead', 'dead_failed_revive', 'restarting'];
-      if (deadStates.includes(args.agentStatus)) {
+      if ((DEAD_STATES as readonly string[]).includes(args.agentStatus)) {
         await ctx.db.insert('chatroom_participants', {
           chatroomId: args.chatroomId,
           role: args.role,
