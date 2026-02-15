@@ -20,8 +20,6 @@ export const TASK_PENDING_TIMEOUT_MS = 300_000; // 5 min
  *  If the assigned participant is missing or expired, the task is recovered. */
 export const TASK_ACKNOWLEDGED_TIMEOUT_MS = 120_000; // 2 min
 
-// ─── Daemon Heartbeat ────────────────────────────────────────────────────────
-
 // ─── Challenge-Response Liveness ─────────────────────────────────────────────
 
 /** How long an agent has to respond to a liveness challenge before it's
