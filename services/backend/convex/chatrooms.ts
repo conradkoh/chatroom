@@ -368,23 +368,25 @@ export const getTeamReadiness = query({
     const participantInfo = participants.map((p) => {
       const isExpired = p.readyUntil ? p.readyUntil < now : false;
 
-      // Map unified status to display-friendly agentStatus for the frontend
-      let agentStatus: string;
+      // Map unified status to display-friendly displayStatus for the frontend.
+      // Note: This is a COMPUTED field derived from the `status` field — not the
+      // deprecated `agentStatus` schema field (which is a legacy field never written to).
+      let displayStatus: string;
       if (isExpired && (p.status === 'waiting' || p.status === 'active')) {
-        agentStatus = 'dead';
+        displayStatus = 'dead';
       } else if (p.status === 'active') {
-        agentStatus = 'working';
+        displayStatus = 'working';
       } else if (p.status === 'waiting') {
-        agentStatus = 'ready';
+        displayStatus = 'ready';
       } else {
         // offline, dead, restarting, dead_failed_revive, idle — pass through
-        agentStatus = p.status;
+        displayStatus = p.status;
       }
 
       return {
         role: p.role,
         status: p.status,
-        agentStatus,
+        displayStatus,
         readyUntil: p.readyUntil,
         isExpired,
       };

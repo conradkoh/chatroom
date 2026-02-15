@@ -94,7 +94,7 @@ const getStatusConfig = (status: AgentStatus) => STATUS_CONFIG[status];
 const getStatusClasses = (effectiveStatus: AgentStatus) =>
   `w-2.5 h-2.5 flex-shrink-0 ${getStatusConfig(effectiveStatus).bg}`;
 
-// Compute effective status using the FSM agentStatus field (Plan 026)
+// Compute effective status using the FSM displayStatus field (Plan 026)
 const getEffectiveStatus = (
   role: string,
   participantMap: Map<string, ParticipantInfo>,
@@ -104,8 +104,8 @@ const getEffectiveStatus = (
   if (!participant) {
     return { status: 'offline', isExpired: false };
   }
-  // Use agentStatus directly — it's the authoritative FSM state
-  return { status: participant.agentStatus, isExpired: participant.isExpired };
+  // Use displayStatus directly — it's the authoritative computed FSM state
+  return { status: participant.displayStatus, isExpired: participant.isExpired };
 };
 
 // Collapsed Agent Group Component - shows a collapsed row that opens the unified modal

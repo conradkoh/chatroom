@@ -5,7 +5,7 @@
 
 /**
  * Agent Status FSM states (Plan 026).
- * These match the `agentStatus` field on `chatroom_participants` in the backend schema.
+ * These match the computed `displayStatus` field returned by `getTeamReadiness`.
  *
  * Dead states (no heartbeat):
  * - offline: Default initial state — never joined or explicitly stopped
@@ -29,7 +29,7 @@ export type AgentStatus =
 export interface ParticipantInfo {
   role: string;
   status: string; // legacy field ('active' | 'waiting')
-  agentStatus: AgentStatus; // FSM status (Plan 026)
+  displayStatus: AgentStatus; // Computed FSM display status (Plan 026)
   readyUntil?: number;
   isExpired: boolean;
 }
