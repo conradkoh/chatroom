@@ -26,6 +26,15 @@ export const TASK_ACKNOWLEDGED_TIMEOUT_MS = 120_000; // 2 min
  *  considered unresponsive (ms). Used by `issueChallenge` / `cleanupStaleAgents`. */
 export const CHALLENGE_TIMEOUT_MS = 90_000; // 90s
 
+// ─── Stale Record Cleanup ────────────────────────────────────────────────────
+
+/** How long a minimal participant record (created by `updateAgentStatus` dead-state
+ *  fallback) can exist before being cleaned up by the cron (ms).
+ *  Applies to records with status `restarting` or `dead_failed_revive` that have
+ *  no `readyUntil`/`activeUntil` — the expiration logic won't catch them, so we
+ *  clean up based on `_creationTime` instead. */
+export const STALE_FSM_RECORD_TTL_MS = 600_000; // 10 min
+
 // ─── Daemon Heartbeat ────────────────────────────────────────────────────────
 
 /** How often the daemon sends a heartbeat to refresh lastSeenAt (ms). */

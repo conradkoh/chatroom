@@ -3,6 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import {
   DAEMON_HEARTBEAT_TTL_MS,
+  STALE_FSM_RECORD_TTL_MS,
   TASK_ACKNOWLEDGED_TIMEOUT_MS,
   TASK_PENDING_TIMEOUT_MS,
 } from '../config/reliability';
@@ -1583,7 +1584,6 @@ export const cleanupStaleAgents = internalMutation({
     // These minimal records are created by updateAgentStatus (Phase 4 dead-state fallback)
     // and have no readyUntil/activeUntil, so the expiration logic above won't catch them.
     // Clean them up after 10 minutes based on _creationTime.
-    const STALE_FSM_RECORD_TTL_MS = 10 * 60 * 1000; // 10 minutes
     for (const p of participantsSnapshot) {
       const isStaleRestarting =
         p.status === 'restarting' && now - p._creationTime > STALE_FSM_RECORD_TTL_MS;
