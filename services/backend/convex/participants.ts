@@ -464,8 +464,8 @@ export const issueChallenge = internalMutation({
       // Skip if already has a pending challenge
       if (p.challengeStatus === 'pending') continue;
 
-      // Issue new challenge
-      const challengeId = `${now}-${Math.random().toString(36).substring(2, 9)}`;
+      // Issue new challenge with cryptographically secure ID
+      const challengeId = crypto.randomUUID();
       await ctx.db.patch('chatroom_participants', p._id, {
         challengeId,
         challengeSentAt: now,
