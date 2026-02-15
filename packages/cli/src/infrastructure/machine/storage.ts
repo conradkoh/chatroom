@@ -161,8 +161,6 @@ export function ensureMachineRegistered(): MachineRegistrationInfo {
     config.availableHarnesses = detectAvailableHarnesses();
     config.harnessVersions = detectHarnessVersions(config.availableHarnesses);
     config.lastSyncedAt = now;
-    // Update hostname in case it changed
-    config.hostname = hostname();
     saveMachineConfig(config);
   }
 
