@@ -77,21 +77,25 @@ export const join = mutation({
     if (existing) {
       // Update status to waiting and refresh readyUntil, clear activeUntil
       // Also update connectionId to allow old processes to detect they should exit
+      // Set agentStatus to 'ready' (FSM: any state → ready via join)
       await ctx.db.patch('chatroom_participants', existing._id, {
         status: 'waiting',
         readyUntil: args.readyUntil,
         activeUntil: undefined, // Clear active timeout when transitioning to waiting
         connectionId: args.connectionId, // Track current connection for concurrent process detection
+        agentStatus: 'ready', // FSM: agent is now ready for tasks
       });
       participantId = existing._id;
     } else {
       // Create new participant
+      // Set agentStatus to 'ready' (FSM: offline → ready via join)
       participantId = await ctx.db.insert('chatroom_participants', {
         chatroomId: args.chatroomId,
         role: args.role,
         status: 'waiting',
         readyUntil: args.readyUntil,
         connectionId: args.connectionId, // Track current connection for concurrent process detection
+        agentStatus: 'ready', // FSM: agent is now ready for tasks
         // activeUntil not set - will be set when transitioning to active
       });
     }
@@ -256,11 +260,16 @@ export const updateStatus = mutation({
     }
 
     // Build the update based on the target status
+    // Sync agentStatus with legacy status field (FSM Plan 026)
     const update: {
       status: 'active' | 'waiting';
       readyUntil?: number;
       activeUntil?: number;
-    } = { status: args.status };
+      agentStatus: 'working' | 'ready';
+    } = {
+      status: args.status,
+      agentStatus: args.status === 'active' ? 'working' : 'ready',
+    };
 
     if (args.status === 'active') {
       // Transitioning to active: set activeUntil, clear readyUntil
@@ -358,6 +367,68 @@ export const getHighestPriorityWaitingRole = query({
     waitingParticipants.sort((a, b) => getRolePriority(a.role) - getRolePriority(b.role));
 
     return waitingParticipants[0]?.role ?? null;
+  },
+});
+
+/**
+ * Update the agent status FSM state for a participant (Plan 026).
+ *
+ * This mutation sets the explicit `agentStatus` field on a participant record.
+ * It is called by the daemon during crash recovery (restarting, dead_failed_revive)
+ * and by the CLI at lifecycle points (ready, working, offline).
+ *
+ * If the participant does not exist and the target status is a "dead" state
+ * (dead, dead_failed_revive, restarting), a minimal participant record is created
+ * to hold the status. This handles the case where `participants.leave` deleted the
+ * record before the daemon could report crash recovery status.
+ *
+ * Requires CLI session authentication and chatroom access.
+ */
+export const updateAgentStatus = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    agentStatus: v.union(
+      v.literal('offline'),
+      v.literal('dead'),
+      v.literal('dead_failed_revive'),
+      v.literal('ready'),
+      v.literal('restarting'),
+      v.literal('working')
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Find the participant
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .unique();
+
+    if (!participant) {
+      // If participant doesn't exist and we're setting a dead/recovery state,
+      // create a minimal participant record to hold the status
+      const deadStates = ['dead', 'dead_failed_revive', 'restarting'];
+      if (deadStates.includes(args.agentStatus)) {
+        await ctx.db.insert('chatroom_participants', {
+          chatroomId: args.chatroomId,
+          role: args.role,
+          status: 'waiting', // placeholder for legacy field
+          agentStatus: args.agentStatus,
+        });
+        return;
+      }
+      throw new Error(`Participant ${args.role} not found in chatroom`);
+    }
+
+    await ctx.db.patch('chatroom_participants', participant._id, {
+      agentStatus: args.agentStatus,
+    });
   },
 });
 

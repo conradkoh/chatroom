@@ -21,6 +21,7 @@ import {
   updateAgentContext,
   type AgentHarness,
 } from '../infrastructure/machine/index.js';
+import { isNetworkError, formatConnectivityError } from '../utils/error-formatting.js';
 
 interface WaitForTaskOptions {
   role: string;
@@ -78,10 +79,19 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   }
 
   // Validate chatroom exists and user has access
-  const chatroom = (await client.query(api.chatrooms.get, {
-    sessionId,
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  })) as Chatroom | null;
+  let chatroom: Chatroom | null;
+  try {
+    chatroom = (await client.query(api.chatrooms.get, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    })) as Chatroom | null;
+  } catch (error) {
+    if (isNetworkError(error)) {
+      formatConnectivityError(error, convexUrl);
+      process.exit(1);
+    }
+    throw error;
+  }
 
   if (!chatroom) {
     console.error(`❌ Chatroom ${chatroomId} not found or access denied`);

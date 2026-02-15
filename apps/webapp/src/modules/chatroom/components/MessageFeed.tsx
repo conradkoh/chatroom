@@ -3,6 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ChevronUp,
   ChevronDown,
@@ -19,6 +20,7 @@ import {
   Sparkles,
   RotateCcw,
   ArrowRight,
+  Activity,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -326,6 +328,145 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
           )}
         </div>
       </button>
+    </div>
+  );
+});
+
+// Task Progress - renders inline progress updates below the task header
+// Shows the latest progress message with expand/collapse for full history
+interface TaskProgressProps {
+  message: Message;
+  chatroomId: string;
+}
+
+const TaskProgress = memo(function TaskProgress({ message, chatroomId }: TaskProgressProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-hide when focus is lost (click outside)
+  useEffect(() => {
+    if (!isExpanded) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsExpanded(false);
+      }
+    };
+    // Use setTimeout to avoid the click that opened it from immediately closing it
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isExpanded]);
+
+  // Only render for user messages
+  if (message.senderRole.toLowerCase() !== 'user') {
+    return null;
+  }
+
+  const hasProgress = !!message.latestProgress;
+
+  const toggleExpanded = () => {
+    if (hasProgress) {
+      setIsExpanded((prev) => !prev);
+    }
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative bg-chatroom-bg-tertiary/50 border-b border-chatroom-border"
+    >
+      {hasProgress ? (
+        <>
+          {/* Collapsed: latest progress */}
+          <button
+            onClick={toggleExpanded}
+            className="w-full text-left px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-chatroom-bg-hover transition-colors"
+          >
+            <Activity size={12} className="text-chatroom-accent flex-shrink-0" />
+            <span className="text-[11px] text-chatroom-text-muted truncate flex-1">
+              {message.latestProgress!.content.replace(/\n+/g, ' ').trim()}
+            </span>
+            <span className="text-[10px] text-chatroom-text-muted/60 flex-shrink-0">
+              {formatTime(message.latestProgress!._creationTime)}
+            </span>
+            {isExpanded ? (
+              <ChevronUp size={12} className="text-chatroom-text-muted flex-shrink-0" />
+            ) : (
+              <ChevronDown size={12} className="text-chatroom-text-muted flex-shrink-0" />
+            )}
+          </button>
+
+          {/* Expanded: full progress history - overlays as a floating panel */}
+          {isExpanded && (
+            <div className="absolute left-0 right-0 top-full z-20 shadow-lg border border-chatroom-border rounded-b-md bg-chatroom-bg-tertiary">
+              <TaskProgressHistory chatroomId={chatroomId} taskId={message.taskId} />
+            </div>
+          )}
+        </>
+      ) : (
+        /* Empty state: task is active but no progress reported yet */
+        <div className="px-3 py-1.5 flex items-center gap-2">
+          <Activity size={12} className="text-chatroom-text-muted/40 flex-shrink-0" />
+          <span className="text-[11px] text-chatroom-text-muted/40 italic">
+            No progress reported yet
+          </span>
+        </div>
+      )}
+    </div>
+  );
+});
+
+// Full progress history - loaded on demand when expanded
+const TaskProgressHistory = memo(function TaskProgressHistory({
+  chatroomId,
+  taskId,
+}: {
+  chatroomId: string;
+  taskId?: string;
+}) {
+  const progressMessages = useSessionQuery(
+    api.messages.getProgressForTask,
+    taskId
+      ? {
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          taskId: taskId as Id<'chatroom_tasks'>,
+        }
+      : 'skip'
+  );
+
+  if (!progressMessages || progressMessages.length === 0) {
+    return (
+      <div className="px-3 py-2 text-[11px] text-chatroom-text-muted/60">
+        No progress updates yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-3 py-2 max-h-48 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-chatroom-border">
+      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        {progressMessages.map(
+          (progress: {
+            _id: string;
+            content: string;
+            senderRole: string;
+            _creationTime: number;
+          }) => (
+            <React.Fragment key={progress._id}>
+              <span className="text-[10px] text-chatroom-text-muted flex-shrink-0 tabular-nums whitespace-nowrap">
+                {formatTime(progress._creationTime)}
+              </span>
+              <span className="text-[11px] text-chatroom-text-primary leading-snug">
+                {progress.content}
+              </span>
+            </React.Fragment>
+          )
+        )}
+      </div>
     </div>
   );
 });
@@ -797,6 +938,8 @@ export const MessageFeed = memo(function MessageFeed({
           <React.Fragment key={message._id}>
             {/* Task Header - sticky section header for user messages, tappable */}
             <TaskHeader message={message} onTap={handleMessageDetailClick} />
+            {/* Task Progress - inline progress updates below task header */}
+            <TaskProgress message={message} chatroomId={chatroomId} />
             <MessageItem
               message={message}
               onFeatureClick={handleFeatureClick}

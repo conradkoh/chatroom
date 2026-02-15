@@ -57,54 +57,55 @@ interface AgentPanelProps {
 // ─── Status Utilities ────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<AgentStatus, { bg: string; text: string; label: string }> = {
-  active: {
-    bg: 'bg-chatroom-status-info',
-    text: 'text-chatroom-status-info',
-    label: 'WORKING',
+  offline: {
+    bg: 'bg-chatroom-text-muted',
+    text: 'text-chatroom-status-warning',
+    label: 'OFFLINE',
   },
-  waiting: {
+  dead: {
+    bg: 'bg-chatroom-status-error',
+    text: 'text-chatroom-status-error',
+    label: 'DEAD',
+  },
+  dead_failed_revive: {
+    bg: 'bg-chatroom-status-error',
+    text: 'text-chatroom-status-error',
+    label: 'DEAD (UNRECOVERABLE)',
+  },
+  ready: {
     bg: 'bg-chatroom-status-success',
     text: 'text-chatroom-status-success',
     label: 'READY',
   },
-  disconnected: {
-    bg: 'bg-chatroom-status-error',
-    text: 'text-chatroom-status-error',
-    label: 'DISCONNECTED',
-  },
-  missing: {
-    bg: 'bg-chatroom-text-muted',
+  restarting: {
+    bg: 'bg-chatroom-status-warning',
     text: 'text-chatroom-status-warning',
-    label: 'NOT JOINED',
+    label: 'RESTARTING',
+  },
+  working: {
+    bg: 'bg-chatroom-status-info',
+    text: 'text-chatroom-status-info',
+    label: 'WORKING',
   },
 };
 
-const DEFAULT_STATUS = {
-  bg: 'bg-chatroom-text-muted',
-  text: 'text-chatroom-status-warning',
-  label: 'OFFLINE',
-};
-
-const getStatusConfig = (status: AgentStatus) => STATUS_CONFIG[status] ?? DEFAULT_STATUS;
+const getStatusConfig = (status: AgentStatus) => STATUS_CONFIG[status];
 
 const getStatusClasses = (effectiveStatus: AgentStatus) =>
   `w-2.5 h-2.5 flex-shrink-0 ${getStatusConfig(effectiveStatus).bg}`;
 
-// Compute effective status accounting for expiration
+// Compute effective status using the FSM agentStatus field (Plan 026)
 const getEffectiveStatus = (
   role: string,
   participantMap: Map<string, ParticipantInfo>,
-  expiredRolesSet: Set<string>
+  _expiredRolesSet: Set<string>
 ): { status: AgentStatus; isExpired: boolean } => {
   const participant = participantMap.get(role.toLowerCase());
   if (!participant) {
-    return { status: 'missing', isExpired: false };
+    return { status: 'offline', isExpired: false };
   }
-  // Check if this role is in the expired set
-  if (expiredRolesSet.has(role.toLowerCase())) {
-    return { status: 'disconnected', isExpired: true };
-  }
-  return { status: participant.status, isExpired: false };
+  // Use agentStatus directly — it's the authoritative FSM state
+  return { status: participant.agentStatus, isExpired: participant.isExpired };
 };
 
 // Collapsed Agent Group Component - shows a collapsed row that opens the unified modal
@@ -123,8 +124,8 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
 }: CollapsedAgentGroupProps) {
   // Map variants to status keys so we reuse the shared STATUS_CONFIG colors
   const variantStatusMap: Record<CollapsedAgentGroupProps['variant'], AgentStatus> = {
-    ready: 'waiting',
-    offline: 'missing',
+    ready: 'ready',
+    offline: 'offline',
   };
   const statusConfig = getStatusConfig(variantStatusMap[variant]);
   const classes = { indicator: statusConfig.bg };
@@ -503,12 +504,7 @@ export const AgentPanel = memo(function AgentPanel({
   // Build participant map from readiness data
   const participantMap = useMemo(() => {
     if (!readiness?.participants) return new Map<string, ParticipantInfo>();
-    return new Map(
-      readiness.participants.map((p) => [
-        p.role.toLowerCase(),
-        { ...p, status: p.status as AgentStatus },
-      ])
-    );
+    return new Map(readiness.participants.map((p) => [p.role.toLowerCase(), p as ParticipantInfo]));
   }, [readiness?.participants]);
 
   // Build expired roles set for O(1) lookup
@@ -523,20 +519,20 @@ export const AgentPanel = memo(function AgentPanel({
     [teamRoles, readiness?.expectedRoles]
   );
 
-  // Phase 1: Categorize agents by status for grouped display
+  // Categorize agents by FSM status for grouped display (Plan 026)
   const categorizedAgents = useMemo(() => {
-    const active: string[] = [];
+    const active: string[] = []; // working + restarting (shown prominently at top)
     const ready: string[] = [];
-    const other: string[] = [];
+    const other: string[] = []; // offline, dead, dead_failed_revive
 
     for (const role of rolesToShow) {
       const { status } = getEffectiveStatus(role, participantMap, expiredRolesSet);
-      if (status === 'active') {
+      if (status === 'working' || status === 'restarting') {
         active.push(role);
-      } else if (status === 'waiting') {
+      } else if (status === 'ready') {
         ready.push(role);
       } else {
-        // disconnected, missing, or any other status
+        // offline, dead, dead_failed_revive
         other.push(role);
       }
     }
@@ -606,13 +602,14 @@ export const AgentPanel = memo(function AgentPanel({
 
     const statusLabel = getStatusConfig(effectiveStatus).label;
 
-    const isActive = effectiveStatus === 'active';
-    const isDisconnectedAgent = effectiveStatus === 'disconnected';
+    const isWorking = effectiveStatus === 'working';
+    const isRestarting = effectiveStatus === 'restarting';
+    const isDead = effectiveStatus === 'dead' || effectiveStatus === 'dead_failed_revive';
 
     return (
       <div key={role} className="border-b border-chatroom-border last:border-b-0">
         <div
-          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isActive ? 'bg-chatroom-status-info/5' : ''} ${isDisconnectedAgent ? 'bg-chatroom-status-error/5' : ''}`}
+          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isWorking ? 'bg-chatroom-status-info/5' : ''} ${isDead ? 'bg-chatroom-status-error/5' : ''} ${isRestarting ? 'bg-chatroom-status-warning/5' : ''}`}
           role="button"
           tabIndex={0}
           aria-label={`${role}: ${statusLabel}. Click to view all agents.`}
@@ -637,11 +634,13 @@ export const AgentPanel = memo(function AgentPanel({
             </div>
             <div
               className={`text-[10px] font-bold uppercase tracking-wide ${
-                isActive
+                isWorking
                   ? 'text-chatroom-status-info animate-pulse'
-                  : isDisconnectedAgent
-                    ? 'text-chatroom-status-error'
-                    : 'text-chatroom-text-muted'
+                  : isRestarting
+                    ? 'text-chatroom-status-warning animate-pulse'
+                    : isDead
+                      ? 'text-chatroom-status-error'
+                      : 'text-chatroom-text-muted'
               }`}
             >
               {statusLabel}

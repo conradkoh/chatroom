@@ -7,6 +7,7 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 
 import { getSessionId, isAuthenticated, getAuthFilePath, getOtherSessionUrls } from './storage.js';
 import { api, type SessionValidation } from '../../api.js';
+import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
 import { getConvexClient, getConvexUrl } from '../convex/client.js';
 
 export interface AuthContext {
@@ -73,10 +74,15 @@ export async function requireAuth(): Promise<AuthContext> {
       userName: validation.userName,
     };
   } catch (error) {
+    if (isNetworkError(error)) {
+      formatConnectivityError(error, getConvexUrl());
+      process.exit(1);
+    }
     const err = error as Error;
     console.error(`\n❌ Error: Could not validate session`);
     console.error(`   ${err.message}`);
-    console.error(`\n   Please check your connection and try again.`);
+    console.error(`\n   Please re-authenticate:`);
+    console.error(`   $ chatroom auth login\n`);
     process.exit(1);
   }
 }
@@ -110,7 +116,11 @@ export async function checkAuth(): Promise<AuthContext | null> {
       userId: validation.userId!,
       userName: validation.userName,
     };
-  } catch {
+  } catch (error) {
+    if (isNetworkError(error)) {
+      // Don't swallow network errors — let callers know the backend is unreachable
+      throw error;
+    }
     return null;
   }
 }
