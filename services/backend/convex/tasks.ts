@@ -1520,15 +1520,10 @@ export const cleanupStaleAgents = internalMutation({
     for (const p of participantsSnapshot) {
       if (p.challengeStatus === 'pending' && p.challengeExpiresAt && now > p.challengeExpiresAt) {
         // Challenge expired without response
-        if (p.agentType === 'custom') {
-          // Custom agents: mark offline and delete
-          console.warn(
-            `[Challenge Expired] Custom agent failed challenge: role=${p.role} chatroomId=${p.chatroomId}`
-          );
-          await ctx.db.patch('chatroom_participants', p._id, { status: 'offline' });
-          await ctx.db.delete('chatroom_participants', p._id);
-        } else if (p.agentType === 'remote') {
-          // Remote agents: mark dead, clear challenge fields for revive
+        if (p.agentType === 'remote') {
+          // Remote agents: patch to 'dead' and clear challenge fields so the
+          // daemon can detect the state and attempt a revive. The record is
+          // intentionally kept (not deleted) for the daemon to act on.
           console.warn(
             `[Challenge Expired] Remote agent failed challenge: role=${p.role} chatroomId=${p.chatroomId}`
           );
@@ -1540,11 +1535,13 @@ export const cleanupStaleAgents = internalMutation({
             challengeExpiresAt: undefined,
           });
         } else {
-          // Unknown agent type: treat as custom (mark offline, delete)
+          // Custom agents (and unknown agent types): delete the record directly.
+          // No need to patch status first — the record is being removed entirely.
+          // When the agent reconnects, it will re-join via join() with fresh state.
+          const agentLabel = p.agentType === 'custom' ? 'Custom' : 'Unknown';
           console.warn(
-            `[Challenge Expired] Unknown agent type failed challenge: role=${p.role} chatroomId=${p.chatroomId}`
+            `[Challenge Expired] ${agentLabel} agent failed challenge: role=${p.role} chatroomId=${p.chatroomId}`
           );
-          await ctx.db.patch('chatroom_participants', p._id, { status: 'offline' });
           await ctx.db.delete('chatroom_participants', p._id);
         }
       }
