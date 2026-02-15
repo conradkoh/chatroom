@@ -3,13 +3,33 @@
  * Single source of truth — imported by AgentPanel, ChatroomDashboard, TeamStatus, etc.
  */
 
-/** Agent status values matching the STATUS_CONFIG keys in AgentPanel */
-export type AgentStatus = 'active' | 'waiting' | 'disconnected' | 'missing';
+/**
+ * Agent Status FSM states (Plan 026).
+ * These match the `agentStatus` field on `chatroom_participants` in the backend schema.
+ *
+ * Dead states (no heartbeat):
+ * - offline: Default initial state — never joined or explicitly stopped
+ * - dead: Heartbeat stopped — process presumed crashed
+ * - dead_failed_revive: All restart attempts exhausted — manual intervention required
+ *
+ * Alive states (with heartbeat):
+ * - ready: Running wait-for-task, heartbeat active, waiting for work
+ * - restarting: Daemon attempting to restart after crash
+ * - working: Actively processing a task, heartbeat active
+ */
+export type AgentStatus =
+  | 'offline'
+  | 'dead'
+  | 'dead_failed_revive'
+  | 'ready'
+  | 'restarting'
+  | 'working';
 
-/** Participant info from the backend readiness query — includes expiration data */
+/** Participant info from the backend readiness query — includes expiration data and FSM status */
 export interface ParticipantInfo {
   role: string;
-  status: AgentStatus;
+  status: string; // legacy field ('active' | 'waiting')
+  agentStatus: AgentStatus; // FSM status (Plan 026)
   readyUntil?: number;
   isExpired: boolean;
 }
