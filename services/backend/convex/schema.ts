@@ -295,9 +295,13 @@ export default defineSchema({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     status: v.union(
-      v.literal('active'),
-      v.literal('waiting'),
-      /** @deprecated Will be removed after production migration. Existing idle participants should be deleted. */
+      v.literal('active'), // Working on a task
+      v.literal('waiting'), // Ready, listening for tasks
+      v.literal('offline'), // Not connected
+      v.literal('dead'), // Heartbeat stopped, presumed crashed
+      v.literal('dead_failed_revive'), // Restart attempts exhausted
+      v.literal('restarting'), // Daemon attempting restart
+      /** @deprecated Will be removed after production migration. */
       v.literal('idle')
     ),
     // Timestamp when this participant's readiness (waiting status) expires
@@ -313,21 +317,25 @@ export default defineSchema({
     // When a new wait-for-task starts, it generates a new connectionId
     // The old process detects the mismatch and exits cleanly
     connectionId: v.optional(v.string()),
-    // Agent Status FSM state (Plan 026)
-    // Explicit status field driven by daemon lifecycle events and heartbeat signals.
-    // Parallel to `status` field — `status` drives backend logic (task FSM, queue promotion),
-    // while `agentStatus` is the source of truth for UI display.
-    // Optional for backward compatibility — derived from `status` + expiration when absent.
+    /** @deprecated Use `status` field instead. Will be removed in future migration. */
     agentStatus: v.optional(
       v.union(
-        v.literal('offline'), // Default initial state — never joined or explicitly stopped
-        v.literal('dead'), // Heartbeat stopped — process presumed crashed
-        v.literal('dead_failed_revive'), // All restart attempts exhausted — manual intervention required
-        v.literal('ready'), // Running wait-for-task, heartbeat active, waiting for work
-        v.literal('restarting'), // Daemon attempting to restart after crash
-        v.literal('working') // Actively processing a task, heartbeat active
+        v.literal('offline'),
+        v.literal('dead'),
+        v.literal('dead_failed_revive'),
+        v.literal('ready'),
+        v.literal('restarting'),
+        v.literal('working')
       )
     ),
+    // Agent type — determines behavior on challenge failure
+    // 'custom' agents are marked offline; 'remote' agents trigger revive
+    agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
+    // Challenge-response liveness verification
+    challengeId: v.optional(v.string()),
+    challengeSentAt: v.optional(v.number()),
+    challengeExpiresAt: v.optional(v.number()),
+    challengeStatus: v.optional(v.union(v.literal('pending'), v.literal('resolved'))),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role']),
