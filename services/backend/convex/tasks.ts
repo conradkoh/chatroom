@@ -1509,6 +1509,44 @@ export const cleanupStaleAgents = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
 
+    // ─── Challenge Expiry Handling ─────────────────────────────────────
+    // Check for participants with expired challenges before stale cleanup.
+    // Custom agents → mark offline and delete; remote agents → mark dead for revive.
+    const allParticipantsForChallengeCheck = await ctx.db.query('chatroom_participants').collect();
+    for (const p of allParticipantsForChallengeCheck) {
+      if (p.challengeStatus === 'pending' && p.challengeExpiresAt && now > p.challengeExpiresAt) {
+        // Challenge expired without response
+        if (p.agentType === 'custom') {
+          // Custom agents: mark offline and delete
+          console.warn(
+            `[Challenge Expired] Custom agent failed challenge: role=${p.role} chatroomId=${p.chatroomId}`
+          );
+          await ctx.db.patch('chatroom_participants', p._id, { status: 'offline' });
+          await ctx.db.delete('chatroom_participants', p._id);
+        } else if (p.agentType === 'remote') {
+          // Remote agents: mark dead, clear challenge fields for revive
+          console.warn(
+            `[Challenge Expired] Remote agent failed challenge: role=${p.role} chatroomId=${p.chatroomId}`
+          );
+          await ctx.db.patch('chatroom_participants', p._id, {
+            status: 'dead',
+            challengeStatus: undefined,
+            challengeId: undefined,
+            challengeSentAt: undefined,
+            challengeExpiresAt: undefined,
+          });
+        } else {
+          // Unknown agent type: treat as custom (mark offline, delete)
+          console.warn(
+            `[Challenge Expired] Unknown agent type failed challenge: role=${p.role} chatroomId=${p.chatroomId}`
+          );
+          await ctx.db.patch('chatroom_participants', p._id, { status: 'offline' });
+          await ctx.db.delete('chatroom_participants', p._id);
+        }
+      }
+    }
+
+    // ─── Stale Participant Cleanup ───────────────────────────────────────
     // Query active and waiting participants to check for stale timeouts
     const activeParticipants = await ctx.db
       .query('chatroom_participants')

@@ -165,6 +165,23 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // If another process starts, it will update the connectionId and this process will exit
   const connectionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
+  // Determine agent type ('custom' | 'remote') from team agent config
+  // This is used for challenge-response behavior: custom agents are marked offline on failure,
+  // remote agents trigger a revive attempt
+  let participantAgentType: 'custom' | 'remote' | undefined;
+  try {
+    const teamConfigs = await client.query(api.machines.getTeamAgentConfigs, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    });
+    const roleConfig = (teamConfigs as { role: string; type: 'custom' | 'remote' }[])?.find(
+      (c) => c.role.toLowerCase() === role.toLowerCase()
+    );
+    participantAgentType = roleConfig?.type;
+  } catch {
+    // Non-critical — continue without agent type
+  }
+
   // Join the chatroom with connectionId and initial readyUntil (heartbeat-based liveness)
   await client.mutation(api.participants.join, {
     sessionId,
@@ -172,6 +189,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     role,
     readyUntil: Date.now() + HEARTBEAT_TTL_MS,
     connectionId,
+    agentType: participantAgentType,
   });
 
   // Log initial connection with timestamp
@@ -267,6 +285,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (cleanedUp) return;
     cleanedUp = true;
     clearInterval(heartbeatTimer);
+    challengeUnsubscribe();
     try {
       await client.mutation(api.participants.leave, {
         sessionId,
@@ -281,6 +300,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // Track if we've already processed a task (prevent duplicate processing)
   let taskProcessed = false;
   let unsubscribe: (() => void) | null = null;
+  let challengeUnsubscribe: () => void = () => {}; // Assigned when subscription is created
 
   // Handle task processing when we receive pending tasks via subscription
   const handlePendingTasks = async (pendingTasks: TaskWithMessage[]) => {
@@ -298,6 +318,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (currentConnectionId && currentConnectionId !== connectionId) {
       // Another process has taken over - exit gracefully
       if (unsubscribe) unsubscribe();
+      challengeUnsubscribe();
       // Cleanup heartbeat (don't call participants.leave — the new process owns the participant)
       clearInterval(heartbeatTimer);
       cleanedUp = true; // Prevent cleanup() from calling leave
@@ -372,6 +393,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     // SUCCESS: This agent has exclusive claim on the task
     if (unsubscribe) unsubscribe();
+    challengeUnsubscribe();
 
     // Stop heartbeat — the agent is transitioning from "waiting" to "active".
     // We do NOT call participants.leave here because the agent is still present,
@@ -425,6 +447,41 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       handlePendingTasks(pendingTasks).catch((error) => {
         console.error(`❌ Error processing task: ${(error as Error).message}`);
       });
+    }
+  );
+
+  // Subscribe to challenge notifications for liveness verification
+  // When the backend issues a challenge, auto-resolve it silently to prove we're alive
+  challengeUnsubscribe = wsClient.onUpdate(
+    api.participants.getChallenge,
+    {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+    },
+    (
+      challenge: {
+        challengeId: string;
+        challengeSentAt: number | undefined;
+        challengeExpiresAt: number | undefined;
+        challengeStatus: 'pending' | 'resolved' | undefined;
+      } | null
+    ) => {
+      if (challenge?.challengeStatus === 'pending' && challenge.challengeId) {
+        // Auto-resolve the challenge silently
+        client
+          .mutation(api.participants.resolveChallenge, {
+            sessionId,
+            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+            role,
+            challengeId: challenge.challengeId,
+          })
+          .catch((err) => {
+            if (!silent) {
+              console.warn(`⚠️  Challenge resolution failed: ${(err as Error).message}`);
+            }
+          });
+      }
     }
   );
 
