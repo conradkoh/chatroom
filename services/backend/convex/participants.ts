@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { HEARTBEAT_TTL_MS } from '../config/reliability';
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
@@ -426,6 +426,120 @@ export const updateAgentStatus = mutation({
     await ctx.db.patch('chatroom_participants', participant._id, {
       status: args.agentStatus,
     });
+  },
+});
+
+// ============================================================================
+// CHALLENGE-RESPONSE LIVENESS VERIFICATION
+// ============================================================================
+
+/** Timeout for agents to respond to a challenge (90 seconds). */
+const CHALLENGE_TIMEOUT_MS = 90_000;
+
+/**
+ * Issue liveness challenges to all waiting participants.
+ *
+ * Called by cron every 3 minutes. For each waiting participant without a pending
+ * challenge, generates a unique challengeId and sets challengeStatus to 'pending'.
+ * Agents must respond via `resolveChallenge` before `challengeExpiresAt`.
+ *
+ * Internal mutation — not callable by clients directly.
+ */
+export const issueChallenge = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // Get all participants and filter to waiting ones
+    const participants = await ctx.db.query('chatroom_participants').collect();
+    const waitingParticipants = participants.filter((p) => p.status === 'waiting');
+
+    for (const p of waitingParticipants) {
+      // Skip if already has a pending challenge
+      if (p.challengeStatus === 'pending') continue;
+
+      // Issue new challenge
+      const challengeId = `${now}-${Math.random().toString(36).substring(2, 9)}`;
+      await ctx.db.patch('chatroom_participants', p._id, {
+        challengeId,
+        challengeSentAt: now,
+        challengeExpiresAt: now + CHALLENGE_TIMEOUT_MS,
+        challengeStatus: 'pending',
+      });
+    }
+  },
+});
+
+/**
+ * Resolve a pending liveness challenge for a participant.
+ *
+ * Called by the CLI when it detects a pending challenge (via `getChallenge` subscription).
+ * Validates the challengeId matches and the challenge is still pending, then marks it resolved.
+ *
+ * Requires CLI session authentication and chatroom access.
+ */
+export const resolveChallenge = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    challengeId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .unique();
+
+    if (!participant) throw new Error('Participant not found');
+    if (participant.challengeId !== args.challengeId) throw new Error('Challenge ID mismatch');
+    if (participant.challengeStatus !== 'pending') throw new Error('No pending challenge');
+
+    await ctx.db.patch('chatroom_participants', participant._id, {
+      challengeStatus: 'resolved',
+    });
+
+    return { status: 'resolved' as const };
+  },
+});
+
+/**
+ * Get the current challenge state for a participant.
+ *
+ * Used by the CLI to subscribe to challenge updates. When a new challenge appears
+ * with status 'pending', the CLI should call `resolveChallenge` with the challengeId.
+ *
+ * Requires CLI session authentication and chatroom access.
+ */
+export const getChallenge = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .unique();
+
+    if (!participant) return null;
+    if (!participant.challengeId) return null;
+
+    return {
+      challengeId: participant.challengeId,
+      challengeSentAt: participant.challengeSentAt,
+      challengeExpiresAt: participant.challengeExpiresAt,
+      challengeStatus: participant.challengeStatus,
+    };
   },
 });
 
