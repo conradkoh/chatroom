@@ -35,6 +35,16 @@ export const CHALLENGE_TIMEOUT_MS = 90_000; // 90s
  *  clean up based on `_creationTime` instead. */
 export const STALE_FSM_RECORD_TTL_MS = 600_000; // 10 min
 
+// ─── Crash Recovery ─────────────────────────────────────────────────────────
+
+/** Maximum number of restart attempts after an agent process crashes.
+ *  After this many failures, the daemon marks the agent as `dead_failed_revive`. */
+export const MAX_CRASH_RESTART_ATTEMPTS = 3;
+
+/** Delay between crash restart attempts (ms).
+ *  Prevents tight restart loops when an agent fails immediately on startup. */
+export const CRASH_RESTART_DELAY_MS = 3_000; // 3s
+
 // ─── Daemon Heartbeat ────────────────────────────────────────────────────────
 
 /** How often the daemon sends a heartbeat to refresh lastSeenAt (ms). */

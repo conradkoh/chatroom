@@ -7,7 +7,11 @@
 import { execSync } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 
-import { DAEMON_HEARTBEAT_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
+import {
+  CRASH_RESTART_DELAY_MS,
+  DAEMON_HEARTBEAT_INTERVAL_MS,
+  MAX_CRASH_RESTART_ATTEMPTS,
+} from '@workspace/backend/config/reliability.js';
 
 import { acquireLock, releaseLock } from './pid.js';
 import { api, type Id } from '../../api.js';
@@ -30,14 +34,6 @@ import {
 } from '../../infrastructure/machine/index.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
 import { getVersion } from '../../version.js';
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-/** Maximum number of restart attempts after an agent process crashes. */
-const MAX_CRASH_RESTART_ATTEMPTS = 3;
-
-/** Delay between crash restart attempts (in milliseconds). */
-const CRASH_RESTART_DELAY_MS = 3000;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
