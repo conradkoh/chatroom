@@ -283,6 +283,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
    * Safe to call multiple times (idempotent).
    */
   let cleanedUp = false;
+  let fatalExitTriggered = false;
   const cleanup = async () => {
     if (cleanedUp) return;
     cleanedUp = true;
@@ -309,6 +310,11 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (error instanceof ConvexError) {
       const data = error.data as BackendError;
       if (data?.code && FATAL_ERROR_CODES.includes(data.code)) {
+        // Guard against duplicate exits — both task and challenge subscriptions
+        // may fire fatal errors simultaneously (e.g. participant deleted).
+        if (fatalExitTriggered) return;
+        fatalExitTriggered = true;
+
         const errorTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
         console.error(`\n${'─'.repeat(50)}`);
         console.error(`❌ FATAL ERROR — Process must exit\n`);
