@@ -1,2 +1,0 @@
-# Run lint-staged to only process staged files
-pnpm lint-staged
