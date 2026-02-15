@@ -176,15 +176,21 @@ export const heartbeat = mutation({
       .unique();
 
     if (!participant) {
-      throw new Error(`Participant ${args.role} not found in chatroom — cannot send heartbeat`);
+      // Participant was cleaned up (e.g. by cleanupStaleAgents) but the CLI
+      // heartbeat timer is still running. This is expected — silently ignore.
+      console.warn(
+        `[heartbeat] Participant ${args.role} not found in chatroom — ignoring stale heartbeat`
+      );
+      return;
     }
 
-    // Reject heartbeats from stale connections
+    // Reject heartbeats from stale connections — a newer wait-for-task has taken over
     if (participant.connectionId && participant.connectionId !== args.connectionId) {
-      throw new Error(
-        `Heartbeat rejected: connectionId mismatch (expected ${participant.connectionId}, got ${args.connectionId}). ` +
-          `A newer wait-for-task process has taken over.`
+      console.warn(
+        `[heartbeat] Rejected stale heartbeat for ${args.role}: connectionId mismatch ` +
+          `(expected ${participant.connectionId}, got ${args.connectionId})`
       );
+      return;
     }
 
     // Refresh readyUntil

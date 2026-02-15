@@ -82,30 +82,39 @@ describe('Heartbeat', () => {
       connectionId: currentConnectionId,
     });
 
-    // Attempt heartbeat with a stale connectionId — should throw
-    await expect(
-      t.mutation(api.participants.heartbeat, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-        connectionId: staleConnectionId,
-      })
-    ).rejects.toThrow(/connectionId mismatch/);
+    // Attempt heartbeat with a stale connectionId — should silently return (no throw)
+    await t.mutation(api.participants.heartbeat, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      connectionId: staleConnectionId,
+    });
+
+    // Verify readyUntil was NOT updated (stale heartbeat ignored)
+    const participant = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+    });
+    expect(participant).toBeTruthy();
+    // readyUntil should still be the original value, not refreshed
+    expect(participant!.readyUntil).toBeLessThanOrEqual(Date.now() + HEARTBEAT_TTL_MS);
   });
 
-  test('heartbeat throws when participant does not exist', async () => {
+  test('heartbeat silently ignores when participant does not exist', async () => {
     const { sessionId } = await createTestSession('test-heartbeat-missing');
     const chatroomId = await createPairTeamChatroom(sessionId);
 
-    // No participant joined — heartbeat should fail
-    await expect(
-      t.mutation(api.participants.heartbeat, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-        connectionId: 'conn-any',
-      })
-    ).rejects.toThrow(/not found/);
+    // No participant joined — heartbeat should silently return (no throw)
+    await t.mutation(api.participants.heartbeat, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      connectionId: 'conn-any',
+    });
   });
 
   test('join sets readyUntil when provided', async () => {
