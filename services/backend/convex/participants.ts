@@ -507,8 +507,22 @@ export const resolveChallenge = mutation({
         message: `Participant ${args.role} not found in chatroom`,
       });
     }
-    if (participant.challengeId !== args.challengeId) throw new Error('Challenge ID mismatch');
-    if (participant.challengeStatus !== 'pending') throw new Error('No pending challenge');
+    if (participant.challengeId !== args.challengeId) {
+      // Non-fatal: indicates a race condition or stale challenge data on the client.
+      // The CLI logs this as a warning but does not exit.
+      throw new ConvexError<BackendError>({
+        code: BACKEND_ERROR_CODES.CHALLENGE_MISMATCH,
+        message: `Challenge ID mismatch for ${args.role} (expected ${participant.challengeId}, got ${args.challengeId})`,
+      });
+    }
+    if (participant.challengeStatus !== 'pending') {
+      // Non-fatal: challenge was already resolved or never issued.
+      // The CLI logs this as a warning but does not exit.
+      throw new ConvexError<BackendError>({
+        code: BACKEND_ERROR_CODES.CHALLENGE_NOT_PENDING,
+        message: `No pending challenge for ${args.role} (status: ${participant.challengeStatus ?? 'none'})`,
+      });
+    }
 
     await ctx.db.patch('chatroom_participants', participant._id, {
       challengeStatus: 'resolved',

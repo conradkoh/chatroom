@@ -15,7 +15,12 @@
  * All known backend error codes as a string literal union.
  * Each code uniquely identifies an error condition.
  */
-export type BackendErrorCode = 'PARTICIPANT_NOT_FOUND' | 'CHATROOM_NOT_FOUND' | 'SESSION_INVALID';
+export type BackendErrorCode =
+  | 'PARTICIPANT_NOT_FOUND'
+  | 'CHATROOM_NOT_FOUND'
+  | 'SESSION_INVALID'
+  | 'CHALLENGE_MISMATCH'
+  | 'CHALLENGE_NOT_PENDING';
 
 /**
  * Mapping of error names to their string code values.
@@ -28,6 +33,10 @@ export const BACKEND_ERROR_CODES = {
   CHATROOM_NOT_FOUND: 'CHATROOM_NOT_FOUND',
   /** Session is invalid or expired */
   SESSION_INVALID: 'SESSION_INVALID',
+  /** Challenge ID provided does not match the pending challenge (race condition or stale data) */
+  CHALLENGE_MISMATCH: 'CHALLENGE_MISMATCH',
+  /** No pending challenge exists for this participant (already resolved or never issued) */
+  CHALLENGE_NOT_PENDING: 'CHALLENGE_NOT_PENDING',
 } as const satisfies Record<BackendErrorCode, BackendErrorCode>;
 
 /**
