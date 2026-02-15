@@ -317,6 +317,24 @@ async function handleAgentCrashRecovery(
     console.log(`[${ts}]    ⚠️  Could not remove participant: ${(leaveErr as Error).message}`);
   }
 
+  // Step 2b: Report FSM status as "restarting" (Plan 026)
+  // Since leave() deletes the participant, updateAgentStatus will create a minimal
+  // participant record to hold the "restarting" status (dead-state fallback in Phase 4).
+  try {
+    await ctx.client.mutation(api.participants.updateAgentStatus, {
+      sessionId: ctx.sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+      agentStatus: 'restarting' as const,
+    });
+    console.log(`[${ts}]    Set ${role} agentStatus to "restarting"`);
+  } catch (statusErr) {
+    // Non-critical: UI will show stale status until agent rejoins or cleanup runs
+    console.warn(
+      `[${ts}]    ⚠️  Could not set agentStatus to restarting: ${(statusErr as Error).message}`
+    );
+  }
+
   // Step 3: Auto-restart with retry logic
   console.log(
     `[${ts}] 🔄 Attempting to restart ${role} (max ${MAX_CRASH_RESTART_ATTEMPTS} attempts)...`
@@ -344,12 +362,27 @@ async function handleAgentCrashRecovery(
     }
   }
 
-  // All attempts exhausted
+  // All attempts exhausted — report failure to backend (Plan 026)
   const failTs = formatTimestamp();
   console.log(
     `[${failTs}] ❌ Failed to restart ${role} after ${MAX_CRASH_RESTART_ATTEMPTS} attempts. ` +
       `The agent will need to be restarted manually or via the webapp.`
   );
+
+  try {
+    await ctx.client.mutation(api.participants.updateAgentStatus, {
+      sessionId: ctx.sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+      agentStatus: 'dead_failed_revive' as const,
+    });
+    console.log(`[${failTs}]    Set ${role} agentStatus to "dead_failed_revive"`);
+  } catch (statusErr) {
+    // Non-critical: UI will show "restarting" until cleanup cron runs
+    console.warn(
+      `[${failTs}]    ⚠️  Could not set agentStatus to dead_failed_revive: ${(statusErr as Error).message}`
+    );
+  }
 }
 
 // ─── State Recovery ──────────────────────────────────────────────────────────
