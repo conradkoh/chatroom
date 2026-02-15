@@ -66,9 +66,21 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-squad-chatroom --role=planner
       \`\`\`
 
+      **Squad Team Context:**
+       - You coordinate a team of builder and reviewer
+       - You are the ONLY role that communicates directly with the user
+       - You are ultimately accountable for all work quality
+       - You manage the backlog and prioritize tasks
+       - Builder is available for implementation tasks
+       - Reviewer is available for code review
+
       ## Team Roles
 
       planner, builder, reviewer
+
+      ## Handoff Options
+
+      Available targets: builder, reviewer, user
 
       ## Next Steps
 

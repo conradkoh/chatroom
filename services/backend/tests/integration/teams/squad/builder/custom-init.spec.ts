@@ -67,9 +67,22 @@ describe('Squad Team > Builder > Custom Init Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-squad-chatroom --role=builder
       \`\`\`
 
+      **Squad Team Context:**
+       - You work with a planner who coordinates the team and communicates with the user
+       - You do NOT communicate directly with the user — hand off to the planner instead
+       - Focus on implementation, the planner or reviewer will handle quality checks
+       - After completing work, hand off to reviewer (if available) or planner
+       - **NEVER hand off directly to \`user\`** — always go through the planner
+
       ## Team Roles
 
       planner, builder, reviewer
+
+      ## Handoff Options
+
+      Available targets: planner, reviewer
+
+      > **Note:** In squad team, only the planner can hand off to the user.
 
       ## Next Steps
 

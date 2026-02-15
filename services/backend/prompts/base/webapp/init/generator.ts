@@ -7,6 +7,8 @@
  */
 
 import { getRoleTemplate } from './templates.js';
+import { buildSelectorContext } from '../../../generator.js';
+import { getTeamContextSection } from '../../../sections/team-context.js';
 import { getContextGainingGuidance } from '../../shared/getting-started-content.js';
 import { getCliEnvPrefix } from '../utils/env.js';
 
@@ -25,7 +27,7 @@ export interface PromptContext {
  * Note: This is a simplified version. The CLI fetches the full prompt from the backend.
  */
 export function generateAgentPrompt(context: PromptContext): string {
-  const { chatroomId, role, teamName, teamRoles, convexUrl } = context;
+  const { chatroomId, role, teamName, teamRoles, teamEntryPoint, convexUrl } = context;
   const template = getRoleTemplate(role);
 
   // Use shared getting started content
@@ -39,6 +41,30 @@ export function generateAgentPrompt(context: PromptContext): string {
     agentType: 'custom',
   });
 
+  // Build SelectorContext for team-aware sections
+  const selectorCtx = buildSelectorContext({
+    role,
+    teamRoles,
+    teamName,
+    teamEntryPoint,
+    convexUrl: convexUrl ?? '',
+    chatroomId,
+  });
+
+  // Get team context (e.g., "Pair Team Context" or "Squad Team Context")
+  const teamContextSection = getTeamContextSection(selectorCtx);
+  const teamContext = teamContextSection.content.trim();
+
+  // Compute handoff options based on team structure
+  const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
+  const canHandoffToUser =
+    selectorCtx.team === 'squad'
+      ? role.toLowerCase() === (teamEntryPoint || 'planner').toLowerCase()
+      : true;
+  const handoffTargets = canHandoffToUser
+    ? [...new Set([...otherRoles, 'user'])]
+    : [...new Set(otherRoles)];
+
   return `# ${teamName} Team
 
 ## Your Role: ${template.title.toUpperCase()}
@@ -49,10 +75,14 @@ ${template.description}
 ${template.responsibilities.map((r) => `- ${r}`).join('\n')}
 
 ${gettingStarted}
-
+${teamContext ? `\n${teamContext}\n` : ''}
 ## Team Roles
 
 ${teamRoles.join(', ')}
+
+## Handoff Options
+
+Available targets: ${handoffTargets.join(', ')}${!canHandoffToUser ? `\n\n> **Note:** In squad team, only the ${teamEntryPoint || 'planner'} can hand off to the user.` : ''}
 
 ## Next Steps
 

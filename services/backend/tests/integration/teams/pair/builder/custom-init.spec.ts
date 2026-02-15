@@ -67,9 +67,18 @@ describe('Pair Team > Builder > Custom Init Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-pair-chatroom --role=builder
       \`\`\`
 
+      **Pair Team Context:**
+       - You work with a reviewer who will check your code
+       - Focus on implementation, let reviewer handle quality checks
+       - Hand off to reviewer for all code changes
+
       ## Team Roles
 
       builder, reviewer
+
+      ## Handoff Options
+
+      Available targets: reviewer, user
 
       ## Next Steps
 
