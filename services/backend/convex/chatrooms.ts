@@ -364,22 +364,21 @@ export const getTeamReadiness = query({
     const now = Date.now();
 
     // Build participant info with readiness status
-    // Include agentStatus with backward compatibility fallback (Plan 026)
+    // status is now the single source of truth for participant lifecycle
     const participantInfo = participants.map((p) => {
       const isExpired = p.readyUntil ? p.readyUntil < now : false;
 
-      // Derive agentStatus for backward compatibility when field is absent
+      // Map unified status to display-friendly agentStatus for the frontend
       let agentStatus: string;
-      if (p.agentStatus) {
-        agentStatus = p.agentStatus;
-      } else if (isExpired) {
+      if (isExpired && (p.status === 'waiting' || p.status === 'active')) {
         agentStatus = 'dead';
       } else if (p.status === 'active') {
         agentStatus = 'working';
       } else if (p.status === 'waiting') {
         agentStatus = 'ready';
       } else {
-        agentStatus = 'offline';
+        // offline, dead, restarting, dead_failed_revive, idle — pass through
+        agentStatus = p.status;
       }
 
       return {

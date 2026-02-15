@@ -26,6 +26,8 @@ export const join = mutation({
     readyUntil: v.optional(v.number()),
     // Unique connection ID to detect concurrent wait-for-task processes
     connectionId: v.optional(v.string()),
+    // Agent type — determines behavior on challenge failure
+    agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access - returns chatroom directly
@@ -77,25 +79,23 @@ export const join = mutation({
     if (existing) {
       // Update status to waiting and refresh readyUntil, clear activeUntil
       // Also update connectionId to allow old processes to detect they should exit
-      // Set agentStatus to 'ready' (FSM: any state → ready via join)
       await ctx.db.patch('chatroom_participants', existing._id, {
         status: 'waiting',
         readyUntil: args.readyUntil,
         activeUntil: undefined, // Clear active timeout when transitioning to waiting
         connectionId: args.connectionId, // Track current connection for concurrent process detection
-        agentStatus: 'ready', // FSM: agent is now ready for tasks
+        ...(args.agentType ? { agentType: args.agentType } : {}),
       });
       participantId = existing._id;
     } else {
       // Create new participant
-      // Set agentStatus to 'ready' (FSM: offline → ready via join)
       participantId = await ctx.db.insert('chatroom_participants', {
         chatroomId: args.chatroomId,
         role: args.role,
         status: 'waiting',
         readyUntil: args.readyUntil,
         connectionId: args.connectionId, // Track current connection for concurrent process detection
-        agentStatus: 'ready', // FSM: agent is now ready for tasks
+        ...(args.agentType ? { agentType: args.agentType } : {}),
         // activeUntil not set - will be set when transitioning to active
       });
     }
@@ -260,15 +260,12 @@ export const updateStatus = mutation({
     }
 
     // Build the update based on the target status
-    // Sync agentStatus with legacy status field (FSM Plan 026)
     const update: {
       status: 'active' | 'waiting';
       readyUntil?: number;
       activeUntil?: number;
-      agentStatus: 'working' | 'ready';
     } = {
       status: args.status,
-      agentStatus: args.status === 'active' ? 'working' : 'ready',
     };
 
     if (args.status === 'active') {
@@ -371,11 +368,14 @@ export const getHighestPriorityWaitingRole = query({
 });
 
 /**
- * Update the agent status FSM state for a participant (Plan 026).
+ * Update the participant lifecycle status (Plan 026).
  *
- * This mutation sets the explicit `agentStatus` field on a participant record.
+ * This mutation sets the `status` field on a participant record to one of the
+ * lifecycle states: offline, dead, restarting, dead_failed_revive.
  * It is called by the daemon during crash recovery (restarting, dead_failed_revive)
- * and by the CLI at lifecycle points (ready, working, offline).
+ * and by the CLI at lifecycle points (offline).
+ *
+ * Note: 'waiting' and 'active' transitions should use `updateStatus` or `join` instead.
  *
  * If the participant does not exist and the target status is a "dead" state
  * (dead, dead_failed_revive, restarting), a minimal participant record is created
@@ -393,9 +393,7 @@ export const updateAgentStatus = mutation({
       v.literal('offline'),
       v.literal('dead'),
       v.literal('dead_failed_revive'),
-      v.literal('ready'),
-      v.literal('restarting'),
-      v.literal('working')
+      v.literal('restarting')
     ),
   },
   handler: async (ctx, args) => {
@@ -418,8 +416,7 @@ export const updateAgentStatus = mutation({
         await ctx.db.insert('chatroom_participants', {
           chatroomId: args.chatroomId,
           role: args.role,
-          status: 'waiting', // placeholder for legacy field
-          agentStatus: args.agentStatus,
+          status: args.agentStatus,
         });
         return;
       }
@@ -427,7 +424,7 @@ export const updateAgentStatus = mutation({
     }
 
     await ctx.db.patch('chatroom_participants', participant._id, {
-      agentStatus: args.agentStatus,
+      status: args.agentStatus,
     });
   },
 });

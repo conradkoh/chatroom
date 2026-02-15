@@ -1536,9 +1536,9 @@ export const cleanupStaleAgents = internalMutation({
           affectedTasks.push(...recovered);
         }
 
-        // Set agentStatus to 'dead' before deleting (Plan 026 Phase 7)
+        // Set status to 'dead' before deleting (Plan 026 Phase 7)
         // This ensures the FSM state is recorded even briefly before deletion
-        await ctx.db.patch('chatroom_participants', p._id, { agentStatus: 'dead' });
+        await ctx.db.patch('chatroom_participants', p._id, { status: 'dead' });
 
         // Delete the stale participant — when the agent reconnects it will
         // re-join via join() and register as 'waiting' with fresh timeouts.
@@ -1556,15 +1556,15 @@ export const cleanupStaleAgents = internalMutation({
     const allParticipantsForFsmCleanup = await ctx.db.query('chatroom_participants').collect();
     for (const p of allParticipantsForFsmCleanup) {
       const isStaleRestarting =
-        p.agentStatus === 'restarting' && now - p._creationTime > STALE_FSM_RECORD_TTL_MS;
+        p.status === 'restarting' && now - p._creationTime > STALE_FSM_RECORD_TTL_MS;
       const isStaleDeadFailed =
-        p.agentStatus === 'dead_failed_revive' && now - p._creationTime > STALE_FSM_RECORD_TTL_MS;
+        p.status === 'dead_failed_revive' && now - p._creationTime > STALE_FSM_RECORD_TTL_MS;
 
       if (isStaleRestarting || isStaleDeadFailed) {
         await ctx.db.delete('chatroom_participants', p._id);
         cleanedCount++;
         console.warn(
-          `[Stale Cleanup] Removed stale ${p.agentStatus} participant: role=${p.role} chatroomId=${p.chatroomId} ` +
+          `[Stale Cleanup] Removed stale ${p.status} participant: role=${p.role} chatroomId=${p.chatroomId} ` +
             `age=${Math.round((now - p._creationTime) / 1000)}s`
         );
       }

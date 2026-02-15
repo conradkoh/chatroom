@@ -653,7 +653,6 @@ async function _handoffHandler(
     await ctx.db.patch('chatroom_participants', participant._id, {
       status: 'waiting',
       readyUntil: Date.now() + HEARTBEAT_TTL_MS,
-      agentStatus: 'ready', // FSM: working → ready on handoff (Plan 026)
     });
   }
 
