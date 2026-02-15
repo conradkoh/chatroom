@@ -364,12 +364,32 @@ export const getTeamReadiness = query({
     const now = Date.now();
 
     // Build participant info with readiness status
-    const participantInfo = participants.map((p) => ({
-      role: p.role,
-      status: p.status,
-      readyUntil: p.readyUntil,
-      isExpired: p.readyUntil ? p.readyUntil < now : false,
-    }));
+    // Include agentStatus with backward compatibility fallback (Plan 026)
+    const participantInfo = participants.map((p) => {
+      const isExpired = p.readyUntil ? p.readyUntil < now : false;
+
+      // Derive agentStatus for backward compatibility when field is absent
+      let agentStatus: string;
+      if (p.agentStatus) {
+        agentStatus = p.agentStatus;
+      } else if (isExpired) {
+        agentStatus = 'dead';
+      } else if (p.status === 'active') {
+        agentStatus = 'working';
+      } else if (p.status === 'waiting') {
+        agentStatus = 'ready';
+      } else {
+        agentStatus = 'offline';
+      }
+
+      return {
+        role: p.role,
+        status: p.status,
+        agentStatus,
+        readyUntil: p.readyUntil,
+        isExpired,
+      };
+    });
 
     // Get roles that have joined (any status) and are not expired
     const activeRoles = participantInfo

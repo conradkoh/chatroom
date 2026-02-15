@@ -313,6 +313,21 @@ export default defineSchema({
     // When a new wait-for-task starts, it generates a new connectionId
     // The old process detects the mismatch and exits cleanly
     connectionId: v.optional(v.string()),
+    // Agent Status FSM state (Plan 026)
+    // Explicit status field driven by daemon lifecycle events and heartbeat signals.
+    // Parallel to `status` field — `status` drives backend logic (task FSM, queue promotion),
+    // while `agentStatus` is the source of truth for UI display.
+    // Optional for backward compatibility — derived from `status` + expiration when absent.
+    agentStatus: v.optional(
+      v.union(
+        v.literal('offline'), // Default initial state — never joined or explicitly stopped
+        v.literal('dead'), // Heartbeat stopped — process presumed crashed
+        v.literal('dead_failed_revive'), // All restart attempts exhausted — manual intervention required
+        v.literal('ready'), // Running wait-for-task, heartbeat active, waiting for work
+        v.literal('restarting'), // Daemon attempting to restart after crash
+        v.literal('working') // Actively processing a task, heartbeat active
+      )
+    ),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role']),
