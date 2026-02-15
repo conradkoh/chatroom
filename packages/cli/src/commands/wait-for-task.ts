@@ -2,10 +2,12 @@
  * Wait for tasks in a chatroom
  */
 
+import { FATAL_ERROR_CODES, type BackendError } from '@workspace/backend/config/errorCodes.js';
 import { HEARTBEAT_INTERVAL_MS, HEARTBEAT_TTL_MS } from '@workspace/backend/config/reliability.js';
 import { getWaitForTaskGuidance } from '@workspace/backend/prompts/base/cli/index.js';
 import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
+import { ConvexError } from 'convex/values';
 
 import { api, type Id, type Chatroom, type TaskWithMessage } from '../api.js';
 import { DEFAULT_ACTIVE_TIMEOUT_MS } from '../config.js';
@@ -297,6 +299,42 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     }
   };
 
+  /**
+   * Handle errors from WebSocket subscription callbacks.
+   * - ConvexError with a fatal code → log, cleanup, and exit(1)
+   * - ConvexError with a non-fatal code → log a warning, continue
+   * - Non-ConvexError (network, transient) → log a warning, continue
+   */
+  const handleSubscriptionError = (error: Error, source: string) => {
+    if (error instanceof ConvexError) {
+      const data = error.data as BackendError;
+      if (data?.code && FATAL_ERROR_CODES.includes(data.code)) {
+        const errorTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        console.error(`\n${'─'.repeat(50)}`);
+        console.error(`❌ FATAL ERROR — Process must exit\n`);
+        console.error(`[${errorTime}] Error: ${data.code}`);
+        console.error(`   ${data.message}\n`);
+        console.error(`   This is an unrecoverable error. The process will now exit.`);
+        console.error(`   To reconnect, run:`);
+        console.error(
+          `   ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`
+        );
+        console.error(`${'─'.repeat(50)}`);
+        cleanup().finally(() => {
+          process.exit(1);
+        });
+        return;
+      }
+      // Non-fatal ConvexError — warn but continue
+      console.warn(
+        `⚠️  Non-fatal error in ${source}: [${data?.code}] ${data?.message ?? error.message}`
+      );
+      return;
+    }
+    // Non-ConvexError (network, transient) — warn but continue
+    console.warn(`⚠️  Transient error in ${source}: ${error.message}`);
+  };
+
   // Track if we've already processed a task (prevent duplicate processing)
   let taskProcessed = false;
   let unsubscribe: (() => void) | null = null;
@@ -447,6 +485,9 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       handlePendingTasks(pendingTasks).catch((error) => {
         console.error(`❌ Error processing task: ${(error as Error).message}`);
       });
+    },
+    (error: Error) => {
+      handleSubscriptionError(error, 'task subscription');
     }
   );
 
@@ -482,6 +523,9 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
             }
           });
       }
+    },
+    (error: Error) => {
+      handleSubscriptionError(error, 'challenge subscription');
     }
   );
 
