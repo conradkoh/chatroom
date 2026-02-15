@@ -1509,11 +1509,15 @@ export const cleanupStaleAgents = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
 
+    // Query all participants ONCE and partition in JS for the challenge,
+    // stale-cleanup, and FSM-cleanup checks below. This avoids 3 separate
+    // full-table queries in a single mutation.
+    const participantsSnapshot = await ctx.db.query('chatroom_participants').collect();
+
     // ─── Challenge Expiry Handling ─────────────────────────────────────
     // Check for participants with expired challenges before stale cleanup.
     // Custom agents → mark offline and delete; remote agents → mark dead for revive.
-    const allParticipantsForChallengeCheck = await ctx.db.query('chatroom_participants').collect();
-    for (const p of allParticipantsForChallengeCheck) {
+    for (const p of participantsSnapshot) {
       if (p.challengeStatus === 'pending' && p.challengeExpiresAt && now > p.challengeExpiresAt) {
         // Challenge expired without response
         if (p.agentType === 'custom') {
@@ -1547,18 +1551,10 @@ export const cleanupStaleAgents = internalMutation({
     }
 
     // ─── Stale Participant Cleanup ───────────────────────────────────────
-    // Query active and waiting participants to check for stale timeouts
-    const activeParticipants = await ctx.db
-      .query('chatroom_participants')
-      .filter((q) => q.eq(q.field('status'), 'active'))
-      .collect();
-
-    const waitingParticipants = await ctx.db
-      .query('chatroom_participants')
-      .filter((q) => q.eq(q.field('status'), 'waiting'))
-      .collect();
-
-    const candidateParticipants = [...activeParticipants, ...waitingParticipants];
+    // Partition from the single query above — no additional DB reads needed
+    const candidateParticipants = participantsSnapshot.filter(
+      (p) => p.status === 'active' || p.status === 'waiting'
+    );
 
     let cleanedCount = 0;
     const affectedTasks: string[] = [];
@@ -1591,8 +1587,7 @@ export const cleanupStaleAgents = internalMutation({
     // and have no readyUntil/activeUntil, so the expiration logic above won't catch them.
     // Clean them up after 10 minutes based on _creationTime.
     const STALE_FSM_RECORD_TTL_MS = 10 * 60 * 1000; // 10 minutes
-    const allParticipantsForFsmCleanup = await ctx.db.query('chatroom_participants').collect();
-    for (const p of allParticipantsForFsmCleanup) {
+    for (const p of participantsSnapshot) {
       const isStaleRestarting =
         p.status === 'restarting' && now - p._creationTime > STALE_FSM_RECORD_TTL_MS;
       const isStaleDeadFailed =
