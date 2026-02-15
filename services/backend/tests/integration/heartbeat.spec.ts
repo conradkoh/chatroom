@@ -44,12 +44,13 @@ describe('Heartbeat', () => {
     expect(before!.connectionId).toBe(connectionId);
 
     // Send heartbeat
-    await t.mutation(api.participants.heartbeat, {
+    const heartbeatResult = await t.mutation(api.participants.heartbeat, {
       sessionId,
       chatroomId,
       role: 'builder',
       connectionId,
     });
+    expect(heartbeatResult).toEqual({ status: 'ok' });
 
     // Verify readyUntil was refreshed (should be approximately now + HEARTBEAT_TTL_MS)
     const after = await t.query(api.participants.getByRole, {
@@ -104,17 +105,18 @@ describe('Heartbeat', () => {
     expect(participant!.readyUntil).toBeLessThanOrEqual(Date.now() + HEARTBEAT_TTL_MS);
   });
 
-  test('heartbeat silently ignores when participant does not exist', async () => {
+  test('heartbeat signals re-join when participant does not exist', async () => {
     const { sessionId } = await createTestSession('test-heartbeat-missing');
     const chatroomId = await createPairTeamChatroom(sessionId);
 
-    // No participant joined — heartbeat should silently return (no throw)
-    await t.mutation(api.participants.heartbeat, {
+    // No participant joined — heartbeat should return rejoin_required (Plan 026)
+    const result = await t.mutation(api.participants.heartbeat, {
       sessionId,
       chatroomId,
       role: 'builder',
       connectionId: 'conn-any',
     });
+    expect(result).toEqual({ status: 'rejoin_required' });
   });
 
   test('join sets readyUntil when provided', async () => {

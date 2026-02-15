@@ -141,6 +141,51 @@ describe('Daemon Heartbeat', () => {
     expect(startCommands.length).toBe(0);
   });
 
+  test('daemonHeartbeat recovers disconnected daemon (Plan 026)', async () => {
+    const { sessionId } = await createTestSession('test-hb-recovery');
+    const machineId = 'machine-hb-recovery';
+
+    // Register machine with daemon connected
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    // Manually mark daemon as disconnected (simulating cleanup after transient issue)
+    await t.run(async (ctx) => {
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      await ctx.db.patch(machine!._id, {
+        daemonConnected: false,
+      });
+    });
+
+    // Verify daemon is disconnected
+    const beforeHeartbeat = await t.run(async (ctx) => {
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      return machine!.daemonConnected;
+    });
+    expect(beforeHeartbeat).toBe(false);
+
+    // Send heartbeat — should recover daemonConnected to true
+    await t.mutation(api.machines.daemonHeartbeat, {
+      sessionId,
+      machineId,
+    });
+
+    // Verify daemon is now connected again
+    const afterHeartbeat = await t.run(async (ctx) => {
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      return machine!.daemonConnected;
+    });
+    expect(afterHeartbeat).toBe(true);
+  });
+
   test('fresh daemon is NOT marked disconnected by cleanupStaleAgents', async () => {
     const { sessionId } = await createTestSession('test-hb-4');
     const machineId = 'machine-hb-4';

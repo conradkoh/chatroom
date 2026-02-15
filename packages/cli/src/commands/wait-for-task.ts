@@ -221,6 +221,21 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
         role,
         connectionId,
       })
+      .then((result) => {
+        // Self-healing: if participant was cleaned up, re-join to restore it (Plan 026)
+        if (result?.status === 'rejoin_required') {
+          if (!silent) {
+            console.warn(`⚠️  Participant record missing — re-joining chatroom`);
+          }
+          return client.mutation(api.participants.join, {
+            sessionId,
+            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+            role,
+            readyUntil: Date.now() + HEARTBEAT_TTL_MS,
+            connectionId,
+          });
+        }
+      })
       .catch((err) => {
         // Log but don't crash — a single missed heartbeat is tolerated by the TTL
         if (!silent) {

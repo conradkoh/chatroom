@@ -516,6 +516,7 @@ export const daemonHeartbeat = mutation({
 
     await ctx.db.patch('chatroom_machines', machine._id, {
       lastSeenAt: Date.now(),
+      daemonConnected: true, // Self-healing: recover from transient disconnect (Plan 026)
     });
 
     return { success: true };

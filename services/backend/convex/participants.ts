@@ -177,11 +177,11 @@ export const heartbeat = mutation({
 
     if (!participant) {
       // Participant was cleaned up (e.g. by cleanupStaleAgents) but the CLI
-      // heartbeat timer is still running. This is expected — silently ignore.
+      // heartbeat timer is still running. Signal the CLI to re-join. (Plan 026)
       console.warn(
-        `[heartbeat] Participant ${args.role} not found in chatroom — ignoring stale heartbeat`
+        `[heartbeat] Participant ${args.role} not found in chatroom — signaling re-join`
       );
-      return;
+      return { status: 'rejoin_required' as const };
     }
 
     // Reject heartbeats from stale connections — a newer wait-for-task has taken over
@@ -190,13 +190,15 @@ export const heartbeat = mutation({
         `[heartbeat] Rejected stale heartbeat for ${args.role}: connectionId mismatch ` +
           `(expected ${participant.connectionId}, got ${args.connectionId})`
       );
-      return;
+      return { status: 'ok' as const }; // Don't signal re-join for stale connections
     }
 
     // Refresh readyUntil
     await ctx.db.patch('chatroom_participants', participant._id, {
       readyUntil: Date.now() + HEARTBEAT_TTL_MS,
     });
+
+    return { status: 'ok' as const };
   },
 });
 
