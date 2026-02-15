@@ -2,7 +2,7 @@
 
 ## Phase Breakdown
 
-### Phase 1: Daemon Heartbeat Recovery (P0)
+### Phase 1: Daemon Heartbeat Recovery (P0) ✅ DONE
 
 **Goal:** Allow daemons to recover their `daemonConnected` status via heartbeat.
 
@@ -21,7 +21,7 @@
 
 ---
 
-### Phase 2: Participant Heartbeat Re-join Signal (P0)
+### Phase 2: Participant Heartbeat Re-join Signal (P0) ✅ DONE
 
 **Goal:** Signal CLI agents to re-join when their participant record has been deleted.
 
@@ -44,7 +44,7 @@
 
 ---
 
-### Phase 3: Increase TTLs (P1)
+### Phase 3: Increase TTLs (P1) ✅ DONE
 
 **Goal:** Reduce false positive cleanup triggers during transient delays.
 
@@ -77,7 +77,7 @@ All three phases are independent and can be implemented in any order. However, i
 
 | Phase | Effort | Priority | Status |
 |-------|--------|----------|--------|
-| Phase 1: Daemon Recovery | 0.5 hours | P0 | Pending |
-| Phase 2: Re-join Signal | 2 hours | P0 | Pending |
-| Phase 3: TTL Increase | 0.5 hours | P1 | Pending |
+| Phase 1: Daemon Recovery | 0.5 hours | P0 | ✅ Done |
+| Phase 2: Re-join Signal | 2 hours | P0 | ✅ Done |
+| Phase 3: TTL Increase | 0.5 hours | P1 | ✅ Done |
 | **Total** | **3 hours** | | |
