@@ -305,6 +305,14 @@ async function handleAgentCrashRecovery(
   });
 
   // Step 2: Mark agent as offline so tasks are recoverable
+  // NOTE: This deletes the participant record. There is a brief window between
+  // this deletion and the updateAgentStatus('restarting') call below where the
+  // participant doesn't exist. This is acceptable because:
+  // 1. The cleanup cron runs every 2 minutes — unlikely to hit this ~ms window
+  // 2. Even if it does, there's nothing to clean up (record doesn't exist)
+  // 3. The updateAgentStatus call creates a new minimal record with 'restarting'
+  //    status, which the FSM cleanup handles after STALE_FSM_RECORD_TTL_MS (10 min)
+  //    if the restart fails silently
   try {
     await ctx.client.mutation(api.participants.leave, {
       sessionId: ctx.sessionId,
@@ -320,6 +328,8 @@ async function handleAgentCrashRecovery(
   // Step 2b: Report FSM status as "restarting" (Plan 026)
   // Since leave() deletes the participant, updateAgentStatus will create a minimal
   // participant record to hold the "restarting" status (dead-state fallback in Phase 4).
+  // This record has no readyUntil/activeUntil, so the stale-expiration logic won't
+  // catch it — the FSM cleanup (STALE_FSM_RECORD_TTL_MS) handles it instead.
   try {
     await ctx.client.mutation(api.participants.updateAgentStatus, {
       sessionId: ctx.sessionId,
