@@ -457,9 +457,11 @@ export const issueChallenge = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
 
-    // Get all participants and filter to waiting ones
-    const participants = await ctx.db.query('chatroom_participants').collect();
-    const waitingParticipants = participants.filter((p) => p.status === 'waiting');
+    // Query only waiting participants using the by_status index (avoids full table scan)
+    const waitingParticipants = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_status', (q) => q.eq('status', 'waiting'))
+      .collect();
 
     for (const p of waitingParticipants) {
       // Skip if already has a pending challenge

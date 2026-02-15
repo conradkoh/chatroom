@@ -338,7 +338,8 @@ export default defineSchema({
     challengeStatus: v.optional(v.union(v.literal('pending'), v.literal('resolved'))),
   })
     .index('by_chatroom', ['chatroomId'])
-    .index('by_chatroom_and_role', ['chatroomId', 'role']),
+    .index('by_chatroom_and_role', ['chatroomId', 'role'])
+    .index('by_status', ['status']),
 
   /**
    * Messages in chatrooms.
