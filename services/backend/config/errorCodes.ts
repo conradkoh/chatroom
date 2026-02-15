@@ -8,7 +8,8 @@
  * To add a new error code:
  * 1. Add the string literal to the `BackendErrorCode` union type
  * 2. Add the corresponding entry to `BACKEND_ERROR_CODES`
- * 3. If the error should cause the CLI to exit, add it to `FATAL_ERROR_CODES`
+ * 3. Add it to either `FATAL_ERROR_CODES` or `NON_FATAL_ERROR_CODES`
+ *    (the test suite verifies every code is classified)
  */
 
 /**
@@ -71,4 +72,13 @@ export const FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.PARTICIPANT_NOT_FOUND,
   BACKEND_ERROR_CODES.CHATROOM_NOT_FOUND,
   BACKEND_ERROR_CODES.SESSION_INVALID,
+] as const;
+
+/**
+ * Error codes that are non-fatal — the CLI logs a warning but continues running.
+ * These represent transient or expected conditions (race conditions, stale data).
+ */
+export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
+  BACKEND_ERROR_CODES.CHALLENGE_MISMATCH,
+  BACKEND_ERROR_CODES.CHALLENGE_NOT_PENDING,
 ] as const;
