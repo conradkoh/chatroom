@@ -1,6 +1,7 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { BACKEND_ERROR_CODES, type BackendError } from '../config/errorCodes';
 import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { internalMutation, mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
@@ -256,7 +257,10 @@ export const updateStatus = mutation({
       .unique();
 
     if (!participant) {
-      throw new Error(`Participant ${args.role} not found in chatroom`);
+      throw new ConvexError<BackendError>({
+        code: BACKEND_ERROR_CODES.PARTICIPANT_NOT_FOUND,
+        message: `Participant ${args.role} not found in chatroom`,
+      });
     }
 
     // Build the update based on the target status
@@ -420,7 +424,10 @@ export const updateAgentStatus = mutation({
         });
         return;
       }
-      throw new Error(`Participant ${args.role} not found in chatroom`);
+      throw new ConvexError<BackendError>({
+        code: BACKEND_ERROR_CODES.PARTICIPANT_NOT_FOUND,
+        message: `Participant ${args.role} not found in chatroom`,
+      });
     }
 
     await ctx.db.patch('chatroom_participants', participant._id, {
@@ -495,7 +502,12 @@ export const resolveChallenge = mutation({
       )
       .unique();
 
-    if (!participant) throw new Error('Participant not found');
+    if (!participant) {
+      throw new ConvexError<BackendError>({
+        code: BACKEND_ERROR_CODES.PARTICIPANT_NOT_FOUND,
+        message: `Participant ${args.role} not found in chatroom`,
+      });
+    }
     if (participant.challengeId !== args.challengeId) throw new Error('Challenge ID mismatch');
     if (participant.challengeStatus !== 'pending') throw new Error('No pending challenge');
 
