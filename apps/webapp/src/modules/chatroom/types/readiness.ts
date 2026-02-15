@@ -25,10 +25,23 @@ export type AgentStatus =
   | 'restarting'
   | 'working';
 
+/**
+ * Raw participant status values from the backend schema.
+ * These are the actual `status` field values on `chatroom_participants`.
+ */
+export type ParticipantStatus =
+  | 'active'
+  | 'waiting'
+  | 'offline'
+  | 'dead'
+  | 'dead_failed_revive'
+  | 'restarting'
+  | 'idle'; // deprecated, kept for backward compat
+
 /** Participant info from the backend readiness query — includes expiration data and FSM status */
 export interface ParticipantInfo {
   role: string;
-  status: string; // legacy field ('active' | 'waiting')
+  status: ParticipantStatus;
   displayStatus: AgentStatus; // Computed FSM display status (Plan 026)
   readyUntil?: number;
   isExpired: boolean;
