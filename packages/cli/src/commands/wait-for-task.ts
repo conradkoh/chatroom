@@ -221,7 +221,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
         role,
         connectionId,
       })
-      .then((result) => {
+      .then((result: { status: string } | null | undefined) => {
         // Self-healing: if participant was cleaned up, re-join to restore it (Plan 026)
         if (result?.status === 'rejoin_required') {
           if (!silent) {
