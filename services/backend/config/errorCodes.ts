@@ -82,3 +82,35 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
   BACKEND_ERROR_CODES.CHALLENGE_MISMATCH,
   BACKEND_ERROR_CODES.CHALLENGE_NOT_PENDING,
 ] as const;
+
+/**
+ * Structured response from getPendingTasksForRole subscription.
+ * Replaces thrown exceptions with typed responses the CLI can switch on.
+ *
+ * The backend never throws — it always returns one of these variants:
+ *
+ * - `tasks`: Pending/acknowledged tasks available for the role
+ * - `no_tasks`: No tasks available, keep waiting
+ * - `grace_period`: Recently acknowledged task within recovery window
+ * - `superseded`: Another wait-for-task process took over this role
+ * - `reconnect`: Backend wants the CLI to restart its connection
+ * - `error`: A structured error with a code, message, and fatality flag
+ */
+export type WaitForTaskResponse =
+  | {
+      type: 'tasks';
+      tasks: {
+        task: Record<string, unknown>;
+        message: Record<string, unknown> | null;
+      }[];
+    }
+  | { type: 'no_tasks' }
+  | { type: 'grace_period'; taskId: string; remainingMs: number }
+  | { type: 'superseded'; newConnectionId: string }
+  | { type: 'reconnect'; reason: string }
+  | {
+      type: 'error';
+      code: BackendErrorCode;
+      message: string;
+      fatal: boolean;
+    };
