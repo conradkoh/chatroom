@@ -172,6 +172,19 @@ describe('Context Read Command Output', () => {
       type: 'message',
     });
 
+    // Builder claims and starts the task so it appears in context
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
     // Get context
     const context = await t.query(api.messages.getContextForRole, {
       sessionId,
@@ -219,6 +232,19 @@ describe('Context Read Command Output', () => {
       attachedTaskIds: [task1.taskId, task2.taskId],
     });
 
+    // Builder claims and starts the task so it appears in context
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
     // Get context
     const context = await t.query(api.messages.getContextForRole, {
       sessionId,
@@ -236,5 +262,72 @@ describe('Context Read Command Output', () => {
     // Verify both tasks have content
     expect(userMessage!.attachedTasks?.[0].content).toContain('Task 1: Fix login bug');
     expect(userMessage!.attachedTasks?.[1].content).toContain('Task 2: Update documentation');
+  });
+
+  test('excludes messages with pending or acknowledged tasks from context', async () => {
+    // Setup
+    const { sessionId } = await createTestSession('test-context-excludes-pending');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends message — creates a pending task for builder
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Please fix the login bug',
+      type: 'message',
+    });
+
+    // Get context BEFORE claiming — message should be excluded (pending task)
+    const contextBeforeClaim = await t.query(api.messages.getContextForRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const pendingMessage = contextBeforeClaim.messages.find(
+      (m) => m.content === 'Please fix the login bug'
+    );
+    expect(pendingMessage).toBeUndefined();
+
+    // Builder claims the task (acknowledged status)
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Get context AFTER claiming — message should still be excluded (acknowledged task)
+    const contextAfterClaim = await t.query(api.messages.getContextForRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const acknowledgedMessage = contextAfterClaim.messages.find(
+      (m) => m.content === 'Please fix the login bug'
+    );
+    expect(acknowledgedMessage).toBeUndefined();
+
+    // Builder starts the task (in_progress status)
+    await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Get context AFTER starting — message should now be visible (in_progress task)
+    const contextAfterStart = await t.query(api.messages.getContextForRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const inProgressMessage = contextAfterStart.messages.find(
+      (m) => m.content === 'Please fix the login bug'
+    );
+    expect(inProgressMessage).toBeDefined();
+    expect(inProgressMessage!.taskStatus).toBe('in_progress');
   });
 });

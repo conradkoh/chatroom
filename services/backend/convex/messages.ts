@@ -2566,6 +2566,15 @@ export const getContextForRole = query({
       })
     );
 
+    // Filter out messages with pending/acknowledged tasks — agents should only
+    // discover these through wait-for-task, not context read
+    const filteredMessages = enrichedMessages.filter((msg) => {
+      if (msg.taskStatus === 'pending' || msg.taskStatus === 'acknowledged') {
+        return false;
+      }
+      return true;
+    });
+
     // Count pending tasks for this role
     const allPendingTasks = await ctx.db
       .query('chatroom_tasks')
@@ -2577,7 +2586,7 @@ export const getContextForRole = query({
     const pendingTasks = allPendingTasks.filter((task) => task.assignedTo === args.role);
 
     return {
-      messages: enrichedMessages,
+      messages: filteredMessages,
       originMessage: originMessage
         ? {
             _id: originMessage._id.toString(),
