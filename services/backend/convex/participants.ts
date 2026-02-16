@@ -397,7 +397,7 @@ export const updateAgentStatus = mutation({
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    agentStatus: v.union(
+    status: v.union(
       v.literal('offline'),
       v.literal('dead'),
       v.literal('dead_failed_revive'),
@@ -419,11 +419,11 @@ export const updateAgentStatus = mutation({
     if (!participant) {
       // If participant doesn't exist and we're setting a dead/recovery state,
       // create a minimal participant record to hold the status
-      if ((DEAD_STATES as readonly string[]).includes(args.agentStatus)) {
+      if ((DEAD_STATES as readonly string[]).includes(args.status)) {
         await ctx.db.insert('chatroom_participants', {
           chatroomId: args.chatroomId,
           role: args.role,
-          status: args.agentStatus,
+          status: args.status,
         });
         return;
       }
@@ -434,7 +434,7 @@ export const updateAgentStatus = mutation({
     }
 
     await ctx.db.patch('chatroom_participants', participant._id, {
-      status: args.agentStatus,
+      status: args.status,
     });
   },
 });

@@ -330,9 +330,9 @@ async function handleAgentCrashRecovery(
       sessionId: ctx.sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
-      agentStatus: 'restarting' as const,
+      status: 'restarting' as const,
     });
-    console.log(`[${ts}]    Set ${role} agentStatus to "restarting"`);
+    console.log(`[${ts}]    Set ${role} status to "restarting"`);
   } catch (statusErr) {
     // Non-critical: UI will show stale status until agent rejoins or cleanup runs
     console.warn(
@@ -379,9 +379,9 @@ async function handleAgentCrashRecovery(
       sessionId: ctx.sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
-      agentStatus: 'dead_failed_revive' as const,
+      status: 'dead_failed_revive' as const,
     });
-    console.log(`[${failTs}]    Set ${role} agentStatus to "dead_failed_revive"`);
+    console.log(`[${failTs}]    Set ${role} status to "dead_failed_revive"`);
   } catch (statusErr) {
     // Non-critical: UI will show "restarting" until cleanup cron runs
     console.warn(

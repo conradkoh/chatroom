@@ -180,7 +180,7 @@ describe('issueChallenge', () => {
       sessionId,
       chatroomId,
       role: 'builder',
-      agentStatus: 'offline',
+      status: 'offline',
     });
 
     // Issue challenges — should not issue any

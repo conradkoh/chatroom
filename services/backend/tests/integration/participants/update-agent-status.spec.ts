@@ -53,7 +53,7 @@ describe('updateAgentStatus', () => {
           sessionId,
           chatroomId,
           role: 'builder',
-          agentStatus: deadState,
+          status: deadState,
         });
 
         // Verify a minimal participant record was created
@@ -79,7 +79,7 @@ describe('updateAgentStatus', () => {
           sessionId,
           chatroomId,
           role: 'builder',
-          agentStatus: 'offline',
+          status: 'offline',
         });
         expect.fail('Expected ConvexError to be thrown');
       } catch (error) {
@@ -103,7 +103,7 @@ describe('updateAgentStatus', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        agentStatus: 'offline',
+        status: 'offline',
       });
 
       const participant = await t.query(api.participants.getByRole, {
@@ -127,7 +127,7 @@ describe('updateAgentStatus', () => {
         sessionId,
         chatroomId,
         role: 'builder',
-        agentStatus: 'dead',
+        status: 'dead',
       });
 
       const participant = await t.query(api.participants.getByRole, {
