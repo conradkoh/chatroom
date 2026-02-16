@@ -289,8 +289,7 @@ async function clearAgentPidEverywhere(
  */
 async function handleAgentCrashRecovery(
   ctx: DaemonContext,
-  originalCommand: StartAgentCommand,
-  _crashedPid: number | undefined
+  originalCommand: StartAgentCommand
 ): Promise<void> {
   const { chatroomId, role } = originalCommand.payload;
   const ts = formatTimestamp();
@@ -585,7 +584,7 @@ async function handleStartAgent(
               `(PID: ${spawnedPid}, role: ${role}, code: ${code}, signal: ${signal})`
           );
           // Run crash recovery asynchronously
-          handleAgentCrashRecovery(ctx, command, spawnedPid).catch((err) => {
+          handleAgentCrashRecovery(ctx, command).catch((err) => {
             console.log(`   ⚠️  Crash recovery failed for ${role}: ${(err as Error).message}`);
           });
         });
