@@ -196,7 +196,10 @@ export const heartbeat = mutation({
         `[heartbeat] Rejected stale heartbeat for ${args.role}: connectionId mismatch ` +
           `(expected ${participant.connectionId}, got ${args.connectionId})`
       );
-      return { status: 'ok' as const }; // Don't signal re-join for stale connections
+      // Return 'superseded' instead of 'ok' — the heartbeat was NOT processed because
+      // a newer connection owns this participant. The CLI logs this but does not exit;
+      // the connection-superseded subscription handles graceful shutdown.
+      return { status: 'superseded' as const };
     }
 
     // Refresh readyUntil

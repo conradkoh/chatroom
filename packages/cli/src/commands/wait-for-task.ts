@@ -273,6 +273,14 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
             connectionId,
           });
         }
+        // A newer wait-for-task process has taken over this role's connection.
+        // The heartbeat was rejected (not processed). No action needed here —
+        // the connection-superseded subscription handles graceful shutdown.
+        if (result?.status === 'superseded') {
+          if (!silent) {
+            console.warn(`⚠️  Heartbeat superseded — a newer connection owns this role`);
+          }
+        }
       })
       .catch((err) => {
         // Log but don't crash — a single missed heartbeat is tolerated by the TTL
