@@ -148,7 +148,33 @@ describe('Participant Lifecycle', () => {
       });
       expect(beforeCleanup).not.toBeNull();
 
-      // Run cleanup
+      // Phase 1: First cleanup marks the participant as planned_cleanup (two-phase cleanup)
+      await t.mutation(internal.tasks.cleanupStaleAgents, {});
+
+      // Verify builder is now in planned_cleanup status (not yet deleted)
+      const afterPhase1 = await t.query(api.participants.getByRole, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+      });
+      expect(afterPhase1).not.toBeNull();
+      expect(afterPhase1!.status).toBe('planned_cleanup');
+
+      // Expire the cleanup deadline to simulate time passing past the grace period
+      await t.run(async (ctx) => {
+        const participants = await ctx.db
+          .query('chatroom_participants')
+          .filter((q) => q.eq(q.field('chatroomId'), chatroomId))
+          .collect();
+        const builder = participants.find((p) => p.role === 'builder');
+        if (builder) {
+          await ctx.db.patch('chatroom_participants', builder._id, {
+            cleanupDeadline: Date.now() - 1_000, // deadline expired 1 second ago
+          });
+        }
+      });
+
+      // Phase 2: Second cleanup deletes participants past their deadline
       await t.mutation(internal.tasks.cleanupStaleAgents, {});
 
       // Verify builder was cleaned up (ghost participant removed)
