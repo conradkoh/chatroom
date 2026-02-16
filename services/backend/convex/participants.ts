@@ -81,10 +81,12 @@ export const join = mutation({
     if (existing) {
       // Update status to waiting and refresh readyUntil, clear activeUntil.
       // Also update connectionId to allow old processes to detect they should exit.
+      // Plan 027: Clear cleanupDeadline in case participant was in planned_cleanup.
       await ctx.db.patch('chatroom_participants', existing._id, {
         status: 'waiting',
         readyUntil: args.readyUntil,
         activeUntil: undefined, // Clear active timeout when transitioning to waiting
+        cleanupDeadline: undefined, // Clear any pending cleanup (Plan 027)
         connectionId: args.connectionId, // Track current connection for concurrent process detection
         ...(args.agentType ? { agentType: args.agentType } : {}),
       });
@@ -201,6 +203,20 @@ export const heartbeat = mutation({
       return { status: 'superseded' as const };
     }
 
+    // Plan 027: If participant is in planned_cleanup, restore to waiting.
+    // The agent proved it's still alive by sending a heartbeat, so cancel the cleanup.
+    if (participant.status === 'planned_cleanup') {
+      console.warn(
+        `[heartbeat] Restoring planned_cleanup participant to waiting: role=${args.role}`
+      );
+      await ctx.db.patch('chatroom_participants', participant._id, {
+        status: 'waiting',
+        readyUntil: Date.now() + HEARTBEAT_TTL_MS,
+        cleanupDeadline: undefined,
+      });
+      return { status: 'ok' as const };
+    }
+
     // Refresh readyUntil
     await ctx.db.patch('chatroom_participants', participant._id, {
       readyUntil: Date.now() + HEARTBEAT_TTL_MS,
@@ -266,13 +282,23 @@ export const updateStatus = mutation({
       });
     }
 
+    // Plan 027: Allow status transitions for participants in planned_cleanup.
+    // The agent is proving it's still alive by processing a task, so cancel the cleanup.
+    if (participant.status === 'planned_cleanup') {
+      console.warn(
+        `[updateStatus] Participant ${args.role} is in planned_cleanup — allowing transition to ${args.status}`
+      );
+    }
+
     // Build the update based on the target status
     const update: {
       status: 'active' | 'waiting';
       readyUntil?: number;
       activeUntil?: number;
+      cleanupDeadline?: number;
     } = {
       status: args.status,
+      cleanupDeadline: undefined, // Always clear cleanup deadline on status transition
     };
 
     if (args.status === 'active') {

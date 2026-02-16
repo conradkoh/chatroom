@@ -378,6 +378,11 @@ export const getTeamReadiness = query({
         displayStatus = 'working';
       } else if (p.status === 'waiting') {
         displayStatus = 'ready';
+      } else if (p.status === 'planned_cleanup') {
+        // Plan 027: Agent is flagged for cleanup but may still recover via heartbeat.
+        // Show as 'dead' to the frontend since from the user's perspective the agent
+        // appears disconnected (it will auto-recover to 'ready' if heartbeat arrives).
+        displayStatus = 'dead';
       } else if (p.status === 'idle') {
         // Backward compatibility: 'idle' is a deprecated status semantically
         // equivalent to 'offline'. Map it so the frontend AgentStatus type

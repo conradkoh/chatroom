@@ -215,6 +215,8 @@ export async function areAllAgentsReady(
   const now = Date.now();
   const hasActiveOrExpiredParticipant = participants.some((p) => {
     if (p.status === 'active') return true;
+    // Plan 027: Participants flagged for cleanup are not "ready"
+    if (p.status === 'planned_cleanup') return true;
     // Expired waiting participants are not "ready" (ghost participants)
     if (p.status === 'waiting' && p.readyUntil && p.readyUntil < now) return true;
     return false;

@@ -301,6 +301,7 @@ export default defineSchema({
       v.literal('dead'), // Heartbeat stopped, presumed crashed
       v.literal('dead_failed_revive'), // Restart attempts exhausted
       v.literal('restarting'), // Daemon attempting restart
+      v.literal('planned_cleanup'), // Flagged for removal, awaiting deadline
       /** @deprecated Will be removed after production migration. */
       v.literal('idle')
     ),
@@ -317,6 +318,10 @@ export default defineSchema({
     // When a new wait-for-task starts, it generates a new connectionId
     // The old process detects the mismatch and exits cleanly
     connectionId: v.optional(v.string()),
+    // Timestamp when a planned_cleanup participant should be deleted
+    // Set when cron marks a stale participant for two-phase cleanup
+    // If a heartbeat arrives before this deadline, the participant is restored
+    cleanupDeadline: v.optional(v.number()),
     /** @deprecated Use `status` field instead. Will be removed in future migration. */
     agentStatus: v.optional(
       v.union(

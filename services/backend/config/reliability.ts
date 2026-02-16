@@ -61,6 +61,16 @@ export const TASK_ACKNOWLEDGED_TIMEOUT_MS = 120_000; // 2 min
  *  handing the task to a new agent. */
 export const RECOVERY_GRACE_PERIOD_MS = 60_000; // 1 min
 
+// ─── Two-Phase Cleanup Grace Period ──────────────────────────────────────────
+
+/** Grace period before a stale participant is actually deleted (ms).
+ *  When the cleanup cron detects a stale agent, it marks it as `planned_cleanup`
+ *  with a deadline of `now + CLEANUP_GRACE_PERIOD_MS`. If a heartbeat arrives
+ *  before the deadline, the participant is restored to `waiting`. Only after the
+ *  deadline passes is the participant deleted on the next cron run.
+ *  Must be > HEARTBEAT_INTERVAL_MS (30s) to allow at least one heartbeat cycle. */
+export const CLEANUP_GRACE_PERIOD_MS = 60_000; // 1 min
+
 // ─── Stale Record Cleanup ────────────────────────────────────────────────────
 
 /** How long a minimal participant record (created by `updateAgentStatus` dead-state

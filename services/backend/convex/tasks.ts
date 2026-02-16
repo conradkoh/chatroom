@@ -7,6 +7,7 @@ import {
   type BackendErrorCode,
 } from '../config/errorCodes';
 import {
+  CLEANUP_GRACE_PERIOD_MS,
   DAEMON_HEARTBEAT_TTL_MS,
   RECOVERY_GRACE_PERIOD_MS,
   STALE_FSM_RECORD_TTL_MS,
@@ -1566,9 +1567,14 @@ export const getTaskLimits = query({
 /**
  * Internal mutation to clean up stale agents.
  * Called by cron job every 2 minutes.
- * Detects agents that have exceeded their timeout without disconnecting.
- * Deletes stale participant rows (agents re-join when they reconnect)
- * and recovers any orphaned tasks from active agents that went stale.
+ *
+ * Uses a two-phase approach (Plan 027):
+ * - Phase 1: Stale waiting/active participants are marked as `planned_cleanup`
+ *   with a deadline, giving them a grace period to heartbeat before removal.
+ * - Phase 2: Participants in `planned_cleanup` past their deadline are deleted.
+ *
+ * This eliminates the race condition where a live agent is deleted between
+ * heartbeat cycles and then fails with PARTICIPANT_NOT_FOUND during task delivery.
  */
 export const cleanupStaleAgents = internalMutation({
   args: {},
@@ -1580,36 +1586,61 @@ export const cleanupStaleAgents = internalMutation({
     // full-table queries in a single mutation.
     const participantsSnapshot = await ctx.db.query('chatroom_participants').collect();
 
-    // ─── Stale Participant Cleanup ───────────────────────────────────────
+    // ─── Two-Phase Stale Participant Cleanup (Plan 027) ──────────────────
+
+    let markedForCleanupCount = 0;
+    let deletedCount = 0;
+    const affectedTasks: string[] = [];
+
+    // Phase 1: Mark stale waiting/active participants as planned_cleanup
     const candidateParticipants = participantsSnapshot.filter(
       (p) => p.status === 'active' || p.status === 'waiting'
     );
-
-    let cleanedCount = 0;
-    const affectedTasks: string[] = [];
 
     for (const p of candidateParticipants) {
       const isStaleActive = p.status === 'active' && p.activeUntil && now > p.activeUntil;
       const isStaleWaiting = p.status === 'waiting' && p.readyUntil && now > p.readyUntil;
 
       if (isStaleActive || isStaleWaiting) {
-        // If was active, recover their orphaned tasks before deleting
+        // If was active, recover their orphaned tasks before marking for cleanup
         if (isStaleActive) {
           const recovered = await recoverOrphanedTasks(ctx, p.chatroomId, p.role);
           affectedTasks.push(...recovered);
         }
 
-        // Delete the stale participant — when the agent reconnects it will
-        // re-join via join() and register as 'waiting' with fresh timeouts.
-        // No need to patch status to 'dead' first — both operations happen in
-        // the same mutation, so the intermediate state is never observable.
-        await ctx.db.delete('chatroom_participants', p._id);
+        // Mark for planned cleanup instead of deleting immediately.
+        // The agent has until the deadline to prove it's still alive via heartbeat.
+        await ctx.db.patch('chatroom_participants', p._id, {
+          status: 'planned_cleanup',
+          cleanupDeadline: now + CLEANUP_GRACE_PERIOD_MS,
+          readyUntil: undefined,
+          activeUntil: undefined,
+        });
 
-        cleanedCount++;
+        markedForCleanupCount++;
+        console.warn(
+          `[Two-Phase Cleanup] Marked ${p.status} participant for cleanup: role=${p.role} chatroomId=${p.chatroomId} ` +
+            `deadline=${new Date(now + CLEANUP_GRACE_PERIOD_MS).toISOString()}`
+        );
       }
     }
 
-    // Phase 7 (Plan 026): Clean up stale restarting/dead_failed_revive participant records.
+    // Phase 2: Delete participants in planned_cleanup whose deadline has passed
+    const plannedCleanupParticipants = participantsSnapshot.filter(
+      (p) => p.status === 'planned_cleanup'
+    );
+
+    for (const p of plannedCleanupParticipants) {
+      if (p.cleanupDeadline && now > p.cleanupDeadline) {
+        await ctx.db.delete('chatroom_participants', p._id);
+        deletedCount++;
+        console.warn(
+          `[Two-Phase Cleanup] Deleted participant past deadline: role=${p.role} chatroomId=${p.chatroomId}`
+        );
+      }
+    }
+
+    // Phase 3 (Plan 026): Clean up stale restarting/dead_failed_revive participant records.
     // These minimal records are created by updateAgentStatus (Phase 4 dead-state fallback)
     // and have no readyUntil/activeUntil, so the expiration logic above won't catch them.
     // Clean them up after 10 minutes based on _creationTime.
@@ -1621,7 +1652,7 @@ export const cleanupStaleAgents = internalMutation({
 
       if (isStaleRestarting || isStaleDeadFailed) {
         await ctx.db.delete('chatroom_participants', p._id);
-        cleanedCount++;
+        deletedCount++;
         console.warn(
           `[Stale Cleanup] Removed stale ${p.status} participant: role=${p.role} chatroomId=${p.chatroomId} ` +
             `age=${Math.round((now - p._creationTime) / 1000)}s`
@@ -1630,10 +1661,10 @@ export const cleanupStaleAgents = internalMutation({
     }
 
     // Summary log (one per run, includes affected task IDs)
-    if (cleanedCount > 0) {
+    if (markedForCleanupCount > 0 || deletedCount > 0) {
       console.warn(
-        `[Stale Cleanup] Cleaned ${cleanedCount} participants, recovered ${affectedTasks.length} tasks. ` +
-          `taskIds=${affectedTasks.join(',') || 'none'}`
+        `[Stale Cleanup] Marked ${markedForCleanupCount} for cleanup, deleted ${deletedCount} participants, ` +
+          `recovered ${affectedTasks.length} tasks. taskIds=${affectedTasks.join(',') || 'none'}`
       );
     }
 
