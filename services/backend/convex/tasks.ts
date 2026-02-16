@@ -1568,12 +1568,10 @@ export const cleanupStaleAgents = internalMutation({
           affectedTasks.push(...recovered);
         }
 
-        // Set status to 'dead' before deleting (Plan 026 Phase 7)
-        // This ensures the FSM state is recorded even briefly before deletion
-        await ctx.db.patch('chatroom_participants', p._id, { status: 'dead' });
-
         // Delete the stale participant — when the agent reconnects it will
         // re-join via join() and register as 'waiting' with fresh timeouts.
+        // No need to patch status to 'dead' first — both operations happen in
+        // the same mutation, so the intermediate state is never observable.
         await ctx.db.delete('chatroom_participants', p._id);
 
         cleanedCount++;
