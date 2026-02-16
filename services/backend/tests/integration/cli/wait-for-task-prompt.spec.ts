@@ -2475,8 +2475,10 @@ describe('Wait-for-Task Recent Improvements', () => {
       chatroomId,
       role: 'builder',
     });
-    expect(pendingResult.length).toBe(1);
-    expect(pendingResult[0].task.status).toBe('pending');
+    expect(pendingResult.type).toBe('tasks');
+    const pendingTasks = (pendingResult as { type: 'tasks'; tasks: any[] }).tasks;
+    expect(pendingTasks.length).toBe(1);
+    expect(pendingTasks[0].task.status).toBe('pending');
 
     // Builder claims the task (transitions to acknowledged)
     await t.mutation(api.tasks.claimTask, {
@@ -2485,18 +2487,17 @@ describe('Wait-for-Task Recent Improvements', () => {
       role: 'builder',
     });
 
-    // Verify acknowledged task is STILL returned by getPendingTasksForRole
+    // Verify acknowledged task returns grace_period (recently acknowledged)
     const acknowledgedResult = await t.query(api.tasks.getPendingTasksForRole, {
       sessionId,
       chatroomId,
       role: 'builder',
     });
-    expect(acknowledgedResult.length).toBe(1);
-    expect(acknowledgedResult[0].task.status).toBe('acknowledged');
-
-    // Verify the message is included with the task
-    expect(acknowledgedResult[0].message).toBeDefined();
-    expect(acknowledgedResult[0].message?.content).toBe('Please implement the dark mode feature');
+    expect(acknowledgedResult.type).toBe('grace_period');
+    expect((acknowledgedResult as { type: 'grace_period'; taskId: string }).taskId).toBeDefined();
+    expect(
+      (acknowledgedResult as { type: 'grace_period'; remainingMs: number }).remainingMs
+    ).toBeGreaterThan(0);
   });
 
   test('init prompt contains backlog and guidance sections', async () => {
@@ -2525,5 +2526,101 @@ describe('Wait-for-Task Recent Improvements', () => {
 
     // Init prompt should contain the wait-for-task reminder
     expect(prompt).toContain(getWaitForTaskReminder());
+  });
+
+  test('getPendingTasksForRole returns no_tasks when no tasks exist', async () => {
+    const { sessionId } = await createTestSession('test-no-tasks-response');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    const result = await t.query(api.tasks.getPendingTasksForRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    expect(result.type).toBe('no_tasks');
+  });
+
+  test('getPendingTasksForRole returns superseded when connectionId does not match', async () => {
+    const { sessionId } = await createTestSession('test-superseded-response');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+
+    // Join with a specific connectionId
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      readyUntil: Date.now() + 10 * 60 * 1000,
+      connectionId: 'conn-current',
+    });
+    await joinParticipants(sessionId, chatroomId, ['reviewer']);
+
+    // Query with a stale connectionId
+    const result = await t.query(api.tasks.getPendingTasksForRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      connectionId: 'conn-stale',
+    });
+    expect(result.type).toBe('superseded');
+    expect((result as { type: 'superseded'; newConnectionId: string }).newConnectionId).toBe(
+      'conn-current'
+    );
+  });
+
+  test('getPendingTasksForRole returns error for invalid session', async () => {
+    // Create a valid session to create the chatroom
+    const { sessionId } = await createTestSession('test-error-response');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+
+    // Query with an invalid session
+    const result = await t.query(api.tasks.getPendingTasksForRole, {
+      sessionId: 'invalid-session-id',
+      chatroomId,
+      role: 'builder',
+    });
+    expect(result.type).toBe('error');
+    const errorResult = result as { type: 'error'; code: string; message: string; fatal: boolean };
+    expect(errorResult.fatal).toBe(true);
+    expect(errorResult.code).toBeDefined();
+    expect(errorResult.message).toBeDefined();
+  });
+
+  test('getPendingTasksForRole returns grace_period for recently acknowledged task', async () => {
+    const { sessionId } = await createTestSession('test-grace-period-response');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Send a message to create a task
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Build a feature',
+      type: 'message',
+    });
+
+    // Claim the task (pending → acknowledged)
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Query immediately — task was just acknowledged, should be in grace period
+    const result = await t.query(api.tasks.getPendingTasksForRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    expect(result.type).toBe('grace_period');
+    const gracePeriod = result as {
+      type: 'grace_period';
+      taskId: string;
+      remainingMs: number;
+    };
+    expect(gracePeriod.taskId).toBeDefined();
+    expect(gracePeriod.remainingMs).toBeGreaterThan(0);
+    expect(gracePeriod.remainingMs).toBeLessThanOrEqual(60_000);
   });
 });

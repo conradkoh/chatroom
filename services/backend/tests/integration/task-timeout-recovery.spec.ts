@@ -53,18 +53,14 @@ describe('Task Timeout Recovery', () => {
         role: 'builder',
       });
 
-      // Verify task is acknowledged
+      // Verify task is acknowledged (recently acknowledged → grace_period response)
       const tasksBeforeCleanup = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'builder',
       });
-      // The task should be acknowledged
-      const ackTask = tasksBeforeCleanup.find(
-        (tw: { task: { status: string } }) => tw.task.status === 'acknowledged'
-      );
-      expect(ackTask).toBeDefined();
-      const taskId = ackTask!.task._id;
+      expect(tasksBeforeCleanup.type).toBe('grace_period');
+      const taskId = (tasksBeforeCleanup as { type: 'grace_period'; taskId: string }).taskId;
 
       // Now remove the participant (simulate agent death)
       await t.mutation(api.participants.leave, {
@@ -120,13 +116,14 @@ describe('Task Timeout Recovery', () => {
         role: 'builder',
       });
 
-      // Get the task ID
-      const tasks = await t.query(api.tasks.getPendingTasksForRole, {
+      // Get the task ID (recently acknowledged → grace_period response)
+      const tasksResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'builder',
       });
-      const taskId = tasks[0]!.task._id;
+      expect(tasksResult.type).toBe('grace_period');
+      const taskId = (tasksResult as { type: 'grace_period'; taskId: string }).taskId;
 
       // Participant is still present and valid — run cleanup
       await t.mutation(internal.tasks.cleanupStaleAgents, {});

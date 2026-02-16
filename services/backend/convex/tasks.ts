@@ -1,8 +1,14 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import {
+  NON_FATAL_ERROR_CODES,
+  type BackendError,
+  type BackendErrorCode,
+} from '../config/errorCodes';
+import {
   DAEMON_HEARTBEAT_TTL_MS,
+  RECOVERY_GRACE_PERIOD_MS,
   STALE_FSM_RECORD_TTL_MS,
   TASK_ACKNOWLEDGED_TIMEOUT_MS,
   TASK_PENDING_TIMEOUT_MS,
@@ -1336,7 +1342,7 @@ export const getTaskCounts = query({
 
 /**
  * Get all pending tasks for a role.
- * Returns tasks in queue order (oldest first).
+ * Returns a structured WaitForTaskResponse union type instead of throwing.
  * Used by wait-for-task to find work items.
  * Requires CLI session authentication and chatroom access.
  */
@@ -1345,66 +1351,125 @@ export const getPendingTasksForRole = query({
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
+    connectionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed) - returns chatroom directly
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    try {
+      // Validate session and check chatroom access
+      const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Determine the entry point role for user messages
-    const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
-    const normalizedRole = args.role.toLowerCase();
-    const normalizedEntryPoint = entryPoint?.toLowerCase();
+      // Check for superseded connection before processing tasks
+      if (args.connectionId) {
+        const participant = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom_and_role', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+          )
+          .unique();
 
-    // Helper to check if a task is relevant for this role
-    const isRelevantForRole = (task: { assignedTo?: string; createdBy: string }) => {
-      if (task.assignedTo) {
-        return task.assignedTo.toLowerCase() === normalizedRole;
-      }
-      if (task.createdBy === 'user') {
-        return normalizedRole === normalizedEntryPoint;
-      }
-      return normalizedRole === normalizedEntryPoint;
-    };
-
-    // Get all pending tasks
-    const pendingTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
-      )
-      .collect();
-
-    // Also get acknowledged tasks for recovery
-    // An acknowledged task may be orphaned if the agent that claimed it died
-    const acknowledgedTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
-      )
-      .collect();
-
-    // Filter for tasks relevant to this role
-    const relevantPending = pendingTasks.filter(isRelevantForRole);
-    const relevantAcknowledged = acknowledgedTasks.filter(isRelevantForRole);
-
-    // Combine: pending first, then acknowledged (pending tasks have priority)
-    const relevantTasks = [...relevantPending, ...relevantAcknowledged];
-
-    // Sort by queuePosition (oldest first)
-    relevantTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-
-    // For each task, get the source message if available
-    const tasksWithMessages = await Promise.all(
-      relevantTasks.map(async (task) => {
-        let message = null;
-        if (task.sourceMessageId) {
-          message = await ctx.db.get('chatroom_messages', task.sourceMessageId);
+        if (participant?.connectionId && participant.connectionId !== args.connectionId) {
+          return {
+            type: 'superseded' as const,
+            newConnectionId: participant.connectionId,
+          };
         }
-        return { task, message };
-      })
-    );
+      }
 
-    return tasksWithMessages;
+      // Determine the entry point role for user messages
+      const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
+      const normalizedRole = args.role.toLowerCase();
+      const normalizedEntryPoint = entryPoint?.toLowerCase();
+
+      // Helper to check if a task is relevant for this role
+      const isRelevantForRole = (task: { assignedTo?: string; createdBy: string }) => {
+        if (task.assignedTo) {
+          return task.assignedTo.toLowerCase() === normalizedRole;
+        }
+        if (task.createdBy === 'user') {
+          return normalizedRole === normalizedEntryPoint;
+        }
+        return normalizedRole === normalizedEntryPoint;
+      };
+
+      // Get all pending tasks
+      const pendingTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+        )
+        .collect();
+
+      // Also get acknowledged tasks for recovery
+      // An acknowledged task may be orphaned if the agent that claimed it died
+      const acknowledgedTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+        )
+        .collect();
+
+      // Filter for tasks relevant to this role
+      const relevantPending = pendingTasks.filter(isRelevantForRole);
+      const relevantAcknowledged = acknowledgedTasks.filter(isRelevantForRole);
+
+      // Combine: pending first, then acknowledged (pending tasks have priority)
+      const relevantTasks = [...relevantPending, ...relevantAcknowledged];
+
+      // Sort by queuePosition (oldest first)
+      relevantTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+
+      // Check for grace period on acknowledged tasks
+      if (relevantTasks.length > 0 && relevantTasks[0].status === 'acknowledged') {
+        const task = relevantTasks[0];
+        const acknowledgedAt = task.acknowledgedAt ?? task._creationTime;
+        const elapsedMs = Date.now() - acknowledgedAt;
+
+        if (elapsedMs < RECOVERY_GRACE_PERIOD_MS) {
+          const remainingMs = RECOVERY_GRACE_PERIOD_MS - elapsedMs;
+          return {
+            type: 'grace_period' as const,
+            taskId: task._id as string,
+            remainingMs,
+          };
+        }
+      }
+
+      // No tasks found
+      if (relevantTasks.length === 0) {
+        return { type: 'no_tasks' as const };
+      }
+
+      // For each task, get the source message if available
+      const tasksWithMessages = await Promise.all(
+        relevantTasks.map(async (task) => {
+          let message = null;
+          if (task.sourceMessageId) {
+            message = await ctx.db.get('chatroom_messages', task.sourceMessageId);
+          }
+          return { task, message };
+        })
+      );
+
+      return { type: 'tasks' as const, tasks: tasksWithMessages };
+    } catch (error) {
+      if (error instanceof ConvexError) {
+        const data = error.data as BackendError;
+        const isFatal = !NON_FATAL_ERROR_CODES.includes(data.code);
+        return {
+          type: 'error' as const,
+          code: data.code,
+          message: data.message,
+          fatal: isFatal,
+        };
+      }
+      // Unknown error — treat as fatal
+      return {
+        type: 'error' as const,
+        code: 'SESSION_INVALID' as BackendErrorCode,
+        message: (error as Error).message || 'Unknown error',
+        fatal: true,
+      };
+    }
   },
 });
 

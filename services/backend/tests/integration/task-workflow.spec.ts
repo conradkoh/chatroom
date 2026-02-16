@@ -564,11 +564,13 @@ describe('Task Workflow - Race Conditions', () => {
     expect(messageId).toBeDefined();
 
     // Verify a pending task was created
-    const pendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+    const pendingTasksResult = await t.query(api.tasks.getPendingTasksForRole, {
       sessionId,
       chatroomId,
       role: 'builder',
     });
+    expect(pendingTasksResult.type).toBe('tasks');
+    const pendingTasks = (pendingTasksResult as { type: 'tasks'; tasks: any[] }).tasks;
     expect(pendingTasks.length).toBe(1);
 
     // Claim and start the task (FSM workflow)

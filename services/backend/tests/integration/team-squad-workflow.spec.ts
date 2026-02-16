@@ -91,11 +91,13 @@ describe('Squad Team Workflow', () => {
       expect(_userMessageId).toBeDefined();
 
       // Verify a pending task was created for planner (entry point)
-      const plannerPendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const plannerPendingResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'planner',
       });
+      expect(plannerPendingResult.type).toBe('tasks');
+      const plannerPendingTasks = (plannerPendingResult as { type: 'tasks'; tasks: any[] }).tasks;
       expect(plannerPendingTasks).toHaveLength(1);
       expect(plannerPendingTasks[0].task.status).toBe('pending');
 
@@ -1284,11 +1286,13 @@ OAuth2`,
       expect(reworkHandoff.newTaskId).toBeDefined();
 
       // Builder should have a new pending task
-      const builderTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const builderTasksResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'builder',
       });
+      expect(builderTasksResult.type).toBe('tasks');
+      const builderTasks = (builderTasksResult as { type: 'tasks'; tasks: any[] }).tasks;
       expect(builderTasks).toHaveLength(1);
       expect(builderTasks[0].task.content).toBe('Please add rate limiting to the auth endpoints.');
     });
@@ -1334,11 +1338,13 @@ OAuth2`,
       });
 
       // Get the pending tasks for planner
-      const pendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const pendingTasksResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'planner',
       });
+      expect(pendingTasksResult.type).toBe('tasks');
+      const pendingTasks = (pendingTasksResult as { type: 'tasks'; tasks: any[] }).tasks;
 
       expect(pendingTasks.length).toBeGreaterThan(0);
       const taskId = pendingTasks[0].task._id;

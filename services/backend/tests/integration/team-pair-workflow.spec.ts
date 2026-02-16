@@ -82,11 +82,13 @@ describe('Pair Team Workflow', () => {
       expect(_userMessageId).toBeDefined();
 
       // Verify a pending task was created for builder
-      const builderPendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const builderPendingResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'builder',
       });
+      expect(builderPendingResult.type).toBe('tasks');
+      const builderPendingTasks = (builderPendingResult as { type: 'tasks'; tasks: any[] }).tasks;
       expect(builderPendingTasks).toHaveLength(1);
       expect(builderPendingTasks[0].task.status).toBe('pending');
 
@@ -274,11 +276,13 @@ Test technical specifications`,
       // ========================================
       // STEP 6: Reviewer receives pending task
       // ========================================
-      const reviewerPendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const reviewerPendingResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'reviewer',
       });
+      expect(reviewerPendingResult.type).toBe('tasks');
+      const reviewerPendingTasks = (reviewerPendingResult as { type: 'tasks'; tasks: any[] }).tasks;
       expect(reviewerPendingTasks).toHaveLength(1);
       expect(reviewerPendingTasks[0].task.status).toBe('pending');
 
@@ -996,11 +1000,13 @@ Test technical specifications`,
       expect(changeRequestResult.newTaskId).toBeDefined(); // Task created for builder
 
       // Builder should have a new pending task
-      const builderTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const builderTasksResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'builder',
       });
+      expect(builderTasksResult.type).toBe('tasks');
+      const builderTasks = (builderTasksResult as { type: 'tasks'; tasks: any[] }).tasks;
 
       expect(builderTasks).toHaveLength(1);
       expect(builderTasks[0].task.content).toBe(
@@ -1278,11 +1284,13 @@ Test technical specifications`,
       });
 
       // Get the pending tasks for builder
-      const pendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const pendingTasksResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'builder',
       });
+      expect(pendingTasksResult.type).toBe('tasks');
+      const pendingTasks = (pendingTasksResult as { type: 'tasks'; tasks: any[] }).tasks;
 
       expect(pendingTasks.length).toBeGreaterThan(0);
       const taskId = pendingTasks[0].task._id;
