@@ -2,7 +2,11 @@
  * Wait for tasks in a chatroom
  */
 
-import { FATAL_ERROR_CODES, type BackendError } from '@workspace/backend/config/errorCodes.js';
+import {
+  FATAL_ERROR_CODES,
+  type BackendError,
+  type BackendErrorCode,
+} from '@workspace/backend/config/errorCodes.js';
 import { HEARTBEAT_INTERVAL_MS, HEARTBEAT_TTL_MS } from '@workspace/backend/config/reliability.js';
 import { getWaitForTaskGuidance } from '@workspace/backend/prompts/base/cli/index.js';
 import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
@@ -24,6 +28,18 @@ import {
   type AgentHarness,
 } from '../infrastructure/machine/index.js';
 import { isNetworkError, formatConnectivityError } from '../utils/error-formatting.js';
+
+/** Discriminated union response from `getPendingTasksForRole` subscription. */
+type WaitForTaskResponse =
+  | {
+      type: 'tasks';
+      tasks: { task: Record<string, unknown>; message: Record<string, unknown> | null }[];
+    }
+  | { type: 'no_tasks' }
+  | { type: 'grace_period'; taskId: string; remainingMs: number }
+  | { type: 'superseded'; newConnectionId: string }
+  | { type: 'reconnect'; reason: string }
+  | { type: 'error'; code: BackendErrorCode; message: string; fatal: boolean };
 
 /** Shape returned by the backend `getChallenge` query subscription. */
 interface ChallengeState {
@@ -362,26 +378,23 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   let unsubscribe: (() => void) | null = null;
   let challengeUnsubscribe: () => void = () => {}; // Assigned when subscription is created
 
-  // Handle task processing when we receive pending tasks via subscription
-  const handlePendingTasks = async (pendingTasks: TaskWithMessage[]) => {
+  // Handle response from the getPendingTasksForRole subscription
+  const handleSubscriptionResponse = async (response: WaitForTaskResponse) => {
     // Prevent duplicate processing
     if (taskProcessed) return;
 
-    // Check if another wait-for-task process has taken over
-    // This detects concurrent processes and gracefully exits the old one
-    const currentConnectionId = await client.query(api.participants.getConnectionId, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-    });
+    // Handle discriminated union response types
+    if (response.type === 'no_tasks') {
+      // No tasks yet, subscription will notify us when there are
+      return;
+    }
 
-    if (currentConnectionId && currentConnectionId !== connectionId) {
+    if (response.type === 'superseded') {
       // Another process has taken over - exit gracefully
       if (unsubscribe) unsubscribe();
       challengeUnsubscribe();
-      // Cleanup heartbeat (don't call participants.leave — the new process owns the participant)
       clearInterval(heartbeatTimer);
-      cleanedUp = true; // Prevent cleanup() from calling leave
+      cleanedUp = true;
       const takeoverTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
       console.log(`\n${'─'.repeat(50)}`);
       console.log(`⚠️  CONNECTION SUPERSEDED\n`);
@@ -394,11 +407,57 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       process.exit(0);
     }
 
+    if (response.type === 'grace_period') {
+      // Task is in grace period — another agent may still be working on it
+      if (!silent) {
+        const remainingSec = Math.ceil(response.remainingMs / 1000);
+        console.log(
+          `🔄 Task ${response.taskId} was recently acknowledged (${remainingSec}s grace remaining). Waiting...`
+        );
+      }
+      return;
+    }
+
+    if (response.type === 'error') {
+      if (response.fatal) {
+        if (fatalExitTriggered) return;
+        fatalExitTriggered = true;
+        const errorTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        console.error(`\n${'─'.repeat(50)}`);
+        console.error(`❌ FATAL ERROR — Process must exit\n`);
+        console.error(`[${errorTime}] Error: ${response.code}`);
+        console.error(`   ${response.message}\n`);
+        console.error(`   This is an unrecoverable error. The process will now exit.`);
+        console.error(`   To reconnect, run:`);
+        console.error(
+          `   ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`
+        );
+        console.error(`${'─'.repeat(50)}`);
+        cleanup().finally(() => {
+          process.exit(1);
+        });
+        return;
+      }
+      // Non-fatal error — warn but continue waiting
+      console.warn(`⚠️  Non-fatal error: [${response.code}] ${response.message}`);
+      return;
+    }
+
+    if (response.type === 'reconnect') {
+      if (!silent) {
+        console.log(`🔄 Backend requested reconnect: ${response.reason}`);
+      }
+      return;
+    }
+
+    // response.type === 'tasks' — process the tasks
+    const pendingTasks = response.tasks as TaskWithMessage[];
+
     // Get the first task (pending tasks come first, then acknowledged)
     const taskWithMessage = pendingTasks.length > 0 ? pendingTasks[0] : null;
 
     if (!taskWithMessage) {
-      // No tasks yet, subscription will notify us when there are
+      // No tasks in the response array (shouldn't happen with type='tasks', but guard)
       return;
     }
 
@@ -406,30 +465,8 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     // Handle based on task status
     if (task.status === 'acknowledged') {
-      // This is an acknowledged task that may need recovery
-      const acknowledgedAt = task.acknowledgedAt || task.updatedAt;
-      const elapsedMs = Date.now() - acknowledgedAt;
-      const RECOVERY_GRACE_PERIOD_MS = 60 * 1000; // 1 minute
-
-      if (elapsedMs < RECOVERY_GRACE_PERIOD_MS) {
-        // Recently acknowledged — another agent may still be working on it.
-        // Exit the process so the agent sees this message and can act on it.
-        taskProcessed = true;
-        if (unsubscribe) unsubscribe();
-        challengeUnsubscribe();
-        clearInterval(heartbeatTimer);
-        cleanedUp = true;
-
-        const remainingSec = Math.ceil((RECOVERY_GRACE_PERIOD_MS - elapsedMs) / 1000);
-        console.log(
-          `🔄 Task was recently acknowledged (${remainingSec}s remaining). ` +
-            `Re-run wait-for-task in 1 minute to recover it if the other agent is unresponsive.`
-        );
-        process.exit(0);
-      }
-
-      // Stale acknowledged task (>1 min) — recover it
-      // No claim needed since task is already acknowledged for this role
+      // Stale acknowledged task (past grace period, which backend already checked)
+      // No claim needed since task is already acknowledged for this role — recover it
     } else {
       // Pending task — claim it (transition: pending → acknowledged)
       // This is atomic and handles race conditions - only one agent can claim a task
@@ -449,55 +486,71 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     // Mark as processed to prevent duplicate handling
     taskProcessed = true;
 
-    // Also claim the message if it exists (for compatibility)
-    if (message) {
-      await client.mutation(api.messages.claimMessage, {
-        sessionId,
-        messageId: message._id,
-        role,
-      });
-    }
-
-    // SUCCESS: This agent has exclusive claim on the task
+    // Unsubscribe and stop heartbeat early — we've claimed the task and are
+    // transitioning to delivery. Any error below must still exit the process
+    // so the agent regains control (otherwise taskProcessed=true blocks all
+    // future subscription updates and the process hangs forever).
     if (unsubscribe) unsubscribe();
     challengeUnsubscribe();
-
-    // Stop heartbeat — the agent is transitioning from "waiting" to "active".
-    // We do NOT call participants.leave here because the agent is still present,
-    // just switching to active work mode.
     clearInterval(heartbeatTimer);
     cleanedUp = true; // Prevent cleanup() from calling leave on exit
 
-    // Update participant status to active with activeUntil timeout
-    // This gives the agent ~1 hour to complete the task before being considered crashed
-    const activeUntil = Date.now() + DEFAULT_ACTIVE_TIMEOUT_MS;
-    await client.mutation(api.participants.updateStatus, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-      status: 'active',
-      expiresAt: activeUntil,
-    });
+    try {
+      // Also claim the message if it exists (for compatibility)
+      if (message) {
+        await client.mutation(api.messages.claimMessage, {
+          sessionId,
+          messageId: message._id,
+          role,
+        });
+      }
 
-    // Get the complete task delivery prompt from backend
-    const taskDeliveryPrompt = await client.query(api.messages.getTaskDeliveryPrompt, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-      taskId: task._id,
-      messageId: message?._id,
-      convexUrl,
-    });
+      // Update participant status to active with activeUntil timeout
+      // This gives the agent ~1 hour to complete the task before being considered crashed
+      const activeUntil = Date.now() + DEFAULT_ACTIVE_TIMEOUT_MS;
+      await client.mutation(api.participants.updateStatus, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        role,
+        status: 'active',
+        expiresAt: activeUntil,
+      });
 
-    // Log task received with timestamp
-    const taskReceivedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    console.log(`\n[${taskReceivedTime}] 📨 Task received!\n`);
+      // Get the complete task delivery prompt from backend
+      const taskDeliveryPrompt = await client.query(api.messages.getTaskDeliveryPrompt, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        role,
+        taskId: task._id,
+        messageId: message?._id,
+        convexUrl,
+      });
 
-    // Print the complete backend-generated output
-    // All structural text, commands, context, and process steps are generated server-side
-    console.log(taskDeliveryPrompt.fullCliOutput);
+      // Log task received with timestamp
+      const taskReceivedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.log(`\n[${taskReceivedTime}] 📨 Task received!\n`);
 
-    process.exit(0);
+      // Print the complete backend-generated output
+      // All structural text, commands, context, and process steps are generated server-side
+      console.log(taskDeliveryPrompt.fullCliOutput);
+
+      process.exit(0);
+    } catch (deliveryError) {
+      // Task was claimed but delivery failed (network error, backend issue, etc.).
+      // We MUST exit so the agent regains control — it can recover via context read.
+      const errorTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.error(`\n${'─'.repeat(50)}`);
+      console.error(`⚠️  TASK CLAIMED BUT DELIVERY FAILED\n`);
+      console.error(`[${errorTime}] Error: ${(deliveryError as Error).message}`);
+      console.error(`   Task ID: ${task._id}`);
+      console.error(`   The task has been claimed for your role.`);
+      console.error(`   Use context read to see your current task:\n`);
+      console.error(
+        `   ${cliEnvPrefix} chatroom context read --chatroom-id=${chatroomId} --role=${role}`
+      );
+      console.error(`${'─'.repeat(50)}`);
+      process.exit(1);
+    }
   };
 
   // Use websocket subscription instead of polling
@@ -510,8 +563,8 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
     },
-    (pendingTasks: TaskWithMessage[]) => {
-      handlePendingTasks(pendingTasks).catch((error) => {
+    (response: WaitForTaskResponse) => {
+      handleSubscriptionResponse(response).catch((error) => {
         console.error(`❌ Error processing task: ${(error as Error).message}`);
       });
     },

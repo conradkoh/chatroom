@@ -11,9 +11,6 @@
 // Import Doc type for use below
 import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
 
-// Re-export shared backend types
-export type { WaitForTaskResponse } from '@workspace/backend/config/errorCodes.js';
-
 export { api } from '@workspace/backend/convex/_generated/api';
 export type { Id, Doc } from '@workspace/backend/convex/_generated/dataModel';
 
