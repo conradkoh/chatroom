@@ -48,10 +48,10 @@ describe('Pair Team > Builder > Wait For Task', () => {
     expect(output).toContain('📋 PROCESS');
     expect(output).toContain('📋 NEXT STEPS');
     // Entry point should have context creation step
-    expect(output).toContain('set a new context');
+    expect(output).toContain('Code changes expected?');
     // User message should trigger classification flow
-    expect(output).toContain('Acknowledge and classify');
-    expect(output).toContain('Available targets: reviewer, user');
+    expect(output).toContain('Classify');
+    expect(output).toContain('targets: reviewer, user');
 
     expect(output).toMatchInlineSnapshot(`
       "<task>
@@ -75,37 +75,23 @@ describe('Pair Team > Builder > Wait For Task', () => {
       ============================================================
       📋 PROCESS
       ============================================================
-
-      1. If code changes / commits are expected, set a new context:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=test-chatroom-id --role=builder << 'EOF'
+      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=test-chatroom-id --role=builder << 'EOF'
       <summary of current focus>
-      EOF
-
-      2. Mark task as started:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=builder --task-id=test-task-id --origin-message-classification=follow_up
-
-      3. Report progress frequently — small, incremental updates as you work:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=test-chatroom-id --role=builder << 'EOF'
+      EOF\`
+      2. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=builder --task-id=test-task-id --origin-message-classification=follow_up\`
+      3. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=test-chatroom-id --role=builder << 'EOF'
       [Your progress message here]
-      EOF
-
-         Keep updates short and frequent (e.g. after each milestone or subtask).
-
+      EOF\`
       4. Do the work
+      5. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=<target>\` (targets: reviewer, user)
+      6. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=builder\`
 
-         Available commands:
-         • Read context: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=test-chatroom-id --role=builder
-         • List messages: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=test-chatroom-id --role=builder --sender-role=user --limit=5 --full
-         • View code changes: git log --oneline -10
-         • Complete task (no handoff): CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=test-chatroom-id --role=builder
-         • View backlog: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=test-chatroom-id --role=builder --status=backlog
-
-      5. Hand off when complete:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=<target>
-         Available targets: reviewer, user
-
-      6. Resume listening:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=builder
+      Reference commands:
+        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=test-chatroom-id --role=builder\`
+        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=test-chatroom-id --role=builder --sender-role=user --limit=5 --full\`
+        task-complete → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=test-chatroom-id --role=builder\`
+        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=test-chatroom-id --role=builder --status=backlog\`
+        git log → \`git log --oneline -10\`
       </process>
 
       <next-steps>
@@ -113,18 +99,23 @@ describe('Pair Team > Builder > Wait For Task', () => {
       📋 NEXT STEPS
       ============================================================
 
-      Step 1. Acknowledge and classify this message:
+      \`\`\`
+      @startuml
+      start
+      :Read user message;
+      if (message type?) then (question or follow_up)
+        :Classify with --origin-message-classification=<type>;
+      else (new_feature)
+        :Classify with --origin-message-classification=new_feature;
+        note right: requires --title, --description, --tech-specs
+      endif
+      stop
+      @enduml
+      \`\`\`
 
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=builder --task-id=test-task-id --origin-message-classification=<type>
+      Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=builder --task-id=test-task-id --origin-message-classification=<type>\`
 
-      Classification types: question, new_feature, follow_up
-
-      📝 Classification Requirements:
-         • question: No additional fields required
-         • follow_up: No additional fields required
-         • new_feature: REQUIRES --title, --description, --tech-specs
-
-      💡 Example for new_feature:
+      new_feature example:
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=builder --task-id=test-task-id --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       <title>
@@ -134,14 +125,11 @@ describe('Pair Team > Builder > Wait For Task', () => {
       <tech-specs>
       EOF
 
-      Step 2. If code changes are expected, create a new context before starting work:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=test-chatroom-id --role=builder << 'EOF'
+      2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=test-chatroom-id --role=builder << 'EOF'
       <summary of current focus>
-      EOF
-
-      Step 3. Do the work following the PROCESS section above.
-
-      Step 4. Hand off when complete.
+      EOF\`
+      3. Do the work → follow PROCESS above
+      4. Hand off when complete
       </next-steps>
 
       ============================================================
@@ -168,7 +156,7 @@ describe('Pair Team > Builder > Wait For Task', () => {
     expect(output).toBeDefined();
     expect(output).toContain('📋 TASK');
     expect(output).toContain('handed off from reviewer');
-    expect(output).not.toContain('Acknowledge and classify');
+    expect(output).not.toContain('Classify →');
 
     expect(output).toMatchInlineSnapshot(`
       "<task>
@@ -194,37 +182,23 @@ describe('Pair Team > Builder > Wait For Task', () => {
       ============================================================
       📋 PROCESS
       ============================================================
-
-      1. If code changes / commits are expected, set a new context:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=test-chatroom-id --role=builder << 'EOF'
+      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=test-chatroom-id --role=builder << 'EOF'
       <summary of current focus>
-      EOF
-
-      2. Mark task as started:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=builder --task-id=test-task-id --no-classify
-
-      3. Report progress frequently — small, incremental updates as you work:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=test-chatroom-id --role=builder << 'EOF'
+      EOF\`
+      2. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=builder --task-id=test-task-id --no-classify\`
+      3. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=test-chatroom-id --role=builder << 'EOF'
       [Your progress message here]
-      EOF
-
-         Keep updates short and frequent (e.g. after each milestone or subtask).
-
+      EOF\`
       4. Do the work
+      5. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=<target>\` (targets: reviewer, user)
+      6. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=builder\`
 
-         Available commands:
-         • Read context: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=test-chatroom-id --role=builder
-         • List messages: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=test-chatroom-id --role=builder --sender-role=user --limit=5 --full
-         • View code changes: git log --oneline -10
-         • Complete task (no handoff): CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=test-chatroom-id --role=builder
-         • View backlog: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=test-chatroom-id --role=builder --status=backlog
-
-      5. Hand off when complete:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=<target>
-         Available targets: reviewer, user
-
-      6. Resume listening:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=builder
+      Reference commands:
+        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=test-chatroom-id --role=builder\`
+        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=test-chatroom-id --role=builder --sender-role=user --limit=5 --full\`
+        task-complete → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=test-chatroom-id --role=builder\`
+        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=test-chatroom-id --role=builder --status=backlog\`
+        git log → \`git log --oneline -10\`
       </process>
 
       <next-steps>
@@ -232,16 +206,12 @@ describe('Pair Team > Builder > Wait For Task', () => {
       📋 NEXT STEPS
       ============================================================
 
-      Step 1. Task handed off from reviewer — start work immediately.
-
-      Step 2. If code changes are expected, create a new context before starting work:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=test-chatroom-id --role=builder << 'EOF'
+      handed off from reviewer — start work immediately.
+      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=test-chatroom-id --role=builder << 'EOF'
       <summary of current focus>
-      EOF
-
-      Step 3. Do the work following the PROCESS section above.
-
-      Step 4. Hand off when complete.
+      EOF\`
+      2. Do the work → follow PROCESS above
+      3. Hand off when complete
       </next-steps>
 
       ============================================================

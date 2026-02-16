@@ -172,16 +172,26 @@ describe('Squad Team > Planner > System Prompt', () => {
       **Current Workflow: Full Team (Planner + Builder + Reviewer)**
 
       \`\`\`
-      User → Planner → [Builder → Reviewer → Planner] (repeat per phase) → User
+      @startuml
+      start
+      :Receive task from user;
+      :Decompose into phases;
+      repeat
+        :Delegate ONE phase to **builder**;
+        :Builder completes phase;
+        :Builder hands off to **reviewer**;
+        :Reviewer validates;
+        :Reviewer hands off to **planner**;
+        if (phase acceptable?) then (no)
+          :Hand back to **builder** with feedback;
+        else (yes)
+        endif
+      repeat while (more phases?) is (yes)
+      ->no;
+      :Deliver final result to **user**;
+      stop
+      @enduml
       \`\`\`
-
-      1. Receive task from user and decompose into phases
-      2. Delegate ONE phase at a time to **builder** with focused requirements
-      3. Builder completes the phase and hands off to **reviewer**
-      4. Reviewer validates and hands off back to **planner**
-      5. Review the phase result — if acceptable, delegate next phase; if not, hand back to **builder**
-      6. Repeat steps 2–5 until all phases are complete
-      7. Deliver final result to **user**
 
       **Core Responsibilities:**
       - **User Communication**: You are the ONLY role that communicates with the user. All responses to the user come through you.

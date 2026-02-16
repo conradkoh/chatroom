@@ -160,10 +160,22 @@ Test technical specifications`,
         3. Hand off to reviewer for code changes, or directly to user for questions
 
         **Typical Flow:**
-        1. Receive task (from user or handoff from reviewer)
-        2. Implement the requested changes
-        3. Commit your work with clear messages
-        4. Hand off to reviewer with a summary of what you built
+
+        \`\`\`
+        @startuml
+        start
+        :Receive task;
+        note right: from user or handoff from reviewer
+        :Implement changes;
+        :Commit work;
+        if (classification?) then (new_feature or code changes)
+          :Hand off to **reviewer**;
+        else (question)
+          :Hand off to **user**;
+        endif
+        stop
+        @enduml
+        \`\`\`
 
         **Handoff Rules:**
         - **After code changes** → Hand off to \`reviewer\`
@@ -317,12 +329,29 @@ Test technical specifications`,
         You receive handoffs from other agents containing work to review or validate.
 
         **Typical Flow:**
-        1. Receive message (handoff from builder or other agent)
-        2. Run \`task-started --no-classify\` to acknowledge receipt and start work
-        3. Review the code changes or content:
-           - Check uncommitted changes: \`git status\`, \`git diff\`
-           - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
-        4. Either approve or request changes
+
+        \`\`\`
+        @startuml
+        start
+        :Receive handoff;
+        note right: from builder or other agent
+        :Run **task-started --no-classify**;
+        :Review code changes;
+        note right
+          git status, git diff
+          git log --oneline -10
+          git diff HEAD~N..HEAD
+        end note
+        if (meets requirements?) then (yes)
+          :Hand off to **user**;
+          note right: APPROVED ✅
+        else (no)
+          :Hand off to **builder**;
+          note right: specific feedback
+        endif
+        stop
+        @enduml
+        \`\`\`
 
         **Your Options After Review:**
 
@@ -608,10 +637,22 @@ Test technical specifications`,
         3. Hand off to reviewer for code changes, or directly to user for questions
 
         **Typical Flow:**
-        1. Receive task (from user or handoff from reviewer)
-        2. Implement the requested changes
-        3. Commit your work with clear messages
-        4. Hand off to reviewer with a summary of what you built
+
+        \`\`\`
+        @startuml
+        start
+        :Receive task;
+        note right: from user or handoff from reviewer
+        :Implement changes;
+        :Commit work;
+        if (classification?) then (new_feature or code changes)
+          :Hand off to **reviewer**;
+        else (question)
+          :Hand off to **user**;
+        endif
+        stop
+        @enduml
+        \`\`\`
 
         **Handoff Rules:**
         - **After code changes** → Hand off to \`reviewer\`

@@ -98,55 +98,79 @@ function getFullTeamWorkflow(): string {
   return `**Current Workflow: Full Team (Planner + Builder + Reviewer)**
 
 \`\`\`
-User → Planner → [Builder → Reviewer → Planner] (repeat per phase) → User
-\`\`\`
-
-1. Receive task from user and decompose into phases
-2. Delegate ONE phase at a time to **builder** with focused requirements
-3. Builder completes the phase and hands off to **reviewer**
-4. Reviewer validates and hands off back to **planner**
-5. Review the phase result — if acceptable, delegate next phase; if not, hand back to **builder**
-6. Repeat steps 2–5 until all phases are complete
-7. Deliver final result to **user**`;
+@startuml
+start
+:Receive task from user;
+:Decompose into phases;
+repeat
+  :Delegate ONE phase to **builder**;
+  :Builder completes phase;
+  :Builder hands off to **reviewer**;
+  :Reviewer validates;
+  :Reviewer hands off to **planner**;
+  if (phase acceptable?) then (no)
+    :Hand back to **builder** with feedback;
+  else (yes)
+  endif
+repeat while (more phases?) is (yes)
+->no;
+:Deliver final result to **user**;
+stop
+@enduml
+\`\`\``;
 }
 
 function getPlannerPlusBuilderWorkflow(): string {
   return `**Current Workflow: Planner + Builder (no reviewer)**
 
 \`\`\`
-User → Planner → [Builder → Planner(reviews)] (repeat per phase) → User
-\`\`\`
-
-1. Receive task from user and decompose into phases
-2. Delegate ONE phase at a time to **builder** with focused requirements
-3. Builder completes the phase and hands off back to **planner**
-4. You review the work yourself (acting as reviewer)
-5. If acceptable, delegate next phase; if not, hand back to **builder** with feedback
-6. Repeat steps 2–5 until all phases are complete
-7. Deliver final result to **user**`;
+@startuml
+start
+:Receive task from user;
+:Decompose into phases;
+repeat
+  :Delegate ONE phase to **builder**;
+  :Builder completes phase;
+  :Builder hands off to **planner**;
+  :Review work yourself (acting as reviewer);
+  if (phase acceptable?) then (no)
+    :Hand back to **builder** with feedback;
+  else (yes)
+  endif
+repeat while (more phases?) is (yes)
+->no;
+:Deliver final result to **user**;
+stop
+@enduml
+\`\`\``;
 }
 
 function getPlannerPlusReviewerWorkflow(): string {
   return `**Current Workflow: Planner + Reviewer (no builder)**
 
 \`\`\`
-User → Planner → [Reviewer(implements) → Planner] (repeat per phase) → User
-\`\`\`
-
-1. Receive task from user and decompose into phases
-2. Delegate ONE phase at a time to **reviewer** (who acts as builder) with focused requirements
-3. Reviewer completes the phase and hands off back to **planner**
-4. Review the phase result — if acceptable, delegate next phase; if not, hand back to **reviewer**
-5. Repeat steps 2–4 until all phases are complete
-6. Deliver final result to **user**`;
+@startuml
+start
+:Receive task from user;
+:Decompose into phases;
+repeat
+  :Delegate ONE phase to **reviewer** (acts as builder);
+  :Reviewer completes phase;
+  :Reviewer hands off to **planner**;
+  if (phase acceptable?) then (no)
+    :Hand back to **reviewer** with feedback;
+  else (yes)
+  endif
+repeat while (more phases?) is (yes)
+->no;
+:Deliver final result to **user**;
+stop
+@enduml
+\`\`\``;
 }
 
 function getPlannerSoloWorkflow(): string {
   return `**Current Workflow: Planner Solo**
-
-\`\`\`
-User → Planner(implements + reviews) → User
-\`\`\`
 
 1. Receive task from user
 2. Implement the solution yourself

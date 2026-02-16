@@ -119,19 +119,13 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     // Staleness warning: many messages since context was set
     if (currentContext.messagesSinceContext >= 10) {
       lines.push('');
-      lines.push(
-        `⚠️  WARNING: ${currentContext.messagesSinceContext} messages since this context was set.`
-      );
+      lines.push(`⚠️ Stale context: ${currentContext.messagesSinceContext} messages since set.`);
       if (isEntryPoint) {
-        lines.push('   Consider updating the context with a summary of recent developments.');
-        lines.push('   Create a new context with:');
         lines.push(
-          `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
+          `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"\``
         );
       } else {
-        lines.push(
-          '   The context may be outdated. The entry point role will update it when needed.'
-        );
+        lines.push('   Entry point role will update when needed.');
       }
     }
 
@@ -139,16 +133,13 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     if (currentContext.elapsedHours >= 24) {
       const ageDays = Math.floor(currentContext.elapsedHours / 24);
       lines.push('');
-      lines.push(`⚠️  WARNING: This context is ${ageDays} day(s) old.`);
+      lines.push(`⚠️ Context is ${ageDays}d old.`);
       if (isEntryPoint) {
-        lines.push('   Consider creating a new context with updated summary.');
         lines.push(
-          `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
+          `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"\``
         );
       } else {
-        lines.push(
-          '   The context may be outdated. The entry point role will update it when needed.'
-        );
+        lines.push('   Entry point role will update when needed.');
       }
     }
 
@@ -164,19 +155,13 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     // Staleness warning: many follow-ups
     if (followUpCountSinceOrigin >= 5) {
       lines.push('');
-      lines.push(
-        `⚠️  WARNING: ${followUpCountSinceOrigin} follow-up messages since this pinned message.`
-      );
-      lines.push('   The user may have moved on to a different topic.');
+      lines.push(`⚠️ Stale: ${followUpCountSinceOrigin} follow-ups since pinned message.`);
       if (isEntryPoint) {
-        lines.push('   Consider creating a context with:');
         lines.push(
-          `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
+          `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"\``
         );
       } else {
-        lines.push(
-          '   The context may be outdated. The entry point role will update it when needed.'
-        );
+        lines.push('   Entry point role will update when needed.');
       }
     }
 
@@ -187,16 +172,13 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       if (ageHours >= 24) {
         const ageDays = Math.floor(ageHours / 24);
         lines.push('');
-        lines.push(`⚠️  WARNING: This pinned message is ${ageDays} day(s) old.`);
+        lines.push(`⚠️ Pinned message is ${ageDays}d old.`);
         if (isEntryPoint) {
-          lines.push('   Consider creating a context with:');
           lines.push(
-            `   ${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"`
+            `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"\``
           );
         } else {
-          lines.push(
-            '   The context may be outdated. The entry point role will update it when needed.'
-          );
+          lines.push('   Entry point role will update when needed.');
         }
       }
     }
@@ -227,7 +209,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   lines.push('</task>');
 
-  // ── Process section (consolidated with inline guidance) ──────────────────
+  // ── Process section ─────────────────────────────────────────────────────
 
   lines.push('');
   lines.push('<process>');
@@ -237,75 +219,64 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   let stepNum = 1;
 
-  // Step: Set context (entry point only, when code changes expected)
   if (isEntryPoint) {
-    lines.push('');
-    lines.push(`${stepNum}. If code changes / commits are expected, set a new context:`);
-    lines.push(`   ${contextNewCommand({ chatroomId, role, cliEnvPrefix })}`);
+    lines.push(
+      `${stepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
+    );
     stepNum++;
   }
 
-  // Step: Mark task as started
-  lines.push('');
-  lines.push(`${stepNum}. Mark task as started:`);
   if (isUserMessage) {
     lines.push(
-      `   ${taskStartedCommand({ chatroomId, role, taskId: task._id, classification: 'follow_up', cliEnvPrefix })}`
+      `${stepNum}. Acknowledge → \`${taskStartedCommand({ chatroomId, role, taskId: task._id, classification: 'follow_up', cliEnvPrefix })}\``
     );
   } else {
     lines.push(
-      `   ${cliEnvPrefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=${task._id} --no-classify`
+      `${stepNum}. Acknowledge → \`${cliEnvPrefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=${task._id} --no-classify\``
     );
   }
   stepNum++;
 
-  // Step: Report progress
-  lines.push('');
-  lines.push(`${stepNum}. Report progress frequently — small, incremental updates as you work:`);
-  lines.push(`   ${reportProgressCommand({ chatroomId, role, cliEnvPrefix })}`);
-  lines.push('');
-  lines.push('   Keep updates short and frequent (e.g. after each milestone or subtask).');
+  lines.push(
+    `${stepNum}. Report progress at milestones → \`${reportProgressCommand({ chatroomId, role, cliEnvPrefix })}\``
+  );
   stepNum++;
 
-  // Step: Do the work (with available commands)
-  lines.push('');
   lines.push(`${stepNum}. Do the work`);
-  lines.push('');
-  lines.push('   Available commands:');
-  lines.push(
-    `   • Read context: ${cliEnvPrefix}chatroom context read --chatroom-id=${chatroomId} --role=${role}`
-  );
-  lines.push(
-    `   • List messages: ${cliEnvPrefix}chatroom messages list --chatroom-id=${chatroomId} --role=${role} --sender-role=user --limit=5 --full`
-  );
-  lines.push('   • View code changes: git log --oneline -10');
-  lines.push(
-    `   • Complete task (no handoff): ${cliEnvPrefix}chatroom task-complete --chatroom-id=${chatroomId} --role=${role}`
-  );
-  lines.push(
-    `   • View backlog: ${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog`
-  );
   stepNum++;
 
-  // Step: Hand off when complete (with targets)
-  lines.push('');
-  lines.push(`${stepNum}. Hand off when complete:`);
-  lines.push(
-    `   ${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target>`
-  );
   if (availableHandoffTargets.length > 0) {
-    lines.push(`   Available targets: ${availableHandoffTargets.join(', ')}`);
+    lines.push(
+      `${stepNum}. Hand off → \`${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target>\` (targets: ${availableHandoffTargets.join(', ')})`
+    );
+  } else {
+    lines.push(
+      `${stepNum}. Hand off → \`${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target>\``
+    );
   }
   stepNum++;
 
-  // Step: Resume listening
+  lines.push(`${stepNum}. Resume → \`${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
+
   lines.push('');
-  lines.push(`${stepNum}. Resume listening:`);
-  lines.push(`   ${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}`);
+  lines.push('Reference commands:');
+  lines.push(
+    `  context read → \`${cliEnvPrefix}chatroom context read --chatroom-id=${chatroomId} --role=${role}\``
+  );
+  lines.push(
+    `  messages → \`${cliEnvPrefix}chatroom messages list --chatroom-id=${chatroomId} --role=${role} --sender-role=user --limit=5 --full\``
+  );
+  lines.push(
+    `  task-complete → \`${cliEnvPrefix}chatroom task-complete --chatroom-id=${chatroomId} --role=${role}\``
+  );
+  lines.push(
+    `  backlog → \`${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog\``
+  );
+  lines.push('  git log → `git log --oneline -10`');
 
   lines.push('</process>');
 
-  // ── Next Steps (directive classification/handoff instructions) ───────────
+  // ── Next Steps ──────────────────────────────────────────────────────────
 
   lines.push('');
   lines.push('<next-steps>');
@@ -313,14 +284,8 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('📋 NEXT STEPS');
   lines.push(SEP_EQUAL);
 
-  let nextStepNum = 1;
-
   if (isUserMessage) {
-    lines.push('');
-    lines.push(`Step ${nextStepNum}. Acknowledge and classify this message:`);
-    lines.push('');
-
-    // Base command with <type> placeholder
+    // Classification command with placeholder
     const baseCmd = taskStartedCommand({
       chatroomId,
       role,
@@ -331,19 +296,28 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       '--origin-message-classification=question',
       '--origin-message-classification=<type>'
     );
-    lines.push(baseCmd);
 
     lines.push('');
-    lines.push('Classification types: question, new_feature, follow_up');
+    lines.push('```');
+    lines.push('@startuml');
+    lines.push('start');
+    lines.push(':Read user message;');
+    lines.push('if (message type?) then (question or follow_up)');
+    lines.push('  :Classify with --origin-message-classification=<type>;');
+    lines.push('else (new_feature)');
+    lines.push('  :Classify with --origin-message-classification=new_feature;');
+    lines.push('  note right: requires --title, --description, --tech-specs');
+    lines.push('endif');
+    lines.push('stop');
+    lines.push('@enduml');
+    lines.push('```');
+
     lines.push('');
-    lines.push('📝 Classification Requirements:');
-    lines.push('   • question: No additional fields required');
-    lines.push('   • follow_up: No additional fields required');
-    lines.push('   • new_feature: REQUIRES --title, --description, --tech-specs');
+    lines.push(`Classify → \`${baseCmd}\``);
 
     // new_feature example
     lines.push('');
-    lines.push('💡 Example for new_feature:');
+    lines.push('new_feature example:');
     lines.push(
       taskStartedCommand({
         chatroomId,
@@ -356,45 +330,34 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         cliEnvPrefix,
       })
     );
-    nextStepNum++;
 
-    // Context creation step (entry point only)
+    let nextStepNum = 2;
     if (isEntryPoint) {
       lines.push('');
       lines.push(
-        `Step ${nextStepNum}. If code changes are expected, create a new context before starting work:`
+        `${nextStepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
       );
-      lines.push(`   ${contextNewCommand({ chatroomId, role, cliEnvPrefix })}`);
       nextStepNum++;
     }
 
-    lines.push('');
-    lines.push(`Step ${nextStepNum}. Do the work following the PROCESS section above.`);
+    lines.push(`${nextStepNum}. Do the work → follow PROCESS above`);
     nextStepNum++;
-    lines.push('');
-    lines.push(`Step ${nextStepNum}. Hand off when complete.`);
+    lines.push(`${nextStepNum}. Hand off when complete`);
   } else if (message) {
     lines.push('');
-    lines.push(
-      `Step ${nextStepNum}. Task handed off from ${message.senderRole} — start work immediately.`
-    );
-    nextStepNum++;
+    lines.push(`handed off from ${message.senderRole} — start work immediately.`);
 
-    // Context creation step (entry point only)
+    let nextStepNum = 1;
     if (isEntryPoint) {
-      lines.push('');
       lines.push(
-        `Step ${nextStepNum}. If code changes are expected, create a new context before starting work:`
+        `${nextStepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
       );
-      lines.push(`   ${contextNewCommand({ chatroomId, role, cliEnvPrefix })}`);
       nextStepNum++;
     }
 
-    lines.push('');
-    lines.push(`Step ${nextStepNum}. Do the work following the PROCESS section above.`);
+    lines.push(`${nextStepNum}. Do the work → follow PROCESS above`);
     nextStepNum++;
-    lines.push('');
-    lines.push(`Step ${nextStepNum}. Hand off when complete.`);
+    lines.push(`${nextStepNum}. Hand off when complete`);
   } else {
     lines.push('');
     lines.push(`No message found. Task ID: ${task._id}`);

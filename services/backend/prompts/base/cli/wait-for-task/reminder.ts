@@ -37,11 +37,21 @@ Two requirements:
    • Only proceed after the command exits (signal or task received)
 
 ⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
-• Your harness may kill long-running commands after a set duration
-• When the command terminates unexpectedly:
-  1. Do you have urgent pending work?
-  2. Without wait-for-task, your team cannot reach you
-  3. If no urgent work, reconnect immediately
+
+\`\`\`
+@startuml
+start
+:Command terminated unexpectedly;
+if (Urgent pending work?) then (yes)
+  :Finish urgent work;
+  :Reconnect with wait-for-task;
+else (no)
+  :Reconnect immediately;
+  note right: Team cannot reach you without it
+endif
+stop
+@enduml
+\`\`\`
 
 📋 BACKLOG TASKS
   chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog

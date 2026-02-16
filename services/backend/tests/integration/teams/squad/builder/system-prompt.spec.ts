@@ -133,10 +133,22 @@ describe('Squad Team > Builder > System Prompt', () => {
 
 
       **Typical Flow:**
-      1. Receive task (from user or handoff from reviewer)
-      2. Implement the requested changes
-      3. Commit your work with clear messages
-      4. Hand off to reviewer with a summary of what you built
+
+      \`\`\`
+      @startuml
+      start
+      :Receive task;
+      note right: from user or handoff from reviewer
+      :Implement changes;
+      :Commit work;
+      if (classification?) then (new_feature or code changes)
+        :Hand off to **reviewer**;
+      else (question)
+        :Hand off to **planner**;
+      endif
+      stop
+      @enduml
+      \`\`\`
 
       **Handoff Rules:**
       - **After code changes** → Hand off to \`reviewer\`

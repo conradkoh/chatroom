@@ -177,11 +177,21 @@ ${taskDeliveryPrompt.fullCliOutput}
          • Only proceed after the command exits (signal or task received)
 
       ⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
-      • Your harness may kill long-running commands after a set duration
-      • When the command terminates unexpectedly:
-        1. Do you have urgent pending work?
-        2. Without wait-for-task, your team cannot reach you
-        3. If no urgent work, reconnect immediately
+
+      \`\`\`
+      @startuml
+      start
+      :Command terminated unexpectedly;
+      if (Urgent pending work?) then (yes)
+        :Finish urgent work;
+        :Reconnect with wait-for-task;
+      else (no)
+        :Reconnect immediately;
+        note right: Team cannot reach you without it
+      endif
+      stop
+      @enduml
+      \`\`\`
 
       📋 BACKLOG TASKS
         chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
@@ -274,10 +284,22 @@ ${taskDeliveryPrompt.fullCliOutput}
       3. Hand off to reviewer for code changes, or directly to user for questions
 
       **Typical Flow:**
-      1. Receive task (from user or handoff from reviewer)
-      2. Implement the requested changes
-      3. Commit your work with clear messages
-      4. Hand off to reviewer with a summary of what you built
+
+      \`\`\`
+      @startuml
+      start
+      :Receive task;
+      note right: from user or handoff from reviewer
+      :Implement changes;
+      :Commit work;
+      if (classification?) then (new_feature or code changes)
+        :Hand off to **reviewer**;
+      else (question)
+        :Hand off to **user**;
+      endif
+      stop
+      @enduml
+      \`\`\`
 
       **Handoff Rules:**
       - **After code changes** → Hand off to \`reviewer\`
@@ -376,37 +398,23 @@ ${taskDeliveryPrompt.fullCliOutput}
       ============================================================
       📋 PROCESS
       ============================================================
-
-      1. If code changes / commits are expected, set a new context:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
       <summary of current focus>
-      EOF
-
-      2. Mark task as started:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=follow_up
-
-      3. Report progress frequently — small, incremental updates as you work:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      EOF\`
+      2. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=follow_up\`
+      3. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
       [Your progress message here]
-      EOF
-
-         Keep updates short and frequent (e.g. after each milestone or subtask).
-
+      EOF\`
       4. Do the work
+      5. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target>\` (targets: reviewer, user)
+      6. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder\`
 
-         Available commands:
-         • Read context: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=builder
-         • List messages: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=10002;chatroom_rooms --role=builder --sender-role=user --limit=5 --full
-         • View code changes: git log --oneline -10
-         • Complete task (no handoff): CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=10002;chatroom_rooms --role=builder
-         • View backlog: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10002;chatroom_rooms --role=builder --status=backlog
-
-      5. Hand off when complete:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target>
-         Available targets: reviewer, user
-
-      6. Resume listening:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+      Reference commands:
+        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=builder\`
+        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=10002;chatroom_rooms --role=builder --sender-role=user --limit=5 --full\`
+        task-complete → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=10002;chatroom_rooms --role=builder\`
+        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10002;chatroom_rooms --role=builder --status=backlog\`
+        git log → \`git log --oneline -10\`
       </process>
 
       <next-steps>
@@ -414,18 +422,23 @@ ${taskDeliveryPrompt.fullCliOutput}
       📋 NEXT STEPS
       ============================================================
 
-      Step 1. Acknowledge and classify this message:
+      \`\`\`
+      @startuml
+      start
+      :Read user message;
+      if (message type?) then (question or follow_up)
+        :Classify with --origin-message-classification=<type>;
+      else (new_feature)
+        :Classify with --origin-message-classification=new_feature;
+        note right: requires --title, --description, --tech-specs
+      endif
+      stop
+      @enduml
+      \`\`\`
 
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=<type>
+      Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=<type>\`
 
-      Classification types: question, new_feature, follow_up
-
-      📝 Classification Requirements:
-         • question: No additional fields required
-         • follow_up: No additional fields required
-         • new_feature: REQUIRES --title, --description, --tech-specs
-
-      💡 Example for new_feature:
+      new_feature example:
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       <title>
@@ -435,14 +448,11 @@ ${taskDeliveryPrompt.fullCliOutput}
       <tech-specs>
       EOF
 
-      Step 2. If code changes are expected, create a new context before starting work:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
       <summary of current focus>
-      EOF
-
-      Step 3. Do the work following the PROCESS section above.
-
-      Step 4. Hand off when complete.
+      EOF\`
+      3. Do the work → follow PROCESS above
+      4. Hand off when complete
       </next-steps>
 
       ============================================================
@@ -487,17 +497,17 @@ ${taskDeliveryPrompt.fullCliOutput}
 
     // Should have consolidated PROCESS section with inline guidance
     expect(fullOutput).toContain('📋 PROCESS');
-    expect(fullOutput).toContain('Available commands:');
-    expect(fullOutput).toContain('Read context:');
-    expect(fullOutput).toContain('List messages:');
-    expect(fullOutput).toContain('View code changes:');
-    expect(fullOutput).toContain('Complete task (no handoff):');
-    expect(fullOutput).toContain('View backlog:');
+    expect(fullOutput).toContain('Reference commands:');
+    expect(fullOutput).toContain('context read');
+    expect(fullOutput).toContain('messages');
+    expect(fullOutput).toContain('git log');
+    expect(fullOutput).toContain('task-complete');
+    expect(fullOutput).toContain('backlog');
     expect(fullOutput).toContain(`chatroom backlog list --chatroom-id=${chatroomId}`);
 
     // Should have handoff targets and wait-for-task in PROCESS
-    expect(fullOutput).toContain('Hand off when complete:');
-    expect(fullOutput).toContain('Resume listening:');
+    expect(fullOutput).toContain('Hand off');
+    expect(fullOutput).toContain('Resume');
     expect(fullOutput).toContain('wait-for-task');
     expect(fullOutput).toContain(chatroomId);
     expect(fullOutput).toContain('--role=builder');
@@ -1325,11 +1335,21 @@ ${taskDeliveryPrompt.fullCliOutput}
          • Only proceed after the command exits (signal or task received)
 
       ⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
-      • Your harness may kill long-running commands after a set duration
-      • When the command terminates unexpectedly:
-        1. Do you have urgent pending work?
-        2. Without wait-for-task, your team cannot reach you
-        3. If no urgent work, reconnect immediately
+
+      \`\`\`
+      @startuml
+      start
+      :Command terminated unexpectedly;
+      if (Urgent pending work?) then (yes)
+        :Finish urgent work;
+        :Reconnect with wait-for-task;
+      else (no)
+        :Reconnect immediately;
+        note right: Team cannot reach you without it
+      endif
+      stop
+      @enduml
+      \`\`\`
 
       📋 BACKLOG TASKS
         chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
@@ -1389,12 +1409,29 @@ ${taskDeliveryPrompt.fullCliOutput}
       You receive handoffs from other agents containing work to review or validate.
 
       **Typical Flow:**
-      1. Receive message (handoff from builder or other agent)
-      2. Run \`task-started --no-classify\` to acknowledge receipt and start work
-      3. Review the code changes or content:
-         - Check uncommitted changes: \`git status\`, \`git diff\`
-         - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
-      4. Either approve or request changes
+
+      \`\`\`
+      @startuml
+      start
+      :Receive handoff;
+      note right: from builder or other agent
+      :Run **task-started --no-classify**;
+      :Review code changes;
+      note right
+        git status, git diff
+        git log --oneline -10
+        git diff HEAD~N..HEAD
+      end note
+      if (meets requirements?) then (yes)
+        :Hand off to **user**;
+        note right: APPROVED ✅
+      else (no)
+        :Hand off to **builder**;
+        note right: specific feedback
+      endif
+      stop
+      @enduml
+      \`\`\`
 
       **Your Options After Review:**
 
@@ -1561,32 +1598,20 @@ ${taskDeliveryPrompt.fullCliOutput}
       ============================================================
       📋 PROCESS
       ============================================================
-
-      1. Mark task as started:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10062;chatroom_rooms --role=reviewer --task-id=10068;chatroom_tasks --no-classify
-
-      2. Report progress frequently — small, incremental updates as you work:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10062;chatroom_rooms --role=reviewer << 'EOF'
+      1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10062;chatroom_rooms --role=reviewer --task-id=10068;chatroom_tasks --no-classify\`
+      2. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10062;chatroom_rooms --role=reviewer << 'EOF'
       [Your progress message here]
-      EOF
-
-         Keep updates short and frequent (e.g. after each milestone or subtask).
-
+      EOF\`
       3. Do the work
+      4. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10062;chatroom_rooms --role=reviewer --next-role=<target>\` (targets: builder, user)
+      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer\`
 
-         Available commands:
-         • Read context: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10062;chatroom_rooms --role=reviewer
-         • List messages: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=10062;chatroom_rooms --role=reviewer --sender-role=user --limit=5 --full
-         • View code changes: git log --oneline -10
-         • Complete task (no handoff): CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=10062;chatroom_rooms --role=reviewer
-         • View backlog: CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10062;chatroom_rooms --role=reviewer --status=backlog
-
-      4. Hand off when complete:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10062;chatroom_rooms --role=reviewer --next-role=<target>
-         Available targets: builder, user
-
-      5. Resume listening:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
+      Reference commands:
+        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10062;chatroom_rooms --role=reviewer\`
+        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=10062;chatroom_rooms --role=reviewer --sender-role=user --limit=5 --full\`
+        task-complete → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=10062;chatroom_rooms --role=reviewer\`
+        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10062;chatroom_rooms --role=reviewer --status=backlog\`
+        git log → \`git log --oneline -10\`
       </process>
 
       <next-steps>
@@ -1594,11 +1619,9 @@ ${taskDeliveryPrompt.fullCliOutput}
       📋 NEXT STEPS
       ============================================================
 
-      Step 1. Task handed off from builder — start work immediately.
-
-      Step 2. Do the work following the PROCESS section above.
-
-      Step 3. Hand off when complete.
+      handed off from builder — start work immediately.
+      1. Do the work → follow PROCESS above
+      2. Hand off when complete
       </next-steps>
 
       ============================================================
@@ -1641,13 +1664,13 @@ ${taskDeliveryPrompt.fullCliOutput}
 
     // Should have consolidated PROCESS section with inline guidance
     expect(fullOutput).toContain('📋 PROCESS');
-    expect(fullOutput).toContain('Available commands:');
-    expect(fullOutput).toContain('Read context:');
-    expect(fullOutput).toContain('List messages:');
+    expect(fullOutput).toContain('Reference commands:');
+    expect(fullOutput).toContain('context read');
+    expect(fullOutput).toContain('messages');
 
     // Should have handoff targets and wait-for-task in PROCESS
-    expect(fullOutput).toContain('Hand off when complete:');
-    expect(fullOutput).toContain('Resume listening:');
+    expect(fullOutput).toContain('Hand off');
+    expect(fullOutput).toContain('Resume');
     expect(fullOutput).toContain('wait-for-task');
     expect(fullOutput).toContain(chatroomId);
     expect(fullOutput).toContain('--role=reviewer');
@@ -1829,10 +1852,22 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       3. Hand off to reviewer for code changes, or directly to user for questions
 
       **Typical Flow:**
-      1. Receive task (from user or handoff from reviewer)
-      2. Implement the requested changes
-      3. Commit your work with clear messages
-      4. Hand off to reviewer with a summary of what you built
+
+      \`\`\`
+      @startuml
+      start
+      :Receive task;
+      note right: from user or handoff from reviewer
+      :Implement changes;
+      :Commit work;
+      if (classification?) then (new_feature or code changes)
+        :Hand off to **reviewer**;
+      else (question)
+        :Hand off to **user**;
+      endif
+      stop
+      @enduml
+      \`\`\`
 
       **Handoff Rules:**
       - **After code changes** → Hand off to \`reviewer\`
@@ -2006,12 +2041,29 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       You receive handoffs from other agents containing work to review or validate.
 
       **Typical Flow:**
-      1. Receive message (handoff from builder or other agent)
-      2. Run \`task-started --no-classify\` to acknowledge receipt and start work
-      3. Review the code changes or content:
-         - Check uncommitted changes: \`git status\`, \`git diff\`
-         - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
-      4. Either approve or request changes
+
+      \`\`\`
+      @startuml
+      start
+      :Receive handoff;
+      note right: from builder or other agent
+      :Run **task-started --no-classify**;
+      :Review code changes;
+      note right
+        git status, git diff
+        git log --oneline -10
+        git diff HEAD~N..HEAD
+      end note
+      if (meets requirements?) then (yes)
+        :Hand off to **user**;
+        note right: APPROVED ✅
+      else (no)
+        :Hand off to **builder**;
+        note right: specific feedback
+      endif
+      stop
+      @enduml
+      \`\`\`
 
       **Your Options After Review:**
 
