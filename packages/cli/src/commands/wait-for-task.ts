@@ -412,13 +412,20 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       const RECOVERY_GRACE_PERIOD_MS = 60 * 1000; // 1 minute
 
       if (elapsedMs < RECOVERY_GRACE_PERIOD_MS) {
-        // Recently acknowledged — another agent may still be working on it
+        // Recently acknowledged — another agent may still be working on it.
+        // Exit the process so the agent sees this message and can act on it.
+        taskProcessed = true;
+        if (unsubscribe) unsubscribe();
+        challengeUnsubscribe();
+        clearInterval(heartbeatTimer);
+        cleanedUp = true;
+
         const remainingSec = Math.ceil((RECOVERY_GRACE_PERIOD_MS - elapsedMs) / 1000);
         console.log(
           `🔄 Task was recently acknowledged (${remainingSec}s remaining). ` +
             `Re-run wait-for-task in 1 minute to recover it if the other agent is unresponsive.`
         );
-        return;
+        process.exit(0);
       }
 
       // Stale acknowledged task (>1 min) — recover it
