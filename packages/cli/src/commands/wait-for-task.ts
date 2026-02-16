@@ -283,12 +283,21 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
           });
         }
         // A newer wait-for-task process has taken over this role's connection.
-        // The heartbeat was rejected (not processed). No action needed here —
-        // the connection-superseded subscription handles graceful shutdown.
+        // Exit gracefully so the old agent process terminates cleanly.
         if (result?.status === 'superseded') {
-          if (!silent) {
-            console.warn(`⚠️  Heartbeat superseded — a newer connection owns this role`);
-          }
+          if (unsubscribe) unsubscribe();
+          clearInterval(heartbeatTimer);
+          cleanedUp = true;
+          const takeoverTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+          console.log(`\n${'─'.repeat(50)}`);
+          console.log(`⚠️  CONNECTION SUPERSEDED\n`);
+          console.log(`[${takeoverTime}] Why: Another wait-for-task process started for this role`);
+          console.log(`Impact: This process is being replaced by the newer connection`);
+          console.log(`Action: This is expected if you started a new wait-for-task session\n`);
+          console.log(`If you meant to use THIS terminal, run:`);
+          console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
+          console.log(`${'─'.repeat(50)}`);
+          process.exit(0);
         }
       })
       .catch((err) => {

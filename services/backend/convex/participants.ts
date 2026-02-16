@@ -197,8 +197,7 @@ export const heartbeat = mutation({
           `(expected ${participant.connectionId}, got ${args.connectionId})`
       );
       // Return 'superseded' instead of 'ok' — the heartbeat was NOT processed because
-      // a newer connection owns this participant. The CLI logs this but does not exit;
-      // the connection-superseded subscription handles graceful shutdown.
+      // a newer connection owns this participant. The CLI exits gracefully on receipt.
       return { status: 'superseded' as const };
     }
 
