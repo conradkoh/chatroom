@@ -12,6 +12,8 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
+import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
+import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -527,8 +529,10 @@ export const daemonHeartbeat = mutation({
  * Send a command to a machine (from web UI).
  * Only the machine owner can send commands.
  *
- * For start-agent commands: if no agent config exists for this chatroom/role/machine,
- * the payload must include agentHarness and workingDir to create one on-the-fly.
+ * For start-agent commands: delegates to the startAgent use case which handles
+ * config resolution, config mutation, and command dispatch.
+ * For stop-agent commands: delegates to the stopAgent use case.
+ * For ping/status: creates a simple command record directly.
  */
 export const sendCommand = mutation({
   args: {
@@ -564,12 +568,10 @@ export const sendCommand = mutation({
       validateWorkingDir(args.payload.workingDir);
     }
 
-    // For start-agent commands, resolve the agent harness and working directory from config or payload
-    let agentHarness: 'opencode' | undefined;
-    let resolvedWorkingDir: string | undefined;
-
+    // ── start-agent: resolve defaults then delegate to use case ────────
     if (args.type === 'start-agent' && args.payload?.chatroomId && args.payload?.role) {
-      const config = await ctx.db
+      // Read existing config for fallback values when payload is incomplete
+      const existingConfig = await ctx.db
         .query('chatroom_machineAgentConfigs')
         .withIndex('by_machine_chatroom_role', (q) =>
           q
@@ -579,100 +581,54 @@ export const sendCommand = mutation({
         )
         .first();
 
-      if (config) {
-        // Use existing config's agent type (payload agentHarness overrides if provided)
-        agentHarness = (args.payload.agentHarness ?? config.agentType) as typeof agentHarness;
-        // Resolve working directory: payload overrides config
-        resolvedWorkingDir = args.payload.workingDir ?? config.workingDir;
+      const resolvedModel = args.payload.model ?? existingConfig?.model;
+      const resolvedHarness = (args.payload.agentHarness ?? existingConfig?.agentType) as
+        | 'opencode'
+        | undefined;
+      const resolvedWorkingDir = args.payload.workingDir ?? existingConfig?.workingDir;
 
-        // Update config if payload provides new values
-        const updates: Record<string, unknown> = { updatedAt: Date.now() };
-        if (args.payload.agentHarness) updates.agentType = args.payload.agentHarness;
-        if (args.payload.workingDir) updates.workingDir = args.payload.workingDir;
-        if (args.payload.model !== undefined) updates.model = args.payload.model;
-        if (Object.keys(updates).length > 1) {
-          await ctx.db.patch('chatroom_machineAgentConfigs', config._id, updates);
-        }
-      } else if (args.payload.agentHarness && args.payload.workingDir) {
-        // No existing config — create one on-the-fly from payload
-        agentHarness = args.payload.agentHarness;
-        resolvedWorkingDir = args.payload.workingDir;
-        await ctx.db.insert('chatroom_machineAgentConfigs', {
-          machineId: args.machineId,
-          chatroomId: args.payload.chatroomId,
-          role: args.payload.role,
-          agentType: args.payload.agentHarness,
-          workingDir: args.payload.workingDir,
-          model: args.payload.model,
-          updatedAt: Date.now(),
-        });
-      } else {
+      if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
         throw new Error(
-          'No agent config found. Provide agentHarness and workingDir to start an agent for the first time.'
+          'Cannot start agent: model, agentHarness, and workingDir are required. ' +
+            'Provide them in the payload or ensure an existing config exists.'
         );
       }
 
-      // Verify the harness is available on the machine
-      if (!machine.availableHarnesses.includes(agentHarness!)) {
-        throw new Error(`Agent harness '${agentHarness}' is not available on this machine`);
-      }
-
-      // Validate model is present for start-agent commands
-      if (!args.payload.model && !config?.model) {
-        console.warn(
-          `[sendCommand] start-agent for role "${args.payload.role}" has no model. ` +
-            `The daemon will use its default model.`
-        );
-      }
-
-      // Save team agent config so auto-restart knows this is a remote agent
-      const chatroom = await ctx.db.get('chatroom_rooms', args.payload.chatroomId);
-      if (chatroom) {
-        const teamRoleKey = buildTeamRoleKey(chatroom, args.payload.role);
-        const existingTeamConfig = await ctx.db
-          .query('chatroom_teamAgentConfigs')
-          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-          .first();
-
-        const teamConfigNow = Date.now();
-        // Preserve existing model if the new value is undefined
-        const resolvedTeamModel = args.payload.model ?? existingTeamConfig?.model;
-        const teamConfig = {
-          teamRoleKey,
+      const result = await startAgentUseCase(
+        ctx,
+        {
+          machineId: args.machineId,
           chatroomId: args.payload.chatroomId,
           role: args.payload.role,
-          type: 'remote' as const,
-          machineId: args.machineId,
-          agentHarness,
-          model: resolvedTeamModel,
+          userId: user._id,
+          model: resolvedModel,
+          agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
-          updatedAt: teamConfigNow,
-        };
-
-        if (existingTeamConfig) {
-          await ctx.db.patch('chatroom_teamAgentConfigs', existingTeamConfig._id, teamConfig);
-        } else {
-          await ctx.db.insert('chatroom_teamAgentConfigs', {
-            ...teamConfig,
-            createdAt: teamConfigNow,
-          });
-        }
-      }
+        },
+        machine
+      );
+      return { commandId: result.commandId };
     }
 
-    const now = Date.now();
+    // ── stop-agent: delegate to use case ────────────────────────────────
+    if (args.type === 'stop-agent' && args.payload?.chatroomId && args.payload?.role) {
+      const result = await stopAgentUseCase(ctx, {
+        machineId: args.machineId,
+        chatroomId: args.payload.chatroomId,
+        role: args.payload.role,
+        userId: user._id,
+      });
+      return { commandId: result.commandId };
+    }
 
-    // Create the command — include workingDir so the daemon can use it
-    // without needing a pre-populated local config
+    // ── ping / status / stop-agent without payload: simple command ─────
+    const now = Date.now();
     const commandId = await ctx.db.insert('chatroom_machineCommands', {
       machineId: args.machineId,
       type: args.type,
       payload: {
         chatroomId: args.payload?.chatroomId,
         role: args.payload?.role,
-        agentHarness,
-        model: args.payload?.model,
-        workingDir: resolvedWorkingDir,
       },
       status: 'pending',
       sentBy: user._id,

@@ -2,7 +2,7 @@ import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { DAEMON_HEARTBEAT_TTL_MS, HEARTBEAT_TTL_MS } from '../config/reliability';
+import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
@@ -20,6 +20,8 @@ import { generateFullCliOutput } from '../prompts/base/cli/wait-for-task/fullOut
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
 import { getCliEnvPrefix } from '../prompts/utils/index.js';
+import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
+import { restartOfflineAgent } from '../src/domain/usecase/agent/restart-offline-agent';
 
 const config = getConfig();
 
@@ -27,18 +29,16 @@ const config = getConfig();
  * Check if an agent has system prompt control (i.e. it's a remote agent whose
  * system prompt we can configure). When true, we can skip injecting role prompts
  * and init prompts into the CLI output since they're already in the system prompt.
+ *
+ * Delegates to the `getAgentConfig` use case (single source of truth for config resolution).
  */
 async function getHasSystemPromptControl(
   ctx: QueryCtx,
   chatroomId: Id<'chatroom_rooms'>,
   role: string
 ): Promise<boolean> {
-  const teamAgentConfigs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .collect();
-  const roleConfig = teamAgentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase());
-  return roleConfig?.type === 'remote';
+  const result = await getAgentConfig(ctx, { chatroomId, role });
+  return result.found && result.config.type === 'remote';
 }
 
 // Types for task delivery prompt response
@@ -56,14 +56,8 @@ interface TaskDeliveryPromptResponse {
  * Check if a target role's agent is offline and, if so, dispatch restart commands
  * to bring it back online using its existing machine agent config.
  *
- * This fires on both user messages and agent handoffs, ensuring that offline agents
- * are always restarted when work is directed to them.
- *
- * Only restarts if:
- * 1. The target role has an existing agent config (machine, harness, workingDir)
- * 2. The machine's daemon is currently connected
- * 3. The participant is either missing or expired
- * 4. No pending `start-agent` command exists for this machine + chatroom + role (dedup)
+ * Delegates to the `restartOfflineAgent` use case which is the single source of
+ * truth for restart logic, model resolution, and command dispatch.
  */
 async function autoRestartOfflineAgent(
   ctx: MutationCtx,
@@ -71,171 +65,14 @@ async function autoRestartOfflineAgent(
   targetRole: string,
   userId: Id<'users'>
 ): Promise<void> {
-  const now = Date.now();
+  const result = await restartOfflineAgent(ctx, { chatroomId, targetRole, userId });
 
-  // Check if the target role's participant is offline
-  const participants = await ctx.db
-    .query('chatroom_participants')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .collect();
-
-  const targetParticipant = participants.find(
-    (p) => p.role.toLowerCase() === targetRole.toLowerCase()
-  );
-
-  // Participant exists and is not expired — agent is online, no restart needed
-  if (targetParticipant) {
-    const isWaitingExpired =
-      targetParticipant.status === 'waiting' &&
-      targetParticipant.readyUntil &&
-      targetParticipant.readyUntil < now;
-    const isActiveExpired =
-      targetParticipant.status === 'active' &&
-      targetParticipant.activeUntil &&
-      targetParticipant.activeUntil < now;
-    if (!isWaitingExpired && !isActiveExpired) {
-      return; // Agent is online
-    }
-  }
-
-  // Agent is offline (missing or expired).
-  // Check team agent config to determine if this is a remote agent that should be auto-restarted.
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (!chatroom) return;
-
-  const teamId = chatroom.teamId || chatroom._id;
-  const teamRoleKey = `team_${teamId}#role_${targetRole.toLowerCase()}`;
-
-  const teamConfig = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-    .first();
-
-  // If no team config exists or type is 'custom', skip auto-restart.
-  // Only remote agents should be auto-restarted.
-  if (!teamConfig || teamConfig.type !== 'remote') {
-    return; // Agent is custom or not configured — don't auto-restart
-  }
-
-  // Ensure the team config has the required machine info
-  if (!teamConfig.machineId) {
-    return; // No machine ID — can't restart
-  }
-
-  // Check if the machine's daemon is connected
-  const machine = await ctx.db
-    .query('chatroom_machines')
-    .withIndex('by_machineId', (q) => q.eq('machineId', teamConfig.machineId!))
-    .first();
-
-  if (!machine || !machine.daemonConnected) {
-    return; // Daemon is not connected — can't send commands
-  }
-
-  // Check daemon heartbeat freshness — if lastSeenAt is stale, the daemon
-  // may have crashed without disconnecting. Skip restart to avoid sending
-  // commands that will never be processed.
-  const timeSinceLastSeen = now - machine.lastSeenAt;
-  if (timeSinceLastSeen > DAEMON_HEARTBEAT_TTL_MS) {
-    console.warn(
-      `[auto-restart] Daemon on machine "${machine.hostname}" (${machine.machineId}) ` +
-        `appears stale — last seen ${timeSinceLastSeen}ms ago (TTL: ${DAEMON_HEARTBEAT_TTL_MS}ms). ` +
-        `Skipping restart for role "${targetRole}".`
-    );
-    return;
-  }
-
-  // Validate required fields for start command before dispatching
-  // Without agentHarness or workingDir, the daemon silently drops the command
-  if (!teamConfig.agentHarness || !teamConfig.workingDir) {
-    console.warn(
-      `[auto-restart] Missing agentHarness or workingDir for role "${targetRole}" ` +
-        `(agentHarness=${teamConfig.agentHarness ?? 'undefined'}, ` +
-        `workingDir=${teamConfig.workingDir ?? 'undefined'}), skipping restart`
-    );
-    return;
-  }
-
-  // Resolve model: prefer team config, fall back to machine agent config
-  let resolvedModel = teamConfig.model;
-  if (!resolvedModel) {
-    const machineConfig = await ctx.db
-      .query('chatroom_machineAgentConfigs')
-      .withIndex('by_machine_chatroom_role', (q) =>
-        q
-          .eq('machineId', teamConfig.machineId!)
-          .eq('chatroomId', chatroomId)
-          .eq('role', targetRole.toLowerCase())
-      )
-      .first();
-    if (machineConfig?.model) {
-      resolvedModel = machineConfig.model;
-    }
-  }
-
-  // Warn if no model could be resolved — daemon will use its default
-  if (!resolvedModel) {
-    console.warn(
-      `[auto-restart] No model found for role "${targetRole}" ` +
-        `(checked teamConfig and machineConfig). The daemon will use its default model.`
+  if (result.status === 'dispatched') {
+    console.log(
+      `[auto-restart] Dispatched restart for role "${targetRole}" ` +
+        `on machine ${result.machineId} (model: ${result.model ?? 'default'})`
     );
   }
-
-  // --- Dedup check ---
-  // Prevent duplicate restart commands when multiple messages arrive for the
-  // same offline agent in quick succession. If a pending start-agent command
-  // already exists for this machine + chatroom + role, skip the restart.
-  const pendingCommands = await ctx.db
-    .query('chatroom_machineCommands')
-    .withIndex('by_machineId_status', (q) =>
-      q.eq('machineId', teamConfig.machineId!).eq('status', 'pending')
-    )
-    .collect();
-
-  const hasPendingRestart = pendingCommands.some(
-    (cmd) =>
-      cmd.type === 'start-agent' &&
-      cmd.payload.chatroomId === chatroomId &&
-      cmd.payload.role?.toLowerCase() === targetRole.toLowerCase()
-  );
-
-  if (hasPendingRestart) {
-    console.warn(
-      `[auto-restart] Skipping duplicate restart for role "${targetRole}" ` +
-        `in chatroom ${chatroomId} — a pending start-agent command already exists`
-    );
-    return;
-  }
-
-  // Dispatch stop + start commands using team config parameters
-  // Stop first to clean up any stale process
-  await ctx.db.insert('chatroom_machineCommands', {
-    machineId: teamConfig.machineId,
-    type: 'stop-agent',
-    payload: {
-      chatroomId,
-      role: teamConfig.role,
-    },
-    status: 'pending',
-    sentBy: userId,
-    createdAt: now,
-  });
-
-  // Start command — uses the team agent config with resolved model
-  await ctx.db.insert('chatroom_machineCommands', {
-    machineId: teamConfig.machineId,
-    type: 'start-agent',
-    payload: {
-      chatroomId,
-      role: teamConfig.role,
-      agentHarness: teamConfig.agentHarness,
-      model: resolvedModel,
-      workingDir: teamConfig.workingDir,
-    },
-    status: 'pending',
-    sentBy: userId,
-    createdAt: now + 1, // Ensure start comes after stop in FIFO order
-  });
 }
 
 // =============================================================================

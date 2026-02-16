@@ -23,6 +23,7 @@ import {
 } from './auth/cliSessionAuth';
 import { recoverOrphanedTasks } from './lib/taskRecovery';
 import { transitionTask } from './lib/taskStateMachine';
+import { restartOfflineAgent } from '../src/domain/usecase/agent/restart-offline-agent';
 
 /**
  * Maximum number of active tasks per chatroom.
@@ -1764,82 +1765,40 @@ export const cleanupStaleAgents = internalMutation({
         if (!isExpired) continue;
       }
 
-      // No valid participant — check team agent config to decide recovery action
+      // No valid participant — attempt restart via the use case
       stuckPendingCount++;
-      const teamId = chatroom.teamId || chatroom._id;
-      const teamRoleKey = `team_${teamId}#role_${entryPoint.toLowerCase()}`;
 
-      const teamConfig = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-        .first();
+      const restartResult = await restartOfflineAgent(ctx, {
+        chatroomId: task.chatroomId,
+        targetRole: entryPoint,
+        userId: chatroom.ownerId,
+      });
 
-      if (teamConfig?.type === 'remote' && teamConfig.machineId) {
-        // Remote agent — attempt auto-restart
-        const machine = await ctx.db
-          .query('chatroom_machines')
-          .withIndex('by_machineId', (q) => q.eq('machineId', teamConfig.machineId!))
-          .first();
-
-        if (machine?.daemonConnected && teamConfig.agentHarness && teamConfig.workingDir) {
-          // Check for existing pending restart (dedup)
-          const pendingCmds = await ctx.db
-            .query('chatroom_machineCommands')
-            .withIndex('by_machineId_status', (q) =>
-              q.eq('machineId', teamConfig.machineId!).eq('status', 'pending')
-            )
-            .collect();
-
-          const hasPendingRestart = pendingCmds.some(
-            (cmd) =>
-              cmd.type === 'start-agent' &&
-              cmd.payload.chatroomId === task.chatroomId &&
-              cmd.payload.role?.toLowerCase() === entryPoint.toLowerCase()
-          );
-
-          if (!hasPendingRestart) {
-            // Dispatch stop + start commands (use chatroom owner as sentBy)
-            await ctx.db.insert('chatroom_machineCommands', {
-              machineId: teamConfig.machineId,
-              type: 'stop-agent',
-              payload: { chatroomId: task.chatroomId, role: entryPoint },
-              status: 'pending',
-              sentBy: chatroom.ownerId,
-              createdAt: now,
-            });
-            await ctx.db.insert('chatroom_machineCommands', {
-              machineId: teamConfig.machineId,
-              type: 'start-agent',
-              payload: {
-                chatroomId: task.chatroomId,
-                role: entryPoint,
-                agentHarness: teamConfig.agentHarness,
-                model: teamConfig.model,
-                workingDir: teamConfig.workingDir,
-              },
-              status: 'pending',
-              sentBy: chatroom.ownerId,
-              createdAt: now + 1,
-            });
-            autoRestartsTriggered++;
-            console.warn(
-              `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
-                `Auto-restarting remote agent "${entryPoint}" on machine ${teamConfig.machineId}`
-            );
-          }
-        }
-      } else if (teamConfig?.type === 'custom') {
-        // Custom agent — cannot auto-restart, log warning
+      if (restartResult.status === 'dispatched') {
+        autoRestartsTriggered++;
         console.warn(
           `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
-            `Agent "${entryPoint}" is custom (user-managed) — cannot auto-restart. ` +
-            `User notification would go here in a future enhancement.`
+            `Auto-restarting remote agent "${entryPoint}" on machine ${restartResult.machineId}`
         );
       } else {
-        console.warn(
-          `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
-            `No team agent config found for role "${entryPoint}" — cannot recover.`
-        );
+        // Log skip reason for observability
+        const reason = restartResult.reason;
+        if (reason === 'not_remote') {
+          console.warn(
+            `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
+              `Agent "${entryPoint}" is custom (user-managed) — cannot auto-restart.`
+          );
+        } else if (reason === 'no_agent_config') {
+          console.warn(
+            `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
+              `No team agent config found for role "${entryPoint}" — cannot recover.`
+          );
+        } else if (reason !== 'agent_online' && reason !== 'duplicate_pending_command') {
+          console.warn(
+            `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
+              `Restart skipped for "${entryPoint}": ${reason}`
+          );
+        }
       }
     }
 
