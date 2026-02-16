@@ -1005,6 +1005,46 @@ async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     // Stop heartbeat timer
     clearInterval(heartbeatTimer);
 
+    // ── Graceful Agent Cleanup ──────────────────────────────────────────
+    // Stop all tracked agent processes so they don't become orphans.
+    const agents = listAgentEntries(ctx.machineId);
+    if (agents.length > 0) {
+      console.log(`[${formatTimestamp()}] Stopping ${agents.length} agent(s)...`);
+
+      const AGENT_SHUTDOWN_TIMEOUT_MS = 5_000;
+
+      for (const { role, entry } of agents) {
+        try {
+          // Send SIGTERM for graceful shutdown
+          process.kill(entry.pid, 'SIGTERM');
+          console.log(`   Sent SIGTERM to ${role} (PID ${entry.pid})`);
+        } catch {
+          // Process already dead — nothing to do
+          console.log(`   ${role} (PID ${entry.pid}) already exited`);
+        }
+      }
+
+      // Wait briefly for agents to exit, then force-kill stragglers
+      await new Promise((resolve) => setTimeout(resolve, AGENT_SHUTDOWN_TIMEOUT_MS));
+
+      for (const { chatroomId, role, entry } of agents) {
+        try {
+          // Check if still alive (signal 0 = existence check)
+          process.kill(entry.pid, 0);
+          // Still alive after grace period — force kill
+          process.kill(entry.pid, 'SIGKILL');
+          console.log(`   Force-killed ${role} (PID ${entry.pid})`);
+        } catch {
+          // Process exited cleanly — good
+        }
+
+        // Clear PID from local state
+        clearAgentPid(ctx.machineId, chatroomId, role);
+      }
+
+      console.log(`[${formatTimestamp()}] All agents stopped`);
+    }
+
     try {
       // Update daemon status to disconnected
       await ctx.client.mutation(api.machines.updateDaemonStatus, {

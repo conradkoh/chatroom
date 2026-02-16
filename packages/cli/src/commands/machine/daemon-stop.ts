@@ -23,8 +23,9 @@ export async function daemonStop(): Promise<void> {
     // Send SIGTERM for graceful shutdown
     process.kill(pid!, 'SIGTERM');
 
-    // Wait a moment for process to exit
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Wait for process to exit — the daemon's shutdown handler needs time
+    // to SIGTERM all tracked agents and wait for them to exit (up to 5s)
+    await new Promise((resolve) => setTimeout(resolve, 8000));
 
     // Check if still running
     try {
