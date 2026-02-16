@@ -1,45 +1,56 @@
 /**
- * Squad Team — Builder Wait For Task
+ * Squad Team — Builder Wait-For-Task Output
  *
- * Verifies the full CLI output generated when a builder in a Squad team
- * receives a task via wait-for-task. Tests both user-originated and
- * team-member-originated task scenarios.
+ * Verifies the full CLI output delivered when the builder receives a task
+ * via wait-for-task. Tests the `generateFullCliOutput` function which is
+ * the backend-generated template printed by the CLI.
  *
  * Uses inline snapshots for human-reviewable regression detection.
- * Pure function test — no Convex test client needed.
  */
 
 import { describe, expect, test } from 'vitest';
 
 import { generateFullCliOutput } from '../../../../../prompts/base/cli/wait-for-task/fullOutput';
 
+const BASE_PARAMS = {
+  chatroomId: 'test-chatroom-id',
+  role: 'builder',
+  cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+  task: {
+    _id: 'test-task-id',
+    content: 'Implement the feature as described',
+  },
+  currentContext: null,
+  followUpCountSinceOrigin: 0,
+  originMessageCreatedAt: null,
+  isEntryPoint: false,
+  availableHandoffTargets: ['reviewer', 'planner'],
+};
+
 describe('Squad Team > Builder > Wait For Task', () => {
   test('task from user', () => {
     const output = generateFullCliOutput({
-      chatroomId: 'test-chatroom-id',
-      role: 'builder',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      task: { _id: 'test-task-id', content: 'Implement the feature as described' },
+      ...BASE_PARAMS,
       message: {
         _id: 'test-message-id',
         senderRole: 'user',
         content: 'Please implement dark mode for the settings page',
       },
-      currentContext: null,
       originMessage: {
         senderRole: 'user',
         content: 'Please implement dark mode for the settings page',
         classification: null,
       },
-      followUpCountSinceOrigin: 0,
-      originMessageCreatedAt: null,
-      isEntryPoint: false,
-      availableHandoffTargets: ['reviewer', 'planner'],
     });
+
     expect(output).toBeDefined();
     expect(output).toContain('📋 TASK');
     expect(output).toContain('📋 PROCESS');
     expect(output).toContain('📋 NEXT STEPS');
+    // Non-entry point should NOT have context creation step
+    expect(output).not.toContain('set a new context');
+    expect(output).toContain('Available targets: reviewer, planner');
+
     expect(output).toMatchInlineSnapshot(`
       "<task>
       ============================================================
@@ -127,29 +138,26 @@ describe('Squad Team > Builder > Wait For Task', () => {
     `);
   });
 
-  test('task from team member', () => {
+  test('task from team member (planner)', () => {
     const output = generateFullCliOutput({
-      chatroomId: 'test-chatroom-id',
-      role: 'builder',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      task: { _id: 'test-task-id', content: 'Implement the feature as described' },
+      ...BASE_PARAMS,
       message: {
         _id: 'test-message-id',
         senderRole: 'planner',
-        content: 'Please implement the dark mode feature for settings',
+        content: 'Please implement the dark mode toggle component.',
       },
-      currentContext: null,
       originMessage: {
         senderRole: 'user',
         content: 'Please implement dark mode for the settings page',
-        classification: null,
+        classification: 'new_feature',
       },
-      followUpCountSinceOrigin: 0,
-      originMessageCreatedAt: null,
-      isEntryPoint: false,
-      availableHandoffTargets: ['reviewer', 'planner'],
     });
+
     expect(output).toBeDefined();
+    expect(output).toContain('📋 TASK');
+    expect(output).toContain('handed off from planner');
+    expect(output).not.toContain('Acknowledge and classify');
+
     expect(output).toMatchInlineSnapshot(`
       "<task>
       ============================================================
@@ -166,6 +174,8 @@ describe('Squad Team > Builder > Wait For Task', () => {
 
       ## Task
       Implement the feature as described
+
+      Classification: NEW_FEATURE
       </task>
 
       <process>

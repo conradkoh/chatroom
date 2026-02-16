@@ -1,43 +1,46 @@
 /**
  * Pair Team — Reviewer Handoff (Task Started Reminder)
  *
- * Verifies the task-started reminder generated for a reviewer in a Pair team
- * across all three classification types: question, new_feature, follow_up.
+ * Verifies the task-started reminder prompt generated for the reviewer role
+ * in a Pair team. This is the `generateTaskStartedReminder` function which
+ * produces role-specific guidance after acknowledging a task.
  *
- * Note: Reviewer reminders are simpler — they focus on review instructions
- * rather than classification-specific workflows.
+ * In pair team, reviewer can hand off to user or builder.
  *
  * Uses inline snapshots for human-reviewable regression detection.
- * Pure function test — no Convex test client needed.
  */
 
 import { describe, expect, test } from 'vitest';
 
 import { generateTaskStartedReminder } from '../../../../../prompts/generator';
 
-describe('Pair Team > Reviewer > Handoff (Task Started Reminder)', () => {
-  const baseParams = {
-    role: 'reviewer',
-    chatroomId: 'test-chatroom-id',
-    messageId: 'test-message-id',
-    taskId: 'test-task-id',
-    convexUrl: 'http://127.0.0.1:3210',
-    teamRoles: ['builder', 'reviewer'],
-    teamName: 'Pair',
-  };
+const BASE_PARAMS = {
+  role: 'reviewer',
+  chatroomId: 'test-chatroom-id',
+  messageId: 'test-message-id',
+  taskId: 'test-task-id',
+  convexUrl: 'http://127.0.0.1:3210',
+  teamRoles: ['builder', 'reviewer'] as string[],
+  teamName: 'Pair',
+};
 
+describe('Pair Team > Reviewer > Handoff (Task Started Reminder)', () => {
   test('question classification', () => {
     const reminder = generateTaskStartedReminder(
-      baseParams.role,
+      BASE_PARAMS.role,
       'question',
-      baseParams.chatroomId,
-      baseParams.messageId,
-      baseParams.taskId,
-      baseParams.convexUrl,
-      baseParams.teamRoles,
-      baseParams.teamName
+      BASE_PARAMS.chatroomId,
+      BASE_PARAMS.messageId,
+      BASE_PARAMS.taskId,
+      BASE_PARAMS.convexUrl,
+      BASE_PARAMS.teamRoles,
+      BASE_PARAMS.teamName
     );
+
     expect(reminder).toBeDefined();
+    // Pair reviewer should hand off to user or builder
+    expect(reminder).toContain('user');
+
     expect(reminder).toMatchInlineSnapshot(`
       "Review the completed work. If the user's goal is met, hand off to user. If not, provide specific feedback and hand off to builder.
 
@@ -48,16 +51,19 @@ describe('Pair Team > Reviewer > Handoff (Task Started Reminder)', () => {
 
   test('new_feature classification', () => {
     const reminder = generateTaskStartedReminder(
-      baseParams.role,
+      BASE_PARAMS.role,
       'new_feature',
-      baseParams.chatroomId,
-      baseParams.messageId,
-      baseParams.taskId,
-      baseParams.convexUrl,
-      baseParams.teamRoles,
-      baseParams.teamName
+      BASE_PARAMS.chatroomId,
+      BASE_PARAMS.messageId,
+      BASE_PARAMS.taskId,
+      BASE_PARAMS.convexUrl,
+      BASE_PARAMS.teamRoles,
+      BASE_PARAMS.teamName
     );
+
     expect(reminder).toBeDefined();
+    expect(reminder).toContain('user');
+
     expect(reminder).toMatchInlineSnapshot(`
       "Review the completed work. If the user's goal is met, hand off to user. If not, provide specific feedback and hand off to builder.
 
@@ -68,16 +74,18 @@ describe('Pair Team > Reviewer > Handoff (Task Started Reminder)', () => {
 
   test('follow_up classification', () => {
     const reminder = generateTaskStartedReminder(
-      baseParams.role,
+      BASE_PARAMS.role,
       'follow_up',
-      baseParams.chatroomId,
-      baseParams.messageId,
-      baseParams.taskId,
-      baseParams.convexUrl,
-      baseParams.teamRoles,
-      baseParams.teamName
+      BASE_PARAMS.chatroomId,
+      BASE_PARAMS.messageId,
+      BASE_PARAMS.taskId,
+      BASE_PARAMS.convexUrl,
+      BASE_PARAMS.teamRoles,
+      BASE_PARAMS.teamName
     );
+
     expect(reminder).toBeDefined();
+
     expect(reminder).toMatchInlineSnapshot(`
       "Review the completed work. If the user's goal is met, hand off to user. If not, provide specific feedback and hand off to builder.
 

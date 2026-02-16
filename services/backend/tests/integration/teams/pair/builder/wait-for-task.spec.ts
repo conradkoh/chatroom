@@ -1,45 +1,58 @@
 /**
- * Pair Team — Builder Wait For Task
+ * Pair Team — Builder Wait-For-Task Output
  *
- * Verifies the full CLI output generated when a builder in a Pair team
- * receives a task via wait-for-task. Tests both user-originated and
- * team-member-originated task scenarios.
+ * Verifies the full CLI output delivered when the builder receives a task
+ * via wait-for-task in a Pair team. Tests the `generateFullCliOutput` function
+ * which is the backend-generated template printed by the CLI.
  *
  * Uses inline snapshots for human-reviewable regression detection.
- * Pure function test — no Convex test client needed.
  */
 
 import { describe, expect, test } from 'vitest';
 
 import { generateFullCliOutput } from '../../../../../prompts/base/cli/wait-for-task/fullOutput';
 
+const BASE_PARAMS = {
+  chatroomId: 'test-chatroom-id',
+  role: 'builder',
+  cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+  task: {
+    _id: 'test-task-id',
+    content: 'Implement the feature as described',
+  },
+  currentContext: null,
+  followUpCountSinceOrigin: 0,
+  originMessageCreatedAt: null,
+  isEntryPoint: true,
+  availableHandoffTargets: ['reviewer', 'user'],
+};
+
 describe('Pair Team > Builder > Wait For Task', () => {
   test('task from user', () => {
     const output = generateFullCliOutput({
-      chatroomId: 'test-chatroom-id',
-      role: 'builder',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      task: { _id: 'test-task-id', content: 'Implement the feature as described' },
+      ...BASE_PARAMS,
       message: {
         _id: 'test-message-id',
         senderRole: 'user',
         content: 'Please implement dark mode for the settings page',
       },
-      currentContext: null,
       originMessage: {
         senderRole: 'user',
         content: 'Please implement dark mode for the settings page',
         classification: null,
       },
-      followUpCountSinceOrigin: 0,
-      originMessageCreatedAt: null,
-      isEntryPoint: true,
-      availableHandoffTargets: ['reviewer', 'user'],
     });
+
     expect(output).toBeDefined();
     expect(output).toContain('📋 TASK');
     expect(output).toContain('📋 PROCESS');
     expect(output).toContain('📋 NEXT STEPS');
+    // Entry point should have context creation step
+    expect(output).toContain('set a new context');
+    // User message should trigger classification flow
+    expect(output).toContain('Acknowledge and classify');
+    expect(output).toContain('Available targets: reviewer, user');
+
     expect(output).toMatchInlineSnapshot(`
       "<task>
       ============================================================
@@ -137,29 +150,26 @@ describe('Pair Team > Builder > Wait For Task', () => {
     `);
   });
 
-  test('task from team member', () => {
+  test('task from team member (reviewer)', () => {
     const output = generateFullCliOutput({
-      chatroomId: 'test-chatroom-id',
-      role: 'builder',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      task: { _id: 'test-task-id', content: 'Implement the feature as described' },
+      ...BASE_PARAMS,
       message: {
         _id: 'test-message-id',
         senderRole: 'reviewer',
-        content: 'Changes needed, please fix the styling issues',
+        content: 'Changes approved. Please fix the minor issue noted.',
       },
-      currentContext: null,
       originMessage: {
         senderRole: 'user',
         content: 'Please implement dark mode for the settings page',
-        classification: null,
+        classification: 'new_feature',
       },
-      followUpCountSinceOrigin: 0,
-      originMessageCreatedAt: null,
-      isEntryPoint: true,
-      availableHandoffTargets: ['reviewer', 'user'],
     });
+
     expect(output).toBeDefined();
+    expect(output).toContain('📋 TASK');
+    expect(output).toContain('handed off from reviewer');
+    expect(output).not.toContain('Acknowledge and classify');
+
     expect(output).toMatchInlineSnapshot(`
       "<task>
       ============================================================
@@ -176,6 +186,8 @@ describe('Pair Team > Builder > Wait For Task', () => {
 
       ## Task
       Implement the feature as described
+
+      Classification: NEW_FEATURE
       </task>
 
       <process>

@@ -1,40 +1,47 @@
 /**
  * Squad Team — Builder Handoff (Task Started Reminder)
  *
- * Verifies the task-started reminder generated for a builder in a Squad team
- * across all three classification types: question, new_feature, follow_up.
+ * Verifies the task-started reminder prompt generated for the builder role
+ * in a Squad team. This is the `generateTaskStartedReminder` function which
+ * produces role-specific guidance after acknowledging a task.
+ *
+ * In squad team, builder hands off to reviewer or planner, never to user.
  *
  * Uses inline snapshots for human-reviewable regression detection.
- * Pure function test — no Convex test client needed.
  */
 
 import { describe, expect, test } from 'vitest';
 
 import { generateTaskStartedReminder } from '../../../../../prompts/generator';
 
-describe('Squad Team > Builder > Handoff (Task Started Reminder)', () => {
-  const baseParams = {
-    role: 'builder',
-    chatroomId: 'test-chatroom-id',
-    messageId: 'test-message-id',
-    taskId: 'test-task-id',
-    convexUrl: 'http://127.0.0.1:3210',
-    teamRoles: ['planner', 'builder', 'reviewer'],
-    teamName: 'Squad',
-  };
+const BASE_PARAMS = {
+  role: 'builder',
+  chatroomId: 'test-chatroom-id',
+  messageId: 'test-message-id',
+  taskId: 'test-task-id',
+  convexUrl: 'http://127.0.0.1:3210',
+  teamRoles: ['planner', 'builder', 'reviewer'] as string[],
+  teamName: 'Squad',
+};
 
+describe('Squad Team > Builder > Handoff (Task Started Reminder)', () => {
   test('question classification', () => {
     const reminder = generateTaskStartedReminder(
-      baseParams.role,
+      BASE_PARAMS.role,
       'question',
-      baseParams.chatroomId,
-      baseParams.messageId,
-      baseParams.taskId,
-      baseParams.convexUrl,
-      baseParams.teamRoles,
-      baseParams.teamName
+      BASE_PARAMS.chatroomId,
+      BASE_PARAMS.messageId,
+      BASE_PARAMS.taskId,
+      BASE_PARAMS.convexUrl,
+      BASE_PARAMS.teamRoles,
+      BASE_PARAMS.teamName
     );
+
     expect(reminder).toBeDefined();
+    expect(reminder).toContain('QUESTION');
+    // Squad builder should never hand off to user
+    expect(reminder).toContain('never hand off directly to user');
+
     expect(reminder).toMatchInlineSnapshot(`
       "✅ Task acknowledged as QUESTION.
 
@@ -58,16 +65,20 @@ describe('Squad Team > Builder > Handoff (Task Started Reminder)', () => {
 
   test('new_feature classification', () => {
     const reminder = generateTaskStartedReminder(
-      baseParams.role,
+      BASE_PARAMS.role,
       'new_feature',
-      baseParams.chatroomId,
-      baseParams.messageId,
-      baseParams.taskId,
-      baseParams.convexUrl,
-      baseParams.teamRoles,
-      baseParams.teamName
+      BASE_PARAMS.chatroomId,
+      BASE_PARAMS.messageId,
+      BASE_PARAMS.taskId,
+      BASE_PARAMS.convexUrl,
+      BASE_PARAMS.teamRoles,
+      BASE_PARAMS.teamName
     );
+
     expect(reminder).toBeDefined();
+    expect(reminder).toContain('NEW FEATURE');
+    expect(reminder).toContain('never hand off directly to user');
+
     expect(reminder).toMatchInlineSnapshot(`
       "✅ Task acknowledged as NEW FEATURE.
 
@@ -91,16 +102,20 @@ describe('Squad Team > Builder > Handoff (Task Started Reminder)', () => {
 
   test('follow_up classification', () => {
     const reminder = generateTaskStartedReminder(
-      baseParams.role,
+      BASE_PARAMS.role,
       'follow_up',
-      baseParams.chatroomId,
-      baseParams.messageId,
-      baseParams.taskId,
-      baseParams.convexUrl,
-      baseParams.teamRoles,
-      baseParams.teamName
+      BASE_PARAMS.chatroomId,
+      BASE_PARAMS.messageId,
+      BASE_PARAMS.taskId,
+      BASE_PARAMS.convexUrl,
+      BASE_PARAMS.teamRoles,
+      BASE_PARAMS.teamName
     );
+
     expect(reminder).toBeDefined();
+    expect(reminder).toContain('FOLLOW UP');
+    expect(reminder).toContain('never hand off directly to user');
+
     expect(reminder).toMatchInlineSnapshot(`
       "✅ Task acknowledged as FOLLOW UP.
 

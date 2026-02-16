@@ -1,45 +1,56 @@
 /**
- * Pair Team — Reviewer Wait For Task
+ * Pair Team — Reviewer Wait-For-Task Output
  *
- * Verifies the full CLI output generated when a reviewer in a Pair team
- * receives a task via wait-for-task. Tests both user-originated and
- * team-member-originated task scenarios.
+ * Verifies the full CLI output delivered when the reviewer receives a task
+ * via wait-for-task in a Pair team. Tests the `generateFullCliOutput` function
+ * which is the backend-generated template printed by the CLI.
  *
  * Uses inline snapshots for human-reviewable regression detection.
- * Pure function test — no Convex test client needed.
  */
 
 import { describe, expect, test } from 'vitest';
 
 import { generateFullCliOutput } from '../../../../../prompts/base/cli/wait-for-task/fullOutput';
 
+const BASE_PARAMS = {
+  chatroomId: 'test-chatroom-id',
+  role: 'reviewer',
+  cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
+  task: {
+    _id: 'test-task-id',
+    content: 'Review the dark mode implementation',
+  },
+  currentContext: null,
+  followUpCountSinceOrigin: 0,
+  originMessageCreatedAt: null,
+  isEntryPoint: false,
+  availableHandoffTargets: ['builder', 'user'],
+};
+
 describe('Pair Team > Reviewer > Wait For Task', () => {
   test('task from user', () => {
     const output = generateFullCliOutput({
-      chatroomId: 'test-chatroom-id',
-      role: 'reviewer',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      task: { _id: 'test-task-id', content: 'Implement the feature as described' },
+      ...BASE_PARAMS,
       message: {
         _id: 'test-message-id',
         senderRole: 'user',
-        content: 'Please implement dark mode for the settings page',
+        content: 'Please review the dark mode changes',
       },
-      currentContext: null,
       originMessage: {
         senderRole: 'user',
-        content: 'Please implement dark mode for the settings page',
+        content: 'Please review the dark mode changes',
         classification: null,
       },
-      followUpCountSinceOrigin: 0,
-      originMessageCreatedAt: null,
-      isEntryPoint: false,
-      availableHandoffTargets: ['builder', 'user'],
     });
+
     expect(output).toBeDefined();
     expect(output).toContain('📋 TASK');
     expect(output).toContain('📋 PROCESS');
     expect(output).toContain('📋 NEXT STEPS');
+    // Non-entry point should NOT have context creation step
+    expect(output).not.toContain('set a new context');
+    expect(output).toContain('Available targets: builder, user');
+
     expect(output).toMatchInlineSnapshot(`
       "<task>
       ============================================================
@@ -51,11 +62,11 @@ describe('Pair Team > Reviewer > Wait For Task', () => {
 
       ## User Message
       <user-message>
-      Please implement dark mode for the settings page
+      Please review the dark mode changes
       </user-message>
 
       ## Task
-      Implement the feature as described
+      Review the dark mode implementation
       </task>
 
       <process>
@@ -127,29 +138,26 @@ describe('Pair Team > Reviewer > Wait For Task', () => {
     `);
   });
 
-  test('task from team member', () => {
+  test('task from team member (builder)', () => {
     const output = generateFullCliOutput({
-      chatroomId: 'test-chatroom-id',
-      role: 'reviewer',
-      cliEnvPrefix: 'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 ',
-      task: { _id: 'test-task-id', content: 'Implement the feature as described' },
+      ...BASE_PARAMS,
       message: {
         _id: 'test-message-id',
         senderRole: 'builder',
-        content: 'Implementation complete, please review',
+        content: 'Dark mode implementation complete. Please review.',
       },
-      currentContext: null,
       originMessage: {
         senderRole: 'user',
         content: 'Please implement dark mode for the settings page',
-        classification: null,
+        classification: 'new_feature',
       },
-      followUpCountSinceOrigin: 0,
-      originMessageCreatedAt: null,
-      isEntryPoint: false,
-      availableHandoffTargets: ['builder', 'user'],
     });
+
     expect(output).toBeDefined();
+    expect(output).toContain('📋 TASK');
+    expect(output).toContain('handed off from builder');
+    expect(output).not.toContain('Acknowledge and classify');
+
     expect(output).toMatchInlineSnapshot(`
       "<task>
       ============================================================
@@ -165,7 +173,9 @@ describe('Pair Team > Reviewer > Wait For Task', () => {
       </user-message>
 
       ## Task
-      Implement the feature as described
+      Review the dark mode implementation
+
+      Classification: NEW_FEATURE
       </task>
 
       <process>
