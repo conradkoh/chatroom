@@ -6,7 +6,7 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import { getSessionId, isAuthenticated, getAuthFilePath, getOtherSessionUrls } from './storage.js';
-import { api, type SessionValidation } from '../../api.js';
+import { api } from '../../api.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
 import { getConvexClient, getConvexUrl } from '../convex/client.js';
 
@@ -54,9 +54,9 @@ export async function requireAuth(): Promise<AuthContext> {
   // Validate session with backend
   try {
     const client = await getConvexClient();
-    const validation = (await client.query(api.cliAuth.validateSession, {
+    const validation = await client.query(api.cliAuth.validateSession, {
       sessionId,
-    })) as SessionValidation;
+    });
 
     if (!validation.valid) {
       console.error(`\n❌ Error: Session invalid - ${validation.reason}`);
@@ -103,9 +103,9 @@ export async function checkAuth(): Promise<AuthContext | null> {
 
   try {
     const client = await getConvexClient();
-    const validation = (await client.query(api.cliAuth.validateSession, {
+    const validation = await client.query(api.cliAuth.validateSession, {
       sessionId,
-    })) as SessionValidation;
+    });
 
     if (!validation.valid) {
       return null;

@@ -610,17 +610,10 @@ async function handleStopAgent(
   console.log(`      Role: ${role}`);
 
   // Query the backend for the current PID (single source of truth)
-  const configsResult = (await ctx.client.query(api.machines.getAgentConfigs, {
+  const configsResult = await ctx.client.query(api.machines.getAgentConfigs, {
     sessionId: ctx.sessionId,
     chatroomId,
-  })) as {
-    configs: {
-      machineId: string;
-      role: string;
-      agentType?: string;
-      spawnedAgentPid?: number;
-    }[];
-  };
+  });
 
   const targetConfig = configsResult.configs.find(
     (c) => c.machineId === ctx.machineId && c.role.toLowerCase() === role.toLowerCase()
