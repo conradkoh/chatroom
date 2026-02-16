@@ -378,8 +378,13 @@ export const getTeamReadiness = query({
         displayStatus = 'working';
       } else if (p.status === 'waiting') {
         displayStatus = 'ready';
+      } else if (p.status === 'idle') {
+        // Backward compatibility: 'idle' is a deprecated status semantically
+        // equivalent to 'offline'. Map it so the frontend AgentStatus type
+        // doesn't receive an unknown value.
+        displayStatus = 'offline';
       } else {
-        // offline, dead, restarting, dead_failed_revive, idle — pass through
+        // offline, dead, restarting, dead_failed_revive — pass through
         displayStatus = p.status;
       }
 
