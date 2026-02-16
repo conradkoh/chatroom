@@ -60,7 +60,8 @@ describe('Task Timeout Recovery', () => {
         role: 'builder',
       });
       expect(tasksBeforeCleanup.type).toBe('grace_period');
-      const taskId = (tasksBeforeCleanup as { type: 'grace_period'; taskId: string }).taskId;
+      const taskId = (tasksBeforeCleanup as { type: 'grace_period'; taskId: string })
+        .taskId as Id<'chatroom_tasks'>;
 
       // Now remove the participant (simulate agent death)
       await t.mutation(api.participants.leave, {
@@ -71,10 +72,10 @@ describe('Task Timeout Recovery', () => {
 
       // Manually patch the task's acknowledgedAt to be older than TASK_ACKNOWLEDGED_TIMEOUT_MS
       await t.run(async (ctx) => {
-        const task = await ctx.db.get('chatroom_tasks', taskId);
+        const task = await ctx.db.get(taskId);
         if (task) {
           const oldTime = Date.now() - TASK_ACKNOWLEDGED_TIMEOUT_MS - 10_000;
-          await ctx.db.patch('chatroom_tasks', taskId, {
+          await ctx.db.patch(taskId, {
             acknowledgedAt: oldTime,
             updatedAt: oldTime,
           });
@@ -86,7 +87,7 @@ describe('Task Timeout Recovery', () => {
 
       // Verify task was reset to pending
       await t.run(async (ctx) => {
-        const task = await ctx.db.get('chatroom_tasks', taskId);
+        const task = await ctx.db.get(taskId);
         expect(task).not.toBeNull();
         expect(task!.status).toBe('pending');
         expect(task!.assignedTo).toBeUndefined();
@@ -123,14 +124,15 @@ describe('Task Timeout Recovery', () => {
         role: 'builder',
       });
       expect(tasksResult.type).toBe('grace_period');
-      const taskId = (tasksResult as { type: 'grace_period'; taskId: string }).taskId;
+      const taskId = (tasksResult as { type: 'grace_period'; taskId: string })
+        .taskId as Id<'chatroom_tasks'>;
 
       // Participant is still present and valid — run cleanup
       await t.mutation(internal.tasks.cleanupStaleAgents, {});
 
       // Task should still be acknowledged
       await t.run(async (ctx) => {
-        const task = await ctx.db.get('chatroom_tasks', taskId);
+        const task = await ctx.db.get(taskId);
         expect(task).not.toBeNull();
         expect(task!.status).toBe('acknowledged');
       });

@@ -32,7 +32,8 @@ import {
  */
 function extractErrorData(error: unknown): BackendError {
   expect(error).toBeInstanceOf(ConvexError);
-  const raw = (error as ConvexError<unknown>).data;
+
+  const raw = (error as ConvexError<any>).data;
   const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
   return data as BackendError;
 }

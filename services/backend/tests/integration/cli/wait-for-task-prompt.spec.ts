@@ -2575,7 +2575,7 @@ describe('Wait-for-Task Recent Improvements', () => {
 
     // Query with an invalid session
     const result = await t.query(api.tasks.getPendingTasksForRole, {
-      sessionId: 'invalid-session-id',
+      sessionId: 'invalid-session-id' as SessionId,
       chatroomId,
       role: 'builder',
     });
