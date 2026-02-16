@@ -130,9 +130,9 @@ class WaitForTaskSession {
    * 1. Logs the event type received.
    * 2. Logs the descriptive message.
    * 3. Logs reconnection guidance (the `waitForTaskCommand(...)` output).
-   * 4. Calls `cleanup()` then `process.exit(exitCode)`.
+   * 4. Fire-and-forget `cleanup()`, then synchronous `process.exit(exitCode)`.
    *
-   * Return type is `never` for TypeScript exhaustiveness.
+   * Return type is `never` — `process.exit()` is synchronous and truly never returns.
    */
   private logAndExit(exitCode: number, event: string, message: string, guidance: string): never {
     const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
@@ -155,15 +155,11 @@ class WaitForTaskSession {
     );
     console.log(`${'─'.repeat(50)}`);
 
-    // Perform cleanup then exit
-    this.cleanup().finally(() => {
-      process.exit(exitCode);
-    });
+    // Fire-and-forget cleanup (idempotent, best-effort — heartbeat TTL handles expiry)
+    this.cleanup();
 
-    // `process.exit` is async in the `.finally` above, but TypeScript needs
-    // the function to satisfy `never`. This unreachable throw keeps the
-    // compiler happy.
-    throw new Error('unreachable');
+    // Synchronous process termination — truly `never` returns
+    process.exit(exitCode);
   }
 
   // -----------------------------------------------------------------------
@@ -346,11 +342,7 @@ class WaitForTaskSession {
    * Error event from the subscription.
    * Fatal errors exit with code 1; non-fatal errors exit with code 0.
    */
-  private handleError(response: {
-    code: BackendErrorCode;
-    message: string;
-    fatal: boolean;
-  }): never | void {
+  private handleError(response: { code: BackendErrorCode; message: string; fatal: boolean }): void {
     if (response.fatal) {
       if (this.fatalExitTriggered) return;
       this.fatalExitTriggered = true;
@@ -487,18 +479,15 @@ class WaitForTaskSession {
       process.exit(0);
     } catch (deliveryError) {
       // Task was claimed but delivery failed — MUST exit so the agent regains control.
-      const errorTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      console.error(`\n${'─'.repeat(50)}`);
-      console.error(`⚠️  TASK CLAIMED BUT DELIVERY FAILED\n`);
-      console.error(`[${errorTime}] Error: ${(deliveryError as Error).message}`);
-      console.error(`   Task ID: ${task._id}`);
-      console.error(`   The task has been claimed for your role.`);
-      console.error(`   Use context read to see your current task:\n`);
-      console.error(
-        `   ${this.cliEnvPrefix} chatroom context read --chatroom-id=${this.chatroomId} --role=${this.role}`
+      this.logAndExit(
+        1,
+        'task_delivery_failed',
+        `⚠️ TASK CLAIMED BUT DELIVERY FAILED — ${(deliveryError as Error).message}`,
+        `Task ID: ${task._id}\n` +
+          `The task has been claimed for your role.\n` +
+          `Use context read to see your current task:\n\n` +
+          `   ${this.cliEnvPrefix} chatroom context read --chatroom-id=${this.chatroomId} --role=${this.role}`
       );
-      console.error(`${'─'.repeat(50)}`);
-      process.exit(1);
     }
   }
 
