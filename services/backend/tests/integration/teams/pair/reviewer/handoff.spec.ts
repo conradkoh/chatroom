@@ -1,9 +1,9 @@
 /**
- * Pair Team — Reviewer Handoff (Task Started Reminder)
+ * Pair Team — Reviewer Handoff Output
  *
- * Verifies the task-started reminder prompt generated for the reviewer role
- * in a Pair team. This is the `generateTaskStartedReminder` function which
- * produces role-specific guidance after acknowledging a task.
+ * Verifies the output shown after a successful handoff command for the
+ * reviewer role in a Pair team. Tests `generateHandoffOutput` which
+ * produces the confirmation and wait-for-task reminder after `chatroom handoff`.
  *
  * In pair team, reviewer can hand off to user or builder.
  *
@@ -12,85 +12,46 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { generateTaskStartedReminder } from '../../../../../prompts/generator';
+import { generateHandoffOutput } from '../../../../../prompts/generator';
 
 const BASE_PARAMS = {
   role: 'reviewer',
   chatroomId: 'test-chatroom-id',
-  messageId: 'test-message-id',
-  taskId: 'test-task-id',
   convexUrl: 'http://127.0.0.1:3210',
-  teamRoles: ['builder', 'reviewer'] as string[],
-  teamName: 'Pair',
 };
 
-describe('Pair Team > Reviewer > Handoff (Task Started Reminder)', () => {
-  test('question classification', () => {
-    const reminder = generateTaskStartedReminder(
-      BASE_PARAMS.role,
-      'question',
-      BASE_PARAMS.chatroomId,
-      BASE_PARAMS.messageId,
-      BASE_PARAMS.taskId,
-      BASE_PARAMS.convexUrl,
-      BASE_PARAMS.teamRoles,
-      BASE_PARAMS.teamName
-    );
+describe('Pair Team > Reviewer > Handoff Output', () => {
+  test('handoff to user', () => {
+    const output = generateHandoffOutput({
+      ...BASE_PARAMS,
+      nextRole: 'user',
+    });
 
-    expect(reminder).toBeDefined();
-    // Pair reviewer should hand off to user or builder
-    expect(reminder).toContain('user');
+    expect(output).toBeDefined();
+    expect(output).toContain('handed off to user');
+    expect(output).toContain('wait-for-task');
 
-    expect(reminder).toMatchInlineSnapshot(`
-      "Review the completed work. If the user's goal is met, hand off to user. If not, provide specific feedback and hand off to builder.
+    expect(output).toMatchInlineSnapshot(`
+      "✅ Task completed and handed off to user
 
-      💡 You're reviewing:
-      Task ID: test-task-id"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=reviewer\`"
     `);
   });
 
-  test('new_feature classification', () => {
-    const reminder = generateTaskStartedReminder(
-      BASE_PARAMS.role,
-      'new_feature',
-      BASE_PARAMS.chatroomId,
-      BASE_PARAMS.messageId,
-      BASE_PARAMS.taskId,
-      BASE_PARAMS.convexUrl,
-      BASE_PARAMS.teamRoles,
-      BASE_PARAMS.teamName
-    );
+  test('handoff to builder', () => {
+    const output = generateHandoffOutput({
+      ...BASE_PARAMS,
+      nextRole: 'builder',
+    });
 
-    expect(reminder).toBeDefined();
-    expect(reminder).toContain('user');
+    expect(output).toBeDefined();
+    expect(output).toContain('handed off to builder');
+    expect(output).toContain('wait-for-task');
 
-    expect(reminder).toMatchInlineSnapshot(`
-      "Review the completed work. If the user's goal is met, hand off to user. If not, provide specific feedback and hand off to builder.
+    expect(output).toMatchInlineSnapshot(`
+      "✅ Task completed and handed off to builder
 
-      💡 You're reviewing:
-      Task ID: test-task-id"
-    `);
-  });
-
-  test('follow_up classification', () => {
-    const reminder = generateTaskStartedReminder(
-      BASE_PARAMS.role,
-      'follow_up',
-      BASE_PARAMS.chatroomId,
-      BASE_PARAMS.messageId,
-      BASE_PARAMS.taskId,
-      BASE_PARAMS.convexUrl,
-      BASE_PARAMS.teamRoles,
-      BASE_PARAMS.teamName
-    );
-
-    expect(reminder).toBeDefined();
-
-    expect(reminder).toMatchInlineSnapshot(`
-      "Review the completed work. If the user's goal is met, hand off to user. If not, provide specific feedback and hand off to builder.
-
-      💡 You're reviewing:
-      Task ID: test-task-id"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=reviewer\`"
     `);
   });
 });

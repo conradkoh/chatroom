@@ -25,6 +25,7 @@
 import { handoffCommand } from './base/cli/handoff/command.js';
 import { reportProgressCommand } from './base/cli/report-progress/command.js';
 import { getBaseRoleGuidanceFromContext } from './base/cli/roles/fromContext.js';
+import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
 import { getWaitForTaskGuidance } from './base/cli/wait-for-task/reminder.js';
 import { getClassificationGuideSection } from './sections/classification-guide.js';
 import { getCommandsReferenceSection } from './sections/commands-reference.js';
@@ -593,6 +594,30 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   sections.push(getNextStepSection({ chatroomId, role, convexUrl }));
 
   return composeSections(sections);
+}
+
+/**
+ * Generate the output shown after a successful handoff command.
+ *
+ * This is the prompt the agent sees after running `chatroom handoff`.
+ * It confirms the handoff and reminds the agent to run `wait-for-task`
+ * to continue receiving messages.
+ */
+export function generateHandoffOutput(params: {
+  role: string;
+  nextRole: string;
+  chatroomId: string;
+  convexUrl?: string;
+}): string {
+  const { role, nextRole, chatroomId, convexUrl } = params;
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
+
+  const lines: string[] = [];
+  lines.push(`✅ Task completed and handed off to ${nextRole}`);
+  lines.push('');
+  lines.push(`⏳ Next → \`${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
+
+  return lines.join('\n');
 }
 
 /**

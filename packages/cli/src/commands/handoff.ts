@@ -176,14 +176,8 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
     });
   }
 
-  // Check if handing off to user (workflow completion)
-  if (nextRole.toLowerCase() === 'user') {
-    console.log(`\n🎉 Workflow complete! Control returned to user.`);
-  }
-
-  // Remind agent to run wait-for-task manually
+  // Remind agent to run wait-for-task
   const convexUrl = getConvexUrl();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  console.log(`\n⏳ Now run wait-for-task to wait for your next assignment:`);
-  console.log(`   ${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}`);
+  console.log(`\n⏳ Next → \`${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
 }

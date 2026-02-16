@@ -1,97 +1,57 @@
 /**
- * Squad Team — Reviewer Handoff (Task Started Reminder)
+ * Squad Team — Reviewer Handoff Output
  *
- * Verifies the task-started reminder prompt generated for the reviewer role
- * in a Squad team. This is the `generateTaskStartedReminder` function which
- * produces role-specific guidance after acknowledging a task.
+ * Verifies the output shown after a successful handoff command for the
+ * reviewer role in a Squad team. Tests `generateHandoffOutput` which
+ * produces the confirmation and wait-for-task reminder after `chatroom handoff`.
  *
- * In squad team, reviewer hands off to planner (not user).
+ * In squad team, reviewer hands off to planner or builder (not user).
  *
  * Uses inline snapshots for human-reviewable regression detection.
  */
 
 import { describe, expect, test } from 'vitest';
 
-import { generateTaskStartedReminder } from '../../../../../prompts/generator';
+import { generateHandoffOutput } from '../../../../../prompts/generator';
 
 const BASE_PARAMS = {
   role: 'reviewer',
   chatroomId: 'test-chatroom-id',
-  messageId: 'test-message-id',
-  taskId: 'test-task-id',
   convexUrl: 'http://127.0.0.1:3210',
-  teamRoles: ['planner', 'builder', 'reviewer'] as string[],
-  teamName: 'Squad',
 };
 
-describe('Squad Team > Reviewer > Handoff (Task Started Reminder)', () => {
-  test('question classification', () => {
-    const reminder = generateTaskStartedReminder(
-      BASE_PARAMS.role,
-      'question',
-      BASE_PARAMS.chatroomId,
-      BASE_PARAMS.messageId,
-      BASE_PARAMS.taskId,
-      BASE_PARAMS.convexUrl,
-      BASE_PARAMS.teamRoles,
-      BASE_PARAMS.teamName
-    );
+describe('Squad Team > Reviewer > Handoff Output', () => {
+  test('handoff to planner', () => {
+    const output = generateHandoffOutput({
+      ...BASE_PARAMS,
+      nextRole: 'planner',
+    });
 
-    expect(reminder).toBeDefined();
-    // Squad reviewer should hand off to planner
-    expect(reminder).toContain('planner');
+    expect(output).toBeDefined();
+    expect(output).toContain('handed off to planner');
+    expect(output).toContain('wait-for-task');
 
-    expect(reminder).toMatchInlineSnapshot(`
-      "Review the completed work. If the work meets requirements, hand off to planner for user delivery. If changes are needed, hand off to builder with specific feedback.
+    expect(output).toMatchInlineSnapshot(`
+      "✅ Task completed and handed off to planner
 
-      💡 You're reviewing:
-      Task ID: test-task-id"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=reviewer\`"
     `);
   });
 
-  test('new_feature classification', () => {
-    const reminder = generateTaskStartedReminder(
-      BASE_PARAMS.role,
-      'new_feature',
-      BASE_PARAMS.chatroomId,
-      BASE_PARAMS.messageId,
-      BASE_PARAMS.taskId,
-      BASE_PARAMS.convexUrl,
-      BASE_PARAMS.teamRoles,
-      BASE_PARAMS.teamName
-    );
+  test('handoff to builder', () => {
+    const output = generateHandoffOutput({
+      ...BASE_PARAMS,
+      nextRole: 'builder',
+    });
 
-    expect(reminder).toBeDefined();
-    expect(reminder).toContain('planner');
+    expect(output).toBeDefined();
+    expect(output).toContain('handed off to builder');
+    expect(output).toContain('wait-for-task');
 
-    expect(reminder).toMatchInlineSnapshot(`
-      "Review the completed work. If the work meets requirements, hand off to planner for user delivery. If changes are needed, hand off to builder with specific feedback.
+    expect(output).toMatchInlineSnapshot(`
+      "✅ Task completed and handed off to builder
 
-      💡 You're reviewing:
-      Task ID: test-task-id"
-    `);
-  });
-
-  test('follow_up classification', () => {
-    const reminder = generateTaskStartedReminder(
-      BASE_PARAMS.role,
-      'follow_up',
-      BASE_PARAMS.chatroomId,
-      BASE_PARAMS.messageId,
-      BASE_PARAMS.taskId,
-      BASE_PARAMS.convexUrl,
-      BASE_PARAMS.teamRoles,
-      BASE_PARAMS.teamName
-    );
-
-    expect(reminder).toBeDefined();
-    expect(reminder).toContain('planner');
-
-    expect(reminder).toMatchInlineSnapshot(`
-      "Review the completed work. If the work meets requirements, hand off to planner for user delivery. If changes are needed, hand off to builder with specific feedback.
-
-      💡 You're reviewing:
-      Task ID: test-task-id"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=reviewer\`"
     `);
   });
 });

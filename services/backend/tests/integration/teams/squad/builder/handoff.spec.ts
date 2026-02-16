@@ -1,9 +1,9 @@
 /**
- * Squad Team — Builder Handoff (Task Started Reminder)
+ * Squad Team — Builder Handoff Output
  *
- * Verifies the task-started reminder prompt generated for the builder role
- * in a Squad team. This is the `generateTaskStartedReminder` function which
- * produces role-specific guidance after acknowledging a task.
+ * Verifies the output shown after a successful handoff command for the
+ * builder role in a Squad team. Tests `generateHandoffOutput` which
+ * produces the confirmation and wait-for-task reminder after `chatroom handoff`.
  *
  * In squad team, builder hands off to reviewer or planner, never to user.
  *
@@ -12,128 +12,46 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { generateTaskStartedReminder } from '../../../../../prompts/generator';
+import { generateHandoffOutput } from '../../../../../prompts/generator';
 
 const BASE_PARAMS = {
   role: 'builder',
   chatroomId: 'test-chatroom-id',
-  messageId: 'test-message-id',
-  taskId: 'test-task-id',
   convexUrl: 'http://127.0.0.1:3210',
-  teamRoles: ['planner', 'builder', 'reviewer'] as string[],
-  teamName: 'Squad',
 };
 
-describe('Squad Team > Builder > Handoff (Task Started Reminder)', () => {
-  test('question classification', () => {
-    const reminder = generateTaskStartedReminder(
-      BASE_PARAMS.role,
-      'question',
-      BASE_PARAMS.chatroomId,
-      BASE_PARAMS.messageId,
-      BASE_PARAMS.taskId,
-      BASE_PARAMS.convexUrl,
-      BASE_PARAMS.teamRoles,
-      BASE_PARAMS.teamName
-    );
+describe('Squad Team > Builder > Handoff Output', () => {
+  test('handoff to reviewer', () => {
+    const output = generateHandoffOutput({
+      ...BASE_PARAMS,
+      nextRole: 'reviewer',
+    });
 
-    expect(reminder).toBeDefined();
-    expect(reminder).toContain('QUESTION');
-    // Squad builder should never hand off to user
-    expect(reminder).toContain('never hand off directly to user');
+    expect(output).toBeDefined();
+    expect(output).toContain('handed off to reviewer');
+    expect(output).toContain('wait-for-task');
 
-    expect(reminder).toMatchInlineSnapshot(`
-      "✅ Task acknowledged as QUESTION.
+    expect(output).toMatchInlineSnapshot(`
+      "✅ Task completed and handed off to reviewer
 
-      **Next steps:**
-      1. Implement the requested changes
-      2. Send \`report-progress\` at milestones
-      3. Hand off to reviewer when complete:
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=reviewer << 'EOF'
-      [Your message here]
-      EOF
-      \`\`\`
-
-      ⚠️ In squad team, never hand off directly to user — go through the planner.
-
-      💡 You're working on:
-      Message ID: test-message-id"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=builder\`"
     `);
   });
 
-  test('new_feature classification', () => {
-    const reminder = generateTaskStartedReminder(
-      BASE_PARAMS.role,
-      'new_feature',
-      BASE_PARAMS.chatroomId,
-      BASE_PARAMS.messageId,
-      BASE_PARAMS.taskId,
-      BASE_PARAMS.convexUrl,
-      BASE_PARAMS.teamRoles,
-      BASE_PARAMS.teamName
-    );
+  test('handoff to planner', () => {
+    const output = generateHandoffOutput({
+      ...BASE_PARAMS,
+      nextRole: 'planner',
+    });
 
-    expect(reminder).toBeDefined();
-    expect(reminder).toContain('NEW FEATURE');
-    expect(reminder).toContain('never hand off directly to user');
+    expect(output).toBeDefined();
+    expect(output).toContain('handed off to planner');
+    expect(output).toContain('wait-for-task');
 
-    expect(reminder).toMatchInlineSnapshot(`
-      "✅ Task acknowledged as NEW FEATURE.
+    expect(output).toMatchInlineSnapshot(`
+      "✅ Task completed and handed off to planner
 
-      **Next steps:**
-      1. Implement the requested changes
-      2. Send \`report-progress\` at milestones
-      3. Hand off to reviewer when complete:
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=reviewer << 'EOF'
-      [Your message here]
-      EOF
-      \`\`\`
-
-      ⚠️ In squad team, never hand off directly to user — go through the planner.
-
-      💡 You're working on:
-      Message ID: test-message-id"
-    `);
-  });
-
-  test('follow_up classification', () => {
-    const reminder = generateTaskStartedReminder(
-      BASE_PARAMS.role,
-      'follow_up',
-      BASE_PARAMS.chatroomId,
-      BASE_PARAMS.messageId,
-      BASE_PARAMS.taskId,
-      BASE_PARAMS.convexUrl,
-      BASE_PARAMS.teamRoles,
-      BASE_PARAMS.teamName
-    );
-
-    expect(reminder).toBeDefined();
-    expect(reminder).toContain('FOLLOW UP');
-    expect(reminder).toContain('never hand off directly to user');
-
-    expect(reminder).toMatchInlineSnapshot(`
-      "✅ Task acknowledged as FOLLOW UP.
-
-      **Next steps:**
-      1. Implement the requested changes
-      2. Send \`report-progress\` at milestones
-      3. Hand off to reviewer when complete:
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=reviewer << 'EOF'
-      [Your message here]
-      EOF
-      \`\`\`
-
-      ⚠️ In squad team, never hand off directly to user — go through the planner.
-
-      💡 You're working on:
-      Message ID: test-message-id"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=builder\`"
     `);
   });
 });

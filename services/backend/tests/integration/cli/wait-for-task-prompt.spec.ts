@@ -1061,10 +1061,7 @@ See docs/auth.md for more details.`;
     const fullCliOutput = `✅ Task completed and handed off to ${nextRole}
 📋 Summary: ${handoffMessage}
 
-🎉 Workflow complete! Control returned to user.
-
-⏳ Now run wait-for-task to wait for your next assignment:
-   ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`;
+⏳ Next → \`${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}\``;
 
     // Verify the complete output structure matches expected format
     expect(fullCliOutput).toMatchInlineSnapshot(`
@@ -1078,10 +1075,7 @@ See docs/auth.md for more details.`;
 
       See docs/auth.md for more details.
 
-      🎉 Workflow complete! Control returned to user.
-
-      ⏳ Now run wait-for-task to wait for your next assignment:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10054;chatroom_rooms --role=builder"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10054;chatroom_rooms --role=builder\`"
     `);
 
     // Verify mutation result
