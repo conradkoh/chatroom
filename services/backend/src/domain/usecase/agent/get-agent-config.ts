@@ -73,6 +73,15 @@ export interface ResolvedAgentConfig {
   spawnedAgentPid: number | undefined;
   /** When the agent was last spawned (from machine config). */
   spawnedAt: number | undefined;
+
+  // ── Derived flags ───────────────────────────────────────────────────
+
+  /**
+   * Whether this agent has system prompt control (i.e. it's a remote agent
+   * whose system prompt the backend can configure). When true, the CLI can
+   * skip injecting role/init prompts since they're already in the system prompt.
+   */
+  hasSystemPromptControl: boolean;
 }
 
 /** Result when no team config exists for the role. */
@@ -176,6 +185,7 @@ export async function getAgentConfig(
     modelSource,
     spawnedAgentPid: machineConfig?.spawnedAgentPid,
     spawnedAt: machineConfig?.spawnedAt,
+    hasSystemPromptControl: teamConfig.type === 'remote',
   };
 
   return { found: true, config: resolvedConfig };

@@ -5,7 +5,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
-import type { MutationCtx, QueryCtx } from './_generated/server';
+import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import {
   areAllAgentsReady,
@@ -24,22 +24,6 @@ import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { restartOfflineAgent } from '../src/domain/usecase/agent/restart-offline-agent';
 
 const config = getConfig();
-
-/**
- * Check if an agent has system prompt control (i.e. it's a remote agent whose
- * system prompt we can configure). When true, we can skip injecting role prompts
- * and init prompts into the CLI output since they're already in the system prompt.
- *
- * Delegates to the `getAgentConfig` use case (single source of truth for config resolution).
- */
-async function getHasSystemPromptControl(
-  ctx: QueryCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  role: string
-): Promise<boolean> {
-  const result = await getAgentConfig(ctx, { chatroomId, role });
-  return result.found && result.config.type === 'remote';
-}
 
 // Types for task delivery prompt response
 interface TaskDeliveryPromptResponse {
@@ -1747,8 +1731,13 @@ export const getInitPrompt = query({
     // Compose init prompt (system prompt + init message + combined)
     const composed = composeInitPrompt(promptInput);
 
-    // Check if this role's agent has system prompt control (remote agents do)
-    const hasSystemPromptControl = await getHasSystemPromptControl(ctx, args.chatroomId, args.role);
+    // Resolve agent config to determine system prompt control
+    const agentConfigResult = await getAgentConfig(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+    });
+    const hasSystemPromptControl =
+      agentConfigResult.found && agentConfigResult.config.hasSystemPromptControl;
 
     return {
       /** Combined prompt for manual mode (harnesses without system prompt support) */
