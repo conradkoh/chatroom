@@ -40,7 +40,7 @@ import { isNetworkError, formatConnectivityError } from '../utils/error-formatti
 // ---------------------------------------------------------------------------
 
 /** Discriminated union response from `getPendingTasksForRole` subscription. */
-type WaitForTaskResponse =
+export type WaitForTaskResponse =
   | {
       type: 'tasks';
       tasks: {
@@ -61,7 +61,7 @@ interface WaitForTaskOptions {
 }
 
 /** Parameters passed from the preflight phase to the session. */
-interface SessionParams {
+export interface SessionParams {
   chatroomId: string;
   role: string;
   silent: boolean;
@@ -82,7 +82,7 @@ interface SessionParams {
  * scope is now held as private instance fields, making the guarantees around
  * cleanup, deduplication, and process exit explicit and auditable.
  */
-class WaitForTaskSession {
+export class WaitForTaskSession {
   // --- Instance state ---
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private unsubscribe: (() => void) | null = null;
