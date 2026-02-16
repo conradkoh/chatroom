@@ -79,13 +79,20 @@ export const join = mutation({
 
     let participantId;
     if (existing) {
-      // Update status to waiting and refresh readyUntil, clear activeUntil
-      // Also update connectionId to allow old processes to detect they should exit
+      // Update status to waiting and refresh readyUntil, clear activeUntil.
+      // Also update connectionId to allow old processes to detect they should exit.
+      // Clear challenge fields to prevent stale challenge data from a previous session
+      // being resolved by the new connection (the challengeId would match but it's
+      // semantically wrong — it's a challenge from a different session).
       await ctx.db.patch('chatroom_participants', existing._id, {
         status: 'waiting',
         readyUntil: args.readyUntil,
         activeUntil: undefined, // Clear active timeout when transitioning to waiting
         connectionId: args.connectionId, // Track current connection for concurrent process detection
+        challengeId: undefined,
+        challengeSentAt: undefined,
+        challengeExpiresAt: undefined,
+        challengeStatus: undefined,
         ...(args.agentType ? { agentType: args.agentType } : {}),
       });
       participantId = existing._id;
