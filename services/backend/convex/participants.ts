@@ -541,6 +541,13 @@ export const resolveChallenge = mutation({
  * Used by the CLI to subscribe to challenge updates. When a new challenge appears
  * with status 'pending', the CLI should call `resolveChallenge` with the challengeId.
  *
+ * Design note: This query returns `null` both when the participant doesn't exist
+ * and when the participant exists but has no challenge. The CLI cannot distinguish
+ * between these two cases from the return value alone. However, if the participant
+ * is deleted (e.g. by `cleanupStaleAgents`), the Convex subscription itself will
+ * error — the CLI's `handleSubscriptionError` catches this and triggers an exit.
+ * So the "participant deleted" case is handled at the transport layer, not here.
+ *
  * Requires CLI session authentication and chatroom access.
  */
 export const getChallenge = query({
