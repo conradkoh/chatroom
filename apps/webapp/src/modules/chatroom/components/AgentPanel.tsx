@@ -89,7 +89,15 @@ const STATUS_CONFIG: Record<AgentStatus, { bg: string; text: string; label: stri
   },
 };
 
-const getStatusConfig = (status: AgentStatus) => STATUS_CONFIG[status];
+/** Fallback for unknown statuses — prevents crashes if the backend adds a new
+ *  status before the frontend is updated to handle it. */
+const DEFAULT_STATUS: { bg: string; text: string; label: string } = {
+  bg: 'bg-chatroom-text-muted',
+  text: 'text-chatroom-status-warning',
+  label: 'UNKNOWN',
+};
+
+const getStatusConfig = (status: AgentStatus) => STATUS_CONFIG[status] ?? DEFAULT_STATUS;
 
 const getStatusClasses = (effectiveStatus: AgentStatus) =>
   `w-2.5 h-2.5 flex-shrink-0 ${getStatusConfig(effectiveStatus).bg}`;
