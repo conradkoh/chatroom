@@ -12,25 +12,6 @@ import { api, type Id } from '../api.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
-interface ContextMessage {
-  _id: string;
-  _creationTime: number;
-  senderRole: string;
-  content: string;
-  type: string;
-  classification?: string;
-  featureTitle?: string;
-  taskId?: string;
-  taskStatus?: string;
-  taskContent?: string;
-  attachedTasks?: {
-    _id: string;
-    content: string;
-    status: string;
-    createdAt: number;
-  }[];
-}
-
 /**
  * Read context for a specific role.
  * Shows recent conversation history with task information.
@@ -64,16 +45,11 @@ export async function readContext(
   }
 
   try {
-    const context = (await client.query(api.messages.getContextForRole, {
+    const context = await client.query(api.messages.getContextForRole, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role: options.role,
-    })) as {
-      messages: ContextMessage[];
-      originMessage: ContextMessage | null;
-      classification: string | null;
-      pendingTasksForRole: number;
-    };
+    });
 
     if (context.messages.length === 0) {
       console.log(`\n📭 No context available`);
@@ -226,15 +202,6 @@ export async function newContext(
   }
 }
 
-interface ContextRecord {
-  _id: string;
-  _creationTime: number;
-  content: string;
-  createdBy: string;
-  createdAt: number;
-  messageCountAtCreation?: number;
-}
-
 /**
  * List recent contexts for a chatroom.
  */
@@ -268,11 +235,11 @@ export async function listContexts(
   }
 
   try {
-    const contexts = (await client.query(api.contexts.listContexts, {
+    const contexts = await client.query(api.contexts.listContexts, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       limit: options.limit ?? 10,
-    })) as ContextRecord[];
+    });
 
     if (contexts.length === 0) {
       console.log(`\n📭 No contexts found for this chatroom`);
@@ -314,11 +281,6 @@ export async function listContexts(
   }
 }
 
-interface ContextWithStaleness extends ContextRecord {
-  messagesSinceContext: number;
-  elapsedHours: number;
-}
-
 /**
  * Inspect a specific context with staleness information.
  */
@@ -339,10 +301,10 @@ export async function inspectContext(
   }
 
   try {
-    const context = (await client.query(api.contexts.getContext, {
+    const context = await client.query(api.contexts.getContext, {
       sessionId,
       contextId: options.contextId as Id<'chatroom_contexts'>,
-    })) as ContextWithStaleness;
+    });
 
     console.log(`\n📋 CONTEXT DETAILS`);
     console.log('═'.repeat(60));

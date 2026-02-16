@@ -37,9 +37,9 @@ export async function viewGuidelines(options: ViewGuidelinesOptions): Promise<vo
   const client = await getConvexClient();
 
   try {
-    const result = (await client.query(api.guidelines.getGuidelines, {
+    const result = await client.query(api.guidelines.getGuidelines, {
       type: type as 'coding' | 'security' | 'design' | 'performance' | 'all',
-    })) as { type: string; title: string; content: string };
+    });
 
     console.log(`\n${'═'.repeat(60)}`);
     console.log(`📋 ${result.title}`);
@@ -67,10 +67,7 @@ export async function listGuidelineTypes(): Promise<void> {
   const client = await getConvexClient();
 
   try {
-    const types = (await client.query(api.guidelines.listGuidelineTypes, {})) as {
-      type: string;
-      description: string;
-    }[];
+    const types = await client.query(api.guidelines.listGuidelineTypes, {});
 
     console.log(`\n📋 Available Guideline Types\n`);
     console.log(`${'─'.repeat(50)}`);

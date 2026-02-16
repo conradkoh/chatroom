@@ -13,7 +13,7 @@ import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 import { ConvexError } from 'convex/values';
 
-import { api, type Id, type Chatroom, type TaskWithMessage } from '../api.js';
+import { api, type Id } from '../api.js';
 import { DEFAULT_ACTIVE_TIMEOUT_MS } from '../config.js';
 import { getDriverRegistry } from '../infrastructure/agent-drivers/index.js';
 import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
@@ -33,7 +33,10 @@ import { isNetworkError, formatConnectivityError } from '../utils/error-formatti
 type WaitForTaskResponse =
   | {
       type: 'tasks';
-      tasks: { task: Record<string, unknown>; message: Record<string, unknown> | null }[];
+      tasks: {
+        task: { _id: Id<'chatroom_tasks'>; status: string };
+        message: { _id: Id<'chatroom_messages'> } | null;
+      }[];
     }
   | { type: 'no_tasks' }
   | { type: 'grace_period'; taskId: string; remainingMs: number }
@@ -105,12 +108,12 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   }
 
   // Validate chatroom exists and user has access
-  let chatroom: Chatroom | null;
+  let chatroom;
   try {
-    chatroom = (await client.query(api.chatrooms.get, {
+    chatroom = await client.query(api.chatrooms.get, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    })) as Chatroom | null;
+    });
   } catch (error) {
     if (isNetworkError(error)) {
       formatConnectivityError(error, convexUrl);
@@ -227,12 +230,12 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
   // On first session, fetch and display the full initialization prompt from backend
   try {
-    const initPromptResult = (await client.query(api.messages.getInitPrompt, {
+    const initPromptResult = await client.query(api.messages.getInitPrompt, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
       convexUrl,
-    })) as { prompt: string; hasSystemPromptControl?: boolean } | null;
+    });
 
     if (initPromptResult?.prompt) {
       // Log successful connection with timestamp
@@ -451,7 +454,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     }
 
     // response.type === 'tasks' — process the tasks
-    const pendingTasks = response.tasks as TaskWithMessage[];
+    const pendingTasks = response.tasks;
 
     // Get the first task (pending tasks come first, then acknowledged)
     const taskWithMessage = pendingTasks.length > 0 ? pendingTasks[0] : null;
@@ -562,6 +565,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
+      connectionId,
     },
     (response: WaitForTaskResponse) => {
       handleSubscriptionResponse(response).catch((error) => {

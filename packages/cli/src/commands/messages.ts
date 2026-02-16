@@ -6,18 +6,6 @@ import { api, type Id } from '../api.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 
-interface Message {
-  _id: string;
-  senderRole: string;
-  content: string;
-  type: string;
-  _creationTime: number;
-  targetRole?: string;
-  classification?: string;
-  taskStatus?: string;
-  featureTitle?: string;
-}
-
 /**
  * List messages filtered by sender role
  * Uses the composite index for efficient filtering
@@ -54,12 +42,12 @@ export async function listBySenderRole(
   }
 
   try {
-    const messages = (await client.query(api.messages.listBySenderRole, {
+    const messages = await client.query(api.messages.listBySenderRole, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       senderRole: options.senderRole,
       limit: options.limit || 10,
-    })) as Message[];
+    });
 
     if (messages.length === 0) {
       console.log(`\n📭 No messages found for sender role: ${options.senderRole}`);
@@ -148,12 +136,12 @@ export async function listSinceMessage(
   }
 
   try {
-    const messages = (await client.query(api.messages.listSinceMessage, {
+    const messages = await client.query(api.messages.listSinceMessage, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       sinceMessageId: options.sinceMessageId as Id<'chatroom_messages'>,
       limit: options.limit || 100,
-    })) as Message[];
+    });
 
     if (messages.length === 0) {
       console.log(`\n📭 No messages found since message: ${options.sinceMessageId}`);

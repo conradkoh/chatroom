@@ -88,24 +88,13 @@ export async function handoff(chatroomId: string, options: HandoffOptions): Prom
   // If artifacts need to be included, they should be uploaded separately
   let result;
   try {
-    result = (await client.mutation(api.messages.sendHandoff, {
+    result = await client.mutation(api.messages.sendHandoff, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       senderRole: role,
       content: message,
       targetRole: nextRole,
-    })) as {
-      success: boolean;
-      error?: {
-        code: string;
-        message: string;
-        suggestedTarget?: string;
-      } | null;
-      messageId: string | null;
-      completedTaskIds: string[];
-      newTaskId: string | null;
-      promotedTaskId: string | null;
-    };
+    });
   } catch (error) {
     // Handle ConvexError (application errors) and unexpected errors
     console.error(`\n❌ ERROR: Handoff failed`);

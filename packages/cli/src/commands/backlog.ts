@@ -8,32 +8,14 @@ import { getConvexClient } from '../infrastructure/convex/client.js';
 
 type TaskStatus =
   | 'pending'
+  | 'acknowledged'
   | 'in_progress'
   | 'queued'
   | 'backlog'
+  | 'backlog_acknowledged'
   | 'completed'
-  | 'cancelled'
   | 'pending_user_review'
   | 'closed';
-
-interface Task {
-  _id: string;
-  content: string;
-  status: TaskStatus;
-  createdAt: number;
-  queuePosition: number;
-  assignedTo?: string;
-}
-
-interface TaskCounts {
-  pending: number;
-  in_progress: number;
-  queued: number;
-  backlog: number;
-  pending_user_review: number;
-  completed: number;
-  closed: number;
-}
 
 /**
  * List tasks in a chatroom
@@ -72,11 +54,13 @@ export async function listBacklog(
   // Validate status filter
   const validStatuses = [
     'pending',
+    'acknowledged',
     'in_progress',
     'queued',
     'backlog',
+    'backlog_acknowledged',
     'completed',
-    'cancelled',
+    'closed',
     'active',
     'pending_review', // tasks awaiting user review
     'archived', // completed + closed
@@ -92,28 +76,28 @@ export async function listBacklog(
 
   try {
     // Get task counts
-    const counts = (await client.query(api.tasks.getTaskCounts, {
+    const counts = await client.query(api.tasks.getTaskCounts, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    })) as TaskCounts;
+    });
 
     // Get tasks with filter - use specific queries for active/archived
-    let tasks: Task[];
+    let tasks;
     if (statusFilter === 'active') {
-      tasks = (await client.query(api.tasks.listActiveTasks, {
+      tasks = await client.query(api.tasks.listActiveTasks, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         limit: options.limit || 100,
-      })) as Task[];
+      });
     } else if (statusFilter === 'archived') {
-      tasks = (await client.query(api.tasks.listArchivedTasks, {
+      tasks = await client.query(api.tasks.listArchivedTasks, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         limit: options.limit || 100,
-      })) as Task[];
+      });
     } else {
       // For specific status filters or 'all', use original listTasks
-      tasks = (await client.query(api.tasks.listTasks, {
+      tasks = await client.query(api.tasks.listTasks, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         statusFilter:
@@ -131,7 +115,7 @@ export async function listBacklog(
                 | 'pending_review'
                 | 'archived'),
         limit: options.limit || 100,
-      })) as Task[];
+      });
     }
 
     // Display header
@@ -205,7 +189,7 @@ export async function listBacklog(
       // pending_review is separate, use tasks.length as best estimate
       totalForFilter = tasks.length;
     } else {
-      totalForFilter = counts[statusFilter as keyof TaskCounts] ?? tasks.length;
+      totalForFilter = counts[statusFilter as keyof typeof counts] ?? tasks.length;
     }
 
     if (tasks.length < totalForFilter) {
@@ -281,13 +265,6 @@ export async function addBacklog(
   }
 }
 
-interface CompleteResult {
-  success: boolean;
-  taskId: string;
-  promoted: string | null;
-  wasForced: boolean;
-}
-
 /**
  * Complete a backlog task by ID.
  * Use --force to complete stuck in_progress or pending tasks.
@@ -329,11 +306,11 @@ export async function completeBacklog(
   }
 
   try {
-    const result = (await client.mutation(api.tasks.completeTaskById, {
+    const result = await client.mutation(api.tasks.completeTaskById, {
       sessionId,
       taskId: options.taskId as Id<'chatroom_tasks'>,
       force: options.force,
-    })) as CompleteResult;
+    });
 
     console.log('');
     if (result.wasForced) {
@@ -729,16 +706,18 @@ function getStatusEmoji(status: TaskStatus): string {
   switch (status) {
     case 'pending':
       return '🟢';
+    case 'acknowledged':
+      return '📬';
     case 'in_progress':
       return '🔵';
     case 'queued':
       return '🟡';
     case 'backlog':
       return '⚪';
+    case 'backlog_acknowledged':
+      return '📋';
     case 'completed':
       return '✅';
-    case 'cancelled':
-      return '❌';
     case 'pending_user_review':
       return '👀';
     case 'closed':

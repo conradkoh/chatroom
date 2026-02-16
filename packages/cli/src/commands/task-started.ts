@@ -116,11 +116,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   }
 
   // Find the target task to acknowledge
-  let targetTask: {
-    _id: string;
-    content: string;
-    status: string;
-  } | null = null;
+  let targetTask = null;
 
   if (!taskId) {
     console.error(`❌ --task-id is required for task-started`);
@@ -137,15 +133,11 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   }
 
   // Fetch the specific task by ID directly
-  targetTask = (await client.query(api.tasks.getTask, {
+  targetTask = await client.query(api.tasks.getTask, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     taskId: taskId as Id<'chatroom_tasks'>,
-  })) as {
-    _id: string;
-    content: string;
-    status: string;
-  } | null;
+  });
 
   if (!targetTask) {
     console.error(`❌ Task with ID "${taskId}" not found in this chatroom`);
@@ -180,7 +172,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   // Otherwise, classify the message (requires task to be in_progress)
   // This is only for entry point roles receiving user messages
   try {
-    const result = (await client.mutation(api.messages.taskStarted, {
+    const result = await client.mutation(api.messages.taskStarted, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
@@ -189,7 +181,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
       convexUrl: getConvexUrl(),
       // Send raw stdin directly to backend for parsing
       ...(rawStdin && { rawStdin }),
-    })) as { success: boolean; classification: string; reminder: string };
+    });
 
     console.log(`✅ Task acknowledged and classified`);
     console.log(`   Classification: ${originMessageClassification}`);

@@ -49,16 +49,11 @@ export async function taskComplete(
   // Complete the task using the existing completeTask mutation
   let result;
   try {
-    result = (await client.mutation(api.tasks.completeTask, {
+    result = await client.mutation(api.tasks.completeTask, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
-    })) as {
-      completed: boolean;
-      completedCount: number;
-      promoted: string | null;
-      pendingReview: string[];
-    };
+    });
   } catch (error) {
     console.error(`\n❌ ERROR: Task completion failed`);
 

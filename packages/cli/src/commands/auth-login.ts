@@ -5,7 +5,7 @@
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import { api, type AuthRequestResult, type AuthRequestStatus } from '../api.js';
+import { api } from '../api.js';
 import {
   saveAuthData,
   getDeviceName,
@@ -120,10 +120,10 @@ export async function authLogin(options: AuthLoginOptions): Promise<void> {
   // Create auth request
   console.log(`\n⏳ Creating authentication request...`);
 
-  const result = (await client.mutation(api.cliAuth.createAuthRequest, {
+  const result = await client.mutation(api.cliAuth.createAuthRequest, {
     deviceName,
     cliVersion,
-  })) as AuthRequestResult;
+  });
 
   const { requestId, expiresAt } = result;
   const expiresInSeconds = Math.round((expiresAt - Date.now()) / 1000);
@@ -160,9 +160,9 @@ export async function authLogin(options: AuthLoginOptions): Promise<void> {
     pollCount++;
 
     try {
-      const status = (await client.query(api.cliAuth.getAuthRequestStatus, {
+      const status = await client.query(api.cliAuth.getAuthRequestStatus, {
         requestId,
-      })) as AuthRequestStatus;
+      });
 
       if (status.status === 'approved' && status.sessionId) {
         // Success! Save the session

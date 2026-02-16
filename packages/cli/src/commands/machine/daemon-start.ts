@@ -510,12 +510,12 @@ async function handleStartAgent(
 
   // Fetch split init prompt from backend (single source of truth)
   const convexUrl = getConvexUrl();
-  const initPromptResult = (await ctx.client.query(api.messages.getInitPrompt, {
+  const initPromptResult = await ctx.client.query(api.messages.getInitPrompt, {
     sessionId: ctx.sessionId,
     chatroomId,
     role,
     convexUrl,
-  })) as { prompt: string; rolePrompt: string; initialMessage: string } | null;
+  });
 
   if (!initPromptResult?.prompt) {
     const msg = 'Failed to fetch init prompt from backend';

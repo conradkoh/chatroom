@@ -3,7 +3,7 @@
  * Shows current authentication status and registers machine
  */
 
-import { api, type SessionValidation } from '../api.js';
+import { api } from '../api.js';
 import { loadAuthData, getAuthFilePath, isAuthenticated } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
 import { ensureMachineRegistered } from '../infrastructure/machine/index.js';
@@ -35,9 +35,9 @@ export async function authStatus(): Promise<void> {
 
   try {
     const client = await getConvexClient();
-    const validation = (await client.query(api.cliAuth.validateSession, {
+    const validation = await client.query(api.cliAuth.validateSession, {
       sessionId: authData.sessionId,
-    })) as SessionValidation;
+    });
 
     if (validation.valid) {
       console.log(`\n✅ Session is valid`);
