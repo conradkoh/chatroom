@@ -186,6 +186,99 @@ describe('Auto-restart Model Selection', () => {
     expect(startAgentCmd!.payload.model).toBe('claude-opus-4');
   });
 
+  test('auto-restart preserves model in teamAgentConfigs for frontend display', async () => {
+    // This test verifies the original bug: the frontend reads teamConfig.model from
+    // getTeamAgentConfigs and shows "Not set" when it's empty. After an auto-restart
+    // the model must be preserved in chatroom_teamAgentConfigs so the frontend still
+    // shows the correct model.
+
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-auto-restart-model-frontend');
+    const chatroomId = await createPairChatroom(sessionId);
+    const { machineId } = await registerMachine(sessionId, 'machine-model-frontend');
+
+    // ===== START AGENT WITH SPECIFIC MODEL =====
+    await t.mutation(api.machines.sendCommand, {
+      sessionId,
+      machineId,
+      type: 'start-agent',
+      payload: {
+        chatroomId,
+        role: 'builder',
+        model: 'claude-opus-4',
+        agentHarness: 'opencode',
+        workingDir: '/test/workspace',
+      },
+    });
+
+    // Verify team config has model after start
+    const teamConfigsAfterStart = await t.query(api.machines.getTeamAgentConfigs, {
+      sessionId,
+      chatroomId,
+    });
+    const builderTeamConfigAfterStart = (
+      teamConfigsAfterStart as { role: string; model?: string }[]
+    ).find((c) => c.role === 'builder');
+    expect(builderTeamConfigAfterStart).toBeDefined();
+    expect(builderTeamConfigAfterStart!.model).toBe('claude-opus-4');
+
+    // Ack all pending commands
+    const startCmds = await getPendingCommands(sessionId, machineId);
+    for (const cmd of startCmds) {
+      await t.mutation(api.machines.ackCommand, {
+        sessionId,
+        commandId: cmd._id,
+        status: 'completed' as const,
+      });
+    }
+
+    // ===== SIMULATE AGENT DEATH =====
+    // register-agent (via saveTeamAgentConfig) overwrites team config without model
+    await t.mutation(api.machines.saveTeamAgentConfig, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      type: 'remote',
+      machineId,
+      agentHarness: 'opencode',
+      workingDir: '/test/workspace',
+      // NOTE: no model — this is the bug trigger
+    });
+
+    // Builder is NOT joined as participant (offline)
+
+    // ===== SEND USER MESSAGE (triggers auto-restart) =====
+    await t.mutation(api.messages.send, {
+      sessionId,
+      chatroomId,
+      content: 'Implement the feature please',
+      senderRole: 'user',
+      type: 'message' as const,
+    });
+
+    // ===== VERIFY: team config (frontend-facing) should still show model =====
+    const teamConfigsAfterRestart = await t.query(api.machines.getTeamAgentConfigs, {
+      sessionId,
+      chatroomId,
+    });
+    const builderTeamConfigAfterRestart = (
+      teamConfigsAfterRestart as { role: string; model?: string }[]
+    ).find((c) => c.role === 'builder');
+    expect(builderTeamConfigAfterRestart).toBeDefined();
+    expect(builderTeamConfigAfterRestart!.model).toBe('claude-opus-4');
+
+    // Also verify machine config (secondary source) has the model
+    const machineConfigs = await t.query(api.machines.getAgentConfigs, {
+      sessionId,
+      chatroomId,
+    });
+    const builderMachineConfig = machineConfigs.configs.find(
+      (c: { role: string }) => c.role === 'builder'
+    );
+    expect(builderMachineConfig).toBeDefined();
+    expect(builderMachineConfig!.model).toBe('claude-opus-4');
+  });
+
   test('updateAgentConfig preserves model in machine config when called without model', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-auto-restart-model-3');
