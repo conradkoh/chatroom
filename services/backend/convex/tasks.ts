@@ -1575,46 +1575,12 @@ export const cleanupStaleAgents = internalMutation({
   handler: async (ctx) => {
     const now = Date.now();
 
-    // Query all participants ONCE and partition in JS for the challenge,
-    // stale-cleanup, and FSM-cleanup checks below. This avoids 3 separate
+    // Query all participants ONCE and partition in JS for the stale-cleanup
+    // and FSM-cleanup checks below. This avoids multiple separate
     // full-table queries in a single mutation.
     const participantsSnapshot = await ctx.db.query('chatroom_participants').collect();
 
-    // ─── Challenge Expiry Handling ─────────────────────────────────────
-    // Check for participants with expired challenges before stale cleanup.
-    // Custom agents → mark offline and delete; remote agents → mark dead for revive.
-    for (const p of participantsSnapshot) {
-      if (p.challengeStatus === 'pending' && p.challengeExpiresAt && now > p.challengeExpiresAt) {
-        // Challenge expired without response
-        if (p.agentType === 'remote') {
-          // Remote agents: patch to 'dead' and clear challenge fields so the
-          // daemon can detect the state and attempt a revive. The record is
-          // intentionally kept (not deleted) for the daemon to act on.
-          console.warn(
-            `[Challenge Expired] Remote agent failed challenge: role=${p.role} chatroomId=${p.chatroomId}`
-          );
-          await ctx.db.patch('chatroom_participants', p._id, {
-            status: 'dead',
-            challengeStatus: undefined,
-            challengeId: undefined,
-            challengeSentAt: undefined,
-            challengeExpiresAt: undefined,
-          });
-        } else {
-          // Custom agents (and unknown agent types): delete the record directly.
-          // No need to patch status first — the record is being removed entirely.
-          // When the agent reconnects, it will re-join via join() with fresh state.
-          const agentLabel = p.agentType === 'custom' ? 'Custom' : 'Unknown';
-          console.warn(
-            `[Challenge Expired] ${agentLabel} agent failed challenge: role=${p.role} chatroomId=${p.chatroomId}`
-          );
-          await ctx.db.delete('chatroom_participants', p._id);
-        }
-      }
-    }
-
     // ─── Stale Participant Cleanup ───────────────────────────────────────
-    // Partition from the single query above — no additional DB reads needed
     const candidateParticipants = participantsSnapshot.filter(
       (p) => p.status === 'active' || p.status === 'waiting'
     );

@@ -62,13 +62,7 @@ describe('errorCodes', () => {
 
   // ─── Non-fatal codes ──────────────────────────────────────────────────────
 
-  it('NON_FATAL_ERROR_CODES contains the expected codes', () => {
-    expect(NON_FATAL_ERROR_CODES).toContain('CHALLENGE_MISMATCH');
-    expect(NON_FATAL_ERROR_CODES).toContain('CHALLENGE_NOT_PENDING');
-  });
-
-  it('challenge-related codes are NOT fatal', () => {
-    expect(FATAL_ERROR_CODES).not.toContain('CHALLENGE_MISMATCH');
-    expect(FATAL_ERROR_CODES).not.toContain('CHALLENGE_NOT_PENDING');
+  it('NON_FATAL_ERROR_CODES is empty (all current codes are fatal)', () => {
+    expect(NON_FATAL_ERROR_CODES).toHaveLength(0);
   });
 });

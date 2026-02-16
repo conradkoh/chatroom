@@ -3,8 +3,8 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { BACKEND_ERROR_CODES, type BackendError } from '../config/errorCodes';
 import { DEAD_STATES } from '../config/participantStates';
-import { CHALLENGE_TIMEOUT_MS, HEARTBEAT_TTL_MS } from '../config/reliability';
-import { internalMutation, mutation, query } from './_generated/server';
+import { HEARTBEAT_TTL_MS } from '../config/reliability';
+import { mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
@@ -28,7 +28,7 @@ export const join = mutation({
     readyUntil: v.optional(v.number()),
     // Unique connection ID to detect concurrent wait-for-task processes
     connectionId: v.optional(v.string()),
-    // Agent type — determines behavior on challenge failure
+    // Agent type — 'custom' or 'remote'
     agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
   },
   handler: async (ctx, args) => {
@@ -81,18 +81,11 @@ export const join = mutation({
     if (existing) {
       // Update status to waiting and refresh readyUntil, clear activeUntil.
       // Also update connectionId to allow old processes to detect they should exit.
-      // Clear challenge fields to prevent stale challenge data from a previous session
-      // being resolved by the new connection (the challengeId would match but it's
-      // semantically wrong — it's a challenge from a different session).
       await ctx.db.patch('chatroom_participants', existing._id, {
         status: 'waiting',
         readyUntil: args.readyUntil,
         activeUntil: undefined, // Clear active timeout when transitioning to waiting
         connectionId: args.connectionId, // Track current connection for concurrent process detection
-        challengeId: undefined,
-        challengeSentAt: undefined,
-        challengeExpiresAt: undefined,
-        challengeStatus: undefined,
         ...(args.agentType ? { agentType: args.agentType } : {}),
       });
       participantId = existing._id;
@@ -443,145 +436,6 @@ export const updateAgentStatus = mutation({
     await ctx.db.patch('chatroom_participants', participant._id, {
       status: args.status,
     });
-  },
-});
-
-// ============================================================================
-// CHALLENGE-RESPONSE LIVENESS VERIFICATION
-// ============================================================================
-
-/**
- * Issue liveness challenges to all waiting participants.
- *
- * Called by cron every 3 minutes. For each waiting participant without a pending
- * challenge, generates a unique challengeId and sets challengeStatus to 'pending'.
- * Agents must respond via `resolveChallenge` before `challengeExpiresAt`.
- *
- * Internal mutation — not callable by clients directly.
- */
-export const issueChallenge = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const now = Date.now();
-
-    // Query only waiting participants using the by_status index (avoids full table scan)
-    const waitingParticipants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_status', (q) => q.eq('status', 'waiting'))
-      .collect();
-
-    for (const p of waitingParticipants) {
-      // Skip if already has a pending challenge
-      if (p.challengeStatus === 'pending') continue;
-
-      // Issue new challenge with cryptographically secure ID
-      const challengeId = crypto.randomUUID();
-      await ctx.db.patch('chatroom_participants', p._id, {
-        challengeId,
-        challengeSentAt: now,
-        challengeExpiresAt: now + CHALLENGE_TIMEOUT_MS,
-        challengeStatus: 'pending',
-      });
-    }
-  },
-});
-
-/**
- * Resolve a pending liveness challenge for a participant.
- *
- * Called by the CLI when it detects a pending challenge (via `getChallenge` subscription).
- * Validates the challengeId matches and the challenge is still pending, then marks it resolved.
- *
- * Requires CLI session authentication and chatroom access.
- */
-export const resolveChallenge = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    challengeId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
-
-    if (!participant) {
-      throw new ConvexError<BackendError>({
-        code: BACKEND_ERROR_CODES.PARTICIPANT_NOT_FOUND,
-        message: `Participant ${args.role} not found in chatroom`,
-      });
-    }
-    if (participant.challengeId !== args.challengeId) {
-      // Non-fatal: indicates a race condition or stale challenge data on the client.
-      // The CLI logs this as a warning but does not exit.
-      throw new ConvexError<BackendError>({
-        code: BACKEND_ERROR_CODES.CHALLENGE_MISMATCH,
-        message: `Challenge ID mismatch for ${args.role} (expected ${participant.challengeId}, got ${args.challengeId})`,
-      });
-    }
-    if (participant.challengeStatus !== 'pending') {
-      // Non-fatal: challenge was already resolved or never issued.
-      // The CLI logs this as a warning but does not exit.
-      throw new ConvexError<BackendError>({
-        code: BACKEND_ERROR_CODES.CHALLENGE_NOT_PENDING,
-        message: `No pending challenge for ${args.role} (status: ${participant.challengeStatus ?? 'none'})`,
-      });
-    }
-
-    await ctx.db.patch('chatroom_participants', participant._id, {
-      challengeStatus: 'resolved',
-    });
-
-    return { status: 'resolved' as const };
-  },
-});
-
-/**
- * Get the current challenge state for a participant.
- *
- * Used by the CLI to subscribe to challenge updates. When a new challenge appears
- * with status 'pending', the CLI should call `resolveChallenge` with the challengeId.
- *
- * Design note: This query returns `null` both when the participant doesn't exist
- * and when the participant exists but has no challenge. The CLI cannot distinguish
- * between these two cases from the return value alone. However, if the participant
- * is deleted (e.g. by `cleanupStaleAgents`), the Convex subscription itself will
- * error — the CLI's `handleSubscriptionError` catches this and triggers an exit.
- * So the "participant deleted" case is handled at the transport layer, not here.
- *
- * Requires CLI session authentication and chatroom access.
- */
-export const getChallenge = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
-
-    if (!participant) return null;
-    if (!participant.challengeId) return null;
-
-    return {
-      challengeId: participant.challengeId,
-      challengeSentAt: participant.challengeSentAt,
-      challengeExpiresAt: participant.challengeExpiresAt,
-      challengeStatus: participant.challengeStatus,
-    };
   },
 });
 

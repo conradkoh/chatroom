@@ -44,14 +44,6 @@ type WaitForTaskResponse =
   | { type: 'reconnect'; reason: string }
   | { type: 'error'; code: BackendErrorCode; message: string; fatal: boolean };
 
-/** Shape returned by the backend `getChallenge` query subscription. */
-interface ChallengeState {
-  challengeId: string;
-  challengeSentAt: number | undefined;
-  challengeExpiresAt: number | undefined;
-  challengeStatus: 'pending' | 'resolved' | undefined;
-}
-
 interface WaitForTaskOptions {
   role: string;
   silent?: boolean;
@@ -195,8 +187,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   const connectionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
   // Determine agent type ('custom' | 'remote') from team agent config
-  // This is used for challenge-response behavior: custom agents are marked offline on failure,
-  // remote agents trigger a revive attempt
   let participantAgentType: 'custom' | 'remote' | undefined;
   try {
     const teamConfigs = await client.query(api.machines.getTeamAgentConfigs, {
@@ -323,7 +313,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (cleanedUp) return;
     cleanedUp = true;
     clearInterval(heartbeatTimer);
-    challengeUnsubscribe();
     try {
       await client.mutation(api.participants.leave, {
         sessionId,
@@ -345,8 +334,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (error instanceof ConvexError) {
       const data = error.data as BackendError;
       if (data?.code && FATAL_ERROR_CODES.includes(data.code)) {
-        // Guard against duplicate exits — both task and challenge subscriptions
-        // may fire fatal errors simultaneously (e.g. participant deleted).
+        // Guard against duplicate exits
         if (fatalExitTriggered) return;
         fatalExitTriggered = true;
 
@@ -379,7 +367,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   // Track if we've already processed a task (prevent duplicate processing)
   let taskProcessed = false;
   let unsubscribe: (() => void) | null = null;
-  let challengeUnsubscribe: () => void = () => {}; // Assigned when subscription is created
 
   // Handle response from the getPendingTasksForRole subscription
   const handleSubscriptionResponse = async (response: WaitForTaskResponse) => {
@@ -395,7 +382,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     if (response.type === 'superseded') {
       // Another process has taken over - exit gracefully
       if (unsubscribe) unsubscribe();
-      challengeUnsubscribe();
       clearInterval(heartbeatTimer);
       cleanedUp = true;
       const takeoverTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
@@ -494,7 +480,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     // so the agent regains control (otherwise taskProcessed=true blocks all
     // future subscription updates and the process hangs forever).
     if (unsubscribe) unsubscribe();
-    challengeUnsubscribe();
     clearInterval(heartbeatTimer);
     cleanedUp = true; // Prevent cleanup() from calling leave on exit
 
@@ -574,37 +559,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     },
     (error: Error) => {
       handleSubscriptionError(error, 'task subscription');
-    }
-  );
-
-  // Subscribe to challenge notifications for liveness verification
-  // When the backend issues a challenge, auto-resolve it silently to prove we're alive
-  challengeUnsubscribe = wsClient.onUpdate(
-    api.participants.getChallenge,
-    {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-    },
-    (challenge: ChallengeState | null) => {
-      if (challenge?.challengeStatus === 'pending' && challenge.challengeId) {
-        // Auto-resolve the challenge silently
-        client
-          .mutation(api.participants.resolveChallenge, {
-            sessionId,
-            chatroomId: chatroomId as Id<'chatroom_rooms'>,
-            role,
-            challengeId: challenge.challengeId,
-          })
-          .catch((err) => {
-            if (!silent) {
-              console.warn(`⚠️  Challenge resolution failed: ${(err as Error).message}`);
-            }
-          });
-      }
-    },
-    (error: Error) => {
-      handleSubscriptionError(error, 'challenge subscription');
     }
   );
 

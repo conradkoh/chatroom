@@ -2,7 +2,7 @@
  * Centralized Reliability & Timing Configuration
  *
  * All timing constants that govern agent liveness detection, crash recovery,
- * challenge-response verification, stale record cleanup, and daemon health.
+ * stale record cleanup, and daemon health.
  * These values are shared across the CLI (`wait-for-task`, `daemon-start`),
  * the backend (Convex mutations/cron), and the frontend (display logic).
  *
@@ -16,18 +16,14 @@
  *    Governs when stuck tasks are recovered. Pending tasks trigger auto-restart
  *    for remote agents; acknowledged tasks are reset to pending.
  *
- * 3. **Challenge-Response Liveness** — `CHALLENGE_TIMEOUT_MS`
- *    How long an agent has to respond to a liveness challenge before being
- *    considered unresponsive. Used by `issueChallenge` / `cleanupStaleAgents`.
- *
- * 4. **Stale Record Cleanup** — `STALE_FSM_RECORD_TTL_MS`
+ * 3. **Stale Record Cleanup** — `STALE_FSM_RECORD_TTL_MS`
  *    Lifetime of minimal participant records created by the dead-state fallback
  *    in `updateAgentStatus`. Cleaned up by cron based on `_creationTime`.
  *
- * 5. **Crash Recovery** — `MAX_CRASH_RESTART_ATTEMPTS`, `CRASH_RESTART_DELAY_MS`
+ * 4. **Crash Recovery** — `MAX_CRASH_RESTART_ATTEMPTS`, `CRASH_RESTART_DELAY_MS`
  *    Daemon-side limits for restarting crashed agent processes.
  *
- * 6. **Daemon Heartbeat** — `DAEMON_HEARTBEAT_INTERVAL_MS`, `DAEMON_HEARTBEAT_TTL_MS`
+ * 5. **Daemon Heartbeat** — `DAEMON_HEARTBEAT_INTERVAL_MS`, `DAEMON_HEARTBEAT_TTL_MS`
  *    Same pattern as agent heartbeat but for the daemon process itself.
  *    TTL must be > interval to tolerate missed beats.
  *
@@ -35,8 +31,6 @@
  *
  * - `HEARTBEAT_TTL_MS` > `HEARTBEAT_INTERVAL_MS` (currently allows 2 missed beats)
  * - `DAEMON_HEARTBEAT_TTL_MS` > `DAEMON_HEARTBEAT_INTERVAL_MS` (allows 3 missed beats)
- * - `CHALLENGE_TIMEOUT_MS` ≥ `HEARTBEAT_TTL_MS` (agent must be alive to respond)
- * - `TASK_PENDING_TIMEOUT_MS` > `CHALLENGE_TIMEOUT_MS` (challenge fails before task recovery)
  *
  * ## Warning
  *
@@ -66,12 +60,6 @@ export const TASK_ACKNOWLEDGED_TIMEOUT_MS = 120_000; // 2 min
  *  be working on it. The backend returns a `grace_period` response instead of
  *  handing the task to a new agent. */
 export const RECOVERY_GRACE_PERIOD_MS = 60_000; // 1 min
-
-// ─── Challenge-Response Liveness ─────────────────────────────────────────────
-
-/** How long an agent has to respond to a liveness challenge before it's
- *  considered unresponsive (ms). Used by `issueChallenge` / `cleanupStaleAgents`. */
-export const CHALLENGE_TIMEOUT_MS = 90_000; // 90s
 
 // ─── Stale Record Cleanup ────────────────────────────────────────────────────
 

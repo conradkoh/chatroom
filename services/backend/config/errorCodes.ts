@@ -16,12 +16,7 @@
  * All known backend error codes as a string literal union.
  * Each code uniquely identifies an error condition.
  */
-export type BackendErrorCode =
-  | 'PARTICIPANT_NOT_FOUND'
-  | 'CHATROOM_NOT_FOUND'
-  | 'SESSION_INVALID'
-  | 'CHALLENGE_MISMATCH'
-  | 'CHALLENGE_NOT_PENDING';
+export type BackendErrorCode = 'PARTICIPANT_NOT_FOUND' | 'CHATROOM_NOT_FOUND' | 'SESSION_INVALID';
 
 /**
  * Mapping of error names to their string code values.
@@ -34,10 +29,6 @@ export const BACKEND_ERROR_CODES = {
   CHATROOM_NOT_FOUND: 'CHATROOM_NOT_FOUND',
   /** Session is invalid or expired */
   SESSION_INVALID: 'SESSION_INVALID',
-  /** Challenge ID provided does not match the pending challenge (race condition or stale data) */
-  CHALLENGE_MISMATCH: 'CHALLENGE_MISMATCH',
-  /** No pending challenge exists for this participant (already resolved or never issued) */
-  CHALLENGE_NOT_PENDING: 'CHALLENGE_NOT_PENDING',
 } as const satisfies Record<BackendErrorCode, BackendErrorCode>;
 
 /**
@@ -78,10 +69,7 @@ export const FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
  * Error codes that are non-fatal — the CLI logs a warning but continues running.
  * These represent transient or expected conditions (race conditions, stale data).
  */
-export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
-  BACKEND_ERROR_CODES.CHALLENGE_MISMATCH,
-  BACKEND_ERROR_CODES.CHALLENGE_NOT_PENDING,
-] as const;
+export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [] as const;
 
 /**
  * Structured response from getPendingTasksForRole subscription.

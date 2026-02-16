@@ -328,14 +328,8 @@ export default defineSchema({
         v.literal('working')
       )
     ),
-    // Agent type — determines behavior on challenge failure
-    // 'custom' agents are marked offline; 'remote' agents trigger revive
+    // Agent type — 'custom' or 'remote'
     agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
-    // Challenge-response liveness verification
-    challengeId: v.optional(v.string()),
-    challengeSentAt: v.optional(v.number()),
-    challengeExpiresAt: v.optional(v.number()),
-    challengeStatus: v.optional(v.union(v.literal('pending'), v.literal('resolved'))),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role'])
