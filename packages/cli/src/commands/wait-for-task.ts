@@ -1,5 +1,10 @@
 /**
  * Wait for tasks in a chatroom
+ *
+ * This module implements a class-based `WaitForTaskSession` that encapsulates the
+ * subscription lifecycle for waiting on tasks. Every event handler funnels through
+ * `logAndExit()` to guarantee the process exits with proper logging, event
+ * identification, and reconnection guidance.
  */
 
 import {
@@ -12,6 +17,7 @@ import { getWaitForTaskGuidance } from '@workspace/backend/prompts/base/cli/inde
 import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 import { ConvexError } from 'convex/values';
+import type { SessionId } from 'convex-helpers/server/sessions';
 
 import { api, type Id } from '../api.js';
 import { DEFAULT_ACTIVE_TIMEOUT_MS } from '../config.js';
@@ -28,6 +34,10 @@ import {
   type AgentHarness,
 } from '../infrastructure/machine/index.js';
 import { isNetworkError, formatConnectivityError } from '../utils/error-formatting.js';
+
+// ---------------------------------------------------------------------------
+// Type definitions
+// ---------------------------------------------------------------------------
 
 /** Discriminated union response from `getPendingTasksForRole` subscription. */
 type WaitForTaskResponse =
@@ -50,6 +60,479 @@ interface WaitForTaskOptions {
   agentType?: AgentHarness;
 }
 
+/** Parameters passed from the preflight phase to the session. */
+interface SessionParams {
+  chatroomId: string;
+  role: string;
+  silent: boolean;
+  sessionId: SessionId;
+  connectionId: string;
+  cliEnvPrefix: string;
+  client: Awaited<ReturnType<typeof getConvexClient>>;
+}
+
+// ---------------------------------------------------------------------------
+// WaitForTaskSession class
+// ---------------------------------------------------------------------------
+
+/**
+ * Encapsulates the subscription lifecycle for waiting on tasks.
+ *
+ * State that was previously scattered as loose `let` variables in the function
+ * scope is now held as private instance fields, making the guarantees around
+ * cleanup, deduplication, and process exit explicit and auditable.
+ */
+class WaitForTaskSession {
+  // --- Instance state ---
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private unsubscribe: (() => void) | null = null;
+  private cleanedUp = false;
+  private taskProcessed = false;
+  private fatalExitTriggered = false;
+
+  // --- Injected dependencies (readonly after construction) ---
+  private readonly chatroomId: string;
+  private readonly role: string;
+  private readonly silent: boolean;
+  private readonly sessionId: SessionId;
+  private readonly connectionId: string;
+  private readonly cliEnvPrefix: string;
+  private readonly client: SessionParams['client'];
+
+  constructor(params: SessionParams) {
+    this.chatroomId = params.chatroomId;
+    this.role = params.role;
+    this.silent = params.silent;
+    this.sessionId = params.sessionId;
+    this.connectionId = params.connectionId;
+    this.cliEnvPrefix = params.cliEnvPrefix;
+    this.client = params.client;
+  }
+
+  // -----------------------------------------------------------------------
+  // Public entry point
+  // -----------------------------------------------------------------------
+
+  /** Start the subscription, heartbeat, and signal handlers. */
+  async start(): Promise<void> {
+    this.startHeartbeat();
+    this.registerSignalHandlers();
+    await this.subscribe();
+  }
+
+  // -----------------------------------------------------------------------
+  // Core: logAndExit
+  // -----------------------------------------------------------------------
+
+  /**
+   * Cornerstone exit method — every handler funnels through here.
+   *
+   * 1. Logs the event type received.
+   * 2. Logs the descriptive message.
+   * 3. Logs reconnection guidance (the `waitForTaskCommand(...)` output).
+   * 4. Calls `cleanup()` then `process.exit(exitCode)`.
+   *
+   * Return type is `never` for TypeScript exhaustiveness.
+   */
+  private logAndExit(exitCode: number, event: string, message: string, guidance: string): never {
+    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+    console.log(`\n${'─'.repeat(50)}`);
+    console.log(`[EVENT: ${event}]\n`);
+    console.log(`[${timestamp}] ${message}\n`);
+
+    if (guidance) {
+      console.log(guidance);
+    }
+
+    console.log(`\nTo reconnect, run:`);
+    console.log(
+      waitForTaskCommand({
+        chatroomId: this.chatroomId,
+        role: this.role,
+        cliEnvPrefix: this.cliEnvPrefix,
+      })
+    );
+    console.log(`${'─'.repeat(50)}`);
+
+    // Perform cleanup then exit
+    this.cleanup().finally(() => {
+      process.exit(exitCode);
+    });
+
+    // `process.exit` is async in the `.finally` above, but TypeScript needs
+    // the function to satisfy `never`. This unreachable throw keeps the
+    // compiler happy.
+    throw new Error('unreachable');
+  }
+
+  // -----------------------------------------------------------------------
+  // Cleanup
+  // -----------------------------------------------------------------------
+
+  /**
+   * Cleanup helper — call on EVERY exit path.
+   * Clears the heartbeat interval and tells the backend this participant has left.
+   * Safe to call multiple times (idempotent).
+   */
+  private async cleanup(): Promise<void> {
+    if (this.cleanedUp) return;
+    this.cleanedUp = true;
+
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+    }
+    if (this.unsubscribe) {
+      this.unsubscribe();
+    }
+
+    try {
+      await this.client.mutation(api.participants.leave, {
+        sessionId: this.sessionId,
+        chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+        role: this.role,
+      });
+    } catch {
+      // Best-effort — if the backend is unreachable the heartbeat TTL will expire naturally
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Heartbeat
+  // -----------------------------------------------------------------------
+
+  private startHeartbeat(): void {
+    this.heartbeatTimer = setInterval(() => {
+      this.client
+        .mutation(api.participants.heartbeat, {
+          sessionId: this.sessionId,
+          chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+          role: this.role,
+          connectionId: this.connectionId,
+        })
+        .then((result: { status: string } | null | undefined) => {
+          if (result?.status === 'rejoin_required') {
+            if (!this.silent) {
+              console.warn(`⚠️  Participant record missing — re-joining chatroom`);
+            }
+            return this.client.mutation(api.participants.join, {
+              sessionId: this.sessionId,
+              chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+              role: this.role,
+              readyUntil: Date.now() + HEARTBEAT_TTL_MS,
+              connectionId: this.connectionId,
+            });
+          }
+          // Consolidated superseded handling — delegates to shared method
+          if (result?.status === 'superseded') {
+            this.handleSuperseded();
+          }
+        })
+        .catch((err) => {
+          if (!this.silent) {
+            console.warn(`⚠️  Heartbeat failed: ${(err as Error).message}`);
+          }
+        });
+    }, HEARTBEAT_INTERVAL_MS);
+
+    // Ensure the timer doesn't keep the Node process alive when we want to exit
+    this.heartbeatTimer.unref();
+  }
+
+  // -----------------------------------------------------------------------
+  // Subscription
+  // -----------------------------------------------------------------------
+
+  private async subscribe(): Promise<void> {
+    const wsClient = await getConvexWsClient();
+    this.unsubscribe = wsClient.onUpdate(
+      api.tasks.getPendingTasksForRole,
+      {
+        sessionId: this.sessionId,
+        chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+        role: this.role,
+        connectionId: this.connectionId,
+      },
+      (response: WaitForTaskResponse) => {
+        this.handleSubscriptionResponse(response).catch((error) => {
+          console.error(`❌ Error processing task: ${(error as Error).message}`);
+        });
+      },
+      (error: Error) => {
+        this.handleSubscriptionError(error, 'task subscription');
+      }
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // Event handlers
+  // -----------------------------------------------------------------------
+
+  /** Handle the discriminated union response from subscription. */
+  private async handleSubscriptionResponse(response: WaitForTaskResponse): Promise<void> {
+    if (this.taskProcessed) return;
+
+    switch (response.type) {
+      case 'no_tasks':
+        // No tasks yet — subscription will notify us when there are.
+        // This is the normal idle state; do not exit.
+        return;
+
+      case 'superseded':
+        this.handleSuperseded();
+        return;
+
+      case 'grace_period':
+        this.handleGracePeriod(response);
+        return;
+
+      case 'error':
+        this.handleError(response);
+        return;
+
+      case 'reconnect':
+        this.handleReconnect(response);
+        return;
+
+      case 'tasks':
+        await this.handleTasks(response);
+        return;
+    }
+  }
+
+  /**
+   * Another process has taken over this role's connection.
+   * Exit gracefully so the old agent process terminates cleanly.
+   */
+  private handleSuperseded(): never {
+    this.logAndExit(
+      0,
+      'superseded',
+      'Another wait-for-task process started for this role.',
+      'Impact: This process is being replaced by the newer connection.\n' +
+        'Action: This is expected if you started a new wait-for-task session.'
+    );
+  }
+
+  /**
+   * Task is in grace period — another agent may still be working on it.
+   * Exit with guidance to reconnect.
+   */
+  private handleGracePeriod(response: { taskId: string; remainingMs: number }): never {
+    const remainingSec = Math.ceil(response.remainingMs / 1000);
+    this.logAndExit(
+      0,
+      'grace_period',
+      `Task ${response.taskId} was recently acknowledged (${remainingSec}s grace remaining).`,
+      'Impact: Another agent may still be processing this task.\n' +
+        'Action: Wait for the grace period to expire, then reconnect.'
+    );
+  }
+
+  /**
+   * Backend requested a reconnect.
+   * Exit with the reason and reconnection guidance.
+   */
+  private handleReconnect(response: { reason: string }): never {
+    this.logAndExit(
+      0,
+      'reconnect',
+      `Backend requested reconnect: ${response.reason}`,
+      'Action: Reconnect to resume listening for tasks.'
+    );
+  }
+
+  /**
+   * Error event from the subscription.
+   * Fatal errors exit with code 1; non-fatal errors exit with code 0.
+   */
+  private handleError(response: {
+    code: BackendErrorCode;
+    message: string;
+    fatal: boolean;
+  }): never | void {
+    if (response.fatal) {
+      if (this.fatalExitTriggered) return;
+      this.fatalExitTriggered = true;
+      this.logAndExit(
+        1,
+        'error (fatal)',
+        `❌ FATAL ERROR — [${response.code}] ${response.message}`,
+        'This is an unrecoverable error. The process will now exit.'
+      );
+    }
+    // Non-fatal error — exit with code 0 and guidance
+    this.logAndExit(
+      0,
+      'error (non-fatal)',
+      `⚠️ Non-fatal error: [${response.code}] ${response.message}`,
+      'Action: Reconnect to resume listening for tasks.'
+    );
+  }
+
+  /**
+   * Handle errors from WebSocket subscription callbacks.
+   * - ConvexError with a fatal code → logAndExit(1)
+   * - ConvexError with a non-fatal code → logAndExit(0)
+   * - Non-ConvexError (network, transient) → logAndExit(0)
+   */
+  private handleSubscriptionError(error: Error, source: string): void {
+    if (error instanceof ConvexError) {
+      const data = error.data as BackendError;
+      if (data?.code && FATAL_ERROR_CODES.includes(data.code)) {
+        if (this.fatalExitTriggered) return;
+        this.fatalExitTriggered = true;
+        this.logAndExit(
+          1,
+          'subscription_error (fatal)',
+          `❌ FATAL ERROR in ${source} — [${data.code}] ${data.message}`,
+          'This is an unrecoverable error. The process will now exit.'
+        );
+        return;
+      }
+      // Non-fatal ConvexError — exit with guidance
+      this.logAndExit(
+        0,
+        'subscription_error (non-fatal)',
+        `⚠️ Non-fatal error in ${source}: [${data?.code}] ${data?.message ?? error.message}`,
+        'Action: Reconnect to resume listening for tasks.'
+      );
+      return;
+    }
+    // Non-ConvexError (network, transient) — exit with guidance
+    this.logAndExit(
+      0,
+      'subscription_error (transient)',
+      `⚠️ Transient error in ${source}: ${error.message}`,
+      'Action: Reconnect to resume listening for tasks.'
+    );
+  }
+
+  /**
+   * Process received tasks — claim, deliver, and exit.
+   * Exit 0 on success, exit 1 on delivery failure.
+   */
+  private async handleTasks(response: WaitForTaskResponse & { type: 'tasks' }): Promise<void> {
+    const pendingTasks = response.tasks;
+    const taskWithMessage = pendingTasks.length > 0 ? pendingTasks[0] : null;
+
+    if (!taskWithMessage) {
+      // No tasks in the response array (shouldn't happen with type='tasks', but guard)
+      return;
+    }
+
+    const { task, message } = taskWithMessage;
+
+    // Handle based on task status
+    if (task.status !== 'acknowledged') {
+      // Pending task — claim it (transition: pending → acknowledged)
+      try {
+        await this.client.mutation(api.tasks.claimTask, {
+          sessionId: this.sessionId,
+          chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+          role: this.role,
+        });
+      } catch (_claimError) {
+        console.log(`🔄 Task already claimed by another agent, continuing to wait...`);
+        return;
+      }
+    }
+
+    // Mark as processed to prevent duplicate handling
+    this.taskProcessed = true;
+
+    // Unsubscribe and stop heartbeat early — we've claimed the task and are
+    // transitioning to delivery.
+    if (this.unsubscribe) this.unsubscribe();
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.cleanedUp = true; // Prevent cleanup() from calling leave on exit
+
+    try {
+      // Also claim the message if it exists (for compatibility)
+      if (message) {
+        await this.client.mutation(api.messages.claimMessage, {
+          sessionId: this.sessionId,
+          messageId: message._id,
+          role: this.role,
+        });
+      }
+
+      // Update participant status to active with activeUntil timeout
+      const activeUntil = Date.now() + DEFAULT_ACTIVE_TIMEOUT_MS;
+      await this.client.mutation(api.participants.updateStatus, {
+        sessionId: this.sessionId,
+        chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+        role: this.role,
+        status: 'active',
+        expiresAt: activeUntil,
+      });
+
+      // Get the complete task delivery prompt from backend
+      const taskDeliveryPrompt = await this.client.query(api.messages.getTaskDeliveryPrompt, {
+        sessionId: this.sessionId,
+        chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+        role: this.role,
+        taskId: task._id,
+        messageId: message?._id,
+        convexUrl: getConvexUrl(),
+      });
+
+      // Log task received with timestamp
+      const taskReceivedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.log(`\n[${taskReceivedTime}] 📨 Task received!\n`);
+
+      // Print the complete backend-generated output
+      console.log(taskDeliveryPrompt.fullCliOutput);
+
+      process.exit(0);
+    } catch (deliveryError) {
+      // Task was claimed but delivery failed — MUST exit so the agent regains control.
+      const errorTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.error(`\n${'─'.repeat(50)}`);
+      console.error(`⚠️  TASK CLAIMED BUT DELIVERY FAILED\n`);
+      console.error(`[${errorTime}] Error: ${(deliveryError as Error).message}`);
+      console.error(`   Task ID: ${task._id}`);
+      console.error(`   The task has been claimed for your role.`);
+      console.error(`   Use context read to see your current task:\n`);
+      console.error(
+        `   ${this.cliEnvPrefix} chatroom context read --chatroom-id=${this.chatroomId} --role=${this.role}`
+      );
+      console.error(`${'─'.repeat(50)}`);
+      process.exit(1);
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Signal handlers
+  // -----------------------------------------------------------------------
+
+  private registerSignalHandlers(): void {
+    const handleSignal = (_signal: string) => {
+      this.logAndExit(
+        0,
+        `signal (${_signal})`,
+        `Process interrupted (${_signal}).`,
+        'Impact: You are no longer listening for tasks.\n' +
+          'Action: Run the reconnect command immediately to resume availability.'
+      );
+    };
+
+    process.on('SIGINT', () => handleSignal('SIGINT'));
+    process.on('SIGTERM', () => handleSignal('SIGTERM'));
+    process.on('SIGHUP', () => handleSignal('SIGHUP'));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public API — waitForTask()
+// ---------------------------------------------------------------------------
+
+/**
+ * Wait for tasks in a chatroom.
+ *
+ * Handles all pre-flight validation (auth, chatroom access, machine registration,
+ * participant join, init prompt) and then delegates to `WaitForTaskSession.start()`.
+ */
 export async function waitForTask(chatroomId: string, options: WaitForTaskOptions): Promise<void> {
   const client = await getConvexClient();
   const { role, silent } = options;
@@ -120,9 +603,7 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
   }
 
   // Register machine and sync config to backend
-  // This enables remote agent start from web UI
   try {
-    // Ensure local machine config exists (idempotent - creates or refreshes)
     const machineInfo = ensureMachineRegistered();
 
     // Discover available models from installed harnesses (dynamic)
@@ -138,8 +619,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     } catch {
       // Model discovery is non-critical — continue with empty list
     }
-
-    // Register/update machine in backend
 
     await client.mutation(api.machines.register, {
       sessionId,
@@ -157,13 +636,8 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       (machineInfo.availableHarnesses.length > 0 ? machineInfo.availableHarnesses[0] : undefined);
 
     if (agentType) {
-      // Store agent config for this chatroom+role (enables remote restart)
       const workingDir = process.cwd();
-
-      // Update local config
       updateAgentContext(chatroomId, role, agentType, workingDir);
-
-      // Sync to backend
 
       await client.mutation(api.machines.updateAgentConfig, {
         sessionId,
@@ -175,15 +649,12 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
       });
     }
   } catch (machineError) {
-    // Machine registration is non-critical - log warning but continue
     if (!silent) {
       console.warn(`⚠️  Machine registration failed: ${(machineError as Error).message}`);
     }
   }
 
   // Generate a unique connection ID for this wait-for-task session
-  // This allows detection of concurrent wait-for-task processes
-  // If another process starts, it will update the connectionId and this process will exit
   const connectionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
   // Determine agent type ('custom' | 'remote') from team agent config
@@ -228,14 +699,10 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     });
 
     if (initPromptResult?.prompt) {
-      // Log successful connection with timestamp
       const connectedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
       console.log(`[${connectedTime}] ✅ Connected. Waiting for task...\n`);
 
-      // Skip init prompt for agents with system prompt control (e.g. remote agents)
-      // These agents already have the instructions in their system prompt
       if (!initPromptResult.hasSystemPromptControl) {
-        // Wrap reference content in HTML comments for LLM skimming
         console.log('<!-- REFERENCE: Agent Initialization');
         console.log('');
         console.log('═'.repeat(50));
@@ -257,343 +724,16 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     // Fallback - init prompt not critical, continue without it
   }
 
-  // --- Heartbeat timer ---
-  // Periodically refresh readyUntil so the backend knows this process is alive.
-  // The interval is cleared on every exit path (task received, signal, error, superseded).
-  const heartbeatTimer = setInterval(() => {
-    client
-      .mutation(api.participants.heartbeat, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        connectionId,
-      })
-      .then((result: { status: string } | null | undefined) => {
-        // Self-healing: if participant was cleaned up, re-join to restore it (Plan 026)
-        if (result?.status === 'rejoin_required') {
-          if (!silent) {
-            console.warn(`⚠️  Participant record missing — re-joining chatroom`);
-          }
-          return client.mutation(api.participants.join, {
-            sessionId,
-            chatroomId: chatroomId as Id<'chatroom_rooms'>,
-            role,
-            readyUntil: Date.now() + HEARTBEAT_TTL_MS,
-            connectionId,
-          });
-        }
-        // A newer wait-for-task process has taken over this role's connection.
-        // Exit gracefully so the old agent process terminates cleanly.
-        if (result?.status === 'superseded') {
-          if (unsubscribe) unsubscribe();
-          clearInterval(heartbeatTimer);
-          cleanedUp = true;
-          const takeoverTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-          console.log(`\n${'─'.repeat(50)}`);
-          console.log(`⚠️  CONNECTION SUPERSEDED\n`);
-          console.log(`[${takeoverTime}] Why: Another wait-for-task process started for this role`);
-          console.log(`Impact: This process is being replaced by the newer connection`);
-          console.log(`Action: This is expected if you started a new wait-for-task session\n`);
-          console.log(`If you meant to use THIS terminal, run:`);
-          console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
-          console.log(`${'─'.repeat(50)}`);
-          process.exit(0);
-        }
-      })
-      .catch((err) => {
-        // Log but don't crash — a single missed heartbeat is tolerated by the TTL
-        if (!silent) {
-          console.warn(`⚠️  Heartbeat failed: ${(err as Error).message}`);
-        }
-      });
-  }, HEARTBEAT_INTERVAL_MS);
+  // --- Delegate to the session class ---
+  const session = new WaitForTaskSession({
+    chatroomId,
+    role,
+    silent: !!silent,
+    sessionId,
+    connectionId,
+    cliEnvPrefix,
+    client,
+  });
 
-  // Ensure the timer doesn't keep the Node process alive when we want to exit
-  heartbeatTimer.unref();
-
-  /**
-   * Cleanup helper — call on EVERY exit path.
-   * Clears the heartbeat interval and tells the backend this participant has left.
-   * Safe to call multiple times (idempotent).
-   */
-  let cleanedUp = false;
-  let fatalExitTriggered = false;
-  const cleanup = async () => {
-    if (cleanedUp) return;
-    cleanedUp = true;
-    clearInterval(heartbeatTimer);
-    try {
-      await client.mutation(api.participants.leave, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-      });
-    } catch {
-      // Best-effort — if the backend is unreachable the heartbeat TTL will expire naturally
-    }
-  };
-
-  /**
-   * Handle errors from WebSocket subscription callbacks.
-   * - ConvexError with a fatal code → log, cleanup, and exit(1)
-   * - ConvexError with a non-fatal code → log a warning, continue
-   * - Non-ConvexError (network, transient) → log a warning, continue
-   */
-  const handleSubscriptionError = (error: Error, source: string) => {
-    if (error instanceof ConvexError) {
-      const data = error.data as BackendError;
-      if (data?.code && FATAL_ERROR_CODES.includes(data.code)) {
-        // Guard against duplicate exits
-        if (fatalExitTriggered) return;
-        fatalExitTriggered = true;
-
-        const errorTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-        console.error(`\n${'─'.repeat(50)}`);
-        console.error(`❌ FATAL ERROR — Process must exit\n`);
-        console.error(`[${errorTime}] Error: ${data.code}`);
-        console.error(`   ${data.message}\n`);
-        console.error(`   This is an unrecoverable error. The process will now exit.`);
-        console.error(`   To reconnect, run:`);
-        console.error(
-          `   ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`
-        );
-        console.error(`${'─'.repeat(50)}`);
-        cleanup().finally(() => {
-          process.exit(1);
-        });
-        return;
-      }
-      // Non-fatal ConvexError — warn but continue
-      console.warn(
-        `⚠️  Non-fatal error in ${source}: [${data?.code}] ${data?.message ?? error.message}`
-      );
-      return;
-    }
-    // Non-ConvexError (network, transient) — warn but continue
-    console.warn(`⚠️  Transient error in ${source}: ${error.message}`);
-  };
-
-  // Track if we've already processed a task (prevent duplicate processing)
-  let taskProcessed = false;
-  let unsubscribe: (() => void) | null = null;
-
-  // Handle response from the getPendingTasksForRole subscription
-  const handleSubscriptionResponse = async (response: WaitForTaskResponse) => {
-    // Prevent duplicate processing
-    if (taskProcessed) return;
-
-    // Handle discriminated union response types
-    if (response.type === 'no_tasks') {
-      // No tasks yet, subscription will notify us when there are
-      return;
-    }
-
-    if (response.type === 'superseded') {
-      // Another process has taken over - exit gracefully
-      if (unsubscribe) unsubscribe();
-      clearInterval(heartbeatTimer);
-      cleanedUp = true;
-      const takeoverTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      console.log(`\n${'─'.repeat(50)}`);
-      console.log(`⚠️  CONNECTION SUPERSEDED\n`);
-      console.log(`[${takeoverTime}] Why: Another wait-for-task process started for this role`);
-      console.log(`Impact: This process is being replaced by the newer connection`);
-      console.log(`Action: This is expected if you started a new wait-for-task session\n`);
-      console.log(`If you meant to use THIS terminal, run:`);
-      console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
-      console.log(`${'─'.repeat(50)}`);
-      process.exit(0);
-    }
-
-    if (response.type === 'grace_period') {
-      // Task is in grace period — another agent may still be working on it
-      if (!silent) {
-        const remainingSec = Math.ceil(response.remainingMs / 1000);
-        console.log(
-          `🔄 Task ${response.taskId} was recently acknowledged (${remainingSec}s grace remaining). Waiting...`
-        );
-      }
-      return;
-    }
-
-    if (response.type === 'error') {
-      if (response.fatal) {
-        if (fatalExitTriggered) return;
-        fatalExitTriggered = true;
-        const errorTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-        console.error(`\n${'─'.repeat(50)}`);
-        console.error(`❌ FATAL ERROR — Process must exit\n`);
-        console.error(`[${errorTime}] Error: ${response.code}`);
-        console.error(`   ${response.message}\n`);
-        console.error(`   This is an unrecoverable error. The process will now exit.`);
-        console.error(`   To reconnect, run:`);
-        console.error(
-          `   ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`
-        );
-        console.error(`${'─'.repeat(50)}`);
-        cleanup().finally(() => {
-          process.exit(1);
-        });
-        return;
-      }
-      // Non-fatal error — warn but continue waiting
-      console.warn(`⚠️  Non-fatal error: [${response.code}] ${response.message}`);
-      return;
-    }
-
-    if (response.type === 'reconnect') {
-      if (!silent) {
-        console.log(`🔄 Backend requested reconnect: ${response.reason}`);
-      }
-      return;
-    }
-
-    // response.type === 'tasks' — process the tasks
-    const pendingTasks = response.tasks;
-
-    // Get the first task (pending tasks come first, then acknowledged)
-    const taskWithMessage = pendingTasks.length > 0 ? pendingTasks[0] : null;
-
-    if (!taskWithMessage) {
-      // No tasks in the response array (shouldn't happen with type='tasks', but guard)
-      return;
-    }
-
-    const { task, message } = taskWithMessage;
-
-    // Handle based on task status
-    if (task.status === 'acknowledged') {
-      // Stale acknowledged task (past grace period, which backend already checked)
-      // No claim needed since task is already acknowledged for this role — recover it
-    } else {
-      // Pending task — claim it (transition: pending → acknowledged)
-      // This is atomic and handles race conditions - only one agent can claim a task
-      try {
-        await client.mutation(api.tasks.claimTask, {
-          sessionId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          role,
-        });
-      } catch (_claimError) {
-        // Task was already claimed by another agent, subscription will update with new state
-        console.log(`🔄 Task already claimed by another agent, continuing to wait...`);
-        return;
-      }
-    }
-
-    // Mark as processed to prevent duplicate handling
-    taskProcessed = true;
-
-    // Unsubscribe and stop heartbeat early — we've claimed the task and are
-    // transitioning to delivery. Any error below must still exit the process
-    // so the agent regains control (otherwise taskProcessed=true blocks all
-    // future subscription updates and the process hangs forever).
-    if (unsubscribe) unsubscribe();
-    clearInterval(heartbeatTimer);
-    cleanedUp = true; // Prevent cleanup() from calling leave on exit
-
-    try {
-      // Also claim the message if it exists (for compatibility)
-      if (message) {
-        await client.mutation(api.messages.claimMessage, {
-          sessionId,
-          messageId: message._id,
-          role,
-        });
-      }
-
-      // Update participant status to active with activeUntil timeout
-      // This gives the agent ~1 hour to complete the task before being considered crashed
-      const activeUntil = Date.now() + DEFAULT_ACTIVE_TIMEOUT_MS;
-      await client.mutation(api.participants.updateStatus, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        status: 'active',
-        expiresAt: activeUntil,
-      });
-
-      // Get the complete task delivery prompt from backend
-      const taskDeliveryPrompt = await client.query(api.messages.getTaskDeliveryPrompt, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        taskId: task._id,
-        messageId: message?._id,
-        convexUrl,
-      });
-
-      // Log task received with timestamp
-      const taskReceivedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      console.log(`\n[${taskReceivedTime}] 📨 Task received!\n`);
-
-      // Print the complete backend-generated output
-      // All structural text, commands, context, and process steps are generated server-side
-      console.log(taskDeliveryPrompt.fullCliOutput);
-
-      process.exit(0);
-    } catch (deliveryError) {
-      // Task was claimed but delivery failed (network error, backend issue, etc.).
-      // We MUST exit so the agent regains control — it can recover via context read.
-      const errorTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      console.error(`\n${'─'.repeat(50)}`);
-      console.error(`⚠️  TASK CLAIMED BUT DELIVERY FAILED\n`);
-      console.error(`[${errorTime}] Error: ${(deliveryError as Error).message}`);
-      console.error(`   Task ID: ${task._id}`);
-      console.error(`   The task has been claimed for your role.`);
-      console.error(`   Use context read to see your current task:\n`);
-      console.error(
-        `   ${cliEnvPrefix} chatroom context read --chatroom-id=${chatroomId} --role=${role}`
-      );
-      console.error(`${'─'.repeat(50)}`);
-      process.exit(1);
-    }
-  };
-
-  // Use websocket subscription instead of polling
-  // This is more efficient - we only receive updates when data changes
-  const wsClient = await getConvexWsClient();
-  unsubscribe = wsClient.onUpdate(
-    api.tasks.getPendingTasksForRole,
-    {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-      connectionId,
-    },
-    (response: WaitForTaskResponse) => {
-      handleSubscriptionResponse(response).catch((error) => {
-        console.error(`❌ Error processing task: ${(error as Error).message}`);
-      });
-    },
-    (error: Error) => {
-      handleSubscriptionError(error, 'task subscription');
-    }
-  );
-
-  // Handle interrupt signals - These are UNEXPECTED terminations that require immediate restart
-  const handleSignal = (_signal: string) => {
-    if (unsubscribe) unsubscribe();
-    // Clean up heartbeat and notify backend that this participant has left
-    cleanup().finally(() => {
-      const signalTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
-      console.log(`\n${'─'.repeat(50)}`);
-      console.log(`⚠️  RECONNECTION REQUIRED\n`);
-      console.log(`[${signalTime}] Why: Process interrupted (unexpected termination)`);
-      console.log(`Impact: You are no longer listening for tasks`);
-      console.log(`Action: Run this command immediately to resume availability\n`);
-      console.log(waitForTaskCommand({ chatroomId, role, cliEnvPrefix }));
-      console.log(`${'─'.repeat(50)}`);
-      process.exit(0);
-    });
-  };
-
-  // SIGINT: Ctrl+C or interrupt signal
-  process.on('SIGINT', () => handleSignal('SIGINT'));
-
-  // SIGTERM: Graceful termination (e.g., container shutdown, timeout)
-  process.on('SIGTERM', () => handleSignal('SIGTERM'));
-
-  // SIGHUP: Hang up signal (terminal closed)
-  process.on('SIGHUP', () => handleSignal('SIGHUP'));
+  await session.start();
 }
