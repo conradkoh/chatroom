@@ -105,7 +105,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push(SEP_EQUAL);
   lines.push(`Task ID: ${task._id}`);
   if (message) {
-    lines.push(`Message ID: ${message._id}`);
+    lines.push(`Origin Message ID: ${message._id}`);
     lines.push(`From: ${message.senderRole}`);
   }
 

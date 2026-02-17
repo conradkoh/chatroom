@@ -265,7 +265,7 @@ export function generateTaskStartedReminder(
   role: string,
   classification: 'question' | 'new_feature' | 'follow_up',
   chatroomId: string,
-  messageId?: string,
+  _messageId?: string,
   taskId?: string,
   convexUrl?: string,
   teamRoles: string[] = [],
@@ -308,7 +308,7 @@ ${handoffToUserCmd}
 \`\`\`
 
 💡 You're working on:
-${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+Task ID: ${taskId}`;
       }
       case 'new_feature': {
         const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
@@ -333,7 +333,7 @@ ${handoffToTeamCmd}
 4. Hand back for rework if requirements are not met
 
 💡 You're working on:
-${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+Task ID: ${taskId}`;
       }
       case 'follow_up': {
         return `✅ Task acknowledged as FOLLOW UP.
@@ -346,7 +346,7 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
    - If original was a NEW FEATURE → delegate, review, and deliver to user
 
 💡 You're working on:
-${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+Task ID: ${taskId}`;
       }
     }
   }
@@ -380,7 +380,7 @@ ${handoffToUserCmd}
 \`\`\`
 
 💡 You're working on:
-${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+Task ID: ${taskId}`;
         }
         case 'new_feature': {
           const handoffToReviewerCmd = handoffCommand({
@@ -402,7 +402,7 @@ ${handoffToReviewerCmd}
 \`\`\`
 
 💡 You're working on:
-${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+Task ID: ${taskId}`;
         }
         case 'follow_up': {
           return `✅ Task acknowledged as FOLLOW UP.
@@ -415,7 +415,7 @@ ${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
    - If original was a NEW FEATURE → hand off to reviewer when done
 
 💡 You're working on:
-${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+Task ID: ${taskId}`;
         }
       }
     } else if (isSquadTeam) {
@@ -442,7 +442,7 @@ ${handoffCmd}
 ⚠️ In squad team, never hand off directly to user — go through the planner.
 
 💡 You're working on:
-${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+Task ID: ${taskId}`;
     } else {
       // Generic builder reminder (no specific team structure)
       const handoffCmd = handoffCommand({
@@ -458,7 +458,7 @@ ${handoffCmd}
 \`\`\`
 
 💡 You're working on:
-${messageId ? `Message ID: ${messageId}` : `Task ID: ${taskId}`}`;
+Task ID: ${taskId}`;
     }
   }
 

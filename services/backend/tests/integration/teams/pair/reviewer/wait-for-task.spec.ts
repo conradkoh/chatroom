@@ -57,7 +57,7 @@ describe('Pair Team > Reviewer > Wait For Task', () => {
       📋 TASK
       ============================================================
       Task ID: test-task-id
-      Message ID: test-message-id
+      Origin Message ID: test-message-id
       From: user
 
       ## User Message
@@ -155,7 +155,7 @@ describe('Pair Team > Reviewer > Wait For Task', () => {
       📋 TASK
       ============================================================
       Task ID: test-task-id
-      Message ID: test-message-id
+      Origin Message ID: test-message-id
       From: builder
 
       ## User Message

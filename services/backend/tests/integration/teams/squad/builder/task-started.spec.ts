@@ -59,7 +59,7 @@ describe('Squad Team > Builder > Task Started Reminder', () => {
       ⚠️ In squad team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
-      Message ID: test-message-id"
+      Task ID: test-task-id"
     `);
   });
 
@@ -96,7 +96,7 @@ describe('Squad Team > Builder > Task Started Reminder', () => {
       ⚠️ In squad team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
-      Message ID: test-message-id"
+      Task ID: test-task-id"
     `);
   });
 
@@ -133,7 +133,7 @@ describe('Squad Team > Builder > Task Started Reminder', () => {
       ⚠️ In squad team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
-      Message ID: test-message-id"
+      Task ID: test-task-id"
     `);
   });
 });

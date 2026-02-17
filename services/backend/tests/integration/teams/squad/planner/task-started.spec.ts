@@ -53,7 +53,7 @@ describe('Squad Team > Planner > Task Started Reminder', () => {
       \`\`\`
 
       💡 You're working on:
-      Message ID: test-message-id"
+      Task ID: test-task-id"
     `);
   });
 
@@ -91,7 +91,7 @@ describe('Squad Team > Planner > Task Started Reminder', () => {
       4. Hand back for rework if requirements are not met
 
       💡 You're working on:
-      Message ID: test-message-id"
+      Task ID: test-task-id"
     `);
   });
 
@@ -121,7 +121,7 @@ describe('Squad Team > Planner > Task Started Reminder', () => {
          - If original was a NEW FEATURE → delegate, review, and deliver to user
 
       💡 You're working on:
-      Message ID: test-message-id"
+      Task ID: test-task-id"
     `);
   });
 });

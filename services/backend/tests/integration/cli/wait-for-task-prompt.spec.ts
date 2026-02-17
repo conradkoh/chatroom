@@ -377,7 +377,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       📋 TASK
       ============================================================
       Task ID: 10007;chatroom_tasks
-      Message ID: 10006;chatroom_messages
+      Origin Message ID: 10006;chatroom_messages
       From: user
 
       ## User Message
@@ -761,7 +761,7 @@ Use React Context + CSS variables`,
       \`\`\`
 
       💡 You're working on:
-      Message ID: 10027;chatroom_messages"
+      Task ID: 10028;chatroom_tasks"
     `);
 
     // Verify reminder structure
@@ -841,7 +841,7 @@ Use React Context + CSS variables`,
       \`\`\`
 
       💡 You're working on:
-      Message ID: 10034;chatroom_messages"
+      Task ID: 10035;chatroom_tasks"
     `);
 
     // Verify reminder structure
@@ -915,7 +915,7 @@ Use React Context + CSS variables`,
          - If original was a NEW FEATURE → hand off to reviewer when done
 
       💡 You're working on:
-      Message ID: 10041;chatroom_messages"
+      Task ID: 10042;chatroom_tasks"
     `);
 
     // Verify reminder structure
@@ -1573,7 +1573,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       📋 TASK
       ============================================================
       Task ID: 10068;chatroom_tasks
-      Message ID: 10067;chatroom_messages
+      Origin Message ID: 10067;chatroom_messages
       From: builder
 
       ## User Message

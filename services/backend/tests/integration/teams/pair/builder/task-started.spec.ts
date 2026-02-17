@@ -59,7 +59,7 @@ describe('Pair Team > Builder > Task Started Reminder', () => {
       \`\`\`
 
       💡 You're working on:
-      Message ID: test-message-id"
+      Task ID: test-task-id"
     `);
   });
 
@@ -96,7 +96,7 @@ describe('Pair Team > Builder > Task Started Reminder', () => {
       \`\`\`
 
       💡 You're working on:
-      Message ID: test-message-id"
+      Task ID: test-task-id"
     `);
   });
 
@@ -126,7 +126,7 @@ describe('Pair Team > Builder > Task Started Reminder', () => {
          - If original was a NEW FEATURE → hand off to reviewer when done
 
       💡 You're working on:
-      Message ID: test-message-id"
+      Task ID: test-task-id"
     `);
   });
 });
