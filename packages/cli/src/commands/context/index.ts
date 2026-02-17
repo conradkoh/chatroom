@@ -75,13 +75,29 @@ export async function readContext(
       role: options.role,
     });
 
-    if (context.messages.length === 0) {
+    if (context.messages.length === 0 && !context.currentContext) {
       console.log(`\n📭 No context available`);
       return;
     }
 
     console.log(`\n📚 CONTEXT FOR ${options.role.toUpperCase()}`);
     console.log('═'.repeat(60));
+
+    // Display the pinned context if available
+    if (context.currentContext) {
+      console.log(`\n📌 Current Context:`);
+      console.log(`   Created by: ${context.currentContext.createdBy}`);
+      console.log(`   Created at: ${new Date(context.currentContext.createdAt).toLocaleString()}`);
+      console.log(`   Content:`);
+      const safeContextContent = sanitizeForTerminal(context.currentContext.content);
+      console.log(
+        safeContextContent
+          .split('\n')
+          .map((l) => `      ${l}`)
+          .join('\n')
+      );
+      console.log('─'.repeat(60));
+    }
 
     if (context.originMessage) {
       console.log(`\n🎯 Origin Message:`);

@@ -2301,7 +2301,25 @@ export const getContextForRole = query({
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Fetch the current pinned context (if any) from chatroom_contexts
+    let currentContext: {
+      content: string;
+      createdBy: string;
+      createdAt: number;
+    } | null = null;
+
+    if (chatroom.currentContextId) {
+      const contextDoc = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
+      if (contextDoc) {
+        currentContext = {
+          content: contextDoc.content,
+          createdBy: contextDoc.createdBy,
+          createdAt: contextDoc.createdAt,
+        };
+      }
+    }
 
     // Get context window (origin message + all messages since)
     const contextWindow = await ctx.db
@@ -2416,6 +2434,7 @@ export const getContextForRole = query({
 
     return {
       messages: filteredMessages,
+      currentContext,
       originMessage: originMessage
         ? {
             _id: originMessage._id.toString(),
