@@ -1,7 +1,8 @@
+import type { ArtifactDeps } from './deps.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
-import { getSessionId } from '../../infrastructure/auth/storage.js';
-import { getConvexClient } from '../../infrastructure/convex/client.js';
+import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
+import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import {
   formatError,
   formatAuthError,
@@ -11,6 +12,12 @@ import {
 } from '../../utils/error-formatting.js';
 import { readFileContent } from '../../utils/file-content.js';
 
+// ─── Re-exports for testing ────────────────────────────────────────────────
+
+export type { ArtifactDeps } from './deps.js';
+
+// ─── Types ─────────────────────────────────────────────────────────────────
+
 export interface ArtifactCreateOptions {
   chatroomId: string;
   role: string;
@@ -18,6 +25,37 @@ export interface ArtifactCreateOptions {
   filename: string;
   description?: string;
 }
+
+export interface ArtifactViewOptions {
+  chatroomId: string;
+  role: string;
+  artifactId: string;
+}
+
+export interface ArtifactViewManyOptions {
+  chatroomId: string;
+  role: string;
+  artifactIds: string[];
+}
+
+// ─── Default Deps Factory ──────────────────────────────────────────────────
+
+async function createDefaultDeps(): Promise<ArtifactDeps> {
+  const client = await getConvexClient();
+  return {
+    backend: {
+      mutation: (endpoint, args) => client.mutation(endpoint, args),
+      query: (endpoint, args) => client.query(endpoint, args),
+    },
+    session: {
+      getSessionId,
+      getConvexUrl,
+      getOtherSessionUrls,
+    },
+  };
+}
+
+// ─── Commands ──────────────────────────────────────────────────────────────
 
 /**
  * Create a new artifact from a file
@@ -29,13 +67,17 @@ export async function createArtifact(
     fromFile: string;
     filename: string;
     description?: string;
-  }
+  },
+  deps?: ArtifactDeps
 ) {
+  const d = deps ?? (await createDefaultDeps());
+
   // Get session ID for authentication
-  const sessionId = getSessionId();
+  const sessionId = d.session.getSessionId();
   if (!sessionId) {
-    formatAuthError();
+    formatAuthError(d.session.getConvexUrl(), d.session.getOtherSessionUrls());
     process.exit(1);
+    return;
   }
 
   // Validate chatroom ID format
@@ -47,12 +89,14 @@ export async function createArtifact(
   ) {
     formatChatroomIdError(chatroomId);
     process.exit(1);
+    return;
   }
 
   // Validate file extension
   if (!options.fromFile.endsWith('.md')) {
     formatValidationError('file extension', options.fromFile, '*.md');
     process.exit(1);
+    return;
   }
 
   // Read file content
@@ -62,19 +106,18 @@ export async function createArtifact(
   } catch (err) {
     formatFileError('read for --from-file', options.fromFile, (err as Error).message);
     process.exit(1);
+    return;
   }
 
   // Validate content is not empty
   if (!content || content.trim().length === 0) {
     formatError('File is empty');
     process.exit(1);
+    return;
   }
 
-  // Get Convex client and create artifact
-  const client = await getConvexClient();
-
   try {
-    const artifactId = await client.mutation(api.artifacts.create, {
+    const artifactId = await d.backend.mutation(api.artifacts.create, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       filename: options.filename,
@@ -95,13 +138,8 @@ export async function createArtifact(
   } catch (error) {
     formatError('Failed to create artifact', [String(error)]);
     process.exit(1);
+    return;
   }
-}
-
-export interface ArtifactViewOptions {
-  chatroomId: string;
-  role: string;
-  artifactId: string;
 }
 
 /**
@@ -112,13 +150,17 @@ export async function viewArtifact(
   options: {
     role: string;
     artifactId: string;
-  }
+  },
+  deps?: ArtifactDeps
 ) {
+  const d = deps ?? (await createDefaultDeps());
+
   // Get session ID for authentication
-  const sessionId = getSessionId();
+  const sessionId = d.session.getSessionId();
   if (!sessionId) {
-    formatAuthError();
+    formatAuthError(d.session.getConvexUrl(), d.session.getOtherSessionUrls());
     process.exit(1);
+    return;
   }
 
   // Validate chatroom ID format
@@ -130,13 +172,11 @@ export async function viewArtifact(
   ) {
     formatChatroomIdError(chatroomId);
     process.exit(1);
+    return;
   }
 
-  // Get Convex client and fetch artifact
-  const client = await getConvexClient();
-
   try {
-    const artifact = await client.query(api.artifacts.get, {
+    const artifact = await d.backend.query(api.artifacts.get, {
       sessionId,
       artifactId: options.artifactId as Id<'chatroom_artifacts'>,
     });
@@ -148,6 +188,7 @@ export async function viewArtifact(
         `chatroom artifact create ${chatroomId} --from-file=... --filename=...`,
       ]);
       process.exit(1);
+      return;
     }
 
     // Display artifact information
@@ -167,13 +208,8 @@ export async function viewArtifact(
   } catch (error) {
     formatError('Failed to view artifact', [String(error)]);
     process.exit(1);
+    return;
   }
-}
-
-export interface ArtifactViewManyOptions {
-  chatroomId: string;
-  role: string;
-  artifactIds: string[];
 }
 
 /**
@@ -184,13 +220,17 @@ export async function viewManyArtifacts(
   options: {
     role: string;
     artifactIds: string[];
-  }
+  },
+  deps?: ArtifactDeps
 ) {
+  const d = deps ?? (await createDefaultDeps());
+
   // Get session ID for authentication
-  const sessionId = getSessionId();
+  const sessionId = d.session.getSessionId();
   if (!sessionId) {
-    formatAuthError();
+    formatAuthError(d.session.getConvexUrl(), d.session.getOtherSessionUrls());
     process.exit(1);
+    return;
   }
 
   // Validate chatroom ID format
@@ -202,6 +242,7 @@ export async function viewManyArtifacts(
   ) {
     formatChatroomIdError(chatroomId);
     process.exit(1);
+    return;
   }
 
   if (options.artifactIds.length === 0) {
@@ -209,13 +250,11 @@ export async function viewManyArtifacts(
       'Usage: chatroom artifact view-many <chatroomId> --artifact=id1 --artifact=id2',
     ]);
     process.exit(1);
+    return;
   }
 
-  // Get Convex client and fetch artifacts
-  const client = await getConvexClient();
-
   try {
-    const artifacts = await client.query(api.artifacts.getMany, {
+    const artifacts = await d.backend.query(api.artifacts.getMany, {
       sessionId,
       artifactIds: options.artifactIds as Id<'chatroom_artifacts'>[],
     });
@@ -223,6 +262,7 @@ export async function viewManyArtifacts(
     if (artifacts.length === 0) {
       formatError('No artifacts found');
       process.exit(1);
+      return;
     }
 
     // Display each artifact
@@ -248,5 +288,6 @@ export async function viewManyArtifacts(
   } catch (error) {
     formatError('Failed to view artifacts', [String(error)]);
     process.exit(1);
+    return;
   }
 }
