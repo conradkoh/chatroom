@@ -58,7 +58,7 @@ async function refreshModels(ctx: DaemonContext): Promise<void> {
  * Process a single command: dispatch to the appropriate handler,
  * then ack the result back to the backend.
  */
-async function processCommand(ctx: DaemonContext, command: MachineCommand): Promise<void> {
+export async function processCommand(ctx: DaemonContext, command: MachineCommand): Promise<void> {
   console.log(`[${formatTimestamp()}] 📨 Command received: ${command.type}`);
 
   try {
