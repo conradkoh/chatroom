@@ -5,33 +5,61 @@
 import { taskStartedCommand } from '@workspace/backend/prompts/base/cli/task-started/command.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
+import type { TaskStartedDeps } from './deps.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 
-interface TaskStartedOptions {
+// ─── Re-exports for testing ────────────────────────────────────────────────
+
+export type { TaskStartedDeps } from './deps.js';
+
+// ─── Types ─────────────────────────────────────────────────────────────────
+
+export interface TaskStartedOptions {
   role: string;
   originMessageClassification?: 'question' | 'new_feature' | 'follow_up';
   taskId: string;
-  // Raw stdin content (for new_feature classification - backend will parse)
   rawStdin?: string;
-  // Flag to skip classification (for handoff recipients)
   noClassify?: boolean;
 }
 
-export async function taskStarted(chatroomId: string, options: TaskStartedOptions): Promise<void> {
+// ─── Default Deps Factory ──────────────────────────────────────────────────
+
+async function createDefaultDeps(): Promise<TaskStartedDeps> {
   const client = await getConvexClient();
+  return {
+    backend: {
+      mutation: (endpoint, args) => client.mutation(endpoint, args),
+      query: (endpoint, args) => client.query(endpoint, args),
+    },
+    session: {
+      getSessionId,
+      getConvexUrl,
+      getOtherSessionUrls,
+    },
+  };
+}
+
+// ─── Entry Point ───────────────────────────────────────────────────────────
+
+export async function taskStarted(
+  chatroomId: string,
+  options: TaskStartedOptions,
+  deps?: TaskStartedDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
   const { role, originMessageClassification, rawStdin, taskId, noClassify } = options;
 
   // Get Convex URL and CLI env prefix for generating commands
-  const convexUrl = getConvexUrl();
+  const convexUrl = d.session.getConvexUrl();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
 
   // Get session ID for authentication
-  const sessionId = getSessionId();
+  const sessionId = d.session.getSessionId();
   if (!sessionId) {
-    const otherUrls = getOtherSessionUrls();
+    const otherUrls = d.session.getOtherSessionUrls();
 
     console.error(`❌ Not authenticated for: ${convexUrl}`);
 
@@ -133,7 +161,7 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   }
 
   // Fetch the specific task by ID directly
-  targetTask = await client.query(api.tasks.getTask, {
+  targetTask = await d.backend.query(api.tasks.getTask, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     taskId: taskId as Id<'chatroom_tasks'>,
@@ -148,11 +176,11 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   // First, start the task (transition: acknowledged → in_progress)
   // This happens for both --no-classify and classification modes
   try {
-    await client.mutation(api.tasks.startTask, {
+    await d.backend.mutation(api.tasks.startTask, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
-      taskId: taskId as Id<'chatroom_tasks'>, // Pass the specific task ID
+      taskId: taskId as Id<'chatroom_tasks'>,
     });
   } catch (error) {
     const err = error as Error;
@@ -172,14 +200,13 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
   // Otherwise, classify the message (requires task to be in_progress)
   // This is only for entry point roles receiving user messages
   try {
-    const result = await client.mutation(api.messages.taskStarted, {
+    const result = await d.backend.mutation(api.messages.taskStarted, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
       taskId: taskId as Id<'chatroom_tasks'>,
       originMessageClassification: originMessageClassification!,
-      convexUrl: getConvexUrl(),
-      // Send raw stdin directly to backend for parsing
+      convexUrl: d.session.getConvexUrl(),
       ...(rawStdin && { rawStdin }),
     });
 

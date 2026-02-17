@@ -9,3 +9,4 @@ export type { BackendOps } from './backend.js';
 export type { ClockOps } from './clock.js';
 export type { FsOps } from './fs.js';
 export type { ProcessOps } from './process.js';
+export type { SessionOps } from './session.js';
