@@ -1,15 +1,15 @@
-import { api } from '../api.js';
-import type { Id } from '../api.js';
-import { getSessionId } from '../infrastructure/auth/storage.js';
-import { getConvexClient } from '../infrastructure/convex/client.js';
+import { api } from '../../api.js';
+import type { Id } from '../../api.js';
+import { getSessionId } from '../../infrastructure/auth/storage.js';
+import { getConvexClient } from '../../infrastructure/convex/client.js';
 import {
   formatError,
   formatAuthError,
   formatChatroomIdError,
   formatFileError,
   formatValidationError,
-} from '../utils/error-formatting.js';
-import { readFileContent } from '../utils/file-content.js';
+} from '../../utils/error-formatting.js';
+import { readFileContent } from '../../utils/file-content.js';
 
 export interface ArtifactCreateOptions {
   chatroomId: string;

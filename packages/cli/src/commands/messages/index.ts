@@ -2,9 +2,9 @@
  * Messages commands for listing and filtering chatroom messages
  */
 
-import { api, type Id } from '../api.js';
-import { getSessionId } from '../infrastructure/auth/storage.js';
-import { getConvexClient } from '../infrastructure/convex/client.js';
+import { api, type Id } from '../../api.js';
+import { getSessionId } from '../../infrastructure/auth/storage.js';
+import { getConvexClient } from '../../infrastructure/convex/client.js';
 
 /**
  * List messages filtered by sender role

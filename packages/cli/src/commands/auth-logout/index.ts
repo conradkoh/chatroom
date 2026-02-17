@@ -3,7 +3,11 @@
  * Clears CLI authentication
  */
 
-import { clearAuthData, getAuthFilePath, isAuthenticated } from '../infrastructure/auth/storage.js';
+import {
+  clearAuthData,
+  getAuthFilePath,
+  isAuthenticated,
+} from '../../infrastructure/auth/storage.js';
 
 export async function authLogout(): Promise<void> {
   if (!isAuthenticated()) {

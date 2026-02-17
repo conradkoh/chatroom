@@ -4,9 +4,9 @@
  * Commands for viewing review guidelines by type.
  */
 
-import { api } from '../api.js';
-import { getSessionId } from '../infrastructure/auth/storage.js';
-import { getConvexClient } from '../infrastructure/convex/client.js';
+import { api } from '../../api.js';
+import { getSessionId } from '../../infrastructure/auth/storage.js';
+import { getConvexClient } from '../../infrastructure/convex/client.js';
 
 export interface ViewGuidelinesOptions {
   type: string;

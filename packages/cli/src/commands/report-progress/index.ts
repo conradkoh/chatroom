@@ -7,11 +7,15 @@
 
 import { ConvexError } from 'convex/values';
 
-import { api } from '../api.js';
-import type { Id } from '../api.js';
-import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
-import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.js';
-import { formatError, formatAuthError, formatChatroomIdError } from '../utils/error-formatting.js';
+import { api } from '../../api.js';
+import type { Id } from '../../api.js';
+import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
+import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import {
+  formatError,
+  formatAuthError,
+  formatChatroomIdError,
+} from '../../utils/error-formatting.js';
 
 interface ReportProgressOptions {
   role: string;

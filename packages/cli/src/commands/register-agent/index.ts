@@ -6,12 +6,12 @@
  * in the team agent config on the backend.
  */
 
-import { api } from '../api.js';
-import type { Id } from '../api.js';
-import { getDriverRegistry } from '../infrastructure/agent-drivers/index.js';
-import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
-import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.js';
-import { ensureMachineRegistered, type AgentHarness } from '../infrastructure/machine/index.js';
+import { api } from '../../api.js';
+import type { Id } from '../../api.js';
+import { getDriverRegistry } from '../../infrastructure/agent-drivers/index.js';
+import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
+import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { ensureMachineRegistered, type AgentHarness } from '../../infrastructure/machine/index.js';
 
 interface RegisterAgentOptions {
   role: string;

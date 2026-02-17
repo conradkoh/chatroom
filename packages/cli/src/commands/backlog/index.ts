@@ -2,9 +2,9 @@
  * Backlog commands for managing task queue and backlog
  */
 
-import { api, type Id } from '../api.js';
-import { getSessionId } from '../infrastructure/auth/storage.js';
-import { getConvexClient } from '../infrastructure/convex/client.js';
+import { api, type Id } from '../../api.js';
+import { getSessionId } from '../../infrastructure/auth/storage.js';
+import { getConvexClient } from '../../infrastructure/convex/client.js';
 
 type TaskStatus =
   | 'pending'

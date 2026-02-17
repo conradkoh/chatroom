@@ -6,7 +6,7 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { getVersion } from '../version.js';
+import { getVersion } from '../../version.js';
 
 const execAsync = promisify(exec);
 

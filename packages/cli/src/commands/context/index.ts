@@ -8,10 +8,10 @@
  * - inspectContext: View a specific context with details
  */
 
-import { api, type Id } from '../api.js';
-import { getSessionId } from '../infrastructure/auth/storage.js';
-import { getConvexClient } from '../infrastructure/convex/client.js';
-import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../utils/terminal-safety.js';
+import { api, type Id } from '../../api.js';
+import { getSessionId } from '../../infrastructure/auth/storage.js';
+import { getConvexClient } from '../../infrastructure/convex/client.js';
+import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 
 /**
  * Read context for a specific role.

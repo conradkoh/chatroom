@@ -9,11 +9,15 @@ import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 import { ConvexError } from 'convex/values';
 
-import { api } from '../api.js';
-import type { Id } from '../api.js';
-import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
-import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.js';
-import { formatError, formatAuthError, formatChatroomIdError } from '../utils/error-formatting.js';
+import { api } from '../../api.js';
+import type { Id } from '../../api.js';
+import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
+import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import {
+  formatError,
+  formatAuthError,
+  formatChatroomIdError,
+} from '../../utils/error-formatting.js';
 
 interface TaskCompleteOptions {
   role: string;

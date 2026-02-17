@@ -3,11 +3,15 @@
  * Shows current authentication status and registers machine
  */
 
-import { api } from '../api.js';
-import { loadAuthData, getAuthFilePath, isAuthenticated } from '../infrastructure/auth/storage.js';
-import { getConvexClient } from '../infrastructure/convex/client.js';
-import { ensureMachineRegistered } from '../infrastructure/machine/index.js';
-import { getVersion } from '../version.js';
+import { api } from '../../api.js';
+import {
+  loadAuthData,
+  getAuthFilePath,
+  isAuthenticated,
+} from '../../infrastructure/auth/storage.js';
+import { getConvexClient } from '../../infrastructure/convex/client.js';
+import { ensureMachineRegistered } from '../../infrastructure/machine/index.js';
+import { getVersion } from '../../version.js';
 
 export async function authStatus(): Promise<void> {
   console.log(`\n${'═'.repeat(50)}`);
@@ -53,7 +57,7 @@ export async function authStatus(): Promise<void> {
         // Discover available models from installed harnesses
         let availableModels: string[] = [];
         try {
-          const { getDriverRegistry } = await import('../infrastructure/agent-drivers/index.js');
+          const { getDriverRegistry } = await import('../../infrastructure/agent-drivers/index.js');
           const registry = getDriverRegistry();
           for (const driver of registry.all()) {
             if (driver.capabilities.dynamicModelDiscovery) {

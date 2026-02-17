@@ -5,10 +5,10 @@
 import { taskStartedCommand } from '@workspace/backend/prompts/base/cli/task-started/command.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
-import { api } from '../api.js';
-import type { Id } from '../api.js';
-import { getSessionId, getOtherSessionUrls } from '../infrastructure/auth/storage.js';
-import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.js';
+import { api } from '../../api.js';
+import type { Id } from '../../api.js';
+import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
+import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 
 interface TaskStartedOptions {
   role: string;

@@ -5,15 +5,15 @@
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 
-import { api } from '../api.js';
+import { api } from '../../api.js';
 import {
   saveAuthData,
   getDeviceName,
   getCliVersion,
   isAuthenticated,
   getAuthFilePath,
-} from '../infrastructure/auth/storage.js';
-import { getConvexClient, getConvexUrl } from '../infrastructure/convex/client.js';
+} from '../../infrastructure/auth/storage.js';
+import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 
 // Poll interval for checking auth status
 const AUTH_POLL_INTERVAL_MS = 2000;
