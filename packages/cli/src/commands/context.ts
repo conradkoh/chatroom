@@ -11,6 +11,7 @@
 import { api, type Id } from '../api.js';
 import { getSessionId } from '../infrastructure/auth/storage.js';
 import { getConvexClient } from '../infrastructure/convex/client.js';
+import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../utils/terminal-safety.js';
 
 /**
  * Read context for a specific role.
@@ -90,7 +91,7 @@ export async function readContext(
       console.log(`   Type: ${message.type}${classificationBadge}`);
 
       if (message.featureTitle) {
-        console.log(`   Feature: ${message.featureTitle}`);
+        console.log(`   Feature: ${sanitizeForTerminal(message.featureTitle)}`);
       }
 
       // Show task info if available
@@ -101,8 +102,9 @@ export async function readContext(
           console.log(`      Status: ${message.taskStatus}`);
         }
         if (message.taskContent) {
+          const safeTaskContent = sanitizeForTerminal(message.taskContent);
           console.log(
-            `      Content: ${message.taskContent
+            `      Content: ${safeTaskContent
               .split('\n')
               .map((l, i) => (i === 0 ? l : `      ${l}`))
               .join('\n')}`
@@ -116,7 +118,7 @@ export async function readContext(
         for (const task of message.attachedTasks) {
           console.log(`      🔹 Task ID: ${task._id}`);
           console.log(`         Type: Task`);
-          const contentLines = task.content.split('\n');
+          const contentLines = sanitizeForTerminal(task.content).split('\n');
           // Show first line as preview
           console.log(`         Content: ${contentLines[0]}`);
           // Show remaining lines indented
@@ -130,8 +132,9 @@ export async function readContext(
 
       // Show full message content
       console.log(`   Content:`);
+      const safeMessageContent = sanitizeForTerminal(message.content);
       console.log(
-        message.content
+        safeMessageContent
           .split('\n')
           .map((l) => `      ${l}`)
           .join('\n')
@@ -140,7 +143,9 @@ export async function readContext(
 
     console.log('\n' + '═'.repeat(60));
   } catch (err) {
-    console.error(`❌ Failed to read context: ${(err as Error).message}`);
+    console.error(
+      `❌ Failed to read context: ${sanitizeUnknownForTerminal((err as Error).message)}`
+    );
     process.exit(1);
   }
 }
@@ -264,8 +269,9 @@ export async function listContexts(
       }
       console.log(`   Content:`);
       // Truncate to first 200 chars for list view
+      const safeContent = sanitizeForTerminal(context.content);
       const truncatedContent =
-        context.content.length > 200 ? context.content.slice(0, 200) + '...' : context.content;
+        safeContent.length > 200 ? safeContent.slice(0, 200) + '...' : safeContent;
       console.log(
         truncatedContent
           .split('\n')
@@ -276,7 +282,9 @@ export async function listContexts(
 
     console.log('\n' + '═'.repeat(60));
   } catch (err) {
-    console.error(`❌ Failed to list contexts: ${(err as Error).message}`);
+    console.error(
+      `❌ Failed to list contexts: ${sanitizeUnknownForTerminal((err as Error).message)}`
+    );
     process.exit(1);
   }
 }
@@ -330,7 +338,7 @@ export async function inspectContext(
 
     console.log(`\n📝 Content:`);
     console.log('─'.repeat(60));
-    console.log(context.content);
+    console.log(sanitizeForTerminal(context.content));
     console.log('─'.repeat(60));
 
     console.log(`\n💡 To create a new context:`);
@@ -340,7 +348,9 @@ export async function inspectContext(
 
     console.log('\n' + '═'.repeat(60));
   } catch (err) {
-    console.error(`❌ Failed to inspect context: ${(err as Error).message}`);
+    console.error(
+      `❌ Failed to inspect context: ${sanitizeUnknownForTerminal((err as Error).message)}`
+    );
     process.exit(1);
   }
 }

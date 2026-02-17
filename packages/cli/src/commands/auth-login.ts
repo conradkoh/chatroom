@@ -65,20 +65,21 @@ function getWebAppUrl(): string {
  * Open URL in the default browser
  */
 async function openBrowser(url: string): Promise<void> {
-  const { exec } = await import('node:child_process');
-  const { promisify } = await import('node:util');
-  const execAsync = promisify(exec);
+  const { spawn } = await import('node:child_process');
 
   const platform = process.platform;
 
   try {
     if (platform === 'darwin') {
-      await execAsync(`open "${url}"`);
+      const child = spawn('open', [url], { detached: true, stdio: 'ignore' });
+      child.unref();
     } else if (platform === 'win32') {
-      await execAsync(`start "" "${url}"`);
+      const child = spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' });
+      child.unref();
     } else {
       // Linux and others
-      await execAsync(`xdg-open "${url}"`);
+      const child = spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
+      child.unref();
     }
   } catch {
     // If opening browser fails, user can manually visit the URL

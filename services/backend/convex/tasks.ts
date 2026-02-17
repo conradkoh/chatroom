@@ -119,21 +119,57 @@ export const claimTask = mutation({
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
+    taskId: v.optional(v.id('chatroom_tasks')),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Find the pending task
-    const pendingTask = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
-      )
-      .first();
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) {
+      throw new Error('Chatroom not found');
+    }
 
-    if (!pendingTask) {
-      throw new Error('No pending task to claim');
+    const normalizedRole = args.role.toLowerCase();
+    const normalizedEntryPoint = (chatroom.teamEntryPoint || 'builder').toLowerCase();
+    const isRelevantForRole = (task: { assignedTo?: string; createdBy: string }) => {
+      if (task.assignedTo) {
+        return task.assignedTo.toLowerCase() === normalizedRole;
+      }
+      return normalizedRole === normalizedEntryPoint;
+    };
+
+    let pendingTask;
+    if (args.taskId) {
+      pendingTask = await ctx.db.get('chatroom_tasks', args.taskId);
+      if (!pendingTask) {
+        throw new Error('Task not found');
+      }
+      if (pendingTask.chatroomId !== args.chatroomId) {
+        throw new Error('Task does not belong to this chatroom');
+      }
+      if (pendingTask.status !== 'pending') {
+        throw new Error(`Task must be pending to claim (current status: ${pendingTask.status})`);
+      }
+      if (!isRelevantForRole(pendingTask)) {
+        throw new Error(`Task is not claimable by role ${args.role}`);
+      }
+    } else {
+      // Legacy behavior: find a pending task relevant for this role.
+      const pendingTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+        )
+        .collect();
+
+      pendingTask = pendingTasks
+        .filter(isRelevantForRole)
+        .sort((a, b) => a.queuePosition - b.queuePosition)[0];
+
+      if (!pendingTask) {
+        throw new Error('No pending task to claim');
+      }
     }
 
     const now = Date.now();
@@ -1492,24 +1528,34 @@ export const getTasksByIds = query({
       return [];
     }
 
-    // Fetch tasks - session is authenticated, tasks are accessed by ID
-    const tasks = await Promise.all(
-      args.taskIds.map(async (taskId) => {
-        const task = await ctx.db.get('chatroom_tasks', taskId);
-        if (!task) return null;
+    // Fetch tasks by ID first, then enforce chatroom-level access before returning data.
+    const fetchedTasks = (
+      await Promise.all(args.taskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId)))
+    ).filter((task): task is NonNullable<typeof task> => task !== null);
 
-        return {
-          _id: task._id,
-          content: task.content,
-          status: task.status,
-          origin: task.origin,
-          createdAt: task.createdAt,
-          createdBy: task.createdBy,
-        };
+    const uniqueChatroomIds = [...new Set(fetchedTasks.map((task) => task.chatroomId))];
+    const allowedChatroomIds = new Set<string>();
+    await Promise.all(
+      uniqueChatroomIds.map(async (chatroomId) => {
+        try {
+          await requireChatroomAccess(ctx, args.sessionId, chatroomId);
+          allowedChatroomIds.add(chatroomId);
+        } catch {
+          // Skip unauthorized chatrooms instead of leaking task details.
+        }
       })
     );
 
-    return tasks.filter((t) => t !== null);
+    return fetchedTasks
+      .filter((task) => allowedChatroomIds.has(task.chatroomId))
+      .map((task) => ({
+        _id: task._id,
+        content: task.content,
+        status: task.status,
+        origin: task.origin,
+        createdAt: task.createdAt,
+        createdBy: task.createdBy,
+      }));
   },
 });
 

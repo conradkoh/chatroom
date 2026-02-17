@@ -34,6 +34,7 @@ import {
   type AgentHarness,
 } from '../infrastructure/machine/index.js';
 import { isNetworkError, formatConnectivityError } from '../utils/error-formatting.js';
+import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../utils/terminal-safety.js';
 
 // ---------------------------------------------------------------------------
 // Type definitions
@@ -136,13 +137,16 @@ export class WaitForTaskSession {
    */
   private logAndExit(exitCode: number, event: string, message: string, guidance: string): never {
     const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const safeEvent = sanitizeForTerminal(event);
+    const safeMessage = sanitizeForTerminal(message);
+    const safeGuidance = sanitizeForTerminal(guidance);
 
     console.log(`\n${'─'.repeat(50)}`);
-    console.log(`[EVENT: ${event}]\n`);
-    console.log(`[${timestamp}] ${message}\n`);
+    console.log(`[EVENT: ${safeEvent}]\n`);
+    console.log(`[${timestamp}] ${safeMessage}\n`);
 
-    if (guidance) {
-      console.log(guidance);
+    if (safeGuidance) {
+      console.log(safeGuidance);
     }
 
     console.log(`\nTo reconnect, run:`);
@@ -226,7 +230,9 @@ export class WaitForTaskSession {
         })
         .catch((err) => {
           if (!this.silent) {
-            console.warn(`⚠️  Heartbeat failed: ${(err as Error).message}`);
+            console.warn(
+              `⚠️  Heartbeat failed: ${sanitizeUnknownForTerminal((err as Error).message)}`
+            );
           }
         });
     }, HEARTBEAT_INTERVAL_MS);
@@ -423,6 +429,7 @@ export class WaitForTaskSession {
           sessionId: this.sessionId,
           chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
           role: this.role,
+          taskId: task._id,
         });
       } catch (_claimError) {
         console.log(`🔄 Task already claimed by another agent, continuing to wait...`);
@@ -474,7 +481,7 @@ export class WaitForTaskSession {
       console.log(`\n[${taskReceivedTime}] 📨 Task received!\n`);
 
       // Print the complete backend-generated output
-      console.log(taskDeliveryPrompt.fullCliOutput);
+      console.log(sanitizeForTerminal(taskDeliveryPrompt.fullCliOutput));
 
       process.exit(0);
     } catch (deliveryError) {
@@ -482,7 +489,7 @@ export class WaitForTaskSession {
       this.logAndExit(
         1,
         'task_delivery_failed',
-        `⚠️ TASK CLAIMED BUT DELIVERY FAILED — ${(deliveryError as Error).message}`,
+        `⚠️ TASK CLAIMED BUT DELIVERY FAILED — ${sanitizeUnknownForTerminal((deliveryError as Error).message)}`,
         `Task ID: ${task._id}\n` +
           `The task has been claimed for your role.\n` +
           `Use context read to see your current task:\n\n` +
@@ -639,7 +646,9 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     }
   } catch (machineError) {
     if (!silent) {
-      console.warn(`⚠️  Machine registration failed: ${(machineError as Error).message}`);
+      console.warn(
+        `⚠️  Machine registration failed: ${sanitizeUnknownForTerminal((machineError as Error).message)}`
+      );
     }
   }
 

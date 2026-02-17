@@ -2,6 +2,8 @@
  * Error formatting utilities for consistent CLI error messages
  */
 
+import { sanitizeForTerminal } from './terminal-safety.js';
+
 /**
  * Format an error message with optional suggestions
  */
@@ -96,13 +98,14 @@ export function isNetworkError(error: unknown): boolean {
  */
 export function formatConnectivityError(error: unknown, backendUrl?: string): void {
   const err = error instanceof Error ? error : new Error(String(error));
-  console.error(`\n❌ Could not reach the backend${backendUrl ? ` at ${backendUrl}` : ''}`);
-  console.error(`   ${err.message}`);
+  const safeBackendUrl = backendUrl ? sanitizeForTerminal(backendUrl) : undefined;
+  console.error(`\n❌ Could not reach the backend${safeBackendUrl ? ` at ${safeBackendUrl}` : ''}`);
+  console.error(`   ${sanitizeForTerminal(err.message)}`);
   console.error(`\n   Your session may still be valid. Please check:`);
   console.error(`   • Network connectivity`);
   console.error(`   • Whether the backend service is running`);
-  if (backendUrl) {
-    console.error(`   • CHATROOM_CONVEX_URL is correct (currently: ${backendUrl})`);
+  if (safeBackendUrl) {
+    console.error(`   • CHATROOM_CONVEX_URL is correct (currently: ${safeBackendUrl})`);
   }
   console.error(`\n   Try again once the backend is reachable.`);
 }

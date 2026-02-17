@@ -52,7 +52,7 @@ interface LegacyAuthData extends AuthData {
  */
 function ensureConfigDir(): void {
   if (!existsSync(CHATROOM_DIR)) {
-    mkdirSync(CHATROOM_DIR, { recursive: true });
+    mkdirSync(CHATROOM_DIR, { recursive: true, mode: 0o700 });
   }
 }
 
@@ -183,7 +183,7 @@ export function saveAuthData(data: AuthData): void {
 ${JSON.stringify(multiEnvData, null, 2)}
 `;
 
-  writeFileSync(authPath, content, 'utf-8');
+  writeFileSync(authPath, content, { encoding: 'utf-8', mode: 0o600 });
 }
 
 /**
@@ -223,7 +223,7 @@ export function clearAuthData(): boolean {
 // To logout, run: chatroom auth logout
 ${JSON.stringify(rawData, null, 2)}
 `;
-    writeFileSync(authPath, content, 'utf-8');
+    writeFileSync(authPath, content, { encoding: 'utf-8', mode: 0o600 });
     return true;
   }
 

@@ -2123,16 +2123,19 @@ export const getTaskDeliveryPrompt = query({
 /**
  * Get a simplified display prompt for webapp UI.
  * This is used by the webapp dashboard to show agent setup instructions.
- * Does NOT require authentication - public query for UI display.
+ * Requires CLI session authentication and chatroom access.
  */
 export const getWebappDisplayPrompt = query({
   args: {
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Fetch chatroom (no auth required for display purposes)
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Fetch chatroom after authz validation
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom) {
       throw new ConvexError({

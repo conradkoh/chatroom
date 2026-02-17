@@ -788,6 +788,9 @@ export const saveTeamAgentConfig = mutation({
 
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom) throw new Error('Chatroom not found');
+    if (chatroom.ownerId !== auth.user._id) {
+      throw new Error('Not authorized to modify team agent configs for this chatroom');
+    }
 
     const teamRoleKey = buildTeamRoleKey(chatroom, args.role);
 
@@ -835,6 +838,8 @@ export const getTeamAgentConfigs = query({
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.isAuthenticated) return [];
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom || chatroom.ownerId !== auth.user._id) return [];
 
     return await ctx.db
       .query('chatroom_teamAgentConfigs')

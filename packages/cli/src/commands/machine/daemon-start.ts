@@ -4,7 +4,7 @@
  * Start the machine daemon that listens for remote commands.
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 
 import {
@@ -228,9 +228,10 @@ function verifyPidOwnership(pid: number, expectedHarness?: string): boolean {
     let processName = '';
 
     if (platform === 'darwin' || platform === 'linux') {
-      processName = execSync(`ps -p ${pid} -o comm= 2>/dev/null`, {
+      processName = execFileSync('ps', ['-p', String(pid), '-o', 'comm='], {
         encoding: 'utf-8',
         timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'],
       }).trim();
     }
 
