@@ -15,6 +15,16 @@
  * production when testing or developing.
  */
 
+import type { OpenCodeInstallDeps } from './deps.js';
+import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
+import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+
+// ─── Re-exports for testing ────────────────────────────────────────────────
+
+export type { OpenCodeInstallDeps } from './deps.js';
+
+// ─── Types ─────────────────────────────────────────────────────────────────
+
 export interface ToolInstallOptions {
   checkExisting?: boolean;
 }
@@ -25,10 +35,9 @@ export interface ToolInstallResult {
   message: string;
 }
 
-/**
- * Check if chatroom CLI is installed
- */
-async function isChatroomInstalled(): Promise<boolean> {
+// ─── Default Deps Factory ──────────────────────────────────────────────────
+
+async function isChatroomInstalledDefault(): Promise<boolean> {
   try {
     const { execSync } = await import('child_process');
     execSync('chatroom --version', { stdio: 'pipe' });
@@ -38,13 +47,46 @@ async function isChatroomInstalled(): Promise<boolean> {
   }
 }
 
+async function createDefaultDeps(): Promise<OpenCodeInstallDeps> {
+  const client = await getConvexClient();
+  const fs = await import('fs/promises');
+  return {
+    backend: {
+      mutation: (endpoint: any, args: any) => client.mutation(endpoint, args),
+      query: (endpoint: any, args: any) => client.query(endpoint, args),
+    },
+    session: {
+      getSessionId,
+      getConvexUrl,
+      getOtherSessionUrls,
+    },
+    fs: {
+      access: async (p) => {
+        await fs.access(p);
+      },
+      mkdir: async (p, options) => {
+        await fs.mkdir(p, options);
+      },
+      writeFile: async (p, content, encoding) => {
+        await fs.writeFile(p, content, encoding);
+      },
+    },
+    isChatroomInstalled: isChatroomInstalledDefault,
+  };
+}
+
+// ─── Entry Point ───────────────────────────────────────────────────────────
+
 /**
  * Install chatroom as an OpenCode tool
  */
-export async function installTool(options: ToolInstallOptions = {}): Promise<ToolInstallResult> {
+export async function installTool(
+  options: ToolInstallOptions = {},
+  deps?: OpenCodeInstallDeps
+): Promise<ToolInstallResult> {
+  const d = deps ?? (await createDefaultDeps());
   const { checkExisting = true } = options;
   const os = await import('os');
-  const fs = await import('fs/promises');
   const path = await import('path');
 
   const homeDir = os.homedir();
@@ -340,13 +382,13 @@ After logging in, try this command again.\`;
     if (checkExisting) {
       const existingFiles: string[] = [];
       try {
-        await fs.access(toolPath);
+        await d.fs.access(toolPath);
         existingFiles.push(toolPath);
       } catch {
         // Tool doesn't exist
       }
       try {
-        await fs.access(handoffToolPath);
+        await d.fs.access(handoffToolPath);
         existingFiles.push(handoffToolPath);
       } catch {
         // Tool doesn't exist
@@ -369,7 +411,7 @@ Then run this command again, or use --force to overwrite.`;
     }
 
     // Check if chatroom CLI is installed
-    const installed = await isChatroomInstalled();
+    const installed = await d.isChatroomInstalled();
     if (!installed) {
       const message = `⚠️  Chatroom CLI is not installed.
 
@@ -385,11 +427,11 @@ After installation, run this command again.`;
     }
 
     // Create directory if it doesn't exist
-    await fs.mkdir(toolDir, { recursive: true });
+    await d.fs.mkdir(toolDir, { recursive: true });
 
     // Write both tool files
-    await fs.writeFile(toolPath, toolContent, 'utf-8');
-    await fs.writeFile(handoffToolPath, handoffToolContent, 'utf-8');
+    await d.fs.writeFile(toolPath, toolContent, 'utf-8');
+    await d.fs.writeFile(handoffToolPath, handoffToolContent, 'utf-8');
 
     const message = `✅ Installed chatroom OpenCode tools successfully!
 

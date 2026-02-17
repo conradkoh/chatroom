@@ -6,61 +6,59 @@
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import type { UpdateDeps } from './deps.js';
 import { getVersion } from '../../version.js';
 
 const execAsync = promisify(exec);
 
-/**
- * Get the current installed version
- */
-function getCurrentVersion(): string {
-  return getVersion();
+// ─── Re-exports for testing ────────────────────────────────────────────────
+
+export type { UpdateDeps } from './deps.js';
+
+// ─── Default Deps Factory ──────────────────────────────────────────────────
+
+function createDefaultDeps(): UpdateDeps {
+  return {
+    getVersion,
+    exec: (cmd: string) =>
+      execAsync(cmd).then((r) => ({ stdout: r.stdout ?? '', stderr: r.stderr })),
+  };
 }
 
-/**
- * Check if npm is available
- */
-async function isNpmAvailable(): Promise<boolean> {
-  try {
-    await execAsync('npm --version');
-    return true;
-  } catch {
-    return false;
-  }
-}
+// ─── Entry Point ───────────────────────────────────────────────────────────
 
-/**
- * Get the latest version from npm registry
- */
-async function getLatestVersion(): Promise<string | null> {
-  try {
-    const { stdout } = await execAsync('npm view chatroom-cli version');
-    return stdout.trim();
-  } catch {
-    return null;
-  }
-}
+export async function update(deps?: UpdateDeps): Promise<void> {
+  const d = deps ?? createDefaultDeps();
+  const log = console.log.bind(console);
 
-const log = console.log.bind(console);
-
-export async function update(): Promise<void> {
   log('\n🔄 Checking for updates...\n');
 
   // Check if npm is available
-  if (!(await isNpmAvailable())) {
+  try {
+    await d.exec('npm --version');
+  } catch {
     console.error('❌ npm is not available. Please install npm to update.');
     process.exit(1);
+    return;
   }
 
-  const currentVersion = getCurrentVersion();
+  const currentVersion = d.getVersion();
   log(`   Current version: ${currentVersion}`);
 
   // Check latest version
-  const latestVersion = await getLatestVersion();
+  let latestVersion: string | null = null;
+  try {
+    const { stdout } = await d.exec('npm view chatroom-cli version');
+    latestVersion = stdout.trim() || null;
+  } catch {
+    latestVersion = null;
+  }
+
   if (!latestVersion) {
     console.error('❌ Could not check for latest version.');
     console.error('   You can manually update with: npm install -g chatroom-cli@latest');
     process.exit(1);
+    return;
   }
 
   log(`   Latest version:  ${latestVersion}`);
@@ -73,7 +71,7 @@ export async function update(): Promise<void> {
   log('\n📦 Updating to latest version...\n');
 
   try {
-    const { stdout } = await execAsync('npm install -g chatroom-cli@latest');
+    const { stdout } = await d.exec('npm install -g chatroom-cli@latest');
 
     if (stdout) {
       log(stdout);
@@ -87,5 +85,6 @@ export async function update(): Promise<void> {
     console.error('\n   Try running manually with sudo:');
     console.error('   sudo npm install -g chatroom-cli@latest');
     process.exit(1);
+    return;
   }
 }
