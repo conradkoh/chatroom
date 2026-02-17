@@ -9,6 +9,7 @@ import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 import { ConvexError } from 'convex/values';
 
+import type { TaskCompleteDeps } from './deps.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
@@ -19,22 +20,48 @@ import {
   formatChatroomIdError,
 } from '../../utils/error-formatting.js';
 
-interface TaskCompleteOptions {
+// ─── Re-exports for testing ────────────────────────────────────────────────
+
+export type { TaskCompleteDeps } from './deps.js';
+
+// ─── Types ─────────────────────────────────────────────────────────────────
+
+export interface TaskCompleteOptions {
   role: string;
 }
 
+// ─── Default Deps Factory ──────────────────────────────────────────────────
+
+async function createDefaultDeps(): Promise<TaskCompleteDeps> {
+  const client = await getConvexClient();
+  return {
+    backend: {
+      mutation: (endpoint, args) => client.mutation(endpoint, args),
+      query: (endpoint, args) => client.query(endpoint, args),
+    },
+    session: {
+      getSessionId,
+      getConvexUrl,
+      getOtherSessionUrls,
+    },
+  };
+}
+
+// ─── Entry Point ───────────────────────────────────────────────────────────
+
 export async function taskComplete(
   chatroomId: string,
-  options: TaskCompleteOptions
+  options: TaskCompleteOptions,
+  deps?: TaskCompleteDeps
 ): Promise<void> {
-  const client = await getConvexClient();
+  const d = deps ?? (await createDefaultDeps());
   const { role } = options;
 
   // Get session ID for authentication
-  const sessionId = getSessionId();
+  const sessionId = d.session.getSessionId();
   if (!sessionId) {
-    const otherUrls = getOtherSessionUrls();
-    const currentUrl = getConvexUrl();
+    const otherUrls = d.session.getOtherSessionUrls();
+    const currentUrl = d.session.getConvexUrl();
     formatAuthError(currentUrl, otherUrls);
     process.exit(1);
   }
@@ -53,7 +80,7 @@ export async function taskComplete(
   // Complete the task using the existing completeTask mutation
   let result;
   try {
-    result = await client.mutation(api.tasks.completeTask, {
+    result = await d.backend.mutation(api.tasks.completeTask, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
@@ -70,7 +97,7 @@ export async function taskComplete(
         console.error(JSON.stringify(errorData, null, 2));
       }
 
-      const convexUrl = getConvexUrl();
+      const convexUrl = d.session.getConvexUrl();
       if (errorData.code === 'AUTH_FAILED') {
         console.error('\n💡 Try authenticating again:');
         console.error(`   chatroom auth ${convexUrl}`);
@@ -87,6 +114,7 @@ export async function taskComplete(
     console.error('\n📚 Need help? Check the docs or run:');
     console.error(`   chatroom task-complete --help`);
     process.exit(1);
+    return;
   }
 
   if (!result.completed) {
@@ -105,7 +133,7 @@ export async function taskComplete(
   }
 
   // Remind agent to run wait-for-task
-  const convexUrl = getConvexUrl();
+  const convexUrl = d.session.getConvexUrl();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   console.log(`\n⏳ Now run wait-for-task to wait for your next assignment:`);
   console.log(`   ${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}`);
