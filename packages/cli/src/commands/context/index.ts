@@ -8,10 +8,34 @@
  * - inspectContext: View a specific context with details
  */
 
+import type { ContextDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
-import { getSessionId } from '../../infrastructure/auth/storage.js';
-import { getConvexClient } from '../../infrastructure/convex/client.js';
+import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
+import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
+
+// ─── Re-exports for testing ────────────────────────────────────────────────
+
+export type { ContextDeps } from './deps.js';
+
+// ─── Default Deps Factory ──────────────────────────────────────────────────
+
+async function createDefaultDeps(): Promise<ContextDeps> {
+  const client = await getConvexClient();
+  return {
+    backend: {
+      mutation: (endpoint, args) => client.mutation(endpoint, args),
+      query: (endpoint, args) => client.query(endpoint, args),
+    },
+    session: {
+      getSessionId,
+      getConvexUrl,
+      getOtherSessionUrls,
+    },
+  };
+}
+
+// ─── Commands ─────────────────────────────────────────────────────────────
 
 /**
  * Read context for a specific role.
@@ -19,14 +43,13 @@ import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/ter
  */
 export async function readContext(
   chatroomId: string,
-  options: {
-    role: string;
-  }
+  options: { role: string },
+  deps?: ContextDeps
 ): Promise<void> {
-  const client = await getConvexClient();
+  const d = deps ?? (await createDefaultDeps());
 
   // Get session ID for authentication
-  const sessionId = getSessionId();
+  const sessionId = d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
@@ -46,7 +69,7 @@ export async function readContext(
   }
 
   try {
-    const context = await client.query(api.messages.getContextForRole, {
+    const context = await d.backend.query(api.messages.getContextForRole, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role: options.role,
@@ -147,6 +170,7 @@ export async function readContext(
       `❌ Failed to read context: ${sanitizeUnknownForTerminal((err as Error).message)}`
     );
     process.exit(1);
+    return;
   }
 }
 
@@ -159,12 +183,13 @@ export async function newContext(
   options: {
     role: string;
     content: string;
-  }
+  },
+  deps?: ContextDeps
 ): Promise<void> {
-  const client = await getConvexClient();
+  const d = deps ?? (await createDefaultDeps());
 
   // Get session ID for authentication
-  const sessionId = getSessionId();
+  const sessionId = d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
@@ -190,7 +215,7 @@ export async function newContext(
   }
 
   try {
-    const contextId = await client.mutation(api.contexts.createContext, {
+    const contextId = await d.backend.mutation(api.contexts.createContext, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       content: options.content,
@@ -204,6 +229,7 @@ export async function newContext(
   } catch (err) {
     console.error(`❌ Failed to create context: ${(err as Error).message}`);
     process.exit(1);
+    return;
   }
 }
 
@@ -215,12 +241,13 @@ export async function listContexts(
   options: {
     role: string;
     limit?: number;
-  }
+  },
+  deps?: ContextDeps
 ): Promise<void> {
-  const client = await getConvexClient();
+  const d = deps ?? (await createDefaultDeps());
 
   // Get session ID for authentication
-  const sessionId = getSessionId();
+  const sessionId = d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
@@ -240,7 +267,7 @@ export async function listContexts(
   }
 
   try {
-    const contexts = await client.query(api.contexts.listContexts, {
+    const contexts = await d.backend.query(api.contexts.listContexts, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       limit: options.limit ?? 10,
@@ -286,6 +313,7 @@ export async function listContexts(
       `❌ Failed to list contexts: ${sanitizeUnknownForTerminal((err as Error).message)}`
     );
     process.exit(1);
+    return;
   }
 }
 
@@ -297,19 +325,20 @@ export async function inspectContext(
   options: {
     role: string;
     contextId: string;
-  }
+  },
+  deps?: ContextDeps
 ): Promise<void> {
-  const client = await getConvexClient();
+  const d = deps ?? (await createDefaultDeps());
 
   // Get session ID for authentication
-  const sessionId = getSessionId();
+  const sessionId = d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
   }
 
   try {
-    const context = await client.query(api.contexts.getContext, {
+    const context = await d.backend.query(api.contexts.getContext, {
       sessionId,
       contextId: options.contextId as Id<'chatroom_contexts'>,
     });
@@ -352,5 +381,6 @@ export async function inspectContext(
       `❌ Failed to inspect context: ${sanitizeUnknownForTerminal((err as Error).message)}`
     );
     process.exit(1);
+    return;
   }
 }

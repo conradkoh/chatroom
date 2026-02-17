@@ -6,6 +6,7 @@
  * in the team agent config on the backend.
  */
 
+import type { RegisterAgentDeps } from './deps.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getDriverRegistry } from '../../infrastructure/agent-drivers/index.js';
@@ -13,23 +14,49 @@ import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/sto
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { ensureMachineRegistered, type AgentHarness } from '../../infrastructure/machine/index.js';
 
-interface RegisterAgentOptions {
+// ─── Re-exports for testing ────────────────────────────────────────────────
+
+export type { RegisterAgentDeps } from './deps.js';
+
+// ─── Types ─────────────────────────────────────────────────────────────────
+
+export interface RegisterAgentOptions {
   role: string;
   type: 'remote' | 'custom';
 }
 
+// ─── Default Deps Factory ──────────────────────────────────────────────────
+
+async function createDefaultDeps(): Promise<RegisterAgentDeps> {
+  const client = await getConvexClient();
+  return {
+    backend: {
+      mutation: (endpoint, args) => client.mutation(endpoint, args),
+      query: (endpoint, args) => client.query(endpoint, args),
+    },
+    session: {
+      getSessionId,
+      getConvexUrl,
+      getOtherSessionUrls,
+    },
+  };
+}
+
+// ─── Entry Point ───────────────────────────────────────────────────────────
+
 export async function registerAgent(
   chatroomId: string,
-  options: RegisterAgentOptions
+  options: RegisterAgentOptions,
+  deps?: RegisterAgentDeps
 ): Promise<void> {
-  const client = await getConvexClient();
+  const d = deps ?? (await createDefaultDeps());
   const { role, type } = options;
 
   // Get session ID for authentication
-  const sessionId = getSessionId();
+  const sessionId = d.session.getSessionId();
   if (!sessionId) {
-    const otherUrls = getOtherSessionUrls();
-    const currentUrl = getConvexUrl();
+    const otherUrls = d.session.getOtherSessionUrls();
+    const currentUrl = d.session.getConvexUrl();
 
     console.error(`❌ Not authenticated for: ${currentUrl}`);
 
@@ -68,7 +95,7 @@ export async function registerAgent(
   }
 
   // Validate chatroom exists and user has access
-  const chatroom = await client.query(api.chatrooms.get, {
+  const chatroom = await d.backend.query(api.chatrooms.get, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
@@ -98,7 +125,7 @@ export async function registerAgent(
       }
 
       // Register/update machine in backend
-      await client.mutation(api.machines.register, {
+      await d.backend.mutation(api.machines.register, {
         sessionId,
         machineId: machineInfo.machineId,
         hostname: machineInfo.hostname,
@@ -113,7 +140,7 @@ export async function registerAgent(
         machineInfo.availableHarnesses.length > 0 ? machineInfo.availableHarnesses[0] : undefined;
 
       // Save team agent config with machine details
-      await client.mutation(api.machines.saveTeamAgentConfig, {
+      await d.backend.mutation(api.machines.saveTeamAgentConfig, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
@@ -136,7 +163,7 @@ export async function registerAgent(
   } else {
     // Custom type: register without machine details
     try {
-      await client.mutation(api.machines.saveTeamAgentConfig, {
+      await d.backend.mutation(api.machines.saveTeamAgentConfig, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
