@@ -10,14 +10,14 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WaitForTaskSession, type SessionParams } from './wait-for-task.js';
+import { WaitForTaskSession, type SessionParams } from './session.js';
 
 // ---------------------------------------------------------------------------
 // Mock modules
 // ---------------------------------------------------------------------------
 
 // Mock getConvexWsClient so subscribe() doesn't need a real Convex connection
-vi.mock('../infrastructure/convex/client.js', () => ({
+vi.mock('../../infrastructure/convex/client.js', () => ({
   getConvexUrl: () => 'http://test:3210',
   getConvexClient: vi.fn(),
   getConvexWsClient: vi.fn(),
@@ -96,7 +96,7 @@ beforeEach(async () => {
   _warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
   // Configure getConvexWsClient to return a mock that captures callbacks
-  const { getConvexWsClient } = await import('../infrastructure/convex/client.js');
+  const { getConvexWsClient } = await import('../../infrastructure/convex/client.js');
   (getConvexWsClient as ReturnType<typeof vi.fn>).mockResolvedValue({
     onUpdate: (
       _query: unknown,

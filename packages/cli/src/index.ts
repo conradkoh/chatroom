@@ -112,7 +112,7 @@ program
   .requiredOption('--role <role>', 'Role to join as (e.g., builder, reviewer)')
   .action(async (options: { chatroomId: string; role: string }) => {
     await maybeRequireAuth();
-    const { waitForTask } = await import('./commands/wait-for-task.js');
+    const { waitForTask } = await import('./commands/wait-for-task/index.js');
 
     await waitForTask(options.chatroomId, {
       role: options.role,
