@@ -4,6 +4,6 @@
  * Commands for managing the machine daemon and remote agent control.
  */
 
-export { daemonStart } from './daemon-start.js';
+export { daemonStart } from './daemon-start/index.js';
 export { daemonStop } from './daemon-stop.js';
 export { daemonStatus } from './daemon-status.js';

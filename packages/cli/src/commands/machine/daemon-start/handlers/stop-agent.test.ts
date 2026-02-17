@@ -1,30 +1,17 @@
 /**
- * Daemon Command Handler Tests
+ * Stop Agent Handler Tests
  *
- * Tests for handleStopAgent and handleAgentCrashRecovery using dependency
- * injection to avoid mocking module imports.
- *
- * Test categories:
- * 1. handleStopAgent — intentional stop flow
- *    - Marks intentional stop before killing
- *    - Clears PID and removes participant on success
- *    - Cleans up intentional stop marker on failure
- *    - Handles stale PID (process not found)
- *
- * 2. handleAgentCrashRecovery — crash recovery flow
- *    - Clears PID, leaves participant, sets "restarting" status
- *    - Retries start up to MAX_CRASH_RESTART_ATTEMPTS
- *    - Sets "dead_failed_revive" after all attempts fail
+ * Tests for handleStopAgent using dependency injection.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { DaemonDeps } from './daemon-deps.js';
-import type { DaemonContext, StartAgentCommand, StopAgentCommand } from './daemon-start.js';
-import type { Id } from '../../api.js';
+import type { Id } from '../../../../api.js';
+import type { DaemonDeps } from '../deps.js';
+import type { DaemonContext, StopAgentCommand } from '../types.js';
 
 // ---------------------------------------------------------------------------
-// Mock module-level imports that daemon-start.ts uses at the top level
+// Mock module-level imports used by handler files
 // ---------------------------------------------------------------------------
 
 vi.mock('@workspace/backend/config/reliability.js', () => ({
@@ -33,12 +20,12 @@ vi.mock('@workspace/backend/config/reliability.js', () => ({
   MAX_CRASH_RESTART_ATTEMPTS: 3,
 }));
 
-vi.mock('./pid.js', () => ({
+vi.mock('../../pid.js', () => ({
   acquireLock: vi.fn(() => true),
   releaseLock: vi.fn(),
 }));
 
-vi.mock('../../api.js', () => ({
+vi.mock('../../../../api.js', () => ({
   api: {
     machines: {
       updateSpawnedAgent: 'machines.updateSpawnedAgent',
@@ -58,26 +45,25 @@ vi.mock('../../api.js', () => ({
   },
 }));
 
-vi.mock('../../infrastructure/agent-drivers/index.js', () => ({
+vi.mock('../../../../infrastructure/agent-drivers/index.js', () => ({
   getDriverRegistry: vi.fn(() => ({
     get: vi.fn(),
     all: vi.fn(() => []),
-    capabilities: vi.fn(),
   })),
 }));
 
-vi.mock('../../infrastructure/auth/storage.js', () => ({
+vi.mock('../../../../infrastructure/auth/storage.js', () => ({
   getSessionId: vi.fn(() => 'test-session'),
   getOtherSessionUrls: vi.fn(() => []),
 }));
 
-vi.mock('../../infrastructure/convex/client.js', () => ({
+vi.mock('../../../../infrastructure/convex/client.js', () => ({
   getConvexUrl: vi.fn(() => 'http://test:3210'),
   getConvexClient: vi.fn(),
   getConvexWsClient: vi.fn(),
 }));
 
-vi.mock('../../infrastructure/machine/index.js', () => ({
+vi.mock('../../../../infrastructure/machine/index.js', () => ({
   clearAgentPid: vi.fn(),
   getMachineId: vi.fn(() => 'test-machine'),
   listAgentEntries: vi.fn(() => []),
@@ -87,26 +73,26 @@ vi.mock('../../infrastructure/machine/index.js', () => ({
   updateAgentContext: vi.fn(),
 }));
 
-vi.mock('../../infrastructure/machine/intentional-stops.js', () => ({
+vi.mock('../../../../infrastructure/machine/intentional-stops.js', () => ({
   markIntentionalStop: vi.fn(),
   consumeIntentionalStop: vi.fn(() => false),
   clearIntentionalStop: vi.fn(),
 }));
 
-vi.mock('../../utils/error-formatting.js', () => ({
+vi.mock('../../../../utils/error-formatting.js', () => ({
   isNetworkError: vi.fn(() => false),
   formatConnectivityError: vi.fn(),
 }));
 
-vi.mock('../../version.js', () => ({
+vi.mock('../../../../version.js', () => ({
   getVersion: vi.fn(() => '1.0.0'),
 }));
 
 // ---------------------------------------------------------------------------
-// Now import the functions under test (after mocks are set up)
+// Import the function under test (after mocks are set up)
 // ---------------------------------------------------------------------------
 
-const { handleStopAgent, handleAgentCrashRecovery } = await import('./daemon-start.js');
+const { handleStopAgent } = await import('./stop-agent.js');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -170,7 +156,7 @@ function createCtx(deps: DaemonDeps): DaemonContext {
     client: {} as DaemonContext['client'],
     sessionId: 'test-session',
     machineId: 'test-machine',
-    config: null as DaemonContext['config'],
+    config: null as unknown as DaemonContext['config'],
     deps,
   };
 }
@@ -191,22 +177,8 @@ function createStopCommand(overrides?: Partial<StopAgentCommand['payload']>): St
   };
 }
 
-function createStartCommand(overrides?: Partial<StartAgentCommand['payload']>): StartAgentCommand {
-  return {
-    _id: COMMAND_ID,
-    type: 'start-agent',
-    payload: {
-      chatroomId: CHATROOM_ID,
-      role: 'builder',
-      agentHarness: 'opencode',
-      ...overrides,
-    },
-    createdAt: Date.now(),
-  };
-}
-
 // ---------------------------------------------------------------------------
-// handleStopAgent
+// Tests
 // ---------------------------------------------------------------------------
 
 describe('handleStopAgent', () => {
@@ -219,7 +191,6 @@ describe('handleStopAgent', () => {
   });
 
   it('marks intentional stop before killing the process', async () => {
-    // Backend returns a config with a running PID
     vi.mocked(deps.backend.query).mockResolvedValue({
       configs: [
         {
@@ -251,7 +222,6 @@ describe('handleStopAgent', () => {
 
     await handleStopAgent(ctx, createStopCommand());
 
-    // Should have called mutation to clear PID (updateSpawnedAgent with pid: undefined)
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       'machines.updateSpawnedAgent',
       expect.objectContaining({
@@ -261,7 +231,6 @@ describe('handleStopAgent', () => {
       })
     );
 
-    // Should have called local clearAgentPid
     expect(deps.machine.clearAgentPid).toHaveBeenCalledWith('test-machine', CHATROOM_ID, 'builder');
   });
 
@@ -279,7 +248,6 @@ describe('handleStopAgent', () => {
 
     await handleStopAgent(ctx, createStopCommand());
 
-    // Should have called participants.leave
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       'participants.leave',
       expect.objectContaining({
@@ -304,12 +272,10 @@ describe('handleStopAgent', () => {
 
     expect(result.failed).toBe(true);
     expect(result.result).toContain('No running agent found');
-    // Should NOT have marked intentional stop
     expect(deps.stops.mark).not.toHaveBeenCalled();
   });
 
   it('clears intentional stop marker when kill throws ESRCH', async () => {
-    // Create a dedicated driver mock that rejects on stop
     const driverMock = {
       harness: 'opencode' as const,
       capabilities: {} as ReturnType<typeof vi.fn>,
@@ -337,12 +303,10 @@ describe('handleStopAgent', () => {
     const result = await handleStopAgent(ctx, createStopCommand());
 
     expect(result.failed).toBe(true);
-    // Should have cleaned up the intentional stop marker
     expect(deps.stops.clear).toHaveBeenCalledWith(CHATROOM_ID, 'builder');
   });
 
   it('handles stale PID (process not alive)', async () => {
-    // Create a dedicated driver mock where isAlive returns false
     const driverMock = {
       harness: 'opencode' as const,
       capabilities: {} as ReturnType<typeof vi.fn>,
@@ -369,132 +333,7 @@ describe('handleStopAgent', () => {
 
     expect(result.failed).toBe(true);
     expect(result.result).toContain('stale');
-    // Should NOT have marked intentional stop (no SIGTERM sent)
     expect(deps.stops.mark).not.toHaveBeenCalled();
-    // Should still clear PID
     expect(deps.machine.clearAgentPid).toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// handleAgentCrashRecovery
-// ---------------------------------------------------------------------------
-
-describe('handleAgentCrashRecovery', () => {
-  let deps: DaemonDeps;
-  let ctx: DaemonContext;
-
-  beforeEach(() => {
-    deps = createMockDeps();
-    ctx = createCtx(deps);
-  });
-
-  it('clears PID from backend and local state', async () => {
-    await handleAgentCrashRecovery(ctx, createStartCommand());
-
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'machines.updateSpawnedAgent',
-      expect.objectContaining({
-        chatroomId: CHATROOM_ID,
-        role: 'builder',
-        pid: undefined,
-      })
-    );
-    expect(deps.machine.clearAgentPid).toHaveBeenCalledWith('test-machine', CHATROOM_ID, 'builder');
-  });
-
-  it('marks participant as offline (leave) then sets restarting status', async () => {
-    await handleAgentCrashRecovery(ctx, createStartCommand());
-
-    // Should call participants.leave
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'participants.leave',
-      expect.objectContaining({
-        chatroomId: CHATROOM_ID,
-        role: 'builder',
-      })
-    );
-
-    // Should set status to "restarting"
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'participants.updateAgentStatus',
-      expect.objectContaining({
-        chatroomId: CHATROOM_ID,
-        role: 'builder',
-        status: 'restarting',
-      })
-    );
-  });
-
-  it('uses clock.delay between restart attempts', async () => {
-    await handleAgentCrashRecovery(ctx, createStartCommand());
-
-    // CRASH_RESTART_DELAY_MS is mocked to 0, but delay should still be called
-    expect(deps.clock.delay).toHaveBeenCalled();
-  });
-
-  it('sets dead_failed_revive after all restart attempts fail', async () => {
-    // All restart attempts will fail because getAgentContext returns null
-    // (handleStartAgent will fail with "No agent context found")
-
-    await handleAgentCrashRecovery(ctx, createStartCommand());
-
-    // Should set status to "dead_failed_revive" after all attempts
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'participants.updateAgentStatus',
-      expect.objectContaining({
-        chatroomId: CHATROOM_ID,
-        role: 'builder',
-        status: 'dead_failed_revive',
-      })
-    );
-  });
-
-  it('does not set dead_failed_revive if a restart attempt succeeds', async () => {
-    // Make restart succeed by providing agent context and a successful driver start
-    vi.mocked(deps.machine.getAgentContext).mockReturnValue({
-      agentType: 'opencode',
-      workingDir: '/tmp/test',
-      lastStartedAt: new Date().toISOString(),
-    });
-
-    // Create a persistent driver mock with successful start
-    const driverMock = {
-      harness: 'opencode' as const,
-      capabilities: {} as ReturnType<typeof vi.fn>,
-      start: vi.fn().mockResolvedValue({
-        success: true,
-        message: 'Agent started',
-        handle: {
-          harness: 'opencode',
-          type: 'process',
-          pid: 5678,
-          workingDir: '/tmp/test',
-        },
-      }),
-      stop: vi.fn(),
-      isAlive: vi.fn().mockResolvedValue(true),
-      recover: vi.fn(),
-      listModels: vi.fn(),
-    };
-    vi.mocked(deps.drivers.get).mockReturnValue(driverMock as never);
-
-    // Mock init prompt
-    vi.mocked(deps.backend.query).mockResolvedValue({
-      prompt: 'test prompt',
-      rolePrompt: 'test role prompt',
-      initialMessage: 'test initial message',
-    });
-
-    await handleAgentCrashRecovery(ctx, createStartCommand());
-
-    // Should NOT have called with dead_failed_revive
-    const deadCalls = vi
-      .mocked(deps.backend.mutation)
-      .mock.calls.filter(
-        (call) =>
-          call[0] === 'participants.updateAgentStatus' && call[1]?.status === 'dead_failed_revive'
-      );
-    expect(deadCalls).toHaveLength(0);
   });
 });
