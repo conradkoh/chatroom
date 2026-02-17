@@ -32,6 +32,11 @@ import {
   persistAgentPid,
   updateAgentContext,
 } from '../../infrastructure/machine/index.js';
+import {
+  markIntentionalStop,
+  consumeIntentionalStop,
+  clearIntentionalStop,
+} from '../../infrastructure/machine/intentional-stops.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
 import { getVersion } from '../../version.js';
 
@@ -571,15 +576,23 @@ async function handleStartAgent(
         console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
       }
 
-      // Monitor for unexpected process death.
-      // When the spawned agent exits:
-      // 1. Clear PID so UI reflects agent as stopped
-      // 2. Mark agent offline (participants.leave) so tasks can be recovered
-      // 3. Auto-restart with retry logic (up to MAX_CRASH_RESTART_ATTEMPTS)
+      // Monitor for process exit.
+      // On exit, check whether this was an intentional stop (from handleStopAgent)
+      // or an unexpected crash. Only run crash recovery for unexpected exits.
       if (startResult.onExit) {
         const spawnedPid = startResult.handle.pid;
         startResult.onExit((code, signal) => {
           const ts = formatTimestamp();
+
+          if (consumeIntentionalStop(chatroomId, role)) {
+            // Intentional stop — skip crash recovery
+            console.log(
+              `[${ts}] ℹ️  Agent process exited after intentional stop ` +
+                `(PID: ${spawnedPid}, role: ${role}, code: ${code}, signal: ${signal})`
+            );
+            return;
+          }
+
           console.log(
             `[${ts}] ⚠️  Agent process exited unexpectedly ` +
               `(PID: ${spawnedPid}, role: ${role}, code: ${code}, signal: ${signal})`
@@ -676,6 +689,9 @@ async function handleStopAgent(
   }
 
   try {
+    // Mark this stop as intentional so the onExit handler skips crash recovery
+    markIntentionalStop(chatroomId, role);
+
     // Use the driver to stop the agent (sends SIGTERM for process-based drivers)
     if (stopDriver) {
       await stopDriver.stop(stopHandle);
@@ -704,6 +720,10 @@ async function handleStopAgent(
 
     return { result: msg, failed: false };
   } catch (e) {
+    // Clean up intentional stop marker on failure — the onExit handler
+    // may not fire (ESRCH) or the stop failed for another reason
+    clearIntentionalStop(chatroomId, role);
+
     const err = e as NodeJS.ErrnoException;
     if (err.code === 'ESRCH') {
       await clearAgentPidEverywhere(ctx, chatroomId, role);
@@ -1014,7 +1034,9 @@ async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
       const AGENT_SHUTDOWN_TIMEOUT_MS = 5_000;
 
-      for (const { role, entry } of agents) {
+      for (const { chatroomId, role, entry } of agents) {
+        // Mark as intentional so crash recovery is skipped
+        markIntentionalStop(chatroomId, role);
         try {
           // Send SIGTERM for graceful shutdown
           process.kill(entry.pid, 'SIGTERM');

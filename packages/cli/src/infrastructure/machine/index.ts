@@ -24,3 +24,12 @@ export {
   listAgentEntries,
   persistAgentPid,
 } from './daemon-state.js';
+
+// Intentional stop tracking (in-memory, volatile)
+export {
+  markIntentionalStop,
+  consumeIntentionalStop,
+  clearIntentionalStop,
+  isMarkedForIntentionalStop,
+  resetIntentionalStops,
+} from './intentional-stops.js';
