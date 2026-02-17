@@ -30,23 +30,23 @@ EOF
 
 ## Migration Order
 
-| # | Command | Status | Notes |
+| # | Command | Status | Tests |
 |---|---------|--------|-------|
-| 1 | task-started | pending | Core workflow, validation paths, 2 Convex mutations |
-| 2 | handoff | pending | Core workflow, artifact validation, ConvexError handling |
-| 3 | task-complete | pending | Core workflow, ConvexError handling |
-| 4 | report-progress | pending | Similar to task-complete |
-| 5 | context | pending | Multiple subcommands (read/new/list/inspect) |
-| 6 | backlog | pending | Largest file (728 lines), many subcommands |
-| 7 | messages | pending | Medium complexity |
-| 8 | artifact | pending | File I/O + API calls |
-| 9 | register-agent | pending | Simpler API command |
-| 10 | auth-login | pending | Browser auth flow |
-| 11 | auth-logout | pending | Trivial |
-| 12 | auth-status | pending | Small |
-| 13 | guidelines | pending | Small |
-| 14 | update | pending | Small |
-| 15 | opencode-install | pending | Complex but non-critical |
+| 1 | task-started | done | 8 tests |
+| 2 | handoff | done | 5 tests |
+| 3 | task-complete | done | 6 tests |
+| 4 | report-progress | done | 4 tests |
+| 5 | context | done | 7 tests |
+| 6 | backlog | done | 9 tests |
+| 7 | messages | done | 6 tests |
+| 8 | artifact | done | 9 tests |
+| 9 | register-agent | done | 6 tests |
+| 10 | auth-login | done | deps only (browser auth hard to test) |
+| 11 | auth-logout | done | 3 tests |
+| 12 | auth-status | done | 5 tests |
+| 13 | guidelines | done | 7 tests |
+| 14 | update | done | 5 tests |
+| 15 | opencode-install | done | 4 tests |
 
 ## Shared Interfaces (already exist in infrastructure/deps/)
 
