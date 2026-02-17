@@ -70,7 +70,10 @@ export function formatChatroomIdError(chatroomId: string | undefined): void {
  */
 export function isNetworkError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-  const code = (error as { code?: string })?.code;
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? (error as { code: string }).code
+      : undefined;
   return (
     msg.includes('fetch failed') ||
     msg.includes('failed to fetch') ||

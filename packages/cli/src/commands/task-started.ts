@@ -204,10 +204,10 @@ export async function taskStarted(chatroomId: string, options: TaskStartedOption
     }
 
     // Check if this is a Convex error with more details
-    if (typeof error === 'object' && error !== null) {
-      const errObj = error as any;
-      if (errObj.data) {
-        console.error(`   Server details:`, JSON.stringify(errObj.data, null, 2));
+    if (typeof error === 'object' && error !== null && 'data' in error) {
+      const errData = (error as { data: unknown }).data;
+      if (errData) {
+        console.error(`   Server details:`, JSON.stringify(errData, null, 2));
       }
     }
 
