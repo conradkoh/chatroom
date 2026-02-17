@@ -5,6 +5,7 @@
 
 import type { SessionId } from 'convex-helpers/server/sessions';
 
+import type { AuthLoginDeps } from './deps.js';
 import { api } from '../../api.js';
 import {
   saveAuthData,
@@ -27,42 +28,7 @@ interface AuthLoginOptions {
 }
 
 /**
- * Get the webapp URL for the auth page
- *
- * For production Convex URL, uses production webapp.
- * For non-production Convex URL, requires CHATROOM_WEB_URL to be set explicitly.
- */
-function getWebAppUrl(): string {
-  const convexUrl = getConvexUrl();
-
-  // Production Convex → Production webapp
-  if (convexUrl === PRODUCTION_CONVEX_URL) {
-    return PRODUCTION_WEBAPP_URL;
-  }
-
-  // Non-production: require explicit CHATROOM_WEB_URL
-  const webAppUrlOverride = process.env.CHATROOM_WEB_URL;
-  if (webAppUrlOverride) {
-    return webAppUrlOverride;
-  }
-
-  // Error: non-production Convex URL without CHATROOM_WEB_URL
-  console.error(`\n${'═'.repeat(50)}`);
-  console.error(`❌ CHATROOM_WEB_URL Required`);
-  console.error(`${'═'.repeat(50)}`);
-  console.error(`\nYou are using a non-production Convex backend:`);
-  console.error(`   CHATROOM_CONVEX_URL=${convexUrl}`);
-  console.error(`\nTo authenticate with a local/dev backend, you must also set`);
-  console.error(`the webapp URL where the auth page is hosted:`);
-  console.error(`\n   CHATROOM_WEB_URL=http://localhost:3000 \\`);
-  console.error(`   CHATROOM_CONVEX_URL=${convexUrl} \\`);
-  console.error(`   chatroom auth login`);
-  console.error(`\n${'═'.repeat(50)}\n`);
-  process.exit(1);
-}
-
-/**
- * Open URL in the default browser
+ * Open URL in the default browser (production implementation)
  */
 async function openBrowser(url: string): Promise<void> {
   const { spawn } = await import('node:child_process');
@@ -88,20 +54,94 @@ async function openBrowser(url: string): Promise<void> {
   }
 }
 
-export async function authLogin(options: AuthLoginOptions): Promise<void> {
+/**
+ * Create the default production dependencies.
+ */
+export function createDefaultDeps(): AuthLoginDeps {
+  return {
+    backend: {
+      mutation: async (endpoint, args) => {
+        const client = await getConvexClient();
+        return client.mutation(endpoint, args);
+      },
+      query: async (endpoint, args) => {
+        const client = await getConvexClient();
+        return client.query(endpoint, args);
+      },
+    },
+    auth: {
+      isAuthenticated,
+      getAuthFilePath,
+      saveAuthData,
+      getDeviceName,
+      getCliVersion,
+    },
+    browser: {
+      open: openBrowser,
+    },
+    clock: {
+      now: () => Date.now(),
+      delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    },
+    process: {
+      env: process.env as Record<string, string | undefined>,
+      platform: process.platform,
+      exit: (code) => process.exit(code),
+      stdoutWrite: (text) => process.stdout.write(text),
+    },
+  };
+}
+
+/**
+ * Get the webapp URL for the auth page.
+ *
+ * For production Convex URL, uses production webapp.
+ * For non-production Convex URL, requires CHATROOM_WEB_URL to be set explicitly.
+ */
+export function getWebAppUrl(d: AuthLoginDeps): string {
+  const convexUrl = getConvexUrl();
+
+  // Production Convex → Production webapp
+  if (convexUrl === PRODUCTION_CONVEX_URL) {
+    return PRODUCTION_WEBAPP_URL;
+  }
+
+  // Non-production: require explicit CHATROOM_WEB_URL
+  const webAppUrlOverride = d.process.env.CHATROOM_WEB_URL;
+  if (webAppUrlOverride) {
+    return webAppUrlOverride;
+  }
+
+  // Error: non-production Convex URL without CHATROOM_WEB_URL
+  console.error(`\n${'═'.repeat(50)}`);
+  console.error(`❌ CHATROOM_WEB_URL Required`);
+  console.error(`${'═'.repeat(50)}`);
+  console.error(`\nYou are using a non-production Convex backend:`);
+  console.error(`   CHATROOM_CONVEX_URL=${convexUrl}`);
+  console.error(`\nTo authenticate with a local/dev backend, you must also set`);
+  console.error(`the webapp URL where the auth page is hosted:`);
+  console.error(`\n   CHATROOM_WEB_URL=http://localhost:3000 \\`);
+  console.error(`   CHATROOM_CONVEX_URL=${convexUrl} \\`);
+  console.error(`   chatroom auth login`);
+  console.error(`\n${'═'.repeat(50)}\n`);
+  d.process.exit(1);
+  return ''; // unreachable in production, needed for type safety in tests
+}
+
+export async function authLogin(options: AuthLoginOptions, deps?: AuthLoginDeps): Promise<void> {
+  const d = deps ?? createDefaultDeps();
+
   // Check if already authenticated
-  if (isAuthenticated() && !options.force) {
+  if (d.auth.isAuthenticated() && !options.force) {
     console.log(`✅ Already authenticated.`);
-    console.log(`   Auth file: ${getAuthFilePath()}`);
+    console.log(`   Auth file: ${d.auth.getAuthFilePath()}`);
     console.log(`\n   Use --force to re-authenticate.`);
     return;
   }
 
-  const client = await getConvexClient();
-
   // Get device info
-  const deviceName = getDeviceName();
-  const cliVersion = getCliVersion();
+  const deviceName = d.auth.getDeviceName();
+  const cliVersion = d.auth.getCliVersion();
 
   // Get the Convex URL being used
   const convexUrl = getConvexUrl();
@@ -121,20 +161,20 @@ export async function authLogin(options: AuthLoginOptions): Promise<void> {
   // Create auth request
   console.log(`\n⏳ Creating authentication request...`);
 
-  const result = await client.mutation(api.cliAuth.createAuthRequest, {
+  const result = await d.backend.mutation(api.cliAuth.createAuthRequest, {
     deviceName,
     cliVersion,
   });
 
   const { requestId, expiresAt } = result;
-  const expiresInSeconds = Math.round((expiresAt - Date.now()) / 1000);
+  const expiresInSeconds = Math.round((expiresAt - d.clock.now()) / 1000);
 
   console.log(`\n✅ Auth request created`);
   console.log(`   Request ID: ${requestId.substring(0, 8)}...`);
   console.log(`   Expires in: ${expiresInSeconds} seconds`);
 
   // Get the webapp URL (reads from .env.local PORT or uses defaults)
-  const webAppUrl = getWebAppUrl();
+  const webAppUrl = getWebAppUrl(d);
 
   // The auth page should be at /cli-auth
   const authUrl = `${webAppUrl}/cli-auth?request=${requestId}`;
@@ -148,26 +188,30 @@ export async function authLogin(options: AuthLoginOptions): Promise<void> {
   console.log(`\n${'─'.repeat(50)}`);
 
   // Open browser
-  await openBrowser(authUrl);
+  await d.browser.open(authUrl);
 
   // Poll for approval
   console.log(`\n⏳ Waiting for authorization...`);
   console.log(`   (Press Ctrl+C to cancel)\n`);
 
   let pollCount = 0;
-  const maxPolls = Math.ceil((expiresAt - Date.now()) / AUTH_POLL_INTERVAL_MS);
+  const maxPolls = Math.ceil((expiresAt - d.clock.now()) / AUTH_POLL_INTERVAL_MS);
 
-  const poll = async (): Promise<boolean> => {
+  // Poll result: 'continue' to keep polling, 'done' to stop successfully,
+  // 'exit' to stop due to denial/expiry/error-exit.
+  type PollResult = 'continue' | 'done' | 'exit';
+
+  const poll = async (): Promise<PollResult> => {
     pollCount++;
 
     try {
-      const status = await client.query(api.cliAuth.getAuthRequestStatus, {
+      const status = await d.backend.query(api.cliAuth.getAuthRequestStatus, {
         requestId,
       });
 
       if (status.status === 'approved' && status.sessionId) {
         // Success! Save the session
-        saveAuthData({
+        d.auth.saveAuthData({
           sessionId: status.sessionId as SessionId,
           createdAt: new Date().toISOString(),
           deviceName,
@@ -177,46 +221,49 @@ export async function authLogin(options: AuthLoginOptions): Promise<void> {
         console.log(`\n${'═'.repeat(50)}`);
         console.log(`✅ AUTHENTICATION SUCCESSFUL`);
         console.log(`${'═'.repeat(50)}`);
-        console.log(`\nSession stored at: ${getAuthFilePath()}`);
+        console.log(`\nSession stored at: ${d.auth.getAuthFilePath()}`);
         console.log(`\nYou can now use chatroom commands.`);
-        return true;
+        return 'done';
       }
 
       if (status.status === 'denied') {
         console.log(`\n❌ Authorization denied by user.`);
-        process.exit(1);
+        d.process.exit(1);
+        return 'exit';
       }
 
       if (status.status === 'expired' || status.status === 'not_found') {
         console.log(`\n❌ Authorization request expired.`);
         console.log(`   Please try again: chatroom auth login`);
-        process.exit(1);
+        d.process.exit(1);
+        return 'exit';
       }
 
       // Still pending
       if (pollCount % 5 === 0) {
-        const remainingSeconds = Math.round((expiresAt - Date.now()) / 1000);
-        process.stdout.write(`\r   Waiting... (${remainingSeconds}s remaining)   `);
+        const remainingSeconds = Math.round((expiresAt - d.clock.now()) / 1000);
+        d.process.stdoutWrite(`\r   Waiting... (${remainingSeconds}s remaining)   `);
       }
 
       if (pollCount >= maxPolls) {
         console.log(`\n❌ Authorization request expired.`);
         console.log(`   Please try again: chatroom auth login`);
-        process.exit(1);
+        d.process.exit(1);
+        return 'exit';
       }
 
-      return false;
+      return 'continue';
     } catch (error) {
       const err = error as Error;
       console.error(`\n⚠️  Error polling for authorization: ${err.message}`);
-      return false;
+      return 'continue';
     }
   };
 
   // Start polling loop
   while (true) {
-    const success = await poll();
-    if (success) break;
-    await new Promise((resolve) => setTimeout(resolve, AUTH_POLL_INTERVAL_MS));
+    const result = await poll();
+    if (result === 'done' || result === 'exit') break;
+    await d.clock.delay(AUTH_POLL_INTERVAL_MS);
   }
 }
