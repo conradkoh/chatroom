@@ -13,6 +13,7 @@ import {
   MAX_CRASH_RESTART_ATTEMPTS,
 } from '@workspace/backend/config/reliability.js';
 
+import type { DaemonDeps } from './daemon-deps.js';
 import { acquireLock, releaseLock } from './pid.js';
 import { api, type Id } from '../../api.js';
 import { getDriverRegistry } from '../../infrastructure/agent-drivers/index.js';
@@ -69,7 +70,7 @@ interface MachineCommandBase {
  * Start an agent process in a chatroom.
  * Requires chatroomId, role, and agentHarness. Model and workingDir are optional.
  */
-interface StartAgentCommand extends MachineCommandBase {
+export interface StartAgentCommand extends MachineCommandBase {
   type: 'start-agent';
   payload: {
     chatroomId: Id<'chatroom_rooms'>;
@@ -84,7 +85,7 @@ interface StartAgentCommand extends MachineCommandBase {
  * Stop a running agent process in a chatroom.
  * Requires chatroomId and role to identify the target agent.
  */
-interface StopAgentCommand extends MachineCommandBase {
+export interface StopAgentCommand extends MachineCommandBase {
   type: 'stop-agent';
   payload: {
     chatroomId: Id<'chatroom_rooms'>;
@@ -134,17 +135,67 @@ interface RawMachineCommand {
 }
 
 /** Result returned by individual command handlers. */
-interface CommandResult {
+export interface CommandResult {
   result: string;
   failed: boolean;
 }
 
 /** Shared context passed to all command handlers. */
-interface DaemonContext {
+export interface DaemonContext {
   client: ConvexClient;
   sessionId: SessionId;
   machineId: string;
   config: MachineConfig;
+  deps: DaemonDeps;
+}
+
+// ─── Default Dependencies ────────────────────────────────────────────────────
+
+/**
+ * Create production dependency implementations wiring to real infrastructure.
+ * This factory uses the module-level imports already available in this file.
+ */
+function createDefaultDeps(): DaemonDeps {
+  const registry = getDriverRegistry();
+
+  return {
+    backend: {
+      // Placeholder — initDaemon() binds the real client after connecting.
+      mutation: async () => {
+        throw new Error('Backend not initialized');
+      },
+      query: async () => {
+        throw new Error('Backend not initialized');
+      },
+    },
+    processes: {
+      kill: (pid, signal) => process.kill(pid, signal),
+      verifyPidOwnership,
+    },
+    drivers: {
+      get: (harness) => registry.get(harness),
+      all: () => registry.all(),
+    },
+    fs: {
+      stat,
+    },
+    stops: {
+      mark: markIntentionalStop,
+      consume: consumeIntentionalStop,
+      clear: clearIntentionalStop,
+    },
+    machine: {
+      clearAgentPid,
+      persistAgentPid,
+      listAgentEntries,
+      getAgentContext,
+      updateAgentContext,
+    },
+    clock: {
+      now: () => Date.now(),
+      delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    },
+  };
 }
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
@@ -269,7 +320,7 @@ async function clearAgentPidEverywhere(
   role: string
 ): Promise<void> {
   try {
-    await ctx.client.mutation(api.machines.updateSpawnedAgent, {
+    await ctx.deps.backend.mutation(api.machines.updateSpawnedAgent, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       chatroomId,
@@ -279,7 +330,7 @@ async function clearAgentPidEverywhere(
   } catch (e) {
     console.log(`   ⚠️  Failed to clear PID in backend: ${(e as Error).message}`);
   }
-  clearAgentPid(ctx.machineId, chatroomId, role);
+  ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
 }
 
 // ─── Crash Recovery ─────────────────────────────────────────────────────────
@@ -293,7 +344,7 @@ async function clearAgentPidEverywhere(
  *
  * If restart fails after MAX_CRASH_RESTART_ATTEMPTS, logs a warning and stops.
  */
-async function handleAgentCrashRecovery(
+export async function handleAgentCrashRecovery(
   ctx: DaemonContext,
   originalCommand: StartAgentCommand
 ): Promise<void> {
@@ -315,7 +366,7 @@ async function handleAgentCrashRecovery(
   //    status, which the FSM cleanup handles after STALE_FSM_RECORD_TTL_MS (10 min)
   //    if the restart fails silently
   try {
-    await ctx.client.mutation(api.participants.leave, {
+    await ctx.deps.backend.mutation(api.participants.leave, {
       sessionId: ctx.sessionId,
       chatroomId,
       role,
@@ -332,7 +383,7 @@ async function handleAgentCrashRecovery(
   // This record has no readyUntil/activeUntil, so the stale-expiration logic won't
   // catch it — the FSM cleanup (STALE_FSM_RECORD_TTL_MS) handles it instead.
   try {
-    await ctx.client.mutation(api.participants.updateAgentStatus, {
+    await ctx.deps.backend.mutation(api.participants.updateAgentStatus, {
       sessionId: ctx.sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
@@ -356,7 +407,7 @@ async function handleAgentCrashRecovery(
     console.log(`[${attemptTs}]    Restart attempt ${attempt}/${MAX_CRASH_RESTART_ATTEMPTS}...`);
 
     // Wait before restart to avoid tight restart loops
-    await new Promise((resolve) => setTimeout(resolve, CRASH_RESTART_DELAY_MS));
+    await ctx.deps.clock.delay(CRASH_RESTART_DELAY_MS);
 
     try {
       const result = await handleStartAgent(ctx, originalCommand);
@@ -381,7 +432,7 @@ async function handleAgentCrashRecovery(
   );
 
   try {
-    await ctx.client.mutation(api.participants.updateAgentStatus, {
+    await ctx.deps.backend.mutation(api.participants.updateAgentStatus, {
       sessionId: ctx.sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
@@ -410,7 +461,7 @@ async function handleAgentCrashRecovery(
  * This runs once on daemon startup before command processing begins.
  */
 async function recoverAgentState(ctx: DaemonContext): Promise<void> {
-  const entries = listAgentEntries(ctx.machineId);
+  const entries = ctx.deps.machine.listAgentEntries(ctx.machineId);
 
   if (entries.length === 0) {
     console.log(`   No agent entries found — nothing to recover`);
@@ -422,7 +473,7 @@ async function recoverAgentState(ctx: DaemonContext): Promise<void> {
 
   for (const { chatroomId, role, entry } of entries) {
     const { pid, harness } = entry;
-    const alive = verifyPidOwnership(pid, harness);
+    const alive = ctx.deps.processes.verifyPidOwnership(pid, harness);
 
     if (alive) {
       console.log(`   ✅ Recovered: ${role} (PID ${pid}, harness: ${harness})`);
@@ -480,14 +531,14 @@ async function handleStartAgent(
   // Get agent context for working directory.
   // First try local config, then fall back to workingDir from the command payload
   // (which the backend resolves from chatroom_machineAgentConfigs).
-  let agentContext = getAgentContext(chatroomId, role);
+  let agentContext = ctx.deps.machine.getAgentContext(chatroomId, role);
 
   if (!agentContext && workingDir) {
     // No local context — use the working directory from the command payload
     // and update the local config so future commands don't need this fallback
     console.log(`   No local agent context, using workingDir from command payload`);
-    updateAgentContext(chatroomId, role, agentHarness, workingDir);
-    agentContext = getAgentContext(chatroomId, role);
+    ctx.deps.machine.updateAgentContext(chatroomId, role, agentHarness, workingDir);
+    agentContext = ctx.deps.machine.getAgentContext(chatroomId, role);
   }
 
   if (!agentContext) {
@@ -502,7 +553,7 @@ async function handleStartAgent(
   // using fs.stat (not a shell command) to prevent path-based attacks.
   // This is defense-in-depth alongside the backend's character validation.
   try {
-    const dirStat = await stat(agentContext.workingDir);
+    const dirStat = await ctx.deps.fs.stat(agentContext.workingDir);
     if (!dirStat.isDirectory()) {
       const msg = `Working directory is not a directory: ${agentContext.workingDir}`;
       console.log(`   ⚠️  ${msg}`);
@@ -516,7 +567,7 @@ async function handleStartAgent(
 
   // Fetch split init prompt from backend (single source of truth)
   const convexUrl = getConvexUrl();
-  const initPromptResult = await ctx.client.query(api.messages.getInitPrompt, {
+  const initPromptResult = await ctx.deps.backend.query(api.messages.getInitPrompt, {
     sessionId: ctx.sessionId,
     chatroomId,
     role,
@@ -535,10 +586,9 @@ async function handleStartAgent(
   const harnessVersion = ctx.config?.harnessVersions?.[agentHarness];
 
   // Resolve driver from registry and start the agent
-  const registry = getDriverRegistry();
   let driver;
   try {
-    driver = registry.get(agentHarness);
+    driver = ctx.deps.drivers.get(agentHarness);
   } catch {
     const msg = `No driver registered for harness: ${agentHarness}`;
     console.log(`   ⚠️  ${msg}`);
@@ -560,7 +610,7 @@ async function handleStartAgent(
     // Update backend with spawned agent PID and persist locally
     if (startResult.handle.pid) {
       try {
-        await ctx.client.mutation(api.machines.updateSpawnedAgent, {
+        await ctx.deps.backend.mutation(api.machines.updateSpawnedAgent, {
           sessionId: ctx.sessionId,
           machineId: ctx.machineId,
           chatroomId,
@@ -571,7 +621,13 @@ async function handleStartAgent(
         console.log(`   Updated backend with PID: ${startResult.handle.pid}`);
 
         // Persist PID locally for daemon restart recovery
-        persistAgentPid(ctx.machineId, chatroomId, role, startResult.handle.pid, agentHarness);
+        ctx.deps.machine.persistAgentPid(
+          ctx.machineId,
+          chatroomId,
+          role,
+          startResult.handle.pid,
+          agentHarness
+        );
       } catch (e) {
         console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
       }
@@ -584,7 +640,7 @@ async function handleStartAgent(
         startResult.onExit((code, signal) => {
           const ts = formatTimestamp();
 
-          if (consumeIntentionalStop(chatroomId, role)) {
+          if (ctx.deps.stops.consume(chatroomId, role)) {
             // Intentional stop — skip crash recovery
             console.log(
               `[${ts}] ℹ️  Agent process exited after intentional stop ` +
@@ -614,7 +670,7 @@ async function handleStartAgent(
 /**
  * Handle a stop-agent command — stops a running agent process.
  */
-async function handleStopAgent(
+export async function handleStopAgent(
   ctx: DaemonContext,
   command: StopAgentCommand
 ): Promise<CommandResult> {
@@ -624,7 +680,14 @@ async function handleStopAgent(
   console.log(`      Role: ${role}`);
 
   // Query the backend for the current PID (single source of truth)
-  const configsResult = await ctx.client.query(api.machines.getAgentConfigs, {
+  const configsResult: {
+    configs: {
+      machineId: string;
+      role: string;
+      spawnedAgentPid?: number;
+      agentType?: string;
+    }[];
+  } = await ctx.deps.backend.query(api.machines.getAgentConfigs, {
     sessionId: ctx.sessionId,
     chatroomId,
   });
@@ -652,10 +715,9 @@ async function handleStopAgent(
   };
 
   // Resolve the driver for this harness (for isAlive/stop)
-  const registry = getDriverRegistry();
   let stopDriver;
   try {
-    stopDriver = agentHarness ? registry.get(agentHarness) : null;
+    stopDriver = agentHarness ? ctx.deps.drivers.get(agentHarness) : null;
   } catch {
     stopDriver = null;
   }
@@ -663,7 +725,7 @@ async function handleStopAgent(
   // Verify the PID is still alive via the driver (or fallback to verifyPidOwnership)
   const isAlive = stopDriver
     ? await stopDriver.isAlive(stopHandle)
-    : verifyPidOwnership(pidToKill, agentHarness);
+    : ctx.deps.processes.verifyPidOwnership(pidToKill, agentHarness);
 
   if (!isAlive) {
     console.log(`   ⚠️  PID ${pidToKill} does not appear to belong to the expected agent`);
@@ -672,7 +734,7 @@ async function handleStopAgent(
 
     // Remove the participant so the UI no longer shows "Ready"
     try {
-      await ctx.client.mutation(api.participants.leave, {
+      await ctx.deps.backend.mutation(api.participants.leave, {
         sessionId: ctx.sessionId,
         chatroomId,
         role,
@@ -690,14 +752,14 @@ async function handleStopAgent(
 
   try {
     // Mark this stop as intentional so the onExit handler skips crash recovery
-    markIntentionalStop(chatroomId, role);
+    ctx.deps.stops.mark(chatroomId, role);
 
     // Use the driver to stop the agent (sends SIGTERM for process-based drivers)
     if (stopDriver) {
       await stopDriver.stop(stopHandle);
     } else {
       // Fallback: direct SIGTERM if no driver available
-      process.kill(pidToKill, 'SIGTERM');
+      ctx.deps.processes.kill(pidToKill, 'SIGTERM');
     }
 
     const msg = `Agent stopped (PID: ${pidToKill})`;
@@ -707,7 +769,7 @@ async function handleStopAgent(
 
     // Remove the participant so the UI no longer shows "Ready"
     try {
-      await ctx.client.mutation(api.participants.leave, {
+      await ctx.deps.backend.mutation(api.participants.leave, {
         sessionId: ctx.sessionId,
         chatroomId,
         role,
@@ -722,14 +784,14 @@ async function handleStopAgent(
   } catch (e) {
     // Clean up intentional stop marker on failure — the onExit handler
     // may not fire (ESRCH) or the stop failed for another reason
-    clearIntentionalStop(chatroomId, role);
+    ctx.deps.stops.clear(chatroomId, role);
 
     const err = e as NodeJS.ErrnoException;
     if (err.code === 'ESRCH') {
       await clearAgentPidEverywhere(ctx, chatroomId, role);
       // Remove the participant so the UI no longer shows "Ready"
       try {
-        await ctx.client.mutation(api.participants.leave, {
+        await ctx.deps.backend.mutation(api.participants.leave, {
           sessionId: ctx.sessionId,
           chatroomId,
           role,
@@ -758,7 +820,7 @@ async function processCommand(ctx: DaemonContext, command: MachineCommand): Prom
 
   try {
     // Mark as processing
-    await ctx.client.mutation(api.machines.ackCommand, {
+    await ctx.deps.backend.mutation(api.machines.ackCommand, {
       sessionId: ctx.sessionId,
       commandId: command._id,
       status: 'processing',
@@ -792,7 +854,7 @@ async function processCommand(ctx: DaemonContext, command: MachineCommand): Prom
 
     // Ack result back to backend
     const finalStatus = commandResult.failed ? 'failed' : 'completed';
-    await ctx.client.mutation(api.machines.ackCommand, {
+    await ctx.deps.backend.mutation(api.machines.ackCommand, {
       sessionId: ctx.sessionId,
       commandId: command._id,
       status: finalStatus,
@@ -809,7 +871,7 @@ async function processCommand(ctx: DaemonContext, command: MachineCommand): Prom
 
     // Mark as failed
     try {
-      await ctx.client.mutation(api.machines.ackCommand, {
+      await ctx.deps.backend.mutation(api.machines.ackCommand, {
         sessionId: ctx.sessionId,
         commandId: command._id,
         status: 'failed',
@@ -856,7 +918,7 @@ async function refreshModels(ctx: DaemonContext): Promise<void> {
   if (!ctx.config) return;
 
   try {
-    await ctx.client.mutation(api.machines.register, {
+    await ctx.deps.backend.mutation(api.machines.register, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
       hostname: ctx.config.hostname,
@@ -965,7 +1027,12 @@ async function initDaemon(): Promise<DaemonContext> {
     process.exit(1);
   }
 
-  const ctx: DaemonContext = { client, sessionId: typedSessionId, machineId, config };
+  // Create default dependencies and bind the real Convex client
+  const deps = createDefaultDeps();
+  deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
+  deps.backend.query = (endpoint, args) => client.query(endpoint, args);
+
+  const ctx: DaemonContext = { client, sessionId: typedSessionId, machineId, config, deps };
 
   console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
   console.log(`   CLI version: ${getVersion()}`);
@@ -1003,7 +1070,7 @@ async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // will mark the daemon as disconnected after DAEMON_HEARTBEAT_TTL_MS.
   let heartbeatCount = 0;
   const heartbeatTimer = setInterval(() => {
-    ctx.client
+    ctx.deps.backend
       .mutation(api.machines.daemonHeartbeat, {
         sessionId: ctx.sessionId,
         machineId: ctx.machineId,
@@ -1028,7 +1095,7 @@ async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
     // ── Graceful Agent Cleanup ──────────────────────────────────────────
     // Stop all tracked agent processes so they don't become orphans.
-    const agents = listAgentEntries(ctx.machineId);
+    const agents = ctx.deps.machine.listAgentEntries(ctx.machineId);
     if (agents.length > 0) {
       console.log(`[${formatTimestamp()}] Stopping ${agents.length} agent(s)...`);
 
@@ -1036,10 +1103,10 @@ async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
       for (const { chatroomId, role, entry } of agents) {
         // Mark as intentional so crash recovery is skipped
-        markIntentionalStop(chatroomId, role);
+        ctx.deps.stops.mark(chatroomId, role);
         try {
           // Send SIGTERM for graceful shutdown
-          process.kill(entry.pid, 'SIGTERM');
+          ctx.deps.processes.kill(entry.pid, 'SIGTERM');
           console.log(`   Sent SIGTERM to ${role} (PID ${entry.pid})`);
         } catch {
           // Process already dead — nothing to do
@@ -1048,21 +1115,21 @@ async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       }
 
       // Wait briefly for agents to exit, then force-kill stragglers
-      await new Promise((resolve) => setTimeout(resolve, AGENT_SHUTDOWN_TIMEOUT_MS));
+      await ctx.deps.clock.delay(AGENT_SHUTDOWN_TIMEOUT_MS);
 
       for (const { chatroomId, role, entry } of agents) {
         try {
           // Check if still alive (signal 0 = existence check)
-          process.kill(entry.pid, 0);
+          ctx.deps.processes.kill(entry.pid, 0);
           // Still alive after grace period — force kill
-          process.kill(entry.pid, 'SIGKILL');
+          ctx.deps.processes.kill(entry.pid, 'SIGKILL');
           console.log(`   Force-killed ${role} (PID ${entry.pid})`);
         } catch {
           // Process exited cleanly — good
         }
 
         // Clear PID from local state
-        clearAgentPid(ctx.machineId, chatroomId, role);
+        ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
       }
 
       console.log(`[${formatTimestamp()}] All agents stopped`);
@@ -1070,7 +1137,7 @@ async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
     try {
       // Update daemon status to disconnected
-      await ctx.client.mutation(api.machines.updateDaemonStatus, {
+      await ctx.deps.backend.mutation(api.machines.updateDaemonStatus, {
         sessionId: ctx.sessionId,
         machineId: ctx.machineId,
         connected: false,
@@ -1147,7 +1214,7 @@ async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         } else {
           // Ack invalid commands as failed so they don't stay pending forever
           try {
-            await ctx.client.mutation(api.machines.ackCommand, {
+            await ctx.deps.backend.mutation(api.machines.ackCommand, {
               sessionId: ctx.sessionId,
               commandId: raw._id,
               status: 'failed',
