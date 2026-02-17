@@ -2,9 +2,16 @@
  * Backlog commands for managing task queue and backlog
  */
 
+import type { BacklogDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
-import { getSessionId } from '../../infrastructure/auth/storage.js';
-import { getConvexClient } from '../../infrastructure/convex/client.js';
+import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
+import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+
+// ─── Re-exports ────────────────────────────────────────────────────────────
+
+export type { BacklogDeps } from './deps.js';
+
+// ─── Types ─────────────────────────────────────────────────────────────────
 
 type TaskStatus =
   | 'pending'
@@ -17,28 +24,84 @@ type TaskStatus =
   | 'pending_user_review'
   | 'closed';
 
-/**
- * List tasks in a chatroom
- */
-export async function listBacklog(
-  chatroomId: string,
-  options: {
-    role: string;
-    status: string;
-    limit?: number;
-    full?: boolean;
-  }
-): Promise<void> {
-  const client = await getConvexClient();
+export interface ListBacklogOptions {
+  role: string;
+  status: string;
+  limit?: number;
+  full?: boolean;
+}
 
-  // Get session ID for authentication
-  const sessionId = getSessionId();
+export interface AddBacklogOptions {
+  role: string;
+  content: string;
+}
+
+export interface CompleteBacklogOptions {
+  role: string;
+  taskId: string;
+  force?: boolean;
+}
+
+export interface ReopenBacklogOptions {
+  role: string;
+  taskId: string;
+}
+
+export interface PatchBacklogOptions {
+  role: string;
+  taskId: string;
+  complexity?: string;
+  value?: string;
+  priority?: string;
+}
+
+export interface ScoreBacklogOptions {
+  role: string;
+  taskId: string;
+  complexity?: string;
+  value?: string;
+  priority?: string;
+}
+
+export interface MarkForReviewBacklogOptions {
+  role: string;
+  taskId: string;
+}
+
+export interface ResetBacklogOptions {
+  role: string;
+  taskId: string;
+}
+
+// ─── Default Deps Factory ──────────────────────────────────────────────────
+
+async function createDefaultDeps(): Promise<BacklogDeps> {
+  const client = await getConvexClient();
+  return {
+    backend: {
+      mutation: (endpoint, args) => client.mutation(endpoint, args),
+      query: (endpoint, args) => client.query(endpoint, args),
+    },
+    session: {
+      getSessionId,
+      getConvexUrl,
+      getOtherSessionUrls,
+    },
+  };
+}
+
+// ─── Auth Helper ───────────────────────────────────────────────────────────
+
+function requireAuth(d: BacklogDeps): string {
+  const sessionId = d.session.getSessionId();
   if (!sessionId) {
     console.error(`❌ Not authenticated. Please run: chatroom auth login`);
     process.exit(1);
   }
+  return sessionId as string;
+}
 
-  // Validate chatroom ID format
+function validateChatroomId(chatroomId: string): void {
   if (
     !chatroomId ||
     typeof chatroomId !== 'string' ||
@@ -50,6 +113,21 @@ export async function listBacklog(
     );
     process.exit(1);
   }
+}
+
+// ─── Commands ──────────────────────────────────────────────────────────────
+
+/**
+ * List tasks in a chatroom
+ */
+export async function listBacklog(
+  chatroomId: string,
+  options: ListBacklogOptions,
+  deps?: BacklogDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
 
   // Validate status filter
   const validStatuses = [
@@ -62,8 +140,8 @@ export async function listBacklog(
     'completed',
     'closed',
     'active',
-    'pending_review', // tasks awaiting user review
-    'archived', // completed + closed
+    'pending_review',
+    'archived',
     'all',
   ];
   const statusFilter = options.status;
@@ -72,32 +150,32 @@ export async function listBacklog(
       `❌ Invalid or missing status: ${statusFilter || '(none)'}. Must be one of: ${validStatuses.join(', ')}`
     );
     process.exit(1);
+    return;
   }
 
   try {
     // Get task counts
-    const counts = await client.query(api.tasks.getTaskCounts, {
+    const counts = await d.backend.query(api.tasks.getTaskCounts, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
     });
 
-    // Get tasks with filter - use specific queries for active/archived
+    // Get tasks with filter
     let tasks;
     if (statusFilter === 'active') {
-      tasks = await client.query(api.tasks.listActiveTasks, {
+      tasks = await d.backend.query(api.tasks.listActiveTasks, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         limit: options.limit || 100,
       });
     } else if (statusFilter === 'archived') {
-      tasks = await client.query(api.tasks.listArchivedTasks, {
+      tasks = await d.backend.query(api.tasks.listArchivedTasks, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         limit: options.limit || 100,
       });
     } else {
-      // For specific status filters or 'all', use original listTasks
-      tasks = await client.query(api.tasks.listTasks, {
+      tasks = await d.backend.query(api.tasks.listTasks, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         statusFilter:
@@ -158,7 +236,6 @@ export async function listBacklog(
           hour12: false,
         });
 
-        // Show full content by default (--full flag kept for backward compatibility)
         const displayContent = task.content;
         console.log(`#${i + 1} [${statusEmoji} ${task.status.toUpperCase()}] ${displayContent}`);
         console.log(`   ID: ${task._id}`);
@@ -170,7 +247,6 @@ export async function listBacklog(
     }
 
     console.log('──────────────────────────────────────────────────');
-    // Calculate total tasks for the current filter to show truncation info
     let totalForFilter: number;
     if (statusFilter === 'all') {
       totalForFilter =
@@ -186,7 +262,6 @@ export async function listBacklog(
     } else if (statusFilter === 'archived') {
       totalForFilter = counts.completed + counts.closed;
     } else if (statusFilter === 'pending_review') {
-      // pending_review is separate, use tasks.length as best estimate
       totalForFilter = tasks.length;
     } else {
       totalForFilter = counts[statusFilter as keyof typeof counts] ?? tasks.length;
@@ -203,6 +278,7 @@ export async function listBacklog(
   } catch (error) {
     console.error(`❌ Failed to list tasks: ${(error as Error).message}`);
     process.exit(1);
+    return;
   }
 }
 
@@ -211,41 +287,22 @@ export async function listBacklog(
  */
 export async function addBacklog(
   chatroomId: string,
-  options: {
-    role: string;
-    content: string;
-  }
+  options: AddBacklogOptions,
+  deps?: BacklogDeps
 ): Promise<void> {
-  const client = await getConvexClient();
-
-  // Get session ID for authentication
-  const sessionId = getSessionId();
-  if (!sessionId) {
-    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
-    process.exit(1);
-  }
-
-  // Validate chatroom ID format
-  if (
-    !chatroomId ||
-    typeof chatroomId !== 'string' ||
-    chatroomId.length < 20 ||
-    chatroomId.length > 40
-  ) {
-    console.error(
-      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
-    );
-    process.exit(1);
-  }
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
 
   // Validate content
   if (!options.content || options.content.trim().length === 0) {
     console.error(`❌ Task content cannot be empty`);
     process.exit(1);
+    return;
   }
 
   try {
-    const result = await client.mutation(api.tasks.createTask, {
+    const result = await d.backend.mutation(api.tasks.createTask, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       content: options.content.trim(),
@@ -262,6 +319,7 @@ export async function addBacklog(
   } catch (error) {
     console.error(`❌ Failed to add task: ${(error as Error).message}`);
     process.exit(1);
+    return;
   }
 }
 
@@ -271,42 +329,22 @@ export async function addBacklog(
  */
 export async function completeBacklog(
   chatroomId: string,
-  options: {
-    role: string;
-    taskId: string;
-    force?: boolean;
-  }
+  options: CompleteBacklogOptions,
+  deps?: BacklogDeps
 ): Promise<void> {
-  const client = await getConvexClient();
-
-  // Get session ID for authentication
-  const sessionId = getSessionId();
-  if (!sessionId) {
-    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
-    process.exit(1);
-  }
-
-  // Validate chatroom ID format
-  if (
-    !chatroomId ||
-    typeof chatroomId !== 'string' ||
-    chatroomId.length < 20 ||
-    chatroomId.length > 40
-  ) {
-    console.error(
-      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
-    );
-    process.exit(1);
-  }
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
 
   // Validate task ID
   if (!options.taskId || options.taskId.trim().length === 0) {
     console.error(`❌ Task ID is required`);
     process.exit(1);
+    return;
   }
 
   try {
-    const result = await client.mutation(api.tasks.completeTaskById, {
+    const result = await d.backend.mutation(api.tasks.completeTaskById, {
       sessionId,
       taskId: options.taskId as Id<'chatroom_tasks'>,
       force: options.force,
@@ -329,6 +367,7 @@ export async function completeBacklog(
   } catch (error) {
     console.error(`❌ Failed to complete task: ${(error as Error).message}`);
     process.exit(1);
+    return;
   }
 }
 
@@ -337,41 +376,22 @@ export async function completeBacklog(
  */
 export async function reopenBacklog(
   chatroomId: string,
-  options: {
-    role: string;
-    taskId: string;
-  }
+  options: ReopenBacklogOptions,
+  deps?: BacklogDeps
 ): Promise<void> {
-  const client = await getConvexClient();
-
-  // Get session ID for authentication
-  const sessionId = getSessionId();
-  if (!sessionId) {
-    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
-    process.exit(1);
-  }
-
-  // Validate chatroom ID format
-  if (
-    !chatroomId ||
-    typeof chatroomId !== 'string' ||
-    chatroomId.length < 20 ||
-    chatroomId.length > 40
-  ) {
-    console.error(
-      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
-    );
-    process.exit(1);
-  }
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
 
   // Validate task ID
   if (!options.taskId || options.taskId.trim().length === 0) {
     console.error(`❌ Task ID is required`);
     process.exit(1);
+    return;
   }
 
   try {
-    await client.mutation(api.tasks.reopenBacklogTask, {
+    await d.backend.mutation(api.tasks.reopenBacklogTask, {
       sessionId,
       taskId: options.taskId as Id<'chatroom_tasks'>,
     });
@@ -386,6 +406,7 @@ export async function reopenBacklog(
   } catch (error) {
     console.error(`❌ Failed to reopen task: ${(error as Error).message}`);
     process.exit(1);
+    return;
   }
 }
 
@@ -395,40 +416,18 @@ export async function reopenBacklog(
  */
 export async function patchBacklog(
   chatroomId: string,
-  options: {
-    role: string;
-    taskId: string;
-    complexity?: string;
-    value?: string;
-    priority?: string;
-  }
+  options: PatchBacklogOptions,
+  deps?: BacklogDeps
 ): Promise<void> {
-  const client = await getConvexClient();
-
-  // Get session ID for authentication
-  const sessionId = getSessionId();
-  if (!sessionId) {
-    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
-    process.exit(1);
-  }
-
-  // Validate chatroom ID format
-  if (
-    !chatroomId ||
-    typeof chatroomId !== 'string' ||
-    chatroomId.length < 20 ||
-    chatroomId.length > 40
-  ) {
-    console.error(
-      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
-    );
-    process.exit(1);
-  }
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
 
   // Validate task ID
   if (!options.taskId || options.taskId.trim().length === 0) {
     console.error(`❌ Task ID is required`);
     process.exit(1);
+    return;
   }
 
   // Validate at least one field is provided
@@ -439,6 +438,7 @@ export async function patchBacklog(
   ) {
     console.error(`❌ At least one of --complexity, --value, or --priority is required`);
     process.exit(1);
+    return;
   }
 
   // Validate complexity if provided
@@ -448,6 +448,7 @@ export async function patchBacklog(
       `❌ Invalid complexity: ${options.complexity}. Must be one of: ${validComplexity.join(', ')}`
     );
     process.exit(1);
+    return;
   }
 
   // Validate value if provided
@@ -455,6 +456,7 @@ export async function patchBacklog(
   if (options.value !== undefined && !validValue.includes(options.value)) {
     console.error(`❌ Invalid value: ${options.value}. Must be one of: ${validValue.join(', ')}`);
     process.exit(1);
+    return;
   }
 
   // Parse and validate priority if provided
@@ -464,11 +466,12 @@ export async function patchBacklog(
     if (isNaN(priorityNum)) {
       console.error(`❌ Invalid priority: ${options.priority}. Must be a number.`);
       process.exit(1);
+      return;
     }
   }
 
   try {
-    await client.mutation(api.tasks.patchTask, {
+    await d.backend.mutation(api.tasks.patchTask, {
       sessionId,
       taskId: options.taskId as Id<'chatroom_tasks'>,
       complexity: options.complexity as 'low' | 'medium' | 'high' | undefined,
@@ -492,49 +495,27 @@ export async function patchBacklog(
   } catch (error) {
     console.error(`❌ Failed to patch task: ${(error as Error).message}`);
     process.exit(1);
+    return;
   }
 }
 
 /**
  * Score a backlog task by complexity, value, and priority.
- * This is a more user-friendly alias for patchBacklog focused on scoring.
  */
 export async function scoreBacklog(
   chatroomId: string,
-  options: {
-    role: string;
-    taskId: string;
-    complexity?: string;
-    value?: string;
-    priority?: string;
-  }
+  options: ScoreBacklogOptions,
+  deps?: BacklogDeps
 ): Promise<void> {
-  const client = await getConvexClient();
-
-  // Get session ID for authentication
-  const sessionId = getSessionId();
-  if (!sessionId) {
-    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
-    process.exit(1);
-  }
-
-  // Validate chatroom ID format
-  if (
-    !chatroomId ||
-    typeof chatroomId !== 'string' ||
-    chatroomId.length < 20 ||
-    chatroomId.length > 40
-  ) {
-    console.error(
-      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
-    );
-    process.exit(1);
-  }
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
 
   // Validate task ID
   if (!options.taskId || options.taskId.trim().length === 0) {
     console.error(`❌ Task ID is required`);
     process.exit(1);
+    return;
   }
 
   // Validate at least one scoring field is provided
@@ -548,6 +529,7 @@ export async function scoreBacklog(
       `   Example: chatroom backlog score --task-id=... --complexity=medium --value=high`
     );
     process.exit(1);
+    return;
   }
 
   // Validate complexity if provided
@@ -557,6 +539,7 @@ export async function scoreBacklog(
       `❌ Invalid complexity: ${options.complexity}. Must be one of: ${validComplexity.join(', ')}`
     );
     process.exit(1);
+    return;
   }
 
   // Validate value if provided
@@ -564,6 +547,7 @@ export async function scoreBacklog(
   if (options.value !== undefined && !validValue.includes(options.value)) {
     console.error(`❌ Invalid value: ${options.value}. Must be one of: ${validValue.join(', ')}`);
     process.exit(1);
+    return;
   }
 
   // Parse and validate priority if provided
@@ -573,11 +557,12 @@ export async function scoreBacklog(
     if (isNaN(priorityNum)) {
       console.error(`❌ Invalid priority: ${options.priority}. Must be a number.`);
       process.exit(1);
+      return;
     }
   }
 
   try {
-    await client.mutation(api.tasks.patchTask, {
+    await d.backend.mutation(api.tasks.patchTask, {
       sessionId,
       taskId: options.taskId as Id<'chatroom_tasks'>,
       complexity: options.complexity as 'low' | 'medium' | 'high' | undefined,
@@ -601,50 +586,31 @@ export async function scoreBacklog(
   } catch (error) {
     console.error(`❌ Failed to score task: ${(error as Error).message}`);
     process.exit(1);
+    return;
   }
 }
 
 /**
  * Mark a backlog task as ready for user review.
- * Transitions the task from 'backlog' to 'pending_user_review'.
  */
 export async function markForReviewBacklog(
   chatroomId: string,
-  options: {
-    role: string;
-    taskId: string;
-  }
+  options: MarkForReviewBacklogOptions,
+  deps?: BacklogDeps
 ): Promise<void> {
-  const client = await getConvexClient();
-
-  // Get session ID for authentication
-  const sessionId = getSessionId();
-  if (!sessionId) {
-    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
-    process.exit(1);
-  }
-
-  // Validate chatroom ID format
-  if (
-    !chatroomId ||
-    typeof chatroomId !== 'string' ||
-    chatroomId.length < 20 ||
-    chatroomId.length > 40
-  ) {
-    console.error(
-      `❌ Invalid chatroom ID format: ID must be 20-40 characters (got ${chatroomId?.length || 0})`
-    );
-    process.exit(1);
-  }
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
 
   // Validate task ID
   if (!options.taskId || options.taskId.trim().length === 0) {
     console.error(`❌ Task ID is required`);
     process.exit(1);
+    return;
   }
 
   try {
-    await client.mutation(api.tasks.markBacklogForReview, {
+    await d.backend.mutation(api.tasks.markBacklogForReview, {
       sessionId,
       taskId: options.taskId as Id<'chatroom_tasks'>,
     });
@@ -661,6 +627,7 @@ export async function markForReviewBacklog(
   } catch (error) {
     console.error(`❌ Failed to mark task for review: ${(error as Error).message}`);
     process.exit(1);
+    return;
   }
 }
 
@@ -669,22 +636,14 @@ export async function markForReviewBacklog(
  */
 export async function resetBacklog(
   chatroomId: string,
-  options: {
-    role: string;
-    taskId: string;
-  }
+  options: ResetBacklogOptions,
+  deps?: BacklogDeps
 ): Promise<void> {
-  const client = await getConvexClient();
-
-  // Get session ID for authentication
-  const sessionId = getSessionId();
-  if (!sessionId) {
-    console.error(`❌ Not authenticated. Please run: chatroom auth login`);
-    process.exit(1);
-  }
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
 
   try {
-    const result = await client.mutation(api.tasks.resetStuckTask, {
+    const result = await d.backend.mutation(api.tasks.resetStuckTask, {
       sessionId,
       taskId: options.taskId as Id<'chatroom_tasks'>,
     });
@@ -699,6 +658,7 @@ export async function resetBacklog(
   } catch (error) {
     console.error(`❌ Failed to reset task: ${(error as Error).message}`);
     process.exit(1);
+    return;
   }
 }
 
