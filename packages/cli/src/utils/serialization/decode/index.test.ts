@@ -37,6 +37,24 @@ and empty lines too`,
       const result = decode(input, { singleParam: 'message' });
       expect(result.message).toBe('Line 1\n  Indented\n\nLine after blank');
     });
+
+    it('should strip ---MESSAGE--- delimiter in single param mode', () => {
+      const input = `---MESSAGE---\nThis is the actual message content`;
+      const result = decode(input, { singleParam: 'message' });
+      expect(result.message).toBe('This is the actual message content');
+    });
+
+    it('should strip ---MESSAGE--- delimiter with surrounding whitespace', () => {
+      const input = `\n---MESSAGE---\n\nContent after delimiter\n`;
+      const result = decode(input, { singleParam: 'message' });
+      expect(result.message).toBe('Content after delimiter');
+    });
+
+    it('should work without ---MESSAGE--- delimiter (backwards compatible)', () => {
+      const input = `Just a plain message without delimiter`;
+      const result = decode(input, { singleParam: 'message' });
+      expect(result.message).toBe('Just a plain message without delimiter');
+    });
   });
 
   describe('multi parameter mode', () => {

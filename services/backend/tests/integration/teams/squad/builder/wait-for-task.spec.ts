@@ -75,6 +75,7 @@ describe('Squad Team > Builder > Wait For Task', () => {
       ============================================================
       1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=builder --task-id=test-task-id --origin-message-classification=follow_up\`
       2. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=test-chatroom-id --role=builder << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF\`
       3. Do the work
@@ -175,6 +176,7 @@ describe('Squad Team > Builder > Wait For Task', () => {
       ============================================================
       1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=builder --task-id=test-task-id --no-classify\`
       2. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=test-chatroom-id --role=builder << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF\`
       3. Do the work

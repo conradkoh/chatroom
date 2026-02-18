@@ -164,6 +164,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
       **If changes are needed:**
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=builder << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -175,6 +176,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
       **If work is approved:**
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=planner << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -257,6 +259,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -270,6 +273,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=reviewer << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF
       \`\`\`

@@ -65,7 +65,12 @@ export function decode(input: string, options: DecodeOptions = {}): DecodeResult
 
   // Single parameter mode - treat entire input as one parameter
   if (singleParam) {
-    return { [singleParam]: input.trim() };
+    const trimmed = input.trim();
+    const singleParamDelimiter = `---${singleParam.toUpperCase()}---`;
+    const stripped = trimmed.startsWith(singleParamDelimiter)
+      ? trimmed.slice(singleParamDelimiter.length).trim()
+      : trimmed;
+    return { [singleParam]: stripped };
   }
 
   // Multi parameter mode - parse delimited structure

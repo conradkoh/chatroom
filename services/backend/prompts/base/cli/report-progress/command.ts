@@ -30,5 +30,5 @@ export function reportProgressCommand(params: ReportProgressParams): string {
   const role = params.role || '<role>';
 
   // Modern approach: stdin using HERE document (consistent with handoff)
-  return `${prefix}chatroom report-progress --chatroom-id=${chatroomId} --role=${role} << 'EOF'\n[Your progress message here]\nEOF`;
+  return `${prefix}chatroom report-progress --chatroom-id=${chatroomId} --role=${role} << 'EOF'\n---MESSAGE---\n[Your progress message here]\nEOF`;
 }

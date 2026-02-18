@@ -47,6 +47,7 @@ describe('Pair Team > Builder > Task Started Reminder', () => {
 
       **Next steps:**
       1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=test-chatroom-id --role=builder << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF\`
       2. Answer the user's question
@@ -54,6 +55,7 @@ describe('Pair Team > Builder > Task Started Reminder', () => {
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=user << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -91,6 +93,7 @@ describe('Pair Team > Builder > Task Started Reminder', () => {
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=reviewer << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`

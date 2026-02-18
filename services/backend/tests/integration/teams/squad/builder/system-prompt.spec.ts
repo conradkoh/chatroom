@@ -184,6 +184,7 @@ describe('Squad Team > Builder > System Prompt', () => {
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -197,6 +198,7 @@ describe('Squad Team > Builder > System Prompt', () => {
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF
       \`\`\`

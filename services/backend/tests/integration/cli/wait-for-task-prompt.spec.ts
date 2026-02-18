@@ -333,6 +333,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -346,6 +347,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF
       \`\`\`
@@ -403,6 +405,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       EOF\`
       2. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=10007;chatroom_tasks --origin-message-classification=follow_up\`
       3. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF\`
       4. Do the work
@@ -756,6 +759,7 @@ Use React Context + CSS variables`,
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10024;chatroom_rooms --role=builder --next-role=reviewer << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -829,6 +833,7 @@ Use React Context + CSS variables`,
 
       **Next steps:**
       1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10031;chatroom_rooms --role=builder << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF\`
       2. Answer the user's question
@@ -836,6 +841,7 @@ Use React Context + CSS variables`,
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10031;chatroom_rooms --role=builder --next-role=user << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -1438,6 +1444,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       **If changes are needed:**
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=builder << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -1449,6 +1456,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       **If work is approved:**
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=user << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -1529,6 +1537,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10062;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -1542,6 +1551,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10062;chatroom_rooms --role=reviewer << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF
       \`\`\`
@@ -1600,6 +1610,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       ============================================================
       1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10062;chatroom_rooms --role=reviewer --task-id=10068;chatroom_tasks --no-classify\`
       2. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10062;chatroom_rooms --role=reviewer << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF\`
       3. Do the work
@@ -1901,6 +1912,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10071;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -1914,6 +1926,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10071;chatroom_rooms --role=builder << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF
       \`\`\`
@@ -2070,6 +2083,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **If changes are needed:**
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=builder << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -2081,6 +2095,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **If work is approved:**
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=user << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -2161,6 +2176,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10076;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -2174,6 +2190,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10076;chatroom_rooms --role=reviewer << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF
       \`\`\`

@@ -216,6 +216,7 @@ Test technical specifications`,
 
         \`\`\`bash
         chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+        ---MESSAGE---
         [Your message here]
         EOF
         \`\`\`
@@ -229,6 +230,7 @@ Test technical specifications`,
 
         \`\`\`bash
         chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+        ---MESSAGE---
         [Your progress message here]
         EOF
         \`\`\`
@@ -362,6 +364,7 @@ Test technical specifications`,
         **If changes are needed:**
         \`\`\`bash
         chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=builder << 'EOF'
+        ---MESSAGE---
         [Your message here]
         EOF
         \`\`\`
@@ -373,6 +376,7 @@ Test technical specifications`,
         **If work is approved:**
         \`\`\`bash
         chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=user << 'EOF'
+        ---MESSAGE---
         [Your message here]
         EOF
         \`\`\`
@@ -456,6 +460,7 @@ Test technical specifications`,
 
         \`\`\`bash
         chatroom handoff --chatroom-id=10002;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+        ---MESSAGE---
         [Your message here]
         EOF
         \`\`\`
@@ -469,6 +474,7 @@ Test technical specifications`,
 
         \`\`\`bash
         chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=reviewer << 'EOF'
+        ---MESSAGE---
         [Your progress message here]
         EOF
         \`\`\`
@@ -693,6 +699,7 @@ Test technical specifications`,
 
         \`\`\`bash
         chatroom handoff --chatroom-id=10019;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+        ---MESSAGE---
         [Your message here]
         EOF
         \`\`\`
@@ -706,6 +713,7 @@ Test technical specifications`,
 
         \`\`\`bash
         chatroom report-progress --chatroom-id=10019;chatroom_rooms --role=builder << 'EOF'
+        ---MESSAGE---
         [Your progress message here]
         EOF
         \`\`\`
