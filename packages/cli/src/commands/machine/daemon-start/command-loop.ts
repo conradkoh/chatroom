@@ -9,7 +9,6 @@ import {
 
 import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
-import { clearAgentPidEverywhere } from './handlers/shared.js';
 import { handleStartAgent } from './handlers/start-agent.js';
 import { handleStatus } from './handlers/status.js';
 import { handleStopAgent } from './handlers/stop-agent.js';
@@ -238,34 +237,24 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         }
       }
 
-      // Clean up backend state for all agents in parallel (best-effort)
-      // This ensures the UI immediately shows OFFLINE instead of waiting
-      // for heartbeat expiry to flip to DEAD.
-      await Promise.allSettled(
-        agents.map(({ chatroomId, role }) =>
-          Promise.all([
-            clearAgentPidEverywhere(ctx, chatroomId as Id<'chatroom_rooms'>, role),
-            ctx.deps.backend.mutation(api.participants.leave, {
-              sessionId: ctx.sessionId,
-              chatroomId: chatroomId as Id<'chatroom_rooms'>,
-              role,
-            }),
-          ])
-        )
-      );
+      // Clear local PID state for all agents
+      for (const { chatroomId, role } of agents) {
+        ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
+      }
 
       console.log(`[${formatTimestamp()}] All agents stopped`);
     }
 
+    // Atomically clear daemon status + all spawnedAgent records + participant
+    // records in a single backend transaction. This ensures the UI immediately
+    // shows OFFLINE instead of waiting for heartbeat expiry.
     try {
-      // Update daemon status to disconnected
-      await ctx.deps.backend.mutation(api.machines.updateDaemonStatus, {
+      await ctx.deps.backend.mutation(api.machines.daemonShutdown, {
         sessionId: ctx.sessionId,
         machineId: ctx.machineId,
-        connected: false,
       });
     } catch {
-      // Ignore errors during shutdown
+      // Best-effort — heartbeat expiry is the safety net
     }
 
     releaseLock();

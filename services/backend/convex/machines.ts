@@ -498,6 +498,63 @@ export const updateDaemonStatus = mutation({
 });
 
 /**
+ * Atomic daemon shutdown — clears daemon status, all spawnedAgent records,
+ * and participant records for this machine in a single transaction.
+ * Called by the daemon on graceful shutdown (SIGINT/SIGTERM/SIGHUP).
+ */
+export const daemonShutdown = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    const machine = await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    // 1. Set daemon as disconnected
+    await ctx.db.patch('chatroom_machines', machine._id, {
+      daemonConnected: false,
+      lastSeenAt: Date.now(),
+    });
+
+    // 2. Clear all spawnedAgent records for this machine
+    const agentConfigs = await ctx.db
+      .query('chatroom_machineAgentConfigs')
+      .withIndex('by_machine_chatroom_role', (q) => q.eq('machineId', args.machineId))
+      .collect();
+
+    const now = Date.now();
+    for (const config of agentConfigs) {
+      if (config.spawnedAgentPid != null) {
+        await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
+          spawnedAgentPid: undefined,
+          spawnedAt: undefined,
+          updatedAt: now,
+        });
+      }
+    }
+
+    // 3. Delete participant records for agents on this machine
+    for (const config of agentConfigs) {
+      const participant = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', config.chatroomId).eq('role', config.role)
+        )
+        .unique();
+      if (participant) {
+        await ctx.db.delete('chatroom_participants', participant._id);
+      }
+    }
+
+    return { clearedAgents: agentConfigs.length };
+  },
+});
+
+/**
  * Daemon heartbeat — update lastSeenAt for liveness detection.
  * Called periodically by the daemon to prove it is still alive.
  * If the daemon crashes (e.g. SIGKILL), heartbeats stop and the backend
