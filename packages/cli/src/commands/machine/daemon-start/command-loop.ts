@@ -7,14 +7,13 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 
+import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
+import { clearAgentPidEverywhere } from './handlers/shared.js';
 import { handleStartAgent } from './handlers/start-agent.js';
 import { handleStatus } from './handlers/status.js';
 import { handleStopAgent } from './handlers/stop-agent.js';
 import { discoverModels } from './init.js';
-import { api, type Id } from '../../../api.js';
-import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
-import { releaseLock } from '../pid.js';
 import type {
   CommandResult,
   DaemonContext,
@@ -23,6 +22,8 @@ import type {
   RawMachineCommand,
 } from './types.js';
 import { formatTimestamp, parseMachineCommand } from './utils.js';
+import { api, type Id } from '../../../api.js';
+import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
@@ -225,7 +226,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       // Wait briefly for agents to exit, then force-kill stragglers
       await ctx.deps.clock.delay(AGENT_SHUTDOWN_TIMEOUT_MS);
 
-      for (const { chatroomId, role, entry } of agents) {
+      for (const { role, entry } of agents) {
         try {
           // Check if still alive (signal 0 = existence check)
           ctx.deps.processes.kill(entry.pid, 0);
@@ -235,10 +236,23 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         } catch {
           // Process exited cleanly — good
         }
-
-        // Clear PID from local state
-        ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
       }
+
+      // Clean up backend state for all agents in parallel (best-effort)
+      // This ensures the UI immediately shows OFFLINE instead of waiting
+      // for heartbeat expiry to flip to DEAD.
+      await Promise.allSettled(
+        agents.map(({ chatroomId, role }) =>
+          Promise.all([
+            clearAgentPidEverywhere(ctx, chatroomId as Id<'chatroom_rooms'>, role),
+            ctx.deps.backend.mutation(api.participants.leave, {
+              sessionId: ctx.sessionId,
+              chatroomId: chatroomId as Id<'chatroom_rooms'>,
+              role,
+            }),
+          ])
+        )
+      );
 
       console.log(`[${formatTimestamp()}] All agents stopped`);
     }
