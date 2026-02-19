@@ -21,7 +21,7 @@ import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/web
 import { getConfig } from '../prompts/config/index.js';
 import { getCliEnvPrefix } from '../prompts/utils/index.js';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
-import { restartOfflineAgent } from '../src/domain/usecase/agent/restart-offline-agent';
+import { tryEnforceAgentLiveness } from '../src/domain/usecase/agent/try-enforce-agent-liveness';
 
 const config = getConfig();
 
@@ -37,11 +37,10 @@ interface TaskDeliveryPromptResponse {
 // =============================================================================
 
 /**
- * Check if a target role's agent is offline and, if so, dispatch restart commands
- * to bring it back online using its existing machine agent config.
+ * Ensure the target agent is alive. For remote agents this dispatches restart
+ * commands via the daemon; for custom (user-managed) agents it logs a warning.
  *
- * Delegates to the `restartOfflineAgent` use case which is the single source of
- * truth for restart logic, model resolution, and command dispatch.
+ * Delegates to the `tryEnforceAgentLiveness` use case.
  */
 async function autoRestartOfflineAgent(
   ctx: MutationCtx,
@@ -49,12 +48,16 @@ async function autoRestartOfflineAgent(
   targetRole: string,
   userId: Id<'users'>
 ): Promise<void> {
-  const result = await restartOfflineAgent(ctx, { chatroomId, targetRole, userId });
+  const result = await tryEnforceAgentLiveness(ctx, { chatroomId, targetRole, userId });
 
-  if (result.status === 'dispatched') {
+  if (result.status === 'enforced') {
     console.log(
       `[auto-restart] Dispatched restart for role "${targetRole}" ` +
         `on machine ${result.machineId} (model: ${result.model ?? 'default'})`
+    );
+  } else if (result.status === 'error') {
+    console.warn(
+      `[auto-restart] Cannot enforce liveness for role "${targetRole}": ${result.message}`
     );
   }
 }

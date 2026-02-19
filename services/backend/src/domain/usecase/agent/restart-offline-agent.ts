@@ -36,18 +36,20 @@ export interface RestartOfflineAgentInput {
 /** Possible outcomes of the restart attempt. */
 export type RestartOfflineAgentResult =
   | { status: 'skipped'; reason: SkipReason }
+  | { status: 'error'; code: RestartErrorCode; message: string }
   | { status: 'dispatched'; machineId: string; model: string | undefined };
 
 export type SkipReason =
   | 'agent_online'
   | 'no_agent_config'
-  | 'not_remote'
   | 'no_machine_id'
   | 'daemon_not_connected'
   | 'daemon_stale'
   | 'missing_model'
   | 'missing_harness_or_workdir'
   | 'duplicate_pending_command';
+
+export type RestartErrorCode = 'not_remote';
 
 // ─── Use Case ────────────────────────────────────────────────────────────────
 
@@ -105,7 +107,13 @@ export async function restartOfflineAgent(
   // ── Step 3: Eligibility checks ─────────────────────────────────────────
 
   if (config.type !== 'remote') {
-    return { status: 'skipped', reason: 'not_remote' };
+    return {
+      status: 'error',
+      code: 'not_remote',
+      message:
+        `Agent "${targetRole}" is type "${config.type}" (user-managed). ` +
+        `Only remote agents can be restarted.`,
+    };
   }
 
   if (!config.machineId) {

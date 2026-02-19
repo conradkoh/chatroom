@@ -53,6 +53,16 @@ export const TASK_PENDING_TIMEOUT_MS = 300_000; // 5 min
  *  If the assigned participant is missing or expired, the task is recovered. */
 export const TASK_ACKNOWLEDGED_TIMEOUT_MS = 120_000; // 2 min
 
+// ─── Active Agent Heartbeat (Daemon-Side) ────────────────────────────────────
+
+/** How often the daemon checks PID liveness and extends activeUntil (ms).
+ *  Runs alongside the daemon heartbeat but targets active agent participants. */
+export const ACTIVE_AGENT_HEARTBEAT_INTERVAL_MS = 30_000; // 30s
+
+/** How long an active agent is considered alive after the last daemon heartbeat (ms).
+ *  Must be > ACTIVE_AGENT_HEARTBEAT_INTERVAL_MS to tolerate missed beats. */
+export const ACTIVE_AGENT_HEARTBEAT_TTL_MS = 90_000; // 90s
+
 // ─── Grace Period ────────────────────────────────────────────────────────────
 
 /** Grace period before recovering an acknowledged task (ms).

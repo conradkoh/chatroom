@@ -80,7 +80,7 @@ describe('restartOfflineAgent — skip reasons', () => {
     }
   });
 
-  test('skips when agent is custom (not_remote)', async () => {
+  test('errors when agent is custom (not_remote)', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-roa-skip-3');
     const chatroomId = await createPairTeamChatroom(sessionId);
@@ -103,9 +103,10 @@ describe('restartOfflineAgent — skip reasons', () => {
     });
 
     // ===== VERIFY =====
-    expect(result.status).toBe('skipped');
-    if (result.status === 'skipped') {
-      expect(result.reason).toBe('not_remote');
+    expect(result.status).toBe('error');
+    if (result.status === 'error') {
+      expect(result.code).toBe('not_remote');
+      expect(result.message).toContain('user-managed');
     }
   });
 

@@ -2,14 +2,17 @@
  * Command Loop — subscribes to Convex for pending commands, processes them sequentially.
  */
 
-import { DAEMON_HEARTBEAT_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
+import {
+  ACTIVE_AGENT_HEARTBEAT_INTERVAL_MS,
+  DAEMON_HEARTBEAT_INTERVAL_MS,
+} from '@workspace/backend/config/reliability.js';
 
 import { handlePing } from './handlers/ping.js';
 import { handleStartAgent } from './handlers/start-agent.js';
 import { handleStatus } from './handlers/status.js';
 import { handleStopAgent } from './handlers/stop-agent.js';
 import { discoverModels } from './init.js';
-import { api } from '../../../api.js';
+import { api, type Id } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { releaseLock } from '../pid.js';
 import type {
@@ -156,11 +159,46 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Don't let the heartbeat timer keep the process alive during shutdown
   heartbeatTimer.unref();
 
+  // ── Agent PID Heartbeat ──────────────────────────────────────────────
+  // For each tracked agent PID, check if the process is alive and extend
+  // its activeUntil on the backend. This keeps active agents from appearing
+  // dead during long-running tasks (where the CLI heartbeat has stopped).
+  const agentHeartbeatTimer = setInterval(() => {
+    const agents = ctx.deps.machine.listAgentEntries(ctx.machineId);
+    for (const { chatroomId, role, entry } of agents) {
+      let isAlive = false;
+      try {
+        ctx.deps.processes.kill(entry.pid, 0);
+        isAlive = true;
+      } catch {
+        // Process is dead — crash recovery handles this via the onExit callback
+      }
+
+      if (isAlive) {
+        ctx.deps.backend
+          .mutation(api.participants.extendActiveAgent, {
+            sessionId: ctx.sessionId,
+            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+            role,
+          })
+          .catch((err: Error) => {
+            // Best-effort — don't crash the daemon if this fails
+            console.warn(
+              `[${formatTimestamp()}] ⚠️  Agent heartbeat failed for ${role}: ${err.message}`
+            );
+          });
+      }
+    }
+  }, ACTIVE_AGENT_HEARTBEAT_INTERVAL_MS);
+
+  agentHeartbeatTimer.unref();
+
   const shutdown = async () => {
     console.log(`\n[${formatTimestamp()}] Shutting down...`);
 
-    // Stop heartbeat timer
+    // Stop heartbeat timers
     clearInterval(heartbeatTimer);
+    clearInterval(agentHeartbeatTimer);
 
     // ── Graceful Agent Cleanup ──────────────────────────────────────────
     // Stop all tracked agent processes so they don't become orphans.

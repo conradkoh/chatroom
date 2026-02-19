@@ -23,7 +23,7 @@ import {
 } from './auth/cliSessionAuth';
 import { recoverOrphanedTasks } from './lib/taskRecovery';
 import { transitionTask } from './lib/taskStateMachine';
-import { restartOfflineAgent } from '../src/domain/usecase/agent/restart-offline-agent';
+import { tryEnforceAgentLiveness } from '../src/domain/usecase/agent/try-enforce-agent-liveness';
 
 /**
  * Maximum number of active tasks per chatroom.
@@ -1814,27 +1814,26 @@ export const cleanupStaleAgents = internalMutation({
       // No valid participant — attempt restart via the use case
       stuckPendingCount++;
 
-      const restartResult = await restartOfflineAgent(ctx, {
+      const livenessResult = await tryEnforceAgentLiveness(ctx, {
         chatroomId: task.chatroomId,
         targetRole: entryPoint,
         userId: chatroom.ownerId,
       });
 
-      if (restartResult.status === 'dispatched') {
+      if (livenessResult.status === 'enforced') {
         autoRestartsTriggered++;
         console.warn(
           `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
-            `Auto-restarting remote agent "${entryPoint}" on machine ${restartResult.machineId}`
+            `Auto-restarting remote agent "${entryPoint}" on machine ${livenessResult.machineId}`
+        );
+      } else if (livenessResult.status === 'error') {
+        console.warn(
+          `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
+            `Cannot enforce liveness for "${entryPoint}": ${livenessResult.message}`
         );
       } else {
-        // Log skip reason for observability
-        const reason = restartResult.reason;
-        if (reason === 'not_remote') {
-          console.warn(
-            `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
-              `Agent "${entryPoint}" is custom (user-managed) — cannot auto-restart.`
-          );
-        } else if (reason === 'no_agent_config') {
+        const reason = livenessResult.reason;
+        if (reason === 'no_agent_config') {
           console.warn(
             `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
               `No team agent config found for role "${entryPoint}" — cannot recover.`

@@ -3,7 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { BACKEND_ERROR_CODES, type BackendError } from '../config/errorCodes';
 import { DEAD_STATES } from '../config/participantStates';
-import { HEARTBEAT_TTL_MS } from '../config/reliability';
+import { ACTIVE_AGENT_HEARTBEAT_TTL_MS, HEARTBEAT_TTL_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
@@ -312,6 +312,49 @@ export const updateStatus = mutation({
     }
 
     await ctx.db.patch('chatroom_participants', participant._id, update);
+  },
+});
+
+/**
+ * Extend an active agent's liveness from the daemon side.
+ *
+ * Called periodically by the daemon for each tracked agent PID that is still
+ * alive. This keeps `activeUntil` fresh so the backend doesn't consider the
+ * agent dead while it's working on a long task.
+ *
+ * Only extends `activeUntil` for participants in `active` status.
+ * For `waiting` participants, the CLI heartbeat handles liveness.
+ * For other statuses, this is a no-op.
+ */
+export const extendActiveAgent = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .unique();
+
+    if (!participant) {
+      return { status: 'no_participant' as const };
+    }
+
+    if (participant.status !== 'active') {
+      return { status: 'not_active' as const, currentStatus: participant.status };
+    }
+
+    await ctx.db.patch('chatroom_participants', participant._id, {
+      activeUntil: Date.now() + ACTIVE_AGENT_HEARTBEAT_TTL_MS,
+    });
+
+    return { status: 'extended' as const };
   },
 });
 
