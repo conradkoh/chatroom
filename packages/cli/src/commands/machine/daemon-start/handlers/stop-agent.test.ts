@@ -68,9 +68,7 @@ vi.mock('../../../../infrastructure/machine/index.js', () => ({
   getMachineId: vi.fn(() => 'test-machine'),
   listAgentEntries: vi.fn(() => []),
   loadMachineConfig: vi.fn(() => null),
-  getAgentContext: vi.fn(() => null),
   persistAgentPid: vi.fn(),
-  updateAgentContext: vi.fn(),
 }));
 
 vi.mock('../../../../infrastructure/machine/intentional-stops.js', () => ({
@@ -140,8 +138,6 @@ function createMockDeps(overrides?: Partial<DaemonDeps>): DaemonDeps {
       clearAgentPid: vi.fn(),
       persistAgentPid: vi.fn(),
       listAgentEntries: vi.fn(() => []),
-      getAgentContext: vi.fn(() => null),
-      updateAgentContext: vi.fn(),
     },
     clock: {
       now: () => Date.now(),

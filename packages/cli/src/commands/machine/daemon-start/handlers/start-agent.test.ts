@@ -52,7 +52,6 @@ function createMockDriver() {
 }
 
 function createMockContext(options?: {
-  agentContext?: { agentType: string; workingDir: string; lastStartedAt: string } | null;
   initPrompt?: { prompt: string; rolePrompt: string; initialMessage: string } | null;
   driver?: ReturnType<typeof createMockDriver>;
 }): DaemonContext {
@@ -89,18 +88,6 @@ function createMockContext(options?: {
       clearAgentPid: vi.fn(),
       persistAgentPid: vi.fn(),
       listAgentEntries: vi.fn().mockReturnValue([]),
-      getAgentContext: vi
-        .fn()
-        .mockReturnValue(
-          options?.agentContext !== undefined
-            ? options.agentContext
-            : {
-                agentType: 'opencode',
-                workingDir: '/tmp/test',
-                lastStartedAt: new Date().toISOString(),
-              }
-        ),
-      updateAgentContext: vi.fn(),
     },
     clock: {
       now: vi.fn().mockReturnValue(Date.now()),
@@ -134,37 +121,14 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('handleStartAgent', () => {
-  it('returns failed when no agent context and no workingDir in payload', async () => {
-    const ctx = createMockContext({ agentContext: null });
+  it('returns failed when no workingDir in payload', async () => {
+    const ctx = createMockContext();
     const cmd = createCommand();
 
     const result = await handleStartAgent(ctx, cmd);
 
     expect(result.failed).toBe(true);
-    expect(result.result).toContain('No agent context found');
-  });
-
-  it('creates agent context from command workingDir when no local context exists', async () => {
-    const ctx = createMockContext({ agentContext: null });
-    // First call returns null, second call (after update) returns context
-    (ctx.deps.machine.getAgentContext as ReturnType<typeof vi.fn>)
-      .mockReturnValueOnce(null)
-      .mockReturnValueOnce({
-        agentType: 'opencode',
-        workingDir: '/from/payload',
-        lastStartedAt: new Date().toISOString(),
-      });
-    const cmd = createCommand({ workingDir: '/from/payload' });
-
-    const result = await handleStartAgent(ctx, cmd);
-
-    expect(ctx.deps.machine.updateAgentContext).toHaveBeenCalledWith(
-      'test-chatroom-123',
-      'builder',
-      'opencode',
-      '/from/payload'
-    );
-    expect(result.failed).toBe(false);
+    expect(result.result).toContain('No workingDir provided');
   });
 
   it('returns failed when working directory does not exist', async () => {
@@ -172,7 +136,7 @@ describe('handleStartAgent', () => {
     (ctx.deps.fs.stat as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('ENOENT: no such file')
     );
-    const cmd = createCommand();
+    const cmd = createCommand({ workingDir: '/tmp/test' });
 
     const result = await handleStartAgent(ctx, cmd);
 
@@ -185,7 +149,7 @@ describe('handleStartAgent', () => {
     (ctx.deps.fs.stat as ReturnType<typeof vi.fn>).mockResolvedValue({
       isDirectory: () => false,
     });
-    const cmd = createCommand();
+    const cmd = createCommand({ workingDir: '/tmp/test' });
 
     const result = await handleStartAgent(ctx, cmd);
 
@@ -195,7 +159,7 @@ describe('handleStartAgent', () => {
 
   it('returns failed when init prompt fetch returns null', async () => {
     const ctx = createMockContext({ initPrompt: null });
-    const cmd = createCommand();
+    const cmd = createCommand({ workingDir: '/tmp/test' });
 
     const result = await handleStartAgent(ctx, cmd);
 
@@ -208,7 +172,7 @@ describe('handleStartAgent', () => {
     (ctx.deps.drivers.get as ReturnType<typeof vi.fn>).mockImplementation(() => {
       throw new Error('No driver registered');
     });
-    const cmd = createCommand();
+    const cmd = createCommand({ workingDir: '/tmp/test' });
 
     const result = await handleStartAgent(ctx, cmd);
 
@@ -219,7 +183,7 @@ describe('handleStartAgent', () => {
   it('successfully spawns an agent and persists PID', async () => {
     const driver = createMockDriver();
     const ctx = createMockContext({ driver });
-    const cmd = createCommand();
+    const cmd = createCommand({ workingDir: '/tmp/test' });
 
     const result = await handleStartAgent(ctx, cmd);
 
@@ -248,7 +212,7 @@ describe('handleStartAgent', () => {
       message: 'Failed to spawn process',
     });
     const ctx = createMockContext({ driver });
-    const cmd = createCommand();
+    const cmd = createCommand({ workingDir: '/tmp/test' });
 
     const result = await handleStartAgent(ctx, cmd);
 

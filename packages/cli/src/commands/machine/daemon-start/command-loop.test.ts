@@ -77,8 +77,6 @@ function createMockContext(): DaemonContext {
       clearAgentPid: vi.fn(),
       persistAgentPid: vi.fn(),
       listAgentEntries: vi.fn().mockReturnValue([]),
-      getAgentContext: vi.fn().mockReturnValue(null),
-      updateAgentContext: vi.fn(),
     },
     clock: {
       now: vi.fn().mockReturnValue(Date.now()),

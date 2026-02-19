@@ -52,13 +52,10 @@ vi.mock('../../../infrastructure/machine/index.js', () => ({
     lastSyncedAt: '2026-01-01T00:00:00Z',
     availableHarnesses: ['opencode'],
     harnessVersions: {},
-    chatroomAgents: {},
   }),
   clearAgentPid: vi.fn(),
   persistAgentPid: vi.fn(),
   listAgentEntries: vi.fn().mockReturnValue([]),
-  getAgentContext: vi.fn().mockReturnValue(null),
-  updateAgentContext: vi.fn(),
 }));
 
 vi.mock('../../../infrastructure/machine/intentional-stops.js', () => ({
@@ -138,7 +135,6 @@ beforeEach(() => {
     lastSyncedAt: '2026-01-01T00:00:00Z',
     availableHarnesses: ['opencode'],
     harnessVersions: {},
-    chatroomAgents: {},
   } as never);
   vi.mocked(getDriverRegistry).mockReturnValue(createDefaultMockRegistry() as never);
   vi.mocked(recoverAgentState).mockResolvedValue(undefined);

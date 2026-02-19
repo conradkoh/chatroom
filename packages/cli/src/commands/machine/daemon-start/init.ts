@@ -15,9 +15,7 @@ import {
   getMachineId,
   listAgentEntries,
   loadMachineConfig,
-  getAgentContext,
   persistAgentPid,
-  updateAgentContext,
 } from '../../../infrastructure/machine/index.js';
 import {
   markIntentionalStop,
@@ -146,8 +144,6 @@ export function createDefaultDeps(): DaemonDeps {
       clearAgentPid,
       persistAgentPid,
       listAgentEntries,
-      getAgentContext,
-      updateAgentContext,
     },
     clock: {
       now: () => Date.now(),

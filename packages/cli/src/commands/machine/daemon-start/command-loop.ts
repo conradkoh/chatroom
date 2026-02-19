@@ -171,7 +171,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         ctx.deps.processes.kill(entry.pid, 0);
         isAlive = true;
       } catch {
-        // Process is dead — crash recovery handles this via the onExit callback
+        // Process is dead — the onExit callback handles cleanup
       }
 
       if (isAlive) {
@@ -201,7 +201,8 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     clearInterval(agentHeartbeatTimer);
 
     // ── Graceful Agent Cleanup ──────────────────────────────────────────
-    // Stop all tracked agent processes so they don't become orphans.
+    // Send SIGTERM to tracked agents for graceful shutdown before the
+    // daemon exits (which would SIGPIPE/kill them as attached children).
     const agents = ctx.deps.machine.listAgentEntries(ctx.machineId);
     if (agents.length > 0) {
       console.log(`[${formatTimestamp()}] Stopping ${agents.length} agent(s)...`);

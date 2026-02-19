@@ -22,7 +22,6 @@ describe('handleStatus', () => {
         hostname: 'test-machine',
         os: 'darwin',
         availableHarnesses: ['opencode'],
-        chatroomAgents: { room1: { role1: {} } },
       },
     } as unknown as DaemonContext;
 
@@ -33,7 +32,6 @@ describe('handleStatus', () => {
     expect(parsed.hostname).toBe('test-machine');
     expect(parsed.os).toBe('darwin');
     expect(parsed.availableHarnesses).toEqual(['opencode']);
-    expect(parsed.chatroomAgents).toEqual(['room1']);
   });
 
   it('handles null config gracefully', () => {
@@ -44,22 +42,20 @@ describe('handleStatus', () => {
     expect(result.failed).toBe(false);
     const parsed = JSON.parse(result.result);
     expect(parsed.hostname).toBeUndefined();
-    expect(parsed.chatroomAgents).toEqual([]);
   });
 
-  it('handles config with no chatroom agents', () => {
+  it('handles config with empty harnesses', () => {
     const ctx = {
       config: {
         hostname: 'test',
         os: 'linux',
         availableHarnesses: [],
-        chatroomAgents: {},
       },
     } as unknown as DaemonContext;
 
     const result = handleStatus(ctx);
 
     const parsed = JSON.parse(result.result);
-    expect(parsed.chatroomAgents).toEqual([]);
+    expect(parsed.availableHarnesses).toEqual([]);
   });
 });

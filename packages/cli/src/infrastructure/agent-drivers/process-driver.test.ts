@@ -43,15 +43,13 @@ class TestProcessDriver extends ProcessDriver {
  * Helper to spawn a sleep process and return its PID.
  * Uses `sleep` on Unix which responds to SIGTERM.
  */
-function spawnSleepProcess(seconds: number): number {
+function spawnSleepProcess(seconds: number): { pid: number; child: ReturnType<typeof spawn> } {
   const child = spawn('sleep', [String(seconds)], {
     stdio: 'ignore',
-    detached: true,
   });
-  child.unref();
   const pid = child.pid;
   if (!pid) throw new Error('Failed to spawn sleep process');
-  return pid;
+  return { pid, child };
 }
 
 /**
@@ -69,7 +67,7 @@ function isProcessAlive(pid: number): boolean {
 describe('ProcessDriver.stop()', () => {
   it('sends SIGTERM and process exits gracefully', async () => {
     const driver = new TestProcessDriver();
-    const pid = spawnSleepProcess(60); // Long sleep — will be killed by SIGTERM
+    const { pid } = spawnSleepProcess(60); // Long sleep — will be killed by SIGTERM
 
     // Verify process is alive
     expect(isProcessAlive(pid)).toBe(true);
@@ -127,7 +125,7 @@ describe('ProcessDriver.stop()', () => {
 
   it('succeeds silently when process is already dead (ESRCH)', async () => {
     const driver = new TestProcessDriver();
-    const pid = spawnSleepProcess(60);
+    const { pid } = spawnSleepProcess(60);
 
     // Kill the process before calling stop()
     process.kill(pid, 'SIGKILL');

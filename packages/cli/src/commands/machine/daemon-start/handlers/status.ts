@@ -9,7 +9,6 @@ export function handleStatus(ctx: DaemonContext): CommandResult {
     hostname: ctx.config?.hostname,
     os: ctx.config?.os,
     availableHarnesses: ctx.config?.availableHarnesses,
-    chatroomAgents: Object.keys(ctx.config?.chatroomAgents ?? {}),
   });
   console.log(`   ↪ Responding with status`);
   return { result, failed: false };

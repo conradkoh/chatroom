@@ -23,7 +23,6 @@ export async function daemonStart(): Promise<void> {
 
 export { handleStartAgent } from './handlers/start-agent.js';
 export { handleStopAgent } from './handlers/stop-agent.js';
-export { handleAgentCrashRecovery } from './handlers/crash-recovery.js';
 export { recoverAgentState } from './handlers/state-recovery.js';
 
 export type {
@@ -38,7 +37,6 @@ export type {
   DaemonDeps,
   StartAgentDeps,
   StopAgentDeps,
-  CrashRecoveryDeps,
   StateRecoveryDeps,
   DriverOps,
   IntentionalStopOps,

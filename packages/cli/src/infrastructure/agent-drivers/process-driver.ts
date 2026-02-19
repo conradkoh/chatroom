@@ -90,7 +90,7 @@ export interface SpawnConfig {
  *   - buildSpawnConfig(): returns SpawnConfig for the child process
  *
  * The base class handles:
- *   - Spawning + detaching the child process
+ *   - Spawning the child process (attached — dies with the daemon)
  *   - Writing prompt to stdin (if configured)
  *   - PID-based liveness checking
  *   - SIGTERM-based stopping
@@ -126,7 +126,6 @@ export abstract class ProcessDriver implements AgentHarnessDriver {
       const childProcess = spawn(config.command, config.args, {
         cwd: options.workingDir,
         stdio: config.stdio,
-        detached: true,
         shell: false,
       });
 
@@ -138,9 +137,6 @@ export abstract class ProcessDriver implements AgentHarnessDriver {
 
       // Run post-spawn hook (e.g. temp file cleanup)
       config.afterSpawn?.(childProcess);
-
-      // Unref so parent can exit independently
-      childProcess.unref();
 
       // Give it a moment to start
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -238,9 +234,8 @@ export abstract class ProcessDriver implements AgentHarnessDriver {
   }
 
   /**
-   * Process-based drivers cannot recover handles after daemon restart
-   * because detached child PIDs are not persisted.
-   * Returns an empty array.
+   * Process-based agents are children of the daemon and die when it exits,
+   * so there's nothing to recover after a restart. Returns an empty array.
    */
   async recover(_workingDir: string): Promise<AgentHandle[]> {
     return [];

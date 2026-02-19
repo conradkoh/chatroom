@@ -14,11 +14,7 @@ import { api, type Id } from '../../api.js';
 import { getDriverRegistry } from '../../infrastructure/agent-drivers/index.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../infrastructure/convex/client.js';
-import {
-  ensureMachineRegistered,
-  updateAgentContext,
-  type AgentHarness,
-} from '../../infrastructure/machine/index.js';
+import { ensureMachineRegistered, type AgentHarness } from '../../infrastructure/machine/index.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
 import { sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 
@@ -147,7 +143,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
 
     if (agentType) {
       const workingDir = process.cwd();
-      updateAgentContext(chatroomId, role, agentType, workingDir);
 
       await client.mutation(api.machines.updateAgentConfig, {
         sessionId,

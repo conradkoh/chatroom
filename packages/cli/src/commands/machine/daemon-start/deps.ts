@@ -18,7 +18,7 @@ import type {
   FsOps,
   ProcessOps,
 } from '../../../infrastructure/deps/index.js';
-import type { AgentContext, AgentHarness } from '../../../infrastructure/machine/types.js';
+import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 
 // ─── Domain-Specific Interfaces ─────────────────────────────────────────────
 
@@ -63,15 +63,6 @@ export interface MachineStateOps {
   listAgentEntries: (
     machineId: string
   ) => { chatroomId: string; role: string; entry: { pid: number; harness: AgentHarness } }[];
-  /** Get agent context (working dir, harness) for a chatroom role */
-  getAgentContext: (chatroomId: string, role: string) => AgentContext | null;
-  /** Update agent context with new working dir / harness */
-  updateAgentContext: (
-    chatroomId: string,
-    role: string,
-    harness: AgentHarness,
-    workingDir: string
-  ) => void;
 }
 
 // ─── Per-Handler Dep Interfaces ─────────────────────────────────────────────
@@ -81,7 +72,7 @@ export interface StartAgentDeps {
   backend: BackendOps;
   drivers: DriverOps;
   fs: FsOps;
-  machine: Pick<MachineStateOps, 'getAgentContext' | 'updateAgentContext' | 'persistAgentPid'>;
+  machine: Pick<MachineStateOps, 'persistAgentPid'>;
   stops: Pick<IntentionalStopOps, 'consume'>;
 }
 
@@ -92,13 +83,6 @@ export interface StopAgentDeps {
   processes: ProcessOps;
   machine: Pick<MachineStateOps, 'clearAgentPid'>;
   stops: Pick<IntentionalStopOps, 'mark' | 'clear'>;
-}
-
-/** Dependencies for handleAgentCrashRecovery */
-export interface CrashRecoveryDeps {
-  backend: BackendOps;
-  clock: ClockOps;
-  machine: Pick<MachineStateOps, 'clearAgentPid'>;
 }
 
 /** Dependencies for recoverAgentState */
