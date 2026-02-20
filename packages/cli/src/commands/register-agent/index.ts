@@ -9,10 +9,10 @@
 import type { RegisterAgentDeps } from './deps.js';
 import { api } from '../../api.js';
 import type { Id } from '../../api.js';
-import { getDriverRegistry } from '../../infrastructure/agent-drivers/index.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { ensureMachineRegistered, type AgentHarness } from '../../infrastructure/machine/index.js';
+import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -110,16 +110,11 @@ export async function registerAgent(
     try {
       const machineInfo = ensureMachineRegistered();
 
-      // Discover available models from installed harnesses
+      // Discover available models (non-critical)
       let availableModels: string[] = [];
       try {
-        const registry = getDriverRegistry();
-        for (const driver of registry.all()) {
-          if (driver.capabilities.dynamicModelDiscovery) {
-            const models = await driver.listModels();
-            availableModels = availableModels.concat(models);
-          }
-        }
+        const agentService = new OpenCodeAgentService();
+        availableModels = await agentService.listModels();
       } catch {
         // Model discovery is non-critical
       }

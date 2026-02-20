@@ -22,16 +22,11 @@ export type { AuthStatusDeps } from './deps.js';
 
 async function listAvailableModelsDefault(): Promise<string[]> {
   try {
-    const { getDriverRegistry } = await import('../../infrastructure/agent-drivers/index.js');
-    const registry = getDriverRegistry();
-    const models: string[] = [];
-    for (const driver of registry.all()) {
-      if (driver.capabilities.dynamicModelDiscovery) {
-        const driverModels = await driver.listModels();
-        models.push(...driverModels);
-      }
-    }
-    return models;
+    const { OpenCodeAgentService } = await import(
+      '../../infrastructure/services/remote-agents/opencode/index.js'
+    );
+    const agentService = new OpenCodeAgentService();
+    return await agentService.listModels();
   } catch {
     return [];
   }

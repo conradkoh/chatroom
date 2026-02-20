@@ -29,7 +29,6 @@ function createTestContext(): DaemonContext {
       },
       processes: {
         kill: vi.fn(),
-        verifyPidOwnership: vi.fn().mockReturnValue(true),
       },
       fs: {
         stat: vi.fn(),

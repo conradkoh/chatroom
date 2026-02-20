@@ -13,7 +13,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { recoverAgentState } from './handlers/state-recovery.js';
 import { initDaemon, discoverModels } from './init.js';
-import { getDriverRegistry } from '../../../infrastructure/agent-drivers/index.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
 import { getMachineId, loadMachineConfig } from '../../../infrastructure/machine/index.js';
@@ -62,13 +61,6 @@ vi.mock('../../../infrastructure/machine/intentional-stops.js', () => ({
   markIntentionalStop: vi.fn(),
   consumeIntentionalStop: vi.fn().mockReturnValue(false),
   clearIntentionalStop: vi.fn(),
-}));
-
-vi.mock('../../../infrastructure/agent-drivers/index.js', () => ({
-  getDriverRegistry: vi.fn().mockReturnValue({
-    get: vi.fn(),
-    all: vi.fn().mockReturnValue([]),
-  }),
 }));
 
 vi.mock('../../../utils/error-formatting.js', () => ({
@@ -125,17 +117,6 @@ let errorSpy: any;
 
 let warnSpy: any;
 
-/**
- * Default mock registry returned by getDriverRegistry.
- * Must be reset before each test because some tests override it.
- */
-function createDefaultMockRegistry() {
-  return {
-    get: vi.fn(),
-    all: vi.fn().mockReturnValue([]),
-  };
-}
-
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
@@ -161,7 +142,6 @@ beforeEach(() => {
     availableHarnesses: ['opencode'],
     harnessVersions: {},
   } as never);
-  vi.mocked(getDriverRegistry).mockReturnValue(createDefaultMockRegistry() as never);
   vi.mocked(recoverAgentState).mockResolvedValue(undefined);
   vi.mocked(isNetworkError).mockReturnValue(false);
 

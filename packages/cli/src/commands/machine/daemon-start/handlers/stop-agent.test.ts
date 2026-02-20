@@ -49,13 +49,6 @@ vi.mock('../../../../api.js', () => ({
   },
 }));
 
-vi.mock('../../../../infrastructure/agent-drivers/index.js', () => ({
-  getDriverRegistry: vi.fn(() => ({
-    get: vi.fn(),
-    all: vi.fn(() => []),
-  })),
-}));
-
 vi.mock('../../../../infrastructure/auth/storage.js', () => ({
   getSessionId: vi.fn(() => 'test-session'),
   getOtherSessionUrls: vi.fn(() => []),
@@ -108,7 +101,6 @@ function createMockDeps(overrides?: Partial<DaemonDeps>): DaemonDeps {
     },
     processes: {
       kill: vi.fn(),
-      verifyPidOwnership: vi.fn(() => true),
     },
     fs: {
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),

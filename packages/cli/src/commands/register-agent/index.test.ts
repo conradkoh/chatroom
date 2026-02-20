@@ -25,10 +25,10 @@ vi.mock('../../infrastructure/machine/index.js', () => ({
   }),
 }));
 
-vi.mock('../../infrastructure/agent-drivers/index.js', () => ({
-  getDriverRegistry: vi.fn().mockReturnValue({
-    all: () => [],
-  }),
+vi.mock('../../infrastructure/services/remote-agents/opencode/index.js', () => ({
+  OpenCodeAgentService: class MockOpenCodeAgentService {
+    listModels = vi.fn().mockResolvedValue([]);
+  },
 }));
 
 // ---------------------------------------------------------------------------

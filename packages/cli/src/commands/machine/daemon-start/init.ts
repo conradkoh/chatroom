@@ -2,7 +2,6 @@
  * Daemon Initialization — validates auth, connects to Convex, recovers state.
  */
 
-import { execFileSync } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 
 import { recoverAgentState } from './handlers/state-recovery.js';
@@ -32,59 +31,6 @@ import { registerEventListeners } from './event-listeners.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { AgentOutputStore } from '../../../stores/agent-output.js';
-
-// ─── PID Ownership Verification ─────────────────────────────────────────────
-
-/**
- * Verify that a PID belongs to an expected process.
- * Returns true if the process exists and appears to match the expected harness.
- * Returns false if the PID doesn't exist or belongs to a different process.
- */
-function verifyPidOwnership(pid: number, expectedHarness?: string): boolean {
-  try {
-    // First check if process exists
-    process.kill(pid, 0);
-  } catch {
-    // Process doesn't exist
-    return false;
-  }
-
-  if (!expectedHarness) {
-    // No harness to verify against, just confirm process exists
-    return true;
-  }
-
-  // Try to get process info to verify it's the expected harness
-  try {
-    const platform = process.platform;
-    let processName = '';
-
-    if (platform === 'darwin' || platform === 'linux') {
-      processName = execFileSync('ps', ['-p', String(pid), '-o', 'comm='], {
-        encoding: 'utf-8',
-        timeout: 3000,
-        stdio: ['ignore', 'pipe', 'ignore'],
-      }).trim();
-    }
-
-    if (!processName) {
-      // Can't determine process name, assume it's valid
-      return true;
-    }
-
-    // Check if the process name contains the expected harness name
-    const harnessLower = expectedHarness.toLowerCase();
-    const procLower = processName.toLowerCase();
-
-    // Match common patterns: 'opencode', 'node' (for Node-based harnesses)
-    return (
-      procLower.includes(harnessLower) || procLower.includes('node') || procLower.includes('bun')
-    );
-  } catch {
-    // If we can't check, assume the process is valid (safer than killing an unknown process)
-    return true;
-  }
-}
 
 // ─── Model Discovery ────────────────────────────────────────────────────────
 
@@ -119,7 +65,6 @@ export function createDefaultDeps(): DaemonDeps {
     },
     processes: {
       kill: (pid, signal) => process.kill(pid, signal),
-      verifyPidOwnership,
     },
     fs: {
       stat,

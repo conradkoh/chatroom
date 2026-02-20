@@ -29,9 +29,6 @@ function createMockContext(
     },
     processes: {
       kill: vi.fn(),
-      verifyPidOwnership: vi.fn().mockImplementation((pid: number) => {
-        return aliveCheck ? aliveCheck(pid) : false;
-      }),
     },
     fs: {
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),

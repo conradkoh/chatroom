@@ -88,7 +88,6 @@ function createMockContext(options?: {
     },
     processes: {
       kill: vi.fn(),
-      verifyPidOwnership: vi.fn().mockReturnValue(true),
     },
     fs: {
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),

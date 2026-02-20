@@ -11,7 +11,7 @@ import { clearAgentPidEverywhere } from './shared.js';
  *
  * Reads locally persisted PIDs from the per-machine state file
  * (~/.chatroom/machines/state/<machine-id>.json), verifies each is still
- * alive using `verifyPidOwnership()`, and reconciles with Convex:
+ * alive using `remoteAgentService.isAlive()`, and reconciles with Convex:
  * - Alive agents: log as recovered, keep PID in local state and Convex
  * - Dead agents: clear PID from local state and Convex
  *
