@@ -15,7 +15,7 @@ import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internalMutation, mutation, query } from './_generated/server';
-import { validateSession } from './auth/cliSessionAuth';
+import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
 import {
   LIFECYCLE_STATES,
   validateTransition,
@@ -215,6 +215,128 @@ export const getTeamStatus = query({
       .collect();
 
     return { agents };
+  },
+});
+
+// ─── Lifecycle-State → Display Mapping ────────────────────────────────────────
+
+type DisplayStatus = 'offline' | 'starting' | 'ready' | 'working' | 'stopping' | 'dead';
+
+const LIFECYCLE_TO_DISPLAY: Record<LifecycleState, DisplayStatus> = {
+  offline: 'offline',
+  start_requested: 'starting',
+  starting: 'starting',
+  ready: 'ready',
+  working: 'working',
+  stop_requested: 'stopping',
+  stopping: 'stopping',
+  dead: 'dead',
+};
+
+function lifecycleToDisplayStatus(state: LifecycleState): DisplayStatus {
+  return LIFECYCLE_TO_DISPLAY[state];
+}
+
+function lifecycleStatusReason(state: LifecycleState): string {
+  switch (state) {
+    case 'offline':
+      return 'Agent is offline';
+    case 'start_requested':
+      return 'Start command dispatched, waiting for agent to launch';
+    case 'starting':
+      return 'Agent process is starting up';
+    case 'ready':
+      return 'Agent is waiting for tasks';
+    case 'working':
+      return 'Agent is actively processing a task';
+    case 'stop_requested':
+      return 'Stop requested, waiting for agent to shut down';
+    case 'stopping':
+      return 'Agent is shutting down';
+    case 'dead':
+      return 'Agent heartbeat expired — presumed crashed';
+  }
+}
+
+/**
+ * Get team lifecycle data in a shape compatible with getTeamReadiness.
+ *
+ * Returns participants[], expectedRoles, missingRoles, expiredRoles, isReady,
+ * hasHistory — the same contract the frontend already consumes.
+ *
+ * This is the Phase 3 replacement for chatrooms.getTeamReadiness.
+ */
+export const getTeamLifecycle = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    if (!chatroom.teamId || !chatroom.teamRoles) {
+      return null;
+    }
+
+    const lifecycleRows = await ctx.db
+      .query('chatroom_machineAgentLifecycle')
+      .withIndex('by_chatroom_team_role', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    const lifecycleByRole = new Map(lifecycleRows.map((r) => [r.role.toLowerCase(), r]));
+
+    const expectedRoles = chatroom.teamRoles;
+    const participants = expectedRoles.map((role) => {
+      const row = lifecycleByRole.get(role.toLowerCase());
+      const state: LifecycleState = row?.state ?? 'offline';
+      const displayStatus = lifecycleToDisplayStatus(state);
+      const isAlive = state === 'ready' || state === 'working';
+
+      return {
+        role,
+        status: state,
+        displayStatus,
+        statusReason: lifecycleStatusReason(state),
+        isExpired:
+          !isAlive &&
+          state !== 'offline' &&
+          state !== 'start_requested' &&
+          state !== 'starting' &&
+          state !== 'stop_requested' &&
+          state !== 'stopping',
+        agentType: 'remote' as const,
+        desiredStatus: undefined,
+        hasPendingCommand: state === 'start_requested' || state === 'stop_requested',
+      };
+    });
+
+    const aliveRoles = new Set(
+      participants
+        .filter((p) => p.displayStatus !== 'offline' && p.displayStatus !== 'dead')
+        .map((p) => p.role.toLowerCase())
+    );
+
+    const missingRoles = expectedRoles.filter((r) => !aliveRoles.has(r.toLowerCase()));
+    const expiredRoles = participants.filter((p) => p.isExpired).map((p) => p.role);
+
+    const firstUserMessage = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .first();
+
+    return {
+      teamId: chatroom.teamId,
+      teamName: chatroom.teamName ?? chatroom.teamId,
+      expectedRoles,
+      presentRoles: participants.filter((p) => p.displayStatus !== 'offline').map((p) => p.role),
+      missingRoles,
+      expiredRoles,
+      isReady: missingRoles.length === 0,
+      participants,
+      hasHistory: firstUserMessage !== null,
+    };
   },
 });
 

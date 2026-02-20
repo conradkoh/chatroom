@@ -351,11 +351,11 @@ Daemon calls lifecycle mutations instead of `participants.join/leave/extendActiv
   - [x] Step 2.4: heartbeat (participants.heartbeat + extendActiveAgent)
   - [x] Step 2.5: status transitions (updateStatus: active→working, waiting→ready)
   - [x] Step 2.6: cleanupStaleAgents (stale→dead, deadline→offline, FSM→offline)
-- [ ] **Phase 3:** Frontend Migration
-  - [ ] Step 3.1: New queries
-  - [ ] Step 3.2: Update types
-  - [ ] Step 3.3: Migrate components
-  - [ ] Step 3.4: Remove auto-restart
+- [x] **Phase 3:** Frontend Migration
+  - [x] Step 3.1: New query (getTeamLifecycle in machineAgentLifecycle.ts)
+  - [x] Step 3.2: Types unchanged — existing display statuses cover all lifecycle states
+  - [x] Step 3.3: ChatroomDashboard migrated to api.machineAgentLifecycle.getTeamLifecycle
+  - [x] Step 3.4: Removed useAutoRestartAgents hook + restarting banner
 - [ ] **Phase 4:** Daemon Migration
   - [ ] Step 4.1: start-agent
   - [ ] Step 4.2: stop-agent

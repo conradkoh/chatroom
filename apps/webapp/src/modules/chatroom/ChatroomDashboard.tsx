@@ -14,7 +14,6 @@ import {
   CheckCircle,
   MoreVertical,
   Square,
-  RefreshCw,
   Settings2,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
@@ -28,7 +27,6 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { TaskQueue } from './components/TaskQueue';
 import { AttachedTasksProvider } from './context/AttachedTasksContext';
-import { useAutoRestartAgents } from './hooks/useAutoRestartAgents';
 import type { TeamReadiness } from './types/readiness';
 // TeamStatus is now consolidated into AgentPanel
 
@@ -296,25 +294,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Participant[] | undefined;
 
-  const readiness = useSessionQuery(api.chatrooms.getTeamReadiness, {
+  const readiness = useSessionQuery(api.machineAgentLifecycle.getTeamLifecycle, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamReadiness | null | undefined;
-
-  // Auto-restart UI feedback — actual restart logic is on the backend.
-  // When a task targets an offline agent, the backend dispatches restart commands.
-  // This hook provides UI awareness (spinner banner).
-  // Only shows the banner when the entry-point agent is offline — other agents
-  // being offline is expected when working with a partial team.
-  const { notifyMessageSent, isRestarting: isRestartingAgents } = useAutoRestartAgents({
-    chatroomId,
-    readiness,
-    teamEntryPoint: chatroom?.teamEntryPoint || chatroom?.teamRoles?.[0],
-  });
-
-  // Callback for SendForm — notifies the hook about message sent
-  const handleMessageSent = useCallback(() => {
-    notifyMessageSent();
-  }, [notifyMessageSent]);
 
   // Memoize derived values
   const teamRoles = useMemo(() => chatroom?.teamRoles || [], [chatroom?.teamRoles]);
@@ -648,13 +630,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               {/* Message Section */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 <MessageFeed chatroomId={chatroomId} participants={participants || []} />
-                {isRestartingAgents && (
-                  <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border-t border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs">
-                    <RefreshCw size={12} className="animate-spin" />
-                    <span>Restarting offline agents...</span>
-                  </div>
-                )}
-                <SendForm chatroomId={chatroomId} onMessageSent={handleMessageSent} />
+                <SendForm chatroomId={chatroomId} />
               </div>
 
               {/* Sidebar Overlay for mobile - below app header */}
