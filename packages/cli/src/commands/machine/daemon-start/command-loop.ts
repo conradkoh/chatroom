@@ -73,6 +73,11 @@ export async function processCommand(ctx: DaemonContext, command: MachineCommand
       status: 'processing',
     });
 
+    ctx.events.emit('command:processing', {
+      commandId: command._id.toString(),
+      type: command.type,
+    });
+
     // Dispatch to the appropriate handler
     let commandResult: CommandResult;
     switch (command.type) {
@@ -105,6 +110,13 @@ export async function processCommand(ctx: DaemonContext, command: MachineCommand
       sessionId: ctx.sessionId,
       commandId: command._id,
       status: finalStatus,
+      result: commandResult.result,
+    });
+
+    ctx.events.emit('command:completed', {
+      commandId: command._id.toString(),
+      type: command.type,
+      failed: commandResult.failed,
       result: commandResult.result,
     });
 

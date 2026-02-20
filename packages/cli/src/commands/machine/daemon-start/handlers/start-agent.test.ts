@@ -221,6 +221,63 @@ describe('handleStartAgent', () => {
     expect(ctx.deps.backend.mutation).toHaveBeenCalledTimes(1);
   });
 
+  it('emits agent:started event after successful spawn', async () => {
+    const driver = createMockDriver();
+    const ctx = createMockContext({ driver });
+    const cmd = createCommand({ workingDir: '/tmp/test', model: 'gpt-4o' });
+
+    const listener = vi.fn();
+    ctx.events.on('agent:started', listener);
+
+    await handleStartAgent(ctx, cmd);
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatroomId: 'test-chatroom-123',
+        role: 'builder',
+        pid: 5678,
+        harness: 'opencode',
+        model: 'gpt-4o',
+      })
+    );
+  });
+
+  it('emits agent:exited event when process exits', async () => {
+    let onExitCallback: ((code: number | null, signal: string | null) => void) | null = null;
+    const driver = createMockDriver();
+    driver.start.mockResolvedValue({
+      success: true,
+      handle: { pid: 5678 },
+      onExit: (cb: (code: number | null, signal: string | null) => void) => {
+        onExitCallback = cb;
+      },
+      message: 'Agent started',
+    });
+    const ctx = createMockContext({ driver });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const listener = vi.fn();
+    ctx.events.on('agent:exited', listener);
+
+    await handleStartAgent(ctx, cmd);
+
+    expect(onExitCallback).not.toBeNull();
+    onExitCallback!(1, 'SIGTERM');
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatroomId: 'test-chatroom-123',
+        role: 'builder',
+        pid: 5678,
+        code: 1,
+        signal: 'SIGTERM',
+        intentional: false,
+      })
+    );
+  });
+
   it('returns failed when driver.start fails', async () => {
     const driver = createMockDriver();
     driver.start.mockResolvedValue({

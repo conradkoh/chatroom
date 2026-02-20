@@ -5,8 +5,6 @@
 import { api } from '../../../../api.js';
 import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
 import type { CommandResult, DaemonContext, StartAgentCommand } from '../types.js';
-import { formatTimestamp } from '../utils.js';
-import { clearAgentPidEverywhere } from './shared.js';
 
 /**
  * Handle a start-agent command — spawns an agent process for a chatroom role.
@@ -144,41 +142,27 @@ export async function handleStartAgent(
         console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
       }
 
-      // Monitor for process exit — log and clean up state.
-      // Agents are children of the daemon and are not auto-restarted.
+      ctx.events.emit('agent:started', {
+        chatroomId,
+        role,
+        pid: startResult.handle.pid,
+        harness: agentHarness,
+        model,
+      });
+
+      // Monitor for process exit — emit event so centralized listeners handle cleanup.
       if (startResult.onExit) {
         const spawnedPid = startResult.handle.pid;
         startResult.onExit((code: number | null, signal: string | null) => {
-          const ts = formatTimestamp();
           const wasIntentional = ctx.deps.stops.consume(chatroomId, role);
-
-          if (wasIntentional) {
-            console.log(
-              `[${ts}] ℹ️  Agent process exited after intentional stop ` +
-                `(PID: ${spawnedPid}, role: ${role}, code: ${code}, signal: ${signal})`
-            );
-          } else {
-            console.log(
-              `[${ts}] ⚠️  Agent process exited ` +
-                `(PID: ${spawnedPid}, role: ${role}, code: ${code}, signal: ${signal})`
-            );
-          }
-
-          // Clean up PID from backend and local state
-          clearAgentPidEverywhere(ctx, chatroomId, role).catch((err) => {
-            console.log(`   ⚠️  Failed to clear PID after exit: ${(err as Error).message}`);
+          ctx.events.emit('agent:exited', {
+            chatroomId,
+            role,
+            pid: spawnedPid,
+            code,
+            signal,
+            intentional: wasIntentional,
           });
-
-          // Mark agent as offline so the UI reflects the exit
-          ctx.deps.backend
-            .mutation(api.participants.leave, {
-              sessionId: ctx.sessionId,
-              chatroomId,
-              role,
-            })
-            .catch((leaveErr: Error) => {
-              console.log(`   ⚠️  Could not remove participant: ${leaveErr.message}`);
-            });
         });
       }
     }
