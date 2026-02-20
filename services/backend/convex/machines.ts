@@ -12,9 +12,87 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
+import {
+  validateTransition,
+  type LifecycleState,
+} from '../src/domain/usecase/agent/machine-agent-lifecycle-transitions';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { upsertDesiredState } from '../src/domain/usecase/agent/upsert-desired-state';
+
+// ─── Lifecycle Upsert Helper ─────────────────────────────────────────
+
+/**
+ * Upsert a lifecycle record for an agent. Creates the record if it doesn't
+ * exist, or transitions to the target state if it does. Best-effort — logs
+ * warnings on failure, never throws.
+ */
+async function upsertLifecycleState(
+  ctx: MutationCtx,
+  input: {
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    targetState: LifecycleState;
+    machineId?: string;
+    model?: string;
+    agentHarness?: 'opencode';
+    workingDir?: string;
+  }
+): Promise<void> {
+  try {
+    const chatroom = await ctx.db.get('chatroom_rooms', input.chatroomId);
+    const teamId = chatroom?.teamId ?? 'unknown';
+
+    const existing = await ctx.db
+      .query('chatroom_machineAgentLifecycle')
+      .withIndex('by_chatroom_team_role', (q) =>
+        q.eq('chatroomId', input.chatroomId).eq('teamId', teamId).eq('role', input.role)
+      )
+      .unique();
+
+    const now = Date.now();
+
+    if (!existing) {
+      await ctx.db.insert('chatroom_machineAgentLifecycle', {
+        chatroomId: input.chatroomId,
+        teamId,
+        role: input.role,
+        state: input.targetState,
+        heartbeatAt: now,
+        stateChangedAt: now,
+        machineId: input.machineId,
+        pid: undefined,
+        model: input.model,
+        agentHarness: input.agentHarness,
+        workingDir: input.workingDir,
+        connectionId: undefined,
+      });
+      return;
+    }
+
+    const validation = validateTransition(existing.state, input.targetState);
+    if (!validation.valid) {
+      console.warn(
+        `[lifecycle] Invalid transition ${existing.state} → ${input.targetState} for ${input.role}: ${validation.reason}`
+      );
+      return;
+    }
+
+    const patch: Record<string, unknown> = {
+      state: input.targetState,
+      stateChangedAt: now,
+      heartbeatAt: now,
+    };
+    if (input.machineId !== undefined) patch.machineId = input.machineId;
+    if (input.model !== undefined) patch.model = input.model;
+    if (input.agentHarness !== undefined) patch.agentHarness = input.agentHarness;
+    if (input.workingDir !== undefined) patch.workingDir = input.workingDir;
+
+    await ctx.db.patch('chatroom_machineAgentLifecycle', existing._id, patch);
+  } catch (e) {
+    console.warn(`[lifecycle] Upsert failed for ${input.role}: ${(e as Error).message}`);
+  }
+}
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -664,6 +742,17 @@ export const sendCommand = mutation({
         workingDir: resolvedWorkingDir,
       });
 
+      // Lifecycle: immediately mark as start_requested so frontend shows "Starting"
+      await upsertLifecycleState(ctx, {
+        chatroomId: args.payload.chatroomId,
+        role: args.payload.role,
+        targetState: 'start_requested',
+        machineId: args.machineId,
+        model: resolvedModel,
+        agentHarness: resolvedHarness,
+        workingDir: resolvedWorkingDir,
+      });
+
       const result = await startAgentUseCase(
         ctx,
         {
@@ -688,6 +777,13 @@ export const sendCommand = mutation({
         desiredStatus: 'stopped',
         requestedAt: Date.now(),
         requestedBy: 'user',
+      });
+
+      // Lifecycle: immediately mark as stop_requested so frontend shows "Stopping"
+      await upsertLifecycleState(ctx, {
+        chatroomId: args.payload.chatroomId,
+        role: args.payload.role,
+        targetState: 'stop_requested',
       });
 
       const result = await stopAgentUseCase(ctx, {
