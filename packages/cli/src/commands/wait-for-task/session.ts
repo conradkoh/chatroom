@@ -195,6 +195,15 @@ export class WaitForTaskSession {
 
   private startHeartbeat(): void {
     this.heartbeatTimer = setInterval(() => {
+      // Lifecycle heartbeat — keeps the agent alive in the lifecycle table
+      withRetry(() =>
+        this.client.mutation(api.machineAgentLifecycle.heartbeat, {
+          sessionId: this.sessionId,
+          chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+          role: this.role,
+        })
+      ).catch(() => {});
+
       this.client
         .mutation(api.participants.heartbeat, {
           sessionId: this.sessionId,

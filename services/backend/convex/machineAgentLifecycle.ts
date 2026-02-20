@@ -18,6 +18,7 @@ import { internalMutation, mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
 import {
   LIFECYCLE_STATES,
+  RECONCILIATION_TIMEOUTS,
   validateTransition,
   type LifecycleState,
 } from '../src/domain/usecase/agent/machine-agent-lifecycle-transitions';
@@ -259,12 +260,10 @@ function lifecycleStatusReason(state: LifecycleState): string {
 }
 
 /**
- * Get team lifecycle data in a shape compatible with getTeamReadiness.
+ * Get team lifecycle data for the frontend.
  *
  * Returns participants[], expectedRoles, missingRoles, expiredRoles, isReady,
- * hasHistory — the same contract the frontend already consumes.
- *
- * This is the Phase 3 replacement for chatrooms.getTeamReadiness.
+ * hasHistory — the contract the frontend consumes for agent status display.
  */
 export const getTeamLifecycle = query({
   args: {
@@ -400,14 +399,11 @@ export const reconcile = internalMutation({
       }
     }
 
-    // 2. Stuck transition cleanup
-    const stuckStates: { state: LifecycleState; timeout: number }[] = [
-      { state: 'dead', timeout: 60_000 },
-      { state: 'stopping', timeout: 60_000 },
-      { state: 'starting', timeout: 120_000 },
-      { state: 'start_requested', timeout: 30_000 },
-      { state: 'stop_requested', timeout: 30_000 },
-    ];
+    // 2. Stuck transition cleanup — uses centralized timeouts from domain layer
+    const stuckStates = Object.entries(RECONCILIATION_TIMEOUTS).map(([state, timeout]) => ({
+      state: state as LifecycleState,
+      timeout,
+    }));
 
     for (const { state, timeout } of stuckStates) {
       const agents = await ctx.db

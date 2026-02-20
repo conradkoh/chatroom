@@ -54,8 +54,8 @@ function createMockContext(options?: {
     onOutput: (cb: () => void) => void;
   };
   spawnError?: Error;
-  desiredState?: { desiredStatus: string; requestedAt: number; requestedBy: string } | null;
-  desiredStateError?: boolean;
+  lifecycleState?: { state: string } | null;
+  lifecycleError?: boolean;
 }): DaemonContext {
   const spawnMock = vi.fn().mockImplementation(async () => {
     if (options?.spawnError) throw options.spawnError;
@@ -72,16 +72,15 @@ function createMockContext(options?: {
       ? options.initPrompt
       : { prompt: 'test prompt', rolePrompt: 'role prompt', initialMessage: 'initial msg' };
 
-  const desiredStateValue = options?.desiredState !== undefined ? options.desiredState : null;
+  const lifecycleValue = options?.lifecycleState !== undefined ? options.lifecycleState : null;
 
-  // Distinguish queries by their args: getDesiredState has no `convexUrl`,
-  // while getInitPrompt includes `convexUrl`.
+  // Distinguish queries: getStatus has no `convexUrl`, getInitPrompt includes `convexUrl`.
   const queryMock = vi.fn().mockImplementation((_fnRef: unknown, args: Record<string, unknown>) => {
     if (!args?.convexUrl) {
-      if (options?.desiredStateError) {
+      if (options?.lifecycleError) {
         return Promise.reject(new Error('Network error'));
       }
-      return Promise.resolve(desiredStateValue);
+      return Promise.resolve(lifecycleValue);
     }
     return Promise.resolve(initPromptValue);
   });
@@ -306,15 +305,11 @@ describe('handleStartAgent', () => {
     expect(result.result).toContain('Failed to spawn process');
   });
 
-  // ── Desired state validation tests ──────────────────────────────────
+  // ── Lifecycle validation tests ──────────────────────────────────────
 
-  it('discards start command when desired state is stopped', async () => {
+  it('discards start command when lifecycle is stop_requested', async () => {
     const ctx = createMockContext({
-      desiredState: {
-        desiredStatus: 'stopped',
-        requestedAt: Date.now(),
-        requestedBy: 'user',
-      },
+      lifecycleState: { state: 'stop_requested' },
     });
     const cmd = createCommand({ workingDir: '/tmp/test' });
 
@@ -322,17 +317,55 @@ describe('handleStartAgent', () => {
 
     expect(result.failed).toBe(false);
     expect(result.result).toContain('Discarded stale start-agent command');
-    expect(result.result).toContain('stopped');
+    expect(result.result).toContain('stop_requested');
     expect(ctx.remoteAgentService.spawn).not.toHaveBeenCalled();
   });
 
-  it('proceeds normally when desired state is running', async () => {
+  it('discards start command when lifecycle is stopping', async () => {
     const ctx = createMockContext({
-      desiredState: {
-        desiredStatus: 'running',
-        requestedAt: Date.now(),
-        requestedBy: 'auto_restart',
-      },
+      lifecycleState: { state: 'stopping' },
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(result.result).toContain('Discarded stale start-agent command');
+    expect(result.result).toContain('stopping');
+    expect(ctx.remoteAgentService.spawn).not.toHaveBeenCalled();
+  });
+
+  it('skips redundant start when agent is already ready', async () => {
+    const ctx = createMockContext({
+      lifecycleState: { state: 'ready' },
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(result.result).toContain('already alive');
+    expect(result.result).toContain('ready');
+    expect(ctx.remoteAgentService.spawn).not.toHaveBeenCalled();
+  });
+
+  it('skips redundant start when agent is already working', async () => {
+    const ctx = createMockContext({
+      lifecycleState: { state: 'working' },
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(result.result).toContain('already alive');
+    expect(result.result).toContain('working');
+    expect(ctx.remoteAgentService.spawn).not.toHaveBeenCalled();
+  });
+
+  it('proceeds normally when lifecycle is start_requested', async () => {
+    const ctx = createMockContext({
+      lifecycleState: { state: 'start_requested' },
     });
     const cmd = createCommand({ workingDir: '/tmp/test' });
 
@@ -342,9 +375,21 @@ describe('handleStartAgent', () => {
     expect(result.result).toContain('Agent spawned');
   });
 
-  it('proceeds normally when desired state query fails (fail-open)', async () => {
+  it('proceeds normally when no lifecycle record exists', async () => {
     const ctx = createMockContext({
-      desiredStateError: true,
+      lifecycleState: null,
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(result.result).toContain('Agent spawned');
+  });
+
+  it('proceeds normally when lifecycle query fails (fail-open)', async () => {
+    const ctx = createMockContext({
+      lifecycleError: true,
     });
     const cmd = createCommand({ workingDir: '/tmp/test' });
 

@@ -329,11 +329,9 @@ describe('WaitForTaskSession', () => {
       expect(output).toContain('📨 Task received!');
       expect(output).toContain('Acknowledged task output');
 
-      // For acknowledged tasks, only updateStatus and getTaskDeliveryPrompt are called.
-      // claimTask and claimMessage should NOT be called.
-      // The first mutation call should be updateStatus (not claimTask).
-      // Mutation calls: updateStatus only (no claimTask, no claimMessage since message is null)
-      expect(params.client.mutation).toHaveBeenCalledTimes(1);
+      // For acknowledged tasks, claimTask and claimMessage should NOT be called.
+      // Mutation calls: updateStatus + lifecycle.transition (no claimTask, no claimMessage since message is null)
+      expect(params.client.mutation).toHaveBeenCalledTimes(2);
     });
 
     it('does not process duplicate tasks', async () => {

@@ -3,7 +3,6 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
-import { getAgentStatus } from '../src/domain/usecase/agent/get-agent-status';
 
 /**
  * Create a new chatroom with team configuration.
@@ -332,99 +331,6 @@ export const rename = mutation({
 
     await ctx.db.patch('chatroom_rooms', args.chatroomId, { name: trimmedName });
     return { success: true, name: trimmedName };
-  },
-});
-
-/**
- * Check if all team members have joined and are waiting.
- * Returns null if chatroom has no team (legacy chatroom).
- * Requires CLI session authentication and chatroom access.
- *
- * Note: isReady considers both presence AND readyUntil expiration.
- * A participant is considered "expired" if their readyUntil timestamp has passed.
- */
-export const getTeamReadiness = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access - returns chatroom directly
-    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Chatrooms without team info
-    if (!chatroom.teamId || !chatroom.teamRoles) {
-      return null;
-    }
-
-    const participants = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    // Build participant info with readiness status.
-    // Status resolution is delegated to the getAgentStatus use case — the single
-    // source of truth for display status. It considers participant status, TTL
-    // expiration, desired state, pending commands, and agent type.
-    const participantInfo = await Promise.all(
-      participants.map(async (p) => {
-        const statusResult = await getAgentStatus(ctx, {
-          chatroomId: args.chatroomId,
-          role: p.role,
-        });
-
-        return {
-          role: p.role,
-          status: p.status,
-          displayStatus: statusResult.displayStatus,
-          statusReason: statusResult.statusReason,
-          readyUntil: p.readyUntil,
-          isExpired: statusResult.isExpired,
-          agentType: statusResult.agentType,
-          desiredStatus: statusResult.desiredStatus,
-          hasPendingCommand: statusResult.hasPendingCommand,
-        };
-      })
-    );
-
-    // Get roles that have joined (any status) and are not expired
-    const activeRoles = participantInfo
-      .filter((p) => !p.isExpired)
-      .map((p) => p.role.toLowerCase());
-
-    const expectedRoles = chatroom.teamRoles.map((r) => r.toLowerCase());
-
-    // Missing roles: not present OR expired
-    const missingRoles = expectedRoles.filter((r) => !activeRoles.includes(r));
-
-    // Expired roles: present but expired
-    const expiredRoles = participantInfo.filter((p) => p.isExpired).map((p) => p.role);
-
-    // Check if a user has ever sent a message in this chatroom.
-    // A user message is the strongest signal that the chatroom has been used
-    // and should not show the setup screen again — even if all agents disconnect.
-    const firstUserMessage = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
-      )
-      .first();
-    const hasHistory = firstUserMessage !== null;
-
-    return {
-      teamId: chatroom.teamId,
-      teamName: chatroom.teamName ?? chatroom.teamId,
-      expectedRoles: chatroom.teamRoles,
-      presentRoles: participants.map((p) => p.role),
-      missingRoles: chatroom.teamRoles.filter((r) => !activeRoles.includes(r.toLowerCase())),
-      expiredRoles,
-      // isReady: all expected roles are present AND not expired
-      isReady: missingRoles.length === 0,
-      // Detailed participant info with readyUntil
-      participants: participantInfo,
-      // Whether the chatroom has been used (a user has sent at least one message)
-      hasHistory,
-    };
   },
 });
 

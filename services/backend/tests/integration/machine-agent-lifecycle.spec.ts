@@ -403,7 +403,7 @@ describe('machineAgentLifecycle.reconcile', () => {
   test('cleans up stuck dead state → offline', async () => {
     const { chatroomId } = await setup('lifecycle-rc-3');
     await insertLifecycleRow(chatroomId, 'builder', 'dead', {
-      stateChangedAt: Date.now() - 70_000, // 70s ago, timeout is 60s
+      stateChangedAt: Date.now() - 310_000, // 310s ago, timeout is 300s
     });
 
     const result = await t.mutation(internal.machineAgentLifecycle.reconcile, {});
@@ -417,7 +417,7 @@ describe('machineAgentLifecycle.reconcile', () => {
   test('cleans up stuck stopping state → offline', async () => {
     const { chatroomId } = await setup('lifecycle-rc-4');
     await insertLifecycleRow(chatroomId, 'builder', 'stopping', {
-      stateChangedAt: Date.now() - 70_000,
+      stateChangedAt: Date.now() - 310_000, // 310s ago, timeout is 300s
       pid: 12345,
     });
 
@@ -432,7 +432,7 @@ describe('machineAgentLifecycle.reconcile', () => {
   test('cleans up stuck starting state → offline', async () => {
     const { chatroomId } = await setup('lifecycle-rc-5');
     await insertLifecycleRow(chatroomId, 'builder', 'starting', {
-      stateChangedAt: Date.now() - 130_000, // 130s, timeout is 120s
+      stateChangedAt: Date.now() - 310_000, // 310s, timeout is 300s
     });
 
     const result = await t.mutation(internal.machineAgentLifecycle.reconcile, {});
@@ -445,7 +445,7 @@ describe('machineAgentLifecycle.reconcile', () => {
   test('does not clean up recent dead state', async () => {
     const { chatroomId } = await setup('lifecycle-rc-6');
     await insertLifecycleRow(chatroomId, 'builder', 'dead', {
-      stateChangedAt: Date.now() - 30_000, // 30s ago, timeout is 60s
+      stateChangedAt: Date.now() - 30_000, // 30s ago, timeout is 300s
     });
 
     const result = await t.mutation(internal.machineAgentLifecycle.reconcile, {});
@@ -582,7 +582,7 @@ describe('full lifecycle flow', () => {
     let row = await getLifecycleRow(chatroomId, 'builder');
     expect(row!.state).toBe('dead');
 
-    // Simulate time passing by patching stateChangedAt
+    // Simulate time passing by patching stateChangedAt past the 5 min timeout
     await t.run(async (ctx) => {
       const r = await ctx.db
         .query('chatroom_machineAgentLifecycle')
@@ -592,7 +592,7 @@ describe('full lifecycle flow', () => {
         .unique();
       if (r) {
         await ctx.db.patch(r._id, {
-          stateChangedAt: Date.now() - 70_000,
+          stateChangedAt: Date.now() - 310_000,
         });
       }
     });

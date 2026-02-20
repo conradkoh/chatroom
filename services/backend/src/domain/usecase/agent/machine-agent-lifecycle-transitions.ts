@@ -70,9 +70,9 @@ export function validateTransition(
 
 /** How long an agent can be in a transitional/dead state before the cron forces it offline. */
 export const RECONCILIATION_TIMEOUTS: Partial<Record<LifecycleState, number>> = {
-  dead: 60_000,
-  stopping: 60_000,
-  starting: 120_000,
-  start_requested: 30_000,
-  stop_requested: 30_000,
+  dead: 300_000, // 5 min
+  stopping: 300_000, // 5 min
+  starting: 300_000, // 5 min
+  start_requested: 300_000, // 5 min
+  stop_requested: 300_000, // 5 min
 };

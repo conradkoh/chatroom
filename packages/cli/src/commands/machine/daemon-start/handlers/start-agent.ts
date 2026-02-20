@@ -34,29 +34,30 @@ export async function handleStartAgent(
 
   console.log(`      Working dir: ${workingDir}`);
 
-  // Validate against desired state — discard stale start commands
-  // that have been superseded by a newer stop request.
+  // Validate against lifecycle state — discard stale start commands
+  // that have been superseded by a stop request or duplicate starts.
   try {
-    const desiredState = await ctx.deps.backend.query(
-      api.machineAgentDesiredState.getDesiredState,
-      {
-        sessionId: ctx.sessionId,
-        chatroomId,
-        role,
-      }
-    );
+    const lifecycle = await ctx.deps.backend.query(api.machineAgentLifecycle.getStatus, {
+      sessionId: ctx.sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+    });
 
-    if (desiredState && desiredState.desiredStatus !== 'running') {
-      const msg =
-        `Discarded stale start-agent command for ${role} — ` +
-        `desired state is "${desiredState.desiredStatus}" ` +
-        `(set by ${desiredState.requestedBy} at ${new Date(desiredState.requestedAt).toISOString()})`;
-      console.log(`   ℹ️  ${msg}`);
-      return { result: msg, failed: false };
+    if (lifecycle) {
+      if (lifecycle.state === 'stop_requested' || lifecycle.state === 'stopping') {
+        const msg = `Discarded stale start-agent command for ${role} — lifecycle is "${lifecycle.state}"`;
+        console.log(`   ℹ️  ${msg}`);
+        return { result: msg, failed: false };
+      }
+      if (lifecycle.state === 'ready' || lifecycle.state === 'working') {
+        const msg = `Agent already alive for ${role} (state: "${lifecycle.state}") — skipping redundant start`;
+        console.log(`   ℹ️  ${msg}`);
+        return { result: msg, failed: false };
+      }
     }
   } catch (e) {
     console.log(
-      `   ⚠️  Failed to check desired state, proceeding with start: ${(e as Error).message}`
+      `   ⚠️  Failed to check lifecycle state, proceeding with start: ${(e as Error).message}`
     );
   }
 

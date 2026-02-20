@@ -744,30 +744,9 @@ export default defineSchema({
     .index('by_chatroom_role', ['chatroomId', 'role']),
 
   /**
-   * Desired state for agent lifecycle per chatroom+role.
-   * Implements last-write-wins semantics with timestamp ordering to prevent
-   * race conditions between auto-restart and manual stop.
-   *
-   * One row per chatroomId+role — always overwritten (never appended).
-   * The daemon checks this before processing start commands to discard stale ones.
-   */
-  chatroom_machineAgentDesiredState: defineTable({
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    desiredStatus: v.union(v.literal('running'), v.literal('stopped')),
-    requestedAt: v.number(),
-    requestedBy: v.union(v.literal('user'), v.literal('auto_restart')),
-    machineId: v.optional(v.string()),
-    model: v.optional(v.string()),
-    agentHarness: v.optional(v.literal('opencode')),
-    workingDir: v.optional(v.string()),
-  }).index('by_chatroom_role', ['chatroomId', 'role']),
-
-  /**
    * Agent Lifecycle — single source of truth for agent status.
    *
-   * Replaces the split-state system (chatroom_participants + chatroom_machineAgentDesiredState
-   * + computed get-agent-status.ts) with a single state machine.
+   * Single state machine for agent lifecycle management.
    *
    * One row per (chatroomId, teamId, role). The `state` field IS the display status —
    * no computation needed.

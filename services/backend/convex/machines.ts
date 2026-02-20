@@ -18,7 +18,6 @@ import {
 } from '../src/domain/usecase/agent/machine-agent-lifecycle-transitions';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
-import { upsertDesiredState } from '../src/domain/usecase/agent/upsert-desired-state';
 
 // ─── Lifecycle Upsert Helper ─────────────────────────────────────────
 
@@ -734,18 +733,6 @@ export const sendCommand = mutation({
         );
       }
 
-      await upsertDesiredState(ctx, {
-        chatroomId: args.payload.chatroomId,
-        role: args.payload.role,
-        desiredStatus: 'running',
-        requestedAt: Date.now(),
-        requestedBy: 'user',
-        machineId: args.machineId,
-        model: resolvedModel,
-        agentHarness: resolvedHarness,
-        workingDir: resolvedWorkingDir,
-      });
-
       // Lifecycle: immediately mark as start_requested so frontend shows "Starting"
       await upsertLifecycleState(ctx, {
         chatroomId: args.payload.chatroomId,
@@ -773,16 +760,8 @@ export const sendCommand = mutation({
       return { commandId: result.commandId };
     }
 
-    // ── stop-agent: write desired state then delegate to use case ───────
+    // ── stop-agent: delegate to use case ────────────────────────────────
     if (args.type === 'stop-agent' && args.payload?.chatroomId && args.payload?.role) {
-      await upsertDesiredState(ctx, {
-        chatroomId: args.payload.chatroomId,
-        role: args.payload.role,
-        desiredStatus: 'stopped',
-        requestedAt: Date.now(),
-        requestedBy: 'user',
-      });
-
       // Lifecycle: immediately mark as stop_requested so frontend shows "Stopping"
       await upsertLifecycleState(ctx, {
         chatroomId: args.payload.chatroomId,

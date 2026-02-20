@@ -361,7 +361,6 @@ export const extendActiveAgent = mutation({
 /**
  * Remove a participant from a chatroom.
  * Called when an agent is stopped to ensure the UI no longer shows "Ready".
- * Deletes the participant record so getTeamReadiness will report the role as missing.
  * Requires CLI session authentication and chatroom access.
  */
 export const leave = mutation({
