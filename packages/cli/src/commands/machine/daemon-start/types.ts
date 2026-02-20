@@ -3,6 +3,7 @@
  */
 
 import type { DaemonDeps } from './deps.js';
+import type { DaemonEventBus } from './event-bus.js';
 import type { Id } from '../../../api.js';
 import type { MachineConfig } from '../../../infrastructure/machine/types.js';
 
@@ -116,4 +117,5 @@ export interface DaemonContext {
   machineId: string;
   config: MachineConfig | null;
   deps: DaemonDeps;
+  events: DaemonEventBus;
 }

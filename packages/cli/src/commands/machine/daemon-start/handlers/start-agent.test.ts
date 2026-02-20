@@ -9,6 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DaemonDeps } from '../deps.js';
+import { DaemonEventBus } from '../event-bus.js';
 import type { DaemonContext, StartAgentCommand } from '../types.js';
 import { handleStartAgent } from './start-agent.js';
 
@@ -116,6 +117,7 @@ function createMockContext(options?: {
     machineId: 'test-machine-id',
     config: null,
     deps,
+    events: new DaemonEventBus(),
   };
 }
 

@@ -4,6 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DaemonEventBus } from '../event-bus.js';
 import type { DaemonContext } from '../types.js';
 import { handleStatus } from './status.js';
 
@@ -23,6 +24,7 @@ describe('handleStatus', () => {
         os: 'darwin',
         availableHarnesses: ['opencode'],
       },
+      events: new DaemonEventBus(),
     } as unknown as DaemonContext;
 
     const result = handleStatus(ctx);
@@ -35,7 +37,7 @@ describe('handleStatus', () => {
   });
 
   it('handles null config gracefully', () => {
-    const ctx = { config: null } as unknown as DaemonContext;
+    const ctx = { config: null, events: new DaemonEventBus() } as unknown as DaemonContext;
 
     const result = handleStatus(ctx);
 
@@ -51,6 +53,7 @@ describe('handleStatus', () => {
         os: 'linux',
         availableHarnesses: [],
       },
+      events: new DaemonEventBus(),
     } as unknown as DaemonContext;
 
     const result = handleStatus(ctx);

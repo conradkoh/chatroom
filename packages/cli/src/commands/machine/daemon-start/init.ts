@@ -26,6 +26,7 @@ import { isNetworkError, formatConnectivityError } from '../../../utils/error-fo
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
 import type { DaemonDeps } from './deps.js';
+import { DaemonEventBus } from './event-bus.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 
@@ -249,7 +250,8 @@ export async function initDaemon(): Promise<DaemonContext> {
   deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
   deps.backend.query = (endpoint, args) => client.query(endpoint, args);
 
-  const ctx: DaemonContext = { client, sessionId: typedSessionId, machineId, config, deps };
+  const events = new DaemonEventBus();
+  const ctx: DaemonContext = { client, sessionId: typedSessionId, machineId, config, deps, events };
 
   console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
   console.log(`   CLI version: ${getVersion()}`);

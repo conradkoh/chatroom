@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '../../../../api.js';
 import type { DaemonDeps } from '../deps.js';
+import { DaemonEventBus } from '../event-bus.js';
 import type { DaemonContext, StopAgentCommand } from '../types.js';
 
 // ---------------------------------------------------------------------------
@@ -155,6 +156,7 @@ function createCtx(deps: DaemonDeps): DaemonContext {
     machineId: 'test-machine',
     config: null as unknown as DaemonContext['config'],
     deps,
+    events: new DaemonEventBus(),
   };
 }
 

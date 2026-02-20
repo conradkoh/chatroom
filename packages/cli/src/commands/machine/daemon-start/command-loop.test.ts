@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { processCommand } from './command-loop.js';
 import type { DaemonDeps } from './deps.js';
+import { DaemonEventBus } from './event-bus.js';
 import type {
   DaemonContext,
   PingCommand,
@@ -90,6 +91,7 @@ function createMockContext(): DaemonContext {
     machineId: 'test-machine-id',
     config: null,
     deps,
+    events: new DaemonEventBus(),
   };
 }
 
