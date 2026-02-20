@@ -23,6 +23,7 @@ import type {
 import { formatTimestamp, parseMachineCommand } from './utils.js';
 import { api, type Id } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { onDaemonShutdown } from '../events/on-daemon-shutdown/index.js';
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
@@ -200,62 +201,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     clearInterval(heartbeatTimer);
     clearInterval(agentHeartbeatTimer);
 
-    // ── Graceful Agent Cleanup ──────────────────────────────────────────
-    // Send SIGTERM to tracked agents for graceful shutdown before the
-    // daemon exits (which would SIGPIPE/kill them as attached children).
-    const agents = ctx.deps.machine.listAgentEntries(ctx.machineId);
-    if (agents.length > 0) {
-      console.log(`[${formatTimestamp()}] Stopping ${agents.length} agent(s)...`);
-
-      const AGENT_SHUTDOWN_TIMEOUT_MS = 5_000;
-
-      for (const { chatroomId, role, entry } of agents) {
-        // Mark as intentional so crash recovery is skipped
-        ctx.deps.stops.mark(chatroomId, role);
-        try {
-          // Send SIGTERM for graceful shutdown
-          ctx.deps.processes.kill(entry.pid, 'SIGTERM');
-          console.log(`   Sent SIGTERM to ${role} (PID ${entry.pid})`);
-        } catch {
-          // Process already dead — nothing to do
-          console.log(`   ${role} (PID ${entry.pid}) already exited`);
-        }
-      }
-
-      // Wait briefly for agents to exit, then force-kill stragglers
-      await ctx.deps.clock.delay(AGENT_SHUTDOWN_TIMEOUT_MS);
-
-      for (const { role, entry } of agents) {
-        try {
-          // Check if still alive (signal 0 = existence check)
-          ctx.deps.processes.kill(entry.pid, 0);
-          // Still alive after grace period — force kill
-          ctx.deps.processes.kill(entry.pid, 'SIGKILL');
-          console.log(`   Force-killed ${role} (PID ${entry.pid})`);
-        } catch {
-          // Process exited cleanly — good
-        }
-      }
-
-      // Clear local PID state for all agents
-      for (const { chatroomId, role } of agents) {
-        ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
-      }
-
-      console.log(`[${formatTimestamp()}] All agents stopped`);
-    }
-
-    // Atomically clear daemon status + all spawnedAgent records + participant
-    // records in a single backend transaction. This ensures the UI immediately
-    // shows OFFLINE instead of waiting for heartbeat expiry.
-    try {
-      await ctx.deps.backend.mutation(api.machines.daemonShutdown, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
-      });
-    } catch {
-      // Best-effort — heartbeat expiry is the safety net
-    }
+    await onDaemonShutdown(ctx);
 
     releaseLock();
     process.exit(0);
