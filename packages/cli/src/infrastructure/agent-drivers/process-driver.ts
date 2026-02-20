@@ -157,6 +157,21 @@ export abstract class ProcessDriver implements AgentHarnessDriver {
         workingDir: options.workingDir,
       };
 
+      // Forward piped stdout/stderr to daemon's terminal while tracking activity
+      const outputCallbacks: (() => void)[] = [];
+      if (childProcess.stdout && typeof childProcess.stdout.pipe === 'function') {
+        childProcess.stdout.pipe(process.stdout, { end: false });
+        childProcess.stdout.on('data', () => {
+          for (const cb of outputCallbacks) cb();
+        });
+      }
+      if (childProcess.stderr && typeof childProcess.stderr.pipe === 'function') {
+        childProcess.stderr.pipe(process.stderr, { end: false });
+        childProcess.stderr.on('data', () => {
+          for (const cb of outputCallbacks) cb();
+        });
+      }
+
       return {
         success: true,
         message: 'Agent spawned successfully',
@@ -166,6 +181,10 @@ export abstract class ProcessDriver implements AgentHarnessDriver {
           childProcess.on('exit', (code, signal) => {
             callback(code, signal);
           });
+        },
+        // Expose output events so the daemon can track agent activity for idle detection
+        onOutput: (callback: () => void) => {
+          outputCallbacks.push(callback);
         },
       };
     } catch (error) {

@@ -42,7 +42,7 @@ export class OpenCodeProcessDriver extends ProcessDriver {
     return {
       command,
       args,
-      stdio: ['pipe', 'inherit', 'inherit'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       writePromptToStdin: true,
       stdinPrompt: combinedPrompt,
     };

@@ -87,6 +87,12 @@ export interface AgentHandle {
 export type ProcessExitCallback = (code: number | null, signal: string | null) => void;
 
 /**
+ * Callback signature for output events.
+ * Invoked when stdout or stderr receives data from the spawned agent.
+ */
+export type OutputCallback = () => void;
+
+/**
  * Result of a driver's start() call, including backward-compatible fields.
  * This extends the AgentHandle with success/message for the daemon.
  */
@@ -102,6 +108,12 @@ export interface DriverStartResult {
    * The callback receives the exit code and signal (one of which may be null).
    */
   onExit?: (callback: ProcessExitCallback) => void;
+  /**
+   * Register a callback to be invoked when stdout or stderr receives data.
+   * Only available for drivers that pipe stdout/stderr. The daemon uses this
+   * to track agent activity for idle detection.
+   */
+  onOutput?: (callback: OutputCallback) => void;
 }
 
 // ─── Driver Interface ────────────────────────────────────────────────────────
