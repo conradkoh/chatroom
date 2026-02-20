@@ -22,6 +22,7 @@ import type {
   StartAgentCommand,
   StopAgentCommand,
 } from './types.js';
+import { AgentOutputStore } from '../../../stores/agent-output.js';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -92,6 +93,7 @@ function createMockContext(): DaemonContext {
     config: null,
     deps,
     events: new DaemonEventBus(),
+    agentOutputStore: new AgentOutputStore(),
   };
 }
 

@@ -30,6 +30,7 @@ import { DaemonEventBus } from './event-bus.js';
 import { registerEventListeners } from './event-listeners.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
+import { AgentOutputStore } from '../../../stores/agent-output.js';
 
 // ─── PID Ownership Verification ─────────────────────────────────────────────
 
@@ -252,7 +253,16 @@ export async function initDaemon(): Promise<DaemonContext> {
   deps.backend.query = (endpoint, args) => client.query(endpoint, args);
 
   const events = new DaemonEventBus();
-  const ctx: DaemonContext = { client, sessionId: typedSessionId, machineId, config, deps, events };
+  const agentOutputStore = new AgentOutputStore();
+  const ctx: DaemonContext = {
+    client,
+    sessionId: typedSessionId,
+    machineId,
+    config,
+    deps,
+    events,
+    agentOutputStore,
+  };
 
   // Register centralized event listeners for agent lifecycle side-effects
   registerEventListeners(ctx);

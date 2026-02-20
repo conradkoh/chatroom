@@ -7,7 +7,6 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 
-import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
 import { handleStartAgent } from './handlers/start-agent.js';
 import { handleStatus } from './handlers/status.js';
@@ -23,12 +22,20 @@ import type {
 import { formatTimestamp, parseMachineCommand } from './utils.js';
 import { api, type Id } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { onAgentShutdown } from '../events/on-agent-shutdown/index.js';
 import { onDaemonShutdown } from '../events/on-daemon-shutdown/index.js';
+import { releaseLock } from '../pid.js';
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
 /** Interval for periodic model discovery refresh (5 minutes). */
 const MODEL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+
+/** How often the idle reaper checks for stale agents (10 seconds). */
+const IDLE_CHECK_INTERVAL_MS = 10_000;
+
+/** Agents with no stdout/stderr output for this duration are considered idle (1 minute). */
+const IDLE_THRESHOLD_MS = 60_000;
 
 /**
  * Re-discover models and update the backend registration.
@@ -188,23 +195,60 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       }
 
       if (isAlive) {
-        ctx.deps.backend
-          .mutation(api.participants.extendActiveAgent, {
-            sessionId: ctx.sessionId,
-            chatroomId: chatroomId as Id<'chatroom_rooms'>,
-            role,
-          })
-          .catch((err: Error) => {
-            // Best-effort — don't crash the daemon if this fails
-            console.warn(
-              `[${formatTimestamp()}] ⚠️  Agent heartbeat failed for ${role}: ${err.message}`
-            );
-          });
+        const hasRecentOutput = !ctx.agentOutputStore.isIdle(chatroomId, role, IDLE_THRESHOLD_MS);
+        if (hasRecentOutput) {
+          ctx.deps.backend
+            .mutation(api.participants.extendActiveAgent, {
+              sessionId: ctx.sessionId,
+              chatroomId: chatroomId as Id<'chatroom_rooms'>,
+              role,
+            })
+            .catch((err: Error) => {
+              // Best-effort — don't crash the daemon if this fails
+              console.warn(
+                `[${formatTimestamp()}] ⚠️  Agent heartbeat failed for ${role}: ${err.message}`
+              );
+            });
+        }
       }
     }
   }, ACTIVE_AGENT_HEARTBEAT_INTERVAL_MS);
 
   agentHeartbeatTimer.unref();
+
+  // ── Idle Process Reaper ──────────────────────────────────────────────
+  // Periodically check for agents that have produced no stdout/stderr
+  // output within the idle threshold and shut them down via the standard
+  // agent shutdown path (process-group kill + state cleanup).
+  const idleReaperTimer = setInterval(async () => {
+    const agents = ctx.deps.machine.listAgentEntries(ctx.machineId);
+    for (const { chatroomId, role, entry } of agents) {
+      if (ctx.agentOutputStore.isIdle(chatroomId, role, IDLE_THRESHOLD_MS)) {
+        let isAlive = false;
+        try {
+          ctx.deps.processes.kill(entry.pid, 0);
+          isAlive = true;
+        } catch {
+          // Already dead
+        }
+
+        if (isAlive) {
+          console.log(
+            `[${formatTimestamp()}] 💀 Idle agent detected: ${role} (PID: ${entry.pid}, ` +
+              `no output for >${IDLE_THRESHOLD_MS / 1000}s) — stopping`
+          );
+          try {
+            await onAgentShutdown(ctx, { chatroomId, role, pid: entry.pid });
+          } catch (e) {
+            console.warn(
+              `[${formatTimestamp()}] ⚠️  Failed to stop idle agent ${role}: ${(e as Error).message}`
+            );
+          }
+        }
+      }
+    }
+  }, IDLE_CHECK_INTERVAL_MS);
+  idleReaperTimer.unref();
 
   const shutdown = async () => {
     console.log(`\n[${formatTimestamp()}] Shutting down...`);
@@ -212,6 +256,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     // Stop heartbeat timers
     clearInterval(heartbeatTimer);
     clearInterval(agentHeartbeatTimer);
+    clearInterval(idleReaperTimer);
 
     await onDaemonShutdown(ctx);
 

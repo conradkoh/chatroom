@@ -12,6 +12,7 @@ import type { DaemonDeps } from '../deps.js';
 import { DaemonEventBus } from '../event-bus.js';
 import type { DaemonContext, StartAgentCommand } from '../types.js';
 import { handleStartAgent } from './start-agent.js';
+import { AgentOutputStore } from '../../../../stores/agent-output.js';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -118,6 +119,7 @@ function createMockContext(options?: {
     config: null,
     deps,
     events: new DaemonEventBus(),
+    agentOutputStore: new AgentOutputStore(),
   };
 }
 

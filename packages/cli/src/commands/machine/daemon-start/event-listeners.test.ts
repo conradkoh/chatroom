@@ -4,6 +4,7 @@ import { DaemonEventBus } from './event-bus.js';
 import { registerEventListeners } from './event-listeners.js';
 import type { DaemonContext } from './types.js';
 import type { Id } from '../../../api.js';
+import { AgentOutputStore } from '../../../stores/agent-output.js';
 
 const CHATROOM_ID = 'test-chatroom' as Id<'chatroom_rooms'>;
 
@@ -14,6 +15,7 @@ function createTestContext(): DaemonContext {
     machineId: 'test-machine',
     config: null,
     events: new DaemonEventBus(),
+    agentOutputStore: new AgentOutputStore(),
     deps: {
       backend: {
         mutation: vi.fn().mockResolvedValue(undefined),

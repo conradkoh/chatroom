@@ -165,6 +165,13 @@ export async function handleStartAgent(
           });
         });
       }
+
+      // Track stdout/stderr activity for idle detection
+      if (startResult.onOutput) {
+        startResult.onOutput(() => {
+          ctx.agentOutputStore.recordOutput(chatroomId, role);
+        });
+      }
     }
     return { result: msg, failed: false };
   }

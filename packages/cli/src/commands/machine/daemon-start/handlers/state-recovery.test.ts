@@ -11,6 +11,7 @@ import type { DaemonDeps } from '../deps.js';
 import { DaemonEventBus } from '../event-bus.js';
 import type { DaemonContext } from '../types.js';
 import { recoverAgentState } from './state-recovery.js';
+import { AgentOutputStore } from '../../../../stores/agent-output.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -61,6 +62,7 @@ function createMockContext(
     config: null,
     deps,
     events: new DaemonEventBus(),
+    agentOutputStore: new AgentOutputStore(),
   };
 }
 

@@ -56,6 +56,9 @@ export function registerEventListeners(ctx: DaemonContext): () => void {
       // Clear PID from local state
       ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
 
+      // Stop tracking output for idle detection
+      ctx.agentOutputStore.remove(chatroomId, role);
+
       // Remove participant record so the UI reflects the exit
       ctx.deps.backend
         .mutation(api.participants.leave, {
