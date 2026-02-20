@@ -23,6 +23,7 @@ import {
 } from './auth/cliSessionAuth';
 import { recoverOrphanedTasks } from './lib/taskRecovery';
 import { transitionTask } from './lib/taskStateMachine';
+import { tryLifecycleTransition } from '../src/domain/usecase/agent/lifecycle-helpers';
 import { tryEnforceAgentLiveness } from '../src/domain/usecase/agent/try-enforce-agent-liveness';
 
 /**
@@ -1664,6 +1665,13 @@ export const cleanupStaleAgents = internalMutation({
           activeUntil: undefined,
         });
 
+        // Dual-write: lifecycle table (Phase 2) — stale agent → dead
+        await tryLifecycleTransition(ctx, {
+          chatroomId: p.chatroomId,
+          role: p.role,
+          targetState: 'dead',
+        });
+
         markedForCleanupCount++;
         console.warn(
           `[Two-Phase Cleanup] Marked ${p.status} participant for cleanup: role=${p.role} chatroomId=${p.chatroomId} ` +
@@ -1680,6 +1688,14 @@ export const cleanupStaleAgents = internalMutation({
     for (const p of plannedCleanupParticipants) {
       if (p.cleanupDeadline && now > p.cleanupDeadline) {
         await ctx.db.delete('chatroom_participants', p._id);
+
+        // Dual-write: lifecycle table (Phase 2) — confirmed dead → offline
+        await tryLifecycleTransition(ctx, {
+          chatroomId: p.chatroomId,
+          role: p.role,
+          targetState: 'offline',
+        });
+
         deletedCount++;
         console.warn(
           `[Two-Phase Cleanup] Deleted participant past deadline: role=${p.role} chatroomId=${p.chatroomId}`
@@ -1699,6 +1715,14 @@ export const cleanupStaleAgents = internalMutation({
 
       if (isStaleRestarting || isStaleDeadFailed) {
         await ctx.db.delete('chatroom_participants', p._id);
+
+        // Dual-write: lifecycle table (Phase 2) — stale FSM record → offline
+        await tryLifecycleTransition(ctx, {
+          chatroomId: p.chatroomId,
+          role: p.role,
+          targetState: 'offline',
+        });
+
         deletedCount++;
         console.warn(
           `[Stale Cleanup] Removed stale ${p.status} participant: role=${p.role} chatroomId=${p.chatroomId} ` +

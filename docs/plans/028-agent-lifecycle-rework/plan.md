@@ -343,13 +343,14 @@ Daemon calls lifecycle mutations instead of `participants.join/leave/extendActiv
   - [x] Step 1.2: Transition mutations
   - [x] Step 1.3: Reconciliation cron
   - [x] Step 1.4: Tests (25 tests passing)
-- [ ] **Phase 2:** Dual-Write
-  - [ ] Step 2.1: sendCommand
-  - [ ] Step 2.2: participants.join
-  - [ ] Step 2.3: participants.leave
-  - [ ] Step 2.4: heartbeat
-  - [ ] Step 2.5: status transitions
-  - [ ] Step 2.6: cleanup/death
+- [x] **Phase 2:** Dual-Write
+  - [x] Step 2.0: lifecycle-helpers.ts (tryLifecycleTransition, tryLifecycleHeartbeat)
+  - [x] Step 2.1: sendCommand (machines.ts — start-agent, stop-agent)
+  - [x] Step 2.2: participants.join → lifecycle ready
+  - [x] Step 2.3: participants.leave → lifecycle offline
+  - [x] Step 2.4: heartbeat (participants.heartbeat + extendActiveAgent)
+  - [x] Step 2.5: status transitions (updateStatus: active→working, waiting→ready)
+  - [x] Step 2.6: cleanupStaleAgents (stale→dead, deadline→offline, FSM→offline)
 - [ ] **Phase 3:** Frontend Migration
   - [ ] Step 3.1: New queries
   - [ ] Step 3.2: Update types
