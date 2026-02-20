@@ -652,6 +652,18 @@ export const sendCommand = mutation({
         );
       }
 
+      await upsertDesiredState(ctx, {
+        chatroomId: args.payload.chatroomId,
+        role: args.payload.role,
+        desiredStatus: 'running',
+        requestedAt: Date.now(),
+        requestedBy: 'user',
+        machineId: args.machineId,
+        model: resolvedModel,
+        agentHarness: resolvedHarness,
+        workingDir: resolvedWorkingDir,
+      });
+
       const result = await startAgentUseCase(
         ctx,
         {

@@ -54,19 +54,34 @@ function createMockDriver() {
 function createMockContext(options?: {
   initPrompt?: { prompt: string; rolePrompt: string; initialMessage: string } | null;
   driver?: ReturnType<typeof createMockDriver>;
+  desiredState?: { desiredStatus: string; requestedAt: number; requestedBy: string } | null;
+  desiredStateError?: boolean;
 }): DaemonContext {
   const driverMock = options?.driver ?? createMockDriver();
+
+  const initPromptValue =
+    options?.initPrompt !== undefined
+      ? options.initPrompt
+      : { prompt: 'test prompt', rolePrompt: 'role prompt', initialMessage: 'initial msg' };
+
+  const desiredStateValue = options?.desiredState !== undefined ? options.desiredState : null;
+
+  // Distinguish queries by their args: getDesiredState has no `convexUrl`,
+  // while getInitPrompt includes `convexUrl`.
+  const queryMock = vi.fn().mockImplementation((_fnRef: unknown, args: Record<string, unknown>) => {
+    if (!args?.convexUrl) {
+      if (options?.desiredStateError) {
+        return Promise.reject(new Error('Network error'));
+      }
+      return Promise.resolve(desiredStateValue);
+    }
+    return Promise.resolve(initPromptValue);
+  });
 
   const deps: DaemonDeps = {
     backend: {
       mutation: vi.fn().mockResolvedValue(undefined),
-      query: vi
-        .fn()
-        .mockResolvedValue(
-          options?.initPrompt !== undefined
-            ? options.initPrompt
-            : { prompt: 'test prompt', rolePrompt: 'role prompt', initialMessage: 'initial msg' }
-        ),
+      query: queryMock,
     },
     processes: {
       kill: vi.fn(),
@@ -218,5 +233,57 @@ describe('handleStartAgent', () => {
 
     expect(result.failed).toBe(true);
     expect(result.result).toContain('Failed to spawn process');
+  });
+
+  // ── Desired state validation tests ──────────────────────────────────
+
+  it('discards start command when desired state is stopped', async () => {
+    const ctx = createMockContext({
+      desiredState: {
+        desiredStatus: 'stopped',
+        requestedAt: Date.now(),
+        requestedBy: 'user',
+      },
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(result.result).toContain('Discarded stale start-agent command');
+    expect(result.result).toContain('stopped');
+    expect(ctx.deps.drivers.get).not.toHaveBeenCalled();
+  });
+
+  it('proceeds normally when desired state is running', async () => {
+    const driver = createMockDriver();
+    const ctx = createMockContext({
+      driver,
+      desiredState: {
+        desiredStatus: 'running',
+        requestedAt: Date.now(),
+        requestedBy: 'auto_restart',
+      },
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(result.result).toContain('Agent spawned');
+  });
+
+  it('proceeds normally when desired state query fails (fail-open)', async () => {
+    const driver = createMockDriver();
+    const ctx = createMockContext({
+      driver,
+      desiredStateError: true,
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(result.result).toContain('Agent spawned');
   });
 });
