@@ -120,6 +120,21 @@ Each machine that runs the CLI is automatically registered with a stable UUID st
 - Machine-specific agent configuration
 - Daemon-based command processing
 
+### Agent Status FSM
+
+The system maintains an explicit agent status state machine that tracks the full lifecycle:
+
+| Status | Description |
+| ------ |-------------|
+| `offline` | Agent has never connected or has been explicitly stopped |
+| `ready` | Agent is connected and awaiting tasks |
+| `working` | Agent is actively processing a task |
+| `dead` | Agent has stopped responding and is being restarted |
+| `restarting` | Daemon is attempting to restart the agent |
+| `dead_failed_revive` | All restart attempts failed - manual intervention required |
+
+The UI always shows an authoritative, real-time status derived from this FSM rather than computing it ad-hoc.
+
 ---
 
 ## How It Works
@@ -139,6 +154,14 @@ Messages are routed by priority (lower = higher priority):
 | 100      | user              |
 
 **Note:** User messages always go to the team's designated entry point role (e.g., `builder` for pair, `manager` for squad).
+
+### Self-Healing
+
+The system includes automatic recovery mechanisms:
+
+- **Daemon self-healing** — A daemon that resumes heartbeating after a transient disconnect automatically recovers its connected status
+- **Participant self-healing** — A CLI agent whose participant record was deleted by cleanup automatically re-joins via the heartbeat signal
+- **Agent crash recovery** — The daemon automatically restarts agents that crash, showing "RESTARTING" status until successful or "DEAD (UNRECOVERABLE)" after all attempts fail
 
 ### Workflow
 
@@ -163,6 +186,18 @@ chatroom/
 ├── packages/cli/         # CLI package (chatroom-cli on npm)
 └── services/backend/     # Convex backend
 ```
+
+## Architecture Highlights
+
+### Agent Lifecycle
+
+The backend maintains a formal agent status FSM that tracks:
+1. `offline` → `ready` (agent connects)
+2. `ready` → `working` (task received)
+3. `working` → `ready` (task complete)
+4. Any state → `dead` (timeout detected)
+5. `dead` → `restarting` (daemon attempts recovery)
+6. `restarting` → `ready` (recovery successful) or `dead_failed_revive` (all attempts failed)
 
 ## Development
 
