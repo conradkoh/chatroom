@@ -12,7 +12,6 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
-import { tryLifecycleTransition } from '../src/domain/usecase/agent/lifecycle-helpers';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { upsertDesiredState } from '../src/domain/usecase/agent/upsert-desired-state';
@@ -665,17 +664,6 @@ export const sendCommand = mutation({
         workingDir: resolvedWorkingDir,
       });
 
-      // Dual-write: lifecycle table (Phase 2)
-      await tryLifecycleTransition(ctx, {
-        chatroomId: args.payload.chatroomId,
-        role: args.payload.role,
-        targetState: 'start_requested',
-        machineId: args.machineId,
-        model: resolvedModel,
-        agentHarness: resolvedHarness,
-        workingDir: resolvedWorkingDir,
-      });
-
       const result = await startAgentUseCase(
         ctx,
         {
@@ -700,13 +688,6 @@ export const sendCommand = mutation({
         desiredStatus: 'stopped',
         requestedAt: Date.now(),
         requestedBy: 'user',
-      });
-
-      // Dual-write: lifecycle table (Phase 2)
-      await tryLifecycleTransition(ctx, {
-        chatroomId: args.payload.chatroomId,
-        role: args.payload.role,
-        targetState: 'stop_requested',
       });
 
       const result = await stopAgentUseCase(ctx, {

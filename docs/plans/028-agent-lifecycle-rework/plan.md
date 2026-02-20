@@ -365,11 +365,12 @@ Daemon calls lifecycle mutations instead of `participants.join/leave/extendActiv
   - [x] Step 4.6: wait-for-task session → lifecycle ready/offline
   - [x] Step 4.7: state recovery → lifecycle heartbeat (alive) or dead (stale)
   - [x] Step 4.8: retry-queue.ts utility (withRetry helper)
-- [ ] **Phase 5:** Remove Old System
-  - [ ] Step 5.1: Remove old backend
-  - [ ] Step 5.2: Remove old daemon code
-  - [ ] Step 5.3: Schema cleanup
-  - [ ] Step 5.4: Update tests
+- [x] **Phase 5:** Remove Old System (partial — schema retained for rollback)
+  - [x] Step 5.1: Removed auto-restart system (autoRestartOfflineAgent, tryEnforceAgentLiveness calls, stuck pending recovery)
+  - [x] Step 5.2: Removed Phase 2 dual-write helpers from participants.ts, tasks.ts, machines.ts
+  - [x] Step 5.3: getTeamReadiness left intact (no frontend callers, serves as fallback)
+  - [x] Step 5.4: Deleted auto-restart test files, trimmed task-timeout-recovery tests
+  - [ ] Step 5.5: (future) Schema cleanup — remove chatroom_machineAgentDesiredState table, simplify chatroom_participants status union
 
 ---
 

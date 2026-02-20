@@ -8,10 +8,6 @@ import { mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
-import {
-  tryLifecycleHeartbeat,
-  tryLifecycleTransition,
-} from '../src/domain/usecase/agent/lifecycle-helpers';
 
 /**
  * Join a chatroom as a participant.
@@ -155,14 +151,6 @@ export const join = mutation({
       }
     }
 
-    // Dual-write: lifecycle table (Phase 2)
-    await tryLifecycleTransition(ctx, {
-      chatroomId: args.chatroomId,
-      role: args.role,
-      targetState: 'ready',
-      connectionId: args.connectionId,
-    });
-
     return participantId;
   },
 });
@@ -233,9 +221,6 @@ export const heartbeat = mutation({
     await ctx.db.patch('chatroom_participants', participant._id, {
       readyUntil: Date.now() + HEARTBEAT_TTL_MS,
     });
-
-    // Dual-write: lifecycle heartbeat (Phase 2)
-    await tryLifecycleHeartbeat(ctx, args.chatroomId, args.role);
 
     return { status: 'ok' as const };
   },
@@ -327,15 +312,6 @@ export const updateStatus = mutation({
     }
 
     await ctx.db.patch('chatroom_participants', participant._id, update);
-
-    // Dual-write: lifecycle table (Phase 2)
-    // Map participant status → lifecycle state: active → working, waiting → ready
-    const lifecycleState = args.status === 'active' ? 'working' : 'ready';
-    await tryLifecycleTransition(ctx, {
-      chatroomId: args.chatroomId,
-      role: args.role,
-      targetState: lifecycleState,
-    });
   },
 });
 
@@ -378,9 +354,6 @@ export const extendActiveAgent = mutation({
       activeUntil: Date.now() + ACTIVE_AGENT_HEARTBEAT_TTL_MS,
     });
 
-    // Dual-write: lifecycle heartbeat (Phase 2)
-    await tryLifecycleHeartbeat(ctx, args.chatroomId, args.role);
-
     return { status: 'extended' as const };
   },
 });
@@ -412,13 +385,6 @@ export const leave = mutation({
     if (participant) {
       await ctx.db.delete('chatroom_participants', participant._id);
     }
-
-    // Dual-write: lifecycle table (Phase 2)
-    await tryLifecycleTransition(ctx, {
-      chatroomId: args.chatroomId,
-      role: args.role,
-      targetState: 'offline',
-    });
   },
 });
 

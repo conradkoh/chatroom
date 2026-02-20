@@ -1,26 +1,17 @@
 /**
  * Task Timeout Recovery Integration Tests
  *
- * Tests for Phase 4 of the agent reliability system:
+ * Tests for the agent reliability system:
  * - Stuck acknowledged tasks are reset to pending when the participant is gone
- * - Stuck pending tasks trigger auto-restart for remote agents
- * - Stuck pending tasks log warnings for custom agents
  */
 
 import { describe, expect, test } from 'vitest';
 
-import { TASK_ACKNOWLEDGED_TIMEOUT_MS, TASK_PENDING_TIMEOUT_MS } from '../../config/reliability';
+import { TASK_ACKNOWLEDGED_TIMEOUT_MS } from '../../config/reliability';
 import { api, internal } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
-import {
-  createTestSession,
-  createPairTeamChatroom,
-  joinParticipant,
-  registerMachineWithDaemon,
-  setupRemoteAgentConfig,
-  getPendingCommands,
-} from '../helpers/integration';
+import { createTestSession, createPairTeamChatroom, joinParticipant } from '../helpers/integration';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -135,127 +126,6 @@ describe('Task Timeout Recovery', () => {
         const task = await ctx.db.get(taskId);
         expect(task).not.toBeNull();
         expect(task!.status).toBe('acknowledged');
-      });
-    });
-  });
-
-  describe('Stuck pending tasks', () => {
-    test('stuck pending task triggers auto-restart for remote agent', async () => {
-      const { sessionId } = await createTestSession('test-pending-recovery-1');
-      const chatroomId = await createPairTeamChatroom(sessionId);
-      const { machineId } = await registerMachineWithDaemon(sessionId, 'machine-recovery-1');
-      await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
-
-      // Join participants to create the task, then remove them
-      const readyUntil = Date.now() + 10 * 60 * 1000;
-      await joinParticipant(sessionId, chatroomId, 'builder', readyUntil);
-      await joinParticipant(sessionId, chatroomId, 'reviewer', readyUntil);
-
-      await t.mutation(api.messages.send, {
-        sessionId,
-        chatroomId,
-        content: 'Build the feature',
-        senderRole: 'user',
-        type: 'message' as const,
-      });
-
-      // Get the task ID
-      let taskId: Id<'chatroom_tasks'> | undefined;
-      await t.run(async (ctx) => {
-        const tasks = await ctx.db
-          .query('chatroom_tasks')
-          .filter((q) => q.eq(q.field('chatroomId'), chatroomId))
-          .filter((q) => q.eq(q.field('status'), 'pending'))
-          .collect();
-        expect(tasks.length).toBeGreaterThan(0);
-        taskId = tasks[0]!._id;
-      });
-
-      // Remove the builder participant (simulate agent death)
-      await t.mutation(api.participants.leave, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      // Make the task appear old enough
-      await t.run(async (ctx) => {
-        const oldTime = Date.now() - TASK_PENDING_TIMEOUT_MS - 10_000;
-        await ctx.db.patch('chatroom_tasks', taskId!, {
-          updatedAt: oldTime,
-        });
-      });
-
-      // Run cleanup
-      await t.mutation(internal.tasks.cleanupStaleAgents, {});
-
-      // Verify auto-restart commands were created
-      const pending = await getPendingCommands(sessionId, machineId);
-      const startCommands = pending.filter((c: { type: string }) => c.type === 'start-agent');
-      expect(startCommands.length).toBe(1);
-      expect(startCommands[0].payload.role).toBe('builder');
-    });
-
-    test('stuck pending task with custom agent logs warning (no auto-restart)', async () => {
-      const { sessionId } = await createTestSession('test-pending-recovery-2');
-      const chatroomId = await createPairTeamChatroom(sessionId);
-
-      // Register as custom agent (not remote)
-      await t.mutation(api.machines.saveTeamAgentConfig, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-        type: 'custom',
-      });
-
-      // Join participants to create the task
-      const readyUntil = Date.now() + 10 * 60 * 1000;
-      await joinParticipant(sessionId, chatroomId, 'builder', readyUntil);
-      await joinParticipant(sessionId, chatroomId, 'reviewer', readyUntil);
-
-      await t.mutation(api.messages.send, {
-        sessionId,
-        chatroomId,
-        content: 'Build the feature',
-        senderRole: 'user',
-        type: 'message' as const,
-      });
-
-      // Get the task ID
-      let taskId: Id<'chatroom_tasks'> | undefined;
-      await t.run(async (ctx) => {
-        const tasks = await ctx.db
-          .query('chatroom_tasks')
-          .filter((q) => q.eq(q.field('chatroomId'), chatroomId))
-          .filter((q) => q.eq(q.field('status'), 'pending'))
-          .collect();
-        expect(tasks.length).toBeGreaterThan(0);
-        taskId = tasks[0]!._id;
-      });
-
-      // Remove builder participant
-      await t.mutation(api.participants.leave, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      // Make the task appear old enough
-      await t.run(async (ctx) => {
-        const oldTime = Date.now() - TASK_PENDING_TIMEOUT_MS - 10_000;
-        await ctx.db.patch('chatroom_tasks', taskId!, {
-          updatedAt: oldTime,
-        });
-      });
-
-      // Run cleanup — should NOT create any restart commands
-      await t.mutation(internal.tasks.cleanupStaleAgents, {});
-
-      // Task should still be pending (no FSM transition for pending tasks)
-      await t.run(async (ctx) => {
-        const task = await ctx.db.get('chatroom_tasks', taskId!);
-        expect(task).not.toBeNull();
-        expect(task!.status).toBe('pending');
       });
     });
   });

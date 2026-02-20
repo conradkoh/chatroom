@@ -12,7 +12,6 @@ import {
   RECOVERY_GRACE_PERIOD_MS,
   STALE_FSM_RECORD_TTL_MS,
   TASK_ACKNOWLEDGED_TIMEOUT_MS,
-  TASK_PENDING_TIMEOUT_MS,
 } from '../config/reliability';
 import { internalMutation, mutation, query } from './_generated/server';
 import {
@@ -23,8 +22,6 @@ import {
 } from './auth/cliSessionAuth';
 import { recoverOrphanedTasks } from './lib/taskRecovery';
 import { transitionTask } from './lib/taskStateMachine';
-import { tryLifecycleTransition } from '../src/domain/usecase/agent/lifecycle-helpers';
-import { tryEnforceAgentLiveness } from '../src/domain/usecase/agent/try-enforce-agent-liveness';
 
 /**
  * Maximum number of active tasks per chatroom.
@@ -1665,13 +1662,6 @@ export const cleanupStaleAgents = internalMutation({
           activeUntil: undefined,
         });
 
-        // Dual-write: lifecycle table (Phase 2) — stale agent → dead
-        await tryLifecycleTransition(ctx, {
-          chatroomId: p.chatroomId,
-          role: p.role,
-          targetState: 'dead',
-        });
-
         markedForCleanupCount++;
         console.warn(
           `[Two-Phase Cleanup] Marked ${p.status} participant for cleanup: role=${p.role} chatroomId=${p.chatroomId} ` +
@@ -1688,13 +1678,6 @@ export const cleanupStaleAgents = internalMutation({
     for (const p of plannedCleanupParticipants) {
       if (p.cleanupDeadline && now > p.cleanupDeadline) {
         await ctx.db.delete('chatroom_participants', p._id);
-
-        // Dual-write: lifecycle table (Phase 2) — confirmed dead → offline
-        await tryLifecycleTransition(ctx, {
-          chatroomId: p.chatroomId,
-          role: p.role,
-          targetState: 'offline',
-        });
 
         deletedCount++;
         console.warn(
@@ -1715,13 +1698,6 @@ export const cleanupStaleAgents = internalMutation({
 
       if (isStaleRestarting || isStaleDeadFailed) {
         await ctx.db.delete('chatroom_participants', p._id);
-
-        // Dual-write: lifecycle table (Phase 2) — stale FSM record → offline
-        await tryLifecycleTransition(ctx, {
-          chatroomId: p.chatroomId,
-          role: p.role,
-          targetState: 'offline',
-        });
 
         deletedCount++;
         console.warn(
@@ -1744,8 +1720,6 @@ export const cleanupStaleAgents = internalMutation({
     // their assigned agent is no longer reachable.
 
     let stuckAcknowledgedCount = 0;
-    let stuckPendingCount = 0;
-    let autoRestartsTriggered = 0;
 
     // Build a fresh map of all current participants (after cleanup above)
     const allParticipants = await ctx.db.query('chatroom_participants').collect();
@@ -1800,84 +1774,9 @@ export const cleanupStaleAgents = internalMutation({
       }
     }
 
-    // --- Stuck pending tasks ---
-    // Tasks stuck in `pending` for longer than TASK_PENDING_TIMEOUT_MS
-    // with no participant for the target role.
-    const pendingTasks = await ctx.db
-      .query('chatroom_tasks')
-      .filter((q) => q.eq(q.field('status'), 'pending'))
-      .collect();
-
-    for (const task of pendingTasks) {
-      if (now - task.updatedAt < TASK_PENDING_TIMEOUT_MS) continue;
-
-      // Determine the target role for this task.
-      // For pending tasks, the target role is typically the entry point role
-      // of the chatroom (the first role that should pick it up).
-      const chatroom = await ctx.db.get('chatroom_rooms', task.chatroomId);
-      if (!chatroom) continue;
-
-      const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
-      if (!entryPoint) continue;
-
-      const key = `${task.chatroomId}:${entryPoint.toLowerCase()}`;
-      const participant = participantsByKey.get(key);
-
-      // If participant exists and is not expired, skip
-      if (participant) {
-        const isExpired =
-          (participant.status === 'waiting' &&
-            participant.readyUntil &&
-            participant.readyUntil < now) ||
-          (participant.status === 'active' &&
-            participant.activeUntil &&
-            participant.activeUntil < now);
-        if (!isExpired) continue;
-      }
-
-      // No valid participant — attempt restart via the use case
-      stuckPendingCount++;
-
-      const livenessResult = await tryEnforceAgentLiveness(ctx, {
-        chatroomId: task.chatroomId,
-        targetRole: entryPoint,
-        userId: chatroom.ownerId,
-      });
-
-      if (livenessResult.status === 'enforced') {
-        autoRestartsTriggered++;
-        console.warn(
-          `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
-            `Auto-restarting remote agent "${entryPoint}" on machine ${livenessResult.machineId}`
-        );
-      } else if (livenessResult.status === 'error') {
-        console.warn(
-          `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
-            `Cannot enforce liveness for "${entryPoint}": ${livenessResult.message}`
-        );
-      } else {
-        const reason = livenessResult.reason;
-        if (reason === 'no_agent_config') {
-          console.warn(
-            `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
-              `No team agent config found for role "${entryPoint}" — cannot recover.`
-          );
-        } else if (reason !== 'agent_online' && reason !== 'duplicate_pending_command') {
-          console.warn(
-            `[Task Recovery] Pending task ${task._id} stuck >5min. ` +
-              `Restart skipped for "${entryPoint}": ${reason}`
-          );
-        }
-      }
-    }
-
     // Summary log for task recovery
-    if (stuckAcknowledgedCount > 0 || stuckPendingCount > 0) {
-      console.warn(
-        `[Task Recovery] Recovered ${stuckAcknowledgedCount} acknowledged tasks, ` +
-          `found ${stuckPendingCount} stuck pending tasks, ` +
-          `triggered ${autoRestartsTriggered} auto-restarts`
-      );
+    if (stuckAcknowledgedCount > 0) {
+      console.warn(`[Task Recovery] Recovered ${stuckAcknowledgedCount} acknowledged tasks`);
     }
 
     // ─── Stale Daemon Detection ─────────────────────────────────────────

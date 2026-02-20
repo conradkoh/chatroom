@@ -21,7 +21,6 @@ import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/web
 import { getConfig } from '../prompts/config/index.js';
 import { getCliEnvPrefix } from '../prompts/utils/index.js';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
-import { tryEnforceAgentLiveness } from '../src/domain/usecase/agent/try-enforce-agent-liveness';
 
 const config = getConfig();
 
@@ -30,36 +29,6 @@ interface TaskDeliveryPromptResponse {
   fullCliOutput: string; // Complete CLI output for task delivery (backend-generated)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   json: any; // Dynamic JSON structure from prompt generator
-}
-
-// =============================================================================
-// AUTO-RESTART HELPER
-// =============================================================================
-
-/**
- * Ensure the target agent is alive. For remote agents this dispatches restart
- * commands via the daemon; for custom (user-managed) agents it logs a warning.
- *
- * Delegates to the `tryEnforceAgentLiveness` use case.
- */
-async function autoRestartOfflineAgent(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  targetRole: string,
-  userId: Id<'users'>
-): Promise<void> {
-  const result = await tryEnforceAgentLiveness(ctx, { chatroomId, targetRole, userId });
-
-  if (result.status === 'enforced') {
-    console.log(
-      `[auto-restart] Dispatched restart for role "${targetRole}" ` +
-        `on machine ${result.machineId} (model: ${result.model ?? 'default'})`
-    );
-  } else if (result.status === 'error') {
-    console.warn(
-      `[auto-restart] Cannot enforce liveness for role "${targetRole}": ${result.message}`
-    );
-  }
 }
 
 // =============================================================================
@@ -82,8 +51,7 @@ async function _sendMessageHandler(
     attachedTaskIds?: Id<'chatroom_tasks'>[];
   }
 ) {
-  // Validate session and check chatroom access - returns chatroom and session info
-  const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+  const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
   // Validate attached tasks if provided
   if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
@@ -243,16 +211,6 @@ async function _sendMessageHandler(
         }
       }
     }
-
-    // Auto-restart offline agents when a task is created for them
-    if (targetRole && targetRole.toLowerCase() !== 'user') {
-      try {
-        await autoRestartOfflineAgent(ctx, args.chatroomId, targetRole, session.userId);
-      } catch (error) {
-        // Log but don't fail — restart is best-effort, not critical path
-        console.error(`[auto-restart] Failed to restart agent for role "${targetRole}":`, error);
-      }
-    }
   }
 
   return messageId;
@@ -300,11 +258,9 @@ async function _handoffHandler(
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
   let chatroom;
-  let session;
   try {
     const result = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     chatroom = result.chatroom;
-    session = result.session;
   } catch (error) {
     // Convert generic Error to structured error response
     return {
@@ -452,17 +408,6 @@ async function _handoffHandler(
 
     // Link message to task
     await ctx.db.patch('chatroom_messages', messageId, { taskId: newTaskId });
-
-    // Auto-restart the target agent if offline
-    try {
-      await autoRestartOfflineAgent(ctx, args.chatroomId, args.targetRole, session.userId);
-    } catch (error) {
-      // Log but don't fail — restart is best-effort, not critical path
-      console.error(
-        `[handoff][auto-restart] Failed to restart agent for role "${args.targetRole}":`,
-        error
-      );
-    }
   }
 
   // Step 4: Update sender's participant status to waiting (before checking queue promotion)
