@@ -356,15 +356,15 @@ Daemon calls lifecycle mutations instead of `participants.join/leave/extendActiv
   - [x] Step 3.2: Types unchanged — existing display statuses cover all lifecycle states
   - [x] Step 3.3: ChatroomDashboard migrated to api.machineAgentLifecycle.getTeamLifecycle
   - [x] Step 3.4: Removed useAutoRestartAgents hook + restarting banner
-- [ ] **Phase 4:** Daemon Migration
-  - [ ] Step 4.1: start-agent
-  - [ ] Step 4.2: stop-agent
-  - [ ] Step 4.3: event listeners
-  - [ ] Step 4.4: on-agent-shutdown
-  - [ ] Step 4.5: heartbeat
-  - [ ] Step 4.6: wait-for-task
-  - [ ] Step 4.7: state recovery
-  - [ ] Step 4.8: retry queue
+- [x] **Phase 4:** Daemon Migration
+  - [x] Step 4.1: start-agent → lifecycle starting (+ pid, machineId, model, workingDir)
+  - [x] Step 4.2: stop-agent → lifecycle offline (stale PID path)
+  - [x] Step 4.3: agent:exited → lifecycle offline (intentional) or dead (crash)
+  - [x] Step 4.4: on-agent-shutdown → lifecycle offline
+  - [x] Step 4.5: agent heartbeat → lifecycle.heartbeat()
+  - [x] Step 4.6: wait-for-task session → lifecycle ready/offline
+  - [x] Step 4.7: state recovery → lifecycle heartbeat (alive) or dead (stale)
+  - [x] Step 4.8: retry-queue.ts utility (withRetry helper)
 - [ ] **Phase 5:** Remove Old System
   - [ ] Step 5.1: Remove old backend
   - [ ] Step 5.2: Remove old daemon code

@@ -200,11 +200,19 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
               role,
             })
             .catch((err: Error) => {
-              // Best-effort — don't crash the daemon if this fails
               console.warn(
                 `[${formatTimestamp()}] ⚠️  Agent heartbeat failed for ${role}: ${err.message}`
               );
             });
+
+          // Dual-write: lifecycle heartbeat (Phase 4)
+          ctx.deps.backend
+            .mutation(api.machineAgentLifecycle.heartbeat, {
+              sessionId: ctx.sessionId,
+              chatroomId: chatroomId as Id<'chatroom_rooms'>,
+              role,
+            })
+            .catch(() => {});
         }
       }
     }

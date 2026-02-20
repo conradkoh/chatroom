@@ -174,6 +174,18 @@ export class WaitForTaskSession {
     } catch {
       // Best-effort — if the backend is unreachable the heartbeat TTL will expire naturally
     }
+
+    // Dual-write: lifecycle table → offline (Phase 4)
+    try {
+      await this.client.mutation(api.machineAgentLifecycle.transition, {
+        sessionId: this.sessionId,
+        chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+        role: this.role,
+        targetState: 'offline',
+      });
+    } catch {
+      // Best-effort
+    }
   }
 
   // -----------------------------------------------------------------------
@@ -189,18 +201,30 @@ export class WaitForTaskSession {
           role: this.role,
           connectionId: this.connectionId,
         })
-        .then((result: { status: string } | null | undefined) => {
+        .then(async (result: { status: string } | null | undefined) => {
           if (result?.status === 'rejoin_required') {
             if (!this.silent) {
               console.warn(`⚠️  Participant record missing — re-joining chatroom`);
             }
-            return this.client.mutation(api.participants.join, {
+            await this.client.mutation(api.participants.join, {
               sessionId: this.sessionId,
               chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
               role: this.role,
               readyUntil: Date.now() + HEARTBEAT_TTL_MS,
               connectionId: this.connectionId,
             });
+
+            // Dual-write: lifecycle table → ready (Phase 4)
+            this.client
+              .mutation(api.machineAgentLifecycle.transition, {
+                sessionId: this.sessionId,
+                chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+                role: this.role,
+                targetState: 'ready',
+                connectionId: this.connectionId,
+              })
+              .catch(() => {});
+            return;
           }
           // Consolidated superseded handling — delegates to shared method
           if (result?.status === 'superseded') {

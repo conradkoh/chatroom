@@ -105,5 +105,17 @@ export async function onAgentShutdown(
     console.log(`   ⚠️  Failed to remove participant for ${role}: ${(e as Error).message}`);
   }
 
+  // Step 6: Dual-write lifecycle table → offline (Phase 4)
+  try {
+    await ctx.deps.backend.mutation(api.machineAgentLifecycle.transition, {
+      sessionId: ctx.sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+      targetState: 'offline',
+    });
+  } catch (e) {
+    console.log(`   ⚠️  Lifecycle transition (offline) failed for ${role}: ${(e as Error).message}`);
+  }
+
   return { killed, cleaned: spawnedAgentCleared && participantRemoved };
 }

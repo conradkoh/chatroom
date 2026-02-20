@@ -225,8 +225,8 @@ describe('handleStartAgent', () => {
       'opencode'
     );
 
-    // Verify backend was updated
-    expect(ctx.deps.backend.mutation).toHaveBeenCalledTimes(1);
+    // Verify backend was updated (updateSpawnedAgent + lifecycle.transition)
+    expect(ctx.deps.backend.mutation).toHaveBeenCalledTimes(2);
   });
 
   it('emits agent:started event after successful spawn', async () => {

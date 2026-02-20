@@ -2,7 +2,7 @@
  * Start Agent Command Handler — spawns an agent process for a chatroom role.
  */
 
-import { api } from '../../../../api.js';
+import { api, type Id } from '../../../../api.js';
 import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
 import type { CommandResult, DaemonContext, StartAgentCommand } from '../types.js';
 
@@ -129,6 +129,23 @@ export async function handleStartAgent(
   } catch (e) {
     console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
   }
+
+  // Dual-write: lifecycle table — transition to starting (Phase 4)
+  ctx.deps.backend
+    .mutation(api.machineAgentLifecycle.transition, {
+      sessionId: ctx.sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+      targetState: 'starting',
+      machineId: ctx.machineId,
+      pid,
+      model,
+      agentHarness: agentHarness === 'opencode' ? 'opencode' : undefined,
+      workingDir,
+    })
+    .catch((e: Error) => {
+      console.warn(`   ⚠️  Lifecycle transition (starting) failed: ${e.message}`);
+    });
 
   ctx.events.emit('agent:started', {
     chatroomId,

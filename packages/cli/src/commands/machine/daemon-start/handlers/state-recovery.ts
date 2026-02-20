@@ -2,7 +2,7 @@
  * State Recovery Handler — recovers agent state on daemon restart.
  */
 
-import type { Id } from '../../../../api.js';
+import { api, type Id } from '../../../../api.js';
 import type { DaemonContext } from '../types.js';
 import { clearAgentPidEverywhere } from './shared.js';
 
@@ -35,9 +35,29 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
     if (alive) {
       console.log(`   ✅ Recovered: ${role} (PID ${pid}, harness: ${harness})`);
       recovered++;
+
+      // Dual-write: lifecycle table — confirm ready (Phase 4)
+      ctx.deps.backend
+        .mutation(api.machineAgentLifecycle.heartbeat, {
+          sessionId: ctx.sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+        })
+        .catch(() => {});
     } else {
       console.log(`   🧹 Stale PID ${pid} for ${role} — clearing`);
       await clearAgentPidEverywhere(ctx, chatroomId as Id<'chatroom_rooms'>, role);
+
+      // Dual-write: lifecycle table — stale PID → dead (Phase 4)
+      ctx.deps.backend
+        .mutation(api.machineAgentLifecycle.transition, {
+          sessionId: ctx.sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+          targetState: 'dead',
+        })
+        .catch(() => {});
+
       cleared++;
     }
   }
