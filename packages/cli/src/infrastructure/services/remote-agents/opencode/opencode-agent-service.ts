@@ -3,14 +3,20 @@
  *
  * Encapsulates all interactions with OpenCode: installation detection,
  * version queries, model discovery, agent spawning, and process lifecycle.
+ *
+ * Maintains an internal process registry that tracks spawned PIDs, their
+ * associated context (machineId, chatroomId, role), and last output timestamps
+ * for idle detection.
  */
 
 import { spawn, execSync, type ChildProcess } from 'node:child_process';
 
 import type {
   RemoteAgentService,
+  SpawnContext,
   SpawnOptions,
   SpawnResult,
+  ProcessInfo,
   VersionInfo,
 } from '../remote-agent-service.js';
 
@@ -43,6 +49,7 @@ const POLL_INTERVAL_MS = 200;
 
 export class OpenCodeAgentService implements RemoteAgentService {
   private readonly deps: OpenCodeAgentServiceDeps;
+  private readonly processes = new Map<number, { context: SpawnContext; lastOutputAt: number }>();
 
   constructor(deps?: Partial<OpenCodeAgentServiceDeps>) {
     this.deps = { ...defaultDeps(), ...deps };
@@ -131,18 +138,25 @@ export class OpenCodeAgentService implements RemoteAgentService {
     }
 
     const pid = childProcess.pid;
+    const context = options.context;
 
-    // Output tracking callbacks
+    // Register in process registry
+    const entry = { context, lastOutputAt: Date.now() };
+    this.processes.set(pid, entry);
+
+    // Output tracking callbacks (for external consumers) + internal timestamp update
     const outputCallbacks: (() => void)[] = [];
     if (childProcess.stdout) {
       childProcess.stdout.pipe(process.stdout, { end: false });
       childProcess.stdout.on('data', () => {
+        entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
     }
     if (childProcess.stderr) {
       childProcess.stderr.pipe(process.stderr, { end: false });
       childProcess.stderr.on('data', () => {
+        entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
     }
@@ -151,7 +165,8 @@ export class OpenCodeAgentService implements RemoteAgentService {
       pid,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
-          cb(code, signal);
+          this.processes.delete(pid);
+          cb({ code, signal, context });
         });
       },
       onOutput: (cb) => {
@@ -193,5 +208,22 @@ export class OpenCodeAgentService implements RemoteAgentService {
     } catch {
       return false;
     }
+  }
+
+  getTrackedProcesses(): ProcessInfo[] {
+    return Array.from(this.processes.entries()).map(([pid, entry]) => ({
+      pid,
+      context: entry.context,
+      lastOutputAt: entry.lastOutputAt,
+    }));
+  }
+
+  getIdleProcesses(thresholdMs: number): ProcessInfo[] {
+    const now = Date.now();
+    return this.getTrackedProcesses().filter((p) => now - p.lastOutputAt > thresholdMs);
+  }
+
+  untrack(pid: number): void {
+    this.processes.delete(pid);
   }
 }

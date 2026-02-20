@@ -13,16 +13,32 @@ export interface VersionInfo {
   major: number;
 }
 
+/** Opaque context passed at spawn time and returned on exit/idle queries. */
+export interface SpawnContext {
+  machineId: string;
+  chatroomId: string;
+  role: string;
+}
+
 export interface SpawnOptions {
   workingDir: string;
   prompt: string;
   model?: string;
+  context: SpawnContext;
 }
 
 export interface SpawnResult {
   pid: number;
-  onExit: (cb: (code: number | null, signal: string | null) => void) => void;
+  onExit: (
+    cb: (info: { code: number | null; signal: string | null; context: SpawnContext }) => void
+  ) => void;
   onOutput: (cb: () => void) => void;
+}
+
+export interface ProcessInfo {
+  pid: number;
+  context: SpawnContext;
+  lastOutputAt: number;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────
@@ -45,4 +61,13 @@ export interface RemoteAgentService {
 
   /** Is this PID still alive? */
   isAlive(pid: number): boolean;
+
+  /** Get all tracked processes with their context and activity timestamps. */
+  getTrackedProcesses(): ProcessInfo[];
+
+  /** Get processes that have been idle (no output) beyond the threshold. */
+  getIdleProcesses(thresholdMs: number): ProcessInfo[];
+
+  /** Remove a process from tracking (call on cleanup). */
+  untrack(pid: number): void;
 }

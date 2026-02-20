@@ -30,8 +30,6 @@ import { DaemonEventBus } from './event-bus.js';
 import { registerEventListeners } from './event-listeners.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
-import { AgentOutputStore } from '../../../stores/agent-output.js';
-
 // ─── Model Discovery ────────────────────────────────────────────────────────
 
 /**
@@ -187,7 +185,6 @@ export async function initDaemon(): Promise<DaemonContext> {
   deps.backend.query = (endpoint, args) => client.query(endpoint, args);
 
   const events = new DaemonEventBus();
-  const agentOutputStore = new AgentOutputStore();
   const ctx: DaemonContext = {
     client,
     sessionId: typedSessionId,
@@ -195,7 +192,6 @@ export async function initDaemon(): Promise<DaemonContext> {
     config,
     deps,
     events,
-    agentOutputStore,
     remoteAgentService,
   };
 

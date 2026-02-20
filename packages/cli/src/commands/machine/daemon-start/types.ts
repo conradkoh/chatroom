@@ -7,8 +7,6 @@ import type { DaemonEventBus } from './event-bus.js';
 import type { Id } from '../../../api.js';
 import type { MachineConfig } from '../../../infrastructure/machine/types.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
-import type { AgentOutputStore } from '../../../stores/agent-output.js';
-
 // ─── Session & Config Types ─────────────────────────────────────────────────
 
 /**
@@ -120,6 +118,5 @@ export interface DaemonContext {
   config: MachineConfig | null;
   deps: DaemonDeps;
   events: DaemonEventBus;
-  agentOutputStore: AgentOutputStore;
   remoteAgentService: RemoteAgentService;
 }

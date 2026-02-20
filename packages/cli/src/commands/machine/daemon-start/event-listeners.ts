@@ -10,6 +10,7 @@
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api, type Id } from '../../../api.js';
+import { onAgentShutdown } from '../events/on-agent-shutdown/index.js';
 
 /**
  * Register all daemon event listeners.
@@ -56,8 +57,8 @@ export function registerEventListeners(ctx: DaemonContext): () => void {
       // Clear PID from local state
       ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
 
-      // Stop tracking output for idle detection
-      ctx.agentOutputStore.remove(chatroomId, role);
+      // Stop tracking in the remote agent service
+      ctx.remoteAgentService.untrack(pid);
 
       // Remove participant record so the UI reflects the exit
       ctx.deps.backend
@@ -87,6 +88,18 @@ export function registerEventListeners(ctx: DaemonContext): () => void {
     ctx.events.on('agent:stopped', (payload) => {
       const ts = formatTimestamp();
       console.log(`[${ts}] 🔴 Agent stopped: ${payload.role} (PID: ${payload.pid})`);
+    })
+  );
+
+  // ── agent:idle-detected ─────────────────────────────────────────────────
+  unsubs.push(
+    ctx.events.on('agent:idle-detected', (payload) => {
+      const { chatroomId, role, pid } = payload;
+      onAgentShutdown(ctx, { chatroomId, role, pid }).catch((e) => {
+        console.warn(
+          `[${formatTimestamp()}] ⚠️  Failed to stop idle agent ${role}: ${(e as Error).message}`
+        );
+      });
     })
   );
 

@@ -13,7 +13,6 @@ import type { DaemonDeps } from '../deps.js';
 import { DaemonEventBus } from '../event-bus.js';
 import type { DaemonContext, StartAgentCommand } from '../types.js';
 import { handleStartAgent } from './start-agent.js';
-import { AgentOutputStore } from '../../../../stores/agent-output.js';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -45,7 +44,13 @@ function createMockContext(options?: {
   initPrompt?: { prompt: string; rolePrompt: string; initialMessage: string } | null;
   spawnResult?: {
     pid: number;
-    onExit: (cb: (code: number | null, signal: string | null) => void) => void;
+    onExit: (
+      cb: (info: {
+        code: number | null;
+        signal: string | null;
+        context: { machineId: string; chatroomId: string; role: string };
+      }) => void
+    ) => void;
     onOutput: (cb: () => void) => void;
   };
   spawnError?: Error;
@@ -112,6 +117,9 @@ function createMockContext(options?: {
     spawn: spawnMock,
     stop: vi.fn(),
     isAlive: vi.fn().mockReturnValue(true),
+    getTrackedProcesses: vi.fn().mockReturnValue([]),
+    getIdleProcesses: vi.fn().mockReturnValue([]),
+    untrack: vi.fn(),
   } as unknown as RemoteAgentService;
 
   return {
@@ -121,7 +129,6 @@ function createMockContext(options?: {
     config: null,
     deps,
     events: new DaemonEventBus(),
-    agentOutputStore: new AgentOutputStore(),
     remoteAgentService,
   };
 }
@@ -244,11 +251,17 @@ describe('handleStartAgent', () => {
   });
 
   it('emits agent:exited event when process exits', async () => {
-    let onExitCallback: ((code: number | null, signal: string | null) => void) | null = null;
+    let onExitCallback:
+      | ((info: {
+          code: number | null;
+          signal: string | null;
+          context: { machineId: string; chatroomId: string; role: string };
+        }) => void)
+      | null = null;
     const ctx = createMockContext({
       spawnResult: {
         pid: 5678,
-        onExit: (cb: (code: number | null, signal: string | null) => void) => {
+        onExit: (cb) => {
           onExitCallback = cb;
         },
         onOutput: vi.fn(),
@@ -262,7 +275,11 @@ describe('handleStartAgent', () => {
     await handleStartAgent(ctx, cmd);
 
     expect(onExitCallback).not.toBeNull();
-    onExitCallback!(1, 'SIGTERM');
+    onExitCallback!({
+      code: 1,
+      signal: 'SIGTERM',
+      context: { machineId: 'test-machine-id', chatroomId: 'test-chatroom-123', role: 'builder' },
+    });
 
     expect(listener).toHaveBeenCalledOnce();
     expect(listener).toHaveBeenCalledWith(

@@ -21,7 +21,6 @@ import type {
 import { formatTimestamp, parseMachineCommand } from './utils.js';
 import { api, type Id } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
-import { onAgentShutdown } from '../events/on-agent-shutdown/index.js';
 import { onDaemonShutdown } from '../events/on-daemon-shutdown/index.js';
 import { releaseLock } from '../pid.js';
 
@@ -188,7 +187,11 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       const isAlive = ctx.remoteAgentService.isAlive(entry.pid);
 
       if (isAlive) {
-        const hasRecentOutput = !ctx.agentOutputStore.isIdle(chatroomId, role, IDLE_THRESHOLD_MS);
+        const tracked = ctx.remoteAgentService.getTrackedProcesses();
+        const proc = tracked.find(
+          (p) => p.context.chatroomId === chatroomId && p.context.role === role
+        );
+        const hasRecentOutput = proc ? Date.now() - proc.lastOutputAt < IDLE_THRESHOLD_MS : true;
         if (hasRecentOutput) {
           ctx.deps.backend
             .mutation(api.participants.extendActiveAgent, {
@@ -213,23 +216,19 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Periodically check for agents that have produced no stdout/stderr
   // output within the idle threshold and shut them down via the standard
   // agent shutdown path (process-group kill + state cleanup).
-  const idleReaperTimer = setInterval(async () => {
-    const agents = ctx.deps.machine.listAgentEntries(ctx.machineId);
-    for (const { chatroomId, role, entry } of agents) {
-      if (ctx.agentOutputStore.isIdle(chatroomId, role, IDLE_THRESHOLD_MS)) {
-        if (ctx.remoteAgentService.isAlive(entry.pid)) {
-          console.log(
-            `[${formatTimestamp()}] 💀 Idle agent detected: ${role} (PID: ${entry.pid}, ` +
-              `no output for >${IDLE_THRESHOLD_MS / 1000}s) — stopping`
-          );
-          try {
-            await onAgentShutdown(ctx, { chatroomId, role, pid: entry.pid });
-          } catch (e) {
-            console.warn(
-              `[${formatTimestamp()}] ⚠️  Failed to stop idle agent ${role}: ${(e as Error).message}`
-            );
-          }
-        }
+  const idleReaperTimer = setInterval(() => {
+    const idleProcesses = ctx.remoteAgentService.getIdleProcesses(IDLE_THRESHOLD_MS);
+    for (const { pid, context } of idleProcesses) {
+      if (ctx.remoteAgentService.isAlive(pid)) {
+        console.log(
+          `[${formatTimestamp()}] 💀 Idle agent detected: ${context.role} (PID: ${pid}, ` +
+            `no output for >${IDLE_THRESHOLD_MS / 1000}s) — stopping`
+        );
+        ctx.events.emit('agent:idle-detected', {
+          chatroomId: context.chatroomId as Id<'chatroom_rooms'>,
+          role: context.role,
+          pid,
+        });
       }
     }
   }, IDLE_CHECK_INTERVAL_MS);

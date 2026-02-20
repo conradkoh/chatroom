@@ -186,6 +186,7 @@ describe('OpenCodeAgentService', () => {
         workingDir: '/tmp/test',
         prompt: 'Hello agent',
         model: 'anthropic/claude-3.5-sonnet',
+        context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
       });
 
       expect(spawnFn).toHaveBeenCalledWith(
@@ -227,7 +228,11 @@ describe('OpenCodeAgentService', () => {
       const deps = createMockDeps({ spawn: spawnFn as any });
       const service = new OpenCodeAgentService(deps);
 
-      await service.spawn({ workingDir: '/tmp', prompt: 'test' });
+      await service.spawn({
+        workingDir: '/tmp',
+        prompt: 'test',
+        context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+      });
 
       expect(spawnFn).toHaveBeenCalledWith('opencode', ['run'], expect.any(Object));
     });
@@ -248,9 +253,13 @@ describe('OpenCodeAgentService', () => {
       const deps = createMockDeps({ spawn: spawnFn as any });
       const service = new OpenCodeAgentService(deps);
 
-      await expect(service.spawn({ workingDir: '/tmp', prompt: 'test' })).rejects.toThrow(
-        'exited immediately'
-      );
+      await expect(
+        service.spawn({
+          workingDir: '/tmp',
+          prompt: 'test',
+          context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
+        })
+      ).rejects.toThrow('exited immediately');
     });
   });
 });

@@ -85,18 +85,9 @@ vi.mock('../../../infrastructure/services/remote-agents/opencode/index.js', () =
       spawn = vi.fn();
       stop = vi.fn();
       isAlive = vi.fn();
-    },
-  };
-});
-
-vi.mock('../../../stores/agent-output.js', () => {
-  return {
-    AgentOutputStore: class MockAgentOutputStore {
-      recordOutput = vi.fn();
-      getLastOutputTimestamp = vi.fn();
-      isIdle = vi.fn();
-      getTrackedAgents = vi.fn().mockReturnValue([]);
-      remove = vi.fn();
+      getTrackedProcesses = vi.fn().mockReturnValue([]);
+      getIdleProcesses = vi.fn().mockReturnValue([]);
+      untrack = vi.fn();
     },
   };
 });

@@ -50,6 +50,16 @@ export interface DaemonEventMap {
   };
 
   /**
+   * Fired when the idle reaper detects an agent with no recent output.
+   * Listeners should trigger the standard shutdown path.
+   */
+  'agent:idle-detected': {
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    pid: number;
+  };
+
+  /**
    * Fired when a command starts processing.
    */
   'command:processing': {

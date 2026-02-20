@@ -101,6 +101,7 @@ export async function handleStartAgent(
       workingDir,
       prompt: combinedPrompt,
       model,
+      context: { machineId: ctx.machineId, chatroomId, role },
     });
   } catch (e) {
     const msg = `Failed to spawn agent: ${(e as Error).message}`;
@@ -138,7 +139,7 @@ export async function handleStartAgent(
   });
 
   // Monitor for process exit — emit event so centralized listeners handle cleanup.
-  spawnResult.onExit((code: number | null, signal: string | null) => {
+  spawnResult.onExit(({ code, signal }) => {
     const wasIntentional = ctx.deps.stops.consume(chatroomId, role);
     ctx.events.emit('agent:exited', {
       chatroomId,
@@ -148,11 +149,6 @@ export async function handleStartAgent(
       signal,
       intentional: wasIntentional,
     });
-  });
-
-  // Track stdout/stderr activity for idle detection
-  spawnResult.onOutput(() => {
-    ctx.agentOutputStore.recordOutput(chatroomId, role);
   });
 
   return { result: msg, failed: false };
