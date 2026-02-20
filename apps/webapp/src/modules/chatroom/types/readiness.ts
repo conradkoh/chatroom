@@ -3,27 +3,31 @@
  * Single source of truth — imported by AgentPanel, ChatroomDashboard, TeamStatus, etc.
  */
 
+// ─── Agent Status Types (per agent type) ─────────────────────────────────────
+
 /**
- * Agent Status FSM states (Plan 026).
- * These match the computed `displayStatus` field returned by `getTeamReadiness`.
- *
- * Dead states (no heartbeat):
- * - offline: Default initial state — never joined or explicitly stopped
- * - dead: Heartbeat stopped — process presumed crashed
- * - dead_failed_revive: All restart attempts exhausted — manual intervention required
- *
- * Alive states (with heartbeat):
- * - ready: Running wait-for-task, heartbeat active, waiting for work
- * - restarting: Daemon attempting to restart after crash
- * - working: Actively processing a task, heartbeat active
+ * Display statuses for remote (daemon-managed) agents.
+ * Remote agents support the full lifecycle including daemon-controlled transitions.
  */
-export type AgentStatus =
+export type RemoteAgentStatus =
   | 'offline'
-  | 'dead'
-  | 'dead_failed_revive'
+  | 'starting'
   | 'ready'
+  | 'working'
+  | 'stopping'
   | 'restarting'
-  | 'working';
+  | 'dead'
+  | 'dead_failed_revive';
+
+/**
+ * Display statuses for custom (user-managed) agents.
+ * Custom agents lack daemon control, so starting/stopping/restarting/dead_failed_revive
+ * are not valid — the platform cannot observe or control these transitions.
+ */
+export type CustomAgentStatus = 'offline' | 'ready' | 'working' | 'dead';
+
+/** Union of all possible display statuses across agent types. */
+export type AgentStatus = RemoteAgentStatus | CustomAgentStatus;
 
 /**
  * Raw participant status values from the backend schema.
@@ -38,14 +42,38 @@ export type ParticipantStatus =
   | 'restarting'
   | 'idle'; // deprecated, kept for backward compat
 
-/** Participant info from the backend readiness query — includes expiration data and FSM status */
-export interface ParticipantInfo {
+// ─── Participant Info (discriminated union by agent type) ─────────────────────
+
+interface ParticipantInfoBase {
   role: string;
   status: ParticipantStatus;
-  displayStatus: AgentStatus; // Computed FSM display status (Plan 026)
+  statusReason: string;
   readyUntil?: number;
   isExpired: boolean;
+  desiredStatus?: 'running' | 'stopped';
+  hasPendingCommand?: boolean;
 }
+
+export interface RemoteParticipantInfo extends ParticipantInfoBase {
+  agentType: 'remote';
+  displayStatus: RemoteAgentStatus;
+}
+
+export interface CustomParticipantInfo extends ParticipantInfoBase {
+  agentType: 'custom';
+  displayStatus: CustomAgentStatus;
+}
+
+export interface UnknownParticipantInfo extends ParticipantInfoBase {
+  agentType: undefined;
+  displayStatus: AgentStatus;
+}
+
+/** Participant info from the backend readiness query — discriminated by agent type */
+export type ParticipantInfo =
+  | RemoteParticipantInfo
+  | CustomParticipantInfo
+  | UnknownParticipantInfo;
 
 /** Team readiness data from the backend — single source of truth for agent panel state */
 export interface TeamReadiness {

@@ -3,6 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
+import { getAgentStatus } from '../src/domain/usecase/agent/get-agent-status';
 
 /**
  * Create a new chatroom with team configuration.
@@ -361,46 +362,30 @@ export const getTeamReadiness = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    const now = Date.now();
+    // Build participant info with readiness status.
+    // Status resolution is delegated to the getAgentStatus use case — the single
+    // source of truth for display status. It considers participant status, TTL
+    // expiration, desired state, pending commands, and agent type.
+    const participantInfo = await Promise.all(
+      participants.map(async (p) => {
+        const statusResult = await getAgentStatus(ctx, {
+          chatroomId: args.chatroomId,
+          role: p.role,
+        });
 
-    // Build participant info with readiness status
-    // status is now the single source of truth for participant lifecycle
-    const participantInfo = participants.map((p) => {
-      const isExpired = p.readyUntil ? p.readyUntil < now : false;
-
-      // Map unified status to display-friendly displayStatus for the frontend.
-      // Note: This is a COMPUTED field derived from the `status` field — not the
-      // deprecated `agentStatus` schema field (which is a legacy field never written to).
-      let displayStatus: string;
-      if (isExpired && (p.status === 'waiting' || p.status === 'active')) {
-        displayStatus = 'dead';
-      } else if (p.status === 'active') {
-        displayStatus = 'working';
-      } else if (p.status === 'waiting') {
-        displayStatus = 'ready';
-      } else if (p.status === 'planned_cleanup') {
-        // Plan 027: Agent is flagged for cleanup but may still recover via heartbeat.
-        // Show as 'dead' to the frontend since from the user's perspective the agent
-        // appears disconnected (it will auto-recover to 'ready' if heartbeat arrives).
-        displayStatus = 'dead';
-      } else if (p.status === 'idle') {
-        // Backward compatibility: 'idle' is a deprecated status semantically
-        // equivalent to 'offline'. Map it so the frontend AgentStatus type
-        // doesn't receive an unknown value.
-        displayStatus = 'offline';
-      } else {
-        // offline, dead, restarting, dead_failed_revive — pass through
-        displayStatus = p.status;
-      }
-
-      return {
-        role: p.role,
-        status: p.status,
-        displayStatus,
-        readyUntil: p.readyUntil,
-        isExpired,
-      };
-    });
+        return {
+          role: p.role,
+          status: p.status,
+          displayStatus: statusResult.displayStatus,
+          statusReason: statusResult.statusReason,
+          readyUntil: p.readyUntil,
+          isExpired: statusResult.isExpired,
+          agentType: statusResult.agentType,
+          desiredStatus: statusResult.desiredStatus,
+          hasPendingCommand: statusResult.hasPendingCommand,
+        };
+      })
+    );
 
     // Get roles that have joined (any status) and are not expired
     const activeRoles = participantInfo

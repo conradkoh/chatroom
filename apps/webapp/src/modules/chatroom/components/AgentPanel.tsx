@@ -87,6 +87,16 @@ const STATUS_CONFIG: Record<AgentStatus, { bg: string; text: string; label: stri
     text: 'text-chatroom-status-info',
     label: 'WORKING',
   },
+  starting: {
+    bg: 'bg-chatroom-status-warning',
+    text: 'text-chatroom-status-warning',
+    label: 'STARTING',
+  },
+  stopping: {
+    bg: 'bg-chatroom-status-warning',
+    text: 'text-chatroom-status-warning',
+    label: 'STOPPING',
+  },
 };
 
 /** Fallback for unknown statuses — prevents crashes if the backend adds a new
