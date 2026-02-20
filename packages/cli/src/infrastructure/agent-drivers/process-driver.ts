@@ -127,6 +127,7 @@ export abstract class ProcessDriver implements AgentHarnessDriver {
         cwd: options.workingDir,
         stdio: config.stdio,
         shell: false,
+        detached: true,
       });
 
       // Write prompt to stdin if configured
@@ -178,9 +179,13 @@ export abstract class ProcessDriver implements AgentHarnessDriver {
   /**
    * Stop an agent by sending SIGTERM, then SIGKILL if it doesn't exit.
    *
-   * 1. Sends SIGTERM for graceful shutdown
+   * Uses negative PID to signal the entire process group (created by
+   * detached: true in start()). Alive checks use the positive PID to
+   * probe the specific parent process.
+   *
+   * 1. Sends SIGTERM to process group for graceful shutdown
    * 2. Polls every 200ms for up to 5 seconds
-   * 3. If still alive, sends SIGKILL as a last resort
+   * 3. If still alive, sends SIGKILL to process group as a last resort
    */
   async stop(handle: AgentHandle): Promise<void> {
     if (handle.type !== 'process' || !handle.pid) {
@@ -189,9 +194,9 @@ export abstract class ProcessDriver implements AgentHarnessDriver {
 
     const pid = handle.pid;
 
-    // Send SIGTERM first
+    // SIGTERM → entire process group (negative PID)
     try {
-      process.kill(pid, 'SIGTERM');
+      process.kill(-pid, 'SIGTERM');
     } catch {
       return; // Process already exited (ESRCH)
     }
@@ -203,16 +208,16 @@ export abstract class ProcessDriver implements AgentHarnessDriver {
 
     while (Date.now() < deadline) {
       try {
-        process.kill(pid, 0); // Check if still alive
+        process.kill(pid, 0); // Check if parent still alive (positive PID)
       } catch {
         return; // Process exited
       }
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     }
 
-    // Still alive — force kill
+    // Still alive — SIGKILL → entire process group (negative PID)
     try {
-      process.kill(pid, 'SIGKILL');
+      process.kill(-pid, 'SIGKILL');
     } catch {
       // Process may have exited between check and kill
     }

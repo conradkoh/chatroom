@@ -2,6 +2,7 @@
  * Stop Agent Handler Tests
  *
  * Tests for handleStopAgent using dependency injection.
+ * The handler now delegates to onAgentShutdown for kill + cleanup.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -186,7 +187,7 @@ describe('handleStopAgent', () => {
     ctx = createCtx(deps);
   });
 
-  it('marks intentional stop before killing the process', async () => {
+  it('delegates to onAgentShutdown which marks intentional stop', async () => {
     vi.mocked(deps.backend.query).mockResolvedValue({
       configs: [
         {
@@ -197,14 +198,23 @@ describe('handleStopAgent', () => {
         },
       ],
     });
+
+    // processes.kill with signal 0 throws ESRCH to indicate process died after SIGTERM
+    vi.mocked(deps.processes.kill).mockImplementation(
+      (pid: number, signal?: NodeJS.Signals | number) => {
+        if (signal === 'SIGTERM' || signal === 'SIGKILL') return;
+        if (signal === 0) throw new Error('ESRCH');
+      }
+    );
 
     const result = await handleStopAgent(ctx, createStopCommand());
 
     expect(result.failed).toBe(false);
+    // onAgentShutdown calls stops.mark internally
     expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, 'builder');
   });
 
-  it('clears PID from backend and local state after successful stop', async () => {
+  it('clears PID from backend and local state via onAgentShutdown', async () => {
     vi.mocked(deps.backend.query).mockResolvedValue({
       configs: [
         {
@@ -216,8 +226,16 @@ describe('handleStopAgent', () => {
       ],
     });
 
+    vi.mocked(deps.processes.kill).mockImplementation(
+      (pid: number, signal?: NodeJS.Signals | number) => {
+        if (signal === 'SIGTERM' || signal === 'SIGKILL') return;
+        if (signal === 0) throw new Error('ESRCH');
+      }
+    );
+
     await handleStopAgent(ctx, createStopCommand());
 
+    // onAgentShutdown clears PID via backend mutation
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       'machines.updateSpawnedAgent',
       expect.objectContaining({
@@ -227,10 +245,11 @@ describe('handleStopAgent', () => {
       })
     );
 
+    // onAgentShutdown clears local PID state
     expect(deps.machine.clearAgentPid).toHaveBeenCalledWith('test-machine', CHATROOM_ID, 'builder');
   });
 
-  it('removes participant record after successful stop', async () => {
+  it('removes participant record via onAgentShutdown', async () => {
     vi.mocked(deps.backend.query).mockResolvedValue({
       configs: [
         {
@@ -241,6 +260,13 @@ describe('handleStopAgent', () => {
         },
       ],
     });
+
+    vi.mocked(deps.processes.kill).mockImplementation(
+      (pid: number, signal?: NodeJS.Signals | number) => {
+        if (signal === 'SIGTERM' || signal === 'SIGKILL') return;
+        if (signal === 0) throw new Error('ESRCH');
+      }
+    );
 
     await handleStopAgent(ctx, createStopCommand());
 
@@ -271,20 +297,7 @@ describe('handleStopAgent', () => {
     expect(deps.stops.mark).not.toHaveBeenCalled();
   });
 
-  it('clears intentional stop marker when kill throws ESRCH', async () => {
-    const driverMock = {
-      harness: 'opencode' as const,
-      capabilities: {} as ReturnType<typeof vi.fn>,
-      start: vi.fn(),
-      stop: vi
-        .fn()
-        .mockRejectedValue(Object.assign(new Error('Process not found'), { code: 'ESRCH' })),
-      isAlive: vi.fn().mockResolvedValue(true),
-      recover: vi.fn(),
-      listModels: vi.fn(),
-    };
-    vi.mocked(deps.drivers.get).mockReturnValue(driverMock as never);
-
+  it('sends SIGTERM to negative PID (process group) via onAgentShutdown', async () => {
     vi.mocked(deps.backend.query).mockResolvedValue({
       configs: [
         {
@@ -296,10 +309,17 @@ describe('handleStopAgent', () => {
       ],
     });
 
-    const result = await handleStopAgent(ctx, createStopCommand());
+    vi.mocked(deps.processes.kill).mockImplementation(
+      (pid: number, signal?: NodeJS.Signals | number) => {
+        if (signal === 'SIGTERM' || signal === 'SIGKILL') return;
+        if (signal === 0) throw new Error('ESRCH');
+      }
+    );
 
-    expect(result.failed).toBe(true);
-    expect(deps.stops.clear).toHaveBeenCalledWith(CHATROOM_ID, 'builder');
+    await handleStopAgent(ctx, createStopCommand());
+
+    // onAgentShutdown sends SIGTERM to -pid (process group)
+    expect(deps.processes.kill).toHaveBeenCalledWith(-1234, 'SIGTERM');
   });
 
   it('handles stale PID (process not alive)', async () => {

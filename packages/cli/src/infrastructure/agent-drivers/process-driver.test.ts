@@ -42,10 +42,13 @@ class TestProcessDriver extends ProcessDriver {
 /**
  * Helper to spawn a sleep process and return its PID.
  * Uses `sleep` on Unix which responds to SIGTERM.
+ * Spawned with detached: true to match production behavior
+ * (each process gets its own process group for -pid kills).
  */
 function spawnSleepProcess(seconds: number): { pid: number; child: ReturnType<typeof spawn> } {
   const child = spawn('sleep', [String(seconds)], {
     stdio: 'ignore',
+    detached: true,
   });
   const pid = child.pid;
   if (!pid) throw new Error('Failed to spawn sleep process');
@@ -89,12 +92,12 @@ describe('ProcessDriver.stop()', () => {
   it('sends SIGKILL after timeout if process ignores SIGTERM', async () => {
     const driver = new TestProcessDriver();
 
-    // Spawn a process that traps SIGTERM (ignores it)
-    // Use bash -c with trap to ignore SIGTERM, exec sleep to replace bash
-    // so SIGKILL goes directly to the sleep process
+    // Spawn a process that traps SIGTERM (ignores it).
+    // detached: true gives it its own process group, matching production.
+    // The -pid kill will target the entire group.
     const child = spawn('bash', ['-c', 'trap "" TERM; while true; do sleep 1; done'], {
       stdio: 'ignore',
-      detached: false, // Keep in same process group so we can kill it
+      detached: true,
     });
     const pid = child.pid;
     if (!pid) throw new Error('Failed to spawn trap process');

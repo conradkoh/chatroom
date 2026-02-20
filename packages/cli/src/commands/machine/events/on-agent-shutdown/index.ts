@@ -24,14 +24,50 @@ export async function onAgentShutdown(
 ): Promise<OnAgentShutdownResult> {
   const { chatroomId, role, pid, skipKill } = options;
 
-  // Step 1: Kill the process
+  // Step 1: Kill the process with verified shutdown
   let killed = false;
   if (!skipKill) {
+    // 1a. Send SIGTERM to entire process group (negative PID)
     try {
-      ctx.deps.processes.kill(pid, 'SIGTERM');
-      killed = true;
+      ctx.deps.processes.kill(-pid, 'SIGTERM');
     } catch {
-      // ESRCH — process already dead
+      killed = true; // ESRCH — process already dead
+    }
+
+    if (!killed) {
+      // 1b. Wait up to 10s for graceful exit (check parent via positive PID)
+      const SIGTERM_TIMEOUT_MS = 10_000;
+      const POLL_INTERVAL_MS = 500;
+      const deadline = Date.now() + SIGTERM_TIMEOUT_MS;
+      while (Date.now() < deadline) {
+        await ctx.deps.clock.delay(POLL_INTERVAL_MS);
+        try {
+          ctx.deps.processes.kill(pid, 0);
+        } catch {
+          killed = true;
+          break;
+        }
+      }
+    }
+
+    // 1c. If still alive after SIGTERM timeout, SIGKILL entire process group
+    if (!killed) {
+      try {
+        ctx.deps.processes.kill(-pid, 'SIGKILL');
+      } catch {
+        killed = true; // Already dead between check and kill
+      }
+    }
+
+    // 1d. Final check — wait 5s and log if still alive (check parent via positive PID)
+    if (!killed) {
+      await ctx.deps.clock.delay(5_000);
+      try {
+        ctx.deps.processes.kill(pid, 0);
+        console.log(`   ⚠️  Process ${pid} (${role}) still alive after SIGKILL — possible zombie`);
+      } catch {
+        killed = true;
+      }
     }
   }
 
