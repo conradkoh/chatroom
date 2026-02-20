@@ -32,7 +32,7 @@ export const getDesiredState = query({
     }
 
     return await ctx.db
-      .query('chatroom_agentDesiredState')
+      .query('chatroom_machineAgentDesiredState')
       .withIndex('by_chatroom_role', (q) =>
         q.eq('chatroomId', args.chatroomId).eq('role', args.role)
       )

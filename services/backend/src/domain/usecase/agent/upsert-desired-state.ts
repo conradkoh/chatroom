@@ -48,7 +48,7 @@ export async function upsertDesiredState(
   input: UpsertDesiredStateInput
 ): Promise<UpsertDesiredStateResult> {
   const existing = await ctx.db
-    .query('chatroom_agentDesiredState')
+    .query('chatroom_machineAgentDesiredState')
     .withIndex('by_chatroom_role', (q) =>
       q.eq('chatroomId', input.chatroomId).eq('role', input.role)
     )
@@ -71,9 +71,9 @@ export async function upsertDesiredState(
   };
 
   if (existing) {
-    await ctx.db.replace('chatroom_agentDesiredState', existing._id, state);
+    await ctx.db.replace('chatroom_machineAgentDesiredState', existing._id, state);
   } else {
-    await ctx.db.insert('chatroom_agentDesiredState', state);
+    await ctx.db.insert('chatroom_machineAgentDesiredState', state);
   }
 
   return { written: true, reason: 'ok' };

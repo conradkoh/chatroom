@@ -38,11 +38,14 @@ export async function handleStartAgent(
   // Validate against desired state — discard stale start commands
   // that have been superseded by a newer stop request.
   try {
-    const desiredState = await ctx.deps.backend.query(api.agentDesiredState.getDesiredState, {
-      sessionId: ctx.sessionId,
-      chatroomId,
-      role,
-    });
+    const desiredState = await ctx.deps.backend.query(
+      api.machineAgentDesiredState.getDesiredState,
+      {
+        sessionId: ctx.sessionId,
+        chatroomId,
+        role,
+      }
+    );
 
     if (desiredState && desiredState.desiredStatus !== 'running') {
       const msg =

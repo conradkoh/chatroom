@@ -751,7 +751,7 @@ export default defineSchema({
    * One row per chatroomId+role — always overwritten (never appended).
    * The daemon checks this before processing start commands to discard stale ones.
    */
-  chatroom_agentDesiredState: defineTable({
+  chatroom_machineAgentDesiredState: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     desiredStatus: v.union(v.literal('running'), v.literal('stopped')),

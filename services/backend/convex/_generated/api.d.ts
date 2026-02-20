@@ -8,7 +8,6 @@
  * @module
  */
 
-import type * as agentDesiredState from "../agentDesiredState.js";
 import type * as appinfo from "../appinfo.js";
 import type * as artifacts from "../artifacts.js";
 import type * as attendance from "../attendance.js";
@@ -29,6 +28,7 @@ import type * as lib_stdinDecoder from "../lib/stdinDecoder.js";
 import type * as lib_taskRecovery from "../lib/taskRecovery.js";
 import type * as lib_taskStateMachine from "../lib/taskStateMachine.js";
 import type * as lib_taskWorkflows from "../lib/taskWorkflows.js";
+import type * as machineAgentDesiredState from "../machineAgentDesiredState.js";
 import type * as machines from "../machines.js";
 import type * as messages from "../messages.js";
 import type * as migration from "../migration.js";
@@ -46,7 +46,6 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  agentDesiredState: typeof agentDesiredState;
   appinfo: typeof appinfo;
   artifacts: typeof artifacts;
   attendance: typeof attendance;
@@ -67,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   "lib/taskRecovery": typeof lib_taskRecovery;
   "lib/taskStateMachine": typeof lib_taskStateMachine;
   "lib/taskWorkflows": typeof lib_taskWorkflows;
+  machineAgentDesiredState: typeof machineAgentDesiredState;
   machines: typeof machines;
   messages: typeof messages;
   migration: typeof migration;
