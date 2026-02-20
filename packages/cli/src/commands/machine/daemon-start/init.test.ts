@@ -84,6 +84,31 @@ vi.mock('./handlers/state-recovery.js', () => ({
   recoverAgentState: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../../../infrastructure/services/remote-agents/opencode/index.js', () => {
+  return {
+    OpenCodeAgentService: class MockOpenCodeAgentService {
+      isInstalled = vi.fn().mockReturnValue(true);
+      getVersion = vi.fn().mockReturnValue({ version: '0.1.0', major: 0 });
+      listModels = vi.fn().mockResolvedValue([]);
+      spawn = vi.fn();
+      stop = vi.fn();
+      isAlive = vi.fn();
+    },
+  };
+});
+
+vi.mock('../../../stores/agent-output.js', () => {
+  return {
+    AgentOutputStore: class MockAgentOutputStore {
+      recordOutput = vi.fn();
+      getLastOutputTimestamp = vi.fn();
+      isIdle = vi.fn();
+      getTrackedAgents = vi.fn().mockReturnValue([]);
+      remove = vi.fn();
+    },
+  };
+});
+
 vi.mock('./utils.js', () => ({
   formatTimestamp: vi.fn().mockReturnValue('2026-01-01 00:00:00'),
 }));
@@ -165,43 +190,31 @@ async function getMockClient() {
 // ---------------------------------------------------------------------------
 
 describe('discoverModels', () => {
-  it('returns empty array when no drivers support dynamic model discovery', async () => {
-    vi.mocked(getDriverRegistry).mockReturnValue({
-      get: vi.fn(),
-      all: vi
-        .fn()
-        .mockReturnValue([{ capabilities: { dynamicModelDiscovery: false }, listModels: vi.fn() }]),
-    } as never);
+  it('returns models from the remote agent service', async () => {
+    const mockService = {
+      listModels: vi.fn().mockResolvedValue(['gpt-4', 'claude-3']),
+    } as any;
 
-    const models = await discoverModels();
+    const models = await discoverModels(mockService);
+    expect(models).toEqual(['gpt-4', 'claude-3']);
+    expect(mockService.listModels).toHaveBeenCalledOnce();
+  });
+
+  it('returns empty array when service throws (non-critical)', async () => {
+    const mockService = {
+      listModels: vi.fn().mockRejectedValue(new Error('Service broken')),
+    } as any;
+
+    const models = await discoverModels(mockService);
     expect(models).toEqual([]);
   });
 
-  it('collects models from drivers with dynamic model discovery', async () => {
-    vi.mocked(getDriverRegistry).mockReturnValue({
-      get: vi.fn(),
-      all: vi.fn().mockReturnValue([
-        {
-          capabilities: { dynamicModelDiscovery: true },
-          listModels: vi.fn().mockResolvedValue(['gpt-4', 'gpt-3.5']),
-        },
-        {
-          capabilities: { dynamicModelDiscovery: true },
-          listModels: vi.fn().mockResolvedValue(['claude-3']),
-        },
-      ]),
-    } as never);
+  it('returns empty array when service returns empty list', async () => {
+    const mockService = {
+      listModels: vi.fn().mockResolvedValue([]),
+    } as any;
 
-    const models = await discoverModels();
-    expect(models).toEqual(['gpt-4', 'gpt-3.5', 'claude-3']);
-  });
-
-  it('returns empty array on registry error (non-critical)', async () => {
-    vi.mocked(getDriverRegistry).mockImplementationOnce(() => {
-      throw new Error('Registry broken');
-    });
-
-    const models = await discoverModels();
+    const models = await discoverModels(mockService);
     expect(models).toEqual([]);
   });
 });

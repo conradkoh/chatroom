@@ -4,6 +4,7 @@ import { DaemonEventBus } from './event-bus.js';
 import { registerEventListeners } from './event-listeners.js';
 import type { DaemonContext } from './types.js';
 import type { Id } from '../../../api.js';
+import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';
 import { AgentOutputStore } from '../../../stores/agent-output.js';
 
 const CHATROOM_ID = 'test-chatroom' as Id<'chatroom_rooms'>;
@@ -16,6 +17,11 @@ function createTestContext(): DaemonContext {
     config: null,
     events: new DaemonEventBus(),
     agentOutputStore: new AgentOutputStore(),
+    remoteAgentService: new OpenCodeAgentService({
+      execSync: vi.fn(),
+      spawn: vi.fn() as any,
+      kill: vi.fn(),
+    }),
     deps: {
       backend: {
         mutation: vi.fn().mockResolvedValue(undefined),

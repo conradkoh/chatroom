@@ -7,6 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { OpenCodeAgentService } from '../../../../infrastructure/services/remote-agents/opencode/index.js';
 import type { DaemonDeps } from '../deps.js';
 import { DaemonEventBus } from '../event-bus.js';
 import type { DaemonContext } from '../types.js';
@@ -63,6 +64,11 @@ function createMockContext(
     deps,
     events: new DaemonEventBus(),
     agentOutputStore: new AgentOutputStore(),
+    remoteAgentService: new OpenCodeAgentService({
+      execSync: vi.fn(),
+      spawn: vi.fn() as any,
+      kill: vi.fn(),
+    }),
   };
 }
 

@@ -22,6 +22,7 @@ import type {
   StartAgentCommand,
   StopAgentCommand,
 } from './types.js';
+import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';
 import { AgentOutputStore } from '../../../stores/agent-output.js';
 
 // ---------------------------------------------------------------------------
@@ -94,6 +95,11 @@ function createMockContext(): DaemonContext {
     deps,
     events: new DaemonEventBus(),
     agentOutputStore: new AgentOutputStore(),
+    remoteAgentService: new OpenCodeAgentService({
+      execSync: vi.fn(),
+      spawn: vi.fn() as any,
+      kill: vi.fn(),
+    }),
   };
 }
 

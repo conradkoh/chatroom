@@ -11,7 +11,6 @@ import { handlePing } from './handlers/ping.js';
 import { handleStartAgent } from './handlers/start-agent.js';
 import { handleStatus } from './handlers/status.js';
 import { handleStopAgent } from './handlers/stop-agent.js';
-import { discoverModels } from './init.js';
 import type {
   CommandResult,
   DaemonContext,
@@ -42,7 +41,7 @@ const IDLE_THRESHOLD_MS = 60_000;
  * Called periodically to keep the model list fresh.
  */
 async function refreshModels(ctx: DaemonContext): Promise<void> {
-  const models = await discoverModels();
+  const models = await ctx.remoteAgentService.listModels();
   if (!ctx.config) return;
 
   try {

@@ -22,6 +22,8 @@ import {
   consumeIntentionalStop,
   clearIntentionalStop,
 } from '../../../infrastructure/machine/intentional-stops.js';
+import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';
+import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
@@ -88,24 +90,15 @@ function verifyPidOwnership(pid: number, expectedHarness?: string): boolean {
 // ─── Model Discovery ────────────────────────────────────────────────────────
 
 /**
- * Discover available models from all installed harnesses that support
- * dynamic model discovery. Returns an array of model identifiers.
+ * Discover available models from the remote agent service.
  * Non-critical: returns empty array on failure.
  */
-export async function discoverModels(): Promise<string[]> {
-  const models: string[] = [];
+export async function discoverModels(service: RemoteAgentService): Promise<string[]> {
   try {
-    const registry = getDriverRegistry();
-    for (const driver of registry.all()) {
-      if (driver.capabilities.dynamicModelDiscovery) {
-        const driverModels = await driver.listModels();
-        models.push(...driverModels);
-      }
-    }
+    return await service.listModels();
   } catch {
-    // Model discovery is non-critical
+    return [];
   }
-  return models;
 }
 
 // ─── Default Dependencies ───────────────────────────────────────────────────
@@ -207,9 +200,12 @@ export async function initDaemon(): Promise<DaemonContext> {
   // Load and cache machine config (read once, reused by handlers)
   const config = loadMachineConfig();
 
+  // Instantiate remote agent service early — needed for model discovery
+  const remoteAgentService = new OpenCodeAgentService();
+
   // Discover available models from installed harnesses (dynamic)
   // This ensures models are available in the UI as soon as the daemon connects
-  const availableModels = await discoverModels();
+  const availableModels = await discoverModels(remoteAgentService);
 
   // Register/update machine info in backend (includes harnesses and models)
   // This ensures the web UI has current machine capabilities
@@ -262,6 +258,7 @@ export async function initDaemon(): Promise<DaemonContext> {
     deps,
     events,
     agentOutputStore,
+    remoteAgentService,
   };
 
   // Register centralized event listeners for agent lifecycle side-effects
