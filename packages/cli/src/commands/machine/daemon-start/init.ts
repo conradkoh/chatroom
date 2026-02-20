@@ -27,6 +27,7 @@ import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
 import type { DaemonDeps } from './deps.js';
 import { DaemonEventBus } from './event-bus.js';
+import { registerEventListeners } from './event-listeners.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 
@@ -252,6 +253,9 @@ export async function initDaemon(): Promise<DaemonContext> {
 
   const events = new DaemonEventBus();
   const ctx: DaemonContext = { client, sessionId: typedSessionId, machineId, config, deps, events };
+
+  // Register centralized event listeners for agent lifecycle side-effects
+  registerEventListeners(ctx);
 
   console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
   console.log(`   CLI version: ${getVersion()}`);
