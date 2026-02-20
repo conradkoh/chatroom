@@ -14,6 +14,7 @@ import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../infrastructure/convex/client.js';
 import { ensureMachineRegistered, type AgentHarness } from '../../infrastructure/machine/index.js';
+import { withRetry } from '../../infrastructure/retry-queue.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
 import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
 import { sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
@@ -184,16 +185,16 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     agentType: participantAgentType,
   });
 
-  // Lifecycle: transition to ready so frontend shows correct status
-  client
-    .mutation(api.machineAgentLifecycle.transition, {
+  // Lifecycle: transition to ready with retry
+  withRetry(() =>
+    client.mutation(api.machineAgentLifecycle.transition, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
       targetState: 'ready',
       connectionId,
     })
-    .catch(() => {});
+  ).catch(() => {});
 
   // Log initial connection with timestamp
   const connectionTime = new Date().toISOString().replace('T', ' ').substring(0, 19);

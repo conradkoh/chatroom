@@ -10,6 +10,7 @@
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api, type Id } from '../../../api.js';
+import { withRetry } from '../../../infrastructure/retry-queue.js';
 import { onAgentShutdown } from '../events/on-agent-shutdown/index.js';
 
 /**
@@ -71,18 +72,15 @@ export function registerEventListeners(ctx: DaemonContext): () => void {
           console.log(`   ⚠️  Could not remove participant: ${err.message}`);
         });
 
-      // Dual-write: lifecycle table (Phase 4)
-      // Intentional stop → offline, crash → dead
-      ctx.deps.backend
-        .mutation(api.machineAgentLifecycle.transition, {
+      // Lifecycle: intentional stop → offline, crash → dead (with retry)
+      withRetry(() =>
+        ctx.deps.backend.mutation(api.machineAgentLifecycle.transition, {
           sessionId: ctx.sessionId,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           targetState: intentional ? 'offline' : 'dead',
         })
-        .catch((err: Error) => {
-          console.log(`   ⚠️  Lifecycle transition failed: ${err.message}`);
-        });
+      ).catch(() => {});
     })
   );
 

@@ -41,7 +41,11 @@ async function upsertLifecycleState(
 ): Promise<void> {
   try {
     const chatroom = await ctx.db.get('chatroom_rooms', input.chatroomId);
-    const teamId = chatroom?.teamId ?? 'unknown';
+    if (!chatroom?.teamId) {
+      console.warn(`[lifecycle] Chatroom ${input.chatroomId} has no teamId — skipping upsert`);
+      return;
+    }
+    const teamId = chatroom.teamId;
 
     const existing = await ctx.db
       .query('chatroom_machineAgentLifecycle')

@@ -7,6 +7,7 @@
 
 import { clearAgentPidEverywhere } from './shared.js';
 import { api, type Id } from '../../../../api.js';
+import { withRetry } from '../../../../infrastructure/retry-queue.js';
 import { onAgentShutdown } from '../../events/on-agent-shutdown/index.js';
 import type { CommandResult, DaemonContext, StopAgentCommand } from '../types.js';
 
@@ -67,15 +68,15 @@ export async function handleStopAgent(
       // Non-critical
     }
 
-    // Dual-write: lifecycle table — stale PID → offline (Phase 4)
-    ctx.deps.backend
-      .mutation(api.machineAgentLifecycle.transition, {
+    // Lifecycle: stale PID → offline with retry
+    withRetry(() =>
+      ctx.deps.backend.mutation(api.machineAgentLifecycle.transition, {
         sessionId: ctx.sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
         targetState: 'offline',
       })
-      .catch(() => {});
+    ).catch(() => {});
 
     return {
       result: `PID ${pidToKill} appears stale (process not found or belongs to different program)`,

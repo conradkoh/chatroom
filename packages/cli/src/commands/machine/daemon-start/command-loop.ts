@@ -21,6 +21,7 @@ import type {
 import { formatTimestamp, parseMachineCommand } from './utils.js';
 import { api, type Id } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { withRetry } from '../../../infrastructure/retry-queue.js';
 import { onDaemonShutdown } from '../events/on-daemon-shutdown/index.js';
 import { releaseLock } from '../pid.js';
 
@@ -205,14 +206,14 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
               );
             });
 
-          // Dual-write: lifecycle heartbeat (Phase 4)
-          ctx.deps.backend
-            .mutation(api.machineAgentLifecycle.heartbeat, {
+          // Lifecycle heartbeat with retry
+          withRetry(() =>
+            ctx.deps.backend.mutation(api.machineAgentLifecycle.heartbeat, {
               sessionId: ctx.sessionId,
               chatroomId: chatroomId as Id<'chatroom_rooms'>,
               role,
             })
-            .catch(() => {});
+          ).catch(() => {});
         }
       }
     }

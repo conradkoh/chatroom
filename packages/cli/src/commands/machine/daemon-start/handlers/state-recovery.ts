@@ -3,6 +3,7 @@
  */
 
 import { api, type Id } from '../../../../api.js';
+import { withRetry } from '../../../../infrastructure/retry-queue.js';
 import type { DaemonContext } from '../types.js';
 import { clearAgentPidEverywhere } from './shared.js';
 
@@ -36,27 +37,27 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
       console.log(`   ✅ Recovered: ${role} (PID ${pid}, harness: ${harness})`);
       recovered++;
 
-      // Dual-write: lifecycle table — confirm ready (Phase 4)
-      ctx.deps.backend
-        .mutation(api.machineAgentLifecycle.heartbeat, {
+      // Lifecycle: confirm alive with retry
+      withRetry(() =>
+        ctx.deps.backend.mutation(api.machineAgentLifecycle.heartbeat, {
           sessionId: ctx.sessionId,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
         })
-        .catch(() => {});
+      ).catch(() => {});
     } else {
       console.log(`   🧹 Stale PID ${pid} for ${role} — clearing`);
       await clearAgentPidEverywhere(ctx, chatroomId as Id<'chatroom_rooms'>, role);
 
-      // Dual-write: lifecycle table — stale PID → dead (Phase 4)
-      ctx.deps.backend
-        .mutation(api.machineAgentLifecycle.transition, {
+      // Lifecycle: stale PID → dead with retry
+      withRetry(() =>
+        ctx.deps.backend.mutation(api.machineAgentLifecycle.transition, {
           sessionId: ctx.sessionId,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           role,
           targetState: 'dead',
         })
-        .catch(() => {});
+      ).catch(() => {});
 
       cleared++;
     }

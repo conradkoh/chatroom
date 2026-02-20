@@ -4,6 +4,7 @@
 
 import { api, type Id } from '../../../../api.js';
 import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
+import { withRetry } from '../../../../infrastructure/retry-queue.js';
 import type { CommandResult, DaemonContext, StartAgentCommand } from '../types.js';
 
 /**
@@ -130,9 +131,9 @@ export async function handleStartAgent(
     console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
   }
 
-  // Dual-write: lifecycle table — transition to starting (Phase 4)
-  ctx.deps.backend
-    .mutation(api.machineAgentLifecycle.transition, {
+  // Lifecycle: transition to starting with retry
+  withRetry(() =>
+    ctx.deps.backend.mutation(api.machineAgentLifecycle.transition, {
       sessionId: ctx.sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
@@ -143,9 +144,7 @@ export async function handleStartAgent(
       agentHarness: agentHarness === 'opencode' ? 'opencode' : undefined,
       workingDir,
     })
-    .catch((e: Error) => {
-      console.warn(`   ⚠️  Lifecycle transition (starting) failed: ${e.message}`);
-    });
+  ).catch(() => {});
 
   ctx.events.emit('agent:started', {
     chatroomId,

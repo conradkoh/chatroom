@@ -19,6 +19,7 @@ import { api, type Id } from '../../api.js';
 import { DEFAULT_ACTIVE_TIMEOUT_MS } from '../../config.js';
 import { getConvexUrl, getConvexWsClient } from '../../infrastructure/convex/client.js';
 import type { getConvexClient } from '../../infrastructure/convex/client.js';
+import { withRetry } from '../../infrastructure/retry-queue.js';
 import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 
 // ---------------------------------------------------------------------------
@@ -214,16 +215,16 @@ export class WaitForTaskSession {
               connectionId: this.connectionId,
             });
 
-            // Dual-write: lifecycle table → ready (Phase 4)
-            this.client
-              .mutation(api.machineAgentLifecycle.transition, {
+            // Lifecycle: rejoin → ready with retry
+            withRetry(() =>
+              this.client.mutation(api.machineAgentLifecycle.transition, {
                 sessionId: this.sessionId,
                 chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
                 role: this.role,
                 targetState: 'ready',
                 connectionId: this.connectionId,
               })
-              .catch(() => {});
+            ).catch(() => {});
             return;
           }
           // Consolidated superseded handling — delegates to shared method
@@ -469,15 +470,15 @@ export class WaitForTaskSession {
         expiresAt: activeUntil,
       });
 
-      // Lifecycle: transition ready → working so frontend shows correct status
-      this.client
-        .mutation(api.machineAgentLifecycle.transition, {
+      // Lifecycle: ready → working with retry
+      withRetry(() =>
+        this.client.mutation(api.machineAgentLifecycle.transition, {
           sessionId: this.sessionId,
           chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
           role: this.role,
           targetState: 'working',
         })
-        .catch(() => {});
+      ).catch(() => {});
 
       // Get the complete task delivery prompt from backend
       const taskDeliveryPrompt = await this.client.query(api.messages.getTaskDeliveryPrompt, {
