@@ -469,6 +469,16 @@ export class WaitForTaskSession {
         expiresAt: activeUntil,
       });
 
+      // Lifecycle: transition ready → working so frontend shows correct status
+      this.client
+        .mutation(api.machineAgentLifecycle.transition, {
+          sessionId: this.sessionId,
+          chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+          role: this.role,
+          targetState: 'working',
+        })
+        .catch(() => {});
+
       // Get the complete task delivery prompt from backend
       const taskDeliveryPrompt = await this.client.query(api.messages.getTaskDeliveryPrompt, {
         sessionId: this.sessionId,

@@ -184,6 +184,17 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     agentType: participantAgentType,
   });
 
+  // Lifecycle: transition to ready so frontend shows correct status
+  client
+    .mutation(api.machineAgentLifecycle.transition, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+      targetState: 'ready',
+      connectionId,
+    })
+    .catch(() => {});
+
   // Log initial connection with timestamp
   const connectionTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
 

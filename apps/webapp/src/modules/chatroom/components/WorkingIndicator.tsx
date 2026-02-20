@@ -2,34 +2,26 @@
 
 import React, { memo, useMemo } from 'react';
 
-interface Participant {
-  _id?: string;
+interface WorkingAgent {
   role: string;
-  status: string;
-  activeUntil?: number;
 }
 
 interface WorkingIndicatorProps {
-  participants: Participant[];
+  readiness?: { participants?: { role: string; displayStatus: string }[] } | null;
   /** Compact mode for bottom bar integration */
   compact?: boolean;
 }
 
 export const WorkingIndicator = memo(function WorkingIndicator({
-  participants,
+  readiness,
   compact = false,
 }: WorkingIndicatorProps) {
-  // Find active participants (excluding user) - memoized
-  // Also check that activeUntil hasn't expired
-  const activeAgents = useMemo(() => {
-    const now = Date.now();
-    return participants.filter((p) => {
-      if (p.status !== 'active' || p.role.toLowerCase() === 'user') return false;
-      // Check if active agent has expired
-      if (p.activeUntil && p.activeUntil < now) return false;
-      return true;
-    });
-  }, [participants]);
+  const activeAgents: WorkingAgent[] = useMemo(() => {
+    if (!readiness?.participants) return [];
+    return readiness.participants.filter(
+      (p) => p.displayStatus === 'working' && p.role.toLowerCase() !== 'user'
+    );
+  }, [readiness?.participants]);
 
   if (activeAgents.length === 0) {
     return null;
@@ -40,7 +32,7 @@ export const WorkingIndicator = memo(function WorkingIndicator({
     return (
       <div className="flex items-center gap-2">
         {activeAgents.map((agent, index) => (
-          <div key={agent._id || agent.role} className="flex items-center gap-1.5">
+          <div key={agent.role} className="flex items-center gap-1.5">
             {index > 0 && <span className="text-chatroom-text-muted">·</span>}
             {/* Pulsing indicator - square per theme */}
             <span className="w-2 h-2 bg-chatroom-status-info animate-pulse" />
@@ -61,7 +53,7 @@ export const WorkingIndicator = memo(function WorkingIndicator({
     <div className="px-4 py-3 flex flex-col gap-2">
       {activeAgents.map((agent) => (
         <div
-          key={agent._id || agent.role}
+          key={agent.role}
           className="flex items-center gap-3 px-4 py-3 bg-chatroom-status-info/10 border-2 border-chatroom-status-info/20"
         >
           {/* Pulsing squares - per theme guidelines */}

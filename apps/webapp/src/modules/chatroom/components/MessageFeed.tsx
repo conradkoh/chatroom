@@ -58,15 +58,9 @@ import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
 // which would cause react-markdown to re-parse the AST unnecessarily
 const REMARK_PLUGINS = [remarkGfm];
 
-interface Participant {
-  _id?: string;
-  role: string;
-  status: string;
-}
-
 interface MessageFeedProps {
   chatroomId: string;
-  participants: Participant[];
+  readiness?: { participants?: { role: string; displayStatus: string }[] } | null;
 }
 
 interface Message {
@@ -702,10 +696,7 @@ interface FeatureModalState {
   techSpecs?: string;
 }
 
-export const MessageFeed = memo(function MessageFeed({
-  chatroomId,
-  participants,
-}: MessageFeedProps) {
+export const MessageFeed = memo(function MessageFeed({ chatroomId, readiness }: MessageFeedProps) {
   const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
     api.messages.listPaginated,
     { chatroomId: chatroomId as Id<'chatroom_rooms'> },
@@ -964,7 +955,7 @@ export const MessageFeed = memo(function MessageFeed({
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
         {/* Left: Working indicator (compact) - empty div maintains layout when no active agents */}
         <div className="flex-shrink-0">
-          <WorkingIndicator participants={participants} compact />
+          <WorkingIndicator readiness={readiness} compact />
         </div>
         {/* Right: Message count */}
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted tabular-nums">

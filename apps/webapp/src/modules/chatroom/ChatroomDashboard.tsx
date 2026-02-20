@@ -629,7 +629,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             <div className="flex flex-1 overflow-hidden relative">
               {/* Message Section */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <MessageFeed chatroomId={chatroomId} participants={participants || []} />
+                <MessageFeed chatroomId={chatroomId} readiness={readiness} />
                 <SendForm chatroomId={chatroomId} />
               </div>
 
