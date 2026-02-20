@@ -46,7 +46,9 @@ export class AgentOutputStore {
    */
   getTrackedAgents(): { chatroomId: string; role: string; lastOutputAt: number }[] {
     return Array.from(this.lastOutput.entries()).map(([key, ts]) => {
-      const [chatroomId, role] = key.split(':');
+      const lastIdx = key.lastIndexOf(':');
+      const chatroomId = key.substring(0, lastIdx);
+      const role = key.substring(lastIdx + 1);
       return { chatroomId, role, lastOutputAt: ts };
     });
   }

@@ -149,6 +149,22 @@ describe('AgentOutputStore', () => {
         })
       );
     });
+
+    it('correctly splits keys when chatroomId contains colons', () => {
+      const store = new AgentOutputStore();
+
+      store.recordOutput('chatroom:123:abc', 'builder');
+
+      const agents = store.getTrackedAgents();
+
+      expect(agents).toHaveLength(1);
+      expect(agents[0]).toEqual(
+        expect.objectContaining({
+          chatroomId: 'chatroom:123:abc',
+          role: 'builder',
+        })
+      );
+    });
   });
 
   describe('remove', () => {
