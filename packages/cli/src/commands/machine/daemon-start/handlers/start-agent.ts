@@ -35,6 +35,29 @@ export async function handleStartAgent(
 
   console.log(`      Working dir: ${workingDir}`);
 
+  // Validate against desired state — discard stale start commands
+  // that have been superseded by a newer stop request.
+  try {
+    const desiredState = await ctx.deps.backend.query(api.agentDesiredState.getDesiredState, {
+      sessionId: ctx.sessionId,
+      chatroomId,
+      role,
+    });
+
+    if (desiredState && desiredState.desiredStatus !== 'running') {
+      const msg =
+        `Discarded stale start-agent command for ${role} — ` +
+        `desired state is "${desiredState.desiredStatus}" ` +
+        `(set by ${desiredState.requestedBy} at ${new Date(desiredState.requestedAt).toISOString()})`;
+      console.log(`   ℹ️  ${msg}`);
+      return { result: msg, failed: false };
+    }
+  } catch (e) {
+    console.log(
+      `   ⚠️  Failed to check desired state, proceeding with start: ${(e as Error).message}`
+    );
+  }
+
   // SECURITY: Validate working directory exists on the local filesystem
   // using fs.stat (not a shell command) to prevent path-based attacks.
   // This is defense-in-depth alongside the backend's character validation.

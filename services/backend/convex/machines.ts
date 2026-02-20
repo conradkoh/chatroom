@@ -14,6 +14,7 @@ import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
+import { upsertDesiredState } from '../src/domain/usecase/agent/upsert-desired-state';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -667,8 +668,16 @@ export const sendCommand = mutation({
       return { commandId: result.commandId };
     }
 
-    // ── stop-agent: delegate to use case ────────────────────────────────
+    // ── stop-agent: write desired state then delegate to use case ───────
     if (args.type === 'stop-agent' && args.payload?.chatroomId && args.payload?.role) {
+      await upsertDesiredState(ctx, {
+        chatroomId: args.payload.chatroomId,
+        role: args.payload.role,
+        desiredStatus: 'stopped',
+        requestedAt: Date.now(),
+        requestedBy: 'user',
+      });
+
       const result = await stopAgentUseCase(ctx, {
         machineId: args.machineId,
         chatroomId: args.payload.chatroomId,

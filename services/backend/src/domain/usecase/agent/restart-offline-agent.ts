@@ -17,6 +17,7 @@
 import { getAgentConfig } from './get-agent-config';
 import { startAgent } from './start-agent';
 import { stopAgent } from './stop-agent';
+import { upsertDesiredState } from './upsert-desired-state';
 import { DAEMON_HEARTBEAT_TTL_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -182,7 +183,23 @@ export async function restartOfflineAgent(
     return { status: 'skipped', reason: 'duplicate_pending_command' };
   }
 
-  // ── Step 6: Dispatch stop + start commands via use cases ────────────────
+  // ── Step 6: Write desired state + dispatch commands ──────────────────────
+  // Record the desired state as 'running' so the daemon can validate
+  // that this start request hasn't been superseded by a newer stop.
+
+  await upsertDesiredState(ctx, {
+    chatroomId,
+    role: config.role,
+    desiredStatus: 'running',
+    requestedAt: now,
+    requestedBy: 'auto_restart',
+    machineId: config.machineId,
+    model: config.model,
+    agentHarness: config.agentHarness,
+    workingDir: config.workingDir,
+  });
+
+  // Dispatch stop + start commands via use cases
   // At this point all required fields are guaranteed non-null by Steps 3+4
 
   await stopAgent(ctx, {
