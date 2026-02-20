@@ -33,10 +33,6 @@ function createMockContext(
         return aliveCheck ? aliveCheck(pid) : false;
       }),
     },
-    drivers: {
-      get: vi.fn(),
-      all: vi.fn().mockReturnValue([]),
-    },
     fs: {
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
     },
@@ -56,6 +52,13 @@ function createMockContext(
     },
   };
 
+  // remoteAgentService.isAlive(pid) uses deps.kill(pid, 0) — throws => dead, no throw => alive
+  const killMock = vi.fn().mockImplementation((pid: number, _signal: number | string) => {
+    if (aliveCheck && !aliveCheck(pid)) {
+      throw new Error('ESRCH');
+    }
+  });
+
   return {
     client: {},
     sessionId: 'test-session-id',
@@ -67,7 +70,7 @@ function createMockContext(
     remoteAgentService: new OpenCodeAgentService({
       execSync: vi.fn(),
       spawn: vi.fn() as any,
-      kill: vi.fn(),
+      kill: killMock,
     }),
   };
 }

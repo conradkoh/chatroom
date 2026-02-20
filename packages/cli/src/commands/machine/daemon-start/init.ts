@@ -7,7 +7,6 @@ import { stat } from 'node:fs/promises';
 
 import { recoverAgentState } from './handlers/state-recovery.js';
 import { api } from '../../../api.js';
-import { getDriverRegistry } from '../../../infrastructure/agent-drivers/index.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
 import {
@@ -108,8 +107,6 @@ export async function discoverModels(service: RemoteAgentService): Promise<strin
  * This factory uses the module-level imports already available in this file.
  */
 export function createDefaultDeps(): DaemonDeps {
-  const registry = getDriverRegistry();
-
   return {
     backend: {
       // Placeholder — initDaemon() binds the real client after connecting.
@@ -123,10 +120,6 @@ export function createDefaultDeps(): DaemonDeps {
     processes: {
       kill: (pid, signal) => process.kill(pid, signal),
       verifyPidOwnership,
-    },
-    drivers: {
-      get: (harness) => registry.get(harness),
-      all: () => registry.all(),
     },
     fs: {
       stat,

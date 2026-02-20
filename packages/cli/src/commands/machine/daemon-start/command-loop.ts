@@ -185,13 +185,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   const agentHeartbeatTimer = setInterval(() => {
     const agents = ctx.deps.machine.listAgentEntries(ctx.machineId);
     for (const { chatroomId, role, entry } of agents) {
-      let isAlive = false;
-      try {
-        ctx.deps.processes.kill(entry.pid, 0);
-        isAlive = true;
-      } catch {
-        // Process is dead — the onExit callback handles cleanup
-      }
+      const isAlive = ctx.remoteAgentService.isAlive(entry.pid);
 
       if (isAlive) {
         const hasRecentOutput = !ctx.agentOutputStore.isIdle(chatroomId, role, IDLE_THRESHOLD_MS);
@@ -223,15 +217,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     const agents = ctx.deps.machine.listAgentEntries(ctx.machineId);
     for (const { chatroomId, role, entry } of agents) {
       if (ctx.agentOutputStore.isIdle(chatroomId, role, IDLE_THRESHOLD_MS)) {
-        let isAlive = false;
-        try {
-          ctx.deps.processes.kill(entry.pid, 0);
-          isAlive = true;
-        } catch {
-          // Already dead
-        }
-
-        if (isAlive) {
+        if (ctx.remoteAgentService.isAlive(entry.pid)) {
           console.log(
             `[${formatTimestamp()}] 💀 Idle agent detected: ${role} (PID: ${entry.pid}, ` +
               `no output for >${IDLE_THRESHOLD_MS / 1000}s) — stopping`

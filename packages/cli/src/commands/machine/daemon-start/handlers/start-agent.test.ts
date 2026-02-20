@@ -3,12 +3,12 @@
  *
  * Tests handleStartAgent using injected dependencies.
  * Covers: no agent context, working dir validation, init prompt fetch,
- * driver resolution, successful spawn, PID persistence, start failure.
+ * spawn via RemoteAgentService, successful spawn, PID persistence, spawn failure.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { OpenCodeAgentService } from '../../../../infrastructure/services/remote-agents/opencode/index.js';
+import type { RemoteAgentService } from '../../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import type { DaemonDeps } from '../deps.js';
 import { DaemonEventBus } from '../event-bus.js';
 import type { DaemonContext, StartAgentCommand } from '../types.js';
@@ -41,26 +41,26 @@ function createCommand(overrides?: Partial<StartAgentCommand['payload']>): Start
   };
 }
 
-function createMockDriver() {
-  return {
-    start: vi.fn().mockResolvedValue({
-      success: true,
-      handle: { pid: 5678 },
-      onExit: vi.fn(),
-      message: 'Agent started',
-    }),
-    stop: vi.fn(),
-    isAlive: vi.fn(),
-  };
-}
-
 function createMockContext(options?: {
   initPrompt?: { prompt: string; rolePrompt: string; initialMessage: string } | null;
-  driver?: ReturnType<typeof createMockDriver>;
+  spawnResult?: {
+    pid: number;
+    onExit: (cb: (code: number | null, signal: string | null) => void) => void;
+    onOutput: (cb: () => void) => void;
+  };
+  spawnError?: Error;
   desiredState?: { desiredStatus: string; requestedAt: number; requestedBy: string } | null;
   desiredStateError?: boolean;
 }): DaemonContext {
-  const driverMock = options?.driver ?? createMockDriver();
+  const spawnMock = vi.fn().mockImplementation(async () => {
+    if (options?.spawnError) throw options.spawnError;
+    if (options?.spawnResult) return options.spawnResult;
+    return {
+      pid: 5678,
+      onExit: vi.fn(),
+      onOutput: vi.fn(),
+    };
+  });
 
   const initPromptValue =
     options?.initPrompt !== undefined
@@ -90,10 +90,6 @@ function createMockContext(options?: {
       kill: vi.fn(),
       verifyPidOwnership: vi.fn().mockReturnValue(true),
     },
-    drivers: {
-      get: vi.fn().mockReturnValue(driverMock),
-      all: vi.fn().mockReturnValue([]),
-    },
     fs: {
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
     },
@@ -113,6 +109,12 @@ function createMockContext(options?: {
     },
   };
 
+  const remoteAgentService = {
+    spawn: spawnMock,
+    stop: vi.fn(),
+    isAlive: vi.fn().mockReturnValue(true),
+  } as unknown as RemoteAgentService;
+
   return {
     client: {},
     sessionId: 'test-session-id',
@@ -121,11 +123,7 @@ function createMockContext(options?: {
     deps,
     events: new DaemonEventBus(),
     agentOutputStore: new AgentOutputStore(),
-    remoteAgentService: new OpenCodeAgentService({
-      execSync: vi.fn(),
-      spawn: vi.fn() as any,
-      kill: vi.fn(),
-    }),
+    remoteAgentService,
   };
 }
 
@@ -192,11 +190,8 @@ describe('handleStartAgent', () => {
     expect(result.result).toContain('Failed to fetch init prompt');
   });
 
-  it('returns failed when no driver registered for harness', async () => {
-    const ctx = createMockContext();
-    (ctx.deps.drivers.get as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      throw new Error('No driver registered');
-    });
+  it('returns failed when spawn throws', async () => {
+    const ctx = createMockContext({ spawnError: new Error('No driver registered') });
     const cmd = createCommand({ workingDir: '/tmp/test' });
 
     const result = await handleStartAgent(ctx, cmd);
@@ -206,8 +201,7 @@ describe('handleStartAgent', () => {
   });
 
   it('successfully spawns an agent and persists PID', async () => {
-    const driver = createMockDriver();
-    const ctx = createMockContext({ driver });
+    const ctx = createMockContext();
     const cmd = createCommand({ workingDir: '/tmp/test' });
 
     const result = await handleStartAgent(ctx, cmd);
@@ -230,8 +224,7 @@ describe('handleStartAgent', () => {
   });
 
   it('emits agent:started event after successful spawn', async () => {
-    const driver = createMockDriver();
-    const ctx = createMockContext({ driver });
+    const ctx = createMockContext();
     const cmd = createCommand({ workingDir: '/tmp/test', model: 'gpt-4o' });
 
     const listener = vi.fn();
@@ -253,16 +246,15 @@ describe('handleStartAgent', () => {
 
   it('emits agent:exited event when process exits', async () => {
     let onExitCallback: ((code: number | null, signal: string | null) => void) | null = null;
-    const driver = createMockDriver();
-    driver.start.mockResolvedValue({
-      success: true,
-      handle: { pid: 5678 },
-      onExit: (cb: (code: number | null, signal: string | null) => void) => {
-        onExitCallback = cb;
+    const ctx = createMockContext({
+      spawnResult: {
+        pid: 5678,
+        onExit: (cb: (code: number | null, signal: string | null) => void) => {
+          onExitCallback = cb;
+        },
+        onOutput: vi.fn(),
       },
-      message: 'Agent started',
     });
-    const ctx = createMockContext({ driver });
     const cmd = createCommand({ workingDir: '/tmp/test' });
 
     const listener = vi.fn();
@@ -286,14 +278,10 @@ describe('handleStartAgent', () => {
     );
   });
 
-  it('returns failed when driver.start fails', async () => {
-    const driver = createMockDriver();
-    driver.start.mockResolvedValue({
-      success: false,
-      handle: null,
-      message: 'Failed to spawn process',
+  it('returns failed when spawn throws with message', async () => {
+    const ctx = createMockContext({
+      spawnError: new Error('Failed to spawn process'),
     });
-    const ctx = createMockContext({ driver });
     const cmd = createCommand({ workingDir: '/tmp/test' });
 
     const result = await handleStartAgent(ctx, cmd);
@@ -319,13 +307,11 @@ describe('handleStartAgent', () => {
     expect(result.failed).toBe(false);
     expect(result.result).toContain('Discarded stale start-agent command');
     expect(result.result).toContain('stopped');
-    expect(ctx.deps.drivers.get).not.toHaveBeenCalled();
+    expect(ctx.remoteAgentService.spawn).not.toHaveBeenCalled();
   });
 
   it('proceeds normally when desired state is running', async () => {
-    const driver = createMockDriver();
     const ctx = createMockContext({
-      driver,
       desiredState: {
         desiredStatus: 'running',
         requestedAt: Date.now(),
@@ -341,9 +327,7 @@ describe('handleStartAgent', () => {
   });
 
   it('proceeds normally when desired state query fails (fail-open)', async () => {
-    const driver = createMockDriver();
     const ctx = createMockContext({
-      driver,
       desiredStateError: true,
     });
     const cmd = createCommand({ workingDir: '/tmp/test' });

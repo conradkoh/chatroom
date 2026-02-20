@@ -46,27 +46,10 @@ export async function handleStopAgent(
   }
 
   const pidToKill = targetConfig.spawnedAgentPid;
-  const agentHarness = (targetConfig.agentType as 'opencode') || undefined;
   console.log(`   Stopping agent with PID: ${pidToKill}`);
 
   // Verify the PID is still alive before attempting shutdown
-  let stopDriver;
-  try {
-    stopDriver = agentHarness ? ctx.deps.drivers.get(agentHarness) : null;
-  } catch {
-    stopDriver = null;
-  }
-
-  const stopHandle = {
-    harness: agentHarness || ('opencode' as const),
-    type: 'process' as const,
-    pid: pidToKill,
-    workingDir: '',
-  };
-
-  const isAlive = stopDriver
-    ? await stopDriver.isAlive(stopHandle)
-    : ctx.deps.processes.verifyPidOwnership(pidToKill, agentHarness);
+  const isAlive = ctx.remoteAgentService.isAlive(pidToKill);
 
   if (!isAlive) {
     console.log(`   ⚠️  PID ${pidToKill} does not appear to belong to the expected agent`);

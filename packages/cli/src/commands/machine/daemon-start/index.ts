@@ -38,7 +38,6 @@ export type {
   StartAgentDeps,
   StopAgentDeps,
   StateRecoveryDeps,
-  DriverOps,
   IntentionalStopOps,
   MachineStateOps,
 } from './deps.js';

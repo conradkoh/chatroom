@@ -92,90 +92,68 @@ export async function handleStartAgent(
 
   console.log(`   Fetched split init prompt from backend`);
 
-  // Get harness version for version-specific spawn logic (uses cached config)
-  const harnessVersion = ctx.config?.harnessVersions?.[agentHarness];
+  // Spawn via RemoteAgentService
+  const combinedPrompt = `${initPromptResult.rolePrompt}\n\n${initPromptResult.initialMessage}`;
 
-  // Resolve driver from registry and start the agent
-  let driver;
+  let spawnResult;
   try {
-    driver = ctx.deps.drivers.get(agentHarness);
-  } catch {
-    const msg = `No driver registered for harness: ${agentHarness}`;
+    spawnResult = await ctx.remoteAgentService.spawn({
+      workingDir,
+      prompt: combinedPrompt,
+      model,
+    });
+  } catch (e) {
+    const msg = `Failed to spawn agent: ${(e as Error).message}`;
     console.log(`   ⚠️  ${msg}`);
     return { result: msg, failed: true };
   }
 
-  const startResult = await driver.start({
-    workingDir,
-    rolePrompt: initPromptResult.rolePrompt,
-    initialMessage: initPromptResult.initialMessage,
-    harnessVersion: harnessVersion ?? undefined,
+  const { pid } = spawnResult;
+  const msg = `Agent spawned (PID: ${pid})`;
+  console.log(`   ✅ ${msg}`);
+
+  // Update backend with spawned agent PID and persist locally
+  try {
+    await ctx.deps.backend.mutation(api.machines.updateSpawnedAgent, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      chatroomId,
+      role,
+      pid,
+      model,
+    });
+    console.log(`   Updated backend with PID: ${pid}`);
+
+    ctx.deps.machine.persistAgentPid(ctx.machineId, chatroomId, role, pid, agentHarness);
+  } catch (e) {
+    console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
+  }
+
+  ctx.events.emit('agent:started', {
+    chatroomId,
+    role,
+    pid,
+    harness: agentHarness,
     model,
   });
 
-  if (startResult.success && startResult.handle) {
-    const msg = `Agent spawned (PID: ${startResult.handle.pid})`;
-    console.log(`   ✅ ${msg}`);
+  // Monitor for process exit — emit event so centralized listeners handle cleanup.
+  spawnResult.onExit((code: number | null, signal: string | null) => {
+    const wasIntentional = ctx.deps.stops.consume(chatroomId, role);
+    ctx.events.emit('agent:exited', {
+      chatroomId,
+      role,
+      pid,
+      code,
+      signal,
+      intentional: wasIntentional,
+    });
+  });
 
-    // Update backend with spawned agent PID and persist locally
-    if (startResult.handle.pid) {
-      try {
-        await ctx.deps.backend.mutation(api.machines.updateSpawnedAgent, {
-          sessionId: ctx.sessionId,
-          machineId: ctx.machineId,
-          chatroomId,
-          role,
-          pid: startResult.handle.pid,
-          model,
-        });
-        console.log(`   Updated backend with PID: ${startResult.handle.pid}`);
+  // Track stdout/stderr activity for idle detection
+  spawnResult.onOutput(() => {
+    ctx.agentOutputStore.recordOutput(chatroomId, role);
+  });
 
-        // Persist PID locally for daemon restart recovery
-        ctx.deps.machine.persistAgentPid(
-          ctx.machineId,
-          chatroomId,
-          role,
-          startResult.handle.pid,
-          agentHarness
-        );
-      } catch (e) {
-        console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
-      }
-
-      ctx.events.emit('agent:started', {
-        chatroomId,
-        role,
-        pid: startResult.handle.pid,
-        harness: agentHarness,
-        model,
-      });
-
-      // Monitor for process exit — emit event so centralized listeners handle cleanup.
-      if (startResult.onExit) {
-        const spawnedPid = startResult.handle.pid;
-        startResult.onExit((code: number | null, signal: string | null) => {
-          const wasIntentional = ctx.deps.stops.consume(chatroomId, role);
-          ctx.events.emit('agent:exited', {
-            chatroomId,
-            role,
-            pid: spawnedPid,
-            code,
-            signal,
-            intentional: wasIntentional,
-          });
-        });
-      }
-
-      // Track stdout/stderr activity for idle detection
-      if (startResult.onOutput) {
-        startResult.onOutput(() => {
-          ctx.agentOutputStore.recordOutput(chatroomId, role);
-        });
-      }
-    }
-    return { result: msg, failed: false };
-  }
-
-  console.log(`   ⚠️  ${startResult.message}`);
-  return { result: startResult.message, failed: true };
+  return { result: msg, failed: false };
 }

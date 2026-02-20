@@ -110,26 +110,6 @@ function createMockDeps(overrides?: Partial<DaemonDeps>): DaemonDeps {
       kill: vi.fn(),
       verifyPidOwnership: vi.fn(() => true),
     },
-    drivers: {
-      get: vi.fn(() => ({
-        harness: 'opencode' as const,
-        capabilities: {
-          sessionPersistence: false,
-          abort: false,
-          modelSelection: false,
-          compaction: false,
-          eventStreaming: false,
-          messageInjection: false,
-          dynamicModelDiscovery: false,
-        },
-        start: vi.fn(),
-        stop: vi.fn().mockResolvedValue(undefined),
-        isAlive: vi.fn().mockResolvedValue(true),
-        recover: vi.fn().mockResolvedValue([]),
-        listModels: vi.fn().mockResolvedValue([]),
-      })),
-      all: vi.fn(() => []),
-    },
     fs: {
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
     },
@@ -333,16 +313,7 @@ describe('handleStopAgent', () => {
   });
 
   it('handles stale PID (process not alive)', async () => {
-    const driverMock = {
-      harness: 'opencode' as const,
-      capabilities: {} as ReturnType<typeof vi.fn>,
-      start: vi.fn(),
-      stop: vi.fn(),
-      isAlive: vi.fn().mockResolvedValue(false),
-      recover: vi.fn(),
-      listModels: vi.fn(),
-    };
-    vi.mocked(deps.drivers.get).mockReturnValue(driverMock as never);
+    vi.spyOn(ctx.remoteAgentService, 'isAlive').mockReturnValue(false);
 
     vi.mocked(deps.backend.query).mockResolvedValue({
       configs: [

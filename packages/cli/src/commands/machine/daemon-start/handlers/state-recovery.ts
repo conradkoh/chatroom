@@ -30,7 +30,7 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
 
   for (const { chatroomId, role, entry } of entries) {
     const { pid, harness } = entry;
-    const alive = ctx.deps.processes.verifyPidOwnership(pid, harness);
+    const alive = ctx.remoteAgentService.isAlive(pid);
 
     if (alive) {
       console.log(`   ✅ Recovered: ${role} (PID ${pid}, harness: ${harness})`);

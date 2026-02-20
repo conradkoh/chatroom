@@ -64,10 +64,6 @@ function createMockContext(): DaemonContext {
       kill: vi.fn(),
       verifyPidOwnership: vi.fn().mockReturnValue(true),
     },
-    drivers: {
-      get: vi.fn(),
-      all: vi.fn().mockReturnValue([]),
-    },
     fs: {
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
     },
