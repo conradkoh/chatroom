@@ -284,9 +284,19 @@ export const getTeamLifecycle = query({
 
     const lifecycleByRole = new Map(lifecycleRows.map((r) => [r.role.toLowerCase(), r]));
 
+    // Batch-fetch all participants for this chatroom and build a Map by role
+    // so we can join lastSeenAt without N+1 queries.
+    const participantRows = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    const participantByRole = new Map(participantRows.map((p) => [p.role.toLowerCase(), p]));
+
     const expectedRoles = chatroom.teamRoles;
     const participants = expectedRoles.map((role) => {
       const row = lifecycleByRole.get(role.toLowerCase());
+      const participantRow = participantByRole.get(role.toLowerCase());
       const state: LifecycleState = row?.state ?? 'offline';
       const displayStatus = lifecycleToDisplayStatus(state);
       const isAlive = state === 'ready' || state === 'working';
@@ -306,6 +316,7 @@ export const getTeamLifecycle = query({
         agentType: 'remote' as const,
         desiredStatus: undefined,
         hasPendingCommand: state === 'start_requested' || state === 'stop_requested',
+        lastSeenAt: participantRow?.lastSeenAt ?? null,
       };
     });
 
