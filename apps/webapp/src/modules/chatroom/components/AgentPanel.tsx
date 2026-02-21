@@ -109,6 +109,15 @@ const DEFAULT_STATUS: { bg: string; text: string; label: string } = {
 
 const getStatusConfig = (status: AgentStatus) => STATUS_CONFIG[status] ?? DEFAULT_STATUS;
 
+/** Pure helper — formats a lastSeenAt unix-ms timestamp into a human-readable "X ago" string. */
+function formatLastSeen(lastSeenAt: number | null | undefined): string {
+  if (lastSeenAt == null) return 'never';
+  const diff = Math.floor((Date.now() - lastSeenAt) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  return `${Math.floor(diff / 3600)}h ago`;
+}
+
 const getStatusClasses = (effectiveStatus: AgentStatus) =>
   `w-2.5 h-2.5 flex-shrink-0 ${getStatusConfig(effectiveStatus).bg}`;
 
@@ -186,6 +195,7 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
 interface AgentWithStatus {
   role: string;
   effectiveStatus: AgentStatus;
+  lastSeenAt?: number | null;
 }
 
 // Types and constants imported from ../types/machine
@@ -204,6 +214,7 @@ interface TeamAgentConfig {
 interface InlineAgentCardProps {
   role: string;
   effectiveStatus: AgentStatus;
+  lastSeenAt?: number | null;
   prompt: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
@@ -228,6 +239,7 @@ function resolveMachineHostname(
 const InlineAgentCard = memo(function InlineAgentCard({
   role,
   effectiveStatus,
+  lastSeenAt,
   prompt,
   chatroomId,
   connectedMachines,
@@ -318,6 +330,12 @@ const InlineAgentCard = memo(function InlineAgentCard({
                 NOT REGISTERED
               </span>
             )}
+          </div>
+          {/* Last seen subtitle line */}
+          <div className="pl-[18px]">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+              Last seen: {formatLastSeen(lastSeenAt)}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -475,11 +493,12 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
           <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
         </FixedModalHeader>
         <FixedModalBody>
-          {agents.map(({ role, effectiveStatus }) => (
+          {agents.map(({ role, effectiveStatus, lastSeenAt }) => (
             <InlineAgentCard
               key={role}
               role={role}
               effectiveStatus={effectiveStatus}
+              lastSeenAt={lastSeenAt}
               prompt={generatePrompt(role)}
               chatroomId={chatroomId}
               connectedMachines={connectedMachines}
@@ -564,6 +583,7 @@ export const AgentPanel = memo(function AgentPanel({
     return rolesToShow.map((role) => ({
       role,
       effectiveStatus: getEffectiveStatus(role, participantMap).status,
+      lastSeenAt: participantMap.get(role.toLowerCase())?.lastSeenAt,
     }));
   }, [rolesToShow, participantMap]);
 
@@ -610,6 +630,7 @@ export const AgentPanel = memo(function AgentPanel({
   // Helper to render an agent row in the sidebar
   const renderAgentRow = (role: string) => {
     const { status: effectiveStatus } = getEffectiveStatus(role, participantMap);
+    const participant = participantMap.get(role.toLowerCase());
 
     const statusLabel = getStatusConfig(effectiveStatus).label;
 
@@ -655,6 +676,9 @@ export const AgentPanel = memo(function AgentPanel({
               }`}
             >
               {statusLabel}
+            </div>
+            <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+              {formatLastSeen(participant?.lastSeenAt)}
             </div>
           </div>
           {/* View Indicator */}

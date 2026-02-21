@@ -52,6 +52,8 @@ interface ParticipantInfoBase {
   isExpired: boolean;
   desiredStatus?: 'running' | 'stopped';
   hasPendingCommand?: boolean;
+  /** Unix ms timestamp of the last heartbeat written by the CLI process. Null if never seen. */
+  lastSeenAt?: number | null;
 }
 
 export interface RemoteParticipantInfo extends ParticipantInfoBase {
