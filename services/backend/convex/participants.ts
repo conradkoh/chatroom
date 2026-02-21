@@ -169,7 +169,7 @@ export const heartbeat = mutation({
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    connectionId: v.string(),
+    connectionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
@@ -192,8 +192,15 @@ export const heartbeat = mutation({
       return { status: 'rejoin_required' as const };
     }
 
-    // Reject heartbeats from stale connections — a newer wait-for-task has taken over
-    if (participant.connectionId && participant.connectionId !== args.connectionId) {
+    // Reject heartbeats from stale connections — a newer wait-for-task has taken over.
+    // Only perform this check when a connectionId was supplied (i.e. from the
+    // wait-for-task loop). Commands that fire heartbeats without a connectionId
+    // (task-started, handoff, report-progress, etc.) skip this guard.
+    if (
+      args.connectionId &&
+      participant.connectionId &&
+      participant.connectionId !== args.connectionId
+    ) {
       console.warn(
         `[heartbeat] Rejected stale heartbeat for ${args.role}: connectionId mismatch ` +
           `(expected ${participant.connectionId}, got ${args.connectionId})`
@@ -203,6 +210,8 @@ export const heartbeat = mutation({
       return { status: 'superseded' as const };
     }
 
+    const now = Date.now();
+
     // Plan 027: If participant is in planned_cleanup, restore to waiting.
     // The agent proved it's still alive by sending a heartbeat, so cancel the cleanup.
     if (participant.status === 'planned_cleanup') {
@@ -211,15 +220,17 @@ export const heartbeat = mutation({
       );
       await ctx.db.patch('chatroom_participants', participant._id, {
         status: 'waiting',
-        readyUntil: Date.now() + HEARTBEAT_TTL_MS,
+        readyUntil: now + HEARTBEAT_TTL_MS,
         cleanupDeadline: undefined,
+        lastSeenAt: now,
       });
       return { status: 'ok' as const };
     }
 
-    // Refresh readyUntil
+    // Refresh readyUntil and lastSeenAt
     await ctx.db.patch('chatroom_participants', participant._id, {
-      readyUntil: Date.now() + HEARTBEAT_TTL_MS,
+      readyUntil: now + HEARTBEAT_TTL_MS,
+      lastSeenAt: now,
     });
 
     return { status: 'ok' as const };

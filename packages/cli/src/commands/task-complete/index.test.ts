@@ -112,8 +112,8 @@ describe('taskComplete', () => {
       await taskComplete(TEST_CHATROOM_ID, defaultOptions(), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
-      // completeTask + lifecycle heartbeat
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
+      // completeTask + machineAgentLifecycle.heartbeat + participants.heartbeat
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(3);
 
       const output = getAllLogOutput();
       expect(output).toContain('Task completed successfully');

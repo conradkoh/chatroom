@@ -335,6 +335,10 @@ export default defineSchema({
     ),
     // Agent type — 'custom' or 'remote'
     agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
+    // Timestamp of the last heartbeat received from this participant.
+    // Populated by participants.heartbeat (and participants.join) on every check-in.
+    // Phase 1 of migration away from FSM lifecycle table.
+    lastSeenAt: v.optional(v.number()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role'])
