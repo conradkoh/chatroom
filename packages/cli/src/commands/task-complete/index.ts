@@ -14,6 +14,7 @@ import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { sendLifecycleHeartbeat } from '../../infrastructure/lifecycle-heartbeat.js';
 import {
   formatError,
   formatAuthError,
@@ -76,6 +77,8 @@ export async function taskComplete(
     formatChatroomIdError(chatroomId);
     process.exit(1);
   }
+
+  sendLifecycleHeartbeat(d.backend, { sessionId, chatroomId, role });
 
   // Complete the task using the existing completeTask mutation
   let result;

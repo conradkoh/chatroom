@@ -116,7 +116,8 @@ describe('handoff', () => {
       await handoff(TEST_CHATROOM_ID, defaultOptions(), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
+      // sendHandoff + lifecycle heartbeat
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
 
       const output = getAllLogOutput();
       expect(output).toContain('Task completed and handed off to builder');

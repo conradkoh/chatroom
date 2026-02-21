@@ -45,6 +45,19 @@ export const HEARTBEAT_INTERVAL_MS = 30_000; // 30s
  *  Must be > HEARTBEAT_INTERVAL_MS to tolerate missed beats. Allows 2 missed beats. */
 export const HEARTBEAT_TTL_MS = 90_000; // 90s (Plan 026: increased from 60s)
 
+/**
+ * How long a lifecycle heartbeat can be absent before a WORKING agent is marked dead.
+ *
+ * Agents in `working` state are actively processing AI tasks (reading files, reasoning,
+ * calling tools). These activities can take minutes between CLI command invocations that
+ * trigger heartbeats. A much longer TTL prevents false-positive "dead" classification
+ * while the agent is genuinely working.
+ *
+ * For `ready` state the shorter HEARTBEAT_TTL_MS applies, since a ready agent should
+ * be in `wait-for-task` which heartbeats every 30s.
+ */
+export const LIFECYCLE_WORKING_HEARTBEAT_TTL_MS = 600_000; // 10 min
+
 /** How long a task can be stuck in `pending` before triggering recovery (ms).
  *  For remote agents: triggers auto-restart. For custom agents: logs a warning. */
 export const TASK_PENDING_TIMEOUT_MS = 300_000; // 5 min

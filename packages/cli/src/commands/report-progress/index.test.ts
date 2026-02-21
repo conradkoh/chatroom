@@ -104,7 +104,8 @@ describe('reportProgress', () => {
       await reportProgress(TEST_CHATROOM_ID, defaultOptions({ message }), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
+      // reportProgress + lifecycle heartbeat
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
 
       const output = getAllLogOutput();
       expect(output).toContain('Progress reported');

@@ -27,14 +27,14 @@ export type LifecycleState = (typeof LIFECYCLE_STATES)[number];
  * only if B appears in VALID_TRANSITIONS[A].
  */
 export const VALID_TRANSITIONS: Record<LifecycleState, readonly LifecycleState[]> = {
-  offline: ['start_requested'],
+  offline: ['start_requested', 'ready'], // 'ready' allows custom agents to self-register without a daemon
   start_requested: ['starting', 'offline'],
   starting: ['ready', 'offline'],
   ready: ['working', 'stop_requested', 'dead'],
   working: ['ready', 'stop_requested', 'dead'],
   stop_requested: ['stopping', 'offline'],
   stopping: ['offline'],
-  dead: ['offline'],
+  dead: ['offline', 'ready'], // 'ready' allows a custom agent to re-register after heartbeat expiry
 };
 
 // ─── Validation ──────────────────────────────────────────────────────────────

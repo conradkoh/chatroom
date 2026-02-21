@@ -12,6 +12,7 @@ import type { ContextDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { sendLifecycleHeartbeat } from '../../infrastructure/lifecycle-heartbeat.js';
 import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
@@ -67,6 +68,8 @@ export async function readContext(
     );
     process.exit(1);
   }
+
+  sendLifecycleHeartbeat(d.backend, { sessionId, chatroomId, role: options.role });
 
   try {
     const context = await d.backend.query(api.messages.getContextForRole, {
@@ -229,6 +232,8 @@ export async function newContext(
     console.error(`❌ Context content cannot be empty`);
     process.exit(1);
   }
+
+  sendLifecycleHeartbeat(d.backend, { sessionId, chatroomId, role: options.role });
 
   try {
     const contextId = await d.backend.mutation(api.contexts.createContext, {

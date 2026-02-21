@@ -21,6 +21,7 @@ import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { sendLifecycleHeartbeat } from '../../infrastructure/lifecycle-heartbeat.js';
 import {
   formatError,
   formatAuthError,
@@ -86,6 +87,8 @@ export async function handoff(
     formatChatroomIdError(chatroomId);
     process.exit(1);
   }
+
+  sendLifecycleHeartbeat(d.backend, { sessionId, chatroomId, role });
 
   // Validate artifact IDs if provided
   if (attachedArtifactIds.length > 0) {

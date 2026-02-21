@@ -139,8 +139,8 @@ describe('taskStarted', () => {
 
       expect(exitSpy).not.toHaveBeenCalled();
 
-      // Should have called startTask mutation
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
+      // startTask + lifecycle heartbeat
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
 
       const output = getAllLogOutput();
       expect(output).toContain('Task started');
@@ -166,8 +166,8 @@ describe('taskStarted', () => {
 
       expect(exitSpy).not.toHaveBeenCalled();
 
-      // Two mutations: startTask + taskStarted (classify)
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
+      // Three mutations: lifecycle heartbeat + startTask + taskStarted (classify)
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(3);
 
       const output = getAllLogOutput();
       expect(output).toContain('Task acknowledged and classified');
@@ -185,7 +185,8 @@ describe('taskStarted', () => {
       );
 
       expect(exitSpy).not.toHaveBeenCalled();
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
+      // lifecycle heartbeat + startTask + taskStarted (classify)
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(3);
 
       const output = getAllLogOutput();
       expect(output).toContain('Classification: follow_up');
@@ -214,9 +215,9 @@ describe('taskStarted', () => {
   describe('start task failure', () => {
     it('exits with code 1 when startTask mutation fails', async () => {
       const deps = createMockDeps();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-        new Error('Task must be acknowledged to start')
-      );
+      (deps.backend.mutation as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(undefined) // lifecycle heartbeat
+        .mockRejectedValueOnce(new Error('Task must be acknowledged to start'));
 
       await taskStarted(TEST_CHATROOM_ID, defaultOptions(), deps);
 
@@ -232,8 +233,9 @@ describe('taskStarted', () => {
   describe('classification failure', () => {
     it('exits with code 1 when classification mutation fails', async () => {
       const deps = createMockDeps();
-      // First mutation (startTask) succeeds, second (classify) fails
+      // First: lifecycle heartbeat, second: startTask succeeds, third: classify fails
       (deps.backend.mutation as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(undefined) // lifecycle heartbeat
         .mockResolvedValueOnce(undefined) // startTask
         .mockRejectedValueOnce(new Error('Classification failed'));
 

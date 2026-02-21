@@ -11,7 +11,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { HEARTBEAT_TTL_MS } from '../config/reliability';
+import { HEARTBEAT_TTL_MS, LIFECYCLE_WORKING_HEARTBEAT_TTL_MS } from '../config/reliability';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { internalMutation, mutation, query } from './_generated/server';
@@ -390,7 +390,10 @@ export const reconcile = internalMutation({
       .collect();
 
     for (const agent of [...readyAgents, ...workingAgents]) {
-      if (agent.heartbeatAt && agent.heartbeatAt + HEARTBEAT_TTL_MS < now) {
+      // Use a longer TTL for `working` agents — they spend time doing AI work
+      // between CLI commands, so the heartbeat gap can be several minutes.
+      const ttl = agent.state === 'working' ? LIFECYCLE_WORKING_HEARTBEAT_TTL_MS : HEARTBEAT_TTL_MS;
+      if (agent.heartbeatAt && agent.heartbeatAt + ttl < now) {
         await ctx.db.patch('chatroom_machineAgentLifecycle', agent._id, {
           state: 'dead',
           stateChangedAt: now,

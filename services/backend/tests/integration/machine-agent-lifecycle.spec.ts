@@ -200,7 +200,8 @@ describe('machineAgentLifecycle.transition', () => {
     expect(row!.connectionId).toBeUndefined();
   });
 
-  test('rejects invalid transition (offline → ready)', async () => {
+  test('allows custom agent transition (offline → ready)', async () => {
+    // Custom agents self-register without a daemon, so offline → ready must be valid.
     const { sessionId, chatroomId } = await setup('lifecycle-invalid-1');
 
     const result = await t.mutation(api.machineAgentLifecycle.transition, {
@@ -210,8 +211,24 @@ describe('machineAgentLifecycle.transition', () => {
       targetState: 'ready',
     });
 
+    expect(result.transitioned).toBe(true);
+    expect((result as { from: string }).from).toBe('offline');
+    expect((result as { to: string }).to).toBe('ready');
+  });
+
+  test('rejects invalid transition (offline → working)', async () => {
+    // Even with the custom-agent path, jumping straight to working is not allowed.
+    const { sessionId, chatroomId } = await setup('lifecycle-invalid-1b');
+
+    const result = await t.mutation(api.machineAgentLifecycle.transition, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      targetState: 'working',
+    });
+
     expect(result.transitioned).toBe(false);
-    expect(result.reason).toContain("Cannot transition from 'offline' to 'ready'");
+    expect(result.reason).toContain("Cannot transition from 'offline' to 'working'");
   });
 
   test('rejects invalid transition (ready → starting)', async () => {
