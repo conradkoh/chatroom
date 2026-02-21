@@ -259,6 +259,14 @@ function lifecycleStatusReason(state: LifecycleState): string {
   }
 }
 
+// ─── Stuck-detection thresholds (Phase 5) ────────────────────────────────────
+
+/** Minimum age of lastSeenAt before we consider an agent unresponsive. */
+const STUCK_LAST_SEEN_MS = 5 * 60 * 1000; // 5 minutes
+
+/** Minimum age of acknowledgedAt before we flag the task as stuck. */
+const STUCK_ACKNOWLEDGED_MS = 30 * 1000; // 30 seconds
+
 /**
  * Get team lifecycle data for the frontend.
  *
@@ -293,6 +301,33 @@ export const getTeamLifecycle = query({
 
     const participantByRole = new Map(participantRows.map((p) => [p.role.toLowerCase(), p]));
 
+    // Batch-fetch acknowledged tasks for this chatroom (Phase 5 stuck detection).
+    // Index: by_chatroom_status(['chatroomId', 'status'])
+    const acknowledgedTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+      )
+      .collect();
+
+    // Build a Set of roles that have a stuck acknowledged task.
+    // A task is stuck when:
+    //   1. acknowledgedAt exists and is older than STUCK_ACKNOWLEDGED_MS
+    //   2. The assignee's lastSeenAt is older than STUCK_LAST_SEEN_MS (or null)
+    const now = Date.now();
+    const stuckRoles = new Set<string>();
+    for (const task of acknowledgedTasks) {
+      const role = task.assignedTo?.toLowerCase();
+      if (!role) continue;
+      const acknowledgedAge = task.acknowledgedAt != null ? now - task.acknowledgedAt : Infinity;
+      if (acknowledgedAge < STUCK_ACKNOWLEDGED_MS) continue; // too fresh
+      const participant = participantByRole.get(role);
+      const lastSeenAge = participant?.lastSeenAt != null ? now - participant.lastSeenAt : Infinity;
+      if (lastSeenAge >= STUCK_LAST_SEEN_MS) {
+        stuckRoles.add(role);
+      }
+    }
+
     const expectedRoles = chatroom.teamRoles;
     const participants = expectedRoles.map((role) => {
       const row = lifecycleByRole.get(role.toLowerCase());
@@ -317,6 +352,7 @@ export const getTeamLifecycle = query({
         desiredStatus: undefined,
         hasPendingCommand: state === 'start_requested' || state === 'stop_requested',
         lastSeenAt: participantRow?.lastSeenAt ?? null,
+        isStuck: stuckRoles.has(role.toLowerCase()),
       };
     });
 

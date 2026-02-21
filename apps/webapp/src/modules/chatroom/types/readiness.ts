@@ -54,6 +54,8 @@ interface ParticipantInfoBase {
   hasPendingCommand?: boolean;
   /** Unix ms timestamp of the last heartbeat written by the CLI process. Null if never seen. */
   lastSeenAt?: number | null;
+  /** True when an acknowledged task is >30s old AND lastSeenAt is >5min ago (Phase 5). */
+  isStuck?: boolean;
 }
 
 export interface RemoteParticipantInfo extends ParticipantInfoBase {

@@ -215,6 +215,7 @@ interface AgentWithStatus {
   role: string;
   effectiveStatus: AgentStatus;
   lastSeenAt?: number | null;
+  isStuck?: boolean;
 }
 
 // Types and constants imported from ../types/machine
@@ -234,6 +235,7 @@ interface InlineAgentCardProps {
   role: string;
   effectiveStatus: AgentStatus;
   lastSeenAt?: number | null;
+  isStuck?: boolean;
   prompt: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
@@ -259,6 +261,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
   role,
   effectiveStatus,
   lastSeenAt,
+  isStuck,
   prompt,
   chatroomId,
   connectedMachines,
@@ -331,6 +334,12 @@ const InlineAgentCard = memo(function InlineAgentCard({
             <span className={`text-[10px] font-bold uppercase tracking-wide ${statusColorClass}`}>
               {statusLabel}
             </span>
+            {isStuck && (
+              <span className="flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-status-warning">
+                <AlertTriangle size={10} />
+                STUCK
+              </span>
+            )}
           </div>
           {/* Agent type subtitle line */}
           <div className="flex items-center gap-1 pl-[18px]">
@@ -512,12 +521,13 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
           <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
         </FixedModalHeader>
         <FixedModalBody>
-          {agents.map(({ role, effectiveStatus, lastSeenAt }) => (
+          {agents.map(({ role, effectiveStatus, lastSeenAt, isStuck }) => (
             <InlineAgentCard
               key={role}
               role={role}
               effectiveStatus={effectiveStatus}
               lastSeenAt={lastSeenAt}
+              isStuck={isStuck}
               prompt={generatePrompt(role)}
               chatroomId={chatroomId}
               connectedMachines={connectedMachines}
@@ -599,11 +609,15 @@ export const AgentPanel = memo(function AgentPanel({
 
   // Build unified list of all agents with their status
   const allAgentsWithStatus = useMemo(() => {
-    return rolesToShow.map((role) => ({
-      role,
-      effectiveStatus: getEffectiveStatus(role, participantMap).status,
-      lastSeenAt: participantMap.get(role.toLowerCase())?.lastSeenAt,
-    }));
+    return rolesToShow.map((role) => {
+      const participant = participantMap.get(role.toLowerCase());
+      return {
+        role,
+        effectiveStatus: getEffectiveStatus(role, participantMap).status,
+        lastSeenAt: participant?.lastSeenAt,
+        isStuck: participant?.isStuck,
+      };
+    });
   }, [rolesToShow, participantMap]);
 
   // Open unified agent list modal
@@ -652,6 +666,7 @@ export const AgentPanel = memo(function AgentPanel({
     const participant = participantMap.get(role.toLowerCase());
 
     const statusLabel = getStatusConfig(effectiveStatus).label;
+    const isStuck = participant?.isStuck === true;
 
     const isWorking = effectiveStatus === 'working';
     const isRestarting = effectiveStatus === 'restarting';
@@ -660,10 +675,10 @@ export const AgentPanel = memo(function AgentPanel({
     return (
       <div key={role} className="border-b border-chatroom-border last:border-b-0">
         <div
-          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isWorking ? 'bg-chatroom-status-info/5' : ''} ${isDead ? 'bg-chatroom-status-error/5' : ''} ${isRestarting ? 'bg-chatroom-status-warning/5' : ''}`}
+          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isWorking ? 'bg-chatroom-status-info/5' : ''} ${isDead ? 'bg-chatroom-status-error/5' : ''} ${isRestarting ? 'bg-chatroom-status-warning/5' : ''} ${isStuck ? 'bg-chatroom-status-warning/5' : ''}`}
           role="button"
           tabIndex={0}
-          aria-label={`${role}: ${statusLabel}. Click to view all agents.`}
+          aria-label={`${role}: ${statusLabel}${isStuck ? ' (stuck)' : ''}. Click to view all agents.`}
           onClick={openAgentListModal}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -700,6 +715,14 @@ export const AgentPanel = memo(function AgentPanel({
               {formatLastSeen(participant?.lastSeenAt)}
             </div>
           </div>
+          {/* Stuck warning badge */}
+          {isStuck && (
+            <AlertTriangle
+              size={12}
+              className="text-chatroom-status-warning flex-shrink-0"
+              aria-label="Agent may be stuck"
+            />
+          )}
           {/* View Indicator */}
           <div className="text-chatroom-text-muted">
             <ChevronRight size={14} />
