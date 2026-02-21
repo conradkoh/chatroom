@@ -19,7 +19,12 @@ import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
-import type { AgentStatus, ParticipantInfo, TeamReadiness } from '../types/readiness';
+import type {
+  AgentStatus,
+  ParticipantInfo,
+  ParticipantStatus,
+  TeamReadiness,
+} from '../types/readiness';
 
 import {
   DropdownMenu,
@@ -121,17 +126,31 @@ function formatLastSeen(lastSeenAt: number | null | undefined): string {
 const getStatusClasses = (effectiveStatus: AgentStatus) =>
   `w-2.5 h-2.5 flex-shrink-0 ${getStatusConfig(effectiveStatus).bg}`;
 
-// Compute effective status using the FSM displayStatus field (Plan 026)
+// Agents unseen for longer than this threshold are considered offline (Phase 4).
+const LAST_SEEN_ACTIVE_MS = 90_000; // 90 seconds
+
+/** Derive a display status from lastSeenAt + raw participant status (Phase 4).
+ *  Replaces FSM displayStatus as the authoritative source for the AgentPanel. */
+function deriveStatusFromLastSeen(
+  lastSeenAt: number | null | undefined,
+  rawStatus: ParticipantStatus
+): AgentStatus {
+  if (lastSeenAt == null) return 'offline';
+  const age = Date.now() - lastSeenAt;
+  if (age > LAST_SEEN_ACTIVE_MS) return 'offline'; // stale = offline
+  if (rawStatus === 'active') return 'working';
+  return 'ready';
+}
+
 const getEffectiveStatus = (
   role: string,
   participantMap: Map<string, ParticipantInfo>
 ): { status: AgentStatus; isExpired: boolean } => {
   const participant = participantMap.get(role.toLowerCase());
-  if (!participant) {
-    return { status: 'offline', isExpired: false };
-  }
-  // Use displayStatus directly — it's the authoritative computed FSM state
-  return { status: participant.displayStatus, isExpired: participant.isExpired };
+  if (!participant) return { status: 'offline', isExpired: false };
+  const status = deriveStatusFromLastSeen(participant.lastSeenAt, participant.status);
+  const isExpired = participant.isExpired;
+  return { status, isExpired };
 };
 
 // Collapsed Agent Group Component - shows a collapsed row that opens the unified modal
@@ -549,20 +568,20 @@ export const AgentPanel = memo(function AgentPanel({
     [teamRoles, readiness?.expectedRoles]
   );
 
-  // Categorize agents by FSM status for grouped display (Plan 026)
+  // Categorize agents by derived status for grouped display (Phase 4)
   const categorizedAgents = useMemo(() => {
-    const active: string[] = []; // working + restarting (shown prominently at top)
+    const active: string[] = []; // working (shown prominently at top)
     const ready: string[] = [];
-    const other: string[] = []; // offline, dead, dead_failed_revive
+    const other: string[] = []; // offline + anything else
 
     for (const role of rolesToShow) {
       const { status } = getEffectiveStatus(role, participantMap);
-      if (status === 'working' || status === 'restarting') {
+      if (status === 'working') {
         active.push(role);
       } else if (status === 'ready') {
         ready.push(role);
       } else {
-        // offline, dead, dead_failed_revive
+        // offline, dead, dead_failed_revive, stale
         other.push(role);
       }
     }

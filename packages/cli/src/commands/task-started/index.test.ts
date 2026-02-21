@@ -139,8 +139,8 @@ describe('taskStarted', () => {
 
       expect(exitSpy).not.toHaveBeenCalled();
 
-      // startTask + machineAgentLifecycle.heartbeat + participants.heartbeat
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(3);
+      // startTask + participants.heartbeat
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
 
       const output = getAllLogOutput();
       expect(output).toContain('Task started');
@@ -166,8 +166,8 @@ describe('taskStarted', () => {
 
       expect(exitSpy).not.toHaveBeenCalled();
 
-      // Four mutations: machineAgentLifecycle.heartbeat + participants.heartbeat + startTask + taskStarted (classify)
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(4);
+      // Three mutations: participants.heartbeat + startTask + taskStarted (classify)
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(3);
 
       const output = getAllLogOutput();
       expect(output).toContain('Task acknowledged and classified');
@@ -185,8 +185,8 @@ describe('taskStarted', () => {
       );
 
       expect(exitSpy).not.toHaveBeenCalled();
-      // machineAgentLifecycle.heartbeat + participants.heartbeat + startTask + taskStarted (classify)
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(4);
+      // participants.heartbeat + startTask + taskStarted (classify)
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(3);
 
       const output = getAllLogOutput();
       expect(output).toContain('Classification: follow_up');
@@ -216,7 +216,6 @@ describe('taskStarted', () => {
     it('exits with code 1 when startTask mutation fails', async () => {
       const deps = createMockDeps();
       (deps.backend.mutation as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(undefined) // machineAgentLifecycle.heartbeat
         .mockResolvedValueOnce(undefined) // participants.heartbeat
         .mockRejectedValueOnce(new Error('Task must be acknowledged to start'));
 
@@ -234,9 +233,8 @@ describe('taskStarted', () => {
   describe('classification failure', () => {
     it('exits with code 1 when classification mutation fails', async () => {
       const deps = createMockDeps();
-      // First: lifecycle heartbeats (machineAgentLifecycle + participants), second: startTask succeeds, third: classify fails
+      // First: lifecycle heartbeat (participants), second: startTask succeeds, third: classify fails
       (deps.backend.mutation as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(undefined) // machineAgentLifecycle.heartbeat
         .mockResolvedValueOnce(undefined) // participants.heartbeat
         .mockResolvedValueOnce(undefined) // startTask
         .mockRejectedValueOnce(new Error('Classification failed'));
