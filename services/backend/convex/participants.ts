@@ -78,6 +78,8 @@ export const join = mutation({
     }
 
     let participantId;
+    const now = Date.now();
+
     if (existing) {
       // Update status to waiting and refresh readyUntil, clear activeUntil.
       // Also update connectionId to allow old processes to detect they should exit.
@@ -88,6 +90,7 @@ export const join = mutation({
         activeUntil: undefined, // Clear active timeout when transitioning to waiting
         cleanupDeadline: undefined, // Clear any pending cleanup (Plan 027)
         connectionId: args.connectionId, // Track current connection for concurrent process detection
+        lastSeenAt: now, // Immediately mark agent as seen on join
         ...(args.agentType ? { agentType: args.agentType } : {}),
       });
       participantId = existing._id;
@@ -99,6 +102,7 @@ export const join = mutation({
         status: 'waiting',
         readyUntil: args.readyUntil,
         connectionId: args.connectionId, // Track current connection for concurrent process detection
+        lastSeenAt: now, // Immediately mark agent as seen on join
         ...(args.agentType ? { agentType: args.agentType } : {}),
         // activeUntil not set - will be set when transitioning to active
       });
