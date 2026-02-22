@@ -5,7 +5,7 @@ import { BACKEND_ERROR_CODES, type BackendError } from '../config/errorCodes';
 import { DEAD_STATES } from '../config/participantStates';
 import { ACTIVE_AGENT_HEARTBEAT_TTL_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
-import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
+import { areAllAgentsPresent, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
 
@@ -131,8 +131,8 @@ export const join = mutation({
         )
         .collect();
 
-      // Only promote if no active tasks AND all agents are ready (not working on anything)
-      const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
+      // Only promote if no active tasks AND all agents are present (seen recently)
+      const allAgentsReady = await areAllAgentsPresent(ctx, args.chatroomId);
 
       if (activeTasks.length === 0 && allAgentsReady) {
         const queuedTasks = await ctx.db

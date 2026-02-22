@@ -13,8 +13,12 @@
 
 import { ConvexError } from 'convex/values';
 
+import { HEARTBEAT_TTL_MS } from '../../config/reliability';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
+
+/** How long ago an agent must have been seen to be considered "present". */
+const PRESENCE_WINDOW_MS = HEARTBEAT_TTL_MS; // 90s
 
 export interface ValidatedSession {
   sessionId: string;
@@ -223,6 +227,28 @@ export async function areAllAgentsReady(
   });
 
   return !hasActiveOrExpiredParticipant;
+}
+
+/**
+ * Check if all agents in the chatroom are present (seen within PRESENCE_WINDOW_MS).
+ * Replaces areAllAgentsReady — no longer depends on `status` or TTL fields.
+ * Returns true if every participant row has a `lastSeenAt` within the presence window.
+ */
+export async function areAllAgentsPresent(
+  ctx: QueryCtx | MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<boolean> {
+  const participants = await ctx.db
+    .query('chatroom_participants')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+    .collect();
+
+  if (participants.length === 0) return false;
+
+  const now = Date.now();
+  return participants.every(
+    (p) => p.lastSeenAt !== undefined && now - p.lastSeenAt <= PRESENCE_WINDOW_MS
+  );
 }
 
 /**

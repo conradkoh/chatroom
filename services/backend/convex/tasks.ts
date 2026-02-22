@@ -15,7 +15,7 @@ import {
 } from '../config/reliability';
 import { internalMutation, mutation, query } from './_generated/server';
 import {
-  areAllAgentsReady,
+  areAllAgentsPresent,
   getAndIncrementQueuePosition,
   requireChatroomAccess,
   validateSession,
@@ -314,7 +314,7 @@ export const completeTask = mutation({
 
     // Only promote from queue if all agents are ready (not active)
     // This ensures the entry point can pick up the next task from the queue
-    const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
+    const allAgentsReady = await areAllAgentsPresent(ctx, args.chatroomId);
 
     if (allAgentsReady) {
       // Find the oldest queued task to promote
@@ -417,7 +417,7 @@ export const cancelTask = mutation({
     // If we cancelled a pending or in_progress task, promote the next queued task only if all agents are ready
     let promoted = null;
     if (wasPending || wasInProgress) {
-      const allAgentsReady = await areAllAgentsReady(ctx, task.chatroomId);
+      const allAgentsReady = await areAllAgentsPresent(ctx, task.chatroomId);
 
       if (allAgentsReady) {
         const queuedTasks = await ctx.db
@@ -503,7 +503,7 @@ export const completeTaskById = mutation({
 
       // Auto-promote the next queued task only if all agents are ready
       let promoted = null;
-      const allAgentsReady = await areAllAgentsReady(ctx, task.chatroomId);
+      const allAgentsReady = await areAllAgentsPresent(ctx, task.chatroomId);
 
       if (allAgentsReady) {
         const queuedTasks = await ctx.db
@@ -1259,7 +1259,7 @@ export const promoteNextTask = mutation({
     }
 
     // Check if all agents are ready (not active)
-    const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
+    const allAgentsReady = await areAllAgentsPresent(ctx, args.chatroomId);
     if (!allAgentsReady) {
       return { promoted: false, reason: 'agents_still_active', taskId: null };
     }
@@ -1328,7 +1328,7 @@ export const checkQueueHealth = query({
       .collect();
 
     // Check if all agents are ready
-    const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
+    const allAgentsReady = await areAllAgentsPresent(ctx, args.chatroomId);
 
     const hasActiveTask = activeTasks.length > 0;
     const hasQueuedTasks = queuedTasks.length > 0;

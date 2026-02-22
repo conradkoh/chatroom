@@ -1,10 +1,10 @@
 /**
  * Participant Lifecycle Integration Tests
  *
- * Tests for participant readyUntil management and ghost participant prevention:
+ * Tests for participant presence tracking and queue promotion:
  * - Handoff sets readyUntil on the sender's participant
  * - Ghost participants (expired readyUntil) are cleaned by cleanupStaleAgents
- * - areAllAgentsReady correctly identifies expired participants as not ready
+ * - areAllAgentsPresent correctly identifies stale participants as not present
  */
 
 import { describe, expect, test } from 'vitest';
@@ -187,37 +187,31 @@ describe('Participant Lifecycle', () => {
     });
   });
 
-  describe('areAllAgentsReady with expired participants', () => {
-    test('areAllAgentsReady returns false when a participant has expired readyUntil', async () => {
-      const { sessionId } = await createTestSession('test-expired-ready');
+  describe('areAllAgentsPresent with stale participants', () => {
+    test('areAllAgentsPresent returns false when a participant has stale lastSeenAt', async () => {
+      const { sessionId } = await createTestSession('test-stale-present');
       const chatroomId = await createPairTeamChatroom(sessionId);
 
-      // Join builder with an already-expired readyUntil
-      const expiredReadyUntil = Date.now() - 10_000; // expired 10 seconds ago
-      await joinParticipant(sessionId, chatroomId, 'builder', expiredReadyUntil);
-
-      // areAllAgentsReady is not directly exposed as an API, but it's used by
-      // the queue promotion logic in participants.join. We can test it indirectly:
-      // If areAllAgentsReady returns false, queued tasks should NOT be promoted.
-
-      // First, create a queued task by sending a message when no agents are ready
-      // We need to set up the scenario where queue promotion would happen
-
-      // Join reviewer with valid readyUntil
+      // Join both participants (sets lastSeenAt = now for both)
       const validReadyUntil = Date.now() + 10 * 60 * 1000;
+      await joinParticipant(sessionId, chatroomId, 'builder', validReadyUntil);
       await joinParticipant(sessionId, chatroomId, 'reviewer', validReadyUntil);
 
-      // Send a user message to create a task
-      await t.mutation(api.messages.send, {
-        sessionId,
-        chatroomId,
-        content: 'Build the feature',
-        senderRole: 'user',
-        type: 'message' as const,
+      // Manually make builder's lastSeenAt stale (older than PRESENCE_WINDOW_MS)
+      await t.run(async (ctx) => {
+        const participants = await ctx.db
+          .query('chatroom_participants')
+          .filter((q) => q.eq(q.field('chatroomId'), chatroomId))
+          .collect();
+        const builder = participants.find((p) => p.role === 'builder');
+        if (builder) {
+          await ctx.db.patch('chatroom_participants', builder._id, {
+            lastSeenAt: Date.now() - HEARTBEAT_TTL_MS - 10_000, // stale by 10s beyond window
+          });
+        }
       });
 
-      // Directly verify via t.run that areAllAgentsReady would return false
-      // by checking the participant state
+      // Directly verify via t.run that areAllAgentsPresent would return false
       await t.run(async (ctx) => {
         const participants = await ctx.db
           .query('chatroom_participants')
@@ -225,26 +219,24 @@ describe('Participant Lifecycle', () => {
           .collect();
 
         const now = Date.now();
-        const hasActiveOrExpired = participants.some((p) => {
-          if (p.status === 'active') return true;
-          if (p.status === 'waiting' && p.readyUntil && p.readyUntil < now) return true;
-          return false;
-        });
+        const allPresent = participants.every(
+          (p) => p.lastSeenAt !== undefined && now - p.lastSeenAt <= HEARTBEAT_TTL_MS
+        );
 
-        // Builder has expired readyUntil, so hasActiveOrExpired should be true
-        expect(hasActiveOrExpired).toBe(true);
+        // Builder has stale lastSeenAt, so allPresent should be false
+        expect(allPresent).toBe(false);
       });
     });
 
-    test('areAllAgentsReady returns true when all participants have valid readyUntil', async () => {
-      const { sessionId } = await createTestSession('test-valid-ready');
+    test('areAllAgentsPresent returns true when all participants have recent lastSeenAt', async () => {
+      const { sessionId } = await createTestSession('test-recent-present');
       const chatroomId = await createPairTeamChatroom(sessionId);
 
       const validReadyUntil = Date.now() + 10 * 60 * 1000;
       await joinParticipant(sessionId, chatroomId, 'builder', validReadyUntil);
       await joinParticipant(sessionId, chatroomId, 'reviewer', validReadyUntil);
 
-      // Verify via t.run that areAllAgentsReady logic would return true
+      // Verify via t.run that areAllAgentsPresent logic would return true
       await t.run(async (ctx) => {
         const participants = await ctx.db
           .query('chatroom_participants')
@@ -252,24 +244,36 @@ describe('Participant Lifecycle', () => {
           .collect();
 
         const now = Date.now();
-        const hasActiveOrExpired = participants.some((p) => {
-          if (p.status === 'active') return true;
-          if (p.status === 'waiting' && p.readyUntil && p.readyUntil < now) return true;
-          return false;
-        });
+        const allPresent = participants.every(
+          (p) => p.lastSeenAt !== undefined && now - p.lastSeenAt <= HEARTBEAT_TTL_MS
+        );
 
-        // All participants have valid readyUntil, so hasActiveOrExpired should be false
-        expect(hasActiveOrExpired).toBe(false);
+        // All participants just joined so lastSeenAt is recent — allPresent should be true
+        expect(allPresent).toBe(true);
       });
     });
 
-    test('expired participant blocks queue promotion on entry point join', async () => {
-      const { sessionId } = await createTestSession('test-expired-blocks-promo');
+    test('stale participant blocks queue promotion on entry point join', async () => {
+      const { sessionId } = await createTestSession('test-stale-blocks-promo');
       const chatroomId = await createPairTeamChatroom(sessionId);
 
-      // Join reviewer with expired readyUntil (simulating a ghost)
-      const expiredReadyUntil = Date.now() - 10_000;
-      await joinParticipant(sessionId, chatroomId, 'reviewer', expiredReadyUntil);
+      // Join reviewer with valid readyUntil first
+      const validReadyUntil = Date.now() + 10 * 60 * 1000;
+      await joinParticipant(sessionId, chatroomId, 'reviewer', validReadyUntil);
+
+      // Make reviewer's lastSeenAt stale (simulating a disconnected ghost)
+      await t.run(async (ctx) => {
+        const participants = await ctx.db
+          .query('chatroom_participants')
+          .filter((q) => q.eq(q.field('chatroomId'), chatroomId))
+          .collect();
+        const reviewer = participants.find((p) => p.role === 'reviewer');
+        if (reviewer) {
+          await ctx.db.patch('chatroom_participants', reviewer._id, {
+            lastSeenAt: Date.now() - HEARTBEAT_TTL_MS - 10_000, // stale
+          });
+        }
+      });
 
       // Create a queued task directly
       let queuedTaskId: string | undefined;
@@ -288,8 +292,7 @@ describe('Participant Lifecycle', () => {
       });
 
       // Now join builder (entry point) with valid readyUntil
-      // Queue promotion should NOT happen because reviewer has expired readyUntil
-      const validReadyUntil = Date.now() + 10 * 60 * 1000;
+      // Queue promotion should NOT happen because reviewer has stale lastSeenAt
       await joinParticipant(sessionId, chatroomId, 'builder', validReadyUntil);
 
       // Verify the queued task was NOT promoted to pending

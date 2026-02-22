@@ -333,8 +333,8 @@ describe('WaitForTaskSession', () => {
       expect(output).toContain('Acknowledged task output');
 
       // For acknowledged tasks, claimTask and claimMessage should NOT be called.
-      // Mutation calls: updateStatus only (no claimTask, no claimMessage since message is null)
-      expect(params.client.mutation).toHaveBeenCalledTimes(1);
+      // No mutation calls expected — task is already acknowledged, no claiming needed.
+      expect(params.client.mutation).toHaveBeenCalledTimes(0);
     });
 
     it('does not process duplicate tasks', async () => {

@@ -8,7 +8,7 @@ import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import {
-  areAllAgentsReady,
+  areAllAgentsPresent,
   getAndIncrementQueuePosition,
   requireChatroomAccess,
 } from './auth/cliSessionAuth';
@@ -469,10 +469,10 @@ async function _handoffHandler(
 
   // Check if we're handing off to a specific agent (not the queue)
   // Handoffs to specific agents don't trigger queue promotion - the target agent gets a dedicated task
-  // Queue promotion only happens when all agents become ready (waiting)
+  // Queue promotion only happens when all agents are present
   if (isHandoffToUser) {
-    // When handing off to user, check if all agents are ready for queue promotion
-    const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
+    // When handing off to user, check if all agents are present for queue promotion
+    const allAgentsReady = await areAllAgentsPresent(ctx, args.chatroomId);
 
     if (allAgentsReady) {
       const queuedTasks = await ctx.db
