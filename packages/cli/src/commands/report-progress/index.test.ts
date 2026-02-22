@@ -104,8 +104,8 @@ describe('reportProgress', () => {
       await reportProgress(TEST_CHATROOM_ID, defaultOptions({ message }), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
-      // reportProgress + participants.heartbeat
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
+      // reportProgress only (heartbeat now fired by preAction hook, not handler)
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
 
       const output = getAllLogOutput();
       expect(output).toContain('Progress reported');

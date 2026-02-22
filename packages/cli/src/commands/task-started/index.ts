@@ -10,7 +10,6 @@ import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
-import { sendLifecycleHeartbeat } from '../../infrastructure/lifecycle-heartbeat.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -160,8 +159,6 @@ export async function taskStarted(
     );
     process.exit(1);
   }
-
-  sendLifecycleHeartbeat(d.backend, { sessionId, chatroomId, role });
 
   // Fetch the specific task by ID directly
   targetTask = await d.backend.query(api.tasks.getTask, {

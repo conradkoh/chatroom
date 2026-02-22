@@ -112,8 +112,8 @@ describe('taskComplete', () => {
       await taskComplete(TEST_CHATROOM_ID, defaultOptions(), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
-      // completeTask + participants.heartbeat
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
+      // completeTask only (heartbeat now fired by preAction hook, not handler)
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
 
       const output = getAllLogOutput();
       expect(output).toContain('Task completed successfully');

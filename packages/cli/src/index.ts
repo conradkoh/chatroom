@@ -771,4 +771,25 @@ opencodeCommand
     await installTool({ checkExisting: !options.force });
   });
 
+// Centralized lifecycle heartbeat — fires before every chatroom-aware command.
+// This replaces the per-handler sendLifecycleHeartbeat calls and also covers
+// commands like `messages list` and `backlog` that previously had no coverage.
+program.hook('preAction', async (_thisCommand, actionCommand) => {
+  const opts = actionCommand.opts();
+  const chatroomId = opts['chatroomId'] as string | undefined;
+  const role = opts['role'] as string | undefined;
+  if (!chatroomId || !role) return;
+
+  // Lazily import to avoid circular deps at module load time
+  const { getSessionId } = await import('./infrastructure/auth/storage.js');
+  const { getConvexClient } = await import('./infrastructure/convex/client.js');
+  const { sendLifecycleHeartbeat } = await import('./infrastructure/lifecycle-heartbeat.js');
+
+  const sessionId = getSessionId();
+  if (!sessionId) return; // not authed yet — skip silently
+
+  const client = await getConvexClient();
+  sendLifecycleHeartbeat(client, { sessionId, chatroomId, role });
+});
+
 program.parse();

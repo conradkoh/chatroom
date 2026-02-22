@@ -12,7 +12,6 @@ import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
-import { sendLifecycleHeartbeat } from '../../infrastructure/lifecycle-heartbeat.js';
 import {
   formatError,
   formatAuthError,
@@ -87,8 +86,6 @@ export async function reportProgress(
     ]);
     process.exit(1);
   }
-
-  sendLifecycleHeartbeat(d.backend, { sessionId, chatroomId, role });
 
   // Call the reportProgress mutation
   try {

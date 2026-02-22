@@ -1,9 +1,11 @@
 /**
  * Fire-and-forget lifecycle heartbeat for CLI commands.
  *
- * Called by task-started, handoff, report-progress, task-complete, and context
- * commands to refresh the agent's lastSeenAt on the participant row. This keeps
- * custom agents (without a daemon heartbeat loop) visible while working.
+ * Fired centrally from the Commander `preAction` hook in index.ts before every
+ * chatroom-aware command (any command that has both --chatroom-id and --role).
+ * This refreshes the agent's lastSeenAt on the participant row and keeps custom
+ * agents (without a daemon heartbeat loop) visible while working. It also gives
+ * `messages list` and `backlog` commands automatic heartbeat coverage.
  *
  * FSM heartbeat writes (machineAgentLifecycle.heartbeat) are intentionally
  * omitted here — Phase 4 of the FSM → lastSeenAt migration. The daemon's
