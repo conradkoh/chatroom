@@ -362,7 +362,10 @@ export const extendActiveAgent = mutation({
     }
 
     if (participant.status !== 'active') {
-      return { status: 'not_active' as const, currentStatus: participant.status };
+      return {
+        status: 'not_active' as const,
+        currentStatus: participant.status,
+      };
     }
 
     await ctx.db.patch('chatroom_participants', participant._id, {
@@ -545,5 +548,120 @@ export const getConnectionId = query({
       .unique();
 
     return participant?.connectionId ?? null;
+  },
+});
+
+// ─── Team Lifecycle (lastSeenAt-based) ──────────────────────────────────────
+
+/** Minimum age of lastSeenAt before an agent is considered unresponsive. */
+const STUCK_LAST_SEEN_MS = 5 * 60 * 1000; // 5 minutes
+
+/** Minimum age of acknowledgedAt before a task is flagged as stuck. */
+const STUCK_ACKNOWLEDGED_MS = 30 * 1000; // 30 seconds
+
+/** Agent is considered "active" (working/ready) if seen within this window. */
+const LAST_SEEN_ACTIVE_MS = 90_000; // 90 seconds — matches AgentPanel threshold
+
+type DisplayStatus = 'offline' | 'ready' | 'working' | 'dead';
+
+function deriveDisplayStatus(
+  lastSeenAt: number | null | undefined,
+  participantStatus: string | undefined
+): DisplayStatus {
+  if (lastSeenAt == null) return 'offline';
+  const age = Date.now() - lastSeenAt;
+  if (age > LAST_SEEN_ACTIVE_MS) return 'offline';
+  if (participantStatus === 'active') return 'working';
+  return 'ready';
+}
+
+/**
+ * Get team lifecycle data for the frontend.
+ *
+ * Returns participants[], expectedRoles, missingRoles, expiredRoles, isReady,
+ * hasHistory — status is derived from lastSeenAt (no FSM table).
+ */
+export const getTeamLifecycle = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    if (!chatroom.teamId || !chatroom.teamRoles) {
+      return null;
+    }
+
+    // Fetch all participants for this chatroom.
+    const participantRows = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    const participantByRole = new Map(participantRows.map((p) => [p.role.toLowerCase(), p]));
+
+    // Fetch acknowledged tasks for stuck-detection.
+    const acknowledgedTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+      )
+      .collect();
+
+    const now = Date.now();
+    const stuckRoles = new Set<string>();
+    for (const task of acknowledgedTasks) {
+      const role = task.assignedTo?.toLowerCase();
+      if (!role) continue;
+      const acknowledgedAge = task.acknowledgedAt != null ? now - task.acknowledgedAt : Infinity;
+      if (acknowledgedAge < STUCK_ACKNOWLEDGED_MS) continue;
+      const participant = participantByRole.get(role);
+      const lastSeenAge = participant?.lastSeenAt != null ? now - participant.lastSeenAt : Infinity;
+      if (lastSeenAge >= STUCK_LAST_SEEN_MS) {
+        stuckRoles.add(role);
+      }
+    }
+
+    const expectedRoles = chatroom.teamRoles;
+    const participants = expectedRoles.map((role) => {
+      const participantRow = participantByRole.get(role.toLowerCase());
+      const displayStatus = deriveDisplayStatus(participantRow?.lastSeenAt, participantRow?.status);
+
+      return {
+        role,
+        displayStatus,
+        lastSeenAt: participantRow?.lastSeenAt ?? null,
+        isStuck: stuckRoles.has(role.toLowerCase()),
+        agentType: participantRow?.agentType ?? ('remote' as const),
+      };
+    });
+
+    const aliveRoles = new Set(
+      participants
+        .filter((p) => p.displayStatus !== 'offline' && p.displayStatus !== 'dead')
+        .map((p) => p.role.toLowerCase())
+    );
+
+    const missingRoles = expectedRoles.filter((r) => !aliveRoles.has(r.toLowerCase()));
+
+    const firstUserMessage = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .first();
+
+    return {
+      teamId: chatroom.teamId,
+      teamName: chatroom.teamName ?? chatroom.teamId,
+      expectedRoles,
+      presentRoles: participants.filter((p) => p.displayStatus !== 'offline').map((p) => p.role),
+      missingRoles,
+      expiredRoles: [] as string[], // FSM concept — always empty now; kept for API compat
+      isReady: missingRoles.length === 0,
+      participants,
+      hasHistory: firstUserMessage !== null,
+    };
   },
 });

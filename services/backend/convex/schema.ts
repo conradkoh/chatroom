@@ -746,43 +746,4 @@ export default defineSchema({
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_role', ['chatroomId', 'role']),
-
-  /**
-   * Agent Lifecycle — single source of truth for agent status.
-   *
-   * Single state machine for agent lifecycle management.
-   *
-   * One row per (chatroomId, teamId, role). The `state` field IS the display status —
-   * no computation needed.
-   *
-   * States: offline → start_requested → starting → ready ↔ working
-   *         ready/working → stop_requested → stopping → offline
-   *         ready/working → dead → offline (cron cleanup)
-   */
-  chatroom_machineAgentLifecycle: defineTable({
-    chatroomId: v.id('chatroom_rooms'),
-    teamId: v.string(),
-    role: v.string(),
-    state: v.union(
-      v.literal('offline'),
-      v.literal('start_requested'),
-      v.literal('starting'),
-      v.literal('ready'),
-      v.literal('working'),
-      v.literal('stop_requested'),
-      v.literal('stopping'),
-      v.literal('dead')
-    ),
-    machineId: v.optional(v.string()),
-    pid: v.optional(v.number()),
-    heartbeatAt: v.optional(v.number()),
-    stateChangedAt: v.number(),
-    model: v.optional(v.string()),
-    agentHarness: v.optional(v.literal('opencode')),
-    workingDir: v.optional(v.string()),
-    connectionId: v.optional(v.string()),
-  })
-    .index('by_chatroom_team_role', ['chatroomId', 'teamId', 'role'])
-    .index('by_state', ['state'])
-    .index('by_machine_state', ['machineId', 'state']),
 });

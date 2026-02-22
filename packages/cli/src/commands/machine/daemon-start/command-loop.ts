@@ -7,6 +7,10 @@ import {
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
 
+import { api, type Id } from '../../../api.js';
+import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { onDaemonShutdown } from '../events/on-daemon-shutdown/index.js';
+import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
 import { handleStartAgent } from './handlers/start-agent.js';
 import { handleStatus } from './handlers/status.js';
@@ -19,11 +23,6 @@ import type {
   RawMachineCommand,
 } from './types.js';
 import { formatTimestamp, parseMachineCommand } from './utils.js';
-import { api, type Id } from '../../../api.js';
-import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
-import { withRetry } from '../../../infrastructure/retry-queue.js';
-import { onDaemonShutdown } from '../events/on-daemon-shutdown/index.js';
-import { releaseLock } from '../pid.js';
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
@@ -205,15 +204,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
                 `[${formatTimestamp()}] ⚠️  Agent heartbeat failed for ${role}: ${err.message}`
               );
             });
-
-          // Lifecycle heartbeat with retry
-          withRetry(() =>
-            ctx.deps.backend.mutation(api.machineAgentLifecycle.heartbeat, {
-              sessionId: ctx.sessionId,
-              chatroomId: chatroomId as Id<'chatroom_rooms'>,
-              role,
-            })
-          ).catch(() => {});
         }
       }
     }

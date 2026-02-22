@@ -5,11 +5,10 @@
  * ensuring consistent process-group kills and state cleanup.
  */
 
-import { clearAgentPidEverywhere } from './shared.js';
-import { api, type Id } from '../../../../api.js';
-import { withRetry } from '../../../../infrastructure/retry-queue.js';
+import { api } from '../../../../api.js';
 import { onAgentShutdown } from '../../events/on-agent-shutdown/index.js';
 import type { CommandResult, DaemonContext, StopAgentCommand } from '../types.js';
+import { clearAgentPidEverywhere } from './shared.js';
 
 /**
  * Handle a stop-agent command — stops a running agent process.
@@ -67,16 +66,6 @@ export async function handleStopAgent(
     } catch {
       // Non-critical
     }
-
-    // Lifecycle: stale PID → offline with retry
-    withRetry(() =>
-      ctx.deps.backend.mutation(api.machineAgentLifecycle.transition, {
-        sessionId: ctx.sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        targetState: 'offline',
-      })
-    ).catch(() => {});
 
     return {
       result: `PID ${pidToKill} appears stale (process not found or belongs to different program)`,

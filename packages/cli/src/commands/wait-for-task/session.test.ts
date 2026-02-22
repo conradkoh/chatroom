@@ -10,7 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WaitForTaskSession, type SessionParams } from './session.js';
+import { type SessionParams, WaitForTaskSession } from './session.js';
 
 // ---------------------------------------------------------------------------
 // Mock modules
@@ -163,7 +163,10 @@ describe('WaitForTaskSession', () => {
     it('exits with code 0 and logs the event', async () => {
       const { callbacks } = await startSession();
 
-      callbacks.onUpdate({ type: 'superseded', newConnectionId: 'new-conn-123' });
+      callbacks.onUpdate({
+        type: 'superseded',
+        newConnectionId: 'new-conn-123',
+      });
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(exitSpy).toHaveBeenCalledWith(0);
@@ -330,8 +333,8 @@ describe('WaitForTaskSession', () => {
       expect(output).toContain('Acknowledged task output');
 
       // For acknowledged tasks, claimTask and claimMessage should NOT be called.
-      // Mutation calls: updateStatus + lifecycle.transition (no claimTask, no claimMessage since message is null)
-      expect(params.client.mutation).toHaveBeenCalledTimes(2);
+      // Mutation calls: updateStatus only (no claimTask, no claimMessage since message is null)
+      expect(params.client.mutation).toHaveBeenCalledTimes(1);
     });
 
     it('does not process duplicate tasks', async () => {

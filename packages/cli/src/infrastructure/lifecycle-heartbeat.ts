@@ -6,21 +6,17 @@
  * This refreshes the agent's lastSeenAt on the participant row and keeps custom
  * agents (without a daemon heartbeat loop) visible while working. It also gives
  * `messages list` and `backlog` commands automatic heartbeat coverage.
- *
- * FSM heartbeat writes (machineAgentLifecycle.heartbeat) are intentionally
- * omitted here — Phase 4 of the FSM → lastSeenAt migration. The daemon's
- * wait-for-task loop still writes FSM heartbeats separately.
  */
 
-import { api } from '../api.js';
 import type { Id } from '../api.js';
+import { api } from '../api.js';
 import { withRetry } from './retry-queue.js';
 
 export function sendLifecycleHeartbeat(
   client: { mutation: (fn: any, args: any) => Promise<any> },
   opts: { sessionId: string; chatroomId: string; role: string }
 ): void {
-  // Only update lastSeenAt on the participant row — FSM writes stopped (Phase 4).
+  // Update lastSeenAt on the participant row.
   withRetry(() =>
     client.mutation(api.participants.heartbeat, {
       sessionId: opts.sessionId,

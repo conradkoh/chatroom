@@ -6,9 +6,9 @@
  */
 
 import {
-  FATAL_ERROR_CODES,
   type BackendError,
   type BackendErrorCode,
+  FATAL_ERROR_CODES,
 } from '@workspace/backend/config/errorCodes.js';
 import { HEARTBEAT_INTERVAL_MS, HEARTBEAT_TTL_MS } from '@workspace/backend/config/reliability.js';
 import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
@@ -17,9 +17,8 @@ import type { SessionId } from 'convex-helpers/server/sessions';
 
 import { api, type Id } from '../../api.js';
 import { DEFAULT_ACTIVE_TIMEOUT_MS } from '../../config.js';
-import { getConvexUrl, getConvexWsClient } from '../../infrastructure/convex/client.js';
 import type { getConvexClient } from '../../infrastructure/convex/client.js';
-import { withRetry } from '../../infrastructure/retry-queue.js';
+import { getConvexUrl, getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 
 // ---------------------------------------------------------------------------
@@ -175,18 +174,6 @@ export class WaitForTaskSession {
     } catch {
       // Best-effort — if the backend is unreachable the heartbeat TTL will expire naturally
     }
-
-    // Dual-write: lifecycle table → offline (Phase 4)
-    try {
-      await this.client.mutation(api.machineAgentLifecycle.transition, {
-        sessionId: this.sessionId,
-        chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
-        role: this.role,
-        targetState: 'offline',
-      });
-    } catch {
-      // Best-effort
-    }
   }
 
   // -----------------------------------------------------------------------
@@ -195,15 +182,6 @@ export class WaitForTaskSession {
 
   private startHeartbeat(): void {
     this.heartbeatTimer = setInterval(() => {
-      // Lifecycle heartbeat — keeps the agent alive in the lifecycle table
-      withRetry(() =>
-        this.client.mutation(api.machineAgentLifecycle.heartbeat, {
-          sessionId: this.sessionId,
-          chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
-          role: this.role,
-        })
-      ).catch(() => {});
-
       this.client
         .mutation(api.participants.heartbeat, {
           sessionId: this.sessionId,
@@ -224,16 +202,6 @@ export class WaitForTaskSession {
               connectionId: this.connectionId,
             });
 
-            // Lifecycle: rejoin → ready with retry
-            withRetry(() =>
-              this.client.mutation(api.machineAgentLifecycle.transition, {
-                sessionId: this.sessionId,
-                chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
-                role: this.role,
-                targetState: 'ready',
-                connectionId: this.connectionId,
-              })
-            ).catch(() => {});
             return;
           }
           // Consolidated superseded handling — delegates to shared method
@@ -478,16 +446,6 @@ export class WaitForTaskSession {
         status: 'active',
         expiresAt: activeUntil,
       });
-
-      // Lifecycle: ready → working with retry
-      withRetry(() =>
-        this.client.mutation(api.machineAgentLifecycle.transition, {
-          sessionId: this.sessionId,
-          chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
-          role: this.role,
-          targetState: 'working',
-        })
-      ).catch(() => {});
 
       // Get the complete task delivery prompt from backend
       const taskDeliveryPrompt = await this.client.query(api.messages.getTaskDeliveryPrompt, {

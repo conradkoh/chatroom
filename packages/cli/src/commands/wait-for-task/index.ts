@@ -11,18 +11,17 @@ import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
 import { WaitForTaskSession } from './session.js';
 import { api, type Id } from '../../api.js';
-import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
-import { getConvexUrl, getConvexClient } from '../../infrastructure/convex/client.js';
-import { ensureMachineRegistered, type AgentHarness } from '../../infrastructure/machine/index.js';
-import { withRetry } from '../../infrastructure/retry-queue.js';
+import { getOtherSessionUrls, getSessionId } from '../../infrastructure/auth/storage.js';
+import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { type AgentHarness, ensureMachineRegistered } from '../../infrastructure/machine/index.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
-import { isNetworkError, formatConnectivityError } from '../../utils/error-formatting.js';
+import { formatConnectivityError, isNetworkError } from '../../utils/error-formatting.js';
 import { sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 
 // ─── Re-exports ─────────────────────────────────────────────────────────────
 
+export type { SessionParams, WaitForTaskResponse } from './session.js';
 export { WaitForTaskSession } from './session.js';
-export type { WaitForTaskResponse, SessionParams } from './session.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -184,17 +183,6 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     connectionId,
     agentType: participantAgentType,
   });
-
-  // Lifecycle: transition to ready with retry
-  withRetry(() =>
-    client.mutation(api.machineAgentLifecycle.transition, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-      targetState: 'ready',
-      connectionId,
-    })
-  ).catch(() => {});
 
   // Log initial connection with timestamp
   const connectionTime = new Date().toISOString().replace('T', ' ').substring(0, 19);

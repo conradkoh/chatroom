@@ -45,10 +45,6 @@ vi.mock('../../../../api.js', () => ({
     messages: {
       getInitPrompt: 'messages.getInitPrompt',
     },
-    machineAgentLifecycle: {
-      transition: 'machineAgentLifecycle.transition',
-      heartbeat: 'machineAgentLifecycle.heartbeat',
-    },
   },
 }));
 

@@ -2,9 +2,8 @@
  * Start Agent Command Handler — spawns an agent process for a chatroom role.
  */
 
-import { api, type Id } from '../../../../api.js';
+import { api } from '../../../../api.js';
 import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
-import { withRetry } from '../../../../infrastructure/retry-queue.js';
 import type { CommandResult, DaemonContext, StartAgentCommand } from '../types.js';
 
 /**
@@ -33,33 +32,6 @@ export async function handleStartAgent(
   }
 
   console.log(`      Working dir: ${workingDir}`);
-
-  // Validate against lifecycle state — discard stale start commands
-  // that have been superseded by a stop request or duplicate starts.
-  try {
-    const lifecycle = await ctx.deps.backend.query(api.machineAgentLifecycle.getStatus, {
-      sessionId: ctx.sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-    });
-
-    if (lifecycle) {
-      if (lifecycle.state === 'stop_requested' || lifecycle.state === 'stopping') {
-        const msg = `Discarded stale start-agent command for ${role} — lifecycle is "${lifecycle.state}"`;
-        console.log(`   ℹ️  ${msg}`);
-        return { result: msg, failed: false };
-      }
-      if (lifecycle.state === 'ready' || lifecycle.state === 'working') {
-        const msg = `Agent already alive for ${role} (state: "${lifecycle.state}") — skipping redundant start`;
-        console.log(`   ℹ️  ${msg}`);
-        return { result: msg, failed: false };
-      }
-    }
-  } catch (e) {
-    console.log(
-      `   ⚠️  Failed to check lifecycle state, proceeding with start: ${(e as Error).message}`
-    );
-  }
 
   // SECURITY: Validate working directory exists on the local filesystem
   // using fs.stat (not a shell command) to prevent path-based attacks.
@@ -131,21 +103,6 @@ export async function handleStartAgent(
   } catch (e) {
     console.log(`   ⚠️  Failed to update PID in backend: ${(e as Error).message}`);
   }
-
-  // Lifecycle: transition to starting with retry
-  withRetry(() =>
-    ctx.deps.backend.mutation(api.machineAgentLifecycle.transition, {
-      sessionId: ctx.sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-      targetState: 'starting',
-      machineId: ctx.machineId,
-      pid,
-      model,
-      agentHarness: agentHarness === 'opencode' ? 'opencode' : undefined,
-      workingDir,
-    })
-  ).catch(() => {});
 
   ctx.events.emit('agent:started', {
     chatroomId,

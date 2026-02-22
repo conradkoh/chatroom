@@ -5,18 +5,19 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ArrowLeft,
-  XCircle,
-  PanelRightOpen,
-  PanelRightClose,
-  Pencil,
   Check,
-  X,
   CheckCircle,
   MoreVertical,
-  Square,
+  PanelRightClose,
+  PanelRightOpen,
+  Pencil,
   Settings2,
+  Square,
+  X,
+  XCircle,
 } from 'lucide-react';
-import React, { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
+import type React from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
@@ -294,7 +295,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Participant[] | undefined;
 
-  const readiness = useSessionQuery(api.machineAgentLifecycle.getTeamLifecycle, {
+  const readiness = useSessionQuery(api.participants.getTeamLifecycle, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamReadiness | null | undefined;
 
