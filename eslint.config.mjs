@@ -11,7 +11,7 @@ import globals from 'globals';
  * ESLint Configuration
  *
  * This configuration provides comprehensive linting for TypeScript, React, and Convex code.
- * Note: Formatting is handled by Biome (see biome.json). ESLint focuses on code quality rules.
+ * Formatting is handled by Prettier. ESLint focuses on code quality rules.
  *
  * Key Rules:
  * - @typescript-eslint/no-unused-vars - Detect unused variables
