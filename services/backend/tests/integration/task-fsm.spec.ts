@@ -43,7 +43,7 @@ async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroo
 }
 
 /**
- * Helper to join participants to the chatroom with ready status
+ * Helper to join participants to the chatroom with idle (wait-for-task) status
  */
 async function joinParticipants(
   sessionId: SessionId,
@@ -55,6 +55,7 @@ async function joinParticipants(
       sessionId,
       chatroomId,
       role,
+      action: 'wait-for-task:started',
     });
   }
 }

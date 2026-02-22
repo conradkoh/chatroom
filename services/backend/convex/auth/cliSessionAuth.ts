@@ -13,12 +13,8 @@
 
 import { ConvexError } from 'convex/values';
 
-import { HEARTBEAT_TTL_MS } from '../../config/reliability';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
-
-/** How long ago an agent must have been seen to be considered "present". */
-const PRESENCE_WINDOW_MS = HEARTBEAT_TTL_MS; // 90s
 
 export interface ValidatedSession {
   sessionId: string;
@@ -201,11 +197,12 @@ export async function requireChatroomAccess(
 }
 
 /**
- * Check if all agents in the chatroom are present (seen within PRESENCE_WINDOW_MS).
- * No longer depends on `status` or TTL fields.
- * Returns true if every participant row has a `lastSeenAt` within the presence window.
+ * Check if all agents in the chatroom are idle (waiting for a task).
+ * An agent is considered idle if its `lastSeenAction` is 'wait-for-task:started',
+ * meaning it is sitting in the wait loop and ready to receive a task.
+ * Returns false if there are no participants (vacuous false — no agents = not idle).
  */
-export async function areAllAgentsPresent(
+export async function areAllAgentsIdle(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<boolean> {
@@ -216,10 +213,7 @@ export async function areAllAgentsPresent(
 
   if (participants.length === 0) return false;
 
-  const now = Date.now();
-  return participants.every(
-    (p) => p.lastSeenAt !== undefined && now - p.lastSeenAt <= PRESENCE_WINDOW_MS
-  );
+  return participants.every((p) => p.lastSeenAction === 'wait-for-task:started');
 }
 
 /**

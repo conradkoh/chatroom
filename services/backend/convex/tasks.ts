@@ -14,7 +14,7 @@ import {
 } from '../config/reliability';
 import { internalMutation, mutation, query } from './_generated/server';
 import {
-  areAllAgentsPresent,
+  areAllAgentsIdle,
   getAndIncrementQueuePosition,
   requireChatroomAccess,
   validateSession,
@@ -310,11 +310,11 @@ export const completeTask = mutation({
       );
     }
 
-    // Only promote from queue if all agents are ready (not active)
+    // Only promote from queue if all agents are idle (waiting for task)
     // This ensures the entry point can pick up the next task from the queue
-    const allAgentsReady = await areAllAgentsPresent(ctx, args.chatroomId);
+    const allAgentsIdle = await areAllAgentsIdle(ctx, args.chatroomId);
 
-    if (allAgentsReady) {
+    if (allAgentsIdle) {
       // Find the oldest queued task to promote
       const queuedTasks = await ctx.db
         .query('chatroom_tasks')
@@ -338,7 +338,7 @@ export const completeTask = mutation({
       }
     } else {
       console.warn(
-        `[Task Complete] Skipping queue promotion - some agents are still active in chatroom ${args.chatroomId}`
+        `[Task Complete] Skipping queue promotion - some agents are not yet idle in chatroom ${args.chatroomId}`
       );
     }
 
@@ -412,12 +412,12 @@ export const cancelTask = mutation({
       );
     }
 
-    // If we cancelled a pending or in_progress task, promote the next queued task only if all agents are ready
+    // If we cancelled a pending or in_progress task, promote the next queued task only if all agents are idle
     let promoted = null;
     if (wasPending || wasInProgress) {
-      const allAgentsReady = await areAllAgentsPresent(ctx, task.chatroomId);
+      const allAgentsIdle = await areAllAgentsIdle(ctx, task.chatroomId);
 
-      if (allAgentsReady) {
+      if (allAgentsIdle) {
         const queuedTasks = await ctx.db
           .query('chatroom_tasks')
           .withIndex('by_chatroom_status', (q) =>
@@ -442,8 +442,8 @@ export const cancelTask = mutation({
         }
       } else {
         console.warn(
-          `[Queue Promotion Deferred] Cancelled ${task.status} task ${args.taskId} but some agents are still active. ` +
-            `Queue promotion deferred until all agents are ready.`
+          `[Queue Promotion Deferred] Cancelled ${task.status} task ${args.taskId} but some agents are not yet idle. ` +
+            `Queue promotion deferred until all agents are idle.`
         );
       }
     }
@@ -499,11 +499,11 @@ export const completeTaskById = mutation({
         );
       }
 
-      // Auto-promote the next queued task only if all agents are ready
+      // Auto-promote the next queued task only if all agents are idle
       let promoted = null;
-      const allAgentsReady = await areAllAgentsPresent(ctx, task.chatroomId);
+      const allAgentsIdle = await areAllAgentsIdle(ctx, task.chatroomId);
 
-      if (allAgentsReady) {
+      if (allAgentsIdle) {
         const queuedTasks = await ctx.db
           .query('chatroom_tasks')
           .withIndex('by_chatroom_status', (q) =>
@@ -527,8 +527,8 @@ export const completeTaskById = mutation({
         }
       } else {
         console.warn(
-          `[Queue Promotion Deferred] Force-completed task ${args.taskId} but some agents are still active. ` +
-            `Queue promotion deferred until all agents are ready.`
+          `[Queue Promotion Deferred] Force-completed task ${args.taskId} but some agents are not yet idle. ` +
+            `Queue promotion deferred until all agents are idle.`
         );
       }
 
@@ -1256,10 +1256,10 @@ export const promoteNextTask = mutation({
       return { promoted: false, reason: 'active_task_exists', taskId: null };
     }
 
-    // Check if all agents are ready (not active)
-    const allAgentsReady = await areAllAgentsPresent(ctx, args.chatroomId);
-    if (!allAgentsReady) {
-      return { promoted: false, reason: 'agents_still_active', taskId: null };
+    // Check if all agents are idle (waiting for task)
+    const allAgentsIdle = await areAllAgentsIdle(ctx, args.chatroomId);
+    if (!allAgentsIdle) {
+      return { promoted: false, reason: 'agents_not_idle', taskId: null };
     }
 
     // Find the oldest queued task to promote
@@ -1325,18 +1325,18 @@ export const checkQueueHealth = query({
       )
       .collect();
 
-    // Check if all agents are ready
-    const allAgentsReady = await areAllAgentsPresent(ctx, args.chatroomId);
+    // Check if all agents are idle (waiting for task)
+    const allAgentsIdle = await areAllAgentsIdle(ctx, args.chatroomId);
 
     const hasActiveTask = activeTasks.length > 0;
     const hasQueuedTasks = queuedTasks.length > 0;
-    // Promotion is possible only if no active tasks, there are queued tasks, AND all agents are ready
-    const needsPromotion = !hasActiveTask && hasQueuedTasks && allAgentsReady;
+    // Promotion is possible only if no active tasks, there are queued tasks, AND all agents are idle
+    const needsPromotion = !hasActiveTask && hasQueuedTasks && allAgentsIdle;
 
     return {
       hasActiveTask,
       queuedCount: queuedTasks.length,
-      allAgentsReady,
+      allAgentsReady: allAgentsIdle,
       needsPromotion,
     };
   },

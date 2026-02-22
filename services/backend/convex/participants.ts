@@ -3,12 +3,9 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
-import { areAllAgentsPresent, requireChatroomAccess } from './auth/cliSessionAuth';
+import { areAllAgentsIdle, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
-
-/** How long ago an agent must have been seen to be considered present. */
-const PRESENCE_WINDOW_MS = HEARTBEAT_TTL_MS; // 90s
 
 /**
  * Join a chatroom as a participant.
@@ -117,10 +114,10 @@ export const join = mutation({
         )
         .collect();
 
-      // Only promote if no active tasks AND all agents are present (seen recently)
-      const allAgentsReady = await areAllAgentsPresent(ctx, args.chatroomId);
+      // Only promote if no active tasks AND all agents are idle (waiting for task)
+      const allAgentsIdle = await areAllAgentsIdle(ctx, args.chatroomId);
 
-      if (activeTasks.length === 0 && allAgentsReady) {
+      if (activeTasks.length === 0 && allAgentsIdle) {
         const queuedTasks = await ctx.db
           .query('chatroom_tasks')
           .withIndex('by_chatroom_status', (q) =>
@@ -140,9 +137,9 @@ export const join = mutation({
               `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
           );
         }
-      } else if (activeTasks.length === 0 && !allAgentsReady) {
+      } else if (activeTasks.length === 0 && !allAgentsIdle) {
         console.warn(
-          `[Auto-Promote Deferred] Primary role "${args.role}" joined but some agents are still active. Queue promotion deferred.`
+          `[Auto-Promote Deferred] Primary role "${args.role}" joined but some agents are not yet idle. Queue promotion deferred.`
         );
       }
     }
@@ -246,7 +243,7 @@ export const getHighestPriorityWaitingRole = query({
     const presentParticipants = participants.filter(
       (p) =>
         p.lastSeenAt !== undefined &&
-        now - p.lastSeenAt <= PRESENCE_WINDOW_MS &&
+        now - p.lastSeenAt <= HEARTBEAT_TTL_MS &&
         p.role.toLowerCase() !== 'user'
     );
 

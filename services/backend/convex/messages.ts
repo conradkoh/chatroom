@@ -8,7 +8,7 @@ import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import {
-  areAllAgentsPresent,
+  areAllAgentsIdle,
   getAndIncrementQueuePosition,
   requireChatroomAccess,
 } from './auth/cliSessionAuth';
@@ -468,12 +468,12 @@ async function _handoffHandler(
 
   // Check if we're handing off to a specific agent (not the queue)
   // Handoffs to specific agents don't trigger queue promotion - the target agent gets a dedicated task
-  // Queue promotion only happens when all agents are present
+  // Queue promotion only happens when all agents are idle
   if (isHandoffToUser) {
-    // When handing off to user, check if all agents are present for queue promotion
-    const allAgentsReady = await areAllAgentsPresent(ctx, args.chatroomId);
+    // When handing off to user, check if all agents are idle for queue promotion
+    const allAgentsIdle = await areAllAgentsIdle(ctx, args.chatroomId);
 
-    if (allAgentsReady) {
+    if (allAgentsIdle) {
       const queuedTasks = await ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom_status', (q) =>
@@ -487,12 +487,12 @@ async function _handoffHandler(
         await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
         promotedTaskId = nextTask._id;
         console.warn(
-          `[handoff] Promoted queued task ${nextTask._id} to pending (all agents ready after handoff to user)`
+          `[handoff] Promoted queued task ${nextTask._id} to pending (all agents idle after handoff to user)`
         );
       }
     } else {
       console.warn(
-        `[handoff] Skipping queue promotion - some agents are still active after handoff to user`
+        `[handoff] Skipping queue promotion - some agents are not yet idle after handoff to user`
       );
     }
   }
