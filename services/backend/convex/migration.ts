@@ -18,34 +18,20 @@ import { internalMutation } from './_generated/server';
 // ============================================================================
 
 /**
- * Remove participants with deprecated "idle" status.
+ * Migration: Remove idle participants (no-op — status field removed).
  *
- * The "idle" status was removed in this PR. Any existing participants with
- * status "idle" should be deleted so the deprecated v.literal('idle') can
- * be removed from the schema in a follow-up change.
- *
- * Run from the Convex dashboard:
- *   migration:removeIdleParticipants
- *
- * After running successfully, the v.literal('idle') in the chatroom_participants
- * schema can be removed in a follow-up PR.
+ * The `status` field and 'idle' state were removed as part of the
+ * lastSeenAt-based lifecycle refactor. This migration is now a no-op
+ * but is kept for historical reference.
  */
 export const removeIdleParticipants = internalMutation({
   args: {},
   handler: async (ctx) => {
     const allParticipants = await ctx.db.query('chatroom_participants').collect();
 
-    let deleted = 0;
-    for (const participant of allParticipants) {
-      if (participant.status === 'idle') {
-        await ctx.db.delete('chatroom_participants', participant._id);
-        deleted++;
-      }
-    }
-
     return {
       total: allParticipants.length,
-      deletedIdle: deleted,
+      deletedIdle: 0,
     };
   },
 });

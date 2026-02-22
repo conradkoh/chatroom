@@ -420,8 +420,7 @@ async function _handoffHandler(
 
   if (participant) {
     await ctx.db.patch('chatroom_participants', participant._id, {
-      status: 'waiting',
-      readyUntil: Date.now() + HEARTBEAT_TTL_MS,
+      lastSeenAt: Date.now(),
     });
   }
 
@@ -910,9 +909,13 @@ export const getAllowedHandoffRoles = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Find waiting participants (excluding current role)
+    // Find present participants (seen within presence window, excluding current role)
+    const _now914 = Date.now();
     const waitingParticipants = participants.filter(
-      (p) => p.status === 'waiting' && p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) =>
+        p.lastSeenAt != null &&
+        _now914 - p.lastSeenAt <= HEARTBEAT_TTL_MS &&
+        p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
     // Get the most recent classified user message to determine restrictions (optimized)
@@ -1358,9 +1361,13 @@ export const getLatestForRole = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Find waiting participants (excluding current role)
+    // Find present participants (seen within presence window, excluding current role)
+    const _now1366 = Date.now();
     const waitingParticipants = participants.filter(
-      (p) => p.status === 'waiting' && p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) =>
+        p.lastSeenAt != null &&
+        _now1366 - p.lastSeenAt <= HEARTBEAT_TTL_MS &&
+        p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
     // Sort by priority to find highest priority waiting
@@ -1580,9 +1587,13 @@ export const getRolePrompt = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Find waiting participants (excluding current role)
+    // Find present participants (seen within presence window, excluding current role)
+    const _now1592 = Date.now();
     const waitingParticipants = participants.filter(
-      (p) => p.status === 'waiting' && p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) =>
+        p.lastSeenAt != null &&
+        _now1592 - p.lastSeenAt <= HEARTBEAT_TTL_MS &&
+        p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
     // Get the most recent classified user message to determine restrictions (optimized)
@@ -1664,7 +1675,10 @@ export const getInitPrompt = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    const availableMembers = participants.filter((p) => p.status === 'waiting').map((p) => p.role);
+    const _now1678 = Date.now();
+    const availableMembers = participants
+      .filter((p) => p.lastSeenAt != null && _now1678 - p.lastSeenAt <= HEARTBEAT_TTL_MS)
+      .map((p) => p.role);
 
     const promptInput = {
       chatroomId: args.chatroomId,
@@ -1778,8 +1792,12 @@ export const getTaskDeliveryPrompt = query({
       .collect();
 
     // Get role prompt info (reuse existing logic)
+    const _now1796 = Date.now();
     const waitingParticipants = participants.filter(
-      (p) => p.status === 'waiting' && p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) =>
+        p.lastSeenAt != null &&
+        _now1796 - p.lastSeenAt <= HEARTBEAT_TTL_MS &&
+        p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
     // Get recent messages for classification
@@ -1957,7 +1975,7 @@ export const getTaskDeliveryPrompt = query({
         : null,
       participants: participants.map((p) => ({
         role: p.role,
-        status: p.status,
+        lastSeenAction: p.lastSeenAction ?? null,
       })),
       contextWindow: {
         // Explicit context (new system)

@@ -1,17 +1,18 @@
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { BACKEND_ERROR_CODES, type BackendError } from '../config/errorCodes';
-import { DEAD_STATES } from '../config/participantStates';
-import { ACTIVE_AGENT_HEARTBEAT_TTL_MS } from '../config/reliability';
+import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsPresent, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
 
+/** How long ago an agent must have been seen to be considered present. */
+const PRESENCE_WINDOW_MS = HEARTBEAT_TTL_MS; // 90s
+
 /**
  * Join a chatroom as a participant.
- * If already joined, updates status to waiting and refreshes readyUntil.
+ * If already joined, updates lastSeenAt and optionally lastSeenAction + connectionId.
  * When the entry point (primary) role joins, auto-promotes queued tasks if no active task exists.
  * Requires CLI session authentication and chatroom access.
  *
@@ -26,8 +27,6 @@ export const join = mutation({
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    // Optional timestamp when this participant's readiness expires
-    readyUntil: v.optional(v.number()),
     // Unique connection ID to detect concurrent wait-for-task processes
     connectionId: v.optional(v.string()),
     // Agent type — 'custom' or 'remote'
@@ -58,12 +57,8 @@ export const join = mutation({
       )
       .unique();
 
-    // IMPORTANT: State recovery must happen BEFORE updating the participant status
-    // Check if agent was previously active (indicating a crash/restart)
-    const wasActive = existing && existing.status === 'active';
-
-    if (wasActive) {
-      // Agent was previously active - recover any in_progress tasks they were working on
+    // State recovery: if agent was previously working and has in_progress tasks, reset them
+    if (existing) {
       const orphanedTasks = await ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom_status', (q) =>
@@ -85,16 +80,10 @@ export const join = mutation({
     const now = Date.now();
 
     if (existing) {
-      // Update status to waiting and refresh readyUntil, clear activeUntil.
-      // Also update connectionId to allow old processes to detect they should exit.
-      // Plan 027: Clear cleanupDeadline in case participant was in planned_cleanup.
+      // Update presence fields and optionally connectionId/action/agentType.
       await ctx.db.patch('chatroom_participants', existing._id, {
-        status: 'waiting',
-        readyUntil: args.readyUntil,
-        activeUntil: undefined, // Clear active timeout when transitioning to waiting
-        cleanupDeadline: undefined, // Clear any pending cleanup (Plan 027)
-        connectionId: args.connectionId, // Track current connection for concurrent process detection
-        lastSeenAt: now, // Immediately mark agent as seen on join
+        connectionId: args.connectionId,
+        lastSeenAt: now,
         ...(args.action !== undefined ? { lastSeenAction: args.action } : {}),
         ...(args.agentType ? { agentType: args.agentType } : {}),
       });
@@ -104,13 +93,10 @@ export const join = mutation({
       participantId = await ctx.db.insert('chatroom_participants', {
         chatroomId: args.chatroomId,
         role: args.role,
-        status: 'waiting',
-        readyUntil: args.readyUntil,
-        connectionId: args.connectionId, // Track current connection for concurrent process detection
-        lastSeenAt: now, // Immediately mark agent as seen on join
+        connectionId: args.connectionId,
+        lastSeenAt: now,
         ...(args.action !== undefined ? { lastSeenAction: args.action } : {}),
         ...(args.agentType ? { agentType: args.agentType } : {}),
-        // activeUntil not set - will be set when transitioning to active
       });
     }
 
@@ -186,121 +172,6 @@ export const list = query({
 });
 
 /**
- * Update participant status.
- * Status is either 'active' (working on a task) or 'waiting' (ready for tasks).
- * When transitioning to 'active', sets activeUntil and clears readyUntil.
- * When transitioning to 'waiting', sets readyUntil and clears activeUntil.
- * Requires CLI session authentication and chatroom access.
- */
-export const updateStatus = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    status: v.union(v.literal('active'), v.literal('waiting')),
-    // Optional: timestamp when the new status expires
-    // For 'active': when agent is considered crashed (~1 hour)
-    // For 'waiting': when agent is considered disconnected (~1 min)
-    expiresAt: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
-
-    if (!participant) {
-      throw new ConvexError<BackendError>({
-        code: BACKEND_ERROR_CODES.PARTICIPANT_NOT_FOUND,
-        message: `Participant ${args.role} not found in chatroom`,
-      });
-    }
-
-    // Plan 027: Allow status transitions for participants in planned_cleanup.
-    // The agent is proving it's still alive by processing a task, so cancel the cleanup.
-    if (participant.status === 'planned_cleanup') {
-      console.warn(
-        `[updateStatus] Participant ${args.role} is in planned_cleanup — allowing transition to ${args.status}`
-      );
-    }
-
-    // Build the update based on the target status
-    const update: {
-      status: 'active' | 'waiting';
-      readyUntil?: number;
-      activeUntil?: number;
-      cleanupDeadline?: number;
-    } = {
-      status: args.status,
-      cleanupDeadline: undefined, // Always clear cleanup deadline on status transition
-    };
-
-    if (args.status === 'active') {
-      // Transitioning to active: set activeUntil, clear readyUntil
-      update.activeUntil = args.expiresAt;
-      update.readyUntil = undefined;
-    } else {
-      // Transitioning to waiting: set readyUntil, clear activeUntil
-      update.readyUntil = args.expiresAt;
-      update.activeUntil = undefined;
-    }
-
-    await ctx.db.patch('chatroom_participants', participant._id, update);
-  },
-});
-
-/**
- * Extend an active agent's liveness from the daemon side.
- *
- * Called periodically by the daemon for each tracked agent PID that is still
- * alive. This keeps `activeUntil` fresh so the backend doesn't consider the
- * agent dead while it's working on a long task.
- *
- * Only extends `activeUntil` for participants in `active` status.
- * For `waiting` participants, the CLI heartbeat handles liveness.
- * For other statuses, this is a no-op.
- */
-export const extendActiveAgent = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
-
-    if (!participant) {
-      return { status: 'no_participant' as const };
-    }
-
-    if (participant.status !== 'active') {
-      return {
-        status: 'not_active' as const,
-        currentStatus: participant.status,
-      };
-    }
-
-    await ctx.db.patch('chatroom_participants', participant._id, {
-      activeUntil: Date.now() + ACTIVE_AGENT_HEARTBEAT_TTL_MS,
-    });
-
-    return { status: 'extended' as const };
-  },
-});
-
-/**
  * Remove a participant from a chatroom.
  * Called when an agent is stopped to ensure the UI no longer shows "Ready".
  * Requires CLI session authentication and chatroom access.
@@ -371,82 +242,26 @@ export const getHighestPriorityWaitingRole = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    const waitingParticipants = participants.filter((p) => p.status === 'waiting');
+    const now = Date.now();
+    const presentParticipants = participants.filter(
+      (p) =>
+        p.lastSeenAt !== undefined &&
+        now - p.lastSeenAt <= PRESENCE_WINDOW_MS &&
+        p.role.toLowerCase() !== 'user'
+    );
 
-    if (waitingParticipants.length === 0) {
+    if (presentParticipants.length === 0) {
       return null;
     }
 
     // Sort by priority (lower number = higher priority)
-    waitingParticipants.sort((a, b) => getRolePriority(a.role) - getRolePriority(b.role));
+    presentParticipants.sort((a, b) => getRolePriority(a.role) - getRolePriority(b.role));
 
-    return waitingParticipants[0]?.role ?? null;
+    return presentParticipants[0]?.role ?? null;
   },
 });
 
-/**
- * Update the participant lifecycle status (Plan 026).
- *
- * This mutation sets the `status` field on a participant record to one of the
- * lifecycle states: offline, dead, restarting, dead_failed_revive.
- * It is called by the daemon during crash recovery (restarting, dead_failed_revive)
- * and by the CLI at lifecycle points (offline).
- *
- * Note: 'waiting' and 'active' transitions should use `updateStatus` or `join` instead.
- *
- * If the participant does not exist and the target status is a "dead" state
- * (dead, dead_failed_revive, restarting), a minimal participant record is created
- * to hold the status. This handles the case where `participants.leave` deleted the
- * record before the daemon could report crash recovery status.
- *
- * Requires CLI session authentication and chatroom access.
- */
-export const updateAgentStatus = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    status: v.union(
-      v.literal('offline'),
-      v.literal('dead'),
-      v.literal('dead_failed_revive'),
-      v.literal('restarting')
-    ),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Find the participant
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
-
-    if (!participant) {
-      // If participant doesn't exist and we're setting a dead/recovery state,
-      // create a minimal participant record to hold the status
-      if ((DEAD_STATES as readonly string[]).includes(args.status)) {
-        await ctx.db.insert('chatroom_participants', {
-          chatroomId: args.chatroomId,
-          role: args.role,
-          status: args.status,
-        });
-        return;
-      }
-      throw new ConvexError<BackendError>({
-        code: BACKEND_ERROR_CODES.PARTICIPANT_NOT_FOUND,
-        message: `Participant ${args.role} not found in chatroom`,
-      });
-    }
-
-    await ctx.db.patch('chatroom_participants', participant._id, {
-      status: args.status,
-    });
-  },
-});
+// updateAgentStatus removed — liveness is now tracked via lastSeenAt + lastSeenAction only.
 
 /**
  * Get the current connection ID for a participant.
@@ -490,12 +305,12 @@ type DisplayStatus = 'offline' | 'ready' | 'working' | 'dead';
 
 function deriveDisplayStatus(
   lastSeenAt: number | null | undefined,
-  participantStatus: string | undefined
+  lastSeenAction: string | undefined
 ): DisplayStatus {
   if (lastSeenAt == null) return 'offline';
   const age = Date.now() - lastSeenAt;
   if (age > LAST_SEEN_ACTIVE_MS) return 'offline';
-  if (participantStatus === 'active') return 'working';
+  if (lastSeenAction === 'task-started') return 'working';
   return 'ready';
 }
 
@@ -550,7 +365,10 @@ export const getTeamLifecycle = query({
     const expectedRoles = chatroom.teamRoles;
     const participants = expectedRoles.map((role) => {
       const participantRow = participantByRole.get(role.toLowerCase());
-      const displayStatus = deriveDisplayStatus(participantRow?.lastSeenAt, participantRow?.status);
+      const displayStatus = deriveDisplayStatus(
+        participantRow?.lastSeenAt,
+        participantRow?.lastSeenAction
+      );
 
       return {
         role,

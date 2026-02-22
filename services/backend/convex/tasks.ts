@@ -7,10 +7,9 @@ import {
   type BackendErrorCode,
 } from '../config/errorCodes';
 import {
-  CLEANUP_GRACE_PERIOD_MS,
   DAEMON_HEARTBEAT_TTL_MS,
+  HEARTBEAT_TTL_MS,
   RECOVERY_GRACE_PERIOD_MS,
-  STALE_FSM_RECORD_TTL_MS,
   TASK_ACKNOWLEDGED_TIMEOUT_MS,
 } from '../config/reliability';
 import { internalMutation, mutation, query } from './_generated/server';
@@ -20,7 +19,6 @@ import {
   requireChatroomAccess,
   validateSession,
 } from './auth/cliSessionAuth';
-import { recoverOrphanedTasks } from './lib/taskRecovery';
 import { transitionTask } from './lib/taskStateMachine';
 
 /**
@@ -1610,118 +1608,26 @@ export const getTaskLimits = query({
 });
 
 /**
- * Internal mutation to clean up stale agents.
+ * Internal mutation to recover stuck tasks and clean up stale daemon records.
  * Called by cron job every 2 minutes.
  *
- * Uses a two-phase approach (Plan 027):
- * - Phase 1: Stale waiting/active participants are marked as `planned_cleanup`
- *   with a deadline, giving them a grace period to heartbeat before removal.
- * - Phase 2: Participants in `planned_cleanup` past their deadline are deleted.
+ * Agent participant cleanup via FSM (status/readyUntil/activeUntil) has been
+ * removed — liveness is now determined purely by `lastSeenAt` in the UI/queries.
  *
- * This eliminates the race condition where a live agent is deleted between
- * heartbeat cycles and then fails with PARTICIPANT_NOT_FOUND during task delivery.
+ * This mutation now only:
+ *  1. Recovers acknowledged tasks whose assigned participant has not been seen recently.
+ *  2. Marks daemons as disconnected when their heartbeat is stale.
  */
 export const cleanupStaleAgents = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
 
-    // Query all participants ONCE and partition in JS for the stale-cleanup
-    // and FSM-cleanup checks below. This avoids multiple separate
-    // full-table queries in a single mutation.
-    const participantsSnapshot = await ctx.db.query('chatroom_participants').collect();
-
-    // ─── Two-Phase Stale Participant Cleanup (Plan 027) ──────────────────
-
-    let markedForCleanupCount = 0;
-    let deletedCount = 0;
-    const affectedTasks: string[] = [];
-
-    // Phase 1: Mark stale waiting/active participants as planned_cleanup
-    const candidateParticipants = participantsSnapshot.filter(
-      (p) => p.status === 'active' || p.status === 'waiting'
-    );
-
-    for (const p of candidateParticipants) {
-      const isStaleActive = p.status === 'active' && p.activeUntil && now > p.activeUntil;
-      const isStaleWaiting = p.status === 'waiting' && p.readyUntil && now > p.readyUntil;
-
-      if (isStaleActive || isStaleWaiting) {
-        // If was active, recover their orphaned tasks before marking for cleanup
-        if (isStaleActive) {
-          const recovered = await recoverOrphanedTasks(ctx, p.chatroomId, p.role);
-          affectedTasks.push(...recovered);
-        }
-
-        // Mark for planned cleanup instead of deleting immediately.
-        // The agent has until the deadline to prove it's still alive via heartbeat.
-        await ctx.db.patch('chatroom_participants', p._id, {
-          status: 'planned_cleanup',
-          cleanupDeadline: now + CLEANUP_GRACE_PERIOD_MS,
-          readyUntil: undefined,
-          activeUntil: undefined,
-        });
-
-        markedForCleanupCount++;
-        console.warn(
-          `[Two-Phase Cleanup] Marked ${p.status} participant for cleanup: role=${p.role} chatroomId=${p.chatroomId} ` +
-            `deadline=${new Date(now + CLEANUP_GRACE_PERIOD_MS).toISOString()}`
-        );
-      }
-    }
-
-    // Phase 2: Delete participants in planned_cleanup whose deadline has passed
-    const plannedCleanupParticipants = participantsSnapshot.filter(
-      (p) => p.status === 'planned_cleanup'
-    );
-
-    for (const p of plannedCleanupParticipants) {
-      if (p.cleanupDeadline && now > p.cleanupDeadline) {
-        await ctx.db.delete('chatroom_participants', p._id);
-
-        deletedCount++;
-        console.warn(
-          `[Two-Phase Cleanup] Deleted participant past deadline: role=${p.role} chatroomId=${p.chatroomId}`
-        );
-      }
-    }
-
-    // Phase 3 (Plan 026): Clean up stale restarting/dead_failed_revive participant records.
-    // These minimal records are created by updateAgentStatus (Phase 4 dead-state fallback)
-    // and have no readyUntil/activeUntil, so the expiration logic above won't catch them.
-    // Clean them up after 10 minutes based on _creationTime.
-    for (const p of participantsSnapshot) {
-      const isStaleRestarting =
-        p.status === 'restarting' && now - p._creationTime > STALE_FSM_RECORD_TTL_MS;
-      const isStaleDeadFailed =
-        p.status === 'dead_failed_revive' && now - p._creationTime > STALE_FSM_RECORD_TTL_MS;
-
-      if (isStaleRestarting || isStaleDeadFailed) {
-        await ctx.db.delete('chatroom_participants', p._id);
-
-        deletedCount++;
-        console.warn(
-          `[Stale Cleanup] Removed stale ${p.status} participant: role=${p.role} chatroomId=${p.chatroomId} ` +
-            `age=${Math.round((now - p._creationTime) / 1000)}s`
-        );
-      }
-    }
-
-    // Summary log (one per run, includes affected task IDs)
-    if (markedForCleanupCount > 0 || deletedCount > 0) {
-      console.warn(
-        `[Stale Cleanup] Marked ${markedForCleanupCount} for cleanup, deleted ${deletedCount} participants, ` +
-          `recovered ${affectedTasks.length} tasks. taskIds=${affectedTasks.join(',') || 'none'}`
-      );
-    }
-
     // ─── Stuck Task Recovery ───────────────────────────────────────────
-    // After participant cleanup, check for tasks that are stuck because
-    // their assigned agent is no longer reachable.
+    // Check for tasks stuck in `acknowledged` whose assigned agent is no longer present.
 
     let stuckAcknowledgedCount = 0;
 
-    // Build a fresh map of all current participants (after cleanup above)
     const allParticipants = await ctx.db.query('chatroom_participants').collect();
     const participantsByKey = new Map(
       allParticipants.map((p) => [`${p.chatroomId}:${p.role.toLowerCase()}`, p])
@@ -1729,7 +1635,7 @@ export const cleanupStaleAgents = internalMutation({
 
     // --- Stuck acknowledged tasks ---
     // Tasks stuck in `acknowledged` for longer than TASK_ACKNOWLEDGED_TIMEOUT_MS
-    // with no valid (non-expired) participant are reset to `pending`.
+    // with no recently-seen participant are reset to `pending`.
     const acknowledgedTasks = await ctx.db
       .query('chatroom_tasks')
       .filter((q) => q.eq(q.field('status'), 'acknowledged'))
@@ -1737,9 +1643,10 @@ export const cleanupStaleAgents = internalMutation({
 
     for (const task of acknowledgedTasks) {
       const acknowledgedAt = task.acknowledgedAt || task.updatedAt;
+
       if (now - acknowledgedAt < TASK_ACKNOWLEDGED_TIMEOUT_MS) continue;
 
-      // Check if the assigned participant is still valid
+      // Check if the assigned participant is still present (lastSeenAt within window)
       const assignedRole = task.assignedTo;
       if (!assignedRole) {
         // No assigned role — recover immediately
@@ -1747,25 +1654,19 @@ export const cleanupStaleAgents = internalMutation({
         const key = `${task.chatroomId}:${assignedRole.toLowerCase()}`;
         const participant = participantsByKey.get(key);
         if (participant) {
-          // Participant exists — check if expired
-          const isExpired =
-            (participant.status === 'waiting' &&
-              participant.readyUntil &&
-              participant.readyUntil < now) ||
-            (participant.status === 'active' &&
-              participant.activeUntil &&
-              participant.activeUntil < now);
-          if (!isExpired) continue; // Participant is valid — skip
+          const isPresent =
+            participant.lastSeenAt != null && now - participant.lastSeenAt <= HEARTBEAT_TTL_MS;
+          if (isPresent) continue; // Participant is alive — skip
         }
       }
 
-      // Participant is missing or expired — recover the task via FSM
+      // Participant is missing or stale — recover the task via FSM
       try {
         await transitionTask(ctx, task._id, 'pending', 'recoverStuckAcknowledged');
         stuckAcknowledgedCount++;
         console.warn(
           `[Task Recovery] Task ${task._id} (acknowledged) reset to pending ` +
-            `— assigned participant "${assignedRole}" is missing or expired`
+            `— assigned participant "${assignedRole}" is missing or stale`
         );
       } catch (err) {
         console.warn(
@@ -1774,15 +1675,12 @@ export const cleanupStaleAgents = internalMutation({
       }
     }
 
-    // Summary log for task recovery
     if (stuckAcknowledgedCount > 0) {
       console.warn(`[Task Recovery] Recovered ${stuckAcknowledgedCount} acknowledged tasks`);
     }
 
     // ─── Stale Daemon Detection ─────────────────────────────────────────
-    // After participant and task cleanup, check for daemons that stopped
-    // sending heartbeats (e.g. SIGKILL, machine crash). Mark them as
-    // disconnected so the UI and auto-restart logic don't rely on them.
+    // Check for daemons that stopped sending heartbeats (e.g. SIGKILL, machine crash).
     const allMachines = await ctx.db.query('chatroom_machines').collect();
     let staleDaemonCount = 0;
 

@@ -289,53 +289,19 @@ export default defineSchema({
 
   /**
    * Participants in chatrooms.
-   * Tracks which agents/users have joined and their current status.
+   * Tracks which agents/users have joined and their presence.
    */
   chatroom_participants: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    status: v.union(
-      v.literal('active'), // Working on a task
-      v.literal('waiting'), // Ready, listening for tasks
-      v.literal('offline'), // Not connected
-      v.literal('dead'), // Heartbeat stopped, presumed crashed
-      v.literal('dead_failed_revive'), // Restart attempts exhausted
-      v.literal('restarting'), // Daemon attempting restart
-      v.literal('planned_cleanup'), // Flagged for removal, awaiting deadline
-      /** @deprecated Will be removed after production migration. */
-      v.literal('idle')
-    ),
-    // Timestamp when this participant's readiness (waiting status) expires
-    // After this time, a waiting participant is considered disconnected/stale
-    // Used when status = 'waiting'
-    readyUntil: v.optional(v.number()),
-    // Timestamp when this participant's active work session expires
-    // After this time, an active participant is considered crashed/stale
-    // Used when status = 'active' (typically ~1 hour to allow for long tasks)
-    activeUntil: v.optional(v.number()),
     // Unique connection ID for the current wait-for-task session
     // Used to detect concurrent wait-for-task processes and terminate old ones
     // When a new wait-for-task starts, it generates a new connectionId
     // The old process detects the mismatch and exits cleanly
     connectionId: v.optional(v.string()),
-    // Timestamp when a planned_cleanup participant should be deleted
-    // Set when cron marks a stale participant for two-phase cleanup
-    // If a heartbeat arrives before this deadline, the participant is restored
-    cleanupDeadline: v.optional(v.number()),
-    /** @deprecated Use `status` field instead. Will be removed in future migration. */
-    agentStatus: v.optional(
-      v.union(
-        v.literal('offline'),
-        v.literal('dead'),
-        v.literal('dead_failed_revive'),
-        v.literal('ready'),
-        v.literal('restarting'),
-        v.literal('working')
-      )
-    ),
     // Agent type — 'custom' or 'remote'
     agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
-    // Timestamp of the last heartbeat received from this participant.
+    // Timestamp of the last check-in received from this participant.
     // Populated by participants.join on every check-in.
     lastSeenAt: v.optional(v.number()),
     // The name of the CLI command last run by this participant.
@@ -345,8 +311,7 @@ export default defineSchema({
     lastSeenAction: v.optional(v.string()),
   })
     .index('by_chatroom', ['chatroomId'])
-    .index('by_chatroom_and_role', ['chatroomId', 'role'])
-    .index('by_status', ['status']),
+    .index('by_chatroom_and_role', ['chatroomId', 'role']),
 
   /**
    * Messages in chatrooms.

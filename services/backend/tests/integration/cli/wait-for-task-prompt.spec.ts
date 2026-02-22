@@ -46,13 +46,11 @@ async function joinParticipants(
   chatroomId: Id<'chatroom_rooms'>,
   roles: string[]
 ): Promise<void> {
-  const readyUntil = Date.now() + 10 * 60 * 1000; // 10 minutes
   for (const role of roles) {
     await t.mutation(api.participants.join, {
       sessionId,
       chatroomId,
       role,
-      readyUntil,
     });
   }
 }
@@ -2567,7 +2565,6 @@ describe('Wait-for-Task Recent Improvements', () => {
       sessionId,
       chatroomId,
       role: 'builder',
-      readyUntil: Date.now() + 10 * 60 * 1000,
       connectionId: 'conn-current',
     });
     await joinParticipants(sessionId, chatroomId, ['reviewer']);

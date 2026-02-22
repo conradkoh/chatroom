@@ -24,9 +24,8 @@ describe('Task Timeout Recovery', () => {
       const chatroomId = await createPairTeamChatroom(sessionId);
 
       // Join builder so we can send a message and have it create a task
-      const readyUntil = Date.now() + 10 * 60 * 1000;
-      await joinParticipant(sessionId, chatroomId, 'builder', readyUntil);
-      await joinParticipant(sessionId, chatroomId, 'reviewer', readyUntil);
+      await joinParticipant(sessionId, chatroomId, 'builder');
+      await joinParticipant(sessionId, chatroomId, 'reviewer');
 
       // Send a message to create a task
       await t.mutation(api.messages.send, {
@@ -90,9 +89,8 @@ describe('Task Timeout Recovery', () => {
       const { sessionId } = await createTestSession('test-ack-recovery-2');
       const chatroomId = await createPairTeamChatroom(sessionId);
 
-      const readyUntil = Date.now() + 10 * 60 * 1000;
-      await joinParticipant(sessionId, chatroomId, 'builder', readyUntil);
-      await joinParticipant(sessionId, chatroomId, 'reviewer', readyUntil);
+      await joinParticipant(sessionId, chatroomId, 'builder');
+      await joinParticipant(sessionId, chatroomId, 'reviewer');
 
       await t.mutation(api.messages.send, {
         sessionId,

@@ -1,8 +1,12 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
+
+/** Window within which a participant is considered "present" (matches participants.ts). */
+const PRESENCE_WINDOW_MS = HEARTBEAT_TTL_MS; // 90s
 
 /**
  * Create a new chatroom with team configuration.
@@ -141,28 +145,16 @@ export const listByUserWithStatus = query({
           .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
           .collect();
 
-        // Compute agent statuses with expiration check
-        // Check the appropriate timeout field based on status:
-        // - 'active' agents use activeUntil (typically ~1 hour)
-        // - 'waiting' agents use readyUntil (typically ~10 minutes)
+        // Compute agent presence from lastSeenAt (no FSM status fields)
         const agents = participants.map((p) => {
-          let isExpired = false;
-          if (p.status === 'active') {
-            // Active agents expire based on activeUntil
-            isExpired = p.activeUntil ? p.activeUntil < now : false;
-          } else if (p.status === 'waiting') {
-            // Waiting agents expire based on readyUntil
-            isExpired = p.readyUntil ? p.readyUntil < now : false;
-          }
-          // Effective status: if expired, treat as 'disconnected'
-          const effectiveStatus = isExpired ? ('disconnected' as const) : p.status;
+          const isExpired = p.lastSeenAt == null || now - p.lastSeenAt > PRESENCE_WINDOW_MS;
+          const effectiveStatus = isExpired ? ('disconnected' as const) : ('present' as const);
           return {
             role: p.role,
-            status: p.status, // Raw status in DB
-            effectiveStatus, // Computed status considering expiration
+            effectiveStatus,
             isExpired,
-            readyUntil: p.readyUntil,
-            activeUntil: p.activeUntil,
+            lastSeenAt: p.lastSeenAt ?? null,
+            lastSeenAction: p.lastSeenAction ?? null,
           };
         });
 
@@ -173,7 +165,7 @@ export const listByUserWithStatus = query({
 
         const allPresent = teamRoles.every((r) => presentRoles.has(r.toLowerCase()));
         const hasDisconnected = agents.some((a) => a.isExpired);
-        const hasActive = agents.some((a) => a.effectiveStatus === 'active');
+        const hasActive = agents.some((a) => a.lastSeenAction === 'task-started');
 
         // Check if a user has ever sent a message in this chatroom.
         // A user message is the strongest signal that the chatroom has been used

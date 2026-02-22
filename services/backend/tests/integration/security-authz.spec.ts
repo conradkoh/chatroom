@@ -11,10 +11,9 @@ describe('security authz protections', () => {
 
     const ownerChatroomId = await createPairTeamChatroom(ownerSession);
     const attackerChatroomId = await createPairTeamChatroom(attackerSession);
-    const readyUntil = Date.now() + 10 * 60 * 1000;
 
-    await joinParticipant(ownerSession, ownerChatroomId, 'builder', readyUntil);
-    await joinParticipant(attackerSession, attackerChatroomId, 'builder', readyUntil);
+    await joinParticipant(ownerSession, ownerChatroomId, 'builder');
+    await joinParticipant(attackerSession, attackerChatroomId, 'builder');
 
     const ownerTask = await t.mutation(api.tasks.createTask, {
       sessionId: ownerSession,
