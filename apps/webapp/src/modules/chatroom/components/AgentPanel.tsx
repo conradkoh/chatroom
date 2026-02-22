@@ -502,9 +502,8 @@ export const AgentPanel = memo(function AgentPanel({
     for (const role of rolesToShow) {
       const participant = participantMap.get(role.toLowerCase());
       const online_ = isOnline(participant?.lastSeenAt);
-      const isWorking = online_ && participant?.lastSeenAction === 'task-started';
 
-      if (isWorking) {
+      if (online_ && participant?.lastSeenAction === 'task-started') {
         working.push(role);
       } else if (online_) {
         online.push(role);
@@ -583,7 +582,6 @@ export const AgentPanel = memo(function AgentPanel({
     const participant = participantMap.get(role.toLowerCase());
     const online_ = isOnline(participant?.lastSeenAt);
     const lastSeenAction = participant?.lastSeenAction ?? null;
-    const isWorking = online_ && lastSeenAction === 'task-started';
     const isStuck = participant?.isStuck === true;
 
     const indicatorClass = online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
@@ -592,7 +590,7 @@ export const AgentPanel = memo(function AgentPanel({
     return (
       <div key={role} className="border-b border-chatroom-border last:border-b-0">
         <div
-          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isWorking ? 'bg-chatroom-status-info/5' : ''} ${isStuck ? 'bg-chatroom-status-warning/5' : ''}`}
+          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${online_ && lastSeenAction === 'task-started' ? 'bg-chatroom-status-info/5' : ''} ${isStuck ? 'bg-chatroom-status-warning/5' : ''}`}
           role="button"
           tabIndex={0}
           aria-label={`${role}: ${statusLabel}${isStuck ? ' (stuck)' : ''}. Click to view all agents.`}
@@ -617,7 +615,7 @@ export const AgentPanel = memo(function AgentPanel({
             </div>
             <div
               className={`text-[10px] font-bold uppercase tracking-wide ${
-                isWorking
+                online_ && lastSeenAction === 'task-started'
                   ? 'text-chatroom-status-info animate-pulse'
                   : online_
                     ? 'text-chatroom-status-success'

@@ -295,21 +295,8 @@ const STUCK_LAST_SEEN_MS = 5 * 60 * 1000; // 5 minutes
 /** Minimum age of acknowledgedAt before a task is flagged as stuck. */
 const STUCK_ACKNOWLEDGED_MS = 30 * 1000; // 30 seconds
 
-/** Agent is considered "active" (working/ready) if seen within this window. */
-const LAST_SEEN_ACTIVE_MS = 90_000; // 90 seconds — matches AgentPanel threshold
-
-type DisplayStatus = 'offline' | 'ready' | 'working' | 'dead';
-
-function deriveDisplayStatus(
-  lastSeenAt: number | null | undefined,
-  lastSeenAction: string | undefined
-): DisplayStatus {
-  if (lastSeenAt == null) return 'offline';
-  const age = Date.now() - lastSeenAt;
-  if (age > LAST_SEEN_ACTIVE_MS) return 'offline';
-  if (lastSeenAction === 'task-started') return 'working';
-  return 'ready';
-}
+/** Agent is considered online if seen within this window. */
+const PRESENCE_THRESHOLD_MS = 90_000; // 90 seconds
 
 /**
  * Get team lifecycle data for the frontend.
@@ -362,14 +349,9 @@ export const getTeamLifecycle = query({
     const expectedRoles = chatroom.teamRoles;
     const participants = expectedRoles.map((role) => {
       const participantRow = participantByRole.get(role.toLowerCase());
-      const displayStatus = deriveDisplayStatus(
-        participantRow?.lastSeenAt,
-        participantRow?.lastSeenAction
-      );
 
       return {
         role,
-        displayStatus,
         lastSeenAt: participantRow?.lastSeenAt ?? null,
         lastSeenAction: participantRow?.lastSeenAction ?? null,
         isStuck: stuckRoles.has(role.toLowerCase()),
@@ -379,7 +361,7 @@ export const getTeamLifecycle = query({
 
     const aliveRoles = new Set(
       participants
-        .filter((p) => p.displayStatus !== 'offline' && p.displayStatus !== 'dead')
+        .filter((p) => p.lastSeenAt != null && now - p.lastSeenAt <= PRESENCE_THRESHOLD_MS)
         .map((p) => p.role.toLowerCase())
     );
 
@@ -396,7 +378,9 @@ export const getTeamLifecycle = query({
       teamId: chatroom.teamId,
       teamName: chatroom.teamName ?? chatroom.teamId,
       expectedRoles,
-      presentRoles: participants.filter((p) => p.displayStatus !== 'offline').map((p) => p.role),
+      presentRoles: participants
+        .filter((p) => p.lastSeenAt != null && now - p.lastSeenAt <= PRESENCE_THRESHOLD_MS)
+        .map((p) => p.role),
       missingRoles,
       expiredRoles: [] as string[], // FSM concept — always empty now; kept for API compat
       isReady: missingRoles.length === 0,
