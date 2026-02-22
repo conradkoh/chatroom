@@ -7,7 +7,7 @@ interface WorkingAgent {
 }
 
 interface WorkingIndicatorProps {
-  readiness?: { participants?: { role: string; displayStatus: string }[] } | null;
+  readiness?: { participants?: { role: string; lastSeenAction?: string | null }[] } | null;
   /** Compact mode for bottom bar integration */
   compact?: boolean;
 }
@@ -16,14 +16,16 @@ export const WorkingIndicator = memo(function WorkingIndicator({
   readiness,
   compact = false,
 }: WorkingIndicatorProps) {
-  const activeAgents: WorkingAgent[] = useMemo(() => {
+  const workingAgents: WorkingAgent[] = useMemo(() => {
     if (!readiness?.participants) return [];
     return readiness.participants.filter(
-      (p) => p.displayStatus === 'working' && p.role.toLowerCase() !== 'user'
+      (p) => p.lastSeenAction === 'task-started' && p.role.toLowerCase() !== 'user'
     );
   }, [readiness?.participants]);
 
-  if (activeAgents.length === 0) {
+  const shouldShowInStatusBar = workingAgents.length > 0;
+
+  if (!shouldShowInStatusBar) {
     return null;
   }
 
@@ -31,7 +33,7 @@ export const WorkingIndicator = memo(function WorkingIndicator({
   if (compact) {
     return (
       <div className="flex items-center gap-2">
-        {activeAgents.map((agent, index) => (
+        {workingAgents.map((agent, index) => (
           <div key={agent.role} className="flex items-center gap-1.5">
             {index > 0 && <span className="text-chatroom-text-muted">·</span>}
             {/* Pulsing indicator - square per theme */}
@@ -51,7 +53,7 @@ export const WorkingIndicator = memo(function WorkingIndicator({
   // Default mode: standalone block (legacy)
   return (
     <div className="px-4 py-3 flex flex-col gap-2">
-      {activeAgents.map((agent) => (
+      {workingAgents.map((agent) => (
         <div
           key={agent.role}
           className="flex items-center gap-3 px-4 py-3 bg-chatroom-status-info/10 border-2 border-chatroom-status-info/20"

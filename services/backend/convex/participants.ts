@@ -371,6 +371,7 @@ export const getTeamLifecycle = query({
         role,
         displayStatus,
         lastSeenAt: participantRow?.lastSeenAt ?? null,
+        lastSeenAction: participantRow?.lastSeenAction ?? null,
         isStuck: stuckRoles.has(role.toLowerCase()),
         agentType: participantRow?.agentType ?? ('remote' as const),
       };

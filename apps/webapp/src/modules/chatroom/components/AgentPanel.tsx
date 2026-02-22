@@ -19,12 +19,7 @@ import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
-import type {
-  AgentStatus,
-  ParticipantInfo,
-  ParticipantStatus,
-  TeamReadiness,
-} from '../types/readiness';
+import type { ParticipantInfo, TeamReadiness } from '../types/readiness';
 
 import {
   DropdownMenu,
@@ -41,9 +36,6 @@ import {
 } from '@/components/ui/fixed-modal';
 import { usePrompts } from '@/contexts/PromptsContext';
 
-// Re-export AgentStatus for backward compatibility
-export type { AgentStatus } from '../types/readiness';
-
 interface AgentPanelProps {
   chatroomId: string;
   teamRoles?: string[];
@@ -58,61 +50,16 @@ interface AgentPanelProps {
   onConfigure?: () => void;
 }
 
-// Status indicator colors - now includes disconnected state
-// ─── Status Utilities ────────────────────────────────────────────────
+// ─── Presence Utilities ──────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<AgentStatus, { bg: string; text: string; label: string }> = {
-  offline: {
-    bg: 'bg-chatroom-text-muted',
-    text: 'text-chatroom-status-warning',
-    label: 'OFFLINE',
-  },
-  dead: {
-    bg: 'bg-chatroom-status-error',
-    text: 'text-chatroom-status-error',
-    label: 'DEAD',
-  },
-  dead_failed_revive: {
-    bg: 'bg-chatroom-status-error',
-    text: 'text-chatroom-status-error',
-    label: 'DEAD (UNRECOVERABLE)',
-  },
-  ready: {
-    bg: 'bg-chatroom-status-success',
-    text: 'text-chatroom-status-success',
-    label: 'READY',
-  },
-  restarting: {
-    bg: 'bg-chatroom-status-warning',
-    text: 'text-chatroom-status-warning',
-    label: 'RESTARTING',
-  },
-  working: {
-    bg: 'bg-chatroom-status-info',
-    text: 'text-chatroom-status-info',
-    label: 'WORKING',
-  },
-  starting: {
-    bg: 'bg-chatroom-status-warning',
-    text: 'text-chatroom-status-warning',
-    label: 'STARTING',
-  },
-  stopping: {
-    bg: 'bg-chatroom-status-warning',
-    text: 'text-chatroom-status-warning',
-    label: 'STOPPING',
-  },
-};
+/** Agents unseen for longer than this threshold are considered offline. */
+const PRESENCE_THRESHOLD_MS = 90_000; // 90 seconds
 
-/** Fallback for unknown statuses — prevents crashes if the backend adds a new
- *  status before the frontend is updated to handle it. */
-const DEFAULT_STATUS: { bg: string; text: string; label: string } = {
-  bg: 'bg-chatroom-text-muted',
-  text: 'text-chatroom-status-warning',
-  label: 'UNKNOWN',
-};
-
-const getStatusConfig = (status: AgentStatus) => STATUS_CONFIG[status] ?? DEFAULT_STATUS;
+/** Returns true if the agent is considered online (seen within threshold). */
+function isOnline(lastSeenAt: number | null | undefined): boolean {
+  if (lastSeenAt == null) return false;
+  return Date.now() - lastSeenAt <= PRESENCE_THRESHOLD_MS;
+}
 
 /** Pure helper — formats a lastSeenAt unix-ms timestamp into a human-readable "X ago" string. */
 function formatLastSeen(lastSeenAt: number | null | undefined): string {
@@ -123,41 +70,11 @@ function formatLastSeen(lastSeenAt: number | null | undefined): string {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
-const getStatusClasses = (effectiveStatus: AgentStatus) =>
-  `w-2.5 h-2.5 flex-shrink-0 ${getStatusConfig(effectiveStatus).bg}`;
-
-// Agents unseen for longer than this threshold are considered offline (Phase 4).
-const LAST_SEEN_ACTIVE_MS = 90_000; // 90 seconds
-
-/** Derive a display status from lastSeenAt + raw participant status (Phase 4).
- *  Replaces FSM displayStatus as the authoritative source for the AgentPanel. */
-function deriveStatusFromLastSeen(
-  lastSeenAt: number | null | undefined,
-  rawStatus: ParticipantStatus
-): AgentStatus {
-  if (lastSeenAt == null) return 'offline';
-  const age = Date.now() - lastSeenAt;
-  if (age > LAST_SEEN_ACTIVE_MS) return 'offline'; // stale = offline
-  if (rawStatus === 'active') return 'working';
-  return 'ready';
-}
-
-const getEffectiveStatus = (
-  role: string,
-  participantMap: Map<string, ParticipantInfo>
-): { status: AgentStatus; isExpired: boolean } => {
-  const participant = participantMap.get(role.toLowerCase());
-  if (!participant) return { status: 'offline', isExpired: false };
-  const status = deriveStatusFromLastSeen(participant.lastSeenAt, participant.status);
-  const isExpired = participant.isExpired;
-  return { status, isExpired };
-};
-
 // Collapsed Agent Group Component - shows a collapsed row that opens the unified modal
 interface CollapsedAgentGroupProps {
   title: string;
   agents: string[];
-  variant: 'ready' | 'offline';
+  variant: 'online' | 'offline';
   onOpenModal: () => void;
 }
 
@@ -167,13 +84,8 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   variant,
   onOpenModal,
 }: CollapsedAgentGroupProps) {
-  // Map variants to status keys so we reuse the shared STATUS_CONFIG colors
-  const variantStatusMap: Record<CollapsedAgentGroupProps['variant'], AgentStatus> = {
-    ready: 'ready',
-    offline: 'offline',
-  };
-  const statusConfig = getStatusConfig(variantStatusMap[variant]);
-  const classes = { indicator: statusConfig.bg };
+  const indicatorClass =
+    variant === 'online' ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
 
   return (
     <div className="border-b border-chatroom-border last:border-b-0">
@@ -192,7 +104,7 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
         }}
       >
         {/* Status Indicator - square per theme.md */}
-        <div className={`w-2.5 h-2.5 flex-shrink-0 ${classes.indicator}`} />
+        <div className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`} />
         {/* Group Info */}
         <div className="flex-1 min-w-0">
           <div className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
@@ -210,11 +122,12 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   );
 });
 
-// Agent info with status for the unified modal
+// Agent info with presence for the unified modal
 interface AgentWithStatus {
   role: string;
-  effectiveStatus: AgentStatus;
+  online: boolean;
   lastSeenAt?: number | null;
+  lastSeenAction?: string | null;
   isStuck?: boolean;
 }
 
@@ -233,8 +146,9 @@ interface TeamAgentConfig {
 // Inline Agent Card - shows agent config, prompt, and controls directly in the modal
 interface InlineAgentCardProps {
   role: string;
-  effectiveStatus: AgentStatus;
+  online: boolean;
   lastSeenAt?: number | null;
+  lastSeenAction?: string | null;
   isStuck?: boolean;
   prompt: string;
   chatroomId: string;
@@ -259,8 +173,9 @@ function resolveMachineHostname(
 
 const InlineAgentCard = memo(function InlineAgentCard({
   role,
-  effectiveStatus,
+  online,
   lastSeenAt,
+  lastSeenAction,
   isStuck,
   prompt,
   chatroomId,
@@ -284,10 +199,9 @@ const InlineAgentCard = memo(function InlineAgentCard({
     teamConfigModel: teamConfig?.model,
   });
 
-  const statusInfo = getStatusConfig(effectiveStatus);
-  const statusLabel = statusInfo.label;
-  const statusClass = statusInfo.bg;
-  const statusColorClass = statusInfo.text;
+  const indicatorClass = online ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
+  const statusLabel = online ? (lastSeenAction ?? 'online').toUpperCase() : 'OFFLINE';
+  const statusColorClass = online ? 'text-chatroom-status-success' : 'text-chatroom-text-muted';
 
   // Resolve machine hostname for remote agents
   const machineHostname = useMemo(
@@ -327,7 +241,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
       >
         <div className="flex flex-col gap-0.5 min-w-0">
           <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 flex-shrink-0 ${statusClass}`} />
+            <div className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`} />
             <span className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
               {role}
             </span>
@@ -521,12 +435,13 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
           <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
         </FixedModalHeader>
         <FixedModalBody>
-          {agents.map(({ role, effectiveStatus, lastSeenAt, isStuck }) => (
+          {agents.map(({ role, online, lastSeenAt, lastSeenAction, isStuck }) => (
             <InlineAgentCard
               key={role}
               role={role}
-              effectiveStatus={effectiveStatus}
+              online={online}
               lastSeenAt={lastSeenAt}
+              lastSeenAction={lastSeenAction}
               isStuck={isStuck}
               prompt={generatePrompt(role)}
               chatroomId={chatroomId}
@@ -578,25 +493,27 @@ export const AgentPanel = memo(function AgentPanel({
     [teamRoles, readiness?.expectedRoles]
   );
 
-  // Categorize agents by derived status for grouped display (Phase 4)
+  // Categorize agents by presence for grouped display
   const categorizedAgents = useMemo(() => {
-    const active: string[] = []; // working (shown prominently at top)
-    const ready: string[] = [];
-    const other: string[] = []; // offline + anything else
+    const working: string[] = []; // task-started (shown prominently at top)
+    const online: string[] = []; // online but not working
+    const offline: string[] = []; // not seen within threshold
 
     for (const role of rolesToShow) {
-      const { status } = getEffectiveStatus(role, participantMap);
-      if (status === 'working') {
-        active.push(role);
-      } else if (status === 'ready') {
-        ready.push(role);
+      const participant = participantMap.get(role.toLowerCase());
+      const online_ = isOnline(participant?.lastSeenAt);
+      const isWorking = online_ && participant?.lastSeenAction === 'task-started';
+
+      if (isWorking) {
+        working.push(role);
+      } else if (online_) {
+        online.push(role);
       } else {
-        // offline, dead, dead_failed_revive, stale
-        other.push(role);
+        offline.push(role);
       }
     }
 
-    return { active, ready, other };
+    return { working, online, offline };
   }, [rolesToShow, participantMap]);
 
   // Memoize prompt generation function
@@ -607,14 +524,15 @@ export const AgentPanel = memo(function AgentPanel({
     [getAgentPrompt]
   );
 
-  // Build unified list of all agents with their status
+  // Build unified list of all agents with their presence
   const allAgentsWithStatus = useMemo(() => {
     return rolesToShow.map((role) => {
       const participant = participantMap.get(role.toLowerCase());
       return {
         role,
-        effectiveStatus: getEffectiveStatus(role, participantMap).status,
+        online: isOnline(participant?.lastSeenAt),
         lastSeenAt: participant?.lastSeenAt,
+        lastSeenAction: participant?.lastSeenAction,
         isStuck: participant?.isStuck,
       };
     });
@@ -660,22 +578,21 @@ export const AgentPanel = memo(function AgentPanel({
     );
   }
 
-  // Helper to render an agent row in the sidebar
+  // Helper to render an agent row in the sidebar (for working/active agents)
   const renderAgentRow = (role: string) => {
-    const { status: effectiveStatus } = getEffectiveStatus(role, participantMap);
     const participant = participantMap.get(role.toLowerCase());
-
-    const statusLabel = getStatusConfig(effectiveStatus).label;
+    const online_ = isOnline(participant?.lastSeenAt);
+    const lastSeenAction = participant?.lastSeenAction ?? null;
+    const isWorking = online_ && lastSeenAction === 'task-started';
     const isStuck = participant?.isStuck === true;
 
-    const isWorking = effectiveStatus === 'working';
-    const isRestarting = effectiveStatus === 'restarting';
-    const isDead = effectiveStatus === 'dead' || effectiveStatus === 'dead_failed_revive';
+    const indicatorClass = online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
+    const statusLabel = online_ ? (lastSeenAction ?? 'online').toUpperCase() : 'OFFLINE';
 
     return (
       <div key={role} className="border-b border-chatroom-border last:border-b-0">
         <div
-          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isWorking ? 'bg-chatroom-status-info/5' : ''} ${isDead ? 'bg-chatroom-status-error/5' : ''} ${isRestarting ? 'bg-chatroom-status-warning/5' : ''} ${isStuck ? 'bg-chatroom-status-warning/5' : ''}`}
+          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isWorking ? 'bg-chatroom-status-info/5' : ''} ${isStuck ? 'bg-chatroom-status-warning/5' : ''}`}
           role="button"
           tabIndex={0}
           aria-label={`${role}: ${statusLabel}${isStuck ? ' (stuck)' : ''}. Click to view all agents.`}
@@ -689,7 +606,7 @@ export const AgentPanel = memo(function AgentPanel({
         >
           {/* Status Indicator */}
           <div
-            className={getStatusClasses(effectiveStatus)}
+            className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`}
             role="status"
             aria-label={`Status: ${statusLabel}`}
           />
@@ -702,11 +619,9 @@ export const AgentPanel = memo(function AgentPanel({
               className={`text-[10px] font-bold uppercase tracking-wide ${
                 isWorking
                   ? 'text-chatroom-status-info animate-pulse'
-                  : isRestarting
-                    ? 'text-chatroom-status-warning animate-pulse'
-                    : isDead
-                      ? 'text-chatroom-status-error'
-                      : 'text-chatroom-text-muted'
+                  : online_
+                    ? 'text-chatroom-status-success'
+                    : 'text-chatroom-text-muted'
               }`}
             >
               {statusLabel}
@@ -789,24 +704,24 @@ export const AgentPanel = memo(function AgentPanel({
       </div>
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
-        {/* Active Agents - always shown prominently at top */}
-        {categorizedAgents.active.map(renderAgentRow)}
+        {/* Working Agents - always shown prominently at top */}
+        {categorizedAgents.working.map(renderAgentRow)}
 
-        {/* Ready Agents - collapsed group that opens unified modal */}
-        {categorizedAgents.ready.length > 0 && (
+        {/* Online Agents - collapsed group that opens unified modal */}
+        {categorizedAgents.online.length > 0 && (
           <CollapsedAgentGroup
-            title="Ready"
-            agents={categorizedAgents.ready}
-            variant="ready"
+            title="Online"
+            agents={categorizedAgents.online}
+            variant="online"
             onOpenModal={openAgentListModal}
           />
         )}
 
-        {/* Other Agents (disconnected/missing) - collapsed group that opens unified modal */}
-        {categorizedAgents.other.length > 0 && (
+        {/* Offline Agents - collapsed group that opens unified modal */}
+        {categorizedAgents.offline.length > 0 && (
           <CollapsedAgentGroup
             title="Offline"
-            agents={categorizedAgents.other}
+            agents={categorizedAgents.offline}
             variant="offline"
             onOpenModal={openAgentListModal}
           />

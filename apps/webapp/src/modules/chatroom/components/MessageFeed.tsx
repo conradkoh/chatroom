@@ -60,7 +60,7 @@ const REMARK_PLUGINS = [remarkGfm];
 
 interface MessageFeedProps {
   chatroomId: string;
-  readiness?: { participants?: { role: string; displayStatus: string }[] } | null;
+  readiness?: { participants?: { role: string; lastSeenAction?: string | null }[] } | null;
 }
 
 interface Message {
