@@ -335,17 +335,26 @@ async function _handoffHandler(
 
   const now = Date.now();
 
-  // Step 1: Complete ALL in_progress tasks
-  const inProgressTasks = await ctx.db
-    .query('chatroom_tasks')
-    .withIndex('by_chatroom_status', (q) =>
-      q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-    )
-    .collect();
+  // Step 1: Complete ALL in_progress and acknowledged tasks
+  const [inProgressTasks, acknowledgedTasks] = await Promise.all([
+    ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+      )
+      .collect(),
+    ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+      )
+      .collect(),
+  ]);
+  const tasksToComplete = [...inProgressTasks, ...acknowledgedTasks];
 
   const completedTaskIds: Id<'chatroom_tasks'>[] = [];
 
-  for (const task of inProgressTasks) {
+  for (const task of tasksToComplete) {
     // Determine the new status using the workflow definition:
     // - When handing off to user: use workflow-defined completion status
     //   (backlog → pending_user_review, chat → completed)
@@ -368,9 +377,9 @@ async function _handoffHandler(
     }
   }
 
-  if (inProgressTasks.length > 1) {
+  if (tasksToComplete.length > 1) {
     console.warn(
-      `[handoff] Completed ${inProgressTasks.length} in_progress tasks in chatroom ${args.chatroomId}`
+      `[handoff] Completed ${tasksToComplete.length} tasks (in_progress + acknowledged) in chatroom ${args.chatroomId}`
     );
   }
 

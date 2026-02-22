@@ -264,15 +264,24 @@ export const completeTask = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Find ALL in_progress tasks (there should typically be only one, but complete all for resilience)
-    const inProgressTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-      )
-      .collect();
+    // Find ALL in_progress and acknowledged tasks (there should typically be only one, but complete all for resilience)
+    const [inProgressTasks, acknowledgedTasks] = await Promise.all([
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+        )
+        .collect(),
+    ]);
+    const allTasksToComplete = [...inProgressTasks, ...acknowledgedTasks];
 
-    if (inProgressTasks.length === 0) {
+    if (allTasksToComplete.length === 0) {
       // No tasks to complete - this is okay, just return
       return { completed: false, completedCount: 0, promoted: null, pendingReview: [] };
     }
@@ -281,8 +290,8 @@ export const completeTask = mutation({
 
     // Load FSM once for all transitions
 
-    // Complete ALL in_progress tasks based on their origin
-    for (const task of inProgressTasks) {
+    // Complete ALL tasks (in_progress + acknowledged) based on their origin
+    for (const task of allTasksToComplete) {
       // Determine the new status based on origin:
       // - backlog-origin tasks → pending_user_review (user must confirm completion)
       // - chat-origin tasks → completed
@@ -298,10 +307,10 @@ export const completeTask = mutation({
     }
 
     // Log if multiple tasks were completed (indicates a stuck state that was cleaned up)
-    if (inProgressTasks.length > 1) {
+    if (allTasksToComplete.length > 1) {
       console.warn(
-        `[Task Cleanup] Processed ${inProgressTasks.length} in_progress tasks in chatroom ${args.chatroomId}. ` +
-          `Task IDs: ${inProgressTasks.map((t) => t._id).join(', ')}, Pending review: ${pendingReview.length}`
+        `[Task Cleanup] Processed ${allTasksToComplete.length} tasks (in_progress + acknowledged) in chatroom ${args.chatroomId}. ` +
+          `Task IDs: ${allTasksToComplete.map((t) => t._id).join(', ')}, Pending review: ${pendingReview.length}`
       );
     }
 
@@ -326,7 +335,7 @@ export const completeTask = mutation({
         await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
         return {
           completed: true,
-          completedCount: inProgressTasks.length,
+          completedCount: allTasksToComplete.length,
           promoted: nextTask._id,
           pendingReview,
         };
@@ -339,7 +348,7 @@ export const completeTask = mutation({
 
     return {
       completed: true,
-      completedCount: inProgressTasks.length,
+      completedCount: allTasksToComplete.length,
       promoted: null,
       pendingReview,
     };

@@ -134,6 +134,22 @@ const TRANSITIONS: TransitionRule[] = [
     setFields: {},
   },
 
+  {
+    from: 'acknowledged',
+    to: 'completed',
+    trigger: 'completeTask',
+    setFields: {
+      completedAt: 'NOW',
+    },
+  },
+
+  {
+    from: 'acknowledged',
+    to: 'pending_user_review',
+    trigger: 'completeTask',
+    setFields: {},
+  },
+
   // ==========================================================================
   // BACKLOG FLOW: backlog → backlog_acknowledged → pending_user_review → completed
   // ==========================================================================
