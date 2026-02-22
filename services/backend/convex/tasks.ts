@@ -982,48 +982,6 @@ export const patchTask = mutation({
 });
 
 /**
- * Reset a stuck in_progress task back to pending.
- * Used for manual recovery when an agent crashes without completing.
- * Requires CLI session authentication and chatroom access.
- */
-export const resetStuckTask = mutation({
-  args: {
-    ...SessionIdArg,
-    taskId: v.id('chatroom_tasks'),
-  },
-  handler: async (ctx, args) => {
-    const task = await ctx.db.get('chatroom_tasks', args.taskId);
-    if (!task) {
-      throw new Error('Task not found');
-    }
-
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
-
-    // Only allow resetting in_progress tasks
-    if (task.status !== 'in_progress') {
-      throw new Error(
-        `Cannot reset task with status: ${task.status}. Only in_progress tasks can be reset.`
-      );
-    }
-
-    // Use FSM for transition
-
-    await transitionTask(ctx, args.taskId, 'pending', 'resetStuckTask');
-
-    // Log manual reset (suppress during testing)
-    if (process.env.NODE_ENV !== 'test') {
-      console.warn(
-        `[Manual Reset] chatroomId=${task.chatroomId} taskId=${args.taskId} ` +
-          `previousAssignee=${task.assignedTo || 'unknown'} action=reset_to_pending`
-      );
-    }
-
-    return { success: true, previousAssignee: task.assignedTo };
-  },
-});
-
-/**
  * List tasks in a chatroom.
  * Optionally filter by status.
  * Backlog tasks are sorted by priority descending (higher = first), then by createdAt descending.

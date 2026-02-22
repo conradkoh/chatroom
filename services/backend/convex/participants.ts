@@ -54,25 +54,6 @@ export const join = mutation({
       )
       .unique();
 
-    // State recovery: if agent was previously working and has in_progress tasks, reset them
-    if (existing) {
-      const orphanedTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-        )
-        .filter((q) => q.eq(q.field('assignedTo'), args.role))
-        .collect();
-
-      for (const task of orphanedTasks) {
-        await transitionTask(ctx, task._id, 'pending', 'resetStuckTask');
-        console.warn(
-          `[State Recovery] chatroomId=${args.chatroomId} role=${args.role} taskId=${task._id} ` +
-            `action=reset_to_pending reason=agent_rejoined`
-        );
-      }
-    }
-
     let participantId;
     const now = Date.now();
 

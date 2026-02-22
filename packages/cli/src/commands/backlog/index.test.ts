@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BacklogDeps } from './deps.js';
-import { listBacklog, addBacklog, completeBacklog, resetBacklog } from './index.js';
+import { listBacklog, addBacklog, completeBacklog } from './index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -177,32 +177,5 @@ describe('completeBacklog', () => {
 
     expect(exitSpy).not.toHaveBeenCalled();
     expect(getAllLogOutput()).toContain('Next task promoted');
-  });
-});
-
-describe('resetBacklog', () => {
-  it('resets a stuck task', async () => {
-    const deps = createMockDeps();
-    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
-      previousAssignee: 'builder',
-    });
-
-    await resetBacklog(TEST_CHATROOM_ID, { role: 'planner', taskId: TEST_TASK_ID }, deps);
-
-    expect(exitSpy).not.toHaveBeenCalled();
-    expect(getAllLogOutput()).toContain('Task reset to pending');
-    expect(getAllLogOutput()).toContain('builder');
-  });
-
-  it('exits with code 1 when mutation fails', async () => {
-    const deps = createMockDeps();
-    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('Task not found')
-    );
-
-    await resetBacklog(TEST_CHATROOM_ID, { role: 'planner', taskId: TEST_TASK_ID }, deps);
-
-    expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(getAllErrorOutput()).toContain('Failed to reset task');
   });
 });

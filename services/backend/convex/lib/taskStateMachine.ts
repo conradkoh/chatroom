@@ -366,26 +366,6 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   // ==========================================================================
-  // RECOVERY: in_progress → pending, acknowledged → pending
-  // ==========================================================================
-
-  {
-    from: 'in_progress',
-    to: 'pending',
-    trigger: 'resetStuckTask',
-    setFields: {},
-    clearFields: ['startedAt', 'assignedTo', 'acknowledgedAt'],
-  },
-
-  {
-    from: 'acknowledged',
-    to: 'pending',
-    trigger: 'recoverStuckAcknowledged',
-    setFields: {},
-    clearFields: ['assignedTo', 'acknowledgedAt'],
-  },
-
-  // ==========================================================================
   // REOPENING: completed/closed → pending_user_review
   // ==========================================================================
 

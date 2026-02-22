@@ -68,11 +68,6 @@ export interface MarkForReviewBacklogOptions {
   taskId: string;
 }
 
-export interface ResetBacklogOptions {
-  role: string;
-  taskId: string;
-}
-
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
 async function createDefaultDeps(): Promise<BacklogDeps> {
@@ -626,37 +621,6 @@ export async function markForReviewBacklog(
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to mark task for review: ${(error as Error).message}`);
-    process.exit(1);
-    return;
-  }
-}
-
-/**
- * Reset a stuck in_progress task back to pending.
- */
-export async function resetBacklog(
-  chatroomId: string,
-  options: ResetBacklogOptions,
-  deps?: BacklogDeps
-): Promise<void> {
-  const d = deps ?? (await createDefaultDeps());
-  const sessionId = requireAuth(d);
-
-  try {
-    const result = await d.backend.mutation(api.tasks.resetStuckTask, {
-      sessionId,
-      taskId: options.taskId as Id<'chatroom_tasks'>,
-    });
-
-    console.log('');
-    console.log('✅ Task reset to pending');
-    console.log(`   ID: ${options.taskId}`);
-    if (result.previousAssignee) {
-      console.log(`   Previous assignee: ${result.previousAssignee}`);
-    }
-    console.log('');
-  } catch (error) {
-    console.error(`❌ Failed to reset task: ${(error as Error).message}`);
     process.exit(1);
     return;
   }

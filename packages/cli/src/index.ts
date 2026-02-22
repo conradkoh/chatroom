@@ -468,18 +468,6 @@ backlogCommand
   );
 
 backlogCommand
-  .command('reset-task')
-  .description('Reset a stuck in_progress task back to pending')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--task-id <taskId>', 'Task ID to reset')
-  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
-    await maybeRequireAuth();
-    const { resetBacklog } = await import('./commands/backlog/index.js');
-    await resetBacklog(options.chatroomId, options);
-  });
-
-backlogCommand
   .command('mark-for-review')
   .description('Mark a backlog task as ready for user review (backlog → pending_user_review)')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
