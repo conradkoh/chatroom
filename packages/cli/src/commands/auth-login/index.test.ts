@@ -47,6 +47,7 @@ function createMockDeps(overrides?: Partial<AuthLoginDeps>): AuthLoginDeps {
       saveAuthData: vi.fn(),
       getDeviceName: vi.fn().mockReturnValue('test-host (darwin)'),
       getCliVersion: vi.fn().mockReturnValue('1.0.0-test'),
+      getSessionId: vi.fn().mockReturnValue('existing-session-id'),
     },
     browser: {
       open: vi.fn().mockResolvedValue(undefined),
@@ -135,11 +136,17 @@ describe('getWebAppUrl', () => {
 // ---------------------------------------------------------------------------
 
 describe('authLogin', () => {
-  it('returns early when already authenticated and force is false', async () => {
+  it('returns early when already authenticated and session is valid on backend', async () => {
     const deps = createMockDeps({
       auth: {
         ...createMockDeps().auth,
         isAuthenticated: vi.fn().mockReturnValue(true),
+        getSessionId: vi.fn().mockReturnValue('existing-session-id'),
+      },
+      backend: {
+        mutation: vi.fn(),
+        // First query is validateSession (returns valid), rest are auth status polls
+        query: vi.fn().mockResolvedValue({ valid: true, userId: 'user-1' }),
       },
     });
 
@@ -149,17 +156,74 @@ describe('authLogin', () => {
     expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 
+  it('re-authenticates automatically when local session is expired on backend', async () => {
+    const deps = createMockDeps({
+      auth: {
+        ...createMockDeps().auth,
+        isAuthenticated: vi.fn().mockReturnValue(true),
+        getSessionId: vi.fn().mockReturnValue('expired-session-id'),
+      },
+      backend: {
+        // validateSession returns expired, then createAuthRequest, then getAuthRequestStatus
+        mutation: vi.fn().mockResolvedValue({
+          requestId: 'req-reauth-123',
+          expiresAt: Date.now() + 60_000,
+        }),
+        query: vi
+          .fn()
+          .mockResolvedValueOnce({ valid: false, reason: 'Session expired' }) // validateSession
+          .mockResolvedValueOnce({ status: 'approved', sessionId: 'session-new' }), // poll
+      },
+    });
+
+    await authLogin({ force: false }, deps);
+
+    // Should warn about expiry then proceed to full login
+    expect(getAllLogOutput()).toContain('session has expired');
+    expect(deps.backend.mutation).toHaveBeenCalled();
+    expect(deps.auth.saveAuthData).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session-new' })
+    );
+  });
+
+  it('trusts local auth file when backend is unreachable', async () => {
+    const deps = createMockDeps({
+      auth: {
+        ...createMockDeps().auth,
+        isAuthenticated: vi.fn().mockReturnValue(true),
+        getSessionId: vi.fn().mockReturnValue('existing-session-id'),
+      },
+      backend: {
+        mutation: vi.fn(),
+        query: vi.fn().mockRejectedValue(new Error('ECONNREFUSED')),
+      },
+    });
+
+    await authLogin({ force: false }, deps);
+
+    expect(getAllLogOutput()).toContain('Already authenticated');
+    expect(getAllLogOutput()).toContain('could not verify with backend');
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
+  });
+
   it('proceeds when already authenticated but force is true', async () => {
     const deps = createMockDeps({
       auth: {
         ...createMockDeps().auth,
         isAuthenticated: vi.fn().mockReturnValue(true),
       },
+      backend: {
+        mutation: vi.fn().mockResolvedValue({
+          requestId: 'req-abc-123',
+          expiresAt: Date.now() + 60_000,
+        }),
+        query: vi.fn().mockResolvedValue({ status: 'approved', sessionId: 'session-forced' }),
+      },
     });
 
     await authLogin({ force: true }, deps);
 
-    // Should proceed to create an auth request
+    // Should proceed to create an auth request (no validateSession call when force=true)
     expect(deps.backend.mutation).toHaveBeenCalled();
   });
 

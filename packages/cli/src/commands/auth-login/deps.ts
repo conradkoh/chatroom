@@ -25,6 +25,7 @@ export interface AuthStorageOps {
   saveAuthData: (data: AuthData) => void;
   getDeviceName: () => string;
   getCliVersion: () => string;
+  getSessionId: () => SessionId | null;
 }
 
 /** Browser launch abstraction — stubbed in tests. */

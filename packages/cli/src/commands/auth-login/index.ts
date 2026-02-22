@@ -13,6 +13,7 @@ import {
   getCliVersion,
   isAuthenticated,
   getAuthFilePath,
+  getSessionId,
 } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 
@@ -75,6 +76,7 @@ export function createDefaultDeps(): AuthLoginDeps {
       saveAuthData,
       getDeviceName,
       getCliVersion,
+      getSessionId,
     },
     browser: {
       open: openBrowser,
@@ -131,12 +133,34 @@ export function getWebAppUrl(d: AuthLoginDeps): string {
 export async function authLogin(options: AuthLoginOptions, deps?: AuthLoginDeps): Promise<void> {
   const d = deps ?? createDefaultDeps();
 
-  // Check if already authenticated
+  // Check if already authenticated locally
   if (d.auth.isAuthenticated() && !options.force) {
-    console.log(`✅ Already authenticated.`);
-    console.log(`   Auth file: ${d.auth.getAuthFilePath()}`);
-    console.log(`\n   Use --force to re-authenticate.`);
-    return;
+    // Validate the session against the backend — local file may be stale
+    const sessionId = d.auth.getSessionId();
+    if (sessionId) {
+      try {
+        const validation = await d.backend.query(api.cliAuth.validateSession, { sessionId });
+        if (validation.valid) {
+          console.log(`✅ Already authenticated.`);
+          console.log(`   Auth file: ${d.auth.getAuthFilePath()}`);
+          console.log(`\n   Use --force to re-authenticate.`);
+          return;
+        }
+        // Session invalid on backend — fall through to re-authenticate
+        const reason = validation.reason;
+        if (reason === 'Session expired') {
+          console.log(`\n⚠️  Your session has expired. Re-authenticating automatically...`);
+        } else {
+          console.log(`\n⚠️  Session is no longer valid (${reason}). Re-authenticating...`);
+        }
+      } catch {
+        // Network error or backend down — trust local file and bail
+        console.log(`✅ Already authenticated (could not verify with backend).`);
+        console.log(`   Auth file: ${d.auth.getAuthFilePath()}`);
+        console.log(`\n   Use --force to re-authenticate.`);
+        return;
+      }
+    }
   }
 
   // Get device info
