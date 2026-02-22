@@ -4,7 +4,7 @@
  * This module enforces strict state transitions for task lifecycle management.
  * Status is the SINGLE SOURCE OF TRUTH for workflow state.
  * Timestamps are primarily metadata, but `acknowledgedAt` and `updatedAt`
- * are also used by the stuck-task recovery logic in `cleanupStaleAgents`.
+ * are used for auditing purposes.
  *
  * All task state transitions MUST go through transitionTask() to ensure:
  * - Only valid transitions are allowed

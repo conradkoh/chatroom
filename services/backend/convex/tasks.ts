@@ -6,12 +6,7 @@ import {
   type BackendError,
   type BackendErrorCode,
 } from '../config/errorCodes';
-import {
-  DAEMON_HEARTBEAT_TTL_MS,
-  HEARTBEAT_TTL_MS,
-  RECOVERY_GRACE_PERIOD_MS,
-  TASK_ACKNOWLEDGED_TIMEOUT_MS,
-} from '../config/reliability';
+import { DAEMON_HEARTBEAT_TTL_MS, RECOVERY_GRACE_PERIOD_MS } from '../config/reliability';
 import { internalMutation, mutation, query } from './_generated/server';
 import {
   areAllAgentsIdle,
@@ -1608,76 +1603,21 @@ export const getTaskLimits = query({
 });
 
 /**
- * Internal mutation to recover stuck tasks and clean up stale daemon records.
+ * Internal mutation to clean up stale daemon records.
  * Called by cron job every 2 minutes.
  *
- * Agent participant cleanup via FSM (status/readyUntil/activeUntil) has been
- * removed — liveness is now determined purely by `lastSeenAt` in the UI/queries.
+ * Agent participant cleanup via FSM has been removed — liveness is now
+ * determined purely by `lastSeenAt` in the UI/queries. Acknowledged task
+ * recovery has also been removed: agents are expected to call task-started
+ * and then handoff normally; no background reset is needed.
  *
- * This mutation now only:
- *  1. Recovers acknowledged tasks whose assigned participant has not been seen recently.
- *  2. Marks daemons as disconnected when their heartbeat is stale.
+ * This mutation only:
+ *  1. Marks daemons as disconnected when their heartbeat is stale.
  */
-export const cleanupStaleAgents = internalMutation({
+export const cleanupStaleMachines = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
-
-    // ─── Stuck Task Recovery ───────────────────────────────────────────
-    // Check for tasks stuck in `acknowledged` whose assigned agent is no longer present.
-
-    let stuckAcknowledgedCount = 0;
-
-    const allParticipants = await ctx.db.query('chatroom_participants').collect();
-    const participantsByKey = new Map(
-      allParticipants.map((p) => [`${p.chatroomId}:${p.role.toLowerCase()}`, p])
-    );
-
-    // --- Stuck acknowledged tasks ---
-    // Tasks stuck in `acknowledged` for longer than TASK_ACKNOWLEDGED_TIMEOUT_MS
-    // with no recently-seen participant are reset to `pending`.
-    const acknowledgedTasks = await ctx.db
-      .query('chatroom_tasks')
-      .filter((q) => q.eq(q.field('status'), 'acknowledged'))
-      .collect();
-
-    for (const task of acknowledgedTasks) {
-      const acknowledgedAt = task.acknowledgedAt || task.updatedAt;
-
-      if (now - acknowledgedAt < TASK_ACKNOWLEDGED_TIMEOUT_MS) continue;
-
-      // Check if the assigned participant is still present (lastSeenAt within window)
-      const assignedRole = task.assignedTo;
-      if (!assignedRole) {
-        // No assigned role — recover immediately
-      } else {
-        const key = `${task.chatroomId}:${assignedRole.toLowerCase()}`;
-        const participant = participantsByKey.get(key);
-        if (participant) {
-          const isPresent =
-            participant.lastSeenAt != null && now - participant.lastSeenAt <= HEARTBEAT_TTL_MS;
-          if (isPresent) continue; // Participant is alive — skip
-        }
-      }
-
-      // Participant is missing or stale — recover the task via FSM
-      try {
-        await transitionTask(ctx, task._id, 'pending', 'recoverStuckAcknowledged');
-        stuckAcknowledgedCount++;
-        console.warn(
-          `[Task Recovery] Task ${task._id} (acknowledged) reset to pending ` +
-            `— assigned participant "${assignedRole}" is missing or stale`
-        );
-      } catch (err) {
-        console.warn(
-          `[Task Recovery] Failed to recover acknowledged task ${task._id}: ${(err as Error).message}`
-        );
-      }
-    }
-
-    if (stuckAcknowledgedCount > 0) {
-      console.warn(`[Task Recovery] Recovered ${stuckAcknowledgedCount} acknowledged tasks`);
-    }
 
     // ─── Stale Daemon Detection ─────────────────────────────────────────
     // Check for daemons that stopped sending heartbeats (e.g. SIGKILL, machine crash).

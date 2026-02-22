@@ -4,8 +4,9 @@ import { internal } from './_generated/api';
 
 const crons = cronJobs();
 
-// Recover stuck tasks and clean up stale daemons every 2 minutes.
-// Agent participant cleanup via FSM has been removed — liveness is tracked via lastSeenAt.
-crons.interval('cleanup stale agents', { minutes: 2 }, internal.tasks.cleanupStaleAgents);
+// Clean up stale daemons every 2 minutes.
+// Agent participant cleanup and acknowledged-task recovery have been removed —
+// agents are expected to call task-started then handoff normally.
+crons.interval('cleanup stale machines', { minutes: 2 }, internal.tasks.cleanupStaleMachines);
 
 export default crons;

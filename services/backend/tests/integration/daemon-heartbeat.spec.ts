@@ -3,7 +3,7 @@
  *
  * Tests for daemon heartbeat liveness detection:
  * 1. daemonHeartbeat mutation updates lastSeenAt
- * 2. Stale daemon is marked disconnected by cleanupStaleAgents
+ * 2. Stale daemon is marked disconnected by cleanupStaleMachines
  * 3. autoRestartOfflineAgent skips restart when daemon is stale
  * 4. Fresh daemon is NOT marked disconnected
  */
@@ -63,7 +63,7 @@ describe('Daemon Heartbeat', () => {
     expect(after).toBeGreaterThan(before);
   });
 
-  test('stale daemon is marked disconnected by cleanupStaleAgents', async () => {
+  test('stale daemon is marked disconnected by cleanupStaleMachines', async () => {
     const { sessionId } = await createTestSession('test-hb-2');
     const machineId = 'machine-hb-2';
 
@@ -92,7 +92,7 @@ describe('Daemon Heartbeat', () => {
     expect(beforeCleanup).toBe(true);
 
     // Run cleanup
-    await t.mutation(internal.tasks.cleanupStaleAgents, {});
+    await t.mutation(internal.tasks.cleanupStaleMachines, {});
 
     // Verify daemon is now marked as disconnected
     const afterCleanup = await t.run(async (ctx) => {
@@ -186,7 +186,7 @@ describe('Daemon Heartbeat', () => {
     expect(afterHeartbeat).toBe(true);
   });
 
-  test('fresh daemon is NOT marked disconnected by cleanupStaleAgents', async () => {
+  test('fresh daemon is NOT marked disconnected by cleanupStaleMachines', async () => {
     const { sessionId } = await createTestSession('test-hb-4');
     const machineId = 'machine-hb-4';
 
@@ -194,7 +194,7 @@ describe('Daemon Heartbeat', () => {
     await registerMachineWithDaemon(sessionId, machineId);
 
     // Run cleanup
-    await t.mutation(internal.tasks.cleanupStaleAgents, {});
+    await t.mutation(internal.tasks.cleanupStaleMachines, {});
 
     // Verify daemon is still marked as connected
     const afterCleanup = await t.run(async (ctx) => {

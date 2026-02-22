@@ -4,7 +4,7 @@ import type { MutationCtx } from '../_generated/server';
 
 /**
  * Shared helper to recover orphaned in_progress tasks for a given role.
- * Used by cleanupStaleAgents (cron-based cleanup).
+ * Used by cleanupStaleMachines (cron-based cleanup).
  *
  * Returns array of recovered task IDs for logging.
  */
