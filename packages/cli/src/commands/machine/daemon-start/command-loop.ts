@@ -2,10 +2,7 @@
  * Command Loop — subscribes to Convex for pending commands, processes them sequentially.
  */
 
-import {
-  ACTIVE_AGENT_HEARTBEAT_INTERVAL_MS,
-  DAEMON_HEARTBEAT_INTERVAL_MS,
-} from '@workspace/backend/config/reliability.js';
+import { DAEMON_HEARTBEAT_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
 
 import { api, type Id } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
@@ -177,40 +174,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Don't let the heartbeat timer keep the process alive during shutdown
   heartbeatTimer.unref();
 
-  // ── Agent PID Heartbeat ──────────────────────────────────────────────
-  // For each tracked agent PID, check if the process is alive and extend
-  // its activeUntil on the backend. This keeps active agents from appearing
-  // dead during long-running tasks (where the CLI heartbeat has stopped).
-  const agentHeartbeatTimer = setInterval(() => {
-    const agents = ctx.deps.machine.listAgentEntries(ctx.machineId);
-    for (const { chatroomId, role, entry } of agents) {
-      const isAlive = ctx.remoteAgentService.isAlive(entry.pid);
-
-      if (isAlive) {
-        const tracked = ctx.remoteAgentService.getTrackedProcesses();
-        const proc = tracked.find(
-          (p) => p.context.chatroomId === chatroomId && p.context.role === role
-        );
-        const hasRecentOutput = proc ? Date.now() - proc.lastOutputAt < IDLE_THRESHOLD_MS : true;
-        if (hasRecentOutput) {
-          ctx.deps.backend
-            .mutation(api.participants.extendActiveAgent, {
-              sessionId: ctx.sessionId,
-              chatroomId: chatroomId as Id<'chatroom_rooms'>,
-              role,
-            })
-            .catch((err: Error) => {
-              console.warn(
-                `[${formatTimestamp()}] ⚠️  Agent heartbeat failed for ${role}: ${err.message}`
-              );
-            });
-        }
-      }
-    }
-  }, ACTIVE_AGENT_HEARTBEAT_INTERVAL_MS);
-
-  agentHeartbeatTimer.unref();
-
   // ── Idle Process Reaper ──────────────────────────────────────────────
   // Periodically check for agents that have produced no stdout/stderr
   // output within the idle threshold and shut them down via the standard
@@ -238,7 +201,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
     // Stop heartbeat timers
     clearInterval(heartbeatTimer);
-    clearInterval(agentHeartbeatTimer);
     clearInterval(idleReaperTimer);
 
     await onDaemonShutdown(ctx);

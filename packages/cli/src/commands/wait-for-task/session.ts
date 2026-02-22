@@ -15,7 +15,6 @@ import { ConvexError } from 'convex/values';
 import type { SessionId } from 'convex-helpers/server/sessions';
 
 import { api, type Id } from '../../api.js';
-import { DEFAULT_ACTIVE_TIMEOUT_MS } from '../../config.js';
 import type { getConvexClient } from '../../infrastructure/convex/client.js';
 import { getConvexUrl, getConvexWsClient } from '../../infrastructure/convex/client.js';
 import { sanitizeForTerminal, sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
@@ -157,6 +156,18 @@ export class WaitForTaskSession {
 
     if (this.unsubscribe) {
       this.unsubscribe();
+    }
+
+    try {
+      // Record the stop action before leaving
+      await this.client.mutation(api.participants.join, {
+        sessionId: this.sessionId,
+        chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+        role: this.role,
+        action: 'wait-for-task:stopped',
+      });
+    } catch {
+      // Best-effort
     }
 
     try {
@@ -382,16 +393,6 @@ export class WaitForTaskSession {
           role: this.role,
         });
       }
-
-      // Update participant status to active with activeUntil timeout
-      const activeUntil = Date.now() + DEFAULT_ACTIVE_TIMEOUT_MS;
-      await this.client.mutation(api.participants.updateStatus, {
-        sessionId: this.sessionId,
-        chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
-        role: this.role,
-        status: 'active',
-        expiresAt: activeUntil,
-      });
 
       // Get the complete task delivery prompt from backend
       const taskDeliveryPrompt = await this.client.query(api.messages.getTaskDeliveryPrompt, {

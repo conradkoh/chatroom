@@ -5,7 +5,6 @@
  * participant join, init prompt) and then delegates to `WaitForTaskSession.start()`.
  */
 
-import { HEARTBEAT_TTL_MS } from '@workspace/backend/config/reliability.js';
 import { getWaitForTaskGuidance } from '@workspace/backend/prompts/base/cli/index.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
@@ -174,12 +173,12 @@ export async function waitForTask(chatroomId: string, options: WaitForTaskOption
     // Non-critical — continue without agent type
   }
 
-  // Join the chatroom with connectionId and initial readyUntil (heartbeat-based liveness)
+  // Join the chatroom, recording the start action for lastSeenAction-based liveness
   await client.mutation(api.participants.join, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     role,
-    readyUntil: Date.now() + HEARTBEAT_TTL_MS,
+    action: 'wait-for-task:started',
     connectionId,
     agentType: participantAgentType,
   });

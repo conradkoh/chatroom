@@ -789,7 +789,7 @@ program.hook('preAction', async (_thisCommand, actionCommand) => {
   if (!sessionId) return; // not authed yet — skip silently
 
   const client = await getConvexClient();
-  sendLifecycleHeartbeat(client, { sessionId, chatroomId, role });
+  sendLifecycleHeartbeat(client, { sessionId, chatroomId, role, action: actionCommand.name() });
 });
 
 program.parse();
