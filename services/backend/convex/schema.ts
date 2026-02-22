@@ -336,9 +336,13 @@ export default defineSchema({
     // Agent type — 'custom' or 'remote'
     agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
     // Timestamp of the last heartbeat received from this participant.
-    // Populated by participants.heartbeat (and participants.join) on every check-in.
-    // Phase 1 of migration away from FSM lifecycle table.
+    // Populated by participants.join on every check-in.
     lastSeenAt: v.optional(v.number()),
+    // The name of the CLI command last run by this participant.
+    // For wait-for-task (persistent connection), two distinct action names are used:
+    //   "wait-for-task:started" — written when the loop begins
+    //   "wait-for-task:stopped" — written just before the loop exits
+    lastSeenAction: v.optional(v.string()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role'])

@@ -14,14 +14,15 @@ import { withRetry } from './retry-queue.js';
 
 export function sendLifecycleHeartbeat(
   client: { mutation: (fn: any, args: any) => Promise<any> },
-  opts: { sessionId: string; chatroomId: string; role: string }
+  opts: { sessionId: string; chatroomId: string; role: string; action?: string }
 ): void {
-  // Update lastSeenAt on the participant row.
+  // Update lastSeenAt (and optionally lastSeenAction) on the participant row.
   withRetry(() =>
-    client.mutation(api.participants.heartbeat, {
+    client.mutation(api.participants.join, {
       sessionId: opts.sessionId,
       chatroomId: opts.chatroomId as Id<'chatroom_rooms'>,
       role: opts.role,
+      ...(opts.action !== undefined ? { action: opts.action } : {}),
     })
   ).catch(() => {});
 }

@@ -3,7 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { BACKEND_ERROR_CODES, type BackendError } from '../config/errorCodes';
 import { DEAD_STATES } from '../config/participantStates';
-import { ACTIVE_AGENT_HEARTBEAT_TTL_MS, HEARTBEAT_TTL_MS } from '../config/reliability';
+import { ACTIVE_AGENT_HEARTBEAT_TTL_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
@@ -18,6 +18,8 @@ import { transitionTask } from './lib/taskStateMachine';
  * The connectionId is used to detect concurrent wait-for-task processes.
  * When a new wait-for-task starts, it generates a unique connectionId.
  * Any old process with a different connectionId should detect the mismatch and exit.
+ *
+ * The action parameter records the CLI command that triggered the join (e.g. 'wait-for-task:started').
  */
 export const join = mutation({
   args: {
@@ -30,6 +32,8 @@ export const join = mutation({
     connectionId: v.optional(v.string()),
     // Agent type — 'custom' or 'remote'
     agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
+    // The CLI command/action that triggered this join
+    action: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access - returns chatroom directly
@@ -91,6 +95,7 @@ export const join = mutation({
         cleanupDeadline: undefined, // Clear any pending cleanup (Plan 027)
         connectionId: args.connectionId, // Track current connection for concurrent process detection
         lastSeenAt: now, // Immediately mark agent as seen on join
+        ...(args.action !== undefined ? { lastSeenAction: args.action } : {}),
         ...(args.agentType ? { agentType: args.agentType } : {}),
       });
       participantId = existing._id;
@@ -103,6 +108,7 @@ export const join = mutation({
         readyUntil: args.readyUntil,
         connectionId: args.connectionId, // Track current connection for concurrent process detection
         lastSeenAt: now, // Immediately mark agent as seen on join
+        ...(args.action !== undefined ? { lastSeenAction: args.action } : {}),
         ...(args.agentType ? { agentType: args.agentType } : {}),
         // activeUntil not set - will be set when transitioning to active
       });
@@ -160,88 +166,6 @@ export const join = mutation({
 });
 
 /**
- * Refresh a participant's readyUntil timestamp (heartbeat).
- *
- * Called periodically by the `wait-for-task` CLI to prove the process is still
- * alive. The connectionId is verified so that stale processes (from a previous
- * wait-for-task invocation) cannot extend liveness for the current one.
- *
- * Requires CLI session authentication and chatroom access.
- */
-export const heartbeat = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    connectionId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Find the participant
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
-
-    if (!participant) {
-      // Participant was cleaned up (e.g. by cleanupStaleAgents) but the CLI
-      // heartbeat timer is still running. Signal the CLI to re-join. (Plan 026)
-      console.warn(
-        `[heartbeat] Participant ${args.role} not found in chatroom — signaling re-join`
-      );
-      return { status: 'rejoin_required' as const };
-    }
-
-    // Reject heartbeats from stale connections — a newer wait-for-task has taken over.
-    // Only perform this check when a connectionId was supplied (i.e. from the
-    // wait-for-task loop). Commands that fire heartbeats without a connectionId
-    // (task-started, handoff, report-progress, etc.) skip this guard.
-    if (
-      args.connectionId &&
-      participant.connectionId &&
-      participant.connectionId !== args.connectionId
-    ) {
-      console.warn(
-        `[heartbeat] Rejected stale heartbeat for ${args.role}: connectionId mismatch ` +
-          `(expected ${participant.connectionId}, got ${args.connectionId})`
-      );
-      // Return 'superseded' instead of 'ok' — the heartbeat was NOT processed because
-      // a newer connection owns this participant. The CLI exits gracefully on receipt.
-      return { status: 'superseded' as const };
-    }
-
-    const now = Date.now();
-
-    // Plan 027: If participant is in planned_cleanup, restore to waiting.
-    // The agent proved it's still alive by sending a heartbeat, so cancel the cleanup.
-    if (participant.status === 'planned_cleanup') {
-      console.warn(
-        `[heartbeat] Restoring planned_cleanup participant to waiting: role=${args.role}`
-      );
-      await ctx.db.patch('chatroom_participants', participant._id, {
-        status: 'waiting',
-        readyUntil: now + HEARTBEAT_TTL_MS,
-        cleanupDeadline: undefined,
-        lastSeenAt: now,
-      });
-      return { status: 'ok' as const };
-    }
-
-    // Refresh readyUntil and lastSeenAt
-    await ctx.db.patch('chatroom_participants', participant._id, {
-      readyUntil: now + HEARTBEAT_TTL_MS,
-      lastSeenAt: now,
-    });
-
-    return { status: 'ok' as const };
-  },
-});
-
-/**
  * List all participants in a chatroom.
  * Requires CLI session authentication and chatroom access.
  */
@@ -276,7 +200,7 @@ export const updateStatus = mutation({
     status: v.union(v.literal('active'), v.literal('waiting')),
     // Optional: timestamp when the new status expires
     // For 'active': when agent is considered crashed (~1 hour)
-    // For 'waiting': when agent is considered disconnected (~1 min, governed by HEARTBEAT_TTL_MS)
+    // For 'waiting': when agent is considered disconnected (~1 min)
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {

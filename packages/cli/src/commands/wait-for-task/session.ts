@@ -10,7 +10,6 @@ import {
   type BackendErrorCode,
   FATAL_ERROR_CODES,
 } from '@workspace/backend/config/errorCodes.js';
-import { HEARTBEAT_INTERVAL_MS, HEARTBEAT_TTL_MS } from '@workspace/backend/config/reliability.js';
 import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
 import { ConvexError } from 'convex/values';
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -64,7 +63,6 @@ export interface SessionParams {
  */
 export class WaitForTaskSession {
   // --- Instance state ---
-  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private unsubscribe: (() => void) | null = null;
   private cleanedUp = false;
   private taskProcessed = false;
@@ -93,9 +91,8 @@ export class WaitForTaskSession {
   // Public entry point
   // -----------------------------------------------------------------------
 
-  /** Start the subscription, heartbeat, and signal handlers. */
+  /** Start the subscription and signal handlers. */
   async start(): Promise<void> {
-    this.startHeartbeat();
     this.registerSignalHandlers();
     await this.subscribe();
   }
@@ -151,16 +148,13 @@ export class WaitForTaskSession {
 
   /**
    * Cleanup helper — call on EVERY exit path.
-   * Clears the heartbeat interval and tells the backend this participant has left.
+   * Unsubscribes from the task subscription and tells the backend this participant has left.
    * Safe to call multiple times (idempotent).
    */
   private async cleanup(): Promise<void> {
     if (this.cleanedUp) return;
     this.cleanedUp = true;
 
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-    }
     if (this.unsubscribe) {
       this.unsubscribe();
     }
@@ -172,54 +166,8 @@ export class WaitForTaskSession {
         role: this.role,
       });
     } catch {
-      // Best-effort — if the backend is unreachable the heartbeat TTL will expire naturally
+      // Best-effort — if the backend is unreachable, leave is skipped
     }
-  }
-
-  // -----------------------------------------------------------------------
-  // Heartbeat
-  // -----------------------------------------------------------------------
-
-  private startHeartbeat(): void {
-    this.heartbeatTimer = setInterval(() => {
-      this.client
-        .mutation(api.participants.heartbeat, {
-          sessionId: this.sessionId,
-          chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
-          role: this.role,
-          connectionId: this.connectionId,
-        })
-        .then(async (result: { status: string } | null | undefined) => {
-          if (result?.status === 'rejoin_required') {
-            if (!this.silent) {
-              console.warn(`⚠️  Participant record missing — re-joining chatroom`);
-            }
-            await this.client.mutation(api.participants.join, {
-              sessionId: this.sessionId,
-              chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
-              role: this.role,
-              readyUntil: Date.now() + HEARTBEAT_TTL_MS,
-              connectionId: this.connectionId,
-            });
-
-            return;
-          }
-          // Consolidated superseded handling — delegates to shared method
-          if (result?.status === 'superseded') {
-            this.handleSuperseded();
-          }
-        })
-        .catch((err) => {
-          if (!this.silent) {
-            console.warn(
-              `⚠️  Heartbeat failed: ${sanitizeUnknownForTerminal((err as Error).message)}`
-            );
-          }
-        });
-    }, HEARTBEAT_INTERVAL_MS);
-
-    // Ensure the timer doesn't keep the Node process alive when we want to exit
-    this.heartbeatTimer.unref();
   }
 
   // -----------------------------------------------------------------------
@@ -421,10 +369,8 @@ export class WaitForTaskSession {
     // Mark as processed to prevent duplicate handling
     this.taskProcessed = true;
 
-    // Unsubscribe and stop heartbeat early — we've claimed the task and are
-    // transitioning to delivery.
+    // Unsubscribe early — we've claimed the task and are transitioning to delivery.
     if (this.unsubscribe) this.unsubscribe();
-    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.cleanedUp = true; // Prevent cleanup() from calling leave on exit
 
     try {
