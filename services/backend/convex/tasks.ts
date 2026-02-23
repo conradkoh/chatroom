@@ -14,6 +14,7 @@ import {
   requireChatroomAccess,
   validateSession,
 } from './auth/cliSessionAuth';
+import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { transitionTask } from '../src/domain/usecase/task/transition-task';
 
@@ -67,8 +68,6 @@ export const createTask = mutation({
     // Get next queue position atomically (prevents race conditions)
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
-    const now = Date.now();
-
     // Determine status
     let status: 'pending' | 'queued' | 'backlog';
     if (args.isBacklog) {
@@ -84,16 +83,14 @@ export const createTask = mutation({
     // Set origin field based on whether this is a backlog task
     const origin = args.isBacklog ? ('backlog' as const) : ('chat' as const);
 
-    const taskId = await ctx.db.insert('chatroom_tasks', {
+    const { taskId } = await createTaskUsecase(ctx, {
       chatroomId: args.chatroomId,
       createdBy: args.createdBy,
       content: args.content,
-      status,
-      origin,
+      forceStatus: status,
       sourceMessageId: args.sourceMessageId,
-      createdAt: now,
-      updatedAt: now,
       queuePosition,
+      origin,
     });
 
     return { taskId, status, queuePosition, origin };

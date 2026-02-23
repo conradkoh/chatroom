@@ -16,6 +16,7 @@ import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/web
 import { getConfig } from '../prompts/config/index.js';
 import { getCliEnvPrefix } from '../prompts/utils/index.js';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
+import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 
 const config = getConfig();
@@ -132,48 +133,26 @@ async function _sendMessageHandler(
     // Get next queue position atomically (prevents race conditions)
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
-    const now = Date.now();
-
-    // Determine task status:
-    // - Handoff messages to agents always start as 'pending' (targeted, not queued)
-    // - User messages check for existing pending/in_progress tasks
-    let taskStatus: 'pending' | 'queued';
-    if (isHandoffToAgent) {
-      // Handoffs are targeted to a specific agent and should start immediately
-      taskStatus = 'pending';
-    } else {
-      // User messages: check if any task is currently pending or in_progress
-      const activeTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .filter((q) =>
-          q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
-        )
-        .first();
-      taskStatus = activeTasks ? 'queued' : 'pending';
-    }
-
     // Determine the task creator and assignment
     const createdBy = isHandoffToAgent ? args.senderRole : 'user';
     const assignedTo = isHandoffToAgent ? targetRole : undefined;
 
-    // Create the task
-    const taskId = await ctx.db.insert('chatroom_tasks', {
+    // Create the task via the use case
+    // - Handoff messages to agents always start as 'pending' (targeted, not queued)
+    // - User messages: auto-detect pending vs queued based on existing active tasks
+    const { taskId } = await createTaskUsecase(ctx, {
       chatroomId: args.chatroomId,
       createdBy,
       content: args.content,
-      status: taskStatus,
-      sourceMessageId: messageId,
-      createdAt: now,
-      updatedAt: now,
-      queuePosition,
+      forceStatus: isHandoffToAgent ? 'pending' : undefined,
       assignedTo,
-      // Store attached backlog tasks on the main task
-      ...(args.attachedTaskIds &&
-        args.attachedTaskIds.length > 0 && {
-          attachedTaskIds: args.attachedTaskIds,
-        }),
+      sourceMessageId: messageId,
+      attachedTaskIds: args.attachedTaskIds,
+      queuePosition,
+      origin: 'chat',
     });
+
+    const now = Date.now();
 
     // Update message with taskId reference
     await ctx.db.patch('chatroom_messages', messageId, { taskId });
@@ -399,17 +378,17 @@ async function _handoffHandler(
     // Get next queue position atomically (prevents race conditions)
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
-    newTaskId = await ctx.db.insert('chatroom_tasks', {
+    const { taskId: createdTaskId } = await createTaskUsecase(ctx, {
       chatroomId: args.chatroomId,
       createdBy: args.senderRole,
       content: args.content,
-      status: 'pending', // Handoffs always start as pending
-      sourceMessageId: messageId,
-      createdAt: now,
-      updatedAt: now,
-      queuePosition,
+      forceStatus: 'pending', // Handoffs always start as pending
       assignedTo: args.targetRole,
+      sourceMessageId: messageId,
+      queuePosition,
+      origin: 'chat',
     });
+    newTaskId = createdTaskId;
 
     // Link message to task
     await ctx.db.patch('chatroom_messages', messageId, { taskId: newTaskId });
