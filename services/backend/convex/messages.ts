@@ -11,12 +11,12 @@ import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliS
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
 import { getCompletionStatus } from './lib/taskWorkflows';
-import { transitionTask, type TaskStatus } from './usecases/transition-task';
 import { generateFullCliOutput } from '../prompts/base/cli/wait-for-task/fullOutput.js';
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
 import { getCliEnvPrefix } from '../prompts/utils/index.js';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
+import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 
 const config = getConfig();
 

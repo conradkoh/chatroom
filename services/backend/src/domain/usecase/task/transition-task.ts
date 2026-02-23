@@ -18,18 +18,18 @@
  * ## Callers
  *
  * All callers should import from this module:
- *   import { transitionTask } from './usecases/transition-task'
+ *   import { transitionTask } from '../src/domain/usecase/task/transition-task'
  *
  * The FSM rules, type definitions, and helper functions remain in
  * lib/taskStateMachine.ts as the authoritative implementation.
  */
 
 import { promoteNextTask } from './promote-next-task';
-import type { Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
-import { areAllAgentsIdle } from '../auth/cliSessionAuth';
-import type { Task, TaskStatus } from '../lib/taskStateMachine';
-import { transitionTask as fsmTransitionTask } from '../lib/taskStateMachine';
+import type { Id } from '../../../../convex/_generated/dataModel';
+import type { MutationCtx } from '../../../../convex/_generated/server';
+import { areAllAgentsIdle } from '../../../../convex/auth/cliSessionAuth';
+import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
+import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 
 // ============================================================================
 // TERMINAL STATES THAT TRIGGER QUEUE PROMOTION
@@ -96,4 +96,4 @@ export async function transitionTask(
 }
 
 // Re-export the TaskStatus type so callers only need one import path
-export type { TaskStatus } from '../lib/taskStateMachine';
+export type { TaskStatus } from '../../../../convex/lib/taskStateMachine';

@@ -26,7 +26,7 @@
  * 6. Return `{ promoted: taskId, reason: 'success' }`
  */
 
-import type { Id } from '../_generated/dataModel';
+import type { Id } from '../../../../convex/_generated/dataModel';
 
 // ============================================================================
 // DEPENDENCY INTERFACES

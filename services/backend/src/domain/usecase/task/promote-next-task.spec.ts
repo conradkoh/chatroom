@@ -8,7 +8,7 @@
 import { describe, expect, test, vi } from 'vitest';
 
 import { type PromoteNextTaskDeps, type QueuedTask, promoteNextTask } from './promote-next-task';
-import type { Id } from '../_generated/dataModel';
+import type { Id } from '../../../../convex/_generated/dataModel';
 
 // ---------------------------------------------------------------------------
 // Helpers

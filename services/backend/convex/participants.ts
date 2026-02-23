@@ -6,7 +6,7 @@ import { mutation, query } from './_generated/server';
 import { areAllAgentsIdle, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
-import { promoteNextTask } from './usecases/promote-next-task';
+import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
 
 /**
  * Join a chatroom as a participant.
