@@ -324,7 +324,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
                   <div className="flex gap-2">
                     <span className="text-chatroom-text-muted w-16 shrink-0">Model</span>
                     <span
-                      className={`font-medium ${teamConfig.model ? 'text-chatroom-text-primary' : 'text-yellow-500 dark:text-yellow-400'}`}
+                      className={`font-medium ${teamConfig.model ? 'text-chatroom-text-primary' : 'text-chatroom-status-warning'}`}
                     >
                       {teamConfig.model || 'Not set'}
                     </span>

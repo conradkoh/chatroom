@@ -8,7 +8,7 @@ import { useChatroomListing, type ChatroomWithStatus } from '../context/Chatroom
 
 // Status indicator colors - using squares per theme guidelines
 const getStatusIndicatorClasses = (chatStatus: ChatroomWithStatus['chatStatus']) => {
-  const base = 'w-1.5 h-1.5 flex-shrink-0 rounded-full';
+  const base = 'w-1.5 h-1.5 flex-shrink-0';
   switch (chatStatus) {
     case 'working':
       return `${base} bg-chatroom-status-info`;
