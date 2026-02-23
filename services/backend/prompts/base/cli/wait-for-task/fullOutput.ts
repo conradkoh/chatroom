@@ -267,9 +267,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     `  messages → \`${cliEnvPrefix}chatroom messages list --chatroom-id=${chatroomId} --role=${role} --sender-role=user --limit=5 --full\``
   );
   lines.push(
-    `  task-complete → \`${cliEnvPrefix}chatroom task-complete --chatroom-id=${chatroomId} --role=${role}\``
-  );
-  lines.push(
     `  backlog → \`${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog\``
   );
   lines.push('  git log → `git log --oneline -10`');

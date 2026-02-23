@@ -7,7 +7,6 @@
 
 import { getCliEnvPrefix } from '../../../utils/index.js';
 import { contextNewCommand } from '../context/new.js';
-import { taskCompleteCommand } from '../task-complete/command.js';
 
 export interface AvailableActionsParams {
   chatroomId: string;
@@ -48,13 +47,6 @@ Check recent commits for implementation context.
 
 \`\`\`bash
 git log --oneline -10
-\`\`\`
-
-### Complete Task
-Mark current task as complete without handing off to another role.
-
-\`\`\`bash
-${taskCompleteCommand({ chatroomId, role, cliEnvPrefix })}
 \`\`\`
 
 ### Backlog

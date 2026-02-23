@@ -141,7 +141,6 @@ describe('Available Actions (Task Delivery)', () => {
     expect(actions).toContain('### Gain Context');
     expect(actions).toContain('### List Messages');
     expect(actions).toContain('### View Code Changes');
-    expect(actions).toContain('### Complete Task');
     expect(actions).toContain('### Backlog');
 
     // Should inject CHATROOM_CONVEX_URL properly

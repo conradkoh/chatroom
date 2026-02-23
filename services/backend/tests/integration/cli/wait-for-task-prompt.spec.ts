@@ -413,7 +413,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       Reference commands:
         context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=builder\`
         messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=10002;chatroom_rooms --role=builder --sender-role=user --limit=5 --full\`
-        task-complete → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=10002;chatroom_rooms --role=builder\`
         backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10002;chatroom_rooms --role=builder --status=backlog\`
         git log → \`git log --oneline -10\`
       </process>
@@ -502,7 +501,6 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(fullOutput).toContain('context read');
     expect(fullOutput).toContain('messages');
     expect(fullOutput).toContain('git log');
-    expect(fullOutput).toContain('task-complete');
     expect(fullOutput).toContain('backlog');
     expect(fullOutput).toContain(`chatroom backlog list --chatroom-id=${chatroomId}`);
 
@@ -1618,7 +1616,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       Reference commands:
         context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10062;chatroom_rooms --role=reviewer\`
         messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=10062;chatroom_rooms --role=reviewer --sender-role=user --limit=5 --full\`
-        task-complete → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=10062;chatroom_rooms --role=reviewer\`
         backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10062;chatroom_rooms --role=reviewer --status=backlog\`
         git log → \`git log --oneline -10\`
       </process>
