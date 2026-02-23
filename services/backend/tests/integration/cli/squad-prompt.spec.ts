@@ -4,7 +4,7 @@
  * Tests the prompt generation for the squad team (planner/builder/reviewer),
  * including init prompts, role-specific guidance, and dynamic workflow variants.
  *
- * Follows the same patterns as wait-for-task-prompt.spec.ts for the pair team.
+ * Follows the same patterns as get-next-task-prompt.spec.ts for the pair team.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
