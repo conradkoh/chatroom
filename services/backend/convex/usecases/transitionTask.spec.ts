@@ -41,9 +41,13 @@ async function joinParticipants(
   chatroomId: Id<'chatroom_rooms'>,
   roles: string[]
 ): Promise<void> {
-  const readyUntil = Date.now() + 10 * 60 * 1000;
   for (const role of roles) {
-    await t.mutation(api.participants.join, { sessionId, chatroomId, role, readyUntil });
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role,
+      action: 'wait-for-task:started',
+    });
   }
 }
 
@@ -194,38 +198,6 @@ describe('transitionTask usecase — valid transitions', () => {
     });
     const promotedTask = tasks.find((t) => t._id === queuedTaskId);
     expect(promotedTask?.status).toBe('pending');
-  });
-
-  test('in_progress → pending via resetStuckTask (clears assignedTo, startedAt, acknowledgedAt)', async () => {
-    const { sessionId } = await createTestSession('tt-valid-5');
-    const chatroomId = await createChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
-
-    await t.mutation(api.messages.sendMessage, {
-      sessionId,
-      chatroomId,
-      content: 'Stuck task',
-      senderRole: 'user',
-      type: 'message',
-    });
-
-    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
-    const startResult = await t.mutation(api.tasks.startTask, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-    });
-    const taskId = startResult.taskId;
-
-    const resetResult = await t.mutation(api.tasks.resetStuckTask, { sessionId, taskId });
-    expect(resetResult.success).toBe(true);
-
-    const tasks = await t.query(api.tasks.listTasks, { sessionId, chatroomId, limit: 100 });
-    const task = tasks.find((t) => t._id === taskId);
-    expect(task?.status).toBe('pending');
-    expect(task?.assignedTo).toBeUndefined(); // cleared by FSM
-    expect(task?.startedAt).toBeUndefined(); // cleared by FSM
-    expect(task?.acknowledgedAt).toBeUndefined(); // cleared by FSM
   });
 });
 

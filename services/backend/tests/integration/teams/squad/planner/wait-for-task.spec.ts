@@ -90,7 +90,6 @@ describe('Squad Team > Planner > Wait For Task', () => {
       Reference commands:
         context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=test-chatroom-id --role=planner\`
         messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=test-chatroom-id --role=planner --sender-role=user --limit=5 --full\`
-        task-complete → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=test-chatroom-id --role=planner\`
         backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=test-chatroom-id --role=planner --status=backlog\`
         git log → \`git log --oneline -10\`
       </process>
@@ -201,7 +200,6 @@ describe('Squad Team > Planner > Wait For Task', () => {
       Reference commands:
         context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=test-chatroom-id --role=planner\`
         messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=test-chatroom-id --role=planner --sender-role=user --limit=5 --full\`
-        task-complete → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-complete --chatroom-id=test-chatroom-id --role=planner\`
         backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=test-chatroom-id --role=planner --status=backlog\`
         git log → \`git log --oneline -10\`
       </process>
