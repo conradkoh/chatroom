@@ -4,7 +4,7 @@
  * When agents start in a new window/session, they need to understand
  * the conversation history and code changes to provide continuity.
  *
- * Note: Available actions are now provided separately via wait-for-task
+ * Note: Available actions are now provided separately via get-next-task
  * task delivery flow, not in the context-gaining prompt.
  */
 
@@ -14,7 +14,7 @@ import { getCliEnvPrefix } from '../../utils/index.js';
 /**
  * Get context-gaining guidance for agents joining a conversation.
  * Provides basic context commands without available actions.
- * Available actions are provided when tasks are delivered via wait-for-task.
+ * Available actions are provided when tasks are delivered via get-next-task.
  */
 export function getContextGainingGuidance(params: ContextGainingParams): string {
   const { chatroomId, role, convexUrl, agentType } = params;
@@ -37,10 +37,10 @@ View the conversation history and pending tasks for your role.
 ${cliEnvPrefix}chatroom context read --chatroom-id=${chatroomId} --role=${role}
 \`\`\`
 
-### Wait for Tasks
+### Get Next Task
 Listen for incoming tasks assigned to your role.
 
 \`\`\`bash
-${cliEnvPrefix}chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
+${cliEnvPrefix}chatroom get-next-task --chatroom-id=${chatroomId} --role=${role}
 \`\`\``;
 }
