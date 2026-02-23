@@ -309,6 +309,10 @@ export default defineSchema({
     //   "wait-for-task:started" — written when the loop begins
     //   "wait-for-task:stopped" — written just before the loop exits
     lastSeenAction: v.optional(v.string()),
+    // Timestamp of the last token output observed from the agent.
+    // Written by the CLI whenever the agent produces output (throttled to once per 30s).
+    // Used to detect stuck agents that have stopped producing output mid-task.
+    lastSeenTokenAt: v.optional(v.number()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role']),

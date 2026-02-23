@@ -179,6 +179,34 @@ export const leave = mutation({
 });
 
 /**
+ * Update the last token activity timestamp for a participant.
+ * Called by the CLI whenever the agent produces output (throttled to once per 30s).
+ * Used to detect stuck agents that have stopped producing output mid-task.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const updateTokenActivity = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .unique();
+    if (participant) {
+      await ctx.db.patch('chatroom_participants', participant._id, {
+        lastSeenTokenAt: Date.now(),
+      });
+    }
+  },
+});
+
+/**
  * Get a participant by role.
  * Requires CLI session authentication and chatroom access.
  */
