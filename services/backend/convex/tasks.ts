@@ -103,7 +103,7 @@ export const createTask = mutation({
 /**
  * Claim a pending task (acknowledge it without starting work yet).
  * Transitions: pending → acknowledged
- * This is called by wait-for-task to reserve a task for an agent.
+ * This is called by get-next-task to reserve a task for an agent.
  * Requires CLI session authentication and chatroom access.
  */
 export const claimTask = mutation({
@@ -1227,8 +1227,8 @@ export const getTaskCounts = query({
 
 /**
  * Get all pending tasks for a role.
- * Returns a structured WaitForTaskResponse union type instead of throwing.
- * Used by wait-for-task to find work items.
+ * Returns a structured GetNextTaskResponse union type instead of throwing.
+ * Used by get-next-task to find work items.
  * Requires CLI session authentication and chatroom access.
  */
 export const getPendingTasksForRole = query({
@@ -1293,12 +1293,25 @@ export const getPendingTasksForRole = query({
         )
         .collect();
 
+      // Also get in_progress tasks for recovery
+      // If an agent died mid-task, the task remains in_progress.
+      // Returning it here allows the recovered agent to resume work
+      // without losing context or requiring manual intervention.
+      const inProgressTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+        )
+        .collect();
+
       // Filter for tasks relevant to this role
       const relevantPending = pendingTasks.filter(isRelevantForRole);
       const relevantAcknowledged = acknowledgedTasks.filter(isRelevantForRole);
+      const relevantInProgress = inProgressTasks.filter(isRelevantForRole);
 
-      // Combine: pending first, then acknowledged (pending tasks have priority)
-      const relevantTasks = [...relevantPending, ...relevantAcknowledged];
+      // Combine: pending first, then acknowledged, then in_progress
+      // Priority order ensures fresh tasks are picked up before resuming in-flight ones
+      const relevantTasks = [...relevantPending, ...relevantAcknowledged, ...relevantInProgress];
 
       // Sort by queuePosition (oldest first)
       relevantTasks.sort((a, b) => a.queuePosition - b.queuePosition);

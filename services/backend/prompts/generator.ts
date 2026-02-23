@@ -6,9 +6,9 @@
  * LOW-LEVEL GENERATORS (building blocks):
  *   - generateGeneralInstructions() — general behavioral instructions
  *     (future: customizable per chatroom / user level)
- *     Currently used by the CLI envelope (wait-for-task.ts) for the init header.
+ *     Currently used by the CLI envelope (get-next-task.ts) for the init header.
  *   - generateRolePrompt() — role-specific identity, guidance, workflow, and commands
- *     (used on every wait-for-task message to combat context rot)
+ *     (used on every get-next-task message to combat context rot)
  *
  * FINAL OUTPUT COMPOSERS (compose low-level generators for specific delivery modes):
  *   - composeSystemPrompt() — full agent setup prompt (role identity, getting started,
@@ -17,16 +17,16 @@
  *   - composeInitMessage() — first user message (reserved for future use)
  *   - composeInitPrompt() — returns all three forms so the caller can choose
  *
- * Note: General instructions (wait-for-task guidance) are provided by the CLI
- * envelope (wait-for-task.ts), NOT embedded in server-side prompts, to avoid
+ * Note: General instructions (get-next-task guidance) are provided by the CLI
+ * envelope (get-next-task.ts), NOT embedded in server-side prompts, to avoid
  * duplication.
  */
 
+import { getNextTaskCommand } from './base/cli/get-next-task/command.js';
+import { getNextTaskGuidance } from './base/cli/get-next-task/reminder.js';
 import { handoffCommand } from './base/cli/handoff/command.js';
 import { reportProgressCommand } from './base/cli/report-progress/command.js';
 import { getBaseRoleGuidanceFromContext } from './base/cli/roles/fromContext.js';
-import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
-import { getWaitForTaskGuidance } from './base/cli/wait-for-task/reminder.js';
 import { getClassificationGuideSection } from './sections/classification-guide.js';
 import { getCommandsReferenceSection } from './sections/commands-reference.js';
 import { getCurrentClassificationSection } from './sections/current-classification.js';
@@ -71,11 +71,11 @@ export interface GeneralInstructionsInput {
  * Future: This will be customizable at the chatroom and user level.
  */
 export function generateGeneralInstructions(_input?: GeneralInstructionsInput): string {
-  // Currently returns the wait-for-task guidance as the core general instruction.
+  // Currently returns the get-next-task guidance as the core general instruction.
   // Future: merge with chatroom-level and user-level custom instructions.
   const sections: string[] = [];
 
-  sections.push(getWaitForTaskGuidance());
+  sections.push(getNextTaskGuidance());
 
   return sections.join('\n\n');
 }
@@ -528,8 +528,8 @@ export interface ComposedInitPrompt {
  * instructions (Getting Started), task classification guide, role guidance,
  * and CLI commands. This matches the original init prompt structure.
  *
- * Note: General instructions (wait-for-task guidance) are NOT included here
- * because the CLI envelope (wait-for-task.ts) already provides them in the
+ * Note: General instructions (get-next-task guidance) are NOT included here
+ * because the CLI envelope (get-next-task.ts) already provides them in the
  * initialization header. Including them here would cause duplication.
  */
 export function composeSystemPrompt(input: InitPromptInput): string {
@@ -561,7 +561,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   sections.push(getRoleTitleSection(selectorCtx));
   sections.push(getRoleDescriptionSection(selectorCtx));
 
-  // Context-gaining: Getting Started commands (context read, wait-for-task)
+  // Context-gaining: Getting Started commands (context read, get-next-task)
   sections.push(getGettingStartedSection(selectorCtx));
 
   // Task classification / acknowledgement commands
@@ -581,7 +581,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
     })
   );
 
-  // Command reference (handoff, progress, wait-for-task)
+  // Command reference (handoff, progress, get-next-task)
   sections.push(
     getCommandsReferenceSection({
       chatroomId,
@@ -600,7 +600,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
  * Generate the output shown after a successful handoff command.
  *
  * This is the prompt the agent sees after running `chatroom handoff`.
- * It confirms the handoff and reminds the agent to run `wait-for-task`
+ * It confirms the handoff and reminds the agent to run `get-next-task`
  * to continue receiving messages.
  */
 export function generateHandoffOutput(params: {
@@ -615,7 +615,7 @@ export function generateHandoffOutput(params: {
   const lines: string[] = [];
   lines.push(`✅ Task completed and handed off to ${nextRole}`);
   lines.push('');
-  lines.push(`⏳ Next → \`${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
+  lines.push(`⏳ Next → \`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
 
   return lines.join('\n');
 }

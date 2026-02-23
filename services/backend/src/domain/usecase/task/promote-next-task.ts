@@ -49,7 +49,7 @@ export interface QueuedTask {
 export interface PromoteNextTaskDeps {
   /**
    * Returns true if every participant in the chatroom has
-   * `lastSeenAction === 'wait-for-task:started'`.
+   * `lastSeenAction === 'get-next-task:started'`.
    */
   areAllAgentsIdle: (chatroomId: Id<'chatroom_rooms'>) => Promise<boolean>;
 

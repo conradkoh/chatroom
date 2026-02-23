@@ -139,7 +139,7 @@ const agentHarnessValidator = v.literal('opencode');
 /**
  * Register or update a machine.
  *
- * Called by CLI on every wait-for-task startup.
+ * Called by CLI on every get-next-task startup.
  * Creates new machine record or updates existing one.
  */
 // Harness version validator
@@ -216,7 +216,7 @@ export const register = mutation({
 /**
  * Update agent configuration for a chatroom+role on a machine.
  *
- * Called by CLI when wait-for-task starts.
+ * Called by CLI when get-next-task starts.
  * Stores the working directory and agent type for remote restarts.
  */
 export const updateAgentConfig = mutation({
@@ -260,7 +260,7 @@ export const updateAgentConfig = mutation({
       )
       .first();
 
-    // Preserve existing model if the new value is undefined (e.g. wait-for-task doesn't pass model)
+    // Preserve existing model if the new value is undefined (e.g. get-next-task doesn't pass model)
     const resolvedModel = args.model ?? existing?.model;
 
     if (existing) {

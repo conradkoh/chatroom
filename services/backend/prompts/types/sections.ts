@@ -75,7 +75,7 @@ export type SectionId =
   // Commands
   | 'command-handoff'
   | 'command-report-progress'
-  | 'command-wait-for-task'
+  | 'command-get-next-task'
   | 'commands-reference'
   // Actions (task delivery)
   | 'available-actions'
@@ -85,8 +85,8 @@ export type SectionId =
   | 'review-policies'
   // Next Step
   | 'next-step'
-  // Wait-for-task
-  | 'wait-for-task-reminder';
+  // Get-next-task reminder
+  | 'get-next-task-reminder';
 
 /**
  * Helper to create a PromptSection with type safety.

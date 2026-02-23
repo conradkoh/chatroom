@@ -80,11 +80,11 @@ export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [] as const;
  * - `tasks`: Pending/acknowledged tasks available for the role
  * - `no_tasks`: No tasks available, keep waiting
  * - `grace_period`: Recently acknowledged task within recovery window
- * - `superseded`: Another wait-for-task process took over this role
+ * - `superseded`: Another get-next-task process took over this role
  * - `reconnect`: Backend wants the CLI to restart its connection
  * - `error`: A structured error with a code, message, and fatality flag
  */
-export type WaitForTaskResponse =
+export type GetNextTaskResponse =
   | {
       type: 'tasks';
       tasks: {
@@ -102,3 +102,6 @@ export type WaitForTaskResponse =
       message: string;
       fatal: boolean;
     };
+
+/** @deprecated Use GetNextTaskResponse instead */
+export type WaitForTaskResponse = GetNextTaskResponse;

@@ -294,9 +294,9 @@ export default defineSchema({
   chatroom_participants: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    // Unique connection ID for the current wait-for-task session
-    // Used to detect concurrent wait-for-task processes and terminate old ones
-    // When a new wait-for-task starts, it generates a new connectionId
+    // Unique connection ID for the current get-next-task session
+    // Used to detect concurrent get-next-task processes and terminate old ones
+    // When a new get-next-task starts, it generates a new connectionId
     // The old process detects the mismatch and exits cleanly
     connectionId: v.optional(v.string()),
     // Agent type — 'custom' or 'remote'
@@ -305,9 +305,10 @@ export default defineSchema({
     // Populated by participants.join on every check-in.
     lastSeenAt: v.optional(v.number()),
     // The name of the CLI command last run by this participant.
-    // For wait-for-task (persistent connection), two distinct action names are used:
-    //   "wait-for-task:started" — written when the loop begins
-    //   "wait-for-task:stopped" — written just before the loop exits
+    // For get-next-task (persistent connection), two distinct action names are used:
+    //   "get-next-task:started" — written when the loop begins
+    //   "get-next-task:stopped" — written just before the loop exits
+    // Legacy aliases: "wait-for-task:started" / "wait-for-task:stopped" also accepted
     lastSeenAction: v.optional(v.string()),
     // Timestamp of the last token output observed from the agent.
     // Written by the CLI whenever the agent produces output (throttled to once per 30s).
@@ -408,7 +409,7 @@ export default defineSchema({
       v.literal('backlog'), // Backlog origin: initial state, task is in backlog tab
       v.literal('queued'), // Waiting in line (hidden from agent)
       v.literal('pending'), // Ready for agent to pick up
-      v.literal('acknowledged'), // Agent claimed task via wait-for-task, not yet started
+      v.literal('acknowledged'), // Agent claimed task via get-next-task, not yet started
       v.literal('in_progress'), // Agent actively working on it
       v.literal('backlog_acknowledged'), // Backlog task attached to message, visible to agent
       v.literal('pending_user_review'), // Backlog only: agent done, user must confirm
@@ -429,7 +430,7 @@ export default defineSchema({
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
-    acknowledgedAt: v.optional(v.number()), // When agent claimed task via wait-for-task
+    acknowledgedAt: v.optional(v.number()), // When agent claimed task via get-next-task
     startedAt: v.optional(v.number()), // When task-started was called
     completedAt: v.optional(v.number()), // When task-complete was called
 

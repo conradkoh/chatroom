@@ -14,18 +14,18 @@ import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
  * When the entry point (primary) role joins, auto-promotes queued tasks if no active task exists.
  * Requires CLI session authentication and chatroom access.
  *
- * The connectionId is used to detect concurrent wait-for-task processes.
- * When a new wait-for-task starts, it generates a unique connectionId.
+ * The connectionId is used to detect concurrent get-next-task processes.
+ * When a new get-next-task starts, it generates a unique connectionId.
  * Any old process with a different connectionId should detect the mismatch and exit.
  *
- * The action parameter records the CLI command that triggered the join (e.g. 'wait-for-task:started').
+ * The action parameter records the CLI command that triggered the join (e.g. 'get-next-task:started').
  */
 export const join = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    // Unique connection ID to detect concurrent wait-for-task processes
+    // Unique connection ID to detect concurrent get-next-task processes
     connectionId: v.optional(v.string()),
     // Agent type — 'custom' or 'remote'
     agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
@@ -265,7 +265,7 @@ export const getHighestPriorityWaitingRole = query({
 
 /**
  * Get the current connection ID for a participant.
- * Used by CLI to detect if another wait-for-task process has taken over.
+ * Used by CLI to detect if another get-next-task process has taken over.
  * If the returned connectionId differs from the caller's, the caller should exit.
  * Requires CLI session authentication and chatroom access.
  */

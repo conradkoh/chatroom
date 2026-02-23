@@ -54,13 +54,16 @@ export interface HandoffParams extends CommandContext {
 }
 
 // ============================================================================
-// wait-for-task command types
+// get-next-task command types
 // ============================================================================
 
-export interface WaitForTaskParams extends CommandContext {
+export interface GetNextTaskParams extends CommandContext {
   chatroomId?: string;
   role?: string;
 }
+
+/** @deprecated Use GetNextTaskParams instead */
+export type WaitForTaskParams = GetNextTaskParams;
 
 // ============================================================================
 // report-progress command types

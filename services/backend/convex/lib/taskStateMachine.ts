@@ -26,7 +26,7 @@ import type { MutationCtx } from '../_generated/server';
 export type TaskStatus =
   // User message flow
   | 'pending' // Created, waiting for agent
-  | 'acknowledged' // Agent claimed via wait-for-task
+  | 'acknowledged' // Agent claimed via get-next-task
   | 'in_progress' // Agent started work via task-started
   | 'completed' // Work finished
 

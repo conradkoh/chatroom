@@ -11,7 +11,7 @@ import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliS
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
 import { getCompletionStatus } from './lib/taskWorkflows';
-import { generateFullCliOutput } from '../prompts/base/cli/wait-for-task/fullOutput.js';
+import { generateFullCliOutput } from '../prompts/base/cli/get-next-task/fullOutput.js';
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
 import { getCliEnvPrefix } from '../prompts/utils/index.js';
@@ -1539,7 +1539,7 @@ export const inspectFeature = query({
 /**
  * Get role-specific prompt for an agent.
  * Returns a prompt tailored to the role, current task context, and available actions.
- * Designed to be called with every wait-for-task to provide fresh context.
+ * Designed to be called with every get-next-task to provide fresh context.
  * Requires CLI session authentication and chatroom access.
  */
 export const getRolePrompt = query({
@@ -1688,7 +1688,7 @@ export const getInitPrompt = query({
 
 /**
  * Get the complete task delivery prompt for an agent receiving a task.
- * This is called when wait-for-task receives a task, replacing the
+ * This is called when get-next-task receives a task, replacing the
  * local prompt construction in the CLI.
  *
  * Returns both human-readable prompt sections and structured JSON data.
@@ -2352,7 +2352,7 @@ export const getContextForRole = query({
     );
 
     // Filter out messages with pending/acknowledged tasks — agents should only
-    // discover these through wait-for-task, not context read
+    // discover these through get-next-task, not context read
     const filteredMessages = enrichedMessages.filter((msg) => {
       if (msg.taskStatus === 'pending' || msg.taskStatus === 'acknowledged') {
         return false;

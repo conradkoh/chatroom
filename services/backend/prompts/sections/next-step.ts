@@ -4,7 +4,7 @@
  * The final "next action" guidance in the init prompt.
  */
 
-import { waitForTaskCommand } from '../base/cli/wait-for-task/command.js';
+import { getNextTaskCommand } from '../base/cli/get-next-task/command.js';
 import type { PromptSection } from '../types/sections.js';
 import { createSection } from '../types/sections.js';
 import { getCliEnvPrefix } from '../utils/index.js';
@@ -16,11 +16,11 @@ export interface NextStepParams {
 }
 
 /**
- * Generate the next step section (typically "Run wait-for-task").
+ * Generate the next step section (typically "Run get-next-task").
  */
 export function getNextStepSection(params: NextStepParams): PromptSection {
   const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
-  const waitCmd = waitForTaskCommand({
+  const waitCmd = getNextTaskCommand({
     chatroomId: params.chatroomId,
     role: params.role,
     cliEnvPrefix,

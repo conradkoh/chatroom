@@ -2,7 +2,7 @@
  * Centralized Reliability & Timing Configuration
  *
  * All timing constants that govern agent liveness detection and daemon health.
- * These values are shared across the CLI (`wait-for-task`, `daemon-start`),
+ * These values are shared across the CLI (`get-next-task`, `daemon-start`),
  * the backend (Convex mutations/cron), and the frontend (display logic).
  *
  * ## Sections
@@ -42,7 +42,7 @@ export const HEARTBEAT_TTL_MS = 90_000; // 90s (Plan 026: increased from 60s)
  * while the agent is genuinely working.
  *
  * For `ready` state the shorter HEARTBEAT_TTL_MS applies, since a ready agent should
- * be in `wait-for-task` which heartbeats every 30s.
+ * be in `get-next-task` which heartbeats every 30s.
  */
 export const LIFECYCLE_WORKING_HEARTBEAT_TTL_MS = 600_000; // 10 min
 
