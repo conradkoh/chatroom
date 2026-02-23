@@ -544,7 +544,9 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
         role: 'builder',
       });
 
-      expect(completeResult.promoted).toBe(queuedTaskId);
+      // `promoted` field was removed — promotion now happens implicitly inside transitionTask usecase.
+      // Verify the queued task was actually promoted to pending instead (checked below).
+      void completeResult;
 
       // Verify second task is now pending
       tasks = await t.query(api.tasks.listTasks, {

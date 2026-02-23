@@ -5,7 +5,8 @@ import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsIdle, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
-import { transitionTask } from './usecases/transitionTask';
+import { transitionTask } from './lib/taskStateMachine';
+import { promoteNextTask } from './usecases/promote-next-task';
 
 /**
  * Join a chatroom as a participant.
@@ -86,7 +87,10 @@ export const join = mutation({
     const normalizedEntryPoint = entryPoint?.toLowerCase();
 
     if (normalizedRole === normalizedEntryPoint) {
-      // Check if there's an active task (pending or in_progress)
+      // Check if there's an active task (pending or in_progress).
+      // Promotion is only attempted when no active task exists — this guard is
+      // unique to the join scenario (no task transition fires here, so the
+      // transitionTask usecase's auto-promotion won't trigger).
       const activeTasks = await ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -95,33 +99,23 @@ export const join = mutation({
         )
         .collect();
 
-      // Only promote if no active tasks AND all agents are idle (waiting for task)
-      const allAgentsIdle = await areAllAgentsIdle(ctx, args.chatroomId);
-
-      if (activeTasks.length === 0 && allAgentsIdle) {
-        const queuedTasks = await ctx.db
-          .query('chatroom_tasks')
-          .withIndex('by_chatroom_status', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
-          )
-          .collect();
-
-        if (queuedTasks.length > 0) {
-          // Sort by queuePosition to get oldest
-          queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-          const nextTask = queuedTasks[0];
-
-          await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
-
-          console.warn(
-            `[Auto-Promote on Join] Primary role "${args.role}" joined (all agents ready). Promoted task ${nextTask._id} to pending. ` +
-              `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
-          );
-        }
-      } else if (activeTasks.length === 0 && !allAgentsIdle) {
-        console.warn(
-          `[Auto-Promote Deferred] Primary role "${args.role}" joined but some agents are not yet idle. Queue promotion deferred.`
-        );
+      if (activeTasks.length === 0) {
+        await promoteNextTask(args.chatroomId, {
+          areAllAgentsIdle: (chatroomId) => areAllAgentsIdle(ctx, chatroomId),
+          getOldestQueuedTask: async (chatroomId) => {
+            const tasks = await ctx.db
+              .query('chatroom_tasks')
+              .withIndex('by_chatroom_status', (q) =>
+                q.eq('chatroomId', chatroomId).eq('status', 'queued')
+              )
+              .collect();
+            if (tasks.length === 0) return null;
+            tasks.sort((a, b) => a.queuePosition - b.queuePosition);
+            return tasks[0] ?? null;
+          },
+          transitionTaskToPending: (nextTaskId) =>
+            transitionTask(ctx, nextTaskId, 'pending', 'promoteNextTask'),
+        });
       }
     }
 

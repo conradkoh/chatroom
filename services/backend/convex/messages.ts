@@ -7,15 +7,11 @@ import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } fr
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import {
-  areAllAgentsIdle,
-  getAndIncrementQueuePosition,
-  requireChatroomAccess,
-} from './auth/cliSessionAuth';
+import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
-import { transitionTask, type TaskStatus } from './usecases/transitionTask';
 import { getCompletionStatus } from './lib/taskWorkflows';
+import { transitionTask, type TaskStatus } from './usecases/transitionTask';
 import { generateFullCliOutput } from '../prompts/base/cli/wait-for-task/fullOutput.js';
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
@@ -471,41 +467,8 @@ async function _handoffHandler(
     }
   }
 
-  // Step 6: Promote next queued task only if ALL agents are ready (not active)
-  // This ensures queued tasks are only promoted when the team is ready
-  let promotedTaskId: Id<'chatroom_tasks'> | null = null;
-
-  // Check if we're handing off to a specific agent (not the queue)
-  // Handoffs to specific agents don't trigger queue promotion - the target agent gets a dedicated task
-  // Queue promotion only happens when all agents are idle
-  if (isHandoffToUser) {
-    // When handing off to user, check if all agents are idle for queue promotion
-    const allAgentsIdle = await areAllAgentsIdle(ctx, args.chatroomId);
-
-    if (allAgentsIdle) {
-      const queuedTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
-        )
-        .collect();
-
-      if (queuedTasks.length > 0) {
-        queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-        const nextTask = queuedTasks[0];
-        await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
-        promotedTaskId = nextTask._id;
-        console.warn(
-          `[handoff] Promoted queued task ${nextTask._id} to pending (all agents idle after handoff to user)`
-        );
-      }
-    } else {
-      console.warn(
-        `[handoff] Skipping queue promotion - some agents are not yet idle after handoff to user`
-      );
-    }
-  }
-  // For handoffs to other agents, no queue promotion - the handoff already creates a pending task for the target
+  // Step 6: Queue promotion is now handled automatically by the transitionTask usecase
+  // whenever a task transitions to 'completed'. No inline promotion needed here.
 
   return {
     success: true,
@@ -513,7 +476,7 @@ async function _handoffHandler(
     messageId,
     completedTaskIds,
     newTaskId,
-    promotedTaskId,
+    promotedTaskId: null,
   };
 }
 

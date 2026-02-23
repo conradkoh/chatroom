@@ -14,6 +14,7 @@ import {
   requireChatroomAccess,
   validateSession,
 } from './auth/cliSessionAuth';
+import { promoteNextTask as promoteNextTaskUsecase } from './usecases/promote-next-task';
 import { transitionTask } from './usecases/transitionTask';
 
 /**
@@ -283,7 +284,7 @@ export const completeTask = mutation({
 
     if (allTasksToComplete.length === 0) {
       // No tasks to complete - this is okay, just return
-      return { completed: false, completedCount: 0, promoted: null, pendingReview: [] };
+      return { completed: false, completedCount: 0, pendingReview: [] };
     }
 
     const pendingReview: string[] = [];
@@ -314,42 +315,12 @@ export const completeTask = mutation({
       );
     }
 
-    // Only promote from queue if all agents are idle (waiting for task)
-    // This ensures the entry point can pick up the next task from the queue
-    const allAgentsIdle = await areAllAgentsIdle(ctx, args.chatroomId);
-
-    if (allAgentsIdle) {
-      // Find the oldest queued task to promote
-      const queuedTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
-        )
-        .collect();
-
-      // Sort by queuePosition to get oldest
-      queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-      const nextTask = queuedTasks[0];
-
-      if (nextTask) {
-        await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
-        return {
-          completed: true,
-          completedCount: allTasksToComplete.length,
-          promoted: nextTask._id,
-          pendingReview,
-        };
-      }
-    } else {
-      console.warn(
-        `[Task Complete] Skipping queue promotion - some agents are not yet idle in chatroom ${args.chatroomId}`
-      );
-    }
+    // Queue promotion is now handled automatically by the transitionTask usecase
+    // whenever a task transitions to 'completed'. No inline promotion needed here.
 
     return {
       completed: true,
       completedCount: allTasksToComplete.length,
-      promoted: null,
       pendingReview,
     };
   },
@@ -405,7 +376,6 @@ export const cancelTask = mutation({
     const wasInProgress = task.status === 'in_progress';
 
     // Use FSM for transition
-
     await transitionTask(ctx, args.taskId, 'closed', 'cancelTask');
 
     // Log force cancellation for in_progress tasks
@@ -416,43 +386,13 @@ export const cancelTask = mutation({
       );
     }
 
-    // If we cancelled a pending or in_progress task, promote the next queued task only if all agents are idle
-    let promoted = null;
-    if (wasPending || wasInProgress) {
-      const allAgentsIdle = await areAllAgentsIdle(ctx, task.chatroomId);
+    // Queue promotion is now handled automatically by the transitionTask usecase
+    // whenever a task transitions to 'closed'. No inline promotion needed here.
+    // (The wasPending/wasInProgress check was previously used to guard promotion,
+    // but the transitionTask usecase now always attempts promotion on terminal states.)
+    void wasPending; // acknowledged for clarity
 
-      if (allAgentsIdle) {
-        const queuedTasks = await ctx.db
-          .query('chatroom_tasks')
-          .withIndex('by_chatroom_status', (q) =>
-            q.eq('chatroomId', task.chatroomId).eq('status', 'queued')
-          )
-          .collect();
-
-        if (queuedTasks.length > 0) {
-          // Sort by queuePosition to get oldest
-          queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-          const nextTask = queuedTasks[0];
-
-          await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
-
-          // Log the automatic promotion
-          console.warn(
-            `[Queue Promotion] Auto-promoted task ${nextTask._id} after cancellation of ${task.status} task ${args.taskId}. ` +
-              `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
-          );
-
-          promoted = nextTask._id;
-        }
-      } else {
-        console.warn(
-          `[Queue Promotion Deferred] Cancelled ${task.status} task ${args.taskId} but some agents are not yet idle. ` +
-            `Queue promotion deferred until all agents are idle.`
-        );
-      }
-    }
-
-    return { success: true, promoted, status: 'closed' };
+    return { success: true, status: 'closed' };
   },
 });
 
@@ -503,40 +443,10 @@ export const completeTaskById = mutation({
         );
       }
 
-      // Auto-promote the next queued task only if all agents are idle
-      let promoted = null;
-      const allAgentsIdle = await areAllAgentsIdle(ctx, task.chatroomId);
+      // Queue promotion is now handled automatically by the transitionTask usecase
+      // whenever a task transitions to 'completed'. No inline promotion needed here.
 
-      if (allAgentsIdle) {
-        const queuedTasks = await ctx.db
-          .query('chatroom_tasks')
-          .withIndex('by_chatroom_status', (q) =>
-            q.eq('chatroomId', task.chatroomId).eq('status', 'queued')
-          )
-          .collect();
-
-        if (queuedTasks.length > 0) {
-          // Sort by queuePosition to get oldest
-          queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-          const nextTask = queuedTasks[0];
-
-          await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
-
-          console.warn(
-            `[Queue Promotion] Auto-promoted task ${nextTask._id} after force-completing ${args.taskId}. ` +
-              `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
-          );
-
-          promoted = nextTask._id;
-        }
-      } else {
-        console.warn(
-          `[Queue Promotion Deferred] Force-completed task ${args.taskId} but some agents are not yet idle. ` +
-            `Queue promotion deferred until all agents are idle.`
-        );
-      }
-
-      return { success: true, taskId: args.taskId, promoted, wasForced: true };
+      return { success: true, taskId: args.taskId, wasForced: true };
     }
 
     // For backlog and queued tasks, complete normally (no promotion needed)
@@ -548,7 +458,7 @@ export const completeTaskById = mutation({
 
     await transitionTask(ctx, args.taskId, 'completed', 'completeTaskById');
 
-    return { success: true, taskId: args.taskId, promoted: null, wasForced: false };
+    return { success: true, taskId: args.taskId, wasForced: false };
   },
 });
 
@@ -1204,54 +1114,33 @@ export const promoteNextTask = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Check if there's already a pending or in_progress task
-    const activeTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .filter((q) =>
-        q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
-      )
-      .collect();
+    // Delegate to the promote-next-task usecase with deps wired from ctx
+    const result = await promoteNextTaskUsecase(args.chatroomId, {
+      areAllAgentsIdle: (chatroomId) => areAllAgentsIdle(ctx, chatroomId),
+      getOldestQueuedTask: async (chatroomId) => {
+        const tasks = await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom_status', (q) =>
+            q.eq('chatroomId', chatroomId).eq('status', 'queued')
+          )
+          .collect();
+        if (tasks.length === 0) return null;
+        tasks.sort((a, b) => a.queuePosition - b.queuePosition);
+        return tasks[0] ?? null;
+      },
+      transitionTaskToPending: (taskId) =>
+        transitionTask(ctx, taskId, 'pending', 'promoteNextTask'),
+    });
 
-    if (activeTasks.length > 0) {
-      // Already have an active task - no promotion needed
-      return { promoted: false, reason: 'active_task_exists', taskId: null };
+    if (result.promoted) {
+      console.warn(
+        `[Queue Promotion] Promoted task ${result.promoted} to pending in chatroom ${args.chatroomId}.`
+      );
     }
 
-    // Check if all agents are idle (waiting for task)
-    const allAgentsIdle = await areAllAgentsIdle(ctx, args.chatroomId);
-    if (!allAgentsIdle) {
-      return { promoted: false, reason: 'agents_not_idle', taskId: null };
-    }
-
-    // Find the oldest queued task to promote
-    const queuedTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
-      )
-      .collect();
-
-    if (queuedTasks.length === 0) {
-      // No queued tasks to promote
-      return { promoted: false, reason: 'no_queued_tasks', taskId: null };
-    }
-
-    // Sort by queuePosition to get oldest
-    queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-    const nextTask = queuedTasks[0];
-
-    // Use FSM for transition
-
-    await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
-
-    // Log the promotion
-    console.warn(
-      `[Queue Promotion] Promoted task ${nextTask._id} to pending in chatroom ${args.chatroomId}. ` +
-        `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
-    );
-
-    return { promoted: true, reason: 'success', taskId: nextTask._id };
+    return result.promoted
+      ? { promoted: true, reason: 'success', taskId: result.promoted }
+      : { promoted: false, reason: result.reason, taskId: null };
   },
 });
 

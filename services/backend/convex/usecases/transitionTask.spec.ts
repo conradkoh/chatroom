@@ -189,7 +189,9 @@ describe('transitionTask usecase — valid transitions', () => {
       chatroomId,
       role: 'builder',
     });
-    expect(completeResult.promoted).toBe(queuedTaskId);
+    // `promoted` field was removed — promotion now happens implicitly inside transitionTask usecase.
+    // Verify the queued task was actually promoted to pending instead.
+    void completeResult;
 
     tasks = await t.query(api.tasks.listTasks, {
       sessionId,

@@ -2,18 +2,98 @@
  * transitionTask usecase
  *
  * This module is the public API for transitioning task state.
- * It re-exports `transitionTask` from the underlying FSM implementation,
- * making the usecase layer the canonical import path for all callers.
+ * It wraps the underlying FSM transition and, after terminal transitions,
+ * automatically attempts to promote the next queued task via the
+ * promote-next-task usecase.
  *
- * Callers should import from this module going forward:
+ * ## Design
+ *
+ * The usecase exposes the same function signature as the FSM layer so
+ * all existing callers remain unchanged. Internally it:
+ *
+ *   1. Delegates the FSM transition to `lib/taskStateMachine.transitionTask`
+ *   2. After transitions to `completed` or `closed`, calls `promoteNextTask`
+ *      using deps wired from the Convex mutation context
+ *
+ * ## Callers
+ *
+ * All callers should import from this module:
  *   import { transitionTask } from './usecases/transitionTask'
  *
  * The FSM rules, type definitions, and helper functions remain in
  * lib/taskStateMachine.ts as the authoritative implementation.
  */
 
-// Re-export the core transition function as the usecase public API
-export { transitionTask } from '../lib/taskStateMachine';
+import { promoteNextTask } from './promote-next-task';
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
+import { areAllAgentsIdle } from '../auth/cliSessionAuth';
+import type { Task, TaskStatus } from '../lib/taskStateMachine';
+import { transitionTask as fsmTransitionTask } from '../lib/taskStateMachine';
+
+// ============================================================================
+// TERMINAL STATES THAT TRIGGER QUEUE PROMOTION
+// ============================================================================
+
+/**
+ * Task statuses that free the queue slot and should trigger auto-promotion
+ * of the next queued task.
+ */
+const PROMOTION_TRIGGER_STATUSES: ReadonlySet<TaskStatus> = new Set(['completed', 'closed']);
+
+// ============================================================================
+// USECASE
+// ============================================================================
+
+/**
+ * Transitions a task to a new status via the FSM and, for terminal
+ * transitions, automatically promotes the next queued task if all
+ * agents are idle.
+ *
+ * Exposes the same signature as the underlying FSM function so all
+ * callers can use this as a drop-in replacement.
+ *
+ * @param ctx - Convex mutation context (used to wire `promoteNextTask` deps)
+ * @param taskId - The task to transition
+ * @param newStatus - The desired target status
+ * @param trigger - FSM trigger label (must match a valid transition rule)
+ * @param overrides - Optional field overrides applied after transition
+ */
+export async function transitionTask(
+  ctx: MutationCtx,
+  taskId: Id<'chatroom_tasks'>,
+  newStatus: TaskStatus,
+  trigger: string,
+  overrides?: Partial<Task>
+): Promise<void> {
+  // 1. Delegate the FSM transition (validates rules, applies patches, logs)
+  await fsmTransitionTask(ctx, taskId, newStatus, trigger, overrides);
+
+  // 2. After terminal transitions, attempt to promote the next queued task.
+  //    We re-fetch the task to get its chatroomId (the transition has already
+  //    committed, so the status is now `newStatus`).
+  if (PROMOTION_TRIGGER_STATUSES.has(newStatus)) {
+    const task = await ctx.db.get('chatroom_tasks', taskId);
+    if (task) {
+      await promoteNextTask(task.chatroomId, {
+        areAllAgentsIdle: (chatroomId) => areAllAgentsIdle(ctx, chatroomId),
+        getOldestQueuedTask: async (chatroomId) => {
+          const tasks = await ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', chatroomId).eq('status', 'queued')
+            )
+            .collect();
+          if (tasks.length === 0) return null;
+          tasks.sort((a, b) => a.queuePosition - b.queuePosition);
+          return tasks[0] ?? null;
+        },
+        transitionTaskToPending: (nextTaskId) =>
+          fsmTransitionTask(ctx, nextTaskId, 'pending', 'promoteNextTask'),
+      });
+    }
+  }
+}
 
 // Re-export the TaskStatus type so callers only need one import path
 export type { TaskStatus } from '../lib/taskStateMachine';
