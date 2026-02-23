@@ -90,7 +90,7 @@ describe('Squad Team - Planner Init Prompt', () => {
     // Should have Getting Started section with CHATROOM_CONVEX_URL commands
     expect(prompt).toContain('## Getting Started');
     expect(prompt).toContain('### Read Context');
-    expect(prompt).toContain('### Wait for Tasks');
+    expect(prompt).toContain('### Get Next Task');
     expect(prompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
     // Planner IS the entry point — should have Classify Task
@@ -113,7 +113,7 @@ describe('Squad Team - Planner Init Prompt', () => {
 
     // Should have next steps
     expect(prompt).toContain('### Next');
-    expect(prompt).toContain('chatroom wait-for-task');
+    expect(prompt).toContain('chatroom get-next-task');
   });
 
   test('planner rolePrompt contains full agent setup for remote agents', async () => {

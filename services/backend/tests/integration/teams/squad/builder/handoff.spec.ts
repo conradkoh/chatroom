@@ -3,7 +3,7 @@
  *
  * Verifies the output shown after a successful handoff command for the
  * builder role in a Squad team. Tests `generateHandoffOutput` which
- * produces the confirmation and wait-for-task reminder after `chatroom handoff`.
+ * produces the confirmation and get-next-task reminder after `chatroom handoff`.
  *
  * In squad team, builder hands off to reviewer or planner, never to user.
  *
@@ -29,12 +29,12 @@ describe('Squad Team > Builder > Handoff Output', () => {
 
     expect(output).toBeDefined();
     expect(output).toContain('handed off to reviewer');
-    expect(output).toContain('wait-for-task');
+    expect(output).toContain('get-next-task');
 
     expect(output).toMatchInlineSnapshot(`
       "✅ Task completed and handed off to reviewer
 
-      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=builder\`"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-chatroom-id --role=builder\`"
     `);
   });
 
@@ -46,12 +46,12 @@ describe('Squad Team > Builder > Handoff Output', () => {
 
     expect(output).toBeDefined();
     expect(output).toContain('handed off to planner');
-    expect(output).toContain('wait-for-task');
+    expect(output).toContain('get-next-task');
 
     expect(output).toMatchInlineSnapshot(`
       "✅ Task completed and handed off to planner
 
-      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=builder\`"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-chatroom-id --role=builder\`"
     `);
   });
 });

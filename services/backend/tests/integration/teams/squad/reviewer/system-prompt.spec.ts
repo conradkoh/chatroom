@@ -100,11 +100,11 @@ describe('Squad Team > Reviewer > System Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=reviewer
       \`\`\`
 
-      ### Wait for Tasks
+      ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### Start Working
@@ -280,17 +280,17 @@ describe('Squad Team > Reviewer > System Prompt', () => {
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=reviewer
       \`\`\`
 
-      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
       ### Next
 
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=reviewer
       \`\`\`"
     `);
   });

@@ -1,16 +1,16 @@
 /**
- * Pair Team — Reviewer Wait-For-Task Output
+ * Squad Team — Reviewer Get-Next-Task Output
  *
  * Verifies the full CLI output delivered when the reviewer receives a task
- * via wait-for-task in a Pair team. Tests the `generateFullCliOutput` function
- * which is the backend-generated template printed by the CLI.
+ * via get-next-task. Tests the `generateFullCliOutput` function which is
+ * the backend-generated template printed by the CLI.
  *
  * Uses inline snapshots for human-reviewable regression detection.
  */
 
 import { describe, expect, test } from 'vitest';
 
-import { generateFullCliOutput } from '../../../../../prompts/base/cli/wait-for-task/fullOutput';
+import { generateFullCliOutput } from '../../../../../prompts/base/cli/get-next-task/fullOutput';
 
 const BASE_PARAMS = {
   chatroomId: 'test-chatroom-id',
@@ -24,10 +24,10 @@ const BASE_PARAMS = {
   followUpCountSinceOrigin: 0,
   originMessageCreatedAt: null,
   isEntryPoint: false,
-  availableHandoffTargets: ['builder', 'user'],
+  availableHandoffTargets: ['builder', 'planner'],
 };
 
-describe('Pair Team > Reviewer > Wait For Task', () => {
+describe('Squad Team > Reviewer > Get Next Task', () => {
   test('task from user', () => {
     const output = generateFullCliOutput({
       ...BASE_PARAMS,
@@ -49,7 +49,7 @@ describe('Pair Team > Reviewer > Wait For Task', () => {
     expect(output).toContain('📋 NEXT STEPS');
     // Non-entry point should NOT have context creation step
     expect(output).not.toContain('Code changes expected?');
-    expect(output).toContain('targets: builder, user');
+    expect(output).toContain('targets: builder, planner');
 
     expect(output).toMatchInlineSnapshot(`
       "<task>
@@ -79,8 +79,8 @@ describe('Pair Team > Reviewer > Wait For Task', () => {
       [Your progress message here]
       EOF\`
       3. Do the work
-      4. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target>\` (targets: builder, user)
-      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=reviewer\`
+      4. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target>\` (targets: builder, planner)
+      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-chatroom-id --role=reviewer\`
 
       Reference commands:
         context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=test-chatroom-id --role=reviewer\`
@@ -124,7 +124,7 @@ describe('Pair Team > Reviewer > Wait For Task', () => {
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
       ============================================================"
     `);
   });
@@ -179,8 +179,8 @@ describe('Pair Team > Reviewer > Wait For Task', () => {
       [Your progress message here]
       EOF\`
       3. Do the work
-      4. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target>\` (targets: builder, user)
-      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-chatroom-id --role=reviewer\`
+      4. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target>\` (targets: builder, planner)
+      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-chatroom-id --role=reviewer\`
 
       Reference commands:
         context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=test-chatroom-id --role=reviewer\`
@@ -200,7 +200,7 @@ describe('Pair Team > Reviewer > Wait For Task', () => {
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
       ============================================================"
     `);
   });

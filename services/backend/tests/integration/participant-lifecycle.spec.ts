@@ -20,33 +20,33 @@ describe('Participant Lifecycle', () => {
       const { sessionId } = await createTestSession('test-idle-no-action');
       const chatroomId = await createPairTeamChatroom(sessionId);
 
-      // Join both participants (does not set lastSeenAction = 'wait-for-task:started')
+      // Join both participants (does not set lastSeenAction = 'get-next-task:started')
       await joinParticipant(sessionId, chatroomId, 'builder');
       await joinParticipant(sessionId, chatroomId, 'reviewer');
 
       // Directly verify that areAllAgentsIdle logic returns false
-      // (no lastSeenAction set — agents haven't called wait-for-task yet)
+      // (no lastSeenAction set — agents haven't called get-next-task yet)
       await t.run(async (ctx) => {
         const participants = await ctx.db
           .query('chatroom_participants')
           .filter((q) => q.eq(q.field('chatroomId'), chatroomId))
           .collect();
 
-        const allIdle = participants.every((p) => p.lastSeenAction === 'wait-for-task:started');
+        const allIdle = participants.every((p) => p.lastSeenAction === 'get-next-task:started');
 
-        // No agent has lastSeenAction = 'wait-for-task:started' → allIdle should be false
+        // No agent has lastSeenAction = 'get-next-task:started' → allIdle should be false
         expect(allIdle).toBe(false);
       });
     });
 
-    test('areAllAgentsIdle returns true when all participants have lastSeenAction = wait-for-task:started', async () => {
+    test('areAllAgentsIdle returns true when all participants have lastSeenAction = get-next-task:started', async () => {
       const { sessionId } = await createTestSession('test-idle-all-waiting');
       const chatroomId = await createPairTeamChatroom(sessionId);
 
       await joinParticipant(sessionId, chatroomId, 'builder');
       await joinParticipant(sessionId, chatroomId, 'reviewer');
 
-      // Simulate both agents entering the wait-for-task loop
+      // Simulate both agents entering the get-next-task loop
       await t.run(async (ctx) => {
         const participants = await ctx.db
           .query('chatroom_participants')
@@ -54,7 +54,7 @@ describe('Participant Lifecycle', () => {
           .collect();
         for (const p of participants) {
           await ctx.db.patch('chatroom_participants', p._id, {
-            lastSeenAction: 'wait-for-task:started',
+            lastSeenAction: 'get-next-task:started',
           });
         }
       });
@@ -65,7 +65,7 @@ describe('Participant Lifecycle', () => {
           .filter((q) => q.eq(q.field('chatroomId'), chatroomId))
           .collect();
 
-        const allIdle = participants.every((p) => p.lastSeenAction === 'wait-for-task:started');
+        const allIdle = participants.every((p) => p.lastSeenAction === 'get-next-task:started');
 
         // All participants are in wait loop → allIdle should be true
         expect(allIdle).toBe(true);
@@ -96,7 +96,7 @@ describe('Participant Lifecycle', () => {
       });
 
       // Now join builder (entry point) — queue promotion should NOT happen
-      // because reviewer does not have lastSeenAction = 'wait-for-task:started'
+      // because reviewer does not have lastSeenAction = 'get-next-task:started'
       await joinParticipant(sessionId, chatroomId, 'builder');
 
       // Verify the queued task was NOT promoted to pending

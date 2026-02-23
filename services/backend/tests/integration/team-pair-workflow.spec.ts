@@ -237,10 +237,10 @@ Test technical specifications`,
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+        chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=builder
         \`\`\`
 
-        Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you"
+        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you"
       `);
 
       // ========================================
@@ -481,10 +481,10 @@ Test technical specifications`,
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=reviewer
+        chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=reviewer
         \`\`\`
 
-        Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you"
+        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you"
       `);
 
       // ========================================
@@ -720,10 +720,10 @@ Test technical specifications`,
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom wait-for-task --chatroom-id=10019;chatroom_rooms --role=builder
+        chatroom get-next-task --chatroom-id=10019;chatroom_rooms --role=builder
         \`\`\`
 
-        Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you"
+        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you"
       `);
 
       // Builder hands off directly to user (should succeed)
@@ -1236,8 +1236,8 @@ Test technical specifications`,
     });
   });
 
-  describe('wait-for-task background warnings', () => {
-    test('initial prompt includes warning not to run wait-for-task in background', async () => {
+  describe('get-next-task background warnings', () => {
+    test('initial prompt includes warning not to run get-next-task in background', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-init-background-warning');
       const chatroomId = await createPairTeamChatroom(sessionId);
@@ -1252,9 +1252,9 @@ Test technical specifications`,
 
       expect(initPrompt.prompt).toBeDefined();
 
-      // The init prompt includes the wait-for-task reminder from getWaitForTaskReminder()
+      // The init prompt includes the get-next-task reminder from getNextTaskReminder()
       // which emphasizes running in foreground to stay connected
-      expect(initPrompt.prompt).toContain('wait-for-task');
+      expect(initPrompt.prompt).toContain('get-next-task');
 
       // Check that it mentions running in foreground
       expect(initPrompt.prompt).toContain('foreground');
@@ -1274,7 +1274,7 @@ Test technical specifications`,
       expect(hasProperUsageWarning).toBe(true);
     });
 
-    test('task delivery prompt includes reminder not to run wait-for-task in background', async () => {
+    test('task delivery prompt includes reminder not to run get-next-task in background', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-task-background-warning');
       const chatroomId = await createPairTeamChatroom(sessionId);
@@ -1311,17 +1311,17 @@ Test technical specifications`,
 
       expect(taskPrompt.fullCliOutput).toBeDefined();
 
-      // Verify the prompt contains warning about wait-for-task
-      expect(taskPrompt.fullCliOutput).toContain('wait-for-task');
+      // Verify the prompt contains warning about get-next-task
+      expect(taskPrompt.fullCliOutput).toContain('get-next-task');
 
       // Check for reminder about message availability and/or backgrounding
-      const hasWaitForTaskReminder =
+      const hasGetNextTaskReminder =
         taskPrompt.fullCliOutput.includes('Message availability') ||
         taskPrompt.fullCliOutput.includes('stay connected') ||
         taskPrompt.fullCliOutput.includes('foreground') ||
         taskPrompt.fullCliOutput.includes('background');
 
-      expect(hasWaitForTaskReminder).toBe(true);
+      expect(hasGetNextTaskReminder).toBe(true);
     });
   });
 });

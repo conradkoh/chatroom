@@ -1,7 +1,7 @@
 /**
- * Wait-for-Task Prompt Integration Tests
+ * Get-Next-Task Prompt Integration Tests
  *
- * Tests the complete message sent from server to wait-for-task command,
+ * Tests the complete message sent from server to get-next-task command,
  * including all sections: init prompt, task info, pinned message, backlog attachments, and available actions.
  */
 
@@ -10,7 +10,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { getWaitForTaskGuidance, getWaitForTaskReminder } from '../../../prompts/base/cli/index';
+import { getNextTaskGuidance, getNextTaskReminder } from '../../../prompts/base/cli/index';
 import { t } from '../../../test.setup';
 
 /**
@@ -55,8 +55,8 @@ async function joinParticipants(
   }
 }
 
-describe('Wait-for-Task Full Prompt', () => {
-  test('materializes complete wait-for-task message with backlog attachment', async () => {
+describe('Get-Next-Task Full Prompt', () => {
+  test('materializes complete get-next-task message with backlog attachment', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-wait-for-task-prompt');
     const chatroomId = await createPairTeamChatroom(sessionId);
@@ -97,7 +97,7 @@ describe('Wait-for-Task Full Prompt', () => {
       role: 'builder',
     });
 
-    // Get the init prompt (shown when wait-for-task first starts)
+    // Get the init prompt (shown when get-next-task first starts)
     const initPrompt = await t.query(api.messages.getInitPrompt, {
       sessionId,
       chatroomId,
@@ -116,7 +116,7 @@ describe('Wait-for-Task Full Prompt', () => {
     });
 
     // ===== OUTPUT COMPLETE CLI MESSAGE FOR REVIEW =====
-    // This materializes the exact message structure sent from server to wait-for-task command
+    // This materializes the exact message structure sent from server to get-next-task command
     // Init section (CLI-generated) + Task delivery section (backend-generated via fullCliOutput)
 
     const role = 'builder';
@@ -131,7 +131,7 @@ describe('Wait-for-Task Full Prompt', () => {
 📋 AGENT INITIALIZATION PROMPT
 ══════════════════════════════════════════════════
 
-${getWaitForTaskGuidance()}
+${getNextTaskGuidance()}
 
 ══════════════════════════════════════════════════
 
@@ -162,7 +162,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       Your primary directive: Stay available to respond to user and team requests.
 
-      ⚠️  CRITICAL: Run wait-for-task in the FOREGROUND
+      ⚠️  CRITICAL: Run get-next-task in the FOREGROUND
 
       Two requirements:
 
@@ -182,7 +182,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       :Command terminated unexpectedly;
       if (Urgent pending work?) then (yes)
         :Finish urgent work;
-        :Reconnect with wait-for-task;
+        :Reconnect with get-next-task;
       else (no)
         :Reconnect immediately;
         note right: Team cannot reach you without it
@@ -219,11 +219,11 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=builder
       \`\`\`
 
-      ### Wait for Tasks
+      ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=builder
       \`\`\`
 
       ### Classify Task
@@ -354,17 +354,17 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=builder
       \`\`\`
 
-      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
       ### Next
 
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=builder
       \`\`\`
 
       ══════════════════════════════════════════════════
@@ -408,7 +408,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       EOF\`
       4. Do the work
       5. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target>\` (targets: reviewer, user)
-      6. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder\`
+      6. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=builder\`
 
       Reference commands:
         context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=builder\`
@@ -456,7 +456,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
       ============================================================
       "
     `);
@@ -472,7 +472,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     // Should have Getting Started section (not Available Actions)
     expect(initPrompt?.prompt).toContain('## Getting Started');
     expect(initPrompt?.prompt).toContain('### Read Context');
-    expect(initPrompt?.prompt).toContain('### Wait for Tasks');
+    expect(initPrompt?.prompt).toContain('### Get Next Task');
 
     // Should have classification section
     expect(initPrompt?.prompt).toContain('### Classify Task');
@@ -504,10 +504,10 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(fullOutput).toContain('backlog');
     expect(fullOutput).toContain(`chatroom backlog list --chatroom-id=${chatroomId}`);
 
-    // Should have handoff targets and wait-for-task in PROCESS
+    // Should have handoff targets and get-next-task in PROCESS
     expect(fullOutput).toContain('Hand off');
     expect(fullOutput).toContain('Resume');
-    expect(fullOutput).toContain('wait-for-task');
+    expect(fullOutput).toContain('get-next-task');
     expect(fullOutput).toContain(chatroomId);
     expect(fullOutput).toContain('--role=builder');
 
@@ -984,8 +984,8 @@ Testing: Toggle in settings switches between light/dark`;
     const fullCliOutput = `✅ Task completed and handed off to ${nextRole}
 📋 Summary: ${handoffMessage}
 
-⏳ Now run wait-for-task to wait for your next assignment:
-   ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`;
+⏳ Now run get-next-task to wait for your next assignment:
+   ${cliEnvPrefix} chatroom get-next-task --chatroom-id=${chatroomId} --role=${role}`;
 
     // Verify the complete output structure matches expected format
     expect(fullCliOutput).toMatchInlineSnapshot(`
@@ -999,8 +999,8 @@ Testing: Toggle in settings switches between light/dark`;
 
       Testing: Toggle in settings switches between light/dark
 
-      ⏳ Now run wait-for-task to wait for your next assignment:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10045;chatroom_rooms --role=builder"
+      ⏳ Now run get-next-task to wait for your next assignment:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10045;chatroom_rooms --role=builder"
     `);
 
     // Verify mutation result
@@ -1073,7 +1073,7 @@ See docs/auth.md for more details.`;
     const fullCliOutput = `✅ Task completed and handed off to ${nextRole}
 📋 Summary: ${handoffMessage}
 
-⏳ Next → \`${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}\``;
+⏳ Next → \`${cliEnvPrefix} chatroom get-next-task --chatroom-id=${chatroomId} --role=${role}\``;
 
     // Verify the complete output structure matches expected format
     expect(fullCliOutput).toMatchInlineSnapshot(`
@@ -1087,7 +1087,7 @@ See docs/auth.md for more details.`;
 
       See docs/auth.md for more details.
 
-      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10054;chatroom_rooms --role=builder\`"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10054;chatroom_rooms --role=builder\`"
     `);
 
     // Verify mutation result
@@ -1098,7 +1098,7 @@ See docs/auth.md for more details.`;
   });
 });
 
-describe('Wait-for-Task Error Prompts', () => {
+describe('Get-Next-Task Error Prompts', () => {
   test('materializes complete interrupt signal reconnection prompt', () => {
     // This test validates the prompt shown when process receives interrupt signal (SIGINT, SIGTERM, SIGHUP)
     const chatroomId = 'jx750h696te75x67z5q6cbwkph7zvm2x';
@@ -1115,7 +1115,7 @@ describe('Wait-for-Task Error Prompts', () => {
 Impact: You are no longer listening for tasks
 Action: Run this command immediately to resume availability
 
-${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
+${cliEnvPrefix} chatroom get-next-task --chatroom-id=${chatroomId} --role=${role}
 ──────────────────────────────────────────────────
 `;
 
@@ -1129,7 +1129,7 @@ ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role
       Impact: You are no longer listening for tasks
       Action: Run this command immediately to resume availability
 
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=jx750h696te75x67z5q6cbwkph7zvm2x --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=jx750h696te75x67z5q6cbwkph7zvm2x --role=reviewer
       ──────────────────────────────────────────────────
       "
     `);
@@ -1142,7 +1142,7 @@ ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role
     expect(fullSignalPrompt).toContain('Run this command immediately');
     expect(fullSignalPrompt).toContain(cliEnvPrefix);
     expect(fullSignalPrompt).toContain(
-      `chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`
+      `chatroom get-next-task --chatroom-id=${chatroomId} --role=${role}`
     );
     expect(fullSignalPrompt).toContain(`[${signalTime}]`);
   });
@@ -1165,7 +1165,7 @@ ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role
 Impact: You are no longer listening for tasks
 Action: Run this command immediately to resume availability
 
-${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}
+${cliEnvPrefix} chatroom get-next-task --chatroom-id=${chatroomId} --role=${role}
 ──────────────────────────────────────────────────
 `,
       },
@@ -1178,7 +1178,7 @@ ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role
       expect(prompt, `${name} prompt should have Why`).toContain('Why:');
       expect(prompt, `${name} prompt should have Impact`).toContain('Impact:');
       expect(prompt, `${name} prompt should have Action`).toContain('Action:');
-      expect(prompt, `${name} prompt should have command`).toContain('chatroom wait-for-task');
+      expect(prompt, `${name} prompt should have command`).toContain('chatroom get-next-task');
       expect(prompt, `${name} prompt should have chatroom ID`).toContain(chatroomId);
       expect(prompt, `${name} prompt should have role`).toContain(role);
       expect(prompt, `${name} prompt should have env prefix`).toContain(cliEnvPrefix);
@@ -1186,8 +1186,8 @@ ${cliEnvPrefix} chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role
   });
 });
 
-describe('Reviewer Wait-for-Task Prompt After Handoff', () => {
-  test('materializes complete wait-for-task message for reviewer receiving handoff from builder', async () => {
+describe('Reviewer Get-Next-Task Prompt After Handoff', () => {
+  test('materializes complete get-next-task message for reviewer receiving handoff from builder', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-reviewer-handoff-prompt');
     const chatroomId = await createPairTeamChatroom(sessionId);
@@ -1278,7 +1278,7 @@ Testing: Toggle in settings switches between light/dark modes`,
     });
 
     // ===== OUTPUT COMPLETE CLI MESSAGE FOR REVIEW =====
-    // This materializes the exact message structure sent from server to wait-for-task command
+    // This materializes the exact message structure sent from server to get-next-task command
     // Init section (CLI-generated) + Task delivery section (backend-generated via fullCliOutput)
 
     const role = 'reviewer';
@@ -1293,7 +1293,7 @@ Testing: Toggle in settings switches between light/dark modes`,
 📋 AGENT INITIALIZATION PROMPT
 ══════════════════════════════════════════════════
 
-${getWaitForTaskGuidance()}
+${getNextTaskGuidance()}
 
 ══════════════════════════════════════════════════
 
@@ -1324,7 +1324,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       Your primary directive: Stay available to respond to user and team requests.
 
-      ⚠️  CRITICAL: Run wait-for-task in the FOREGROUND
+      ⚠️  CRITICAL: Run get-next-task in the FOREGROUND
 
       Two requirements:
 
@@ -1344,7 +1344,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       :Command terminated unexpectedly;
       if (Urgent pending work?) then (yes)
         :Finish urgent work;
-        :Reconnect with wait-for-task;
+        :Reconnect with get-next-task;
       else (no)
         :Reconnect immediately;
         note right: Team cannot reach you without it
@@ -1381,11 +1381,11 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10062;chatroom_rooms --role=reviewer
       \`\`\`
 
-      ### Wait for Tasks
+      ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10062;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### Start Working
@@ -1556,17 +1556,17 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10062;chatroom_rooms --role=reviewer
       \`\`\`
 
-      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
       ### Next
 
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10062;chatroom_rooms --role=reviewer
       \`\`\`
 
       ══════════════════════════════════════════════════
@@ -1611,7 +1611,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       EOF\`
       3. Do the work
       4. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10062;chatroom_rooms --role=reviewer --next-role=<target>\` (targets: builder, user)
-      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10062;chatroom_rooms --role=reviewer\`
+      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10062;chatroom_rooms --role=reviewer\`
 
       Reference commands:
         context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10062;chatroom_rooms --role=reviewer\`
@@ -1631,7 +1631,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
       ============================================================
       "
     `);
@@ -1646,7 +1646,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     // Should have Getting Started section
     expect(initPrompt?.prompt).toContain('## Getting Started');
     expect(initPrompt?.prompt).toContain('### Read Context');
-    expect(initPrompt?.prompt).toContain('### Wait for Tasks');
+    expect(initPrompt?.prompt).toContain('### Get Next Task');
 
     // CRITICAL: Should have task-started instruction for reviewer (without classification)
     // Reviewer receives handoffs, not user messages, so no classification needed
@@ -1674,10 +1674,10 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(fullOutput).toContain('context read');
     expect(fullOutput).toContain('messages');
 
-    // Should have handoff targets and wait-for-task in PROCESS
+    // Should have handoff targets and get-next-task in PROCESS
     expect(fullOutput).toContain('Hand off');
     expect(fullOutput).toContain('Resume');
-    expect(fullOutput).toContain('wait-for-task');
+    expect(fullOutput).toContain('get-next-task');
     expect(fullOutput).toContain(chatroomId);
     expect(fullOutput).toContain('--role=reviewer');
 
@@ -1750,7 +1750,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
     // Should have Getting Started section with CHATROOM_CONVEX_URL commands
     expect(rolePrompt).toContain('## Getting Started');
     expect(rolePrompt).toContain('### Read Context');
-    expect(rolePrompt).toContain('### Wait for Tasks');
+    expect(rolePrompt).toContain('### Get Next Task');
     expect(rolePrompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
     // Should have classification section (builder is entry point)
@@ -1767,9 +1767,9 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
     expect(rolePrompt).toContain('**Complete task and hand off:**');
     expect(rolePrompt).toContain('chatroom handoff');
 
-    // Should have next steps (wait-for-task command)
+    // Should have next steps (get-next-task command)
     expect(rolePrompt).toContain('### Next');
-    expect(rolePrompt).toContain('chatroom wait-for-task');
+    expect(rolePrompt).toContain('chatroom get-next-task');
 
     // Snapshot the full rolePrompt for regression detection
     expect(rolePrompt).toMatchInlineSnapshot(`
@@ -1795,11 +1795,11 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10071;chatroom_rooms --role=builder
       \`\`\`
 
-      ### Wait for Tasks
+      ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10071;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10071;chatroom_rooms --role=builder
       \`\`\`
 
       ### Classify Task
@@ -1930,17 +1930,17 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10071;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10071;chatroom_rooms --role=builder
       \`\`\`
 
-      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
       ### Next
 
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10071;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10071;chatroom_rooms --role=builder
       \`\`\`"
     `);
   });
@@ -1974,7 +1974,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
     // Should have Getting Started section with CHATROOM_CONVEX_URL commands
     expect(rolePrompt).toContain('## Getting Started');
     expect(rolePrompt).toContain('### Read Context');
-    expect(rolePrompt).toContain('### Wait for Tasks');
+    expect(rolePrompt).toContain('### Get Next Task');
     expect(rolePrompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
     // Reviewer is NOT the entry point — should have Start Working, not Classify Task
@@ -1993,7 +1993,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
     // Should have next steps
     expect(rolePrompt).toContain('### Next');
-    expect(rolePrompt).toContain('chatroom wait-for-task');
+    expect(rolePrompt).toContain('chatroom get-next-task');
 
     // Snapshot the full rolePrompt for regression detection
     expect(rolePrompt).toMatchInlineSnapshot(`
@@ -2019,11 +2019,11 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10076;chatroom_rooms --role=reviewer
       \`\`\`
 
-      ### Wait for Tasks
+      ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10076;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10076;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### Start Working
@@ -2194,17 +2194,17 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10076;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10076;chatroom_rooms --role=reviewer
       \`\`\`
 
-      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
       ### Next
 
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10076;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10076;chatroom_rooms --role=reviewer
       \`\`\`"
     `);
   });
@@ -2276,14 +2276,14 @@ describe('Remote Agent Init Message (initialMessage)', () => {
   });
 });
 
-describe('Wait-for-Task Recent Improvements', () => {
+describe('Get-Next-Task Recent Improvements', () => {
   test('guidance text contains updated content (no longer references timeouts)', () => {
-    const guidance = getWaitForTaskGuidance();
-    const reminder = getWaitForTaskReminder();
+    const guidance = getNextTaskGuidance();
+    const reminder = getNextTaskReminder();
 
     // Updated guidance should contain the new sections
     expect(guidance).toContain('STAYING CONNECTED TO YOUR TEAM');
-    expect(guidance).toContain('CRITICAL: Run wait-for-task in the FOREGROUND');
+    expect(guidance).toContain('CRITICAL: Run get-next-task in the FOREGROUND');
     expect(guidance).toContain('WHEN THE PROCESS IS TERMINATED OR TIMED OUT');
     expect(guidance).toContain('BACKLOG TASKS');
 
@@ -2293,7 +2293,7 @@ describe('Wait-for-Task Recent Improvements', () => {
 
     // Reminder should be a single-line reminder
     expect(reminder).toContain('Message availability is critical');
-    expect(reminder).toContain('wait-for-task');
+    expect(reminder).toContain('get-next-task');
   });
 
   test('attached backlog tasks appear in task delivery prompt JSON', async () => {
@@ -2429,11 +2429,11 @@ describe('Wait-for-Task Recent Improvements', () => {
     const prompt = initPrompt!.prompt;
     expect(prompt).toContain('## Your Role: BUILDER');
     expect(prompt).toContain('## Getting Started');
-    expect(prompt).toContain('chatroom wait-for-task');
+    expect(prompt).toContain('chatroom get-next-task');
     expect(prompt).toContain('chatroom context read');
 
-    // Init prompt should contain the wait-for-task reminder
-    expect(prompt).toContain(getWaitForTaskReminder());
+    // Init prompt should contain the get-next-task reminder
+    expect(prompt).toContain(getNextTaskReminder());
   });
 
   test('getPendingTasksForRole returns no_tasks when no tasks exist', async () => {

@@ -7,10 +7,10 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { getAvailableActions } from '../../../prompts/base/cli/get-next-task/available-actions';
 import { handoffCommand } from '../../../prompts/base/cli/handoff/command';
 import { reportProgressCommand } from '../../../prompts/base/cli/report-progress/command';
 import { getTaskStartedPrompt } from '../../../prompts/base/cli/task-started/main-prompt';
-import { getAvailableActions } from '../../../prompts/base/cli/wait-for-task/available-actions';
 import { getContextGainingGuidance } from '../../../prompts/base/shared/getting-started-content';
 import { generateAgentPrompt } from '../../../prompts/base/webapp/init/generator';
 import { getConfig } from '../../../prompts/config/index';
@@ -34,8 +34,8 @@ describe('Context Gaining Prompt', () => {
     // Should have Read Context section
     expect(guidance).toContain('### Read Context');
 
-    // Should have Wait for Tasks section
-    expect(guidance).toContain('### Wait for Tasks');
+    // Should have Get Next Task section
+    expect(guidance).toContain('### Get Next Task');
 
     // Should inject CHATROOM_CONVEX_URL properly
     expect(guidance).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
@@ -50,14 +50,14 @@ describe('Context Gaining Prompt', () => {
     expect(guidance).not.toContain('When to Gain Context');
   });
 
-  test('includes wait-for-task command', () => {
+  test('includes get-next-task command', () => {
     const guidance = getContextGainingGuidance({
       chatroomId: 'abc123',
       role: 'reviewer',
       convexUrl: 'http://localhost:3000',
     });
 
-    expect(guidance).toContain('chatroom wait-for-task --chatroom-id=abc123 --role=reviewer');
+    expect(guidance).toContain('chatroom get-next-task --chatroom-id=abc123 --role=reviewer');
   });
 
   test('defaults to <remote|custom> placeholder when agentType is not specified', () => {

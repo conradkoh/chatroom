@@ -55,7 +55,7 @@ async function joinParticipants(
       sessionId,
       chatroomId,
       role,
-      action: 'wait-for-task:started',
+      action: 'get-next-task:started',
     });
   }
 }

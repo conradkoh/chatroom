@@ -24,7 +24,7 @@ describe('Participant Join', () => {
       sessionId,
       chatroomId,
       role: 'builder',
-      action: 'wait-for-task:started',
+      action: 'get-next-task:started',
     });
 
     const participant = await t.query(api.participants.getByRole, {
@@ -34,7 +34,7 @@ describe('Participant Join', () => {
     });
 
     expect(participant).not.toBeNull();
-    expect(participant!.lastSeenAction).toBe('wait-for-task:started');
+    expect(participant!.lastSeenAction).toBe('get-next-task:started');
     expect(participant!.lastSeenAt).toBeDefined();
   });
 

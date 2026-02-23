@@ -1297,10 +1297,10 @@ OAuth2`,
   });
 
   // =========================================================================
-  // WAIT-FOR-TASK BACKGROUND WARNINGS
+  // GET-NEXT-TASK BACKGROUND WARNINGS
   // =========================================================================
-  describe('wait-for-task background warnings', () => {
-    test('init prompt includes warning not to run wait-for-task in background', async () => {
+  describe('get-next-task background warnings', () => {
+    test('init prompt includes warning not to run get-next-task in background', async () => {
       const { sessionId } = await createTestSession('test-squad-init-bg-warning');
       const chatroomId = await createSquadTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['planner', 'builder', 'reviewer']);
@@ -1314,14 +1314,14 @@ OAuth2`,
       });
 
       expect(initPrompt!.prompt).toBeDefined();
-      expect(initPrompt!.prompt).toContain('wait-for-task');
+      expect(initPrompt!.prompt).toContain('get-next-task');
       expect(initPrompt!.prompt).toContain('foreground');
       expect(initPrompt!.prompt).toContain('Message availability');
       expect(initPrompt!.prompt).toContain('stay connected');
       expect(initPrompt!.prompt).toContain('team cannot reach you');
     });
 
-    test('task delivery prompt includes reminder not to run wait-for-task in background', async () => {
+    test('task delivery prompt includes reminder not to run get-next-task in background', async () => {
       const { sessionId } = await createTestSession('test-squad-task-bg-warning');
       const chatroomId = await createSquadTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['planner', 'builder', 'reviewer']);
@@ -1356,15 +1356,15 @@ OAuth2`,
       });
 
       expect(taskPrompt.fullCliOutput).toBeDefined();
-      expect(taskPrompt.fullCliOutput).toContain('wait-for-task');
+      expect(taskPrompt.fullCliOutput).toContain('get-next-task');
 
-      const hasWaitForTaskReminder =
+      const hasGetNextTaskReminder =
         taskPrompt.fullCliOutput.includes('Message availability') ||
         taskPrompt.fullCliOutput.includes('stay connected') ||
         taskPrompt.fullCliOutput.includes('foreground') ||
         taskPrompt.fullCliOutput.includes('background');
 
-      expect(hasWaitForTaskReminder).toBe(true);
+      expect(hasGetNextTaskReminder).toBe(true);
     });
   });
 });

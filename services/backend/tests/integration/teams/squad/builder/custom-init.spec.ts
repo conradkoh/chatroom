@@ -60,11 +60,11 @@ describe('Squad Team > Builder > Custom Init Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=test-squad-chatroom --role=builder
       \`\`\`
 
-      ### Wait for Tasks
+      ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=test-squad-chatroom --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-squad-chatroom --role=builder
       \`\`\`
 
       **Squad Team Context:**
@@ -88,7 +88,7 @@ describe('Squad Team > Builder > Custom Init Prompt', () => {
 
       1. Run the **register-agent** command above to register your agent type
       2. Copy the **context read** command to review conversation history
-      3. Run **wait-for-task** to receive your first task
+      3. Run **get-next-task** to receive your first task
       4. Follow the detailed instructions provided by the CLI
       "
     `);
