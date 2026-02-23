@@ -65,9 +65,6 @@ export interface RemoteAgentService {
   /** Get all tracked processes with their context and activity timestamps. */
   getTrackedProcesses(): ProcessInfo[];
 
-  /** Get processes that have been idle (no output) beyond the threshold. */
-  getIdleProcesses(thresholdMs: number): ProcessInfo[];
-
   /** Remove a process from tracking (call on cleanup). */
   untrack(pid: number): void;
 }

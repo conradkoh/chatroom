@@ -218,11 +218,6 @@ export class OpenCodeAgentService implements RemoteAgentService {
     }));
   }
 
-  getIdleProcesses(thresholdMs: number): ProcessInfo[] {
-    const now = Date.now();
-    return this.getTrackedProcesses().filter((p) => now - p.lastOutputAt > thresholdMs);
-  }
-
   untrack(pid: number): void {
     this.processes.delete(pid);
   }

@@ -4,7 +4,7 @@
 
 import { DAEMON_HEARTBEAT_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
 
-import { api, type Id } from '../../../api.js';
+import { api } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { onDaemonShutdown } from '../events/on-daemon-shutdown/index.js';
 import { releaseLock } from '../pid.js';
@@ -25,12 +25,6 @@ import { formatTimestamp, parseMachineCommand } from './utils.js';
 
 /** Interval for periodic model discovery refresh (5 minutes). */
 const MODEL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-
-/** How often the idle reaper checks for stale agents (10 seconds). */
-const IDLE_CHECK_INTERVAL_MS = 10_000;
-
-/** Agents with no stdout/stderr output for this duration are considered idle (1 minute). */
-const IDLE_THRESHOLD_MS = 60_000;
 
 /**
  * Re-discover models and update the backend registration.
@@ -174,34 +168,11 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Don't let the heartbeat timer keep the process alive during shutdown
   heartbeatTimer.unref();
 
-  // ── Idle Process Reaper ──────────────────────────────────────────────
-  // Periodically check for agents that have produced no stdout/stderr
-  // output within the idle threshold and shut them down via the standard
-  // agent shutdown path (process-group kill + state cleanup).
-  const idleReaperTimer = setInterval(() => {
-    const idleProcesses = ctx.remoteAgentService.getIdleProcesses(IDLE_THRESHOLD_MS);
-    for (const { pid, context } of idleProcesses) {
-      if (ctx.remoteAgentService.isAlive(pid)) {
-        console.log(
-          `[${formatTimestamp()}] 💀 Idle agent detected: ${context.role} (PID: ${pid}, ` +
-            `no output for >${IDLE_THRESHOLD_MS / 1000}s) — stopping`
-        );
-        ctx.events.emit('agent:idle-detected', {
-          chatroomId: context.chatroomId as Id<'chatroom_rooms'>,
-          role: context.role,
-          pid,
-        });
-      }
-    }
-  }, IDLE_CHECK_INTERVAL_MS);
-  idleReaperTimer.unref();
-
   const shutdown = async () => {
     console.log(`\n[${formatTimestamp()}] Shutting down...`);
 
     // Stop heartbeat timers
     clearInterval(heartbeatTimer);
-    clearInterval(idleReaperTimer);
 
     await onDaemonShutdown(ctx);
 

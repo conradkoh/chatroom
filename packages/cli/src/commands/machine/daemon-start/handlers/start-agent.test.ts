@@ -125,7 +125,6 @@ function createMockContext(options?: {
     stop: vi.fn(),
     isAlive: vi.fn().mockReturnValue(true),
     getTrackedProcesses: vi.fn().mockReturnValue([]),
-    getIdleProcesses: vi.fn().mockReturnValue([]),
     untrack: vi.fn(),
   } as unknown as RemoteAgentService;
 

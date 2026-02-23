@@ -86,7 +86,6 @@ vi.mock('../../../infrastructure/services/remote-agents/opencode/index.js', () =
       stop = vi.fn();
       isAlive = vi.fn();
       getTrackedProcesses = vi.fn().mockReturnValue([]);
-      getIdleProcesses = vi.fn().mockReturnValue([]);
       untrack = vi.fn();
     },
   };
