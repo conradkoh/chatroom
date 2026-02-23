@@ -3,7 +3,8 @@
  *
  * Tests handleStartAgent using injected dependencies.
  * Covers: no agent context, working dir validation, init prompt fetch,
- * spawn via RemoteAgentService, successful spawn, PID persistence, spawn failure.
+ * spawn via RemoteAgentService, successful spawn, PID persistence, spawn failure,
+ * and kill-existing-before-spawn behaviour.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -20,6 +21,12 @@ import { handleStartAgent } from './start-agent.js';
 
 vi.mock('../../../../infrastructure/convex/client.js', () => ({
   getConvexUrl: () => 'http://test:3210',
+}));
+
+// Module-level mock for onAgentShutdown so individual tests can spy on it.
+const onAgentShutdownMock = vi.fn().mockResolvedValue(undefined);
+vi.mock('../../events/on-agent-shutdown/index.js', () => ({
+  onAgentShutdown: (...args: unknown[]) => onAgentShutdownMock(...args),
 }));
 
 // ---------------------------------------------------------------------------
@@ -60,6 +67,7 @@ function createMockContext(options?: {
   spawnError?: Error;
   lifecycleState?: { state: string } | null;
   lifecycleError?: boolean;
+  agentConfigs?: { machineId: string; role: string; spawnedAgentPid?: number }[];
 }): DaemonContext {
   const spawnMock = vi.fn().mockImplementation(async () => {
     if (options?.spawnError) throw options.spawnError;
@@ -81,16 +89,25 @@ function createMockContext(options?: {
         };
 
   const lifecycleValue = options?.lifecycleState !== undefined ? options.lifecycleState : null;
+  const agentConfigsValue = options?.agentConfigs ?? [];
 
-  // Distinguish queries: getStatus has no `convexUrl`, getInitPrompt includes `convexUrl`.
+  // Distinguish queries by args shape:
+  // - getAgentConfigs: has chatroomId, no convexUrl
+  // - getInitPrompt:   has convexUrl
+  // - legacy lifecycle queries: no chatroomId, no convexUrl (return null / lifecycleValue)
   const queryMock = vi.fn().mockImplementation((_fnRef: unknown, args: Record<string, unknown>) => {
-    if (!args?.convexUrl) {
+    if (args?.convexUrl) {
+      return Promise.resolve(initPromptValue);
+    }
+    if (args?.chatroomId) {
+      // getAgentConfigs call
       if (options?.lifecycleError) {
         return Promise.reject(new Error('Network error'));
       }
-      return Promise.resolve(lifecycleValue);
+      return Promise.resolve({ configs: agentConfigsValue });
     }
-    return Promise.resolve(initPromptValue);
+    // legacy / unknown query
+    return Promise.resolve(lifecycleValue);
   });
 
   const deps: DaemonDeps = {
@@ -145,6 +162,7 @@ function createMockContext(options?: {
 
 beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => {});
+  onAgentShutdownMock.mockClear();
 });
 
 afterEach(() => {
@@ -354,5 +372,41 @@ describe('handleStartAgent', () => {
 
     expect(result.failed).toBe(false);
     expect(result.result).toContain('Agent spawned');
+  });
+
+  // ── Kill-existing-before-spawn tests ─────────────────────────────────────
+
+  it('kills existing alive agent before spawning a new one', async () => {
+    const ctx = createMockContext({
+      agentConfigs: [{ machineId: 'test-machine-id', role: 'builder', spawnedAgentPid: 9999 }],
+    });
+
+    // Existing PID is alive
+    (ctx.remoteAgentService.isAlive as ReturnType<typeof vi.fn>).mockReturnValue(true);
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(onAgentShutdownMock).toHaveBeenCalledWith(ctx, {
+      chatroomId: 'test-chatroom-123',
+      role: 'builder',
+      pid: 9999,
+    });
+  });
+
+  it('skips kill when existing PID is not alive', async () => {
+    const ctx = createMockContext({
+      agentConfigs: [{ machineId: 'test-machine-id', role: 'builder', spawnedAgentPid: 9999 }],
+    });
+
+    // PID is NOT alive
+    (ctx.remoteAgentService.isAlive as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(onAgentShutdownMock).not.toHaveBeenCalled();
   });
 });

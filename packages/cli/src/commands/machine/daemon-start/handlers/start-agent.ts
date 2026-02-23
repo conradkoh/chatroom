@@ -4,6 +4,7 @@
 
 import { api } from '../../../../api.js';
 import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
+import { onAgentShutdown } from '../../events/on-agent-shutdown/index.js';
 import type { CommandResult, DaemonContext, StartAgentCommand } from '../types.js';
 
 /**
@@ -47,6 +48,34 @@ export async function handleStartAgent(
     const msg = `Working directory does not exist: ${workingDir}`;
     console.log(`   ⚠️  ${msg}`);
     return { result: msg, failed: true };
+  }
+
+  // Kill any existing agent for this (chatroomId, role) before spawning.
+  // This prevents duplicate/ghost agents when start-agent is called while a
+  // previous instance is still running (e.g. slow agent, ensureAgentHandler firing).
+  // Fail-open: if the query errors, skip the pre-kill and proceed with spawn.
+  try {
+    const existingConfigs = await ctx.deps.backend.query(api.machines.getAgentConfigs, {
+      sessionId: ctx.sessionId,
+      chatroomId,
+    });
+    const existingConfig = existingConfigs.configs.find(
+      (c: { machineId: string; role: string; spawnedAgentPid?: number }) =>
+        c.machineId === ctx.machineId && c.role.toLowerCase() === role.toLowerCase()
+    );
+    if (existingConfig?.spawnedAgentPid) {
+      const existingPid = existingConfig.spawnedAgentPid;
+      const isAlive = ctx.remoteAgentService.isAlive(existingPid);
+      if (isAlive) {
+        console.log(
+          `   ⚠️  Existing agent detected (PID: ${existingPid}) — stopping before respawn`
+        );
+        await onAgentShutdown(ctx, { chatroomId, role, pid: existingPid });
+        console.log(`   ✅ Existing agent stopped`);
+      }
+    }
+  } catch (e) {
+    console.log(`   ⚠️  Could not check for existing agent (proceeding): ${(e as Error).message}`);
   }
 
   // Fetch split init prompt from backend (single source of truth)
