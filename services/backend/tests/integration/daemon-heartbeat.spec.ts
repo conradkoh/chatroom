@@ -4,7 +4,7 @@
  * Tests for daemon heartbeat liveness detection:
  * 1. daemonHeartbeat mutation updates lastSeenAt
  * 2. Stale daemon is marked disconnected by cleanupStaleMachines
- * 3. autoRestartOfflineAgent skips restart when daemon is stale
+ * 3. daemonHeartbeat recovers disconnected daemon
  * 4. Fresh daemon is NOT marked disconnected
  */
 
@@ -13,17 +13,7 @@ import { describe, expect, test } from 'vitest';
 import { DAEMON_HEARTBEAT_TTL_MS } from '../../config/reliability';
 import { api, internal } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import {
-  createTestSession,
-  createPairTeamChatroom,
-  registerMachineWithDaemon,
-  setupRemoteAgentConfig,
-  getPendingCommands,
-} from '../helpers/integration';
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
 
 describe('Daemon Heartbeat', () => {
   test('daemonHeartbeat mutation updates lastSeenAt', async () => {
@@ -103,42 +93,6 @@ describe('Daemon Heartbeat', () => {
       return machine!.daemonConnected;
     });
     expect(afterCleanup).toBe(false);
-  });
-
-  test('autoRestartOfflineAgent skips restart when daemon is stale', async () => {
-    const { sessionId } = await createTestSession('test-hb-3');
-    const chatroomId = await createPairTeamChatroom(sessionId);
-    const machineId = 'machine-hb-3';
-
-    // Register machine with daemon connected + set up remote agent config
-    await registerMachineWithDaemon(sessionId, machineId);
-    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
-
-    // Make daemon stale by setting lastSeenAt to be older than TTL
-    await t.run(async (ctx) => {
-      const machine = await ctx.db
-        .query('chatroom_machines')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      await ctx.db.patch(machine!._id, {
-        lastSeenAt: Date.now() - DAEMON_HEARTBEAT_TTL_MS - 10_000,
-      });
-    });
-
-    // Builder is NOT joined as participant (offline)
-    // Send a message — this triggers autoRestartOfflineAgent
-    await t.mutation(api.messages.send, {
-      sessionId,
-      chatroomId,
-      content: 'Please implement the feature',
-      senderRole: 'user',
-      type: 'message' as const,
-    });
-
-    // Verify: NO restart commands should be created (daemon is stale)
-    const pending = await getPendingCommands(sessionId, machineId);
-    const startCommands = pending.filter((c: { type: string }) => c.type === 'start-agent');
-    expect(startCommands.length).toBe(0);
   });
 
   test('daemonHeartbeat recovers disconnected daemon (Plan 026)', async () => {

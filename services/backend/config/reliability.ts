@@ -1,8 +1,7 @@
 /**
  * Centralized Reliability & Timing Configuration
  *
- * All timing constants that govern agent liveness detection, crash recovery,
- * stale record cleanup, and daemon health.
+ * All timing constants that govern agent liveness detection and daemon health.
  * These values are shared across the CLI (`wait-for-task`, `daemon-start`),
  * the backend (Convex mutations/cron), and the frontend (display logic).
  *
@@ -12,18 +11,7 @@
  *    Controls how often the CLI pings the backend and how long a participant
  *    is considered reachable. TTL must be > interval to tolerate missed beats.
  *
- * 2. **Task Recovery** — `TASK_PENDING_TIMEOUT_MS`, `TASK_ACKNOWLEDGED_TIMEOUT_MS`
- *    Governs when stuck tasks are recovered. Pending tasks trigger auto-restart
- *    for remote agents; acknowledged tasks are reset to pending.
- *
- * 3. **Stale Record Cleanup** — `STALE_FSM_RECORD_TTL_MS`
- *    Lifetime of minimal participant records created by the dead-state fallback
- *    in `updateAgentStatus`. Cleaned up by cron based on `_creationTime`.
- *
- * 4. **Crash Recovery** — `MAX_CRASH_RESTART_ATTEMPTS`, `CRASH_RESTART_DELAY_MS`
- *    Daemon-side limits for restarting crashed agent processes.
- *
- * 5. **Daemon Heartbeat** — `DAEMON_HEARTBEAT_INTERVAL_MS`, `DAEMON_HEARTBEAT_TTL_MS`
+ * 2. **Daemon Heartbeat** — `DAEMON_HEARTBEAT_INTERVAL_MS`, `DAEMON_HEARTBEAT_TTL_MS`
  *    Same pattern as agent heartbeat but for the daemon process itself.
  *    TTL must be > interval to tolerate missed beats.
  *
@@ -58,14 +46,6 @@ export const HEARTBEAT_TTL_MS = 90_000; // 90s (Plan 026: increased from 60s)
  */
 export const LIFECYCLE_WORKING_HEARTBEAT_TTL_MS = 600_000; // 10 min
 
-/** How long a task can be stuck in `pending` before triggering recovery (ms).
- *  For remote agents: triggers auto-restart. For custom agents: logs a warning. */
-export const TASK_PENDING_TIMEOUT_MS = 300_000; // 5 min
-
-/** How long a task can be stuck in `acknowledged` before being reset to `pending` (ms).
- *  If the assigned participant is missing or expired, the task is recovered. */
-export const TASK_ACKNOWLEDGED_TIMEOUT_MS = 120_000; // 2 min
-
 // ─── Active Agent Heartbeat (Daemon-Side) ────────────────────────────────────
 
 /** How often the daemon checks PID liveness and extends activeUntil (ms).
@@ -93,25 +73,6 @@ export const RECOVERY_GRACE_PERIOD_MS = 60_000; // 1 min
  *  deadline passes is the participant deleted on the next cron run.
  *  Must be > HEARTBEAT_INTERVAL_MS (30s) to allow at least one heartbeat cycle. */
 export const CLEANUP_GRACE_PERIOD_MS = 60_000; // 1 min
-
-// ─── Stale Record Cleanup ────────────────────────────────────────────────────
-
-/** How long a minimal participant record (created by `updateAgentStatus` dead-state
- *  fallback) can exist before being cleaned up by the cron (ms).
- *  Applies to records with status `restarting` or `dead_failed_revive` that have
- *  no `readyUntil`/`activeUntil` — the expiration logic won't catch them, so we
- *  clean up based on `_creationTime` instead. */
-export const STALE_FSM_RECORD_TTL_MS = 600_000; // 10 min
-
-// ─── Crash Recovery ─────────────────────────────────────────────────────────
-
-/** Maximum number of restart attempts after an agent process crashes.
- *  After this many failures, the daemon marks the agent as `dead_failed_revive`. */
-export const MAX_CRASH_RESTART_ATTEMPTS = 3;
-
-/** Delay between crash restart attempts (ms).
- *  Prevents tight restart loops when an agent fails immediately on startup. */
-export const CRASH_RESTART_DELAY_MS = 3_000; // 3s
 
 // ─── Daemon Heartbeat ────────────────────────────────────────────────────────
 

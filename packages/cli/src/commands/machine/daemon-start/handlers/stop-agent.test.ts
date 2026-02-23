@@ -18,9 +18,7 @@ import type { DaemonContext, StopAgentCommand } from '../types.js';
 // ---------------------------------------------------------------------------
 
 vi.mock('@workspace/backend/config/reliability.js', () => ({
-  CRASH_RESTART_DELAY_MS: 0,
   DAEMON_HEARTBEAT_INTERVAL_MS: 30_000,
-  MAX_CRASH_RESTART_ATTEMPTS: 3,
 }));
 
 vi.mock('../../pid.js', () => ({
