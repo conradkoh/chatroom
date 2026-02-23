@@ -165,7 +165,13 @@ export const listByUserWithStatus = query({
 
         const allPresent = teamRoles.every((r) => presentRoles.has(r.toLowerCase()));
         const hasDisconnected = agents.some((a) => a.isExpired);
-        const hasActive = agents.some((a) => a.lastSeenAction === 'task-started');
+        const inProgressTask = await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom_status', (q) =>
+            q.eq('chatroomId', chatroom._id).eq('status', 'in_progress')
+          )
+          .first();
+        const hasActive = inProgressTask !== null;
 
         // Check if a user has ever sent a message in this chatroom.
         // A user message is the strongest signal that the chatroom has been used

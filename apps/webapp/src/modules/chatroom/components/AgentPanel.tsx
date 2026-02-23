@@ -5,9 +5,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ChevronRight,
-  CheckCircle,
   AlertTriangle,
-  Clock,
   RefreshCw,
   ChevronDown,
   ChevronUp,
@@ -647,58 +645,28 @@ export const AgentPanel = memo(function AgentPanel({
 
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-      {/* Header with status indicator and menu */}
+      {/* Header with settings menu */}
       <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Agents
         </div>
-        <div className="flex items-center gap-2">
-          <div
-            className={`${
-              readiness.isReady
-                ? 'text-chatroom-status-success'
-                : isDisconnected
-                  ? 'text-chatroom-status-error'
-                  : 'text-chatroom-status-warning'
-            }`}
-          >
-            {readiness.isReady ? (
-              <CheckCircle size={12} />
-            ) : isDisconnected ? (
-              <AlertTriangle size={12} />
-            ) : (
-              <Clock size={12} />
-            )}
-          </div>
-          <div
-            className={`text-[10px] font-bold uppercase tracking-wide ${
-              readiness.isReady
-                ? 'text-chatroom-status-success'
-                : isDisconnected
-                  ? 'text-chatroom-status-error'
-                  : 'text-chatroom-status-warning'
-            }`}
-          >
-            {readiness.isReady ? 'Ready' : isDisconnected ? 'Disconnected' : 'Waiting'}
-          </div>
-          {/* Settings Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors">
-                <MoreHorizontal size={14} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="chatroom-root">
-              <DropdownMenuItem
-                onClick={onConfigure}
-                className="flex items-center gap-2 text-xs cursor-pointer"
-              >
-                <Settings size={12} />
-                Configure
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        {/* Settings Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors">
+              <MoreHorizontal size={14} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="chatroom-root">
+            <DropdownMenuItem
+              onClick={onConfigure}
+              className="flex items-center gap-2 text-xs cursor-pointer"
+            >
+              <Settings size={12} />
+              Configure
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">

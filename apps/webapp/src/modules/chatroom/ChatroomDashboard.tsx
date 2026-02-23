@@ -299,6 +299,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamReadiness | null | undefined;
 
+  const activeTask = useSessionQuery(api.tasks.getActiveTask, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+
   // Memoize derived values
   const teamRoles = useMemo(() => chatroom?.teamRoles || [], [chatroom?.teamRoles]);
   const teamName = useMemo(() => chatroom?.teamName || 'Team', [chatroom?.teamName]);
@@ -630,7 +634,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             <div className="flex flex-1 overflow-hidden relative">
               {/* Message Section */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <MessageFeed chatroomId={chatroomId} readiness={readiness} />
+                <MessageFeed
+                  chatroomId={chatroomId}
+                  readiness={readiness}
+                  activeTask={activeTask}
+                />
                 <SendForm chatroomId={chatroomId} />
               </div>
 
