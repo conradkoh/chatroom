@@ -754,14 +754,14 @@ Use React Context + CSS variables`,
       4. MUST hand off to reviewer for approval:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10024;chatroom_rooms --role=builder --next-role=reviewer << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10033;chatroom_rooms --role=builder --next-role=reviewer << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
 
       💡 You're working on:
-      Task ID: 10028;chatroom_tasks"
+      Task ID: 10037;chatroom_tasks"
     `);
 
     // Verify reminder structure
@@ -828,7 +828,7 @@ Use React Context + CSS variables`,
       💡 ✅ Task acknowledged as QUESTION.
 
       **Next steps:**
-      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10031;chatroom_rooms --role=builder << 'EOF'
+      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10043;chatroom_rooms --role=builder << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF\`
@@ -836,14 +836,14 @@ Use React Context + CSS variables`,
       3. When done, hand off directly to user:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10031;chatroom_rooms --role=builder --next-role=user << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10043;chatroom_rooms --role=builder --next-role=user << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
 
       💡 You're working on:
-      Task ID: 10035;chatroom_tasks"
+      Task ID: 10047;chatroom_tasks"
     `);
 
     // Verify reminder structure
@@ -917,7 +917,7 @@ Use React Context + CSS variables`,
          - If original was a NEW FEATURE → hand off to reviewer when done
 
       💡 You're working on:
-      Task ID: 10042;chatroom_tasks"
+      Task ID: 10057;chatroom_tasks"
     `);
 
     // Verify reminder structure
@@ -1000,7 +1000,7 @@ Testing: Toggle in settings switches between light/dark`;
       Testing: Toggle in settings switches between light/dark
 
       ⏳ Now run get-next-task to wait for your next assignment:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10045;chatroom_rooms --role=builder"
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10063;chatroom_rooms --role=builder"
     `);
 
     // Verify mutation result
@@ -1087,7 +1087,7 @@ See docs/auth.md for more details.`;
 
       See docs/auth.md for more details.
 
-      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10054;chatroom_rooms --role=builder\`"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10076;chatroom_rooms --role=builder\`"
     `);
 
     // Verify mutation result
@@ -1371,28 +1371,28 @@ ${taskDeliveryPrompt.fullCliOutput}
       Register your agent type before starting work.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10062;chatroom_rooms --role=reviewer --type=<remote|custom>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10087;chatroom_rooms --role=reviewer --type=<remote|custom>
       \`\`\`
 
       ### Read Context
       View the conversation history and pending tasks for your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10062;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10087;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10062;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10087;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### Start Working
       Before starting work on a received message, acknowledge it:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10062;chatroom_rooms --role=reviewer --task-id=<task-id> --no-classify
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10087;chatroom_rooms --role=reviewer --task-id=<task-id> --no-classify
       \`\`\`
 
       This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.
@@ -1532,7 +1532,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10062;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10087;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -1546,7 +1546,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10062;chatroom_rooms --role=reviewer << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10087;chatroom_rooms --role=reviewer << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF
@@ -1556,7 +1556,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10062;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10087;chatroom_rooms --role=reviewer
       \`\`\`
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -1566,7 +1566,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10062;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10087;chatroom_rooms --role=reviewer
       \`\`\`
 
       ══════════════════════════════════════════════════
@@ -1578,8 +1578,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       ============================================================
       📋 TASK
       ============================================================
-      Task ID: 10068;chatroom_tasks
-      Origin Message ID: 10067;chatroom_messages
+      Task ID: 10096;chatroom_tasks
+      Origin Message ID: 10095;chatroom_messages
       From: builder
 
       ## User Message
@@ -1604,19 +1604,19 @@ ${taskDeliveryPrompt.fullCliOutput}
       ============================================================
       📋 PROCESS
       ============================================================
-      1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10062;chatroom_rooms --role=reviewer --task-id=10068;chatroom_tasks --no-classify\`
-      2. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10062;chatroom_rooms --role=reviewer << 'EOF'
+      1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10087;chatroom_rooms --role=reviewer --task-id=10096;chatroom_tasks --no-classify\`
+      2. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10087;chatroom_rooms --role=reviewer << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF\`
       3. Do the work
-      4. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10062;chatroom_rooms --role=reviewer --next-role=<target>\` (targets: builder, user)
-      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10062;chatroom_rooms --role=reviewer\`
+      4. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10087;chatroom_rooms --role=reviewer --next-role=<target>\` (targets: builder, user)
+      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10087;chatroom_rooms --role=reviewer\`
 
       Reference commands:
-        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10062;chatroom_rooms --role=reviewer\`
-        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=10062;chatroom_rooms --role=reviewer --sender-role=user --limit=5 --full\`
-        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10062;chatroom_rooms --role=reviewer --status=backlog\`
+        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10087;chatroom_rooms --role=reviewer\`
+        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=10087;chatroom_rooms --role=reviewer --sender-role=user --limit=5 --full\`
+        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=10087;chatroom_rooms --role=reviewer --status=backlog\`
         git log → \`git log --oneline -10\`
       </process>
 
@@ -1785,21 +1785,21 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       Register your agent type before starting work.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10071;chatroom_rooms --role=builder --type=<remote|custom>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10102;chatroom_rooms --role=builder --type=<remote|custom>
       \`\`\`
 
       ### Read Context
       View the conversation history and pending tasks for your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10071;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10102;chatroom_rooms --role=builder
       \`\`\`
 
       ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10071;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10102;chatroom_rooms --role=builder
       \`\`\`
 
       ### Classify Task
@@ -1809,21 +1809,21 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       User is asking for information or clarification.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10071;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=question
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10102;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=question
       \`\`\`
 
       #### Follow Up
       User is responding to previous work or providing feedback.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10071;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=follow_up
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10102;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=follow_up
       \`\`\`
 
       #### New Feature
       User wants new functionality. Requires title, description, and tech specs.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10071;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10102;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       [Feature title]
       ---DESCRIPTION---
@@ -1835,7 +1835,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Context Rule:** When a new commit is expected, set a new context first to keep the conversation focused. Only the entry point role can set contexts:
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10071;chatroom_rooms --role=builder << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10102;chatroom_rooms --role=builder << 'EOF'
       <summary of current focus>
       EOF
       \`\`\`
@@ -1906,7 +1906,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10071;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10102;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -1920,7 +1920,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10071;chatroom_rooms --role=builder << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10102;chatroom_rooms --role=builder << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF
@@ -1930,7 +1930,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10071;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10102;chatroom_rooms --role=builder
       \`\`\`
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -1940,7 +1940,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10071;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10102;chatroom_rooms --role=builder
       \`\`\`"
     `);
   });
@@ -2009,28 +2009,28 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       Register your agent type before starting work.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10076;chatroom_rooms --role=reviewer --type=<remote|custom>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10107;chatroom_rooms --role=reviewer --type=<remote|custom>
       \`\`\`
 
       ### Read Context
       View the conversation history and pending tasks for your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10076;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10107;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10076;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10107;chatroom_rooms --role=reviewer
       \`\`\`
 
       ### Start Working
       Before starting work on a received message, acknowledge it:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10076;chatroom_rooms --role=reviewer --task-id=<task-id> --no-classify
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10107;chatroom_rooms --role=reviewer --task-id=<task-id> --no-classify
       \`\`\`
 
       This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.
@@ -2170,7 +2170,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10076;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10107;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -2184,7 +2184,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10076;chatroom_rooms --role=reviewer << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10107;chatroom_rooms --role=reviewer << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF
@@ -2194,7 +2194,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10076;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10107;chatroom_rooms --role=reviewer
       \`\`\`
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
@@ -2204,7 +2204,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10076;chatroom_rooms --role=reviewer
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10107;chatroom_rooms --role=reviewer
       \`\`\`"
     `);
   });

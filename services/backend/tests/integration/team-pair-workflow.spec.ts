@@ -696,7 +696,7 @@ Test technical specifications`,
         **Complete task and hand off:**
 
         \`\`\`bash
-        chatroom handoff --chatroom-id=10019;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+        chatroom handoff --chatroom-id=10028;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
         ---MESSAGE---
         [Your message here]
         EOF
@@ -710,7 +710,7 @@ Test technical specifications`,
         **Report progress on current task:**
 
         \`\`\`bash
-        chatroom report-progress --chatroom-id=10019;chatroom_rooms --role=builder << 'EOF'
+        chatroom report-progress --chatroom-id=10028;chatroom_rooms --role=builder << 'EOF'
         ---MESSAGE---
         [Your progress message here]
         EOF
@@ -720,7 +720,7 @@ Test technical specifications`,
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom get-next-task --chatroom-id=10019;chatroom_rooms --role=builder
+        chatroom get-next-task --chatroom-id=10028;chatroom_rooms --role=builder
         \`\`\`
 
         Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you"

@@ -11,8 +11,10 @@
  *   - tasks.ts createTask mutation (direct task creation)
  */
 
+import { internal } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { ENSURE_AGENT_DELAY_MS } from '../../../../convex/ensureAgentHandler';
 
 export interface CreateTaskArgs {
   chatroomId: Id<'chatroom_rooms'>;
@@ -81,6 +83,15 @@ export async function createTask(
         attachedTaskIds: args.attachedTaskIds,
       }),
   });
+
+  // Schedule ensure-agent check for pending tasks
+  if (status === 'pending') {
+    await ctx.scheduler.runAfter(ENSURE_AGENT_DELAY_MS, internal.ensureAgentHandler.check, {
+      taskId,
+      chatroomId: args.chatroomId,
+      snapshotUpdatedAt: now,
+    });
+  }
 
   return { taskId, status };
 }

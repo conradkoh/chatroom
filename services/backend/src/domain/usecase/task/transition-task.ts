@@ -25,9 +25,11 @@
  */
 
 import { promoteNextTask } from './promote-next-task';
+import { internal } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { areAllAgentsIdle } from '../../../../convex/auth/cliSessionAuth';
+import { ENSURE_AGENT_DELAY_MS } from '../../../../convex/ensureAgentHandler';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 
@@ -40,6 +42,16 @@ import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/task
  * of the next queued task.
  */
 const PROMOTION_TRIGGER_STATUSES: ReadonlySet<TaskStatus> = new Set(['completed', 'closed']);
+
+/**
+ * Task statuses that indicate an agent should be running.
+ * After transitions to these statuses, we schedule an ensure-agent check.
+ */
+const ENSURE_AGENT_TRIGGER_STATUSES: ReadonlySet<TaskStatus> = new Set([
+  'pending',
+  'acknowledged',
+  'in_progress',
+]);
 
 // ============================================================================
 // USECASE
@@ -90,6 +102,19 @@ export async function transitionTask(
         },
         transitionTaskToPending: (nextTaskId) =>
           fsmTransitionTask(ctx, nextTaskId, 'pending', 'promoteNextTask'),
+      });
+    }
+  }
+
+  // 3. After active-status transitions, schedule an ensure-agent check.
+  //    Re-fetch AFTER the FSM transition so updatedAt is the post-transition timestamp.
+  if (ENSURE_AGENT_TRIGGER_STATUSES.has(newStatus)) {
+    const activeTask = await ctx.db.get('chatroom_tasks', taskId);
+    if (activeTask) {
+      await ctx.scheduler.runAfter(ENSURE_AGENT_DELAY_MS, internal.ensureAgentHandler.check, {
+        taskId,
+        chatroomId: activeTask.chatroomId,
+        snapshotUpdatedAt: activeTask.updatedAt,
       });
     }
   }
