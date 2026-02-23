@@ -18,7 +18,7 @@
  * ## Callers
  *
  * All callers should import from this module:
- *   import { transitionTask } from './usecases/transitionTask'
+ *   import { transitionTask } from './usecases/transition-task'
  *
  * The FSM rules, type definitions, and helper functions remain in
  * lib/taskStateMachine.ts as the authoritative implementation.

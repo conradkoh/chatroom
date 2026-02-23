@@ -15,7 +15,7 @@ import {
   validateSession,
 } from './auth/cliSessionAuth';
 import { promoteNextTask as promoteNextTaskUsecase } from './usecases/promote-next-task';
-import { transitionTask } from './usecases/transitionTask';
+import { transitionTask } from './usecases/transition-task';
 
 /**
  * Maximum number of active tasks per chatroom.

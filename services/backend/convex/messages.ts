@@ -11,7 +11,7 @@ import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliS
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
 import { getCompletionStatus } from './lib/taskWorkflows';
-import { transitionTask, type TaskStatus } from './usecases/transitionTask';
+import { transitionTask, type TaskStatus } from './usecases/transition-task';
 import { generateFullCliOutput } from '../prompts/base/cli/wait-for-task/fullOutput.js';
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
