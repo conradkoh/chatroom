@@ -53,7 +53,7 @@ interface AgentPanelProps {
 // ─── Presence Utilities ──────────────────────────────────────────────────────
 
 /** Agents unseen for longer than this threshold are considered offline. */
-const PRESENCE_THRESHOLD_MS = 90_000; // 90 seconds
+const PRESENCE_THRESHOLD_MS = 600_000; // 10 minutes
 
 /** Returns true if the agent is considered online (seen within threshold). */
 function isOnline(lastSeenAt: number | null | undefined): boolean {
