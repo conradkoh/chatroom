@@ -277,7 +277,7 @@ const STUCK_LAST_SEEN_MS = 5 * 60 * 1000; // 5 minutes
 const STUCK_ACKNOWLEDGED_MS = 30 * 1000; // 30 seconds
 
 /** Agent is considered online if seen within this window. */
-const PRESENCE_THRESHOLD_MS = 90_000; // 90 seconds
+const PRESENCE_THRESHOLD_MS = 600_000; // 10 minutes
 
 /**
  * Get team lifecycle data for the frontend.
