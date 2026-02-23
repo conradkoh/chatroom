@@ -125,5 +125,22 @@ export async function handleStartAgent(
     });
   });
 
+  // Track lastSeenTokenAt — report to backend at most once per 30s,
+  // and only when the timestamp has actually changed (avoid redundant writes).
+  let lastReportedTokenAt = 0;
+  spawnResult.onOutput(() => {
+    const now = Date.now();
+    if (now - lastReportedTokenAt >= 30_000) {
+      lastReportedTokenAt = now;
+      ctx.deps.backend
+        .mutation(api.participants.updateTokenActivity, {
+          sessionId: ctx.sessionId,
+          chatroomId,
+          role,
+        })
+        .catch(() => {}); // fire-and-forget — non-critical
+    }
+  });
+
   return { result: msg, failed: false };
 }
