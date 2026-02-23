@@ -33,13 +33,13 @@ In the web app, click **+ New** and select a team:
 
 ### 5. Initialize Agents
 
-Copy the agent prompt from the web UI sidebar and paste it into your AI assistant. The prompt includes the `wait-for-task` command that the agent will use to join.
+Copy the agent prompt from the web UI sidebar and paste it into your AI assistant. The prompt includes the `get-next-task` command that the agent will use to join.
 
 Each agent needs:
 
 ```bash
 CHATROOM_CONVEX_URL=https://wonderful-raven-192.convex.cloud \
-chatroom wait-for-task --chatroom-id=<chatroom-id> --role=<role>
+chatroom get-next-task --chatroom-id=<chatroom-id> --role=<role>
 ```
 
 ### 6. Send a Task
@@ -52,54 +52,54 @@ Once all agents have joined (team shows as "ready"), type your task in the messa
 
 ### Authentication Commands
 
-| Command                    | Description                          |
-| -------------------------- | ------------------------------------ |
-| `chatroom auth login`      | Authenticate CLI via browser         |
-| `chatroom auth logout`     | Logout and clear authentication data |
-| `chatroom auth status`     | Check current authentication status  |
+| Command                | Description                          |
+| ---------------------- | ------------------------------------ |
+| `chatroom auth login`  | Authenticate CLI via browser         |
+| `chatroom auth logout` | Logout and clear authentication data |
+| `chatroom auth status` | Check current authentication status  |
 
 ### User Commands
 
-| Command                       | Description                          |
-| ----------------------------- | ------------------------------------ |
-| `chatroom update`             | Update the CLI to the latest version |
-| `chatroom guidelines`         | Display development guidelines       |
+| Command               | Description                          |
+| --------------------- | ------------------------------------ |
+| `chatroom update`     | Update the CLI to the latest version |
+| `chatroom guidelines` | Display development guidelines       |
 
 ### Agent Commands
 
 > **Note:** Agent commands require the `CHATROOM_CONVEX_URL` environment variable. Set it to the Convex backend URL (e.g., `https://wonderful-raven-192.convex.cloud`).
 
-| Command | Description |
-| --- | --- |
-| `chatroom wait-for-task --chatroom-id=<id> --role=<role>` | Join chatroom and wait for tasks |
+| Command                                                                                                        | Description                                                           |
+| -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `chatroom get-next-task --chatroom-id=<id> --role=<role>`                                                      | Join chatroom and wait for tasks                                      |
 | `chatroom task-started --chatroom-id=<id> --role=<role> --task-id=<id> --origin-message-classification=<type>` | Acknowledge and classify a task (question, new_feature, or follow_up) |
-| `chatroom task-complete --chatroom-id=<id> --role=<role>` | Mark task as complete without handing off |
-| `chatroom report-progress --chatroom-id=<id> --role=<role>` | Send progress update on current task (message via stdin) |
-| `chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>` | Complete task and hand off to next role (message via stdin) |
-| `chatroom context read --chatroom-id=<id> --role=<role>` | View chatroom conversation history |
-| `chatroom messages list --chatroom-id=<id> --role=<role>` | List and filter chatroom messages |
+| `chatroom task-complete --chatroom-id=<id> --role=<role>`                                                      | Mark task as complete without handing off                             |
+| `chatroom report-progress --chatroom-id=<id> --role=<role>`                                                    | Send progress update on current task (message via stdin)              |
+| `chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>`                                         | Complete task and hand off to next role (message via stdin)           |
+| `chatroom context read --chatroom-id=<id> --role=<role>`                                                       | View chatroom conversation history                                    |
+| `chatroom messages list --chatroom-id=<id> --role=<role>`                                                      | List and filter chatroom messages                                     |
 
 ### Backlog Commands
 
-| Command | Description |
-| --- | --- |
-| `chatroom backlog list --chatroom-id=<id> --role=<role> --status=<status>` | List tasks in backlog (filter by status) |
-| `chatroom backlog add --chatroom-id=<id> --role=<role> --content="..."` | Add a task to the backlog |
-| `chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --task-id=<id>` | Mark backlog item for user review |
+| Command                                                                            | Description                              |
+| ---------------------------------------------------------------------------------- | ---------------------------------------- |
+| `chatroom backlog list --chatroom-id=<id> --role=<role> --status=<status>`         | List tasks in backlog (filter by status) |
+| `chatroom backlog add --chatroom-id=<id> --role=<role> --content="..."`            | Add a task to the backlog                |
+| `chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --task-id=<id>` | Mark backlog item for user review        |
 
 ### Machine Daemon Commands
 
 The machine daemon enables remote agent control from the web UI. It listens for commands sent to your registered machine and spawns agent processes automatically.
 
-| Command | Description |
-| --- | --- |
-| `chatroom machine daemon start` | Start the daemon to listen for remote commands |
-| `chatroom machine daemon stop` | Stop the running daemon |
-| `chatroom machine daemon status` | Check if the daemon is running |
+| Command                          | Description                                    |
+| -------------------------------- | ---------------------------------------------- |
+| `chatroom machine daemon start`  | Start the daemon to listen for remote commands |
+| `chatroom machine daemon stop`   | Stop the running daemon                        |
+| `chatroom machine daemon status` | Check if the daemon is running                 |
 
 **How it works:**
 
-1. When you run `wait-for-task`, your machine is automatically registered with the backend
+1. When you run `get-next-task`, your machine is automatically registered with the backend
 2. The daemon polls for commands (e.g., "start agent") sent from the web UI
 3. Agent harnesses (e.g., OpenCode) are detected and spawned as needed
 
@@ -116,6 +116,7 @@ An **agent harness** is the AI development environment that runs an agent (e.g.,
 ### Machine Identity
 
 Each machine that runs the CLI is automatically registered with a stable UUID stored in `~/.chatroom/machine.json`. This enables:
+
 - Remote agent control from the web UI
 - Machine-specific agent configuration
 - Daemon-based command processing
@@ -124,13 +125,13 @@ Each machine that runs the CLI is automatically registered with a stable UUID st
 
 The system maintains an explicit agent status state machine that tracks the full lifecycle:
 
-| Status | Description |
-| ------ |-------------|
-| `offline` | Agent has never connected or has been explicitly stopped |
-| `ready` | Agent is connected and awaiting tasks |
-| `working` | Agent is actively processing a task |
-| `dead` | Agent has stopped responding and is being restarted |
-| `restarting` | Daemon is attempting to restart the agent |
+| Status               | Description                                                |
+| -------------------- | ---------------------------------------------------------- |
+| `offline`            | Agent has never connected or has been explicitly stopped   |
+| `ready`              | Agent is connected and awaiting tasks                      |
+| `working`            | Agent is actively processing a task                        |
+| `dead`               | Agent has stopped responding and is being restarted        |
+| `restarting`         | Daemon is attempting to restart the agent                  |
 | `dead_failed_revive` | All restart attempts failed - manual intervention required |
 
 The UI always shows an authoritative, real-time status derived from this FSM rather than computing it ad-hoc.
@@ -192,6 +193,7 @@ chatroom/
 ### Agent Lifecycle
 
 The backend maintains a formal agent status FSM that tracks:
+
 1. `offline` → `ready` (agent connects)
 2. `ready` → `working` (task received)
 3. `working` → `ready` (task complete)
@@ -264,7 +266,7 @@ This opens the local webapp for authentication. You need to be logged in to the 
 For all subsequent CLI commands, prefix with the Convex URL:
 
 ```bash
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=<chatroom-id> --role=builder
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=<chatroom-id> --role=builder
 ```
 
 ### Environment Variables
@@ -287,8 +289,8 @@ chatroom auth login
 # Check auth status
 CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom auth status
 
-# Wait for task (local)
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=<id> --role=builder
+# Get next task (local)
+CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=<id> --role=builder
 
 # Handoff (local)
 CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<id> --role=builder --next-role=reviewer << 'EOF'
