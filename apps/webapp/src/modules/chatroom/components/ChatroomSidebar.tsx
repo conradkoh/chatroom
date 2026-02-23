@@ -8,21 +8,16 @@ import { useChatroomListing, type ChatroomWithStatus } from '../context/Chatroom
 
 // Status indicator colors - using squares per theme guidelines
 const getStatusIndicatorClasses = (chatStatus: ChatroomWithStatus['chatStatus']) => {
-  const base = 'w-1.5 h-1.5 flex-shrink-0';
+  const base = 'w-1.5 h-1.5 flex-shrink-0 rounded-full';
   switch (chatStatus) {
-    case 'ready':
-      return `${base} bg-chatroom-status-success`;
     case 'working':
       return `${base} bg-chatroom-status-info`;
+    case 'active':
+      return `${base} bg-chatroom-status-success`;
+    case 'idle':
     case 'completed':
-      return `${base} bg-chatroom-status-info opacity-50`;
-    case 'disconnected':
-      return `${base} bg-chatroom-status-error`;
-    case 'setup':
-      return `${base} bg-chatroom-status-warning`;
-    case 'partial':
     default:
-      return `${base} bg-chatroom-text-muted`;
+      return `${base} bg-chatroom-text-muted opacity-40`;
   }
 };
 

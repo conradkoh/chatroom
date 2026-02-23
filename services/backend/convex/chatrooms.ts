@@ -1,12 +1,8 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
-
-/** Window within which a participant is considered "present" (matches participants.ts). */
-const PRESENCE_WINDOW_MS = HEARTBEAT_TTL_MS; // 90s
 
 /**
  * Create a new chatroom with team configuration.
@@ -90,8 +86,8 @@ export const listByUser = query({
 /**
  * List chatrooms owned by the authenticated user with computed agent and chat status.
  * Returns enriched chatroom data with:
- * - agents: Array of agent statuses with computed effectiveStatus (accounts for expiration)
- * - chatStatus: Computed overall status ('ready' | 'working' | 'partial' | 'disconnected' | 'setup')
+ * - agents: Array of agent presence with lastSeenAt
+ * - chatStatus: Computed overall status ('working' | 'active' | 'idle' | 'completed')
  * - teamReadiness: Summary of team readiness state
  *
  * This is the single source of truth for chatroom listing display.
@@ -145,26 +141,14 @@ export const listByUserWithStatus = query({
           .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
           .collect();
 
-        // Compute agent presence from lastSeenAt (no FSM status fields)
-        const agents = participants.map((p) => {
-          const isExpired = p.lastSeenAt == null || now - p.lastSeenAt > PRESENCE_WINDOW_MS;
-          const effectiveStatus = isExpired ? ('disconnected' as const) : ('present' as const);
-          return {
-            role: p.role,
-            effectiveStatus,
-            isExpired,
-            lastSeenAt: p.lastSeenAt ?? null,
-            lastSeenAction: p.lastSeenAction ?? null,
-          };
-        });
+        // Compute agent presence from lastSeenAt
+        const LAST_SEEN_ACTIVE_MS = 600_000; // 10 minutes
+        const agents = participants.map((p) => ({
+          role: p.role,
+          lastSeenAt: p.lastSeenAt ?? null,
+        }));
 
         // Compute chat status (single source of truth)
-        const teamRoles = chatroom.teamRoles || [];
-        const activeAgents = agents.filter((a) => !a.isExpired);
-        const presentRoles = new Set(activeAgents.map((a) => a.role.toLowerCase()));
-
-        const allPresent = teamRoles.every((r) => presentRoles.has(r.toLowerCase()));
-        const hasDisconnected = agents.some((a) => a.isExpired);
         const inProgressTask = await ctx.db
           .query('chatroom_tasks')
           .withIndex('by_chatroom_status', (q) =>
@@ -173,35 +157,19 @@ export const listByUserWithStatus = query({
           .first();
         const hasActive = inProgressTask !== null;
 
-        // Check if a user has ever sent a message in this chatroom.
-        // A user message is the strongest signal that the chatroom has been used
-        // and should not show the setup screen again — even if all agents disconnect.
-        const firstUserMessage = await ctx.db
-          .query('chatroom_messages')
-          .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
-            q.eq('chatroomId', chatroom._id).eq('senderRole', 'user').eq('type', 'message')
-          )
-          .first();
-        const hasHistory = firstUserMessage !== null;
-
         // Compute chatStatus
-        type ChatStatus = 'ready' | 'working' | 'partial' | 'disconnected' | 'setup' | 'completed';
+        type ChatStatus = 'working' | 'active' | 'idle' | 'completed';
         let chatStatus: ChatStatus;
         if (chatroom.status === 'completed') {
           chatStatus = 'completed';
-        } else if (hasDisconnected && !allPresent) {
-          chatStatus = 'disconnected';
-        } else if (!allPresent && hasHistory) {
-          // Agents are missing but chatroom was previously used — show disconnected, not setup
-          chatStatus = 'disconnected';
-        } else if (!allPresent) {
-          chatStatus = 'setup';
         } else if (hasActive) {
           chatStatus = 'working';
-        } else if (allPresent) {
-          chatStatus = 'ready';
+        } else if (
+          agents.some((a) => a.lastSeenAt != null && now - a.lastSeenAt <= LAST_SEEN_ACTIVE_MS)
+        ) {
+          chatStatus = 'active';
         } else {
-          chatStatus = 'partial';
+          chatStatus = 'idle';
         }
 
         // Check for unread messages (efficiently using read cursor)
@@ -234,9 +202,11 @@ export const listByUserWithStatus = query({
           isFavorite: favoriteIds.has(chatroom._id),
           hasUnread,
           teamReadiness: {
-            isReady: allPresent && !hasDisconnected,
-            missingRoles: teamRoles.filter((r) => !presentRoles.has(r.toLowerCase())),
-            expiredRoles: agents.filter((a) => a.isExpired).map((a) => a.role),
+            isReady: agents.some(
+              (a) => a.lastSeenAt != null && now - a.lastSeenAt <= LAST_SEEN_ACTIVE_MS
+            ),
+            missingRoles: [],
+            expiredRoles: [],
           },
         };
       })

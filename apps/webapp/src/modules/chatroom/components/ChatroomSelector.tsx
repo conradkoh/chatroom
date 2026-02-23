@@ -23,39 +23,14 @@ interface ChatroomSelectorProps {
   onSelect: (chatroomId: string) => void;
 }
 
-// Status badge colors - using chatroom status variables for theme support
-const getStatusBadgeClasses = (chatStatus: ChatroomWithStatus['chatStatus']) => {
-  const base = 'px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide';
-  switch (chatStatus) {
-    case 'ready':
-      return `${base} bg-chatroom-status-success/15 text-chatroom-status-success`;
-    case 'working':
-      return `${base} bg-chatroom-status-info/15 text-chatroom-status-info`;
-    case 'completed':
-      return `${base} bg-chatroom-status-info/15 text-chatroom-status-info`;
-    case 'disconnected':
-      return `${base} bg-chatroom-status-error/15 text-chatroom-status-error`;
-    case 'setup':
-      return `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`;
-    case 'partial':
-    default:
-      return `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`;
-  }
-};
-
-// Agent status indicator - now uses effectiveStatus which accounts for expiration
-const getAgentIndicatorClasses = (effectiveStatus: 'active' | 'waiting' | 'disconnected') => {
+// Agent status indicator - based on lastSeenAt
+const LAST_SEEN_ACTIVE_MS = 600_000; // 10 minutes
+const getAgentIndicatorClasses = (lastSeenAt: number | null) => {
   const base = 'w-1.5 h-1.5 flex-shrink-0';
-  switch (effectiveStatus) {
-    case 'active':
-      return `${base} bg-chatroom-status-info`;
-    case 'waiting':
-      return `${base} bg-chatroom-status-success`;
-    case 'disconnected':
-      return `${base} bg-chatroom-status-error`;
-    default:
-      return `${base} bg-chatroom-text-muted`;
-  }
+  const isActive = lastSeenAt != null && Date.now() - lastSeenAt <= LAST_SEEN_ACTIVE_MS;
+  return isActive
+    ? `${base} bg-chatroom-status-success`
+    : `${base} bg-chatroom-text-muted opacity-40`;
 };
 
 export function ChatroomSelector({ onSelect }: ChatroomSelectorProps) {
@@ -292,18 +267,6 @@ const RecentChatroomCard = memo(function RecentChatroomCard({
 
   const teamName = chatroom.teamName || 'Team';
   const displayName = chatroom.name || teamName;
-  const { chatStatus } = chatroom;
-
-  const statusLabel =
-    chatStatus === 'ready'
-      ? 'ready'
-      : chatStatus === 'working'
-        ? 'working'
-        : chatStatus === 'setup'
-          ? 'setup'
-          : chatStatus === 'disconnected'
-            ? 'disconnected'
-            : 'partial';
 
   return (
     <button
@@ -326,7 +289,6 @@ const RecentChatroomCard = memo(function RecentChatroomCard({
           >
             <Star size={12} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
           </button>
-          <span className={getStatusBadgeClasses(chatStatus)}>{statusLabel}</span>
         </div>
       </div>
       <div className="font-mono text-[9px] text-chatroom-text-muted truncate">{chatroom._id}</div>
@@ -407,20 +369,6 @@ const ChatroomCard = memo(function ChatroomCard({
   // Create a map of role -> agent for quick lookup
   const agentMap = new Map(agents.map((a) => [a.role.toLowerCase(), a]));
 
-  // Display label for chat status
-  const statusLabel =
-    chatStatus === 'ready'
-      ? 'ready'
-      : chatStatus === 'working'
-        ? 'working'
-        : chatStatus === 'completed'
-          ? 'completed'
-          : chatStatus === 'disconnected'
-            ? 'disconnected'
-            : chatStatus === 'setup'
-              ? 'setup'
-              : 'partial';
-
   return (
     <div className="relative">
       <button
@@ -446,7 +394,6 @@ const ChatroomCard = memo(function ChatroomCard({
             >
               <Star size={14} fill={chatroom.isFavorite ? 'currentColor' : 'none'} />
             </button>
-            <span className={getStatusBadgeClasses(chatStatus)}>{statusLabel}</span>
             {/* Action Menu - only show for non-completed chatrooms */}
             {chatStatus !== 'completed' && (
               <DropdownMenu>
@@ -478,15 +425,13 @@ const ChatroomCard = memo(function ChatroomCard({
         <div className="font-mono text-[10px] text-chatroom-text-muted truncate mb-3">
           {chatroom._id}
         </div>
-        {/* Card Agents - now uses effectiveStatus which accounts for expiration */}
+        {/* Card Agents */}
         <div className="flex flex-wrap gap-2 mb-3">
           {teamRoles.map((role) => {
             const agent = agentMap.get(role.toLowerCase());
-            // Use effectiveStatus which is computed on backend and accounts for readyUntil expiration
-            const effectiveStatus = agent?.effectiveStatus || 'disconnected';
             return (
               <div key={role} className="flex items-center gap-1.5">
-                <span className={getAgentIndicatorClasses(effectiveStatus)} />
+                <span className={getAgentIndicatorClasses(agent?.lastSeenAt ?? null)} />
                 <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
                   {role}
                 </span>
@@ -569,13 +514,10 @@ const ChatroomTable = memo(function ChatroomTable({
   return (
     <div className="border-2 border-chatroom-border overflow-hidden">
       {/* Table Header */}
-      <div className="grid grid-cols-[32px_1fr_100px_auto_100px_40px] gap-4 px-4 py-2 bg-chatroom-bg-tertiary border-b-2 border-chatroom-border">
+      <div className="grid grid-cols-[32px_1fr_auto_100px_40px] gap-4 px-4 py-2 bg-chatroom-bg-tertiary border-b-2 border-chatroom-border">
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted" />
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Name
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-          Status
         </span>
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
           Agents
@@ -592,19 +534,6 @@ const ChatroomTable = memo(function ChatroomTable({
         const displayName = chatroom.name || teamName;
         const agentMap = new Map(chatroom.agents.map((a) => [a.role.toLowerCase(), a]));
 
-        const statusLabel =
-          chatroom.chatStatus === 'ready'
-            ? 'ready'
-            : chatroom.chatStatus === 'working'
-              ? 'working'
-              : chatroom.chatStatus === 'completed'
-                ? 'completed'
-                : chatroom.chatStatus === 'disconnected'
-                  ? 'disconnected'
-                  : chatroom.chatStatus === 'setup'
-                    ? 'setup'
-                    : 'partial';
-
         const formattedDate = new Date(chatroom._creationTime).toLocaleString('en-US', {
           month: 'short',
           day: 'numeric',
@@ -616,7 +545,7 @@ const ChatroomTable = memo(function ChatroomTable({
         return (
           <button
             key={chatroom._id}
-            className="grid grid-cols-[32px_1fr_100px_auto_100px_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full"
+            className="grid grid-cols-[32px_1fr_auto_100px_40px] gap-4 px-4 py-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-all duration-100 text-left w-full"
             onClick={() => onSelect(chatroom._id)}
           >
             {/* Favorite Star */}
@@ -650,18 +579,13 @@ const ChatroomTable = memo(function ChatroomTable({
                 {chatroom._id}
               </span>
             </div>
-            {/* Status */}
-            <div className="flex items-center">
-              <span className={getStatusBadgeClasses(chatroom.chatStatus)}>{statusLabel}</span>
-            </div>
             {/* Agents */}
             <div className="flex items-center gap-2 min-w-[140px]">
               {teamRoles.map((role) => {
                 const agent = agentMap.get(role.toLowerCase());
-                const effectiveStatus = agent?.effectiveStatus || 'disconnected';
                 return (
                   <div key={role} className="flex items-center gap-1">
-                    <span className={getAgentIndicatorClasses(effectiveStatus)} />
+                    <span className={getAgentIndicatorClasses(agent?.lastSeenAt ?? null)} />
                     <span className="text-[9px] font-bold uppercase tracking-wide text-chatroom-text-muted">
                       {role}
                     </span>
