@@ -106,15 +106,29 @@ program
   });
 
 program
-  .command('wait-for-task')
-  .description('Join a chatroom and wait for tasks')
+  .command('get-next-task')
+  .description('Join a chatroom and get the next task')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Role to join as (e.g., builder, reviewer)')
   .action(async (options: { chatroomId: string; role: string }) => {
     await maybeRequireAuth();
-    const { waitForTask } = await import('./commands/wait-for-task/index.js');
+    const { getNextTask } = await import('./commands/get-next-task/index.js');
 
-    await waitForTask(options.chatroomId, {
+    await getNextTask(options.chatroomId, {
+      role: options.role,
+    });
+  });
+
+program
+  .command('wait-for-task')
+  .description('(Deprecated: use get-next-task) Join a chatroom and wait for tasks')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Role to join as (e.g., builder, reviewer)')
+  .action(async (options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+    const { getNextTask } = await import('./commands/get-next-task/index.js');
+
+    await getNextTask(options.chatroomId, {
       role: options.role,
     });
   });

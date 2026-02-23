@@ -20,9 +20,9 @@ vi.mock('@workspace/backend/prompts/base/cli/handoff/command.js', () => ({
     `chatroom handoff --chatroom-id=${opts.chatroomId} --role=${opts.role} --next-role=${opts.nextRole}`,
 }));
 
-vi.mock('@workspace/backend/prompts/base/cli/wait-for-task/command.js', () => ({
-  waitForTaskCommand: (opts: { chatroomId: string; role: string }) =>
-    `chatroom wait-for-task --chatroom-id=${opts.chatroomId} --role=${opts.role}`,
+vi.mock('@workspace/backend/prompts/base/cli/get-next-task/command.js', () => ({
+  getNextTaskCommand: (opts: { chatroomId: string; role: string }) =>
+    `chatroom get-next-task --chatroom-id=${opts.chatroomId} --role=${opts.role}`,
 }));
 
 vi.mock('@workspace/backend/prompts/utils/env.js', () => ({
@@ -122,7 +122,7 @@ describe('handoff', () => {
       const output = getAllLogOutput();
       expect(output).toContain('Task completed and handed off to builder');
       expect(output).toContain('Task completed, handing off');
-      expect(output).toContain('wait-for-task');
+      expect(output).toContain('get-next-task');
     });
   });
 

@@ -94,7 +94,7 @@ export async function installTool(
   const toolPath = path.join(toolDir, 'chatroom.ts');
   const handoffToolPath = path.join(toolDir, 'chatroom-handoff.ts');
 
-  // Generate the wait-for-task tool content
+  // Generate the get-next-task tool content
   const toolContent = `import { tool } from "@opencode-ai/plugin";
 
 /**
@@ -124,7 +124,7 @@ async function checkChatroomStatus(): Promise<{ installed: boolean; authenticate
 
 export default tool({
   description:
-    "Wait for tasks in a multi-agent chatroom. This command joins a chatroom with a specific role and waits for tasks to be assigned. It's a long-running operation that polls for pending tasks and handles the complete workflow including authentication, task claiming, and graceful interruption handling. Use this instead of bash 'chatroom wait-for-task' to avoid timeout issues.",
+    "Get next task in a multi-agent chatroom. This command joins a chatroom with a specific role and waits for tasks to be assigned. It's a long-running operation that polls for pending tasks and handles the complete workflow including authentication, task claiming, and graceful interruption handling. Use this instead of bash 'chatroom get-next-task' to avoid timeout issues.",
   args: {
     chatroomId: tool.schema
       .string()
@@ -184,7 +184,7 @@ After logging in, try this command again.\`;
     }
 
     // Build command arguments
-    const cmdArgs = ['wait-for-task', args.chatroomId, '--role', args.role];
+    const cmdArgs = ['get-next-task', args.chatroomId, '--role', args.role];
 
     if (args.duration !== undefined) {
       cmdArgs.push('--duration', args.duration);
@@ -201,7 +201,7 @@ After logging in, try this command again.\`;
       env.CHATROOM_CONVEX_URL = args.convexUrl;
     }
 
-    // Execute the wait-for-task command
+    // Execute the get-next-task command
     // This is a long-running operation that polls for tasks
     const proc = Bun.spawn(['chatroom', ...cmdArgs], { 
       stdout: 'pipe',
@@ -440,7 +440,7 @@ Locations:
   • ${handoffToolPath}
 
 The following commands are now available in OpenCode:
-  • chatroom (wait-for-task) - Join chatroom and wait for tasks (no more timeouts!)
+  • chatroom (get-next-task) - Get next task from chatroom (no more timeouts!)
   • chatroom-handoff - Complete your task and hand off to the next role
 
 Both tools will automatically check for:

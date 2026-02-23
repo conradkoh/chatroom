@@ -1,5 +1,5 @@
 /**
- * WaitForTaskSession Unit Tests
+ * GetNextTaskSession Unit Tests
  *
  * Tests each subscription response type handler to verify:
  * - Correct exit codes
@@ -10,7 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { type SessionParams, WaitForTaskSession } from './session.js';
+import { type SessionParams, GetNextTaskSession } from './session.js';
 
 // ---------------------------------------------------------------------------
 // Mock modules
@@ -121,7 +121,7 @@ afterEach(() => {
 
 async function startSession(overrides?: Partial<SessionParams>) {
   const params = createSessionParams(overrides);
-  const session = new WaitForTaskSession(params);
+  const session = new GetNextTaskSession(params);
 
   await session.start();
 
@@ -141,7 +141,7 @@ function getAllLogOutput(): string {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('WaitForTaskSession', () => {
+describe('GetNextTaskSession', () => {
   // -----------------------------------------------------------------------
   // no_tasks
   // -----------------------------------------------------------------------

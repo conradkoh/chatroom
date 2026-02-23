@@ -11,8 +11,8 @@
  * 6. Promotes the next queued task to pending
  */
 
+import { getNextTaskCommand } from '@workspace/backend/prompts/base/cli/get-next-task/command.js';
 import { handoffCommand } from '@workspace/backend/prompts/base/cli/handoff/command.js';
-import { waitForTaskCommand } from '@workspace/backend/prompts/base/cli/wait-for-task/command.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 import { ConvexError } from 'convex/values';
 
@@ -183,5 +183,5 @@ export async function handoff(
 
   const convexUrl = d.session.getConvexUrl();
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  console.log(`\n⏳ Next → \`${waitForTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
+  console.log(`\n⏳ Next → \`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
 }

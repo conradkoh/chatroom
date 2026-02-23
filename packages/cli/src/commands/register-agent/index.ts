@@ -1,7 +1,7 @@
 /**
  * Register agent type for a chatroom role.
  *
- * Must be called as the agent's first action before wait-for-task.
+ * Must be called as the agent's first action before get-next-task.
  * Registers the agent as either "remote" (daemon-managed) or "custom" (manually started)
  * in the team agent config on the backend.
  */
