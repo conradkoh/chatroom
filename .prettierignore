@@ -8,3 +8,4 @@ build
 .git
 coverage
 .pnpm-debug.log
+**/convex/_generated/**
