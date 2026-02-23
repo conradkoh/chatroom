@@ -5,7 +5,7 @@ import { HEARTBEAT_TTL_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsIdle, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
-import { transitionTask } from './lib/taskStateMachine';
+import { transitionTask } from './usecases/transitionTask';
 
 /**
  * Join a chatroom as a participant.

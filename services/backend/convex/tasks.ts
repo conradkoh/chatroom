@@ -14,7 +14,7 @@ import {
   requireChatroomAccess,
   validateSession,
 } from './auth/cliSessionAuth';
-import { transitionTask } from './lib/taskStateMachine';
+import { transitionTask } from './usecases/transitionTask';
 
 /**
  * Maximum number of active tasks per chatroom.

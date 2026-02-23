@@ -14,7 +14,7 @@ import {
 } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
-import { transitionTask, type TaskStatus } from './lib/taskStateMachine';
+import { transitionTask, type TaskStatus } from './usecases/transitionTask';
 import { getCompletionStatus } from './lib/taskWorkflows';
 import { generateFullCliOutput } from '../prompts/base/cli/wait-for-task/fullOutput.js';
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
