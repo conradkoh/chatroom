@@ -3,12 +3,19 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { FileText, Loader2, X } from 'lucide-react';
-import React, { useState, useCallback, useEffect } from 'react';
+import { FileText, Loader2 } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { fullMarkdownComponents } from './markdown-utils';
+
+import {
+  FixedModal,
+  FixedModalBody,
+  FixedModalContent,
+  FixedModalHeader,
+} from '@/components/ui/fixed-modal';
 
 /**
  * Artifact metadata passed to renderers
@@ -92,72 +99,37 @@ interface ArtifactDetailModalProps {
 }
 
 function ArtifactDetailModal({ isOpen, artifact, onClose }: ArtifactDetailModalProps) {
-  // Close on Escape key + lock body scroll when modal is open
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-      // Prevent background page from scrolling while modal is open
-      document.body.style.overflow = 'hidden';
-    }
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen || !artifact) return null;
+  if (!artifact) return null;
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/50 transition-opacity"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
-      {/* Centered Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="w-full max-w-4xl h-[80vh] bg-chatroom-bg-primary border-2 border-chatroom-border shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200 pointer-events-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border bg-chatroom-bg-primary flex-shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <FileText size={14} className="flex-shrink-0 text-chatroom-status-info" />
-              <span className="text-sm font-bold text-chatroom-text-primary truncate">
-                {artifact.filename}
+    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-4xl" className="sm:h-[80vh]">
+      <FixedModalContent>
+        <FixedModalHeader onClose={onClose}>
+          <div className="flex items-center gap-2 min-w-0">
+            <FileText size={14} className="flex-shrink-0 text-chatroom-status-info" />
+            <span className="text-sm font-bold text-chatroom-text-primary truncate">
+              {artifact.filename}
+            </span>
+            {artifact.mimeType && (
+              <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-chatroom-bg-tertiary text-chatroom-text-muted border border-chatroom-border flex-shrink-0">
+                {artifact.mimeType}
               </span>
-              {artifact.mimeType && (
-                <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-chatroom-bg-tertiary text-chatroom-text-muted border border-chatroom-border flex-shrink-0">
-                  {artifact.mimeType}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={onClose}
-              className="ml-3 flex-shrink-0 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
-              aria-label="Close"
-            >
-              <X size={18} />
-            </button>
+            )}
           </div>
+        </FixedModalHeader>
 
-          {/* Description */}
-          {artifact.description && (
-            <div className="px-4 py-2 border-b border-chatroom-border bg-chatroom-bg-secondary flex-shrink-0">
-              <p className="text-xs text-chatroom-text-muted">{artifact.description}</p>
-            </div>
-          )}
-
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto overscroll-contain p-6">
-            <ArtifactContent artifactId={artifact._id} mimeType={artifact.mimeType} />
+        {/* Description */}
+        {artifact.description && (
+          <div className="px-4 py-2 border-b border-chatroom-border bg-chatroom-bg-secondary flex-shrink-0">
+            <p className="text-xs text-chatroom-text-muted">{artifact.description}</p>
           </div>
-        </div>
-      </div>
-    </>
+        )}
+
+        <FixedModalBody className="overscroll-contain p-6">
+          <ArtifactContent artifactId={artifact._id} mimeType={artifact.mimeType} />
+        </FixedModalBody>
+      </FixedModalContent>
+    </FixedModal>
   );
 }
 
