@@ -116,6 +116,9 @@ export async function handoff(
       senderRole: role,
       content: message,
       targetRole: nextRole,
+      ...(attachedArtifactIds.length > 0 && {
+        attachedArtifactIds: attachedArtifactIds as Id<'chatroom_artifacts'>[],
+      }),
     });
   } catch (error) {
     console.error(`\n❌ ERROR: Handoff failed`);
