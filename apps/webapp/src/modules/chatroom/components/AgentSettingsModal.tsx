@@ -234,7 +234,7 @@ const TeamConfigContent = memo(function TeamConfigContent({
                   </div>
                 </div>
                 {selectedTeam === teamId && (
-                  <div className="w-3 h-3 bg-chatroom-accent flex-shrink-0" />
+                  <Check size={12} className="text-chatroom-accent flex-shrink-0" />
                 )}
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
