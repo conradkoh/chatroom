@@ -192,64 +192,42 @@ chatroom/
 
 ---
 
-## 6. CHATROOM INTEGRATION
+<chatroom>
+## CHATROOM INTEGRATION
 
-If you are given a role in the chatroom ecosystem, you MUST always direct your questions to the user via the chatroom handoff command with the user as the target chatroom.
-
-The chatroom get-next-task command is of this format:
-
-```
-CHATROOM_CONVEX_URL=<endpoint> \
-chatroom get-next-task --chatroom-id=<chatroom-id> --role=<role>
-```
-
-The chatroom handoff command is of this format:
+### Workflow Loop
 
 ```
-CHATROOM_CONVEX_URL=<endpoint> \
-chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>
+get-next-task → do work → handoff → get-next-task → repeat
 ```
 
-### CRITICAL: Execution Rules for Chatroom Commands
-
-**`get-next-task` MUST be executed immediately via the `bash` tool — not documented, not deferred.**
-
-The correct session loop is:
-
-1. **Immediately run** `get-next-task` via `bash` and block until a task arrives
+1. **Run `get-next-task`** immediately via `bash` — block until task arrives
 2. **Process** the task
-3. **Run** `handoff` via `bash` to signal completion and pass control
-4. **Immediately run** `get-next-task` again to wait for the next task
+3. **Run `handoff`** to signal completion
+4. **Run `get-next-task`** again to wait for next task
 
-**Common mistakes to avoid:**
+### Reliability
 
-- ❌ Adding `get-next-task` to the todo list and then returning a summary to the user instead of running it
-- ❌ Treating `get-next-task` as something to document rather than execute
-- ❌ Skipping the `bash` tool call and just describing what you would do
+Always add these as the **last two todo items** for every task:
 
-The todo list is for _tracking_, not _executing_. The `bash` tool is what actually runs the command. Both must be used — add the task to the todo list AND call `bash` to execute it.
+1. **Handoff item** — contains the full handoff command (see Command Reference)
+2. **Get-next-task item** — contains the full get-next-task command (see Command Reference)
 
-To ensure that you always get this right, even after compaction, you should always add executing the get-next-task as a todo item, with the full command example and CHATROOM_CONVEX_URL so that you never forget.
+This ensures you never forget to pass control back — just copy the command from the todo item and run it via `bash`.
 
-### Context Recovery After Compaction
+### Command Reference
 
-**If you suspect context compaction or summarization has occurred** — for example, if your context window appears to contain only a high-level summary with next steps rather than the full conversation history — re-fetch your system prompt immediately before continuing:
+| Action                                   | Command                                                                                               |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Fetch next task                          | `CHATROOM_CONVEX_URL=<endpoint> chatroom get-next-task --chatroom-id=<id> --role=<role>`              |
+| Pass control                             | `CHATROOM_CONVEX_URL=<endpoint> chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>` |
+| Refresh system prompt (after compaction) | `CHATROOM_CONVEX_URL=<endpoint> chatroom get-system-prompt --chatroom-id=<id> --role=<role>`          |
 
-```
-CHATROOM_CONVEX_URL=<endpoint> \
-chatroom get-system-prompt --chatroom-id=<chatroom-id> --role=<role>
-```
+### Context Recovery
 
-This prints your complete role instructions to stdout. Read them carefully, then resume the session loop.
+If you suspect compaction (context starts with "Summary of:", or you're unsure of your role):
 
-**Signs that compaction has occurred:**
-
-- Your context begins with something like "Summary of prior conversation:" or "Context so far:"
-- You are unsure of your role, responsibilities, or which commands to run
-- You can see "next steps" but no actual conversation history leading up to them
-
-**Recovery procedure:**
-
-1. Run `get-system-prompt` to reload your full instructions
-2. Check your todo list for the last known next step
-3. Resume with `get-next-task` or `handoff` as appropriate
+1. Run `get-system-prompt` to reload full instructions
+2. Check todo list for last known step
+3. Resume with `get-next-task` or `handoff`
+   </chatroom>
