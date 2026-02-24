@@ -43,6 +43,9 @@ export {
   getSquadPlannerGuidance,
   getSquadBuilderGuidance,
   getSquadReviewerGuidance,
+  duoTeamConfig,
+  getDuoPlannerGuidance,
+  getDuoBuilderGuidance,
 } from './teams/index.js';
 
 // Base prompts
@@ -57,10 +60,7 @@ export {
 export { getContextGainingGuidance } from './base/shared/getting-started-content.js';
 
 // Shared utilities
-export {
-  HANDOFF_DIR,
-  getHandoffFileSnippet,
-} from './utils/index.js';
+export { HANDOFF_DIR, getHandoffFileSnippet } from './utils/index.js';
 
 // Guidelines and policies
 export { getReviewGuidelines } from './teams/pair/roles';

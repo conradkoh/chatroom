@@ -39,6 +39,7 @@ import {
   getRoleTitleSection,
   getRoleDescriptionSection,
 } from './sections/role-identity.js';
+import { getDuoRoleGuidanceFromContext } from './teams/duo/prompts/fromContext.js';
 import { getPairRoleGuidanceFromContext } from './teams/pair/prompts/fromContext.js';
 import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext.js';
 // getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
@@ -87,17 +88,26 @@ export function generateGeneralInstructions(_input?: GeneralInstructionsInput): 
 /**
  * Detect team type from team configuration
  */
-function detectTeamType(teamRoles: string[], teamName?: string): 'pair' | 'squad' | 'unknown' {
+function detectTeamType(
+  teamRoles: string[],
+  teamName?: string
+): 'pair' | 'squad' | 'duo' | 'unknown' {
   const normalizedName = (teamName || '').toLowerCase();
   if (normalizedName.includes('squad')) return 'squad';
+  if (normalizedName.includes('duo')) return 'duo';
   if (normalizedName.includes('pair')) return 'pair';
 
   // Detect by role composition
   const hasPlanner = teamRoles.some((r) => r.toLowerCase() === 'planner');
-  if (hasPlanner) return 'squad';
-
   const hasBuilder = teamRoles.some((r) => r.toLowerCase() === 'builder');
   const hasReviewer = teamRoles.some((r) => r.toLowerCase() === 'reviewer');
+
+  // Duo: planner + builder (exactly 2 roles, no reviewer)
+  if (hasPlanner && hasBuilder && !hasReviewer && teamRoles.length === 2) return 'duo';
+
+  // Squad: has planner (with more than 2 roles or with reviewer)
+  if (hasPlanner) return 'squad';
+
   if (hasBuilder && hasReviewer && teamRoles.length === 2) return 'pair';
 
   // 'unknown' is intentional: custom teams get generic base guidance rather than
@@ -156,6 +166,11 @@ export function getRoleGuidanceFromContext(ctx: SelectorContext): string {
   try {
     if (ctx.team === 'squad') {
       const result = getSquadRoleGuidanceFromContext(ctx);
+      if (result !== null) return result;
+    }
+
+    if (ctx.team === 'duo') {
+      const result = getDuoRoleGuidanceFromContext(ctx);
       if (result !== null) return result;
     }
 
@@ -286,6 +301,7 @@ export function generateTaskStartedReminder(
 
   const isPairTeam = ctx.team === 'pair';
   const isSquadTeam = ctx.team === 'squad';
+  const isDuoTeam = ctx.team === 'duo';
 
   // Planner-specific reminders (squad team)
   if (normalizedRole === 'planner') {
@@ -443,6 +459,29 @@ ${handoffCmd}
 
 💡 You're working on:
 Task ID: ${taskId}`;
+    } else if (isDuoTeam) {
+      // Duo team: builder always hands off to planner, never to user
+      const handoffCmd = handoffCommand({
+        chatroomId,
+        role: 'builder',
+        nextRole: 'planner',
+        cliEnvPrefix,
+      });
+      return `✅ Task acknowledged as ${classification.toUpperCase().replace('_', ' ')}.
+
+**Next steps:**
+1. Implement the requested changes
+2. Send \`report-progress\` at milestones
+3. Hand off to planner when complete:
+
+\`\`\`bash
+${handoffCmd}
+\`\`\`
+
+⚠️ In duo team, never hand off directly to user — go through the planner.
+
+💡 You're working on:
+Task ID: ${taskId}`;
     } else {
       // Generic builder reminder (no specific team structure)
       const handoffCmd = handoffCommand({
@@ -548,8 +587,9 @@ export function composeSystemPrompt(input: InitPromptInput): string {
 
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
 
-  // In squad team, only the planner can hand off to the user
-  const canHandoffToUser = selectorCtx.team === 'squad' ? role.toLowerCase() === 'planner' : true;
+  // In squad/duo team, only the planner can hand off to the user
+  const isRestrictedTeam = selectorCtx.team === 'squad' || selectorCtx.team === 'duo';
+  const canHandoffToUser = isRestrictedTeam ? role.toLowerCase() === 'planner' : true;
   const handoffTargets = canHandoffToUser
     ? [...new Set([...otherRoles, 'user'])]
     : [...new Set(otherRoles)];
@@ -570,14 +610,16 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   // Role-specific guidance (team-aware workflow)
   sections.push(getRoleGuidanceSection(selectorCtx));
 
-  // Handoff options (includes restriction notice for squad non-planner roles)
+  // Handoff options (includes restriction notice for squad/duo non-planner roles)
   sections.push(
     getHandoffOptionsSection({
       availableHandoffRoles: handoffTargets,
       canHandoffToUser,
       restrictionReason: canHandoffToUser
         ? null
-        : 'In squad team, only the planner can hand off to the user.',
+        : selectorCtx.team === 'duo'
+          ? 'In duo team, only the planner can hand off to the user.'
+          : 'In squad team, only the planner can hand off to the user.',
     })
   );
 

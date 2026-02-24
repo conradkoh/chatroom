@@ -17,7 +17,7 @@ export interface SelectorContext {
   /** Agent role (e.g., 'builder', 'reviewer', 'planner') */
   role: string;
   /** Team type (e.g., 'pair', 'squad', or custom team name) */
-  team: 'pair' | 'squad' | 'unknown';
+  team: 'pair' | 'squad' | 'duo' | 'unknown';
   /** Current workflow/classification (e.g., 'new_feature', 'question', 'follow_up') */
   workflow?: 'new_feature' | 'question' | 'follow_up' | null;
   /** Team roles as configured */

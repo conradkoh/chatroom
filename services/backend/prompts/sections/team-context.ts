@@ -23,6 +23,10 @@ export function getTeamContextSection(ctx: SelectorContext): PromptSection {
     return createSection('team-context', 'knowledge', getSquadContext(ctx));
   }
 
+  if (ctx.team === 'duo') {
+    return createSection('team-context', 'knowledge', getDuoContext(ctx));
+  }
+
   if (ctx.team === 'pair') {
     return createSection('team-context', 'knowledge', getPairContext(ctx));
   }
@@ -84,6 +88,42 @@ function getSquadReviewerContext(ctx: SelectorContext): string {
  ${hasBuilder ? '- Builder is available — hand back to builder for rework' : '- Builder is NOT available — you may also implement changes'}
  - If work meets requirements → hand off to \`planner\` for user delivery
  - If changes needed → hand off to \`builder\` with specific feedback${!hasBuilder ? ' (or implement yourself)' : ''}
+ - **NEVER hand off directly to \`user\`** — always go through the planner`;
+}
+
+function getDuoContext(ctx: SelectorContext): string {
+  const normalizedRole = ctx.role.toLowerCase();
+
+  if (normalizedRole === 'planner') {
+    return getDuoPlannerContext(ctx);
+  }
+  if (normalizedRole === 'builder') {
+    return getDuoBuilderContext();
+  }
+
+  return '';
+}
+
+function getDuoPlannerContext(ctx: SelectorContext): string {
+  const hasBuilder = (ctx.availableMembers ?? ctx.teamRoles).some(
+    (r) => r.toLowerCase() === 'builder'
+  );
+
+  return `**Duo Team Context:**
+ - You are the entry point — you communicate directly with the user
+ - You coordinate with the builder for implementation tasks
+ - You are ultimately accountable for all work quality
+ ${hasBuilder ? '- Builder is available for implementation tasks' : '- Builder is NOT available — you must implement yourself'}
+ - After reviewing builder output, deliver results to the user
+ - **Only you can hand off to \`user\`**`;
+}
+
+function getDuoBuilderContext(): string {
+  return `**Duo Team Context:**
+ - You work with a planner who coordinates work and communicates with the user
+ - You do NOT communicate directly with the user — hand off to the planner instead
+ - Focus on implementation; the planner handles user communication and delivery
+ - After completing work, hand off back to planner
  - **NEVER hand off directly to \`user\`** — always go through the planner`;
 }
 
