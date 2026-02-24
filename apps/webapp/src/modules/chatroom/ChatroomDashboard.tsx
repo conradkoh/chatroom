@@ -43,6 +43,10 @@ import { PromptsProvider } from '@/contexts/PromptsContext';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
+// NOTE: For chatroom-themed floating popups/dropdowns, always use `bg-chatroom-bg-tertiary`
+// (fully opaque) — NOT `bg-chatroom-bg-surface` (glassmorphism/semi-transparent).
+// `bg-chatroom-bg-surface` is intended for overlapping panels with solid backgrounds,
+// not for floating popovers that sit over arbitrary page content.
 
 interface TeamDefinition {
   name: string;
@@ -556,7 +560,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  className="min-w-[200px] bg-chatroom-bg-surface border-2 border-chatroom-border rounded-none p-0"
+                  className="min-w-[200px] bg-chatroom-bg-tertiary border-2 border-chatroom-border rounded-none p-0"
                 >
                   {Object.entries(TEAMS_CONFIG.teams).map(([teamId, teamData]) => {
                     const isActive = teamId === (chatroom.teamId || TEAMS_CONFIG.defaultTeam);
