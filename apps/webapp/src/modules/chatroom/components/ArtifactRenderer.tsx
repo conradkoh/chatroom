@@ -92,13 +92,20 @@ interface ArtifactDetailModalProps {
 }
 
 function ArtifactDetailModal({ isOpen, artifact, onClose }: ArtifactDetailModalProps) {
-  // Close on Escape key
+  // Close on Escape key + lock body scroll when modal is open
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    if (isOpen) window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      // Prevent background page from scrolling while modal is open
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen || !artifact) return null;
@@ -145,7 +152,7 @@ function ArtifactDetailModal({ isOpen, artifact, onClose }: ArtifactDetailModalP
           )}
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto overscroll-contain p-6">
             <ArtifactContent artifactId={artifact._id} mimeType={artifact.mimeType} />
           </div>
         </div>
