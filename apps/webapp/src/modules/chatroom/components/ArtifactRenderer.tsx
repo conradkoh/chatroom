@@ -206,11 +206,11 @@ export function ArtifactChip({ artifact }: ArtifactChipProps) {
     <>
       <button
         onClick={openModal}
-        className="inline-flex items-center gap-1.5 px-2 py-1 border border-chatroom-border bg-chatroom-bg-tertiary hover:bg-chatroom-accent-subtle transition-colors text-left"
+        className="inline-flex items-center gap-2 px-3 py-2 border border-chatroom-border bg-chatroom-bg-tertiary hover:bg-chatroom-accent-subtle transition-colors text-left"
         title={artifact.description}
       >
-        <FileText size={12} className="flex-shrink-0 text-chatroom-status-info" />
-        <span className="text-xs font-medium text-chatroom-text-primary">{artifact.filename}</span>
+        <FileText size={14} className="flex-shrink-0 text-chatroom-status-info" />
+        <span className="text-sm font-medium text-chatroom-text-primary">{artifact.filename}</span>
       </button>
 
       <ArtifactDetailModal isOpen={isModalOpen} artifact={artifact} onClose={closeModal} />
