@@ -654,26 +654,30 @@ export const AgentStatusBanner = memo(function AgentStatusBanner({
   return (
     <>
       {runningAgentConfig && (
-        <div className="p-2.5 bg-chatroom-bg-tertiary border border-chatroom-status-info/30 space-y-1">
+        <div className="p-3 bg-chatroom-bg-tertiary border-2 border-chatroom-status-info/30">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-chatroom-status-info rounded-full animate-pulse" />
-            <span className="text-[10px] font-bold text-chatroom-text-primary">Agent Running</span>
-            <span className="text-[10px] text-chatroom-text-muted">
+            <div className="w-1.5 h-1.5 bg-chatroom-status-info animate-pulse flex-shrink-0" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary">
+              Agent Running
+            </span>
+            <span className="text-[10px] font-mono text-chatroom-text-muted">
               PID {runningAgentConfig.spawnedAgentPid}
             </span>
           </div>
         </div>
       )}
       {success && (
-        <div className="flex items-center gap-2 p-2 bg-chatroom-status-success/10 border border-chatroom-status-success/30">
+        <div className="flex items-center gap-2 p-2 bg-chatroom-status-success/10 border-2 border-chatroom-status-success/30">
           <CheckCircle size={12} className="text-chatroom-status-success flex-shrink-0" />
-          <p className="text-[10px] text-chatroom-status-success font-bold">{success}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-chatroom-status-success">
+            {success}
+          </p>
         </div>
       )}
       {error && (
-        <div className="flex items-center gap-2 p-2 bg-chatroom-status-error/10 border border-chatroom-status-error/30">
+        <div className="flex items-center gap-2 p-2 bg-chatroom-status-error/10 border-2 border-chatroom-status-error/30">
           <AlertCircle size={12} className="text-chatroom-status-error flex-shrink-0" />
-          <p className="text-[10px] text-chatroom-status-error">{error}</p>
+          <p className="text-[10px] font-bold text-chatroom-status-error">{error}</p>
         </div>
       )}
     </>
