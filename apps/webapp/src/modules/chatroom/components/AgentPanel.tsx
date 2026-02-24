@@ -70,6 +70,21 @@ function isWorking(online: boolean, lastSeenAction: string | null | undefined): 
   return online && lastSeenAction !== 'get-next-task:started';
 }
 
+/**
+ * Hook that returns a monotonically-increasing tick counter, updated every
+ * `intervalMs` milliseconds.  Components that call this will re-render on
+ * each tick, ensuring that time-based checks (isOnline, formatLastSeen) stay
+ * accurate without needing a DB write to trigger a Convex query re-run.
+ */
+function usePresenceTick(intervalMs = 30_000): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return tick;
+}
+
 /** Pure helper — formats a lastSeenAt unix-ms timestamp into a human-readable "X ago" string. */
 function formatLastSeen(lastSeenAt: number | null | undefined): string {
   if (lastSeenAt == null) return 'never';
@@ -480,6 +495,10 @@ export const AgentPanel = memo(function AgentPanel({
   onConfigure,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
+
+  // Tick every 30s so presence checks (isOnline, formatLastSeen) stay current
+  // without needing a DB write to trigger a Convex query re-run.
+  usePresenceTick();
 
   // Allow parent to request opening the agent list modal
   useEffect(() => {
