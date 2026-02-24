@@ -80,6 +80,19 @@ program
   });
 
 // ============================================================================
+// USER COMMANDS (no auth required)
+// ============================================================================
+
+program
+  .command('init')
+  .description('Initialize chatroom integration in your project')
+  .option('--dir <path>', 'Directory to initialize (default: current directory)')
+  .action(async (options: { dir?: string }) => {
+    const { init } = await import('./commands/init/index.js');
+    await init({ dir: options.dir });
+  });
+
+// ============================================================================
 // CHATROOM COMMANDS (auth required unless --skip-auth)
 // ============================================================================
 
