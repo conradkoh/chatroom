@@ -127,6 +127,9 @@ export async function readContext(
       console.log(`\n🔹 Message ID: ${message._id}`);
       console.log(`   Time: ${timestamp}`);
       console.log(`   From: ${message.senderRole}`);
+      if (message.targetRole) {
+        console.log(`   To: ${message.targetRole}`);
+      }
       console.log(`   Type: ${message.type}${classificationBadge}`);
 
       if (message.featureTitle) {
