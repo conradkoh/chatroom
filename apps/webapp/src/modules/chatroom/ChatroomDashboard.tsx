@@ -496,7 +496,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Status badge colors - using chatroom status variables for theme support
   const getStatusBadgeClasses = useCallback(
     (status: string, isSetup: boolean, isDisconnected: boolean) => {
-      const base = 'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide';
+      const base =
+        'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide inline-flex items-center';
       if (isDisconnected) return `${base} bg-chatroom-status-error/15 text-chatroom-status-error`;
       if (isSetup) return `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`;
       switch (status) {
