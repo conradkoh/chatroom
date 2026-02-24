@@ -62,6 +62,12 @@ const TEAMS_CONFIG: TeamsConfig = {
       roles: ['planner', 'builder', 'reviewer'],
       entryPoint: 'planner',
     },
+    duo: {
+      name: 'Duo',
+      description: 'A planner and builder working as a pair, planner as coordinator',
+      roles: ['planner', 'builder'],
+      entryPoint: 'planner',
+    },
   },
 };
 
