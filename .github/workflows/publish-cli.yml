@@ -80,8 +80,7 @@ jobs:
         run: pnpm install
 
       - name: Build CLI (with dependencies)
-        run: pnpm build
-        working-directory: packages/cli
+        run: pnpm turbo run build --filter=chatroom-cli
 
       - name: Publish to npm
         working-directory: packages/cli
