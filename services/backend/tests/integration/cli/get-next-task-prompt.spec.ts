@@ -412,7 +412,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       [Your progress message here]
       EOF\`
       4. Do the work
-      5. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target>\` (targets: reviewer, user)
+      5. Hand off (targets: reviewer, user) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+      ---MESSAGE---
+      [Your message here]
+      EOF\`
       6. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=builder\`
 
       Reference commands:
@@ -457,7 +460,14 @@ ${taskDeliveryPrompt.fullCliOutput}
       <summary of current focus>
       EOF\`
       3. Do the work → follow PROCESS above
-      4. Hand off when complete
+      4. Hand off when complete:
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+      ---MESSAGE---
+      [Your message here]
+      EOF
+      \`\`\`
+      (targets: reviewer, user)
       </next-steps>
 
       ============================================================
@@ -1620,7 +1630,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       [Your progress message here]
       EOF\`
       3. Do the work
-      4. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10087;chatroom_rooms --role=reviewer --next-role=<target>\` (targets: builder, user)
+      4. Hand off (targets: builder, user) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10087;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+      ---MESSAGE---
+      [Your message here]
+      EOF\`
       5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10087;chatroom_rooms --role=reviewer\`
 
       Reference commands:
@@ -1637,7 +1650,14 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       handed off from builder — start work immediately.
       1. Do the work → follow PROCESS above
-      2. Hand off when complete
+      2. Hand off when complete:
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10087;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+      ---MESSAGE---
+      [Your message here]
+      EOF
+      \`\`\`
+      (targets: builder, user)
       </next-steps>
 
       ============================================================

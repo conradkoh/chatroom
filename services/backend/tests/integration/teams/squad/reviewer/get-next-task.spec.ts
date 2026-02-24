@@ -79,7 +79,10 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       [Your progress message here]
       EOF\`
       3. Do the work
-      4. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target>\` (targets: builder, planner)
+      4. Hand off (targets: builder, planner) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target> << 'EOF'
+      ---MESSAGE---
+      [Your message here]
+      EOF\`
       5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-chatroom-id --role=reviewer\`
 
       Reference commands:
@@ -120,7 +123,14 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       <tech-specs>
       EOF
       2. Do the work → follow PROCESS above
-      3. Hand off when complete
+      3. Hand off when complete:
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target> << 'EOF'
+      ---MESSAGE---
+      [Your message here]
+      EOF
+      \`\`\`
+      (targets: builder, planner)
       </next-steps>
 
       ============================================================
@@ -179,7 +189,10 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       [Your progress message here]
       EOF\`
       3. Do the work
-      4. Hand off → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target>\` (targets: builder, planner)
+      4. Hand off (targets: builder, planner) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target> << 'EOF'
+      ---MESSAGE---
+      [Your message here]
+      EOF\`
       5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-chatroom-id --role=reviewer\`
 
       Reference commands:
@@ -196,7 +209,14 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
 
       handed off from builder — start work immediately.
       1. Do the work → follow PROCESS above
-      2. Hand off when complete
+      2. Hand off when complete:
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target> << 'EOF'
+      ---MESSAGE---
+      [Your message here]
+      EOF
+      \`\`\`
+      (targets: builder, planner)
       </next-steps>
 
       ============================================================

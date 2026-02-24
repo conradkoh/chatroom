@@ -247,11 +247,11 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   if (availableHandoffTargets.length > 0) {
     lines.push(
-      `${stepNum}. Hand off → \`${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target>\` (targets: ${availableHandoffTargets.join(', ')})`
+      `${stepNum}. Hand off (targets: ${availableHandoffTargets.join(', ')}) → \`${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target> << 'EOF'\n---MESSAGE---\n[Your message here]\nEOF\``
     );
   } else {
     lines.push(
-      `${stepNum}. Hand off → \`${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target>\``
+      `${stepNum}. Hand off → \`${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target> << 'EOF'\n---MESSAGE---\n[Your message here]\nEOF\``
     );
   }
   stepNum++;
@@ -339,7 +339,18 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
     lines.push(`${nextStepNum}. Do the work → follow PROCESS above`);
     nextStepNum++;
-    lines.push(`${nextStepNum}. Hand off when complete`);
+    lines.push(`${nextStepNum}. Hand off when complete:`);
+    lines.push('```');
+    lines.push(
+      `${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target> << 'EOF'`
+    );
+    lines.push('---MESSAGE---');
+    lines.push('[Your message here]');
+    lines.push('EOF');
+    lines.push('```');
+    if (availableHandoffTargets.length > 0) {
+      lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
+    }
   } else if (message) {
     lines.push('');
     lines.push(`handed off from ${message.senderRole} — start work immediately.`);
@@ -354,7 +365,18 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
     lines.push(`${nextStepNum}. Do the work → follow PROCESS above`);
     nextStepNum++;
-    lines.push(`${nextStepNum}. Hand off when complete`);
+    lines.push(`${nextStepNum}. Hand off when complete:`);
+    lines.push('```');
+    lines.push(
+      `${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target> << 'EOF'`
+    );
+    lines.push('---MESSAGE---');
+    lines.push('[Your message here]');
+    lines.push('EOF');
+    lines.push('```');
+    if (availableHandoffTargets.length > 0) {
+      lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
+    }
   } else {
     lines.push('');
     lines.push(`No message found. Task ID: ${task._id}`);
