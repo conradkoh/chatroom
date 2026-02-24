@@ -130,7 +130,7 @@ For \`--origin-message-classification=new_feature\`, you must also provide:
 
 | Error | Cause | Solution |
 |-------|--------|----------|
-| "Task not found" | Invalid task ID | Use \`wait-for-task\` to get correct task ID |
+| "Task not found" | Invalid task ID | Use \`get-next-task\` to get correct task ID |
 | "Associated message not found" | Task not linked to message | Ensure task was created properly |
 | "Cannot classify user messages" | Wrong task type | Only new tasks can be classified |
 | "Missing required fields" | Incomplete new_feature metadata | Provide title, description, and tech-specs |

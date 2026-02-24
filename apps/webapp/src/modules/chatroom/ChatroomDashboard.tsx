@@ -5,19 +5,20 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ArrowLeft,
-  XCircle,
-  PanelRightOpen,
-  PanelRightClose,
-  Pencil,
   Check,
-  X,
   CheckCircle,
+  ChevronDown,
   MoreVertical,
-  Square,
-  RefreshCw,
+  PanelRightClose,
+  PanelRightOpen,
+  Pencil,
   Settings2,
+  Square,
+  X,
+  XCircle,
 } from 'lucide-react';
-import React, { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
+import type React from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
@@ -28,7 +29,6 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { TaskQueue } from './components/TaskQueue';
 import { AttachedTasksProvider } from './context/AttachedTasksContext';
-import { useAutoRestartAgents } from './hooks/useAutoRestartAgents';
 import type { TeamReadiness } from './types/readiness';
 // TeamStatus is now consolidated into AgentPanel
 
@@ -36,10 +36,48 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PromptsProvider } from '@/contexts/PromptsContext';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
+
+// ─── Teams Config ────────────────────────────────────────────────────────────
+// NOTE: For chatroom-themed floating popups/dropdowns, always use `bg-chatroom-bg-tertiary`
+// (fully opaque) — NOT `bg-chatroom-bg-surface` (glassmorphism/semi-transparent).
+// `bg-chatroom-bg-surface` is intended for overlapping panels with solid backgrounds,
+// not for floating popovers that sit over arbitrary page content.
+
+interface TeamDefinition {
+  name: string;
+  description: string;
+  roles: string[];
+  entryPoint?: string;
+}
+
+const TEAMS_CONFIG: { defaultTeam: string; teams: Record<string, TeamDefinition> } = {
+  defaultTeam: 'pair',
+  teams: {
+    pair: {
+      name: 'Pair',
+      description: 'A builder and reviewer working together',
+      roles: ['builder', 'reviewer'],
+      entryPoint: 'builder',
+    },
+    duo: {
+      name: 'Duo',
+      description: 'A planner and builder working as a pair',
+      roles: ['planner', 'builder'],
+      entryPoint: 'planner',
+    },
+    squad: {
+      name: 'Squad',
+      description: 'A planner, builder, and reviewer as a team',
+      roles: ['planner', 'builder', 'reviewer'],
+      entryPoint: 'planner',
+    },
+  },
+};
 
 interface ChatroomDashboardProps {
   chatroomId: string;
@@ -271,6 +309,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Update status mutation (for marking complete)
   const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
 
+  // Update team mutation (for switching teams)
+  const updateTeam = useSessionMutation(api.chatrooms.updateTeam);
+
   // Mark chatroom as read mutation (for unread indicators)
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
 
@@ -296,25 +337,13 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as Participant[] | undefined;
 
-  const readiness = useSessionQuery(api.chatrooms.getTeamReadiness, {
+  const readiness = useSessionQuery(api.participants.getTeamLifecycle, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamReadiness | null | undefined;
 
-  // Auto-restart UI feedback — actual restart logic is on the backend.
-  // When a task targets an offline agent, the backend dispatches restart commands.
-  // This hook provides UI awareness (spinner banner).
-  // Only shows the banner when the entry-point agent is offline — other agents
-  // being offline is expected when working with a partial team.
-  const { notifyMessageSent, isRestarting: isRestartingAgents } = useAutoRestartAgents({
-    chatroomId,
-    readiness,
-    teamEntryPoint: chatroom?.teamEntryPoint || chatroom?.teamRoles?.[0],
+  const activeTask = useSessionQuery(api.tasks.getActiveTask, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
-
-  // Callback for SendForm — notifies the hook about message sent
-  const handleMessageSent = useCallback(() => {
-    notifyMessageSent();
-  }, [notifyMessageSent]);
 
   // Memoize derived values
   const teamRoles = useMemo(() => chatroom?.teamRoles || [], [chatroom?.teamRoles]);
@@ -467,7 +496,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Status badge colors - using chatroom status variables for theme support
   const getStatusBadgeClasses = useCallback(
     (status: string, isSetup: boolean, isDisconnected: boolean) => {
-      const base = 'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide';
+      const base =
+        'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide inline-flex items-center';
       if (isDisconnected) return `${base} bg-chatroom-status-error/15 text-chatroom-status-error`;
       if (isSetup) return `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`;
       switch (status) {
@@ -522,9 +552,58 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         right: (
           <div className="flex gap-2 md:gap-3 items-center">
             {chatroom.teamName && (
-              <span className="bg-chatroom-bg-tertiary px-2 md:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-secondary hidden sm:block">
-                Team: {chatroom.teamName}
-              </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="bg-chatroom-bg-tertiary border-2 border-transparent px-2 md:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-secondary hidden sm:flex items-center gap-1.5 cursor-pointer transition-all duration-100 hover:border-chatroom-border hover:text-chatroom-text-primary focus:outline-none">
+                    Team: {chatroom.teamName}
+                    <ChevronDown size={10} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="min-w-[200px] bg-chatroom-bg-tertiary border-2 border-chatroom-border rounded-none p-0"
+                >
+                  {Object.entries(TEAMS_CONFIG.teams).map(([teamId, teamData]) => {
+                    const isActive = teamId === (chatroom.teamId || TEAMS_CONFIG.defaultTeam);
+                    return (
+                      <DropdownMenuItem
+                        key={teamId}
+                        onClick={async () => {
+                          if (isActive) return;
+                          await updateTeam({
+                            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+                            teamId,
+                            teamName: teamData.name,
+                            teamRoles: teamData.roles,
+                            teamEntryPoint: teamData.entryPoint || teamData.roles[0],
+                          });
+                        }}
+                        className={`flex items-center justify-between px-3 py-2.5 cursor-pointer border-b border-chatroom-border last:border-b-0 rounded-none transition-colors duration-100 ${
+                          isActive
+                            ? 'bg-chatroom-accent/5 text-chatroom-text-primary'
+                            : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary'
+                        }`}
+                      >
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary">
+                            {teamData.name}
+                          </div>
+                          <div className="text-[10px] text-chatroom-text-muted mt-0.5">
+                            {teamData.roles.join(' · ')}
+                          </div>
+                        </div>
+                        {isActive && (
+                          <Check size={12} className="text-chatroom-accent ml-2 shrink-0" />
+                        )}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                  <DropdownMenuSeparator className="bg-chatroom-border-strong m-0" />
+                  <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+                    Agents must reconnect after switching
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             <span
               className={getStatusBadgeClasses(chatroom.status, isSetupMode, isTeamDisconnected)}
@@ -647,14 +726,12 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             <div className="flex flex-1 overflow-hidden relative">
               {/* Message Section */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <MessageFeed chatroomId={chatroomId} participants={participants || []} />
-                {isRestartingAgents && (
-                  <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 border-t border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs">
-                    <RefreshCw size={12} className="animate-spin" />
-                    <span>Restarting offline agents...</span>
-                  </div>
-                )}
-                <SendForm chatroomId={chatroomId} onMessageSent={handleMessageSent} />
+                <MessageFeed
+                  chatroomId={chatroomId}
+                  readiness={readiness}
+                  activeTask={activeTask}
+                />
+                <SendForm chatroomId={chatroomId} />
               </div>
 
               {/* Sidebar Overlay for mobile - below app header */}

@@ -33,5 +33,5 @@ export function handoffCommand(params: HandoffParams): string {
   const nextRole = params.nextRole || '<target>';
 
   // Modern approach: stdin using HERE document
-  return `${prefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=${nextRole} << 'EOF'\n[Your message here]\nEOF`;
+  return `${prefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role="${nextRole}" << 'EOF'\n---MESSAGE---\n[Your message here]\nEOF`;
 }

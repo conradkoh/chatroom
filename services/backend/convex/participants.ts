@@ -1,31 +1,36 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { HEARTBEAT_TTL_MS } from '../config/reliability';
+import { PRESENCE_THRESHOLD_MS as PRESENCE_THRESHOLD_MS_CONFIG } from '../config/reliability';
 import { mutation, query } from './_generated/server';
-import { areAllAgentsReady, requireChatroomAccess } from './auth/cliSessionAuth';
+import { areAllAgentsIdle, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
+import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
 
 /**
  * Join a chatroom as a participant.
- * If already joined, updates status to waiting and refreshes readyUntil.
+ * If already joined, updates lastSeenAt and optionally lastSeenAction + connectionId.
  * When the entry point (primary) role joins, auto-promotes queued tasks if no active task exists.
  * Requires CLI session authentication and chatroom access.
  *
- * The connectionId is used to detect concurrent wait-for-task processes.
- * When a new wait-for-task starts, it generates a unique connectionId.
+ * The connectionId is used to detect concurrent get-next-task processes.
+ * When a new get-next-task starts, it generates a unique connectionId.
  * Any old process with a different connectionId should detect the mismatch and exit.
+ *
+ * The action parameter records the CLI command that triggered the join (e.g. 'get-next-task:started').
  */
 export const join = mutation({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    // Optional timestamp when this participant's readiness expires
-    readyUntil: v.optional(v.number()),
-    // Unique connection ID to detect concurrent wait-for-task processes
+    // Unique connection ID to detect concurrent get-next-task processes
     connectionId: v.optional(v.string()),
+    // Agent type — 'custom' or 'remote'
+    agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
+    // The CLI command/action that triggered this join
+    action: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access - returns chatroom directly
@@ -50,38 +55,16 @@ export const join = mutation({
       )
       .unique();
 
-    // IMPORTANT: State recovery must happen BEFORE updating the participant status
-    // Check if agent was previously active (indicating a crash/restart)
-    const wasActive = existing && existing.status === 'active';
-
-    if (wasActive) {
-      // Agent was previously active - recover any in_progress tasks they were working on
-      const orphanedTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-        )
-        .filter((q) => q.eq(q.field('assignedTo'), args.role))
-        .collect();
-
-      for (const task of orphanedTasks) {
-        await transitionTask(ctx, task._id, 'pending', 'resetStuckTask');
-        console.warn(
-          `[State Recovery] chatroomId=${args.chatroomId} role=${args.role} taskId=${task._id} ` +
-            `action=reset_to_pending reason=agent_rejoined`
-        );
-      }
-    }
-
     let participantId;
+    const now = Date.now();
+
     if (existing) {
-      // Update status to waiting and refresh readyUntil, clear activeUntil
-      // Also update connectionId to allow old processes to detect they should exit
+      // Update presence fields and optionally connectionId/action/agentType.
       await ctx.db.patch('chatroom_participants', existing._id, {
-        status: 'waiting',
-        readyUntil: args.readyUntil,
-        activeUntil: undefined, // Clear active timeout when transitioning to waiting
-        connectionId: args.connectionId, // Track current connection for concurrent process detection
+        connectionId: args.connectionId,
+        lastSeenAt: now,
+        ...(args.action !== undefined ? { lastSeenAction: args.action } : {}),
+        ...(args.agentType ? { agentType: args.agentType } : {}),
       });
       participantId = existing._id;
     } else {
@@ -89,10 +72,10 @@ export const join = mutation({
       participantId = await ctx.db.insert('chatroom_participants', {
         chatroomId: args.chatroomId,
         role: args.role,
-        status: 'waiting',
-        readyUntil: args.readyUntil,
-        connectionId: args.connectionId, // Track current connection for concurrent process detection
-        // activeUntil not set - will be set when transitioning to active
+        connectionId: args.connectionId,
+        lastSeenAt: now,
+        ...(args.action !== undefined ? { lastSeenAction: args.action } : {}),
+        ...(args.agentType ? { agentType: args.agentType } : {}),
       });
     }
 
@@ -104,7 +87,10 @@ export const join = mutation({
     const normalizedEntryPoint = entryPoint?.toLowerCase();
 
     if (normalizedRole === normalizedEntryPoint) {
-      // Check if there's an active task (pending or in_progress)
+      // Check if there's an active task (pending or in_progress).
+      // Promotion is only attempted when no active task exists — this guard is
+      // unique to the join scenario (no task transition fires here, so the
+      // transitionTask usecase's auto-promotion won't trigger).
       const activeTasks = await ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
@@ -113,92 +99,27 @@ export const join = mutation({
         )
         .collect();
 
-      // Only promote if no active tasks AND all agents are ready (not working on anything)
-      const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
-
-      if (activeTasks.length === 0 && allAgentsReady) {
-        const queuedTasks = await ctx.db
-          .query('chatroom_tasks')
-          .withIndex('by_chatroom_status', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
-          )
-          .collect();
-
-        if (queuedTasks.length > 0) {
-          // Sort by queuePosition to get oldest
-          queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-          const nextTask = queuedTasks[0];
-
-          await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
-
-          console.warn(
-            `[Auto-Promote on Join] Primary role "${args.role}" joined (all agents ready). Promoted task ${nextTask._id} to pending. ` +
-              `Content: "${nextTask.content.substring(0, 50)}${nextTask.content.length > 50 ? '...' : ''}"`
-          );
-        }
-      } else if (activeTasks.length === 0 && !allAgentsReady) {
-        console.warn(
-          `[Auto-Promote Deferred] Primary role "${args.role}" joined but some agents are still active. Queue promotion deferred.`
-        );
+      if (activeTasks.length === 0) {
+        await promoteNextTask(args.chatroomId, {
+          areAllAgentsIdle: (chatroomId) => areAllAgentsIdle(ctx, chatroomId),
+          getOldestQueuedTask: async (chatroomId) => {
+            const tasks = await ctx.db
+              .query('chatroom_tasks')
+              .withIndex('by_chatroom_status', (q) =>
+                q.eq('chatroomId', chatroomId).eq('status', 'queued')
+              )
+              .collect();
+            if (tasks.length === 0) return null;
+            tasks.sort((a, b) => a.queuePosition - b.queuePosition);
+            return tasks[0] ?? null;
+          },
+          transitionTaskToPending: (nextTaskId) =>
+            transitionTask(ctx, nextTaskId, 'pending', 'promoteNextTask'),
+        });
       }
     }
 
     return participantId;
-  },
-});
-
-/**
- * Refresh a participant's readyUntil timestamp (heartbeat).
- *
- * Called periodically by the `wait-for-task` CLI to prove the process is still
- * alive. The connectionId is verified so that stale processes (from a previous
- * wait-for-task invocation) cannot extend liveness for the current one.
- *
- * Requires CLI session authentication and chatroom access.
- */
-export const heartbeat = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    connectionId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Find the participant
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
-
-    if (!participant) {
-      // Participant was cleaned up (e.g. by cleanupStaleAgents) but the CLI
-      // heartbeat timer is still running. Signal the CLI to re-join. (Plan 026)
-      console.warn(
-        `[heartbeat] Participant ${args.role} not found in chatroom — signaling re-join`
-      );
-      return { status: 'rejoin_required' as const };
-    }
-
-    // Reject heartbeats from stale connections — a newer wait-for-task has taken over
-    if (participant.connectionId && participant.connectionId !== args.connectionId) {
-      console.warn(
-        `[heartbeat] Rejected stale heartbeat for ${args.role}: connectionId mismatch ` +
-          `(expected ${participant.connectionId}, got ${args.connectionId})`
-      );
-      return { status: 'ok' as const }; // Don't signal re-join for stale connections
-    }
-
-    // Refresh readyUntil
-    await ctx.db.patch('chatroom_participants', participant._id, {
-      readyUntil: Date.now() + HEARTBEAT_TTL_MS,
-    });
-
-    return { status: 'ok' as const };
   },
 });
 
@@ -223,63 +144,8 @@ export const list = query({
 });
 
 /**
- * Update participant status.
- * Status is either 'active' (working on a task) or 'waiting' (ready for tasks).
- * When transitioning to 'active', sets activeUntil and clears readyUntil.
- * When transitioning to 'waiting', sets readyUntil and clears activeUntil.
- * Requires CLI session authentication and chatroom access.
- */
-export const updateStatus = mutation({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    status: v.union(v.literal('active'), v.literal('waiting')),
-    // Optional: timestamp when the new status expires
-    // For 'active': when agent is considered crashed (~1 hour)
-    // For 'waiting': when agent is considered disconnected (~1 min, governed by HEARTBEAT_TTL_MS)
-    expiresAt: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Validate session and check chatroom access (chatroom not needed)
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
-
-    if (!participant) {
-      throw new Error(`Participant ${args.role} not found in chatroom`);
-    }
-
-    // Build the update based on the target status
-    const update: {
-      status: 'active' | 'waiting';
-      readyUntil?: number;
-      activeUntil?: number;
-    } = { status: args.status };
-
-    if (args.status === 'active') {
-      // Transitioning to active: set activeUntil, clear readyUntil
-      update.activeUntil = args.expiresAt;
-      update.readyUntil = undefined;
-    } else {
-      // Transitioning to waiting: set readyUntil, clear activeUntil
-      update.readyUntil = args.expiresAt;
-      update.activeUntil = undefined;
-    }
-
-    await ctx.db.patch('chatroom_participants', participant._id, update);
-  },
-});
-
-/**
  * Remove a participant from a chatroom.
  * Called when an agent is stopped to ensure the UI no longer shows "Ready".
- * Deletes the participant record so getTeamReadiness will report the role as missing.
  * Requires CLI session authentication and chatroom access.
  */
 export const leave = mutation({
@@ -302,6 +168,34 @@ export const leave = mutation({
 
     if (participant) {
       await ctx.db.delete('chatroom_participants', participant._id);
+    }
+  },
+});
+
+/**
+ * Update the last token activity timestamp for a participant.
+ * Called by the CLI whenever the agent produces output (throttled to once per 30s).
+ * Used to detect stuck agents that have stopped producing output mid-task.
+ * Requires CLI session authentication and chatroom access.
+ */
+export const updateTokenActivity = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .unique();
+    if (participant) {
+      await ctx.db.patch('chatroom_participants', participant._id, {
+        lastSeenTokenAt: Date.now(),
+      });
     }
   },
 });
@@ -348,22 +242,30 @@ export const getHighestPriorityWaitingRole = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    const waitingParticipants = participants.filter((p) => p.status === 'waiting');
+    const now = Date.now();
+    const presentParticipants = participants.filter(
+      (p) =>
+        p.lastSeenAt !== undefined &&
+        now - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
+        p.role.toLowerCase() !== 'user'
+    );
 
-    if (waitingParticipants.length === 0) {
+    if (presentParticipants.length === 0) {
       return null;
     }
 
     // Sort by priority (lower number = higher priority)
-    waitingParticipants.sort((a, b) => getRolePriority(a.role) - getRolePriority(b.role));
+    presentParticipants.sort((a, b) => getRolePriority(a.role) - getRolePriority(b.role));
 
-    return waitingParticipants[0]?.role ?? null;
+    return presentParticipants[0]?.role ?? null;
   },
 });
 
+// updateAgentStatus removed — liveness is now tracked via lastSeenAt + lastSeenAction only.
+
 /**
  * Get the current connection ID for a participant.
- * Used by CLI to detect if another wait-for-task process has taken over.
+ * Used by CLI to detect if another get-next-task process has taken over.
  * If the returned connectionId differs from the caller's, the caller should exit.
  * Requires CLI session authentication and chatroom access.
  */
@@ -385,5 +287,104 @@ export const getConnectionId = query({
       .unique();
 
     return participant?.connectionId ?? null;
+  },
+});
+
+// ─── Team Lifecycle (lastSeenAt-based) ──────────────────────────────────────
+
+/** Agent is considered online if seen within this window.
+ *  Kept in sync with PRESENCE_THRESHOLD_MS in config/reliability.ts. */
+const PRESENCE_THRESHOLD_MS = PRESENCE_THRESHOLD_MS_CONFIG;
+
+/** An agent with an acknowledged task is flagged as stuck when it goes offline (last seen > PRESENCE_THRESHOLD_MS). */
+
+/**
+ * Get team lifecycle data for the frontend.
+ *
+ * Returns participants[], expectedRoles, missingRoles, expiredRoles, isReady,
+ * hasHistory — status is derived from lastSeenAt (no FSM table).
+ */
+export const getTeamLifecycle = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    if (!chatroom.teamId || !chatroom.teamRoles) {
+      return null;
+    }
+
+    // Fetch all participants for this chatroom.
+    const participantRows = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    const participantByRole = new Map(participantRows.map((p) => [p.role.toLowerCase(), p]));
+
+    // Fetch acknowledged tasks for stuck-detection.
+    const acknowledgedTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+      )
+      .collect();
+
+    const now = Date.now();
+    const stuckRoles = new Set<string>();
+    for (const task of acknowledgedTasks) {
+      const role = task.assignedTo?.toLowerCase();
+      if (!role) continue;
+      const participant = participantByRole.get(role);
+      const lastSeenAge = participant?.lastSeenAt != null ? now - participant.lastSeenAt : Infinity;
+      // Agent is stuck if it has an acknowledged task and is offline (last seen > PRESENCE_THRESHOLD_MS)
+      if (lastSeenAge >= PRESENCE_THRESHOLD_MS) {
+        stuckRoles.add(role);
+      }
+    }
+
+    const expectedRoles = chatroom.teamRoles;
+    const participants = expectedRoles.map((role) => {
+      const participantRow = participantByRole.get(role.toLowerCase());
+
+      return {
+        role,
+        lastSeenAt: participantRow?.lastSeenAt ?? null,
+        lastSeenAction: participantRow?.lastSeenAction ?? null,
+        isStuck: stuckRoles.has(role.toLowerCase()),
+        agentType: participantRow?.agentType ?? ('remote' as const),
+      };
+    });
+
+    const aliveRoles = new Set(
+      participants
+        .filter((p) => p.lastSeenAt != null && now - p.lastSeenAt <= PRESENCE_THRESHOLD_MS)
+        .map((p) => p.role.toLowerCase())
+    );
+
+    const missingRoles = expectedRoles.filter((r) => !aliveRoles.has(r.toLowerCase()));
+
+    const firstUserMessage = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .first();
+
+    return {
+      teamId: chatroom.teamId,
+      teamName: chatroom.teamName ?? chatroom.teamId,
+      expectedRoles,
+      presentRoles: participants
+        .filter((p) => p.lastSeenAt != null && now - p.lastSeenAt <= PRESENCE_THRESHOLD_MS)
+        .map((p) => p.role),
+      missingRoles,
+      expiredRoles: [] as string[], // FSM concept — always empty now; kept for API compat
+      isReady: missingRoles.length === 0,
+      participants,
+      hasHistory: firstUserMessage !== null,
+    };
   },
 });

@@ -1,0 +1,412 @@
+/**
+ * start-agent handler Unit Tests
+ *
+ * Tests handleStartAgent using injected dependencies.
+ * Covers: no agent context, working dir validation, init prompt fetch,
+ * spawn via RemoteAgentService, successful spawn, PID persistence, spawn failure,
+ * and kill-existing-before-spawn behaviour.
+ */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { RemoteAgentService } from '../../../../infrastructure/services/remote-agents/remote-agent-service.js';
+import type { DaemonDeps } from '../deps.js';
+import { DaemonEventBus } from '../event-bus.js';
+import type { DaemonContext, StartAgentCommand } from '../types.js';
+import { handleStartAgent } from './start-agent.js';
+
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
+
+vi.mock('../../../../infrastructure/convex/client.js', () => ({
+  getConvexUrl: () => 'http://test:3210',
+}));
+
+// Module-level mock for onAgentShutdown so individual tests can spy on it.
+const onAgentShutdownMock = vi.fn().mockResolvedValue(undefined);
+vi.mock('../../events/on-agent-shutdown/index.js', () => ({
+  onAgentShutdown: (...args: unknown[]) => onAgentShutdownMock(...args),
+}));
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function createCommand(overrides?: Partial<StartAgentCommand['payload']>): StartAgentCommand {
+  return {
+    _id: 'cmd-1' as StartAgentCommand['_id'],
+    createdAt: Date.now(),
+    type: 'start-agent',
+    payload: {
+      chatroomId: 'test-chatroom-123' as StartAgentCommand['payload']['chatroomId'],
+      role: 'builder',
+      agentHarness: 'opencode',
+      ...overrides,
+    },
+  };
+}
+
+function createMockContext(options?: {
+  initPrompt?: {
+    prompt: string;
+    rolePrompt: string;
+    initialMessage: string;
+  } | null;
+  spawnResult?: {
+    pid: number;
+    onExit: (
+      cb: (info: {
+        code: number | null;
+        signal: string | null;
+        context: { machineId: string; chatroomId: string; role: string };
+      }) => void
+    ) => void;
+    onOutput: (cb: () => void) => void;
+  };
+  spawnError?: Error;
+  lifecycleState?: { state: string } | null;
+  lifecycleError?: boolean;
+  agentConfigs?: { machineId: string; role: string; spawnedAgentPid?: number }[];
+}): DaemonContext {
+  const spawnMock = vi.fn().mockImplementation(async () => {
+    if (options?.spawnError) throw options.spawnError;
+    if (options?.spawnResult) return options.spawnResult;
+    return {
+      pid: 5678,
+      onExit: vi.fn(),
+      onOutput: vi.fn(),
+    };
+  });
+
+  const initPromptValue =
+    options?.initPrompt !== undefined
+      ? options.initPrompt
+      : {
+          prompt: 'test prompt',
+          rolePrompt: 'role prompt',
+          initialMessage: 'initial msg',
+        };
+
+  const lifecycleValue = options?.lifecycleState !== undefined ? options.lifecycleState : null;
+  const agentConfigsValue = options?.agentConfigs ?? [];
+
+  // Distinguish queries by args shape:
+  // - getAgentConfigs: has chatroomId, no convexUrl
+  // - getInitPrompt:   has convexUrl
+  // - legacy lifecycle queries: no chatroomId, no convexUrl (return null / lifecycleValue)
+  const queryMock = vi.fn().mockImplementation((_fnRef: unknown, args: Record<string, unknown>) => {
+    if (args?.convexUrl) {
+      return Promise.resolve(initPromptValue);
+    }
+    if (args?.chatroomId) {
+      // getAgentConfigs call
+      if (options?.lifecycleError) {
+        return Promise.reject(new Error('Network error'));
+      }
+      return Promise.resolve({ configs: agentConfigsValue });
+    }
+    // legacy / unknown query
+    return Promise.resolve(lifecycleValue);
+  });
+
+  const deps: DaemonDeps = {
+    backend: {
+      mutation: vi.fn().mockResolvedValue(undefined),
+      query: queryMock,
+    },
+    processes: {
+      kill: vi.fn(),
+    },
+    fs: {
+      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+    },
+    stops: {
+      mark: vi.fn(),
+      consume: vi.fn().mockReturnValue(false),
+      clear: vi.fn(),
+    },
+    machine: {
+      clearAgentPid: vi.fn(),
+      persistAgentPid: vi.fn(),
+      listAgentEntries: vi.fn().mockReturnValue([]),
+    },
+    clock: {
+      now: vi.fn().mockReturnValue(Date.now()),
+      delay: vi.fn().mockResolvedValue(undefined),
+    },
+  };
+
+  const remoteAgentService = {
+    spawn: spawnMock,
+    stop: vi.fn(),
+    isAlive: vi.fn().mockReturnValue(true),
+    getTrackedProcesses: vi.fn().mockReturnValue([]),
+    untrack: vi.fn(),
+  } as unknown as RemoteAgentService;
+
+  return {
+    client: {},
+    sessionId: 'test-session-id',
+    machineId: 'test-machine-id',
+    config: null,
+    deps,
+    events: new DaemonEventBus(),
+    remoteAgentService,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Setup / Teardown
+// ---------------------------------------------------------------------------
+
+beforeEach(() => {
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  onAgentShutdownMock.mockClear();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('handleStartAgent', () => {
+  it('returns failed when no workingDir in payload', async () => {
+    const ctx = createMockContext();
+    const cmd = createCommand();
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(true);
+    expect(result.result).toContain('No workingDir provided');
+  });
+
+  it('returns failed when working directory does not exist', async () => {
+    const ctx = createMockContext();
+    (ctx.deps.fs.stat as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('ENOENT: no such file')
+    );
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(true);
+    expect(result.result).toContain('Working directory does not exist');
+  });
+
+  it('returns failed when working directory is not a directory', async () => {
+    const ctx = createMockContext();
+    (ctx.deps.fs.stat as ReturnType<typeof vi.fn>).mockResolvedValue({
+      isDirectory: () => false,
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(true);
+    expect(result.result).toContain('not a directory');
+  });
+
+  it('returns failed when init prompt fetch returns null', async () => {
+    const ctx = createMockContext({ initPrompt: null });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(true);
+    expect(result.result).toContain('Failed to fetch init prompt');
+  });
+
+  it('returns failed when spawn throws', async () => {
+    const ctx = createMockContext({
+      spawnError: new Error('No driver registered'),
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(true);
+    expect(result.result).toContain('No driver registered');
+  });
+
+  it('successfully spawns an agent and persists PID', async () => {
+    const ctx = createMockContext();
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(result.result).toContain('Agent spawned');
+    expect(result.result).toContain('PID: 5678');
+
+    // Verify PID was persisted
+    expect(ctx.deps.machine.persistAgentPid).toHaveBeenCalledWith(
+      'test-machine-id',
+      'test-chatroom-123',
+      'builder',
+      5678,
+      'opencode'
+    );
+
+    // Verify backend was updated (updateSpawnedAgent only — no lifecycle FSM)
+    expect(ctx.deps.backend.mutation).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits agent:started event after successful spawn', async () => {
+    const ctx = createMockContext();
+    const cmd = createCommand({ workingDir: '/tmp/test', model: 'gpt-4o' });
+
+    const listener = vi.fn();
+    ctx.events.on('agent:started', listener);
+
+    await handleStartAgent(ctx, cmd);
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatroomId: 'test-chatroom-123',
+        role: 'builder',
+        pid: 5678,
+        harness: 'opencode',
+        model: 'gpt-4o',
+      })
+    );
+  });
+
+  it('emits agent:exited event when process exits', async () => {
+    let onExitCallback:
+      | ((info: {
+          code: number | null;
+          signal: string | null;
+          context: { machineId: string; chatroomId: string; role: string };
+        }) => void)
+      | null = null;
+    const ctx = createMockContext({
+      spawnResult: {
+        pid: 5678,
+        onExit: (cb) => {
+          onExitCallback = cb;
+        },
+        onOutput: vi.fn(),
+      },
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const listener = vi.fn();
+    ctx.events.on('agent:exited', listener);
+
+    await handleStartAgent(ctx, cmd);
+
+    expect(onExitCallback).not.toBeNull();
+    onExitCallback!({
+      code: 1,
+      signal: 'SIGTERM',
+      context: {
+        machineId: 'test-machine-id',
+        chatroomId: 'test-chatroom-123',
+        role: 'builder',
+      },
+    });
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatroomId: 'test-chatroom-123',
+        role: 'builder',
+        pid: 5678,
+        code: 1,
+        signal: 'SIGTERM',
+        intentional: false,
+      })
+    );
+  });
+
+  it('returns failed when spawn throws with message', async () => {
+    const ctx = createMockContext({
+      spawnError: new Error('Failed to spawn process'),
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(true);
+    expect(result.result).toContain('Failed to spawn process');
+  });
+
+  // ── Lifecycle / query mock passthrough tests ──────────────────────────────
+
+  it('proceeds normally when lifecycle is start_requested', async () => {
+    const ctx = createMockContext({
+      lifecycleState: { state: 'start_requested' },
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(result.result).toContain('Agent spawned');
+  });
+
+  it('proceeds normally when no lifecycle record exists', async () => {
+    const ctx = createMockContext({
+      lifecycleState: null,
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(result.result).toContain('Agent spawned');
+  });
+
+  it('proceeds normally when lifecycle query fails (fail-open)', async () => {
+    const ctx = createMockContext({
+      lifecycleError: true,
+    });
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(result.result).toContain('Agent spawned');
+  });
+
+  // ── Kill-existing-before-spawn tests ─────────────────────────────────────
+
+  it('kills existing alive agent before spawning a new one', async () => {
+    const ctx = createMockContext({
+      agentConfigs: [{ machineId: 'test-machine-id', role: 'builder', spawnedAgentPid: 9999 }],
+    });
+
+    // Existing PID is alive
+    (ctx.remoteAgentService.isAlive as ReturnType<typeof vi.fn>).mockReturnValue(true);
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(onAgentShutdownMock).toHaveBeenCalledWith(ctx, {
+      chatroomId: 'test-chatroom-123',
+      role: 'builder',
+      pid: 9999,
+    });
+  });
+
+  it('skips kill when existing PID is not alive', async () => {
+    const ctx = createMockContext({
+      agentConfigs: [{ machineId: 'test-machine-id', role: 'builder', spawnedAgentPid: 9999 }],
+    });
+
+    // PID is NOT alive
+    (ctx.remoteAgentService.isAlive as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(onAgentShutdownMock).not.toHaveBeenCalled();
+  });
+});

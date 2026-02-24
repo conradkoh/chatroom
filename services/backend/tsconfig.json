@@ -15,6 +15,7 @@
     "convex/**/*",
     "modules/**/*",
     "prompts/**/*",
+    "src/**/*",
     "utils/**/*",
     "tests/**/*",
     "test.setup.ts",

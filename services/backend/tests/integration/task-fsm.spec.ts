@@ -43,20 +43,19 @@ async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroo
 }
 
 /**
- * Helper to join participants to the chatroom with ready status
+ * Helper to join participants to the chatroom with idle (get-next-task) status
  */
 async function joinParticipants(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
   roles: string[]
 ): Promise<void> {
-  const readyUntil = Date.now() + 10 * 60 * 1000; // 10 minutes
   for (const role of roles) {
     await t.mutation(api.participants.join, {
       sessionId,
       chatroomId,
       role,
-      readyUntil,
+      action: 'get-next-task:started',
     });
   }
 }
@@ -545,7 +544,9 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
         role: 'builder',
       });
 
-      expect(completeResult.promoted).toBe(queuedTaskId);
+      // `promoted` field was removed — promotion now happens implicitly inside transitionTask usecase.
+      // Verify the queued task was actually promoted to pending instead (checked below).
+      void completeResult;
 
       // Verify second task is now pending
       tasks = await t.query(api.tasks.listTasks, {
@@ -748,50 +749,6 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       const cancelledTask = archivedTasks.find((t) => t._id === taskId);
       expect(cancelledTask?.status).toBe('closed');
     });
-
-    test('resetStuckTask uses FSM for in_progress → pending', async () => {
-      const { sessionId } = await createTestSession('test-fsm-reset-stuck');
-      const chatroomId = await createPairTeamChatroom(sessionId);
-      await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
-
-      // Create and start a task
-      await t.mutation(api.messages.sendMessage, {
-        sessionId,
-        chatroomId,
-        content: 'Task that gets stuck',
-        senderRole: 'user',
-        type: 'message',
-      });
-
-      await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
-      const startResult = await t.mutation(api.tasks.startTask, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-      const taskId = startResult.taskId;
-
-      // Reset the stuck task
-      const resetResult = await t.mutation(api.tasks.resetStuckTask, {
-        sessionId,
-        taskId,
-      });
-
-      expect(resetResult.success).toBe(true);
-      expect(resetResult.previousAssignee).toBe('builder');
-
-      // Verify task is back to pending with cleared fields
-      const tasks = await t.query(api.tasks.listTasks, {
-        sessionId,
-        chatroomId,
-        statusFilter: 'pending',
-      });
-      const resetTask = tasks.find((t) => t._id === taskId);
-      expect(resetTask?.status).toBe('pending');
-      expect(resetTask?.assignedTo).toBeUndefined(); // Should be cleared by FSM
-      expect(resetTask?.startedAt).toBeUndefined(); // Should be cleared by FSM
-      expect(resetTask?.acknowledgedAt).toBeUndefined(); // Should be cleared by FSM
-    });
   });
 
   describe('Force Completion', () => {
@@ -836,60 +793,6 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       expect(completedTask?.status).toBe('completed');
       expect(completedTask?.completedAt).toBeDefined();
     });
-  });
-});
-
-describe('FSM Field Cleanup', () => {
-  test('FSM automatically clears stale fields on state transitions', async () => {
-    const { sessionId } = await createTestSession('test-fsm-field-cleanup');
-    const chatroomId = await createPairTeamChatroom(sessionId);
-    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
-
-    // Create and start a task
-    await t.mutation(api.messages.sendMessage, {
-      sessionId,
-      chatroomId,
-      content: 'Task for field cleanup test',
-      senderRole: 'user',
-      type: 'message',
-    });
-
-    // Claim task (sets assignedTo, acknowledgedAt)
-    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
-
-    // Start task (sets startedAt)
-    const startResult = await t.mutation(api.tasks.startTask, {
-      sessionId,
-      chatroomId,
-      role: 'builder',
-    });
-    const taskId = startResult.taskId;
-
-    // Verify fields are set
-    let tasks = await t.query(api.tasks.listTasks, {
-      sessionId,
-      chatroomId,
-      limit: 100,
-    });
-    let task = tasks.find((t) => t._id === taskId);
-    expect(task?.assignedTo).toBe('builder');
-    expect(task?.acknowledgedAt).toBeDefined();
-    expect(task?.startedAt).toBeDefined();
-
-    // Reset task (should clear assignedTo, startedAt, acknowledgedAt)
-    await t.mutation(api.tasks.resetStuckTask, { sessionId, taskId });
-
-    // Verify fields were cleared by FSM
-    tasks = await t.query(api.tasks.listTasks, {
-      sessionId,
-      chatroomId,
-      limit: 100,
-    });
-    task = tasks.find((t) => t._id === taskId);
-    expect(task?.status).toBe('pending');
-    expect(task?.assignedTo).toBeUndefined(); // Cleared by FSM
-    expect(task?.startedAt).toBeUndefined(); // Cleared by FSM
-    expect(task?.acknowledgedAt).toBeUndefined(); // Cleared by FSM
   });
 });
 

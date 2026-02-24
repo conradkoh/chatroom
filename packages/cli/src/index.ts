@@ -47,7 +47,7 @@ authCommand
   .description('Authenticate the CLI via browser')
   .option('-f, --force', 'Re-authenticate even if already logged in')
   .action(async (options: { force?: boolean }) => {
-    const { authLogin } = await import('./commands/auth-login.js');
+    const { authLogin } = await import('./commands/auth-login/index.js');
     await authLogin(options);
   });
 
@@ -55,7 +55,7 @@ authCommand
   .command('logout')
   .description('Clear CLI authentication')
   .action(async () => {
-    const { authLogout } = await import('./commands/auth-logout.js');
+    const { authLogout } = await import('./commands/auth-logout/index.js');
     await authLogout();
   });
 
@@ -63,7 +63,7 @@ authCommand
   .command('status')
   .description('Show current authentication status')
   .action(async () => {
-    const { authStatus } = await import('./commands/auth-status.js');
+    const { authStatus } = await import('./commands/auth-status/index.js');
     await authStatus();
   });
 
@@ -75,8 +75,21 @@ program
   .command('update')
   .description('Update the CLI to the latest version')
   .action(async () => {
-    const { update } = await import('./commands/update.js');
+    const { update } = await import('./commands/update/index.js');
     await update();
+  });
+
+// ============================================================================
+// USER COMMANDS (no auth required)
+// ============================================================================
+
+program
+  .command('init')
+  .description('Initialize chatroom integration in your project')
+  .option('--dir <path>', 'Directory to initialize (default: current directory)')
+  .action(async (options: { dir?: string }) => {
+    const { init } = await import('./commands/init/index.js');
+    await init({ dir: options.dir });
   });
 
 // ============================================================================
@@ -98,7 +111,7 @@ program
       process.exit(1);
     }
 
-    const { registerAgent } = await import('./commands/register-agent.js');
+    const { registerAgent } = await import('./commands/register-agent/index.js');
     await registerAgent(options.chatroomId, {
       role: options.role,
       type: options.type as 'remote' | 'custom',
@@ -106,15 +119,15 @@ program
   });
 
 program
-  .command('wait-for-task')
-  .description('Join a chatroom and wait for tasks')
+  .command('get-next-task')
+  .description('Join a chatroom and get the next task')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Role to join as (e.g., builder, reviewer)')
   .action(async (options: { chatroomId: string; role: string }) => {
     await maybeRequireAuth();
-    const { waitForTask } = await import('./commands/wait-for-task.js');
+    const { getNextTask } = await import('./commands/get-next-task/index.js');
 
-    await waitForTask(options.chatroomId, {
+    await getNextTask(options.chatroomId, {
       role: options.role,
     });
   });
@@ -195,7 +208,7 @@ program
         rawStdin = stdinContent;
       }
 
-      const { taskStarted } = await import('./commands/task-started.js');
+      const { taskStarted } = await import('./commands/task-started/index.js');
       await taskStarted(options.chatroomId, {
         role: options.role,
         originMessageClassification: options.originMessageClassification as
@@ -209,20 +222,6 @@ program
       });
     }
   );
-
-program
-  .command('task-complete')
-  .description('Complete the current task without handing off to another role')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role')
-  .action(async (options: { chatroomId: string; role: string }) => {
-    await maybeRequireAuth();
-
-    const { taskComplete } = await import('./commands/task-complete.js');
-    await taskComplete(options.chatroomId, {
-      role: options.role,
-    });
-  });
 
 program
   .command('handoff')
@@ -266,7 +265,7 @@ program
         process.exit(1);
       }
 
-      const { handoff } = await import('./commands/handoff.js');
+      const { handoff } = await import('./commands/handoff/index.js');
       await handoff(options.chatroomId, {
         role: options.role,
         message,
@@ -311,7 +310,7 @@ program
       process.exit(1);
     }
 
-    const { reportProgress } = await import('./commands/report-progress.js');
+    const { reportProgress } = await import('./commands/report-progress/index.js');
     await reportProgress(options.chatroomId, {
       role: options.role,
       message,
@@ -352,7 +351,7 @@ backlogCommand
         process.exit(1);
       }
       await maybeRequireAuth();
-      const { listBacklog } = await import('./commands/backlog.js');
+      const { listBacklog } = await import('./commands/backlog/index.js');
       await listBacklog(options.chatroomId, {
         role: options.role,
         status: options.status,
@@ -388,7 +387,7 @@ backlogCommand
       process.exit(1);
     }
 
-    const { addBacklog } = await import('./commands/backlog.js');
+    const { addBacklog } = await import('./commands/backlog/index.js');
     await addBacklog(options.chatroomId, { role: options.role, content });
   });
 
@@ -402,7 +401,7 @@ backlogCommand
   .action(
     async (options: { chatroomId: string; role: string; taskId: string; force?: boolean }) => {
       await maybeRequireAuth();
-      const { completeBacklog } = await import('./commands/backlog.js');
+      const { completeBacklog } = await import('./commands/backlog/index.js');
       await completeBacklog(options.chatroomId, options);
     }
   );
@@ -415,7 +414,7 @@ backlogCommand
   .requiredOption('--task-id <taskId>', 'Task ID to reopen')
   .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
     await maybeRequireAuth();
-    const { reopenBacklog } = await import('./commands/backlog.js');
+    const { reopenBacklog } = await import('./commands/backlog/index.js');
     await reopenBacklog(options.chatroomId, options);
   });
 
@@ -438,7 +437,7 @@ backlogCommand
       priority?: string;
     }) => {
       await maybeRequireAuth();
-      const { patchBacklog } = await import('./commands/backlog.js');
+      const { patchBacklog } = await import('./commands/backlog/index.js');
       await patchBacklog(options.chatroomId, options);
     }
   );
@@ -462,22 +461,10 @@ backlogCommand
       priority?: string;
     }) => {
       await maybeRequireAuth();
-      const { scoreBacklog } = await import('./commands/backlog.js');
+      const { scoreBacklog } = await import('./commands/backlog/index.js');
       await scoreBacklog(options.chatroomId, options);
     }
   );
-
-backlogCommand
-  .command('reset-task')
-  .description('Reset a stuck in_progress task back to pending')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--task-id <taskId>', 'Task ID to reset')
-  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
-    await maybeRequireAuth();
-    const { resetBacklog } = await import('./commands/backlog.js');
-    await resetBacklog(options.chatroomId, options);
-  });
 
 backlogCommand
   .command('mark-for-review')
@@ -487,7 +474,7 @@ backlogCommand
   .requiredOption('--task-id <taskId>', 'Task ID to mark for review')
   .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
     await maybeRequireAuth();
-    const { markForReviewBacklog } = await import('./commands/backlog.js');
+    const { markForReviewBacklog } = await import('./commands/backlog/index.js');
     await markForReviewBacklog(options.chatroomId, options);
   });
 
@@ -534,7 +521,7 @@ messagesCommand
 
       // Branch based on which option was provided
       if (options.senderRole) {
-        const { listBySenderRole } = await import('./commands/messages.js');
+        const { listBySenderRole } = await import('./commands/messages/index.js');
         await listBySenderRole(options.chatroomId, {
           role: options.role,
           senderRole: options.senderRole,
@@ -542,7 +529,7 @@ messagesCommand
           full: options.full,
         });
       } else if (options.sinceMessageId) {
-        const { listSinceMessage } = await import('./commands/messages.js');
+        const { listSinceMessage } = await import('./commands/messages/index.js');
         await listSinceMessage(options.chatroomId, {
           role: options.role,
           sinceMessageId: options.sinceMessageId,
@@ -568,7 +555,7 @@ contextCommand
   .requiredOption('--role <role>', 'Your role')
   .action(async (options: { chatroomId: string; role: string }) => {
     await maybeRequireAuth();
-    const { readContext } = await import('./commands/context.js');
+    const { readContext } = await import('./commands/context/index.js');
     await readContext(options.chatroomId, options);
   });
 
@@ -581,29 +568,40 @@ contextCommand
     '--content <content>',
     'Context summary/description (alternative: provide via stdin/heredoc)'
   )
-  .action(async (options: { chatroomId: string; role: string; content?: string }) => {
-    await maybeRequireAuth();
+  .option(
+    '--trigger-message-id <messageId>',
+    'Message ID that triggered this context (anchors the context window)'
+  )
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      content?: string;
+      triggerMessageId?: string;
+    }) => {
+      await maybeRequireAuth();
 
-    // Resolve content: flag takes priority, fall back to stdin/heredoc
-    let content: string;
-    if (options.content && options.content.trim().length > 0) {
-      content = options.content.trim();
-    } else {
-      const stdinContent = await readStdin();
-      if (!stdinContent.trim()) {
-        console.error('❌ Context content cannot be empty.');
-        console.error('   Provide content via --content="..." or stdin (heredoc):');
-        console.error("   chatroom context new --chatroom-id=<id> --role=<role> << 'EOF'");
-        console.error('   Your context summary here');
-        console.error('   EOF');
-        process.exit(1);
+      // Resolve content: flag takes priority, fall back to stdin/heredoc
+      let content: string;
+      if (options.content && options.content.trim().length > 0) {
+        content = options.content.trim();
+      } else {
+        const stdinContent = await readStdin();
+        if (!stdinContent.trim()) {
+          console.error('❌ Context content cannot be empty.');
+          console.error('   Provide content via --content="..." or stdin (heredoc):');
+          console.error("   chatroom context new --chatroom-id=<id> --role=<role> << 'EOF'");
+          console.error('   Your context summary here');
+          console.error('   EOF');
+          process.exit(1);
+        }
+        content = stdinContent.trim();
       }
-      content = stdinContent.trim();
-    }
 
-    const { newContext } = await import('./commands/context.js');
-    await newContext(options.chatroomId, { ...options, content });
-  });
+      const { newContext } = await import('./commands/context/index.js');
+      await newContext(options.chatroomId, { ...options, content });
+    }
+  );
 
 contextCommand
   .command('list')
@@ -613,7 +611,7 @@ contextCommand
   .option('--limit <n>', 'Maximum number of contexts to show (default: 10)')
   .action(async (options: { chatroomId: string; role: string; limit?: string }) => {
     await maybeRequireAuth();
-    const { listContexts } = await import('./commands/context.js');
+    const { listContexts } = await import('./commands/context/index.js');
     await listContexts(options.chatroomId, {
       role: options.role,
       limit: options.limit ? parseInt(options.limit, 10) : 10,
@@ -628,7 +626,7 @@ contextCommand
   .requiredOption('--context-id <contextId>', 'Context ID to inspect')
   .action(async (options: { chatroomId: string; role: string; contextId: string }) => {
     await maybeRequireAuth();
-    const { inspectContext } = await import('./commands/context.js');
+    const { inspectContext } = await import('./commands/context/index.js');
     await inspectContext(options.chatroomId, options);
   });
 
@@ -646,7 +644,7 @@ guidelinesCommand
   .requiredOption('--type <type>', 'Guideline type (coding|security|design|performance|all)')
   .action(async (options: { type: string }) => {
     await maybeRequireAuth();
-    const { viewGuidelines } = await import('./commands/guidelines.js');
+    const { viewGuidelines } = await import('./commands/guidelines/index.js');
     await viewGuidelines(options);
   });
 
@@ -655,7 +653,7 @@ guidelinesCommand
   .description('List available guideline types')
   .action(async () => {
     await maybeRequireAuth();
-    const { listGuidelineTypes } = await import('./commands/guidelines.js');
+    const { listGuidelineTypes } = await import('./commands/guidelines/index.js');
     await listGuidelineTypes();
   });
 
@@ -682,7 +680,7 @@ artifactCommand
       description?: string;
     }) => {
       await maybeRequireAuth();
-      const { createArtifact } = await import('./commands/artifact.js');
+      const { createArtifact } = await import('./commands/artifact/index.js');
       await createArtifact(options.chatroomId, options);
     }
   );
@@ -695,7 +693,7 @@ artifactCommand
   .requiredOption('--role <role>', 'Your role')
   .action(async (options: { chatroomId: string; artifactId: string; role: string }) => {
     await maybeRequireAuth();
-    const { viewArtifact } = await import('./commands/artifact.js');
+    const { viewArtifact } = await import('./commands/artifact/index.js');
     await viewArtifact(options.chatroomId, { role: options.role, artifactId: options.artifactId });
   });
 
@@ -714,11 +712,22 @@ artifactCommand
   )
   .action(async (options: { chatroomId: string; role: string; artifact?: string[] }) => {
     await maybeRequireAuth();
-    const { viewManyArtifacts } = await import('./commands/artifact.js');
+    const { viewManyArtifacts } = await import('./commands/artifact/index.js');
     await viewManyArtifacts(options.chatroomId, {
       role: options.role,
       artifactIds: options.artifact || [],
     });
+  });
+
+program
+  .command('get-system-prompt')
+  .description('Fetch the system prompt for your role in a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role (e.g., planner, builder, reviewer)')
+  .action(async (options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+    const { getSystemPrompt } = await import('./commands/get-system-prompt/index.js');
+    await getSystemPrompt(options.chatroomId, { role: options.role });
   });
 
 // ============================================================================
@@ -767,8 +776,29 @@ opencodeCommand
   .description('Install chatroom as an OpenCode harness')
   .option('--force', 'Overwrite existing harness installation')
   .action(async (options: { force?: boolean }) => {
-    const { installTool } = await import('./commands/opencode-install.js');
+    const { installTool } = await import('./commands/opencode-install/index.js');
     await installTool({ checkExisting: !options.force });
   });
+
+// Centralized lifecycle heartbeat — fires before every chatroom-aware command.
+// This replaces the per-handler sendLifecycleHeartbeat calls and also covers
+// commands like `messages list` and `backlog` that previously had no coverage.
+program.hook('preAction', async (_thisCommand, actionCommand) => {
+  const opts = actionCommand.opts();
+  const chatroomId = opts['chatroomId'] as string | undefined;
+  const role = opts['role'] as string | undefined;
+  if (!chatroomId || !role) return;
+
+  // Lazily import to avoid circular deps at module load time
+  const { getSessionId } = await import('./infrastructure/auth/storage.js');
+  const { getConvexClient } = await import('./infrastructure/convex/client.js');
+  const { sendLifecycleHeartbeat } = await import('./infrastructure/lifecycle-heartbeat.js');
+
+  const sessionId = getSessionId();
+  if (!sessionId) return; // not authed yet — skip silently
+
+  const client = await getConvexClient();
+  sendLifecycleHeartbeat(client, { sessionId, chatroomId, role, action: actionCommand.name() });
+});
 
 program.parse();

@@ -56,6 +56,12 @@ const TEAMS_CONFIG: TeamsConfig = {
       roles: ['builder', 'reviewer'],
       entryPoint: 'builder',
     },
+    duo: {
+      name: 'Duo',
+      description: 'A planner and builder working as a pair, planner as coordinator',
+      roles: ['planner', 'builder'],
+      entryPoint: 'planner',
+    },
     squad: {
       name: 'Squad',
       description: 'A planner, builder, and reviewer working as a coordinated team',
@@ -120,7 +126,7 @@ const SetupContent = memo(function SetupContent({ chatroomId }: { chatroomId: st
           Connection Command
         </label>
         <div className="font-mono text-[10px] text-chatroom-text-secondary break-all p-3 bg-chatroom-bg-tertiary border border-chatroom-border leading-relaxed">
-          chatroom wait-for-task --chatroom-id={chatroomId} --role=&lt;role&gt;
+          chatroom get-next-task --chatroom-id={chatroomId} --role=&lt;role&gt;
         </div>
       </div>
     </div>
@@ -191,7 +197,7 @@ const TeamConfigContent = memo(function TeamConfigContent({
           </label>
           <div className="flex items-center gap-2 p-3 bg-chatroom-bg-tertiary border border-chatroom-border">
             <div className="flex-1">
-              <div className="text-xs font-bold text-chatroom-text-primary capitalize">
+              <div className="text-xs font-bold text-chatroom-text-primary uppercase tracking-widest">
                 {currentTeamId || 'Unknown'}
               </div>
               <div className="text-[10px] text-chatroom-text-muted">
@@ -222,13 +228,15 @@ const TeamConfigContent = memo(function TeamConfigContent({
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-bold text-chatroom-text-primary">{team.name}</div>
+                  <div className="text-xs font-bold text-chatroom-text-primary uppercase tracking-widest">
+                    {team.name}
+                  </div>
                   <div className="text-[10px] text-chatroom-text-muted mt-0.5">
                     {team.description}
                   </div>
                 </div>
                 {selectedTeam === teamId && (
-                  <div className="w-3 h-3 bg-chatroom-accent flex-shrink-0" />
+                  <Check size={12} className="text-chatroom-accent flex-shrink-0" />
                 )}
               </div>
               <div className="mt-2 flex flex-wrap gap-1">

@@ -5,9 +5,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ChevronRight,
-  CheckCircle,
   AlertTriangle,
-  Clock,
   RefreshCw,
   ChevronDown,
   ChevronUp,
@@ -19,7 +17,7 @@ import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
-import type { AgentStatus, ParticipantInfo, TeamReadiness } from '../types/readiness';
+import type { ParticipantInfo, TeamReadiness } from '../types/readiness';
 
 import {
   DropdownMenu,
@@ -36,9 +34,6 @@ import {
 } from '@/components/ui/fixed-modal';
 import { usePrompts } from '@/contexts/PromptsContext';
 
-// Re-export AgentStatus for backward compatibility
-export type { AgentStatus } from '../types/readiness';
-
 interface AgentPanelProps {
   chatroomId: string;
   teamRoles?: string[];
@@ -53,65 +48,57 @@ interface AgentPanelProps {
   onConfigure?: () => void;
 }
 
-// Status indicator colors - now includes disconnected state
-// ─── Status Utilities ────────────────────────────────────────────────
+// ─── Presence Utilities ──────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<AgentStatus, { bg: string; text: string; label: string }> = {
-  active: {
-    bg: 'bg-chatroom-status-info',
-    text: 'text-chatroom-status-info',
-    label: 'WORKING',
-  },
-  waiting: {
-    bg: 'bg-chatroom-status-success',
-    text: 'text-chatroom-status-success',
-    label: 'READY',
-  },
-  disconnected: {
-    bg: 'bg-chatroom-status-error',
-    text: 'text-chatroom-status-error',
-    label: 'DISCONNECTED',
-  },
-  missing: {
-    bg: 'bg-chatroom-text-muted',
-    text: 'text-chatroom-status-warning',
-    label: 'NOT JOINED',
-  },
-};
+/**
+ * Agents unseen for longer than this threshold are considered offline.
+ * Must stay in sync with PRESENCE_THRESHOLD_MS in services/backend/config/reliability.ts.
+ */
+const PRESENCE_THRESHOLD_MS = 600_000; // 10 minutes
 
-const DEFAULT_STATUS = {
-  bg: 'bg-chatroom-text-muted',
-  text: 'text-chatroom-status-warning',
-  label: 'OFFLINE',
-};
+/** Returns true if the agent is considered online (seen within threshold). */
+function isOnline(lastSeenAt: number | null | undefined): boolean {
+  if (lastSeenAt == null) return false;
+  return Date.now() - lastSeenAt <= PRESENCE_THRESHOLD_MS;
+}
 
-const getStatusConfig = (status: AgentStatus) => STATUS_CONFIG[status] ?? DEFAULT_STATUS;
+/**
+ * Returns true if the agent is considered "working" — online and not idle in get-next-task.
+ * Working agents are shown individually (not grouped) in the sidebar.
+ */
+function isWorking(online: boolean, lastSeenAction: string | null | undefined): boolean {
+  return online && lastSeenAction !== 'get-next-task:started';
+}
 
-const getStatusClasses = (effectiveStatus: AgentStatus) =>
-  `w-2.5 h-2.5 flex-shrink-0 ${getStatusConfig(effectiveStatus).bg}`;
+/**
+ * Hook that returns a monotonically-increasing tick counter, updated every
+ * `intervalMs` milliseconds.  Components that call this will re-render on
+ * each tick, ensuring that time-based checks (isOnline, formatLastSeen) stay
+ * accurate without needing a DB write to trigger a Convex query re-run.
+ */
+function usePresenceTick(intervalMs = 30_000): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return tick;
+}
 
-// Compute effective status accounting for expiration
-const getEffectiveStatus = (
-  role: string,
-  participantMap: Map<string, ParticipantInfo>,
-  expiredRolesSet: Set<string>
-): { status: AgentStatus; isExpired: boolean } => {
-  const participant = participantMap.get(role.toLowerCase());
-  if (!participant) {
-    return { status: 'missing', isExpired: false };
-  }
-  // Check if this role is in the expired set
-  if (expiredRolesSet.has(role.toLowerCase())) {
-    return { status: 'disconnected', isExpired: true };
-  }
-  return { status: participant.status, isExpired: false };
-};
+/** Pure helper — formats a lastSeenAt unix-ms timestamp into a human-readable "X ago" string. */
+function formatLastSeen(lastSeenAt: number | null | undefined): string {
+  if (lastSeenAt == null) return 'never';
+  const diff = Math.floor((Date.now() - lastSeenAt) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  return `${Math.floor(diff / 3600)}h ago`;
+}
 
 // Collapsed Agent Group Component - shows a collapsed row that opens the unified modal
 interface CollapsedAgentGroupProps {
   title: string;
   agents: string[];
-  variant: 'ready' | 'offline';
+  variant: 'online' | 'offline';
   onOpenModal: () => void;
 }
 
@@ -121,13 +108,8 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   variant,
   onOpenModal,
 }: CollapsedAgentGroupProps) {
-  // Map variants to status keys so we reuse the shared STATUS_CONFIG colors
-  const variantStatusMap: Record<CollapsedAgentGroupProps['variant'], AgentStatus> = {
-    ready: 'waiting',
-    offline: 'missing',
-  };
-  const statusConfig = getStatusConfig(variantStatusMap[variant]);
-  const classes = { indicator: statusConfig.bg };
+  const indicatorClass =
+    variant === 'online' ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
 
   return (
     <div className="border-b border-chatroom-border last:border-b-0">
@@ -146,7 +128,7 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
         }}
       >
         {/* Status Indicator - square per theme.md */}
-        <div className={`w-2.5 h-2.5 flex-shrink-0 ${classes.indicator}`} />
+        <div className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`} />
         {/* Group Info */}
         <div className="flex-1 min-w-0">
           <div className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
@@ -164,10 +146,13 @@ const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
   );
 });
 
-// Agent info with status for the unified modal
+// Agent info with presence for the unified modal
 interface AgentWithStatus {
   role: string;
-  effectiveStatus: AgentStatus;
+  online: boolean;
+  lastSeenAt?: number | null;
+  lastSeenAction?: string | null;
+  isStuck?: boolean;
 }
 
 // Types and constants imported from ../types/machine
@@ -185,7 +170,10 @@ interface TeamAgentConfig {
 // Inline Agent Card - shows agent config, prompt, and controls directly in the modal
 interface InlineAgentCardProps {
   role: string;
-  effectiveStatus: AgentStatus;
+  online: boolean;
+  lastSeenAt?: number | null;
+  lastSeenAction?: string | null;
+  isStuck?: boolean;
   prompt: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
@@ -209,7 +197,10 @@ function resolveMachineHostname(
 
 const InlineAgentCard = memo(function InlineAgentCard({
   role,
-  effectiveStatus,
+  online,
+  lastSeenAt,
+  lastSeenAction,
+  isStuck,
   prompt,
   chatroomId,
   connectedMachines,
@@ -232,10 +223,9 @@ const InlineAgentCard = memo(function InlineAgentCard({
     teamConfigModel: teamConfig?.model,
   });
 
-  const statusInfo = getStatusConfig(effectiveStatus);
-  const statusLabel = statusInfo.label;
-  const statusClass = statusInfo.bg;
-  const statusColorClass = statusInfo.text;
+  const indicatorClass = online ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
+  const statusLabel = online ? (lastSeenAction ?? 'online').toUpperCase() : 'OFFLINE';
+  const statusColorClass = online ? 'text-chatroom-status-success' : 'text-chatroom-text-muted';
 
   // Resolve machine hostname for remote agents
   const machineHostname = useMemo(
@@ -275,13 +265,19 @@ const InlineAgentCard = memo(function InlineAgentCard({
       >
         <div className="flex flex-col gap-0.5 min-w-0">
           <div className="flex items-center gap-2">
-            <div className={`w-2.5 h-2.5 flex-shrink-0 ${statusClass}`} />
+            <div className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`} />
             <span className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary">
               {role}
             </span>
             <span className={`text-[10px] font-bold uppercase tracking-wide ${statusColorClass}`}>
               {statusLabel}
             </span>
+            {isStuck && (
+              <span className="flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-status-warning">
+                <AlertTriangle size={10} />
+                STUCK
+              </span>
+            )}
           </div>
           {/* Agent type subtitle line */}
           <div className="flex items-center gap-1 pl-[18px]">
@@ -300,6 +296,12 @@ const InlineAgentCard = memo(function InlineAgentCard({
                 NOT REGISTERED
               </span>
             )}
+          </div>
+          {/* Last seen subtitle line */}
+          <div className="pl-[18px]">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+              Last seen: {formatLastSeen(lastSeenAt)}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -348,7 +350,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
                   <div className="flex gap-2">
                     <span className="text-chatroom-text-muted w-16 shrink-0">Model</span>
                     <span
-                      className={`font-medium ${teamConfig.model ? 'text-chatroom-text-primary' : 'text-yellow-500 dark:text-yellow-400'}`}
+                      className={`font-medium ${teamConfig.model ? 'text-chatroom-text-primary' : 'text-chatroom-status-warning'}`}
                     >
                       {teamConfig.model || 'Not set'}
                     </span>
@@ -457,11 +459,14 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
           <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
         </FixedModalHeader>
         <FixedModalBody>
-          {agents.map(({ role, effectiveStatus }) => (
+          {agents.map(({ role, online, lastSeenAt, lastSeenAction, isStuck }) => (
             <InlineAgentCard
               key={role}
               role={role}
-              effectiveStatus={effectiveStatus}
+              online={online}
+              lastSeenAt={lastSeenAt}
+              lastSeenAction={lastSeenAction}
+              isStuck={isStuck}
               prompt={generatePrompt(role)}
               chatroomId={chatroomId}
               connectedMachines={connectedMachines}
@@ -491,6 +496,10 @@ export const AgentPanel = memo(function AgentPanel({
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
 
+  // Tick every 30s so presence checks (isOnline, formatLastSeen) stay current
+  // without needing a DB write to trigger a Convex query re-run.
+  usePresenceTick();
+
   // Allow parent to request opening the agent list modal
   useEffect(() => {
     if (openAgentListRequested) {
@@ -503,19 +512,8 @@ export const AgentPanel = memo(function AgentPanel({
   // Build participant map from readiness data
   const participantMap = useMemo(() => {
     if (!readiness?.participants) return new Map<string, ParticipantInfo>();
-    return new Map(
-      readiness.participants.map((p) => [
-        p.role.toLowerCase(),
-        { ...p, status: p.status as AgentStatus },
-      ])
-    );
+    return new Map(readiness.participants.map((p) => [p.role.toLowerCase(), p as ParticipantInfo]));
   }, [readiness?.participants]);
-
-  // Build expired roles set for O(1) lookup
-  const expiredRolesSet = useMemo(() => {
-    if (!readiness?.expiredRoles) return new Set<string>();
-    return new Set(readiness.expiredRoles.map((r) => r.toLowerCase()));
-  }, [readiness?.expiredRoles]);
 
   // Determine which roles to show (memoized)
   const rolesToShow = useMemo(
@@ -523,26 +521,27 @@ export const AgentPanel = memo(function AgentPanel({
     [teamRoles, readiness?.expectedRoles]
   );
 
-  // Phase 1: Categorize agents by status for grouped display
+  // Categorize agents by presence for grouped display
   const categorizedAgents = useMemo(() => {
-    const active: string[] = [];
-    const ready: string[] = [];
-    const other: string[] = [];
+    const working: string[] = []; // online and not idle in get-next-task (shown individually at top)
+    const online: string[] = []; // online but idle (waiting for next task)
+    const offline: string[] = []; // not seen within threshold
 
     for (const role of rolesToShow) {
-      const { status } = getEffectiveStatus(role, participantMap, expiredRolesSet);
-      if (status === 'active') {
-        active.push(role);
-      } else if (status === 'waiting') {
-        ready.push(role);
+      const participant = participantMap.get(role.toLowerCase());
+      const online_ = isOnline(participant?.lastSeenAt);
+
+      if (isWorking(online_, participant?.lastSeenAction)) {
+        working.push(role);
+      } else if (online_) {
+        online.push(role);
       } else {
-        // disconnected, missing, or any other status
-        other.push(role);
+        offline.push(role);
       }
     }
 
-    return { active, ready, other };
-  }, [rolesToShow, participantMap, expiredRolesSet]);
+    return { working, online, offline };
+  }, [rolesToShow, participantMap]);
 
   // Memoize prompt generation function
   const generatePrompt = useCallback(
@@ -552,13 +551,19 @@ export const AgentPanel = memo(function AgentPanel({
     [getAgentPrompt]
   );
 
-  // Build unified list of all agents with their status
+  // Build unified list of all agents with their presence
   const allAgentsWithStatus = useMemo(() => {
-    return rolesToShow.map((role) => ({
-      role,
-      effectiveStatus: getEffectiveStatus(role, participantMap, expiredRolesSet).status,
-    }));
-  }, [rolesToShow, participantMap, expiredRolesSet]);
+    return rolesToShow.map((role) => {
+      const participant = participantMap.get(role.toLowerCase());
+      return {
+        role,
+        online: isOnline(participant?.lastSeenAt),
+        lastSeenAt: participant?.lastSeenAt,
+        lastSeenAction: participant?.lastSeenAction,
+        isStuck: participant?.isStuck,
+      };
+    });
+  }, [rolesToShow, participantMap]);
 
   // Open unified agent list modal
   const openAgentListModal = useCallback(() => {
@@ -600,22 +605,24 @@ export const AgentPanel = memo(function AgentPanel({
     );
   }
 
-  // Helper to render an agent row in the sidebar
+  // Helper to render an agent row in the sidebar (for working/active agents)
   const renderAgentRow = (role: string) => {
-    const { status: effectiveStatus } = getEffectiveStatus(role, participantMap, expiredRolesSet);
+    const participant = participantMap.get(role.toLowerCase());
+    const online_ = isOnline(participant?.lastSeenAt);
+    const lastSeenAction = participant?.lastSeenAction ?? null;
+    const working_ = isWorking(online_, lastSeenAction);
+    const isStuck = participant?.isStuck === true;
 
-    const statusLabel = getStatusConfig(effectiveStatus).label;
-
-    const isActive = effectiveStatus === 'active';
-    const isDisconnectedAgent = effectiveStatus === 'disconnected';
+    const indicatorClass = online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
+    const statusLabel = online_ ? (lastSeenAction ?? 'online').toUpperCase() : 'OFFLINE';
 
     return (
       <div key={role} className="border-b border-chatroom-border last:border-b-0">
         <div
-          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${isActive ? 'bg-chatroom-status-info/5' : ''} ${isDisconnectedAgent ? 'bg-chatroom-status-error/5' : ''}`}
+          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${working_ ? 'bg-chatroom-status-info/5' : ''} ${isStuck ? 'bg-chatroom-status-warning/5' : ''}`}
           role="button"
           tabIndex={0}
-          aria-label={`${role}: ${statusLabel}. Click to view all agents.`}
+          aria-label={`${role}: ${statusLabel}${isStuck ? ' (stuck)' : ''}. Click to view all agents.`}
           onClick={openAgentListModal}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -626,7 +633,7 @@ export const AgentPanel = memo(function AgentPanel({
         >
           {/* Status Indicator */}
           <div
-            className={getStatusClasses(effectiveStatus)}
+            className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`}
             role="status"
             aria-label={`Status: ${statusLabel}`}
           />
@@ -637,16 +644,27 @@ export const AgentPanel = memo(function AgentPanel({
             </div>
             <div
               className={`text-[10px] font-bold uppercase tracking-wide ${
-                isActive
+                working_
                   ? 'text-chatroom-status-info animate-pulse'
-                  : isDisconnectedAgent
-                    ? 'text-chatroom-status-error'
+                  : online_
+                    ? 'text-chatroom-status-success'
                     : 'text-chatroom-text-muted'
               }`}
             >
               {statusLabel}
             </div>
+            <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+              {formatLastSeen(participant?.lastSeenAt)}
+            </div>
           </div>
+          {/* Stuck warning badge */}
+          {isStuck && (
+            <AlertTriangle
+              size={12}
+              className="text-chatroom-status-warning flex-shrink-0"
+              aria-label="Agent may be stuck"
+            />
+          )}
           {/* View Indicator */}
           <div className="text-chatroom-text-muted">
             <ChevronRight size={14} />
@@ -658,79 +676,49 @@ export const AgentPanel = memo(function AgentPanel({
 
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
-      {/* Header with status indicator and menu */}
+      {/* Header with settings menu */}
       <div className="flex items-center justify-between h-14 px-4 border-b-2 border-chatroom-border">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Agents
         </div>
-        <div className="flex items-center gap-2">
-          <div
-            className={`${
-              readiness.isReady
-                ? 'text-chatroom-status-success'
-                : isDisconnected
-                  ? 'text-chatroom-status-error'
-                  : 'text-chatroom-status-warning'
-            }`}
-          >
-            {readiness.isReady ? (
-              <CheckCircle size={12} />
-            ) : isDisconnected ? (
-              <AlertTriangle size={12} />
-            ) : (
-              <Clock size={12} />
-            )}
-          </div>
-          <div
-            className={`text-[10px] font-bold uppercase tracking-wide ${
-              readiness.isReady
-                ? 'text-chatroom-status-success'
-                : isDisconnected
-                  ? 'text-chatroom-status-error'
-                  : 'text-chatroom-status-warning'
-            }`}
-          >
-            {readiness.isReady ? 'Ready' : isDisconnected ? 'Disconnected' : 'Waiting'}
-          </div>
-          {/* Settings Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors">
-                <MoreHorizontal size={14} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="chatroom-root">
-              <DropdownMenuItem
-                onClick={onConfigure}
-                className="flex items-center gap-2 text-xs cursor-pointer"
-              >
-                <Settings size={12} />
-                Configure
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        {/* Settings Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="w-6 h-6 flex items-center justify-center text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors">
+              <MoreHorizontal size={14} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="chatroom-root">
+            <DropdownMenuItem
+              onClick={onConfigure}
+              className="flex items-center gap-2 text-xs cursor-pointer"
+            >
+              <Settings size={12} />
+              Configure
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
-        {/* Active Agents - always shown prominently at top */}
-        {categorizedAgents.active.map(renderAgentRow)}
+        {/* Working Agents - always shown prominently at top */}
+        {categorizedAgents.working.map(renderAgentRow)}
 
-        {/* Ready Agents - collapsed group that opens unified modal */}
-        {categorizedAgents.ready.length > 0 && (
+        {/* Online Agents - collapsed group that opens unified modal */}
+        {categorizedAgents.online.length > 0 && (
           <CollapsedAgentGroup
-            title="Ready"
-            agents={categorizedAgents.ready}
-            variant="ready"
+            title="Online"
+            agents={categorizedAgents.online}
+            variant="online"
             onOpenModal={openAgentListModal}
           />
         )}
 
-        {/* Other Agents (disconnected/missing) - collapsed group that opens unified modal */}
-        {categorizedAgents.other.length > 0 && (
+        {/* Offline Agents - collapsed group that opens unified modal */}
+        {categorizedAgents.offline.length > 0 && (
           <CollapsedAgentGroup
             title="Offline"
-            agents={categorizedAgents.other}
+            agents={categorizedAgents.offline}
             variant="offline"
             onOpenModal={openAgentListModal}
           />

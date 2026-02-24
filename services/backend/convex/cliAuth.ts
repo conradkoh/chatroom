@@ -377,6 +377,10 @@ export const touchSession = mutation({
 
     await ctx.db.patch('cliSessions', session._id, {
       lastUsedAt: Date.now(),
+      // Extend expiry on each touch (sliding window) so active sessions
+      // never expire while in use. The fixed creation-time expiry was
+      // causing daemon sessions to silently die after 30 days.
+      expiresAt: Date.now() + CLI_SESSION_EXPIRY_MS,
     });
 
     return true;

@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @plugin "tailwindcss-animate";
 @plugin "@tailwindcss/typography";
@@ -44,7 +44,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  
+
   /* Chatroom Module Colors - Dark Steel Theme */
   --color-chatroom-bg-primary: var(--chatroom-bg-primary);
   --color-chatroom-bg-secondary: var(--chatroom-bg-secondary);
@@ -148,7 +148,7 @@ button,
 input,
 .card,
 .border,
-[class*="border-"] {
+[class*='border-'] {
   transition:
     border-color var(--theme-transition-duration) var(--theme-transition-ease),
     box-shadow var(--theme-transition-duration) var(--theme-transition-ease);
@@ -243,75 +243,79 @@ input,
 
 /* Chatroom Module Theme - Industrial Design System */
 /* Light mode (Neutral Glass) is the default, dark mode overrides */
+/* Variables are at :root so Radix UI portals (rendered at document.body) can access them */
+:root {
+  /* Light Mode (Neutral Glass) - Default values */
+  /* Background Colors */
+  --chatroom-bg-primary: #f5f5f5; /* neutral-100 */
+  --chatroom-bg-secondary: rgba(255, 255, 255, 0.6); /* white/60 with glass effect */
+  --chatroom-bg-tertiary: #ebebeb; /* neutral-150 - subtle gray for section headers */
+  --chatroom-bg-hover: #e5e5e5; /* neutral-200 */
+  --chatroom-bg-surface: rgba(255, 255, 255, 0.6); /* glassmorphism surface */
+
+  /* Borders */
+  --chatroom-border: rgba(23, 23, 23, 0.1); /* neutral-900 at 10% */
+  --chatroom-border-strong: rgba(23, 23, 23, 0.15);
+
+  /* Text */
+  --chatroom-text-primary: #171717; /* neutral-900 */
+  --chatroom-text-secondary: #525252; /* neutral-600 */
+  --chatroom-text-muted: #737373; /* neutral-500 */
+
+  /* Status Colors - darker for light backgrounds */
+  --chatroom-status-success: #15803d; /* green-700 */
+  --chatroom-status-warning: #b45309; /* amber-700 */
+  --chatroom-status-error: #b91c1c; /* red-700 */
+  --chatroom-status-info: #1d4ed8; /* blue-700 */
+  --chatroom-status-purple: #7c3aed; /* purple-600 */
+
+  /* Accent */
+  --chatroom-accent: #171717; /* neutral-900 */
+  --chatroom-accent-subtle: #f5f5f5; /* neutral-100 */
+  --chatroom-text-on-accent: #fafafa; /* light text on dark accent */
+}
+
 .chatroom-root {
   /* Sharp corners - brutalist style */
   --chatroom-radius: 0px;
   --chatroom-radius-sm: 0px;
 
-  /* Light Mode (Neutral Glass) - Default values */
-  /* Background Colors */
-  --chatroom-bg-primary: #f5f5f5;           /* neutral-100 */
-  --chatroom-bg-secondary: rgba(255, 255, 255, 0.6);  /* white/60 with glass effect */
-  --chatroom-bg-tertiary: #ebebeb;          /* neutral-150 - subtle gray for section headers */
-  --chatroom-bg-hover: #e5e5e5;             /* neutral-200 */
-  --chatroom-bg-surface: rgba(255, 255, 255, 0.6);    /* glassmorphism surface */
-  
-  /* Borders */
-  --chatroom-border: rgba(23, 23, 23, 0.1);   /* neutral-900 at 10% */
-  --chatroom-border-strong: rgba(23, 23, 23, 0.15);
-  
-  /* Text */
-  --chatroom-text-primary: #171717;         /* neutral-900 */
-  --chatroom-text-secondary: #525252;       /* neutral-600 */
-  --chatroom-text-muted: #737373;           /* neutral-500 */
-  
-  /* Status Colors - darker for light backgrounds */
-  --chatroom-status-success: #15803d;       /* green-700 */
-  --chatroom-status-warning: #b45309;       /* amber-700 */
-  --chatroom-status-error: #b91c1c;         /* red-700 */
-  --chatroom-status-info: #1d4ed8;          /* blue-700 */
-  --chatroom-status-purple: #7c3aed;        /* purple-600 */
-  
-  /* Accent */
-  --chatroom-accent: #171717;               /* neutral-900 */
-  --chatroom-accent-subtle: #f5f5f5;        /* neutral-100 */
-  --chatroom-text-on-accent: #fafafa;       /* light text on dark accent */
-
   /* Base styles for the chatroom module root */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background: var(--chatroom-bg-primary);
   color: var(--chatroom-text-primary);
 }
 
 /* Dark Steel Theme (Dark Mode) - Overrides light mode defaults */
-.dark .chatroom-root {
+.dark {
   /* Background Colors */
-  --chatroom-bg-primary: #09090b;           /* zinc-950 */
-  --chatroom-bg-secondary: rgba(24, 24, 27, 0.5);  /* zinc-900/50 with glass effect */
-  --chatroom-bg-tertiary: #18181b;          /* zinc-900 */
-  --chatroom-bg-hover: #27272a;             /* zinc-800 */
-  --chatroom-bg-surface: rgba(24, 24, 27, 0.6);    /* glassmorphism surface */
-  
+  --chatroom-bg-primary: #09090b; /* zinc-950 */
+  --chatroom-bg-secondary: rgba(24, 24, 27, 0.5); /* zinc-900/50 with glass effect */
+  --chatroom-bg-tertiary: #18181b; /* zinc-900 */
+  --chatroom-bg-hover: #27272a; /* zinc-800 */
+  --chatroom-bg-surface: rgba(24, 24, 27, 0.6); /* glassmorphism surface */
+
   /* Borders */
-  --chatroom-border: rgba(250, 250, 250, 0.1);  /* zinc-100 at 10% */
+  --chatroom-border: rgba(250, 250, 250, 0.1); /* zinc-100 at 10% */
   --chatroom-border-strong: rgba(250, 250, 250, 0.15);
-  
+
   /* Text */
-  --chatroom-text-primary: #fafafa;         /* zinc-100 */
-  --chatroom-text-secondary: #a1a1aa;       /* zinc-400 */
-  --chatroom-text-muted: #71717a;           /* zinc-500 */
-  
+  --chatroom-text-primary: #fafafa; /* zinc-100 */
+  --chatroom-text-secondary: #a1a1aa; /* zinc-400 */
+  --chatroom-text-muted: #71717a; /* zinc-500 */
+
   /* Status Colors */
-  --chatroom-status-success: #34d399;       /* emerald-400 */
-  --chatroom-status-warning: #fbbf24;       /* amber-400 */
-  --chatroom-status-error: #f87171;         /* red-400 */
-  --chatroom-status-info: #60a5fa;          /* blue-400 */
-  --chatroom-status-purple: #c084fc;        /* purple-400 */
-  
+  --chatroom-status-success: #34d399; /* emerald-400 */
+  --chatroom-status-warning: #fbbf24; /* amber-400 */
+  --chatroom-status-error: #f87171; /* red-400 */
+  --chatroom-status-info: #60a5fa; /* blue-400 */
+  --chatroom-status-purple: #c084fc; /* purple-400 */
+
   /* Accent */
-  --chatroom-accent: #fafafa;               /* zinc-100 */
-  --chatroom-accent-subtle: #27272a;        /* zinc-800 */
-  --chatroom-text-on-accent: #09090b;       /* dark text on light accent */
+  --chatroom-accent: #fafafa; /* zinc-100 */
+  --chatroom-accent-subtle: #27272a; /* zinc-800 */
+  --chatroom-text-on-accent: #09090b; /* dark text on light accent */
 }
 
 /* Scoped box-sizing reset - only apply within chatroom module */
@@ -336,7 +340,7 @@ input,
   }
   /* add cursor pointer to all buttons */
   button:not([disabled]),
-  [role="button"]:not([disabled]) {
+  [role='button']:not([disabled]) {
     cursor: pointer;
   }
 }

@@ -51,14 +51,12 @@ export async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'
 export async function joinParticipant(
   sessionId: SessionId,
   chatroomId: Id<'chatroom_rooms'>,
-  role: string,
-  readyUntil: number
+  role: string
 ): Promise<void> {
   await t.mutation(api.participants.join, {
     sessionId,
     chatroomId,
     role,
-    readyUntil,
   });
 }
 

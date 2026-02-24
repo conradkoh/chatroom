@@ -38,13 +38,11 @@ async function joinParticipants(
   chatroomId: Id<'chatroom_rooms'>,
   roles: string[]
 ): Promise<void> {
-  const readyUntil = Date.now() + 10 * 60 * 1000;
   for (const role of roles) {
     await t.mutation(api.participants.join, {
       sessionId,
       chatroomId,
       role,
-      readyUntil,
     });
   }
 }
@@ -74,6 +72,8 @@ describe('Pair Team > Builder > System Prompt', () => {
     expect(prompt).toContain('## Builder Workflow');
     expect(prompt).toContain('### Handoff Options');
     expect(prompt).toContain('### Commands');
+    // ### Get Next Task replaces ### Wait for Tasks
+    expect(prompt).toContain('### Get Next Task');
 
     expect(prompt).toMatchInlineSnapshot(`
       "# Pair Team
@@ -88,21 +88,21 @@ describe('Pair Team > Builder > System Prompt', () => {
       Register your agent type before starting work.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10002;chatroom_rooms --role=builder --type=<remote|custom>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10002;chatroom_rooms" --role="builder" --type=<remote|custom>
       \`\`\`
 
       ### Read Context
       View the conversation history and pending tasks for your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
-      ### Wait for Tasks
+      ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
       ### Classify Task
@@ -112,21 +112,21 @@ describe('Pair Team > Builder > System Prompt', () => {
       User is asking for information or clarification.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=question
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=question
       \`\`\`
 
       #### Follow Up
       User is responding to previous work or providing feedback.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=follow_up
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=follow_up
       \`\`\`
 
       #### New Feature
       User wants new functionality. Requires title, description, and tech specs.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       [Feature title]
       ---DESCRIPTION---
@@ -138,7 +138,7 @@ describe('Pair Team > Builder > System Prompt', () => {
 
       **Context Rule:** When a new commit is expected, set a new context first to keep the conversation focused. Only the entry point role can set contexts:
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF
       \`\`\`
@@ -156,15 +156,27 @@ describe('Pair Team > Builder > System Prompt', () => {
 
       **Classification (Entry Point Role):**
       As the entry point, you receive user messages directly. When you receive a user message:
-      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
       2. Then do your work
       3. Hand off to reviewer for code changes, or directly to user for questions
 
       **Typical Flow:**
-      1. Receive task (from user or handoff from reviewer)
-      2. Implement the requested changes
-      3. Commit your work with clear messages
-      4. Hand off to reviewer with a summary of what you built
+
+      \`\`\`
+      @startuml
+      start
+      :Receive task;
+      note right: from user or handoff from reviewer
+      :Implement changes;
+      :Commit work;
+      if (classification?) then (new_feature or code changes)
+        :Hand off to **reviewer**;
+      else (question)
+        :Hand off to **user**;
+      endif
+      stop
+      @enduml
+      \`\`\`
 
       **Handoff Rules:**
       - **After code changes** → Hand off to \`reviewer\`
@@ -197,7 +209,8 @@ describe('Pair Team > Builder > System Prompt', () => {
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
+      ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
@@ -210,7 +223,8 @@ describe('Pair Team > Builder > System Prompt', () => {
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="builder" << 'EOF'
+      ---MESSAGE---
       [Your progress message here]
       EOF
       \`\`\`
@@ -219,17 +233,22 @@ describe('Pair Team > Builder > System Prompt', () => {
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
-      Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+      **Re-fetch your system prompt (after context reset):**
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
+      \`\`\`
 
       ### Next
 
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`"
     `);
   });

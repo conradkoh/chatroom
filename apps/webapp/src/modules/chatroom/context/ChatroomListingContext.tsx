@@ -7,10 +7,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 // Types based on backend response from listByUserWithStatus
 export interface Agent {
   role: string;
-  status: 'active' | 'waiting';
-  effectiveStatus: 'active' | 'waiting' | 'disconnected';
-  isExpired: boolean;
-  readyUntil?: number;
+  lastSeenAt: number | null;
 }
 
 export interface TeamReadiness {
@@ -30,7 +27,7 @@ export interface ChatroomWithStatus {
   teamEntryPoint?: string;
   lastActivityAt?: number;
   agents: Agent[];
-  chatStatus: 'ready' | 'working' | 'partial' | 'disconnected' | 'setup' | 'completed';
+  chatStatus: 'working' | 'active' | 'idle' | 'completed';
   isFavorite: boolean;
   hasUnread: boolean;
   teamReadiness: TeamReadiness;

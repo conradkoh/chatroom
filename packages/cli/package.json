@@ -1,6 +1,6 @@
 {
   "name": "chatroom-cli",
-  "version": "1.0.83",
+  "version": "1.2.0",
   "description": "CLI for multi-agent chatroom collaboration",
   "type": "module",
   "bin": {
@@ -8,7 +8,6 @@
   },
   "scripts": {
     "build": "bun run typecheck && bun build src/index.ts --outdir dist --target node --format esm",
-    "dev": "bun run src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

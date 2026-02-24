@@ -48,13 +48,11 @@ async function joinParticipants(
   chatroomId: Id<'chatroom_rooms'>,
   roles: string[]
 ): Promise<void> {
-  const readyUntil = Date.now() + 10 * 60 * 1000; // 10 minutes
   for (const role of roles) {
     await t.mutation(api.participants.join, {
       sessionId,
       chatroomId,
       role,
-      readyUntil,
     });
   }
 }
@@ -82,11 +80,13 @@ describe('Pair Team Workflow', () => {
       expect(_userMessageId).toBeDefined();
 
       // Verify a pending task was created for builder
-      const builderPendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const builderPendingResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'builder',
       });
+      expect(builderPendingResult.type).toBe('tasks');
+      const builderPendingTasks = (builderPendingResult as { type: 'tasks'; tasks: any[] }).tasks;
       expect(builderPendingTasks).toHaveLength(1);
       expect(builderPendingTasks[0].task.status).toBe('pending');
 
@@ -155,15 +155,27 @@ Test technical specifications`,
 
         **Classification (Entry Point Role):**
         As the entry point, you receive user messages directly. When you receive a user message:
-        1. First run \`chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+        1. First run \`chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
         2. Then do your work
         3. Hand off to reviewer for code changes, or directly to user for questions
 
         **Typical Flow:**
-        1. Receive task (from user or handoff from reviewer)
-        2. Implement the requested changes
-        3. Commit your work with clear messages
-        4. Hand off to reviewer with a summary of what you built
+
+        \`\`\`
+        @startuml
+        start
+        :Receive task;
+        note right: from user or handoff from reviewer
+        :Implement changes;
+        :Commit work;
+        if (classification?) then (new_feature or code changes)
+          :Hand off to **reviewer**;
+        else (question)
+          :Hand off to **user**;
+        endif
+        stop
+        @enduml
+        \`\`\`
 
         **Handoff Rules:**
         - **After code changes** → Hand off to \`reviewer\`
@@ -201,7 +213,8 @@ Test technical specifications`,
         **Complete task and hand off:**
 
         \`\`\`bash
-        chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+        chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
+        ---MESSAGE---
         [Your message here]
         EOF
         \`\`\`
@@ -214,7 +227,8 @@ Test technical specifications`,
         **Report progress on current task:**
 
         \`\`\`bash
-        chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+        chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="builder" << 'EOF'
+        ---MESSAGE---
         [Your progress message here]
         EOF
         \`\`\`
@@ -223,10 +237,15 @@ Test technical specifications`,
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=builder
+        chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
         \`\`\`
 
-        Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you"
+        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+        **Re-fetch your system prompt (after context reset):**
+        \`\`\`
+        chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
+        \`\`\`"
       `);
 
       // ========================================
@@ -262,11 +281,13 @@ Test technical specifications`,
       // ========================================
       // STEP 6: Reviewer receives pending task
       // ========================================
-      const reviewerPendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const reviewerPendingResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'reviewer',
       });
+      expect(reviewerPendingResult.type).toBe('tasks');
+      const reviewerPendingTasks = (reviewerPendingResult as { type: 'tasks'; tasks: any[] }).tasks;
       expect(reviewerPendingTasks).toHaveLength(1);
       expect(reviewerPendingTasks[0].task.status).toBe('pending');
 
@@ -317,18 +338,36 @@ Test technical specifications`,
         You receive handoffs from other agents containing work to review or validate.
 
         **Typical Flow:**
-        1. Receive message (handoff from builder or other agent)
-        2. Run \`task-started --no-classify\` to acknowledge receipt and start work
-        3. Review the code changes or content:
-           - Check uncommitted changes: \`git status\`, \`git diff\`
-           - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
-        4. Either approve or request changes
+
+        \`\`\`
+        @startuml
+        start
+        :Receive handoff;
+        note right: from builder or other agent
+        :Run **task-started --no-classify**;
+        :Review code changes;
+        note right
+          git status, git diff
+          git log --oneline -10
+          git diff HEAD~N..HEAD
+        end note
+        if (meets requirements?) then (yes)
+          :Hand off to **user**;
+          note right: APPROVED ✅
+        else (no)
+          :Hand off to **builder**;
+          note right: specific feedback
+        endif
+        stop
+        @enduml
+        \`\`\`
 
         **Your Options After Review:**
 
         **If changes are needed:**
         \`\`\`bash
-        chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=builder << 'EOF'
+        chatroom handoff --chatroom-id="<chatroom-id>" --role="<role>" --next-role="builder" << 'EOF'
+        ---MESSAGE---
         [Your message here]
         EOF
         \`\`\`
@@ -339,7 +378,8 @@ Test technical specifications`,
 
         **If work is approved:**
         \`\`\`bash
-        chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=user << 'EOF'
+        chatroom handoff --chatroom-id="<chatroom-id>" --role="<role>" --next-role="user" << 'EOF'
+        ---MESSAGE---
         [Your message here]
         EOF
         \`\`\`
@@ -422,7 +462,8 @@ Test technical specifications`,
         **Complete task and hand off:**
 
         \`\`\`bash
-        chatroom handoff --chatroom-id=10002;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+        chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="reviewer" --next-role="<target>" << 'EOF'
+        ---MESSAGE---
         [Your message here]
         EOF
         \`\`\`
@@ -435,7 +476,8 @@ Test technical specifications`,
         **Report progress on current task:**
 
         \`\`\`bash
-        chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=reviewer << 'EOF'
+        chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="reviewer" << 'EOF'
+        ---MESSAGE---
         [Your progress message here]
         EOF
         \`\`\`
@@ -444,10 +486,15 @@ Test technical specifications`,
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom wait-for-task --chatroom-id=10002;chatroom_rooms --role=reviewer
+        chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="reviewer"
         \`\`\`
 
-        Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you"
+        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+        **Re-fetch your system prompt (after context reset):**
+        \`\`\`
+        chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="reviewer"
+        \`\`\`"
       `);
 
       // ========================================
@@ -603,15 +650,27 @@ Test technical specifications`,
 
         **Classification (Entry Point Role):**
         As the entry point, you receive user messages directly. When you receive a user message:
-        1. First run \`chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+        1. First run \`chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
         2. Then do your work
         3. Hand off to reviewer for code changes, or directly to user for questions
 
         **Typical Flow:**
-        1. Receive task (from user or handoff from reviewer)
-        2. Implement the requested changes
-        3. Commit your work with clear messages
-        4. Hand off to reviewer with a summary of what you built
+
+        \`\`\`
+        @startuml
+        start
+        :Receive task;
+        note right: from user or handoff from reviewer
+        :Implement changes;
+        :Commit work;
+        if (classification?) then (new_feature or code changes)
+          :Hand off to **reviewer**;
+        else (question)
+          :Hand off to **user**;
+        endif
+        stop
+        @enduml
+        \`\`\`
 
         **Handoff Rules:**
         - **After code changes** → Hand off to \`reviewer\`
@@ -647,7 +706,8 @@ Test technical specifications`,
         **Complete task and hand off:**
 
         \`\`\`bash
-        chatroom handoff --chatroom-id=10019;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+        chatroom handoff --chatroom-id="10028;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
+        ---MESSAGE---
         [Your message here]
         EOF
         \`\`\`
@@ -660,7 +720,8 @@ Test technical specifications`,
         **Report progress on current task:**
 
         \`\`\`bash
-        chatroom report-progress --chatroom-id=10019;chatroom_rooms --role=builder << 'EOF'
+        chatroom report-progress --chatroom-id="10028;chatroom_rooms" --role="builder" << 'EOF'
+        ---MESSAGE---
         [Your progress message here]
         EOF
         \`\`\`
@@ -669,10 +730,15 @@ Test technical specifications`,
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom wait-for-task --chatroom-id=10019;chatroom_rooms --role=builder
+        chatroom get-next-task --chatroom-id="10028;chatroom_rooms" --role="builder"
         \`\`\`
 
-        Message availability is critical: Use \`wait-for-task\` in the foreground to stay connected, otherwise your team cannot reach you"
+        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+        **Re-fetch your system prompt (after context reset):**
+        \`\`\`
+        chatroom get-system-prompt --chatroom-id="10028;chatroom_rooms" --role="builder"
+        \`\`\`"
       `);
 
       // Builder hands off directly to user (should succeed)
@@ -955,11 +1021,13 @@ Test technical specifications`,
       expect(changeRequestResult.newTaskId).toBeDefined(); // Task created for builder
 
       // Builder should have a new pending task
-      const builderTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const builderTasksResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'builder',
       });
+      expect(builderTasksResult.type).toBe('tasks');
+      const builderTasks = (builderTasksResult as { type: 'tasks'; tasks: any[] }).tasks;
 
       expect(builderTasks).toHaveLength(1);
       expect(builderTasks[0].task.content).toBe(
@@ -1090,7 +1158,7 @@ Test technical specifications`,
       expect(result.classification).toBe('new_feature');
       expect(result.reminder).toBeDefined();
       expect(result.reminder).toContain('hand off to reviewer');
-      expect(result.reminder).toContain('--next-role=reviewer');
+      expect(result.reminder).toContain('--next-role="reviewer"');
     });
 
     test('taskStarted returns focused reminder for builder + question', async () => {
@@ -1183,8 +1251,8 @@ Test technical specifications`,
     });
   });
 
-  describe('wait-for-task background warnings', () => {
-    test('initial prompt includes warning not to run wait-for-task in background', async () => {
+  describe('get-next-task background warnings', () => {
+    test('initial prompt includes warning not to run get-next-task in background', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-init-background-warning');
       const chatroomId = await createPairTeamChatroom(sessionId);
@@ -1199,9 +1267,9 @@ Test technical specifications`,
 
       expect(initPrompt.prompt).toBeDefined();
 
-      // The init prompt includes the wait-for-task reminder from getWaitForTaskReminder()
+      // The init prompt includes the get-next-task reminder from getNextTaskReminder()
       // which emphasizes running in foreground to stay connected
-      expect(initPrompt.prompt).toContain('wait-for-task');
+      expect(initPrompt.prompt).toContain('get-next-task');
 
       // Check that it mentions running in foreground
       expect(initPrompt.prompt).toContain('foreground');
@@ -1221,7 +1289,7 @@ Test technical specifications`,
       expect(hasProperUsageWarning).toBe(true);
     });
 
-    test('task delivery prompt includes reminder not to run wait-for-task in background', async () => {
+    test('task delivery prompt includes reminder not to run get-next-task in background', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-task-background-warning');
       const chatroomId = await createPairTeamChatroom(sessionId);
@@ -1237,11 +1305,13 @@ Test technical specifications`,
       });
 
       // Get the pending tasks for builder
-      const pendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const pendingTasksResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'builder',
       });
+      expect(pendingTasksResult.type).toBe('tasks');
+      const pendingTasks = (pendingTasksResult as { type: 'tasks'; tasks: any[] }).tasks;
 
       expect(pendingTasks.length).toBeGreaterThan(0);
       const taskId = pendingTasks[0].task._id;
@@ -1256,17 +1326,17 @@ Test technical specifications`,
 
       expect(taskPrompt.fullCliOutput).toBeDefined();
 
-      // Verify the prompt contains warning about wait-for-task
-      expect(taskPrompt.fullCliOutput).toContain('wait-for-task');
+      // Verify the prompt contains warning about get-next-task
+      expect(taskPrompt.fullCliOutput).toContain('get-next-task');
 
       // Check for reminder about message availability and/or backgrounding
-      const hasWaitForTaskReminder =
+      const hasGetNextTaskReminder =
         taskPrompt.fullCliOutput.includes('Message availability') ||
         taskPrompt.fullCliOutput.includes('stay connected') ||
         taskPrompt.fullCliOutput.includes('foreground') ||
         taskPrompt.fullCliOutput.includes('background');
 
-      expect(hasWaitForTaskReminder).toBe(true);
+      expect(hasGetNextTaskReminder).toBe(true);
     });
   });
 });

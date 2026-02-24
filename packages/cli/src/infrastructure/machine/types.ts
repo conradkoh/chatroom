@@ -36,21 +36,6 @@ export interface HarnessVersionInfo {
 }
 
 /**
- * Per-chatroom, per-role agent context (static config, stored in machine.json)
- *
- * Runtime state like spawned PIDs is stored separately in
- * ~/.chatroom/machines/state/<machine-id>.json — see daemon-state.ts.
- */
-export interface AgentContext {
-  /** Which harness was used for this role */
-  agentType: AgentHarness;
-  /** Working directory when agent was started */
-  workingDir: string;
-  /** Last time this agent was started (ISO string) */
-  lastStartedAt: string;
-}
-
-/**
  * Per-endpoint machine entry in the versioned config file.
  * Each Convex URL endpoint gets its own machine identity.
  */
@@ -69,8 +54,6 @@ export interface MachineEndpointConfig {
   availableHarnesses: AgentHarness[];
   /** Detected harness versions (keyed by harness name) */
   harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
-  /** Per-chatroom agent configurations */
-  chatroomAgents: Record<string, Record<string, AgentContext>>;
 }
 
 /**

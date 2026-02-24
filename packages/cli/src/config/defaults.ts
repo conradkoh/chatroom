@@ -18,6 +18,12 @@ export const DEFAULT_CONFIG: ChatroomConfig = {
       roles: ['planner', 'builder', 'reviewer'],
       entryPoint: 'planner',
     },
+    duo: {
+      name: 'Duo',
+      description: 'A planner and builder working together, planner as entry point',
+      roles: ['planner', 'builder'],
+      entryPoint: 'planner',
+    },
   },
 };
 
@@ -48,6 +54,14 @@ export const DEFAULT_CONFIG_JSONC = `{
       "name": "Squad",
       "description": "A planner, builder, and reviewer working as a coordinated team",
       "roles": ["planner", "builder", "reviewer"],
+      "entryPoint": "planner"
+    },
+    
+    // Duo: A planner-builder pair with planner as entry point
+    "duo": {
+      "name": "Duo",
+      "description": "A planner and builder working together, planner as entry point",
+      "roles": ["planner", "builder"],
       "entryPoint": "planner"
     }
   }

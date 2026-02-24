@@ -1,24 +1,42 @@
 /**
- * Agent Reliability Configuration
+ * Centralized Reliability & Timing Configuration
  *
- * Constants for heartbeat-based liveness detection and task recovery.
- * Used by both the backend (Convex functions) and CLI (wait-for-task).
+ * All timing constants that govern agent liveness detection and daemon health.
+ * These values are shared across the CLI (`get-next-task`, `daemon-start`),
+ * the backend (Convex mutations/cron), and the frontend (display logic).
+ *
+ * ## Agent Presence Model
+ *
+ * A single threshold governs agent online/offline status:
+ * - `PRESENCE_THRESHOLD_MS` — agent is "online" if seen within this window (10 min)
+ *
+ * An online agent is considered "working" if `lastSeenAction !== 'get-next-task:started'`.
+ *
+ * ## Daemon Heartbeat
+ *
+ * The daemon uses its own separate heartbeat constants (`DAEMON_HEARTBEAT_*`).
+ * These are intentionally independent of agent presence tracking.
+ *
+ * ## Warning
+ *
+ * Changing these values affects system behavior across the CLI, daemon, and
+ * backend cron jobs. Test timing changes end-to-end before deploying.
  */
 
-/** How often the CLI sends a heartbeat to refresh readyUntil (ms). */
-export const HEARTBEAT_INTERVAL_MS = 30_000; // 30s
+// ─── Agent Presence ──────────────────────────────────────────────────────────
 
-/** How long a participant is considered reachable after the last heartbeat (ms).
- *  Must be > HEARTBEAT_INTERVAL_MS to tolerate missed beats. Allows 2 missed beats. */
-export const HEARTBEAT_TTL_MS = 90_000; // 90s (Plan 026: increased from 60s)
+/** How long an agent is considered online after the last action/heartbeat (ms).
+ *  Used in both the backend (participant queries) and frontend (AgentPanel display).
+ *  Must be kept in sync with the frontend PRESENCE_THRESHOLD_MS constant. */
+export const PRESENCE_THRESHOLD_MS = 600_000; // 10 min
 
-/** How long a task can be stuck in `pending` before triggering recovery (ms).
- *  For remote agents: triggers auto-restart. For custom agents: logs a warning. */
-export const TASK_PENDING_TIMEOUT_MS = 300_000; // 5 min
+// ─── Grace Period ────────────────────────────────────────────────────────────
 
-/** How long a task can be stuck in `acknowledged` before being reset to `pending` (ms).
- *  If the assigned participant is missing or expired, the task is recovered. */
-export const TASK_ACKNOWLEDGED_TIMEOUT_MS = 120_000; // 2 min
+/** Grace period before recovering an acknowledged task (ms).
+ *  If a task was acknowledged less than this long ago, another agent may still
+ *  be working on it. The backend returns a `grace_period` response instead of
+ *  handing the task to a new agent. */
+export const RECOVERY_GRACE_PERIOD_MS = 60_000; // 1 min
 
 // ─── Daemon Heartbeat ────────────────────────────────────────────────────────
 

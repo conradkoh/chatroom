@@ -16,8 +16,13 @@ export const {
   getClassificationGuidance,
 } = taskStarted;
 
-// Re-export wait-for-task functions
-export { getWaitForTaskReminder, getWaitForTaskGuidance } from './wait-for-task/reminder.js';
+// Re-export get-next-task functions (primary)
+export {
+  getNextTaskReminder,
+  getNextTaskGuidance,
+  getWaitForTaskReminder,
+  getWaitForTaskGuidance,
+} from './get-next-task/reminder.js';
 
 // Re-export init functions
 export { getContextGainingGuidance } from '../shared/getting-started-content.js';

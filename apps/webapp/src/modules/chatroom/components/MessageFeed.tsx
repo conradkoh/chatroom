@@ -3,6 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ChevronUp,
   ChevronDown,
@@ -19,6 +20,7 @@ import {
   Sparkles,
   RotateCcw,
   ArrowRight,
+  Activity,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -35,11 +37,7 @@ import remarkGfm from 'remark-gfm';
 import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
-import {
-  baseMarkdownComponents,
-  compactMarkdownComponents,
-  fullMarkdownComponents,
-} from './markdown-utils';
+import { compactMarkdownComponents, fullMarkdownComponents } from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
 import { WorkingIndicator } from './WorkingIndicator';
 
@@ -56,15 +54,10 @@ import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
 // which would cause react-markdown to re-parse the AST unnecessarily
 const REMARK_PLUGINS = [remarkGfm];
 
-interface Participant {
-  _id?: string;
-  role: string;
-  status: string;
-}
-
 interface MessageFeedProps {
   chatroomId: string;
-  participants: Participant[];
+  readiness?: { participants?: { role: string; lastSeenAction?: string | null }[] } | null;
+  activeTask?: { status: string; assignedTo?: string } | null;
 }
 
 interface Message {
@@ -330,11 +323,149 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
   );
 });
 
+// Task Progress - renders inline progress updates below the task header
+// Shows the latest progress message with expand/collapse for full history
+interface TaskProgressProps {
+  message: Message;
+  chatroomId: string;
+}
+
+const TaskProgress = memo(function TaskProgress({ message, chatroomId }: TaskProgressProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-hide when focus is lost (click outside)
+  useEffect(() => {
+    if (!isExpanded) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsExpanded(false);
+      }
+    };
+    // Use setTimeout to avoid the click that opened it from immediately closing it
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isExpanded]);
+
+  // Only render for user messages
+  if (message.senderRole.toLowerCase() !== 'user') {
+    return null;
+  }
+
+  const hasProgress = !!message.latestProgress;
+
+  const toggleExpanded = () => {
+    if (hasProgress) {
+      setIsExpanded((prev) => !prev);
+    }
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative bg-chatroom-bg-tertiary/50 border-b border-chatroom-border"
+    >
+      {hasProgress ? (
+        <>
+          {/* Collapsed: latest progress */}
+          <button
+            onClick={toggleExpanded}
+            className="w-full text-left px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-chatroom-bg-hover transition-colors"
+          >
+            <Activity size={12} className="text-chatroom-accent flex-shrink-0" />
+            <span className="text-[11px] text-chatroom-text-muted truncate flex-1">
+              {message.latestProgress!.content.replace(/\n+/g, ' ').trim()}
+            </span>
+            <span className="text-[10px] text-chatroom-text-muted/60 flex-shrink-0">
+              {formatTime(message.latestProgress!._creationTime)}
+            </span>
+            {isExpanded ? (
+              <ChevronUp size={12} className="text-chatroom-text-muted flex-shrink-0" />
+            ) : (
+              <ChevronDown size={12} className="text-chatroom-text-muted flex-shrink-0" />
+            )}
+          </button>
+
+          {/* Expanded: full progress history - overlays as a floating panel */}
+          {isExpanded && (
+            <div className="absolute left-0 right-0 top-full z-20 shadow-lg border border-chatroom-border rounded-b-md bg-chatroom-bg-tertiary">
+              <TaskProgressHistory chatroomId={chatroomId} taskId={message.taskId} />
+            </div>
+          )}
+        </>
+      ) : (
+        /* Empty state: task is active but no progress reported yet */
+        <div className="px-3 py-1.5 flex items-center gap-2">
+          <Activity size={12} className="text-chatroom-text-muted/40 flex-shrink-0" />
+          <span className="text-[11px] text-chatroom-text-muted/40 italic">
+            No progress reported yet
+          </span>
+        </div>
+      )}
+    </div>
+  );
+});
+
+// Full progress history - loaded on demand when expanded
+const TaskProgressHistory = memo(function TaskProgressHistory({
+  chatroomId,
+  taskId,
+}: {
+  chatroomId: string;
+  taskId?: string;
+}) {
+  const progressMessages = useSessionQuery(
+    api.messages.getProgressForTask,
+    taskId
+      ? {
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          taskId: taskId as Id<'chatroom_tasks'>,
+        }
+      : 'skip'
+  );
+
+  if (!progressMessages || progressMessages.length === 0) {
+    return (
+      <div className="px-3 py-2 text-[11px] text-chatroom-text-muted/60">
+        No progress updates yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-3 py-2 max-h-48 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-chatroom-border">
+      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        {progressMessages.map(
+          (progress: {
+            _id: string;
+            content: string;
+            senderRole: string;
+            _creationTime: number;
+          }) => (
+            <React.Fragment key={progress._id}>
+              <span className="text-[10px] text-chatroom-text-muted flex-shrink-0 tabular-nums whitespace-nowrap">
+                {formatTime(progress._creationTime)}
+              </span>
+              <span className="text-[11px] text-chatroom-text-primary leading-snug">
+                {progress.content}
+              </span>
+            </React.Fragment>
+          )
+        )}
+      </div>
+    </div>
+  );
+});
+
 interface MessageItemProps {
   message: Message;
   onFeatureClick?: (message: Message) => void;
   onAttachedTaskClick?: (task: AttachedTask) => void;
-  onMessageContentClick?: (message: Message) => void;
 }
 
 // System notification message (e.g. context change)
@@ -404,7 +535,6 @@ const MessageItem = memo(function MessageItem({
   message,
   onFeatureClick,
   onAttachedTaskClick,
-  onMessageContentClick,
 }: MessageItemProps) {
   // Check if this is a new_feature message with a title
   const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
@@ -414,13 +544,6 @@ const MessageItem = memo(function MessageItem({
       onFeatureClick(message);
     }
   }, [hasFeatureTitle, onFeatureClick, message]);
-
-  // Handle message content click for user messages
-  const handleContentClick = useCallback(() => {
-    if (message.senderRole.toLowerCase() === 'user' && onMessageContentClick) {
-      onMessageContentClick(message);
-    }
-  }, [message, onMessageContentClick]);
 
   // Render new-context messages as sticky visual dividers (after all hooks)
   if (message.type === 'new-context') {
@@ -433,7 +556,7 @@ const MessageItem = memo(function MessageItem({
   const isUserMessage = message.senderRole.toLowerCase() === 'user';
 
   return (
-    <div className="px-4 py-3 border-b-2 border-chatroom-border transition-all duration-100 last:border-b-0 bg-transparent hover:bg-chatroom-accent-subtle">
+    <div className="px-4 py-3 border-b-2 border-chatroom-border last:border-b-0 bg-transparent">
       {/* Message Header - only show for non-user messages (user message info is in TaskHeader) */}
       {!isUserMessage && (
         <div className="flex justify-between items-center mb-2 pb-1.5 border-b transition-colors border-chatroom-border">
@@ -475,19 +598,13 @@ const MessageItem = memo(function MessageItem({
           )}
         </button>
       )}
-      {/* Message Content - truncated for user messages, full for others */}
+      {/* Message Content */}
       {isUserMessage ? (
-        <button
-          onClick={handleContentClick}
-          className="w-full text-left cursor-pointer hover:bg-chatroom-accent-subtle transition-colors -mx-2 px-2 py-1 rounded"
-        >
-          <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-hidden line-clamp-2 prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:my-0 prose-p:my-0 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:hidden prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-table:hidden prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
-            <Markdown remarkPlugins={REMARK_PLUGINS} components={baseMarkdownComponents}>
-              {message.content}
-            </Markdown>
-          </div>
-          <span className="text-[10px] text-chatroom-text-muted mt-1 block">Tap to expand</span>
-        </button>
+        <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
+          <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+            {message.content}
+          </Markdown>
+        </div>
       ) : (
         <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
           <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
@@ -561,10 +678,7 @@ interface FeatureModalState {
   techSpecs?: string;
 }
 
-export const MessageFeed = memo(function MessageFeed({
-  chatroomId,
-  participants,
-}: MessageFeedProps) {
+export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }: MessageFeedProps) {
   const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
     api.messages.listPaginated,
     { chatroomId: chatroomId as Id<'chatroom_rooms'> },
@@ -797,11 +911,12 @@ export const MessageFeed = memo(function MessageFeed({
           <React.Fragment key={message._id}>
             {/* Task Header - sticky section header for user messages, tappable */}
             <TaskHeader message={message} onTap={handleMessageDetailClick} />
+            {/* Task Progress - inline progress updates below task header */}
+            <TaskProgress message={message} chatroomId={chatroomId} />
             <MessageItem
               message={message}
               onFeatureClick={handleFeatureClick}
               onAttachedTaskClick={handleAttachedTaskClick}
-              onMessageContentClick={handleMessageDetailClick}
             />
           </React.Fragment>
         ))}
@@ -821,7 +936,7 @@ export const MessageFeed = memo(function MessageFeed({
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
         {/* Left: Working indicator (compact) - empty div maintains layout when no active agents */}
         <div className="flex-shrink-0">
-          <WorkingIndicator participants={participants} compact />
+          <WorkingIndicator activeTask={activeTask} compact />
         </div>
         {/* Right: Message count */}
         <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted tabular-nums">

@@ -2,240 +2,30 @@ import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { DAEMON_HEARTBEAT_TTL_MS, HEARTBEAT_TTL_MS } from '../config/reliability';
+import { PRESENCE_THRESHOLD_MS } from '../config/reliability';
 import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
-import type { MutationCtx, QueryCtx } from './_generated/server';
+import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
-import {
-  areAllAgentsReady,
-  getAndIncrementQueuePosition,
-  requireChatroomAccess,
-} from './auth/cliSessionAuth';
+import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
-import { transitionTask, type TaskStatus } from './lib/taskStateMachine';
 import { getCompletionStatus } from './lib/taskWorkflows';
-import { generateFullCliOutput } from '../prompts/base/cli/wait-for-task/fullOutput.js';
+import { generateFullCliOutput } from '../prompts/base/cli/get-next-task/fullOutput.js';
 import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
 import { getCliEnvPrefix } from '../prompts/utils/index.js';
+import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
+import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
+import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 
 const config = getConfig();
-
-/**
- * Check if an agent has system prompt control (i.e. it's a remote agent whose
- * system prompt we can configure). When true, we can skip injecting role prompts
- * and init prompts into the CLI output since they're already in the system prompt.
- */
-async function getHasSystemPromptControl(
-  ctx: QueryCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  role: string
-): Promise<boolean> {
-  const teamAgentConfigs = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .collect();
-  const roleConfig = teamAgentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase());
-  return roleConfig?.type === 'remote';
-}
 
 // Types for task delivery prompt response
 interface TaskDeliveryPromptResponse {
   fullCliOutput: string; // Complete CLI output for task delivery (backend-generated)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   json: any; // Dynamic JSON structure from prompt generator
-}
-
-// =============================================================================
-// AUTO-RESTART HELPER
-// =============================================================================
-
-/**
- * Check if a target role's agent is offline and, if so, dispatch restart commands
- * to bring it back online using its existing machine agent config.
- *
- * This fires on both user messages and agent handoffs, ensuring that offline agents
- * are always restarted when work is directed to them.
- *
- * Only restarts if:
- * 1. The target role has an existing agent config (machine, harness, workingDir)
- * 2. The machine's daemon is currently connected
- * 3. The participant is either missing or expired
- * 4. No pending `start-agent` command exists for this machine + chatroom + role (dedup)
- */
-async function autoRestartOfflineAgent(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  targetRole: string,
-  userId: Id<'users'>
-): Promise<void> {
-  const now = Date.now();
-
-  // Check if the target role's participant is offline
-  const participants = await ctx.db
-    .query('chatroom_participants')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .collect();
-
-  const targetParticipant = participants.find(
-    (p) => p.role.toLowerCase() === targetRole.toLowerCase()
-  );
-
-  // Participant exists and is not expired — agent is online, no restart needed
-  if (targetParticipant) {
-    const isWaitingExpired =
-      targetParticipant.status === 'waiting' &&
-      targetParticipant.readyUntil &&
-      targetParticipant.readyUntil < now;
-    const isActiveExpired =
-      targetParticipant.status === 'active' &&
-      targetParticipant.activeUntil &&
-      targetParticipant.activeUntil < now;
-    if (!isWaitingExpired && !isActiveExpired) {
-      return; // Agent is online
-    }
-  }
-
-  // Agent is offline (missing or expired).
-  // Check team agent config to determine if this is a remote agent that should be auto-restarted.
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-  if (!chatroom) return;
-
-  const teamId = chatroom.teamId || chatroom._id;
-  const teamRoleKey = `team_${teamId}#role_${targetRole.toLowerCase()}`;
-
-  const teamConfig = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-    .first();
-
-  // If no team config exists or type is 'custom', skip auto-restart.
-  // Only remote agents should be auto-restarted.
-  if (!teamConfig || teamConfig.type !== 'remote') {
-    return; // Agent is custom or not configured — don't auto-restart
-  }
-
-  // Ensure the team config has the required machine info
-  if (!teamConfig.machineId) {
-    return; // No machine ID — can't restart
-  }
-
-  // Check if the machine's daemon is connected
-  const machine = await ctx.db
-    .query('chatroom_machines')
-    .withIndex('by_machineId', (q) => q.eq('machineId', teamConfig.machineId!))
-    .first();
-
-  if (!machine || !machine.daemonConnected) {
-    return; // Daemon is not connected — can't send commands
-  }
-
-  // Check daemon heartbeat freshness — if lastSeenAt is stale, the daemon
-  // may have crashed without disconnecting. Skip restart to avoid sending
-  // commands that will never be processed.
-  const timeSinceLastSeen = now - machine.lastSeenAt;
-  if (timeSinceLastSeen > DAEMON_HEARTBEAT_TTL_MS) {
-    console.warn(
-      `[auto-restart] Daemon on machine "${machine.hostname}" (${machine.machineId}) ` +
-        `appears stale — last seen ${timeSinceLastSeen}ms ago (TTL: ${DAEMON_HEARTBEAT_TTL_MS}ms). ` +
-        `Skipping restart for role "${targetRole}".`
-    );
-    return;
-  }
-
-  // Validate required fields for start command before dispatching
-  // Without agentHarness or workingDir, the daemon silently drops the command
-  if (!teamConfig.agentHarness || !teamConfig.workingDir) {
-    console.warn(
-      `[auto-restart] Missing agentHarness or workingDir for role "${targetRole}" ` +
-        `(agentHarness=${teamConfig.agentHarness ?? 'undefined'}, ` +
-        `workingDir=${teamConfig.workingDir ?? 'undefined'}), skipping restart`
-    );
-    return;
-  }
-
-  // Resolve model: prefer team config, fall back to machine agent config
-  let resolvedModel = teamConfig.model;
-  if (!resolvedModel) {
-    const machineConfig = await ctx.db
-      .query('chatroom_machineAgentConfigs')
-      .withIndex('by_machine_chatroom_role', (q) =>
-        q
-          .eq('machineId', teamConfig.machineId!)
-          .eq('chatroomId', chatroomId)
-          .eq('role', targetRole.toLowerCase())
-      )
-      .first();
-    if (machineConfig?.model) {
-      resolvedModel = machineConfig.model;
-    }
-  }
-
-  // Warn if no model could be resolved — daemon will use its default
-  if (!resolvedModel) {
-    console.warn(
-      `[auto-restart] No model found for role "${targetRole}" ` +
-        `(checked teamConfig and machineConfig). The daemon will use its default model.`
-    );
-  }
-
-  // --- Dedup check ---
-  // Prevent duplicate restart commands when multiple messages arrive for the
-  // same offline agent in quick succession. If a pending start-agent command
-  // already exists for this machine + chatroom + role, skip the restart.
-  const pendingCommands = await ctx.db
-    .query('chatroom_machineCommands')
-    .withIndex('by_machineId_status', (q) =>
-      q.eq('machineId', teamConfig.machineId!).eq('status', 'pending')
-    )
-    .collect();
-
-  const hasPendingRestart = pendingCommands.some(
-    (cmd) =>
-      cmd.type === 'start-agent' &&
-      cmd.payload.chatroomId === chatroomId &&
-      cmd.payload.role?.toLowerCase() === targetRole.toLowerCase()
-  );
-
-  if (hasPendingRestart) {
-    console.warn(
-      `[auto-restart] Skipping duplicate restart for role "${targetRole}" ` +
-        `in chatroom ${chatroomId} — a pending start-agent command already exists`
-    );
-    return;
-  }
-
-  // Dispatch stop + start commands using team config parameters
-  // Stop first to clean up any stale process
-  await ctx.db.insert('chatroom_machineCommands', {
-    machineId: teamConfig.machineId,
-    type: 'stop-agent',
-    payload: {
-      chatroomId,
-      role: teamConfig.role,
-    },
-    status: 'pending',
-    sentBy: userId,
-    createdAt: now,
-  });
-
-  // Start command — uses the team agent config with resolved model
-  await ctx.db.insert('chatroom_machineCommands', {
-    machineId: teamConfig.machineId,
-    type: 'start-agent',
-    payload: {
-      chatroomId,
-      role: teamConfig.role,
-      agentHarness: teamConfig.agentHarness,
-      model: resolvedModel,
-      workingDir: teamConfig.workingDir,
-    },
-    status: 'pending',
-    sentBy: userId,
-    createdAt: now + 1, // Ensure start comes after stop in FIFO order
-  });
 }
 
 // =============================================================================
@@ -258,8 +48,7 @@ async function _sendMessageHandler(
     attachedTaskIds?: Id<'chatroom_tasks'>[];
   }
 ) {
-  // Validate session and check chatroom access - returns chatroom and session info
-  const { chatroom, session } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+  const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
   // Validate attached tasks if provided
   if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
@@ -344,48 +133,26 @@ async function _sendMessageHandler(
     // Get next queue position atomically (prevents race conditions)
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
-    const now = Date.now();
-
-    // Determine task status:
-    // - Handoff messages to agents always start as 'pending' (targeted, not queued)
-    // - User messages check for existing pending/in_progress tasks
-    let taskStatus: 'pending' | 'queued';
-    if (isHandoffToAgent) {
-      // Handoffs are targeted to a specific agent and should start immediately
-      taskStatus = 'pending';
-    } else {
-      // User messages: check if any task is currently pending or in_progress
-      const activeTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .filter((q) =>
-          q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
-        )
-        .first();
-      taskStatus = activeTasks ? 'queued' : 'pending';
-    }
-
     // Determine the task creator and assignment
     const createdBy = isHandoffToAgent ? args.senderRole : 'user';
     const assignedTo = isHandoffToAgent ? targetRole : undefined;
 
-    // Create the task
-    const taskId = await ctx.db.insert('chatroom_tasks', {
+    // Create the task via the use case
+    // - Handoff messages to agents always start as 'pending' (targeted, not queued)
+    // - User messages: auto-detect pending vs queued based on existing active tasks
+    const { taskId } = await createTaskUsecase(ctx, {
       chatroomId: args.chatroomId,
       createdBy,
       content: args.content,
-      status: taskStatus,
-      sourceMessageId: messageId,
-      createdAt: now,
-      updatedAt: now,
-      queuePosition,
+      forceStatus: isHandoffToAgent ? 'pending' : undefined,
       assignedTo,
-      // Store attached backlog tasks on the main task
-      ...(args.attachedTaskIds &&
-        args.attachedTaskIds.length > 0 && {
-          attachedTaskIds: args.attachedTaskIds,
-        }),
+      sourceMessageId: messageId,
+      attachedTaskIds: args.attachedTaskIds,
+      queuePosition,
+      origin: 'chat',
     });
+
+    const now = Date.now();
 
     // Update message with taskId reference
     await ctx.db.patch('chatroom_messages', messageId, { taskId });
@@ -417,16 +184,6 @@ async function _sendMessageHandler(
             );
           }
         }
-      }
-    }
-
-    // Auto-restart offline agents when a task is created for them
-    if (targetRole && targetRole.toLowerCase() !== 'user') {
-      try {
-        await autoRestartOfflineAgent(ctx, args.chatroomId, targetRole, session.userId);
-      } catch (error) {
-        // Log but don't fail — restart is best-effort, not critical path
-        console.error(`[auto-restart] Failed to restart agent for role "${targetRole}":`, error);
       }
     }
   }
@@ -472,15 +229,14 @@ async function _handoffHandler(
     senderRole: string;
     content: string;
     targetRole: string;
+    attachedArtifactIds?: Id<'chatroom_artifacts'>[];
   }
 ) {
   // Validate session and check chatroom access (returns chatroom, throws ConvexError on auth failure)
   let chatroom;
-  let session;
   try {
     const result = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
     chatroom = result.chatroom;
-    session = result.session;
   } catch (error) {
     // Convert generic Error to structured error response
     return {
@@ -555,17 +311,26 @@ async function _handoffHandler(
 
   const now = Date.now();
 
-  // Step 1: Complete ALL in_progress tasks
-  const inProgressTasks = await ctx.db
-    .query('chatroom_tasks')
-    .withIndex('by_chatroom_status', (q) =>
-      q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-    )
-    .collect();
+  // Step 1: Complete ALL in_progress and acknowledged tasks
+  const [inProgressTasks, acknowledgedTasks] = await Promise.all([
+    ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+      )
+      .collect(),
+    ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+      )
+      .collect(),
+  ]);
+  const tasksToComplete = [...inProgressTasks, ...acknowledgedTasks];
 
   const completedTaskIds: Id<'chatroom_tasks'>[] = [];
 
-  for (const task of inProgressTasks) {
+  for (const task of tasksToComplete) {
     // Determine the new status using the workflow definition:
     // - When handing off to user: use workflow-defined completion status
     //   (backlog → pending_user_review, chat → completed)
@@ -588,9 +353,9 @@ async function _handoffHandler(
     }
   }
 
-  if (inProgressTasks.length > 1) {
+  if (tasksToComplete.length > 1) {
     console.warn(
-      `[handoff] Completed ${inProgressTasks.length} in_progress tasks in chatroom ${args.chatroomId}`
+      `[handoff] Completed ${tasksToComplete.length} tasks (in_progress + acknowledged) in chatroom ${args.chatroomId}`
     );
   }
 
@@ -601,6 +366,8 @@ async function _handoffHandler(
     content: args.content,
     targetRole: args.targetRole,
     type: 'handoff',
+    ...(args.attachedArtifactIds &&
+      args.attachedArtifactIds.length > 0 && { attachedArtifactIds: args.attachedArtifactIds }),
   });
 
   // Update chatroom's lastActivityAt for sorting by recent activity
@@ -614,31 +381,20 @@ async function _handoffHandler(
     // Get next queue position atomically (prevents race conditions)
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
-    newTaskId = await ctx.db.insert('chatroom_tasks', {
+    const { taskId: createdTaskId } = await createTaskUsecase(ctx, {
       chatroomId: args.chatroomId,
       createdBy: args.senderRole,
       content: args.content,
-      status: 'pending', // Handoffs always start as pending
-      sourceMessageId: messageId,
-      createdAt: now,
-      updatedAt: now,
-      queuePosition,
+      forceStatus: 'pending', // Handoffs always start as pending
       assignedTo: args.targetRole,
+      sourceMessageId: messageId,
+      queuePosition,
+      origin: 'chat',
     });
+    newTaskId = createdTaskId;
 
     // Link message to task
     await ctx.db.patch('chatroom_messages', messageId, { taskId: newTaskId });
-
-    // Auto-restart the target agent if offline
-    try {
-      await autoRestartOfflineAgent(ctx, args.chatroomId, args.targetRole, session.userId);
-    } catch (error) {
-      // Log but don't fail — restart is best-effort, not critical path
-      console.error(
-        `[handoff][auto-restart] Failed to restart agent for role "${args.targetRole}":`,
-        error
-      );
-    }
   }
 
   // Step 4: Update sender's participant status to waiting (before checking queue promotion)
@@ -651,8 +407,7 @@ async function _handoffHandler(
 
   if (participant) {
     await ctx.db.patch('chatroom_participants', participant._id, {
-      status: 'waiting',
-      readyUntil: Date.now() + HEARTBEAT_TTL_MS,
+      lastSeenAt: Date.now(),
     });
   }
 
@@ -694,41 +449,8 @@ async function _handoffHandler(
     }
   }
 
-  // Step 6: Promote next queued task only if ALL agents are ready (not active)
-  // This ensures queued tasks are only promoted when the team is ready
-  let promotedTaskId: Id<'chatroom_tasks'> | null = null;
-
-  // Check if we're handing off to a specific agent (not the queue)
-  // Handoffs to specific agents don't trigger queue promotion - the target agent gets a dedicated task
-  // Queue promotion only happens when all agents become ready (waiting)
-  if (isHandoffToUser) {
-    // When handing off to user, check if all agents are ready for queue promotion
-    const allAgentsReady = await areAllAgentsReady(ctx, args.chatroomId);
-
-    if (allAgentsReady) {
-      const queuedTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
-        )
-        .collect();
-
-      if (queuedTasks.length > 0) {
-        queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
-        const nextTask = queuedTasks[0];
-        await transitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
-        promotedTaskId = nextTask._id;
-        console.warn(
-          `[handoff] Promoted queued task ${nextTask._id} to pending (all agents ready after handoff to user)`
-        );
-      }
-    } else {
-      console.warn(
-        `[handoff] Skipping queue promotion - some agents are still active after handoff to user`
-      );
-    }
-  }
-  // For handoffs to other agents, no queue promotion - the handoff already creates a pending task for the target
+  // Step 6: Queue promotion is now handled automatically by the transitionTask usecase
+  // whenever a task transitions to 'completed'. No inline promotion needed here.
 
   return {
     success: true,
@@ -736,7 +458,7 @@ async function _handoffHandler(
     messageId,
     completedTaskIds,
     newTaskId,
-    promotedTaskId,
+    promotedTaskId: null,
   };
 }
 
@@ -762,6 +484,7 @@ export const sendHandoff = mutation({
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.string(),
+    attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
   },
   handler: async (ctx, args) => {
     return _handoffHandler(ctx, args);
@@ -813,6 +536,7 @@ export const handoff = mutation({
     senderRole: v.string(),
     content: v.string(),
     targetRole: v.string(),
+    attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
   },
   handler: async (ctx, args) => {
     return _handoffHandler(ctx, args);
@@ -1141,9 +865,13 @@ export const getAllowedHandoffRoles = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Find waiting participants (excluding current role)
+    // Find present participants (seen within presence window, excluding current role)
+    const _now914 = Date.now();
     const waitingParticipants = participants.filter(
-      (p) => p.status === 'waiting' && p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) =>
+        p.lastSeenAt != null &&
+        _now914 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
+        p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
     // Get the most recent classified user message to determine restrictions (optimized)
@@ -1589,9 +1317,13 @@ export const getLatestForRole = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Find waiting participants (excluding current role)
+    // Find present participants (seen within presence window, excluding current role)
+    const _now1366 = Date.now();
     const waitingParticipants = participants.filter(
-      (p) => p.status === 'waiting' && p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) =>
+        p.lastSeenAt != null &&
+        _now1366 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
+        p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
     // Sort by priority to find highest priority waiting
@@ -1791,7 +1523,7 @@ export const inspectFeature = query({
 /**
  * Get role-specific prompt for an agent.
  * Returns a prompt tailored to the role, current task context, and available actions.
- * Designed to be called with every wait-for-task to provide fresh context.
+ * Designed to be called with every get-next-task to provide fresh context.
  * Requires CLI session authentication and chatroom access.
  */
 export const getRolePrompt = query({
@@ -1811,9 +1543,13 @@ export const getRolePrompt = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Find waiting participants (excluding current role)
+    // Find present participants (seen within presence window, excluding current role)
+    const _now1592 = Date.now();
     const waitingParticipants = participants.filter(
-      (p) => p.status === 'waiting' && p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) =>
+        p.lastSeenAt != null &&
+        _now1592 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
+        p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
     // Get the most recent classified user message to determine restrictions (optimized)
@@ -1895,7 +1631,10 @@ export const getInitPrompt = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    const availableMembers = participants.filter((p) => p.status === 'waiting').map((p) => p.role);
+    const _now1678 = Date.now();
+    const availableMembers = participants
+      .filter((p) => p.lastSeenAt != null && _now1678 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS)
+      .map((p) => p.role);
 
     const promptInput = {
       chatroomId: args.chatroomId,
@@ -1910,8 +1649,13 @@ export const getInitPrompt = query({
     // Compose init prompt (system prompt + init message + combined)
     const composed = composeInitPrompt(promptInput);
 
-    // Check if this role's agent has system prompt control (remote agents do)
-    const hasSystemPromptControl = await getHasSystemPromptControl(ctx, args.chatroomId, args.role);
+    // Resolve agent config to determine system prompt control
+    const agentConfigResult = await getAgentConfig(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+    });
+    const hasSystemPromptControl =
+      agentConfigResult.found && agentConfigResult.config.hasSystemPromptControl;
 
     return {
       /** Combined prompt for manual mode (harnesses without system prompt support) */
@@ -1928,7 +1672,7 @@ export const getInitPrompt = query({
 
 /**
  * Get the complete task delivery prompt for an agent receiving a task.
- * This is called when wait-for-task receives a task, replacing the
+ * This is called when get-next-task receives a task, replacing the
  * local prompt construction in the CLI.
  *
  * Returns both human-readable prompt sections and structured JSON data.
@@ -2004,8 +1748,12 @@ export const getTaskDeliveryPrompt = query({
       .collect();
 
     // Get role prompt info (reuse existing logic)
+    const _now1796 = Date.now();
     const waitingParticipants = participants.filter(
-      (p) => p.status === 'waiting' && p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) =>
+        p.lastSeenAt != null &&
+        _now1796 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
+        p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
     // Get recent messages for classification
@@ -2183,7 +1931,7 @@ export const getTaskDeliveryPrompt = query({
         : null,
       participants: participants.map((p) => ({
         role: p.role,
-        status: p.status,
+        lastSeenAction: p.lastSeenAction ?? null,
       })),
       contextWindow: {
         // Explicit context (new system)
@@ -2297,16 +2045,19 @@ export const getTaskDeliveryPrompt = query({
 /**
  * Get a simplified display prompt for webapp UI.
  * This is used by the webapp dashboard to show agent setup instructions.
- * Does NOT require authentication - public query for UI display.
+ * Requires CLI session authentication and chatroom access.
  */
 export const getWebappDisplayPrompt = query({
   args: {
+    ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Fetch chatroom (no auth required for display purposes)
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Fetch chatroom after authz validation
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom) {
       throw new ConvexError({
@@ -2472,7 +2223,32 @@ export const getContextForRole = query({
   },
   handler: async (ctx, args) => {
     // Validate session and check chatroom access
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Fetch the current pinned context (if any) from chatroom_contexts
+    let currentContext: {
+      content: string;
+      createdBy: string;
+      createdAt: number;
+    } | null = null;
+
+    // If the pinned context has a triggerMessageId, use it as the origin anchor
+    let originMessageId: string | null = null;
+
+    if (chatroom.currentContextId) {
+      const contextDoc = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
+      if (contextDoc) {
+        currentContext = {
+          content: contextDoc.content,
+          createdBy: contextDoc.createdBy,
+          createdAt: contextDoc.createdAt,
+        };
+        // NEW: use triggerMessageId as origin anchor if available
+        if (contextDoc.triggerMessageId) {
+          originMessageId = contextDoc.triggerMessageId.toString();
+        }
+      }
+    }
 
     // Get context window (origin message + all messages since)
     const contextWindow = await ctx.db
@@ -2483,21 +2259,30 @@ export const getContextForRole = query({
 
     const messages = contextWindow.reverse();
 
-    // Find origin message (latest non-follow-up user message)
+    // Find origin message
+    // If triggerMessageId is set from the pinned context, use it directly;
+    // otherwise fall back to the heuristic (latest non-follow-up user message with acknowledgedAt)
     let originMessage: (typeof messages)[0] | null = null;
     let originIndex = -1;
 
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      if (
-        msg.senderRole.toLowerCase() === 'user' &&
-        msg.type === 'message' &&
-        msg.classification !== 'follow_up' &&
-        msg.acknowledgedAt !== undefined
-      ) {
-        originMessage = msg;
-        originIndex = i;
-        break;
+    if (originMessageId) {
+      // Use triggerMessageId as the anchor directly
+      originIndex = messages.findIndex((m) => m._id.toString() === originMessageId);
+      originMessage = originIndex >= 0 ? messages[originIndex] : null;
+    } else {
+      // Heuristic: find the latest non-follow-up user message with acknowledgedAt set
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+        if (
+          msg.senderRole.toLowerCase() === 'user' &&
+          msg.type === 'message' &&
+          msg.classification !== 'follow_up' &&
+          msg.acknowledgedAt !== undefined
+        ) {
+          originMessage = msg;
+          originIndex = i;
+          break;
+        }
       }
     }
 
@@ -2554,6 +2339,7 @@ export const getContextForRole = query({
           _id: message._id.toString(),
           _creationTime: message._creationTime,
           senderRole: message.senderRole,
+          targetRole: message.targetRole,
           content: message.content,
           type: message.type,
           classification: message.classification,
@@ -2566,6 +2352,15 @@ export const getContextForRole = query({
       })
     );
 
+    // Filter out messages with pending/acknowledged tasks — agents should only
+    // discover these through get-next-task, not context read
+    const filteredMessages = enrichedMessages.filter((msg) => {
+      if (msg.taskStatus === 'pending' || msg.taskStatus === 'acknowledged') {
+        return false;
+      }
+      return true;
+    });
+
     // Count pending tasks for this role
     const allPendingTasks = await ctx.db
       .query('chatroom_tasks')
@@ -2577,7 +2372,8 @@ export const getContextForRole = query({
     const pendingTasks = allPendingTasks.filter((task) => task.assignedTo === args.role);
 
     return {
-      messages: enrichedMessages,
+      messages: filteredMessages,
+      currentContext,
       originMessage: originMessage
         ? {
             _id: originMessage._id.toString(),

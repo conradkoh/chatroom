@@ -43,7 +43,7 @@ export function taskStartedCommand(params: TaskStartedParams): string {
   const taskId = params.taskId || '<task-id>';
   const classification = params.classification || '<question|new_feature|follow_up>';
 
-  const baseCmd = `${prefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=${taskId} --origin-message-classification=${classification}`;
+  const baseCmd = `${prefix}chatroom task-started --chatroom-id="${chatroomId}" --role="${role}" --task-id="${taskId}" --origin-message-classification=${classification}`;
 
   // For new_feature, use stdin with structured format
   if (params.classification === 'new_feature' || classification === 'new_feature') {

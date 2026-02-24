@@ -6,16 +6,14 @@
  */
 
 // Types
-export type { AgentContext, AgentHarness, HarnessVersionInfo } from './types.js';
+export type { AgentHarness, HarnessVersionInfo } from './types.js';
 export { AGENT_HARNESS_COMMANDS } from './types.js';
 
 // Storage (static machine config)
 export {
   ensureMachineRegistered,
-  getAgentContext,
   getMachineId,
   loadMachineConfig,
-  updateAgentContext,
 } from './storage.js';
 
 // Daemon state (runtime PID tracking — separate from machine.json)
@@ -24,3 +22,12 @@ export {
   listAgentEntries,
   persistAgentPid,
 } from './daemon-state.js';
+
+// Intentional stop tracking (in-memory, volatile)
+export {
+  markIntentionalStop,
+  consumeIntentionalStop,
+  clearIntentionalStop,
+  isMarkedForIntentionalStop,
+  resetIntentionalStops,
+} from './intentional-stops.js';

@@ -18,34 +18,74 @@ import { internalMutation } from './_generated/server';
 // ============================================================================
 
 /**
- * Remove participants with deprecated "idle" status.
+ * Migration: Remove idle participants (no-op — status field removed).
  *
- * The "idle" status was removed in this PR. Any existing participants with
- * status "idle" should be deleted so the deprecated v.literal('idle') can
- * be removed from the schema in a follow-up change.
- *
- * Run from the Convex dashboard:
- *   migration:removeIdleParticipants
- *
- * After running successfully, the v.literal('idle') in the chatroom_participants
- * schema can be removed in a follow-up PR.
+ * The `status` field and 'idle' state were removed as part of the
+ * lastSeenAt-based lifecycle refactor. This migration is now a no-op
+ * but is kept for historical reference.
  */
 export const removeIdleParticipants = internalMutation({
   args: {},
   handler: async (ctx) => {
     const allParticipants = await ctx.db.query('chatroom_participants').collect();
 
-    let deleted = 0;
+    return {
+      total: allParticipants.length,
+      deletedIdle: 0,
+    };
+  },
+});
+
+/**
+ * Migration: Strip stale FSM fields from chatroom_participants.
+ *
+ * Phase 4 removed `status`, `readyUntil`, `activeUntil`, `cleanupDeadline`,
+ * and `statusReason` from the schema. Existing documents written by the old
+ * CLI still carry these fields, causing Convex schema validation errors.
+ *
+ * This migration rewrites each participant document keeping only the valid
+ * schema fields, effectively dropping any stale extra fields.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.stripParticipantStaleFields
+ */
+export const stripParticipantStaleFields = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allParticipants = await ctx.db.query('chatroom_participants').collect();
+
+    const STALE_FIELDS = new Set([
+      'status',
+      'readyUntil',
+      'activeUntil',
+      'cleanupDeadline',
+      'statusReason',
+      'desiredStatus',
+      'pendingCommand',
+    ]);
+
+    let patched = 0;
     for (const participant of allParticipants) {
-      if (participant.status === 'idle') {
-        await ctx.db.delete('chatroom_participants', participant._id);
-        deleted++;
+      const doc = participant as Record<string, unknown>;
+      const hasStaleFields = [...STALE_FIELDS].some((f) => f in doc);
+
+      if (hasStaleFields) {
+        // Replace the document with only the valid schema fields.
+        await ctx.db.replace('chatroom_participants', participant._id, {
+          chatroomId: participant.chatroomId,
+          role: participant.role,
+          connectionId: participant.connectionId,
+          agentType: participant.agentType,
+          lastSeenAt: participant.lastSeenAt,
+          lastSeenAction: participant.lastSeenAction,
+        });
+        patched++;
       }
     }
 
     return {
       total: allParticipants.length,
-      deletedIdle: deleted,
+      patched,
     };
   },
 });

@@ -4,7 +4,7 @@
  * This module enforces strict state transitions for task lifecycle management.
  * Status is the SINGLE SOURCE OF TRUTH for workflow state.
  * Timestamps are primarily metadata, but `acknowledgedAt` and `updatedAt`
- * are also used by the stuck-task recovery logic in `cleanupStaleAgents`.
+ * are used for auditing purposes.
  *
  * All task state transitions MUST go through transitionTask() to ensure:
  * - Only valid transitions are allowed
@@ -26,7 +26,7 @@ import type { MutationCtx } from '../_generated/server';
 export type TaskStatus =
   // User message flow
   | 'pending' // Created, waiting for agent
-  | 'acknowledged' // Agent claimed via wait-for-task
+  | 'acknowledged' // Agent claimed via get-next-task
   | 'in_progress' // Agent started work via task-started
   | 'completed' // Work finished
 
@@ -129,6 +129,22 @@ const TRANSITIONS: TransitionRule[] = [
 
   {
     from: 'in_progress',
+    to: 'pending_user_review',
+    trigger: 'completeTask',
+    setFields: {},
+  },
+
+  {
+    from: 'acknowledged',
+    to: 'completed',
+    trigger: 'completeTask',
+    setFields: {
+      completedAt: 'NOW',
+    },
+  },
+
+  {
+    from: 'acknowledged',
     to: 'pending_user_review',
     trigger: 'completeTask',
     setFields: {},
@@ -347,26 +363,6 @@ const TRANSITIONS: TransitionRule[] = [
     to: 'closed',
     trigger: 'cancelTask',
     setFields: {},
-  },
-
-  // ==========================================================================
-  // RECOVERY: in_progress → pending, acknowledged → pending
-  // ==========================================================================
-
-  {
-    from: 'in_progress',
-    to: 'pending',
-    trigger: 'resetStuckTask',
-    setFields: {},
-    clearFields: ['startedAt', 'assignedTo', 'acknowledgedAt'],
-  },
-
-  {
-    from: 'acknowledged',
-    to: 'pending',
-    trigger: 'recoverStuckAcknowledged',
-    setFields: {},
-    clearFields: ['assignedTo', 'acknowledgedAt'],
   },
 
   // ==========================================================================

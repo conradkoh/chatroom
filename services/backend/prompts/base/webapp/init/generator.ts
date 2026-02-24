@@ -88,7 +88,7 @@ Available targets: ${handoffTargets.join(', ')}${!canHandoffToUser ? `\n\n> **No
 
 1. Run the **register-agent** command above to register your agent type
 2. Copy the **context read** command to review conversation history
-3. Run **wait-for-task** to receive your first task
+3. Run **get-next-task** to receive your first task
 4. Follow the detailed instructions provided by the CLI
 `;
 }
@@ -99,5 +99,5 @@ Available targets: ${handoffTargets.join(', ')}${!canHandoffToUser ? `\n\n> **No
 export function generateShortPrompt(context: PromptContext): string {
   const { chatroomId, role, convexUrl } = context;
   const prefix = getCliEnvPrefix(convexUrl);
-  return `${prefix}chatroom context read --chatroom-id=${chatroomId} --role=${role} && ${prefix}chatroom wait-for-task --chatroom-id=${chatroomId} --role=${role}`;
+  return `${prefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}" && ${prefix}chatroom get-next-task --chatroom-id="${chatroomId}" --role="${role}"`;
 }

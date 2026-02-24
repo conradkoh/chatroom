@@ -289,30 +289,30 @@ export default defineSchema({
 
   /**
    * Participants in chatrooms.
-   * Tracks which agents/users have joined and their current status.
+   * Tracks which agents/users have joined and their presence.
    */
   chatroom_participants: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    status: v.union(
-      v.literal('active'),
-      v.literal('waiting'),
-      /** @deprecated Will be removed after production migration. Existing idle participants should be deleted. */
-      v.literal('idle')
-    ),
-    // Timestamp when this participant's readiness (waiting status) expires
-    // After this time, a waiting participant is considered disconnected/stale
-    // Used when status = 'waiting'
-    readyUntil: v.optional(v.number()),
-    // Timestamp when this participant's active work session expires
-    // After this time, an active participant is considered crashed/stale
-    // Used when status = 'active' (typically ~1 hour to allow for long tasks)
-    activeUntil: v.optional(v.number()),
-    // Unique connection ID for the current wait-for-task session
-    // Used to detect concurrent wait-for-task processes and terminate old ones
-    // When a new wait-for-task starts, it generates a new connectionId
+    // Unique connection ID for the current get-next-task session
+    // Used to detect concurrent get-next-task processes and terminate old ones
+    // When a new get-next-task starts, it generates a new connectionId
     // The old process detects the mismatch and exits cleanly
     connectionId: v.optional(v.string()),
+    // Agent type — 'custom' or 'remote'
+    agentType: v.optional(v.union(v.literal('custom'), v.literal('remote'))),
+    // Timestamp of the last check-in received from this participant.
+    // Populated by participants.join on every check-in.
+    lastSeenAt: v.optional(v.number()),
+    // The name of the CLI command last run by this participant.
+    // For get-next-task (persistent connection), two distinct action names are used:
+    //   "get-next-task:started" — written when the loop begins
+    //   "get-next-task:stopped" — written just before the loop exits
+    lastSeenAction: v.optional(v.string()),
+    // Timestamp of the last token output observed from the agent.
+    // Written by the CLI whenever the agent produces output (throttled to once per 30s).
+    // Used to detect stuck agents that have stopped producing output mid-task.
+    lastSeenTokenAt: v.optional(v.number()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role']),
@@ -408,7 +408,7 @@ export default defineSchema({
       v.literal('backlog'), // Backlog origin: initial state, task is in backlog tab
       v.literal('queued'), // Waiting in line (hidden from agent)
       v.literal('pending'), // Ready for agent to pick up
-      v.literal('acknowledged'), // Agent claimed task via wait-for-task, not yet started
+      v.literal('acknowledged'), // Agent claimed task via get-next-task, not yet started
       v.literal('in_progress'), // Agent actively working on it
       v.literal('backlog_acknowledged'), // Backlog task attached to message, visible to agent
       v.literal('pending_user_review'), // Backlog only: agent done, user must confirm
@@ -429,7 +429,7 @@ export default defineSchema({
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
-    acknowledgedAt: v.optional(v.number()), // When agent claimed task via wait-for-task
+    acknowledgedAt: v.optional(v.number()), // When agent claimed task via get-next-task
     startedAt: v.optional(v.number()), // When task-started was called
     completedAt: v.optional(v.number()), // When task-complete was called
 

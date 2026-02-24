@@ -1,13 +1,13 @@
 /**
  * Commands Reference Section
  *
- * CLI command reference (handoff, report-progress, wait-for-task).
+ * CLI command reference (handoff, report-progress, get-next-task).
  */
 
+import { getNextTaskCommand } from '../base/cli/get-next-task/command.js';
+import { getNextTaskReminder } from '../base/cli/get-next-task/reminder.js';
 import { handoffCommand } from '../base/cli/handoff/command.js';
 import { reportProgressCommand } from '../base/cli/report-progress/command.js';
-import { waitForTaskCommand } from '../base/cli/wait-for-task/command.js';
-import { getWaitForTaskReminder } from '../base/cli/wait-for-task/reminder.js';
 import type { PromptSection } from '../types/sections.js';
 import { createSection } from '../types/sections.js';
 import { getCliEnvPrefix } from '../utils/index.js';
@@ -19,7 +19,7 @@ export interface CommandsReferenceParams {
 }
 
 /**
- * Generate the commands reference section with handoff, progress, and wait-for-task commands.
+ * Generate the commands reference section with handoff, progress, and get-next-task commands.
  */
 export function getCommandsReferenceSection(params: CommandsReferenceParams): PromptSection {
   const cliEnvPrefix = getCliEnvPrefix(params.convexUrl);
@@ -31,7 +31,7 @@ export function getCommandsReferenceSection(params: CommandsReferenceParams): Pr
     cliEnvPrefix,
   });
 
-  const waitCmd = waitForTaskCommand({
+  const waitCmd = getNextTaskCommand({
     chatroomId: params.chatroomId,
     role: params.role,
     cliEnvPrefix,
@@ -69,7 +69,12 @@ Keep the team informed: Send \`report-progress\` updates at milestones or when b
 ${waitCmd}
 \`\`\`
 
-${getWaitForTaskReminder()}`;
+${getNextTaskReminder()}
+
+**Re-fetch your system prompt (after context reset):**
+\`\`\`
+${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${params.chatroomId}" --role="${params.role}"
+\`\`\``;
 
   return createSection('commands-reference', 'knowledge', content);
 }

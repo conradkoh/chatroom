@@ -16,3 +16,10 @@ export {
   getBuilderGuidance as getSquadBuilderGuidance,
   getReviewerGuidance as getSquadReviewerGuidance,
 } from './squad/index.js';
+
+// Duo team
+export { duoTeamConfig } from './duo/index.js';
+export {
+  getPlannerGuidance as getDuoPlannerGuidance,
+  getBuilderGuidance as getDuoBuilderGuidance,
+} from './duo/index.js';

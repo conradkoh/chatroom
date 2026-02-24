@@ -54,13 +54,11 @@ async function joinParticipants(
   chatroomId: Id<'chatroom_rooms'>,
   roles: string[]
 ): Promise<void> {
-  const readyUntil = Date.now() + 10 * 60 * 1000; // 10 minutes
   for (const role of roles) {
     await t.mutation(api.participants.join, {
       sessionId,
       chatroomId,
       role,
-      readyUntil,
     });
   }
 }
@@ -91,11 +89,13 @@ describe('Squad Team Workflow', () => {
       expect(_userMessageId).toBeDefined();
 
       // Verify a pending task was created for planner (entry point)
-      const plannerPendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const plannerPendingResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'planner',
       });
+      expect(plannerPendingResult.type).toBe('tasks');
+      const plannerPendingTasks = (plannerPendingResult as { type: 'tasks'; tasks: any[] }).tasks;
       expect(plannerPendingTasks).toHaveLength(1);
       expect(plannerPendingTasks[0].task.status).toBe('pending');
 
@@ -1284,21 +1284,23 @@ OAuth2`,
       expect(reworkHandoff.newTaskId).toBeDefined();
 
       // Builder should have a new pending task
-      const builderTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const builderTasksResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'builder',
       });
+      expect(builderTasksResult.type).toBe('tasks');
+      const builderTasks = (builderTasksResult as { type: 'tasks'; tasks: any[] }).tasks;
       expect(builderTasks).toHaveLength(1);
       expect(builderTasks[0].task.content).toBe('Please add rate limiting to the auth endpoints.');
     });
   });
 
   // =========================================================================
-  // WAIT-FOR-TASK BACKGROUND WARNINGS
+  // GET-NEXT-TASK BACKGROUND WARNINGS
   // =========================================================================
-  describe('wait-for-task background warnings', () => {
-    test('init prompt includes warning not to run wait-for-task in background', async () => {
+  describe('get-next-task background warnings', () => {
+    test('init prompt includes warning not to run get-next-task in background', async () => {
       const { sessionId } = await createTestSession('test-squad-init-bg-warning');
       const chatroomId = await createSquadTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['planner', 'builder', 'reviewer']);
@@ -1312,14 +1314,14 @@ OAuth2`,
       });
 
       expect(initPrompt!.prompt).toBeDefined();
-      expect(initPrompt!.prompt).toContain('wait-for-task');
+      expect(initPrompt!.prompt).toContain('get-next-task');
       expect(initPrompt!.prompt).toContain('foreground');
       expect(initPrompt!.prompt).toContain('Message availability');
       expect(initPrompt!.prompt).toContain('stay connected');
       expect(initPrompt!.prompt).toContain('team cannot reach you');
     });
 
-    test('task delivery prompt includes reminder not to run wait-for-task in background', async () => {
+    test('task delivery prompt includes reminder not to run get-next-task in background', async () => {
       const { sessionId } = await createTestSession('test-squad-task-bg-warning');
       const chatroomId = await createSquadTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['planner', 'builder', 'reviewer']);
@@ -1334,11 +1336,13 @@ OAuth2`,
       });
 
       // Get the pending tasks for planner
-      const pendingTasks = await t.query(api.tasks.getPendingTasksForRole, {
+      const pendingTasksResult = await t.query(api.tasks.getPendingTasksForRole, {
         sessionId,
         chatroomId,
         role: 'planner',
       });
+      expect(pendingTasksResult.type).toBe('tasks');
+      const pendingTasks = (pendingTasksResult as { type: 'tasks'; tasks: any[] }).tasks;
 
       expect(pendingTasks.length).toBeGreaterThan(0);
       const taskId = pendingTasks[0].task._id;
@@ -1352,15 +1356,15 @@ OAuth2`,
       });
 
       expect(taskPrompt.fullCliOutput).toBeDefined();
-      expect(taskPrompt.fullCliOutput).toContain('wait-for-task');
+      expect(taskPrompt.fullCliOutput).toContain('get-next-task');
 
-      const hasWaitForTaskReminder =
+      const hasGetNextTaskReminder =
         taskPrompt.fullCliOutput.includes('Message availability') ||
         taskPrompt.fullCliOutput.includes('stay connected') ||
         taskPrompt.fullCliOutput.includes('foreground') ||
         taskPrompt.fullCliOutput.includes('background');
 
-      expect(hasWaitForTaskReminder).toBe(true);
+      expect(hasGetNextTaskReminder).toBe(true);
     });
   });
 });

@@ -20,8 +20,6 @@ import { join } from 'node:path';
 
 import { detectAvailableHarnesses, detectHarnessVersions } from './detection.js';
 import type {
-  AgentContext,
-  AgentHarness,
   MachineConfig,
   MachineConfigFile,
   MachineEndpointConfig,
@@ -137,7 +135,6 @@ function createNewEndpointConfig(): MachineEndpointConfig {
     lastSyncedAt: now,
     availableHarnesses,
     harnessVersions: detectHarnessVersions(availableHarnesses),
-    chatroomAgents: {},
   };
 }
 
@@ -179,47 +176,4 @@ export function ensureMachineRegistered(): MachineRegistrationInfo {
 export function getMachineId(): string | null {
   const config = loadMachineConfig();
   return config?.machineId ?? null;
-}
-
-/**
- * Update agent context for a specific chatroom and role
- */
-export function updateAgentContext(
-  chatroomId: string,
-  role: string,
-  agentType: AgentHarness,
-  workingDir: string
-): void {
-  const config = loadMachineConfig();
-  if (!config) {
-    throw new Error('Machine not registered. Run ensureMachineRegistered() first.');
-  }
-
-  const now = new Date().toISOString();
-
-  // Ensure chatroom entry exists
-  if (!config.chatroomAgents[chatroomId]) {
-    config.chatroomAgents[chatroomId] = {};
-  }
-
-  // Update agent context
-  config.chatroomAgents[chatroomId][role] = {
-    agentType,
-    workingDir,
-    lastStartedAt: now,
-  };
-
-  saveMachineConfig(config);
-}
-
-/**
- * Get agent context for a specific chatroom and role
- */
-export function getAgentContext(chatroomId: string, role: string): AgentContext | null {
-  const config = loadMachineConfig();
-  if (!config) {
-    return null;
-  }
-
-  return config.chatroomAgents[chatroomId]?.[role] ?? null;
 }

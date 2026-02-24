@@ -24,12 +24,29 @@ export function getReviewerGuidance(params: ReviewerGuidanceParams): string {
 You receive handoffs from other agents containing work to review or validate.
 
 **Typical Flow:**
-1. Receive message (handoff from builder or other agent)
-2. Run \`task-started --no-classify\` to acknowledge receipt and start work
-3. Review the code changes or content:
-   - Check uncommitted changes: \`git status\`, \`git diff\`
-   - Check recent commits: \`git log --oneline -10\`, \`git diff HEAD~N..HEAD\`
-4. Either approve or request changes
+
+\`\`\`
+@startuml
+start
+:Receive handoff;
+note right: from builder or other agent
+:Run **task-started --no-classify**;
+:Review code changes;
+note right
+  git status, git diff
+  git log --oneline -10
+  git diff HEAD~N..HEAD
+end note
+if (meets requirements?) then (yes)
+  :Hand off to **${approvalTarget}**;
+  note right: APPROVED ✅
+else (no)
+  :Hand off to **builder**;
+  note right: specific feedback
+endif
+stop
+@enduml
+\`\`\`
 
 **Your Options After Review:**
 
