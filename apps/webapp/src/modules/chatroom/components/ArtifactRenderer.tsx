@@ -3,8 +3,8 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { FileText, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
-import React, { useState, useCallback } from 'react';
+import { FileText, Loader2, X } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -27,35 +27,21 @@ interface ArtifactFull extends ArtifactMeta {
   content: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 3: Extensible viewer registry
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
- * Renderer registry - extensible pattern for different artifact types
- * Add new renderers here to support additional mime types
+ * Renderer registry - extensible pattern for different artifact types.
+ * To add support for a new mime type, create a new viewer component and add
+ * an entry here. No other changes needed.
  */
 type ArtifactContentRenderer = React.FC<{ artifact: ArtifactFull }>;
 
-const artifactRenderers: Record<string, ArtifactContentRenderer> = {
-  'text/markdown': MarkdownArtifactRenderer,
-  // Add more renderers here as needed:
-  // 'text/plain': PlainTextRenderer,
-  // 'application/json': JsonRenderer,
-  // 'image/png': ImageRenderer,
-};
-
 /**
- * Get the appropriate renderer for an artifact's mime type
+ * Markdown artifact viewer
  */
-function getRenderer(mimeType?: string): ArtifactContentRenderer {
-  if (mimeType && artifactRenderers[mimeType]) {
-    return artifactRenderers[mimeType];
-  }
-  // Default to markdown renderer for unknown types
-  return MarkdownArtifactRenderer;
-}
-
-/**
- * Markdown artifact content renderer
- */
-function MarkdownArtifactRenderer({ artifact }: { artifact: ArtifactFull }) {
+function MarkdownArtifactViewer({ artifact }: { artifact: ArtifactFull }) {
   return (
     <div className="prose dark:prose-invert prose-sm max-w-none text-chatroom-text-primary">
       <Markdown remarkPlugins={[remarkGfm]} components={fullMarkdownComponents}>
@@ -66,54 +52,110 @@ function MarkdownArtifactRenderer({ artifact }: { artifact: ArtifactFull }) {
 }
 
 /**
- * Artifact chip - compact display for message attachments
- * Shows filename and description, expandable to view content
+ * Fallback artifact viewer for unknown mime types — renders raw text
  */
-interface ArtifactChipProps {
-  artifact: ArtifactMeta;
-}
-
-export function ArtifactChip({ artifact }: ArtifactChipProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  const toggleExpand = useCallback(() => {
-    setIsExpanded((prev) => !prev);
-  }, []);
-
+function FallbackArtifactViewer({ artifact }: { artifact: ArtifactFull }) {
   return (
-    <div className="border border-chatroom-border bg-chatroom-bg-tertiary overflow-hidden">
-      {/* Chip header - always visible */}
-      <button
-        onClick={toggleExpand}
-        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-chatroom-accent-subtle transition-colors text-left"
-      >
-        <FileText size={14} className="flex-shrink-0 text-chatroom-status-info" />
-        <div className="flex-1 min-w-0">
-          <span className="text-xs font-medium text-chatroom-text-primary truncate block">
-            {artifact.filename}
-          </span>
-          {artifact.description && (
-            <span className="text-[10px] text-chatroom-text-muted truncate block">
-              {artifact.description}
-            </span>
-          )}
-        </div>
-        {isExpanded ? (
-          <ChevronUp size={14} className="flex-shrink-0 text-chatroom-text-muted" />
-        ) : (
-          <ChevronDown size={14} className="flex-shrink-0 text-chatroom-text-muted" />
-        )}
-      </button>
-
-      {/* Expanded content */}
-      {isExpanded && <ArtifactContent artifactId={artifact._id} mimeType={artifact.mimeType} />}
-    </div>
+    <pre className="text-xs text-chatroom-text-primary whitespace-pre-wrap break-words font-mono bg-chatroom-bg-tertiary border border-chatroom-border p-3 overflow-x-auto">
+      {artifact.content}
+    </pre>
   );
 }
 
+const artifactRenderers: Record<string, ArtifactContentRenderer> = {
+  'text/markdown': MarkdownArtifactViewer,
+  // Add more renderers here to support additional mime types:
+  // 'text/plain': PlainTextViewer,
+  // 'application/json': JsonViewer,
+  // 'image/png': ImageViewer,
+};
+
 /**
- * Artifact content loader - fetches and renders artifact content
+ * Get the appropriate renderer for an artifact's mime type.
+ * Falls back to FallbackArtifactViewer for unknown types.
  */
+function getRenderer(mimeType?: string): ArtifactContentRenderer {
+  if (mimeType && artifactRenderers[mimeType]) {
+    return artifactRenderers[mimeType];
+  }
+  return FallbackArtifactViewer;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2: Artifact detail modal (slide-in panel)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ArtifactDetailModalProps {
+  isOpen: boolean;
+  artifact: ArtifactMeta | null;
+  onClose: () => void;
+}
+
+function ArtifactDetailModal({ isOpen, artifact, onClose }: ArtifactDetailModalProps) {
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !artifact) return null;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/20 transition-opacity"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Side Panel */}
+      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-chatroom-bg-primary border-l-2 border-chatroom-border shadow-xl flex flex-col animate-in slide-in-from-right duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-chatroom-border bg-chatroom-bg-primary flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <FileText size={14} className="flex-shrink-0 text-chatroom-status-info" />
+            <span className="text-sm font-bold text-chatroom-text-primary truncate">
+              {artifact.filename}
+            </span>
+            {artifact.mimeType && (
+              <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-chatroom-bg-tertiary text-chatroom-text-muted border border-chatroom-border flex-shrink-0">
+                {artifact.mimeType}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="ml-3 flex-shrink-0 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Description */}
+        {artifact.description && (
+          <div className="px-4 py-2 border-b border-chatroom-border bg-chatroom-bg-secondary flex-shrink-0">
+            <p className="text-xs text-chatroom-text-muted">{artifact.description}</p>
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <ArtifactContent artifactId={artifact._id} mimeType={artifact.mimeType} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Artifact content loader
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface ArtifactContentProps {
   artifactId: string;
   mimeType?: string;
@@ -126,7 +168,7 @@ function ArtifactContent({ artifactId, mimeType }: ArtifactContentProps) {
 
   if (artifact === undefined) {
     return (
-      <div className="px-3 py-4 flex items-center justify-center gap-2 text-chatroom-text-muted">
+      <div className="flex items-center justify-center gap-2 text-chatroom-text-muted py-8">
         <Loader2 size={14} className="animate-spin" />
         <span className="text-xs">Loading artifact...</span>
       </div>
@@ -135,24 +177,53 @@ function ArtifactContent({ artifactId, mimeType }: ArtifactContentProps) {
 
   if (artifact === null) {
     return (
-      <div className="px-3 py-4 text-center text-xs text-chatroom-status-error">
-        Artifact not found
-      </div>
+      <div className="text-center text-xs text-chatroom-status-error py-8">Artifact not found</div>
     );
   }
 
   const Renderer = getRenderer(mimeType);
+  return <Renderer artifact={artifact} />;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2: Compact inline chip — click opens modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Artifact chip — compact inline pill that opens a detail modal on click
+ */
+interface ArtifactChipProps {
+  artifact: ArtifactMeta;
+}
+
+export function ArtifactChip({ artifact }: ArtifactChipProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const openModal = useCallback(() => setIsModalOpen(true), []);
+  const closeModal = useCallback(() => setIsModalOpen(false), []);
 
   return (
-    <div className="border-t border-chatroom-border px-3 py-3 max-h-96 overflow-y-auto">
-      <Renderer artifact={artifact} />
-    </div>
+    <>
+      <button
+        onClick={openModal}
+        className="inline-flex items-center gap-1.5 px-2 py-1 border border-chatroom-border bg-chatroom-bg-tertiary hover:bg-chatroom-accent-subtle transition-colors text-left"
+        title={artifact.description}
+      >
+        <FileText size={12} className="flex-shrink-0 text-chatroom-status-info" />
+        <span className="text-xs font-medium text-chatroom-text-primary">{artifact.filename}</span>
+      </button>
+
+      <ArtifactDetailModal isOpen={isModalOpen} artifact={artifact} onClose={closeModal} />
+    </>
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Attached artifacts section for messages
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
- * Attached artifacts section for messages
- * Renders a list of artifact chips
+ * Renders attached artifact chips inline, wrapping as needed
  */
 interface AttachedArtifactsProps {
   artifacts: ArtifactMeta[];
@@ -167,7 +238,7 @@ export function AttachedArtifacts({ artifacts }: AttachedArtifactsProps) {
         <FileText size={10} />
         Attached Artifacts ({artifacts.length})
       </div>
-      <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
         {artifacts.map((artifact) => (
           <ArtifactChip key={artifact._id} artifact={artifact} />
         ))}
