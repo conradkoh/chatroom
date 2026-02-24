@@ -38,6 +38,28 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isTouchDevice = useIsTouchDevice();
 
+  // ── Draft persistence ─────────────────────────────────────────────────────
+  const draftKey = `chatroom-draft:${chatroomId}`;
+
+  // Restore draft on mount (once per chatroomId)
+  useEffect(() => {
+    const saved = localStorage.getItem(draftKey);
+    if (saved) setMessage(saved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatroomId]);
+
+  // Debounced save: write 500ms after the last keystroke, clear when empty
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (message) {
+        localStorage.setItem(draftKey, message);
+      } else {
+        localStorage.removeItem(draftKey);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [message, draftKey]);
+
   // Attached tasks context
   const { attachedTasks, removeTask, clearTasks } = useAttachedTasks();
 
@@ -76,6 +98,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
         }),
       });
       setMessage('');
+      localStorage.removeItem(draftKey);
       // Clear attached tasks after successful send
       if (attachedTasks.length > 0) {
         clearTasks();
@@ -90,7 +113,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
     } finally {
       setSending(false);
     }
-  }, [message, sending, sendMessage, chatroomId, attachedTasks, clearTasks]);
+  }, [message, sending, sendMessage, chatroomId, attachedTasks, clearTasks, draftKey]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
