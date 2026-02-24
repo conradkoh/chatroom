@@ -554,7 +554,10 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                     <ChevronDown size={10} />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[200px]">
+                <DropdownMenuContent
+                  align="end"
+                  className="min-w-[200px] bg-chatroom-bg-surface border-2 border-chatroom-border rounded-none p-0"
+                >
                   {Object.entries(TEAMS_CONFIG.teams).map(([teamId, teamData]) => {
                     const isActive = teamId === (chatroom.teamId || TEAMS_CONFIG.defaultTeam);
                     return (
@@ -570,20 +573,28 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                             teamEntryPoint: teamData.entryPoint || teamData.roles[0],
                           });
                         }}
-                        className="flex items-center justify-between"
+                        className={`flex items-center justify-between px-3 py-2.5 cursor-pointer border-b border-chatroom-border last:border-b-0 rounded-none transition-colors duration-100 ${
+                          isActive
+                            ? 'bg-chatroom-accent/5 text-chatroom-text-primary'
+                            : 'text-chatroom-text-secondary hover:bg-chatroom-bg-hover hover:text-chatroom-text-primary'
+                        }`}
                       >
                         <div>
-                          <div className="font-medium">{teamData.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {teamData.description}
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary">
+                            {teamData.name}
+                          </div>
+                          <div className="text-[10px] text-chatroom-text-muted mt-0.5">
+                            {teamData.roles.join(' · ')}
                           </div>
                         </div>
-                        {isActive && <Check size={14} className="ml-2 shrink-0" />}
+                        {isActive && (
+                          <Check size={12} className="text-chatroom-accent ml-2 shrink-0" />
+                        )}
                       </DropdownMenuItem>
                     );
                   })}
-                  <DropdownMenuSeparator />
-                  <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
+                  <DropdownMenuSeparator className="bg-chatroom-border-strong m-0" />
+                  <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
                     Agents must reconnect after switching
                   </div>
                 </DropdownMenuContent>
