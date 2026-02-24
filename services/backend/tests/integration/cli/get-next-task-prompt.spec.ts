@@ -259,7 +259,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Context Rule:** When a new commit is expected, set a new context first to keep the conversation focused. Only the entry point role can set contexts:
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF
       \`\`\`
@@ -403,7 +403,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       ============================================================
       📋 PROCESS
       ============================================================
-      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" << 'EOF'
+      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
       2. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=follow_up\`
@@ -456,7 +456,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       <tech-specs>
       EOF
 
-      2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" << 'EOF'
+      2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
       3. Do the work → follow PROCESS above
@@ -1865,7 +1865,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       **Context Rule:** When a new commit is expected, set a new context first to keep the conversation focused. Only the entry point role can set contexts:
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10102;chatroom_rooms" --role="builder" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10102;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF
       \`\`\`

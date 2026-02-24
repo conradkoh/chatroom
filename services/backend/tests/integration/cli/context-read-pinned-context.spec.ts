@@ -146,4 +146,102 @@ describe('Context Read — Pinned Context', () => {
     // Should be null when no context is pinned
     expect(context.currentContext).toBeNull();
   });
+
+  test('uses triggerMessageId from pinned context as the message window anchor', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-trigger-message-id-anchor');
+    const chatroomId = await createSquadTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['planner', 'builder', 'reviewer']);
+
+    // User sends message A (this will be the anchor)
+    const messageAId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Message A: please do the work',
+      type: 'message',
+    });
+
+    // Planner claims and starts the task from message A
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+
+    await t.mutation(api.messages.taskStarted, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+      taskId: startResult.taskId,
+      originMessageClassification: 'question',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Planner creates a context WITH triggerMessageId pointing to message A
+    await t.mutation(api.contexts.createContext, {
+      sessionId,
+      chatroomId,
+      content: 'Working on message A task',
+      role: 'planner',
+      triggerMessageId: messageAId as Id<'chatroom_messages'>,
+    });
+
+    // Planner hands off back to user (completing the task)
+    await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'planner',
+      content: 'Done with message A work',
+      targetRole: 'user',
+    });
+
+    // User sends a NEW message E (a follow-up after message A was handled)
+    // This new user message would become the latest acknowledged user message
+    // WITHOUT triggerMessageId logic, the heuristic would anchor on this new message instead
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Message E: a follow-up question',
+      type: 'message',
+    });
+
+    // Planner claims/starts message E's task
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+
+    await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+
+    // ===== QUERY CONTEXT =====
+    // The context still has triggerMessageId = messageA, so messages should start from A
+    const context = await t.query(api.messages.getContextForRole, {
+      sessionId,
+      chatroomId,
+      role: 'planner',
+    });
+
+    // ===== ASSERTIONS =====
+    // With triggerMessageId logic: origin should be message A (from pinned context)
+    // Without it: origin would be message E (latest acknowledged user message)
+    expect(context.originMessage?._id).toBe(messageAId);
+
+    // Messages should start from message A and include everything since
+    const messageContents = context.messages.map((m) => m.content);
+    expect(messageContents).toContain('Message A: please do the work');
+    expect(messageContents).toContain('Message E: a follow-up question');
+  });
 });

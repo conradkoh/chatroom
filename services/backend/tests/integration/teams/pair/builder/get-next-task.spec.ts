@@ -75,7 +75,7 @@ describe('Pair Team > Builder > Get Next Task', () => {
       ============================================================
       📋 PROCESS
       ============================================================
-      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" << 'EOF'
+      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
       2. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id" --origin-message-classification=follow_up\`
@@ -128,7 +128,7 @@ describe('Pair Team > Builder > Get Next Task', () => {
       <tech-specs>
       EOF
 
-      2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" << 'EOF'
+      2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
       3. Do the work → follow PROCESS above
@@ -192,7 +192,7 @@ describe('Pair Team > Builder > Get Next Task', () => {
       ============================================================
       📋 PROCESS
       ============================================================
-      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" << 'EOF'
+      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
       2. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id" --no-classify\`
@@ -220,7 +220,7 @@ describe('Pair Team > Builder > Get Next Task', () => {
       ============================================================
 
       handed off from reviewer — start work immediately.
-      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" << 'EOF'
+      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
       2. Do the work → follow PROCESS above

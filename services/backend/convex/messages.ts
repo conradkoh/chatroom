@@ -2232,6 +2232,9 @@ export const getContextForRole = query({
       createdAt: number;
     } | null = null;
 
+    // If the pinned context has a triggerMessageId, use it as the origin anchor
+    let originMessageId: string | null = null;
+
     if (chatroom.currentContextId) {
       const contextDoc = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
       if (contextDoc) {
@@ -2240,6 +2243,10 @@ export const getContextForRole = query({
           createdBy: contextDoc.createdBy,
           createdAt: contextDoc.createdAt,
         };
+        // NEW: use triggerMessageId as origin anchor if available
+        if (contextDoc.triggerMessageId) {
+          originMessageId = contextDoc.triggerMessageId.toString();
+        }
       }
     }
 
@@ -2252,21 +2259,30 @@ export const getContextForRole = query({
 
     const messages = contextWindow.reverse();
 
-    // Find origin message (latest non-follow-up user message)
+    // Find origin message
+    // If triggerMessageId is set from the pinned context, use it directly;
+    // otherwise fall back to the heuristic (latest non-follow-up user message with acknowledgedAt)
     let originMessage: (typeof messages)[0] | null = null;
     let originIndex = -1;
 
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      if (
-        msg.senderRole.toLowerCase() === 'user' &&
-        msg.type === 'message' &&
-        msg.classification !== 'follow_up' &&
-        msg.acknowledgedAt !== undefined
-      ) {
-        originMessage = msg;
-        originIndex = i;
-        break;
+    if (originMessageId) {
+      // Use triggerMessageId as the anchor directly
+      originIndex = messages.findIndex((m) => m._id.toString() === originMessageId);
+      originMessage = originIndex >= 0 ? messages[originIndex] : null;
+    } else {
+      // Heuristic: find the latest non-follow-up user message with acknowledgedAt set
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+        if (
+          msg.senderRole.toLowerCase() === 'user' &&
+          msg.type === 'message' &&
+          msg.classification !== 'follow_up' &&
+          msg.acknowledgedAt !== undefined
+        ) {
+          originMessage = msg;
+          originIndex = i;
+          break;
+        }
       }
     }
 
@@ -2323,6 +2339,7 @@ export const getContextForRole = query({
           _id: message._id.toString(),
           _creationTime: message._creationTime,
           senderRole: message.senderRole,
+          targetRole: message.targetRole,
           content: message.content,
           type: message.type,
           classification: message.classification,

@@ -568,29 +568,40 @@ contextCommand
     '--content <content>',
     'Context summary/description (alternative: provide via stdin/heredoc)'
   )
-  .action(async (options: { chatroomId: string; role: string; content?: string }) => {
-    await maybeRequireAuth();
+  .option(
+    '--trigger-message-id <messageId>',
+    'Message ID that triggered this context (anchors the context window)'
+  )
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      content?: string;
+      triggerMessageId?: string;
+    }) => {
+      await maybeRequireAuth();
 
-    // Resolve content: flag takes priority, fall back to stdin/heredoc
-    let content: string;
-    if (options.content && options.content.trim().length > 0) {
-      content = options.content.trim();
-    } else {
-      const stdinContent = await readStdin();
-      if (!stdinContent.trim()) {
-        console.error('❌ Context content cannot be empty.');
-        console.error('   Provide content via --content="..." or stdin (heredoc):');
-        console.error("   chatroom context new --chatroom-id=<id> --role=<role> << 'EOF'");
-        console.error('   Your context summary here');
-        console.error('   EOF');
-        process.exit(1);
+      // Resolve content: flag takes priority, fall back to stdin/heredoc
+      let content: string;
+      if (options.content && options.content.trim().length > 0) {
+        content = options.content.trim();
+      } else {
+        const stdinContent = await readStdin();
+        if (!stdinContent.trim()) {
+          console.error('❌ Context content cannot be empty.');
+          console.error('   Provide content via --content="..." or stdin (heredoc):');
+          console.error("   chatroom context new --chatroom-id=<id> --role=<role> << 'EOF'");
+          console.error('   Your context summary here');
+          console.error('   EOF');
+          process.exit(1);
+        }
+        content = stdinContent.trim();
       }
-      content = stdinContent.trim();
-    }
 
-    const { newContext } = await import('./commands/context/index.js');
-    await newContext(options.chatroomId, { ...options, content });
-  });
+      const { newContext } = await import('./commands/context/index.js');
+      await newContext(options.chatroomId, { ...options, content });
+    }
+  );
 
 contextCommand
   .command('list')

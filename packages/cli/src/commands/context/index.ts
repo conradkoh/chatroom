@@ -199,6 +199,7 @@ export async function newContext(
   options: {
     role: string;
     content: string;
+    triggerMessageId?: string;
   },
   deps?: ContextDeps
 ): Promise<void> {
@@ -236,6 +237,7 @@ export async function newContext(
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       content: options.content,
       role: options.role,
+      triggerMessageId: options.triggerMessageId as Id<'chatroom_messages'> | undefined,
     });
 
     console.log(`✅ Context created successfully`);

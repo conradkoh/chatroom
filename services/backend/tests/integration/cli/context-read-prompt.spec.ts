@@ -262,6 +262,196 @@ describe('Context Read Command Output', () => {
     expect(userMessage!.attachedTasks?.[1].content).toContain('Task 2: Update documentation');
   });
 
+  test('snapshot baseline: full getContextForRole return value', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-context-snapshot-baseline');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends message
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Please implement feature X',
+      type: 'message',
+    });
+
+    // Builder claims and starts the task
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Classify the task
+    await t.mutation(api.messages.taskStarted, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: startResult.taskId,
+      originMessageClassification: 'question',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Builder hands off to reviewer
+    await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'Implementation complete, please review',
+      targetRole: 'reviewer',
+    });
+
+    // ===== GET CONTEXT =====
+    const context = await t.query(api.messages.getContextForRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Normalize dynamic values for stable snapshots
+    const normalizedContext = {
+      ...context,
+      messages: context.messages.map((m) => ({
+        ...m,
+        _id: '[id]',
+        _creationTime: 0,
+        taskId: m.taskId ? '[taskId]' : undefined,
+      })),
+      originMessage: context.originMessage
+        ? {
+            ...context.originMessage,
+            _id: '[id]',
+            _creationTime: 0,
+            taskId: context.originMessage.taskId ? '[taskId]' : undefined,
+          }
+        : null,
+    };
+
+    expect(normalizedContext).toMatchInlineSnapshot(`
+      {
+        "classification": "question",
+        "currentContext": null,
+        "messages": [
+          {
+            "_creationTime": 0,
+            "_id": "[id]",
+            "classification": "question",
+            "content": "Please implement feature X",
+            "senderRole": "user",
+            "targetRole": "builder",
+            "taskContent": "Please implement feature X",
+            "taskId": "[taskId]",
+            "taskStatus": "completed",
+            "type": "message",
+          },
+        ],
+        "originMessage": {
+          "_creationTime": 0,
+          "_id": "[id]",
+          "classification": "question",
+          "content": "Please implement feature X",
+          "senderRole": "user",
+          "taskId": "[taskId]",
+          "type": "message",
+        },
+        "pendingTasksForRole": 0,
+      }
+    `);
+  });
+
+  test('includes targetRole on messages showing which role the message is assigned to', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-context-targetrole');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // User sends message (will be assigned to builder = targetRole 'builder')
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Please implement feature Y',
+      type: 'message',
+    });
+
+    // Builder claims, starts, and classifies task
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await t.mutation(api.messages.taskStarted, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: startResult.taskId,
+      originMessageClassification: 'question',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // Builder hands off to reviewer
+    await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'Done, please review',
+      targetRole: 'reviewer',
+    });
+
+    // ===== GET CONTEXT AS REVIEWER =====
+    // Reviewer's task is pending/acknowledged, so the handoff message is visible once reviewer starts
+    // But from builder's perspective after the handoff, the user message is visible (task=completed)
+    const contextForBuilder = await t.query(api.messages.getContextForRole, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // User message targetRole should be 'builder' (task assigned to builder)
+    const userMessage = contextForBuilder.messages.find((m) => m.senderRole === 'user');
+    expect(userMessage).toBeDefined();
+    expect(userMessage!.targetRole).toBe('builder');
+
+    // Reviewer starts the task so the handoff message becomes visible
+    await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'reviewer',
+    });
+
+    await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'reviewer',
+    });
+
+    const contextForReviewer = await t.query(api.messages.getContextForRole, {
+      sessionId,
+      chatroomId,
+      role: 'reviewer',
+    });
+
+    // The handoff message from builder should be visible and show targetRole: 'reviewer'
+    const handoffMessage = contextForReviewer.messages.find((m) => m.senderRole === 'builder');
+    expect(handoffMessage).toBeDefined();
+    expect(handoffMessage!.targetRole).toBe('reviewer');
+  });
+
   test('excludes messages with pending or acknowledged tasks from context', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-context-excludes-pending');
