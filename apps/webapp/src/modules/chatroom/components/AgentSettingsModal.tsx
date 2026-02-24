@@ -56,16 +56,16 @@ const TEAMS_CONFIG: TeamsConfig = {
       roles: ['builder', 'reviewer'],
       entryPoint: 'builder',
     },
-    squad: {
-      name: 'Squad',
-      description: 'A planner, builder, and reviewer working as a coordinated team',
-      roles: ['planner', 'builder', 'reviewer'],
-      entryPoint: 'planner',
-    },
     duo: {
       name: 'Duo',
       description: 'A planner and builder working as a pair, planner as coordinator',
       roles: ['planner', 'builder'],
+      entryPoint: 'planner',
+    },
+    squad: {
+      name: 'Squad',
+      description: 'A planner, builder, and reviewer working as a coordinated team',
+      roles: ['planner', 'builder', 'reviewer'],
       entryPoint: 'planner',
     },
   },
