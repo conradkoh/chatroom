@@ -58,7 +58,7 @@ async function joinParticipants(
 describe('Get-Next-Task Full Prompt', () => {
   test('materializes complete get-next-task message with backlog attachment', async () => {
     // ===== SETUP =====
-    const { sessionId } = await createTestSession('test-wait-for-task-prompt');
+    const { sessionId } = await createTestSession('test-get-next-task-prompt');
     const chatroomId = await createPairTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
@@ -67,7 +67,7 @@ describe('Get-Next-Task Full Prompt', () => {
       sessionId,
       chatroomId,
       content:
-        'Fix: Agent lacks knowledge of backlog listing\n\nAdd backlog section to wait-for-task',
+        'Fix: Agent lacks knowledge of backlog listing\n\nAdd backlog section to get-next-task',
       createdBy: 'user',
       isBacklog: true,
     });
@@ -391,7 +391,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       ## Attached Backlog (1)
       - [BACKLOG_ACKNOWLEDGED] Fix: Agent lacks knowledge of backlog listing
 
-      Add backlog section to wait-for-task
+      Add backlog section to get-next-task
       </task>
 
       <process>
