@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Check,
   CheckCircle,
+  ChevronDown,
   MoreVertical,
   PanelRightClose,
   PanelRightOpen,
@@ -35,10 +36,44 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PromptsProvider } from '@/contexts/PromptsContext';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
+
+// ─── Teams Config ────────────────────────────────────────────────────────────
+
+interface TeamDefinition {
+  name: string;
+  description: string;
+  roles: string[];
+  entryPoint?: string;
+}
+
+const TEAMS_CONFIG: { defaultTeam: string; teams: Record<string, TeamDefinition> } = {
+  defaultTeam: 'pair',
+  teams: {
+    pair: {
+      name: 'Pair',
+      description: 'A builder and reviewer working together',
+      roles: ['builder', 'reviewer'],
+      entryPoint: 'builder',
+    },
+    duo: {
+      name: 'Duo',
+      description: 'A planner and builder working as a pair',
+      roles: ['planner', 'builder'],
+      entryPoint: 'planner',
+    },
+    squad: {
+      name: 'Squad',
+      description: 'A planner, builder, and reviewer as a team',
+      roles: ['planner', 'builder', 'reviewer'],
+      entryPoint: 'planner',
+    },
+  },
+};
 
 interface ChatroomDashboardProps {
   chatroomId: string;
@@ -269,6 +304,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Update status mutation (for marking complete)
   const updateStatus = useSessionMutation(api.chatrooms.updateStatus);
+
+  // Update team mutation (for switching teams)
+  const updateTeam = useSessionMutation(api.chatrooms.updateTeam);
 
   // Mark chatroom as read mutation (for unread indicators)
   const markAsRead = useSessionMutation(api.chatrooms.markAsRead);
@@ -509,9 +547,47 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         right: (
           <div className="flex gap-2 md:gap-3 items-center">
             {chatroom.teamName && (
-              <span className="bg-chatroom-bg-tertiary px-2 md:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-secondary hidden sm:block">
-                Team: {chatroom.teamName}
-              </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="bg-chatroom-bg-tertiary border-2 border-transparent px-2 md:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-secondary hidden sm:flex items-center gap-1.5 cursor-pointer transition-all duration-100 hover:border-chatroom-border hover:text-chatroom-text-primary focus:outline-none">
+                    Team: {chatroom.teamName}
+                    <ChevronDown size={10} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[200px]">
+                  {Object.entries(TEAMS_CONFIG.teams).map(([teamId, teamData]) => {
+                    const isActive = teamId === (chatroom.teamId || TEAMS_CONFIG.defaultTeam);
+                    return (
+                      <DropdownMenuItem
+                        key={teamId}
+                        onClick={async () => {
+                          if (isActive) return;
+                          await updateTeam({
+                            chatroomId: chatroomId as Id<'chatroom_rooms'>,
+                            teamId,
+                            teamName: teamData.name,
+                            teamRoles: teamData.roles,
+                            teamEntryPoint: teamData.entryPoint || teamData.roles[0],
+                          });
+                        }}
+                        className="flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="font-medium">{teamData.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {teamData.description}
+                          </div>
+                        </div>
+                        {isActive && <Check size={14} className="ml-2 shrink-0" />}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
+                    Agents must reconnect after switching
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             <span
               className={getStatusBadgeClasses(chatroom.status, isSetupMode, isTeamDisconnected)}
