@@ -90,28 +90,28 @@ describe('Squad Team > Builder > System Prompt', () => {
       Register your agent type before starting work.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10002;chatroom_rooms --role=builder --type=<remote|custom>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10002;chatroom_rooms" --role="builder" --type=<remote|custom>
       \`\`\`
 
       ### Read Context
       View the conversation history and pending tasks for your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
       ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
       ### Start Working
       Before starting work on a received message, acknowledge it:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=builder --task-id=<task-id> --no-classify
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id=<task-id> --no-classify
       \`\`\`
 
       This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.
@@ -181,7 +181,7 @@ describe('Squad Team > Builder > System Prompt', () => {
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -195,7 +195,7 @@ describe('Squad Team > Builder > System Prompt', () => {
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="builder" << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF
@@ -205,14 +205,14 @@ describe('Squad Team > Builder > System Prompt', () => {
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
       **Re-fetch your system prompt (after context reset):**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id=10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
       ### Next
@@ -220,7 +220,7 @@ describe('Squad Team > Builder > System Prompt', () => {
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`"
     `);
   });

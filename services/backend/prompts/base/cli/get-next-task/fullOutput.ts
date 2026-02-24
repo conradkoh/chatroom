@@ -122,7 +122,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       lines.push(`⚠️ Stale context: ${currentContext.messagesSinceContext} messages since set.`);
       if (isEntryPoint) {
         lines.push(
-          `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"\``
+          `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
       } else {
         lines.push('   Entry point role will update when needed.');
@@ -136,7 +136,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       lines.push(`⚠️ Context is ${ageDays}d old.`);
       if (isEntryPoint) {
         lines.push(
-          `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"\``
+          `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
       } else {
         lines.push('   Entry point role will update when needed.');
@@ -158,7 +158,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       lines.push(`⚠️ Stale: ${followUpCountSinceOrigin} follow-ups since pinned message.`);
       if (isEntryPoint) {
         lines.push(
-          `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"\``
+          `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
       } else {
         lines.push('   Entry point role will update when needed.');
@@ -175,7 +175,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(`⚠️ Pinned message is ${ageDays}d old.`);
         if (isEntryPoint) {
           lines.push(
-            `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} --content="<summary>"\``
+            `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
           );
         } else {
           lines.push('   Entry point role will update when needed.');
@@ -232,7 +232,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     );
   } else {
     lines.push(
-      `${stepNum}. Acknowledge → \`${cliEnvPrefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=${task._id} --no-classify\``
+      `${stepNum}. Acknowledge → \`${cliEnvPrefix}chatroom task-started --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}" --no-classify\``
     );
   }
   stepNum++;
@@ -247,11 +247,11 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   if (availableHandoffTargets.length > 0) {
     lines.push(
-      `${stepNum}. Hand off (targets: ${availableHandoffTargets.join(', ')}) → \`${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target> << 'EOF'\n---MESSAGE---\n[Your message here]\nEOF\``
+      `${stepNum}. Hand off (targets: ${availableHandoffTargets.join(', ')}) → \`${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'\n---MESSAGE---\n[Your message here]\nEOF\``
     );
   } else {
     lines.push(
-      `${stepNum}. Hand off → \`${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target> << 'EOF'\n---MESSAGE---\n[Your message here]\nEOF\``
+      `${stepNum}. Hand off → \`${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'\n---MESSAGE---\n[Your message here]\nEOF\``
     );
   }
   stepNum++;
@@ -261,13 +261,13 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('');
   lines.push('Reference commands:');
   lines.push(
-    `  context read → \`${cliEnvPrefix}chatroom context read --chatroom-id=${chatroomId} --role=${role}\``
+    `  context read → \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\``
   );
   lines.push(
-    `  messages → \`${cliEnvPrefix}chatroom messages list --chatroom-id=${chatroomId} --role=${role} --sender-role=user --limit=5 --full\``
+    `  messages → \`${cliEnvPrefix}chatroom messages list --chatroom-id="${chatroomId}" --role="${role}" --sender-role=user --limit=5 --full\``
   );
   lines.push(
-    `  backlog → \`${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog\``
+    `  backlog → \`${cliEnvPrefix}chatroom backlog list --chatroom-id="${chatroomId}" --role="${role}" --status=backlog\``
   );
   lines.push('  git log → `git log --oneline -10`');
 
@@ -342,7 +342,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     lines.push(`${nextStepNum}. Hand off when complete:`);
     lines.push('```');
     lines.push(
-      `${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target> << 'EOF'`
+      `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
     );
     lines.push('---MESSAGE---');
     lines.push('[Your message here]');
@@ -368,7 +368,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     lines.push(`${nextStepNum}. Hand off when complete:`);
     lines.push('```');
     lines.push(
-      `${cliEnvPrefix}chatroom handoff --chatroom-id=${chatroomId} --role=${role} --next-role=<target> << 'EOF'`
+      `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
     );
     lines.push('---MESSAGE---');
     lines.push('[Your message here]');

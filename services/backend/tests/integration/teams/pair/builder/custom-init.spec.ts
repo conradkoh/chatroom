@@ -50,21 +50,21 @@ describe('Pair Team > Builder > Custom Init Prompt', () => {
       Register your agent type before starting work.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=test-pair-chatroom --role=builder --type=custom
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="test-pair-chatroom" --role="builder" --type=custom
       \`\`\`
 
       ### Read Context
       View the conversation history and pending tasks for your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=test-pair-chatroom --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-pair-chatroom" --role="builder"
       \`\`\`
 
       ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-pair-chatroom --role=builder
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-pair-chatroom" --role="builder"
       \`\`\`
 
       **Pair Team Context:**

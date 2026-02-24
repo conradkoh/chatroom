@@ -27,20 +27,20 @@ export function getContextGainingGuidance(params: ContextGainingParams): string 
 Register your agent type before starting work.
 
 \`\`\`bash
-${cliEnvPrefix}chatroom register-agent --chatroom-id=${chatroomId} --role=${role} --type=${typeValue}
+${cliEnvPrefix}chatroom register-agent --chatroom-id="${chatroomId}" --role="${role}" --type=${typeValue}
 \`\`\`
 
 ### Read Context
 View the conversation history and pending tasks for your role.
 
 \`\`\`bash
-${cliEnvPrefix}chatroom context read --chatroom-id=${chatroomId} --role=${role}
+${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"
 \`\`\`
 
 ### Get Next Task
 Listen for incoming tasks assigned to your role.
 
 \`\`\`bash
-${cliEnvPrefix}chatroom get-next-task --chatroom-id=${chatroomId} --role=${role}
+${cliEnvPrefix}chatroom get-next-task --chatroom-id="${chatroomId}" --role="${role}"
 \`\`\``;
 }

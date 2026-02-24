@@ -32,14 +32,14 @@ export function getAvailableActions(params: AvailableActionsParams): string {
 View the latest relevant chat history. Use when starting a new session or when context is unclear.
 
 \`\`\`bash
-${cliEnvPrefix}chatroom context read --chatroom-id=${chatroomId} --role=${role}
+${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"
 \`\`\`
 
 ### List Messages
 Query specific messages with filters.
 
 \`\`\`bash
-${cliEnvPrefix}chatroom messages list --chatroom-id=${chatroomId} --role=${role} --sender-role=user --limit=5 --full
+${cliEnvPrefix}chatroom messages list --chatroom-id="${chatroomId}" --role="${role}" --sender-role=user --limit=5 --full
 \`\`\`
 
 ### View Code Changes
@@ -53,19 +53,19 @@ git log --oneline -10
 The chatroom has a task backlog. View items with:
 
 \`\`\`bash
-${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog
+${cliEnvPrefix}chatroom backlog list --chatroom-id="${chatroomId}" --role="${role}" --status=backlog
 \`\`\`
 
 **After completing work on a backlog item**, mark it for user review:
 
 \`\`\`bash
-${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=${chatroomId} --role=${role} --task-id=<task-id>
+${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --task-id=<task-id>
 \`\`\`
 
 This transitions the task to \`pending_user_review\` where the user can confirm completion or send it back for rework.
 
 #### Backlog Scoring and Maintenance
-When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`${cliEnvPrefix}chatroom backlog list --chatroom-id=${chatroomId} --role=${role} --status=backlog\` to view items, then provide recommendations.
+When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`${cliEnvPrefix}chatroom backlog list --chatroom-id="${chatroomId}" --role="${role}" --status=backlog\` to view items, then provide recommendations.
 
 More actions: \`chatroom backlog --help\``);
 
@@ -82,7 +82,7 @@ ${contextNewCommand({ chatroomId, role, cliEnvPrefix })}
 
 **List previous contexts:**
 \`\`\`bash
-${cliEnvPrefix}chatroom context list --chatroom-id=${chatroomId} --role=${role} --limit=10
+${cliEnvPrefix}chatroom context list --chatroom-id="${chatroomId}" --role="${role}" --limit=10
 \`\`\`
 
 When to create a new context:

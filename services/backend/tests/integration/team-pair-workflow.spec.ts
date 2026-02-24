@@ -155,7 +155,7 @@ Test technical specifications`,
 
         **Classification (Entry Point Role):**
         As the entry point, you receive user messages directly. When you receive a user message:
-        1. First run \`chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+        1. First run \`chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
         2. Then do your work
         3. Hand off to reviewer for code changes, or directly to user for questions
 
@@ -213,7 +213,7 @@ Test technical specifications`,
         **Complete task and hand off:**
 
         \`\`\`bash
-        chatroom handoff --chatroom-id=10002;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+        chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
         ---MESSAGE---
         [Your message here]
         EOF
@@ -227,7 +227,7 @@ Test technical specifications`,
         **Report progress on current task:**
 
         \`\`\`bash
-        chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=builder << 'EOF'
+        chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="builder" << 'EOF'
         ---MESSAGE---
         [Your progress message here]
         EOF
@@ -237,14 +237,14 @@ Test technical specifications`,
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=builder
+        chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
         \`\`\`
 
         Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
         **Re-fetch your system prompt (after context reset):**
         \`\`\`
-        chatroom get-system-prompt --chatroom-id=10002;chatroom_rooms --role=builder
+        chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
         \`\`\`"
       `);
 
@@ -366,7 +366,7 @@ Test technical specifications`,
 
         **If changes are needed:**
         \`\`\`bash
-        chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=builder << 'EOF'
+        chatroom handoff --chatroom-id="<chatroom-id>" --role="<role>" --next-role="builder" << 'EOF'
         ---MESSAGE---
         [Your message here]
         EOF
@@ -378,7 +378,7 @@ Test technical specifications`,
 
         **If work is approved:**
         \`\`\`bash
-        chatroom handoff --chatroom-id=<chatroom-id> --role=<role> --next-role=user << 'EOF'
+        chatroom handoff --chatroom-id="<chatroom-id>" --role="<role>" --next-role="user" << 'EOF'
         ---MESSAGE---
         [Your message here]
         EOF
@@ -462,7 +462,7 @@ Test technical specifications`,
         **Complete task and hand off:**
 
         \`\`\`bash
-        chatroom handoff --chatroom-id=10002;chatroom_rooms --role=reviewer --next-role=<target> << 'EOF'
+        chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="reviewer" --next-role="<target>" << 'EOF'
         ---MESSAGE---
         [Your message here]
         EOF
@@ -476,7 +476,7 @@ Test technical specifications`,
         **Report progress on current task:**
 
         \`\`\`bash
-        chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=reviewer << 'EOF'
+        chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="reviewer" << 'EOF'
         ---MESSAGE---
         [Your progress message here]
         EOF
@@ -486,14 +486,14 @@ Test technical specifications`,
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=reviewer
+        chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="reviewer"
         \`\`\`
 
         Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
         **Re-fetch your system prompt (after context reset):**
         \`\`\`
-        chatroom get-system-prompt --chatroom-id=10002;chatroom_rooms --role=reviewer
+        chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="reviewer"
         \`\`\`"
       `);
 
@@ -650,7 +650,7 @@ Test technical specifications`,
 
         **Classification (Entry Point Role):**
         As the entry point, you receive user messages directly. When you receive a user message:
-        1. First run \`chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+        1. First run \`chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
         2. Then do your work
         3. Hand off to reviewer for code changes, or directly to user for questions
 
@@ -706,7 +706,7 @@ Test technical specifications`,
         **Complete task and hand off:**
 
         \`\`\`bash
-        chatroom handoff --chatroom-id=10028;chatroom_rooms --role=builder --next-role=<target> << 'EOF'
+        chatroom handoff --chatroom-id="10028;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
         ---MESSAGE---
         [Your message here]
         EOF
@@ -720,7 +720,7 @@ Test technical specifications`,
         **Report progress on current task:**
 
         \`\`\`bash
-        chatroom report-progress --chatroom-id=10028;chatroom_rooms --role=builder << 'EOF'
+        chatroom report-progress --chatroom-id="10028;chatroom_rooms" --role="builder" << 'EOF'
         ---MESSAGE---
         [Your progress message here]
         EOF
@@ -730,14 +730,14 @@ Test technical specifications`,
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom get-next-task --chatroom-id=10028;chatroom_rooms --role=builder
+        chatroom get-next-task --chatroom-id="10028;chatroom_rooms" --role="builder"
         \`\`\`
 
         Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
         **Re-fetch your system prompt (after context reset):**
         \`\`\`
-        chatroom get-system-prompt --chatroom-id=10028;chatroom_rooms --role=builder
+        chatroom get-system-prompt --chatroom-id="10028;chatroom_rooms" --role="builder"
         \`\`\`"
       `);
 
@@ -1158,7 +1158,7 @@ Test technical specifications`,
       expect(result.classification).toBe('new_feature');
       expect(result.reminder).toBeDefined();
       expect(result.reminder).toContain('hand off to reviewer');
-      expect(result.reminder).toContain('--next-role=reviewer');
+      expect(result.reminder).toContain('--next-role="reviewer"');
     });
 
     test('taskStarted returns focused reminder for builder + question', async () => {

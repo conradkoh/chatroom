@@ -32,7 +32,7 @@ describe('Squad Team > Planner > Handoff Output', () => {
     expect(output).toMatchInlineSnapshot(`
       "✅ Task completed and handed off to builder
 
-      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-chatroom-id --role=planner\`"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="planner"\`"
     `);
   });
 
@@ -49,7 +49,7 @@ describe('Squad Team > Planner > Handoff Output', () => {
     expect(output).toMatchInlineSnapshot(`
       "✅ Task completed and handed off to reviewer
 
-      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-chatroom-id --role=planner\`"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="planner"\`"
     `);
   });
 
@@ -66,7 +66,7 @@ describe('Squad Team > Planner > Handoff Output', () => {
     expect(output).toMatchInlineSnapshot(`
       "✅ Task completed and handed off to user
 
-      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-chatroom-id --role=planner\`"
+      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="planner"\`"
     `);
   });
 });

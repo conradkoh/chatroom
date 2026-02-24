@@ -46,7 +46,7 @@ describe('Pair Team > Builder > Task Started Reminder', () => {
       "✅ Task acknowledged as QUESTION.
 
       **Next steps:**
-      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=test-chatroom-id --role=builder << 'EOF'
+      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="builder" << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF\`
@@ -54,7 +54,7 @@ describe('Pair Team > Builder > Task Started Reminder', () => {
       3. When done, hand off directly to user:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=user << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="user" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -92,7 +92,7 @@ describe('Pair Team > Builder > Task Started Reminder', () => {
       4. MUST hand off to reviewer for approval:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=reviewer << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="reviewer" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF

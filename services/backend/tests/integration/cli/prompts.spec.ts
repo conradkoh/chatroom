@@ -42,7 +42,7 @@ describe('Context Gaining Prompt', () => {
 
     // Should include the context read command with correct parameters
     expect(guidance).toContain(
-      'chatroom context read --chatroom-id=test-chatroom-123 --role=builder'
+      'chatroom context read --chatroom-id="test-chatroom-123" --role="builder"'
     );
 
     // Should be concise (no verbose explanations)
@@ -57,7 +57,7 @@ describe('Context Gaining Prompt', () => {
       convexUrl: 'http://localhost:3000',
     });
 
-    expect(guidance).toContain('chatroom get-next-task --chatroom-id=abc123 --role=reviewer');
+    expect(guidance).toContain('chatroom get-next-task --chatroom-id="abc123" --role="reviewer"');
   });
 
   test('defaults to <remote|custom> placeholder when agentType is not specified', () => {
@@ -120,7 +120,7 @@ describe('Webapp Agent Prompt', () => {
     });
 
     expect(prompt).toContain(
-      'chatroom register-agent --chatroom-id=my-chatroom-id --role=builder --type=custom'
+      'chatroom register-agent --chatroom-id="my-chatroom-id" --role="builder" --type=custom'
     );
   });
 });

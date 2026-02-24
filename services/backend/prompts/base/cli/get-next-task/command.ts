@@ -28,7 +28,7 @@ export function getNextTaskCommand(params: GetNextTaskParams): string {
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';
 
-  return `${prefix}chatroom get-next-task --chatroom-id=${chatroomId} --role=${role}`;
+  return `${prefix}chatroom get-next-task --chatroom-id="${chatroomId}" --role="${role}"`;
 }
 
 /**

@@ -51,7 +51,7 @@ describe('Duo Team > Builder > Task Started Reminder', () => {
       3. Hand off to planner when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=planner << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="planner" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -89,7 +89,7 @@ describe('Duo Team > Builder > Task Started Reminder', () => {
       3. Hand off to planner when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=planner << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="planner" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -127,7 +127,7 @@ describe('Duo Team > Builder > Task Started Reminder', () => {
       3. Hand off to planner when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=builder --next-role=planner << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="planner" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF

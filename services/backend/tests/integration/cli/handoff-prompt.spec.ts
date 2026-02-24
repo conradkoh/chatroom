@@ -22,8 +22,8 @@ describe('Handoff Command', () => {
 
     // Should use placeholder values
     expect(command).toContain('<chatroom-id>');
-    expect(command).toContain('--role=<role>');
-    expect(command).toContain('--next-role=<target>');
+    expect(command).toContain('--role="<role>"');
+    expect(command).toContain('--next-role="<target>"');
 
     // Should use HERE document format
     expect(command).toContain("<< 'EOF'");
@@ -45,13 +45,13 @@ describe('Handoff Command', () => {
     expect(command).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
     // Should inject chatroom ID
-    expect(command).toContain('--chatroom-id=my-chatroom-456');
+    expect(command).toContain('--chatroom-id="my-chatroom-456"');
 
     // Should inject role
-    expect(command).toContain('--role=builder');
+    expect(command).toContain('--role="builder"');
 
     // Should inject next role
-    expect(command).toContain('--next-role=reviewer');
+    expect(command).toContain('--next-role="reviewer"');
 
     // Should still use HERE document format
     expect(command).toContain("<< 'EOF'");

@@ -17,7 +17,7 @@ export function contextNewCommand(params: ContextNewParams): string {
   const chatroomId = params.chatroomId || '<chatroom-id>';
   const role = params.role || '<role>';
 
-  return `${prefix}chatroom context new --chatroom-id=${chatroomId} --role=${role} << 'EOF'
+  return `${prefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" << 'EOF'
 <summary of current focus>
 EOF`;
 }

@@ -47,7 +47,7 @@ describe('Squad Team > Planner > Task Started Reminder', () => {
       2. When done, hand off to user:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=planner --next-role=user << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role="user" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -83,7 +83,7 @@ describe('Squad Team > Planner > Task Started Reminder', () => {
       2. Delegate implementation to builder:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=planner --next-role=builder << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role="builder" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF

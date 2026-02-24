@@ -73,7 +73,7 @@ ${getNextTaskReminder()}
 
 **Re-fetch your system prompt (after context reset):**
 \`\`\`
-${cliEnvPrefix}chatroom get-system-prompt --chatroom-id=${params.chatroomId} --role=${params.role}
+${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${params.chatroomId}" --role="${params.role}"
 \`\`\``;
 
   return createSection('commands-reference', 'knowledge', content);

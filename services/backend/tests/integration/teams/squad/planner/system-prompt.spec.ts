@@ -89,21 +89,21 @@ describe('Squad Team > Planner > System Prompt', () => {
       Register your agent type before starting work.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id=10002;chatroom_rooms --role=planner --type=<remote|custom>
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10002;chatroom_rooms" --role="planner" --type=<remote|custom>
       \`\`\`
 
       ### Read Context
       View the conversation history and pending tasks for your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=10002;chatroom_rooms --role=planner
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="planner"
       \`\`\`
 
       ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=planner
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="planner"
       \`\`\`
 
       ### Classify Task
@@ -113,21 +113,21 @@ describe('Squad Team > Planner > System Prompt', () => {
       User is asking for information or clarification.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=planner --task-id=<task-id> --origin-message-classification=question
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="planner" --task-id="<task-id>" --origin-message-classification=question
       \`\`\`
 
       #### Follow Up
       User is responding to previous work or providing feedback.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=planner --task-id=<task-id> --origin-message-classification=follow_up
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="planner" --task-id="<task-id>" --origin-message-classification=follow_up
       \`\`\`
 
       #### New Feature
       User wants new functionality. Requires title, description, and tech specs.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=10002;chatroom_rooms --role=planner --task-id=<task-id> --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="planner" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       [Feature title]
       ---DESCRIPTION---
@@ -139,7 +139,7 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       **Context Rule:** When a new commit is expected, set a new context first to keep the conversation focused. Only the entry point role can set contexts:
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id=10002;chatroom_rooms --role=planner << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="planner" << 'EOF'
       <summary of current focus>
       EOF
       \`\`\`
@@ -160,7 +160,7 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       **Classification (Entry Point Role):**
       As the entry point, you receive user messages directly. When you receive a user message:
-      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=<chatroom-id> --role=<role> --task-id=<task-id> --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
       2. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
       3. Decompose the task into actionable work items if needed
       4. Delegate to the appropriate team member or handle it yourself
@@ -227,7 +227,7 @@ describe('Squad Team > Planner > System Prompt', () => {
       **Complete task and hand off:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=10002;chatroom_rooms --role=planner --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="planner" --next-role="<target>" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -241,7 +241,7 @@ describe('Squad Team > Planner > System Prompt', () => {
       **Report progress on current task:**
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=10002;chatroom_rooms --role=planner << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="planner" << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF
@@ -251,14 +251,14 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=planner
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="planner"
       \`\`\`
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
       **Re-fetch your system prompt (after context reset):**
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id=10002;chatroom_rooms --role=planner
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="planner"
       \`\`\`
 
       ### Next
@@ -266,7 +266,7 @@ describe('Squad Team > Planner > System Prompt', () => {
       Run:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=planner
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="planner"
       \`\`\`"
     `);
   });

@@ -73,22 +73,22 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       ============================================================
       📋 PROCESS
       ============================================================
-      1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=reviewer --task-id=test-task-id --origin-message-classification=follow_up\`
-      2. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=test-chatroom-id --role=reviewer << 'EOF'
+      1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id" --origin-message-classification=follow_up\`
+      2. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="reviewer" << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF\`
       3. Do the work
-      4. Hand off (targets: builder, planner) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target> << 'EOF'
+      4. Hand off (targets: builder, planner) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF\`
-      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-chatroom-id --role=reviewer\`
+      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="reviewer"\`
 
       Reference commands:
-        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=test-chatroom-id --role=reviewer\`
-        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=test-chatroom-id --role=reviewer --sender-role=user --limit=5 --full\`
-        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=test-chatroom-id --role=reviewer --status=backlog\`
+        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\`
+        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="test-chatroom-id" --role="reviewer" --sender-role=user --limit=5 --full\`
+        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="test-chatroom-id" --role="reviewer" --status=backlog\`
         git log → \`git log --oneline -10\`
       </process>
 
@@ -111,10 +111,10 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       @enduml
       \`\`\`
 
-      Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=reviewer --task-id=test-task-id --origin-message-classification=<type>\`
+      Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id" --origin-message-classification=<type>\`
 
       new_feature example:
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=reviewer --task-id=test-task-id --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id" --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       <title>
       ---DESCRIPTION---
@@ -125,7 +125,7 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       2. Do the work → follow PROCESS above
       3. Hand off when complete:
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -183,22 +183,22 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       ============================================================
       📋 PROCESS
       ============================================================
-      1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id=test-chatroom-id --role=reviewer --task-id=test-task-id --no-classify\`
-      2. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id=test-chatroom-id --role=reviewer << 'EOF'
+      1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id" --no-classify\`
+      2. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="reviewer" << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF\`
       3. Do the work
-      4. Hand off (targets: builder, planner) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target> << 'EOF'
+      4. Hand off (targets: builder, planner) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF\`
-      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=test-chatroom-id --role=reviewer\`
+      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="reviewer"\`
 
       Reference commands:
-        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id=test-chatroom-id --role=reviewer\`
-        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id=test-chatroom-id --role=reviewer --sender-role=user --limit=5 --full\`
-        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id=test-chatroom-id --role=reviewer --status=backlog\`
+        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\`
+        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="test-chatroom-id" --role="reviewer" --sender-role=user --limit=5 --full\`
+        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="test-chatroom-id" --role="reviewer" --status=backlog\`
         git log → \`git log --oneline -10\`
       </process>
 
@@ -211,7 +211,7 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       1. Do the work → follow PROCESS above
       2. Hand off when complete:
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=test-chatroom-id --role=reviewer --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
