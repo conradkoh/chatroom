@@ -2,7 +2,7 @@ import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { HEARTBEAT_TTL_MS } from '../config/reliability';
+import { PRESENCE_THRESHOLD_MS } from '../config/reliability';
 import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
@@ -870,7 +870,7 @@ export const getAllowedHandoffRoles = query({
     const waitingParticipants = participants.filter(
       (p) =>
         p.lastSeenAt != null &&
-        _now914 - p.lastSeenAt <= HEARTBEAT_TTL_MS &&
+        _now914 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
         p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
@@ -1322,7 +1322,7 @@ export const getLatestForRole = query({
     const waitingParticipants = participants.filter(
       (p) =>
         p.lastSeenAt != null &&
-        _now1366 - p.lastSeenAt <= HEARTBEAT_TTL_MS &&
+        _now1366 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
         p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
@@ -1548,7 +1548,7 @@ export const getRolePrompt = query({
     const waitingParticipants = participants.filter(
       (p) =>
         p.lastSeenAt != null &&
-        _now1592 - p.lastSeenAt <= HEARTBEAT_TTL_MS &&
+        _now1592 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
         p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
@@ -1633,7 +1633,7 @@ export const getInitPrompt = query({
 
     const _now1678 = Date.now();
     const availableMembers = participants
-      .filter((p) => p.lastSeenAt != null && _now1678 - p.lastSeenAt <= HEARTBEAT_TTL_MS)
+      .filter((p) => p.lastSeenAt != null && _now1678 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS)
       .map((p) => p.role);
 
     const promptInput = {
@@ -1752,7 +1752,7 @@ export const getTaskDeliveryPrompt = query({
     const waitingParticipants = participants.filter(
       (p) =>
         p.lastSeenAt != null &&
-        _now1796 - p.lastSeenAt <= HEARTBEAT_TTL_MS &&
+        _now1796 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
         p.role.toLowerCase() !== args.role.toLowerCase()
     );
 

@@ -50,13 +50,24 @@ interface AgentPanelProps {
 
 // ─── Presence Utilities ──────────────────────────────────────────────────────
 
-/** Agents unseen for longer than this threshold are considered offline. */
+/**
+ * Agents unseen for longer than this threshold are considered offline.
+ * Must stay in sync with PRESENCE_THRESHOLD_MS in services/backend/config/reliability.ts.
+ */
 const PRESENCE_THRESHOLD_MS = 600_000; // 10 minutes
 
 /** Returns true if the agent is considered online (seen within threshold). */
 function isOnline(lastSeenAt: number | null | undefined): boolean {
   if (lastSeenAt == null) return false;
   return Date.now() - lastSeenAt <= PRESENCE_THRESHOLD_MS;
+}
+
+/**
+ * Returns true if the agent is considered "working" — online and not idle in get-next-task.
+ * Working agents are shown individually (not grouped) in the sidebar.
+ */
+function isWorking(online: boolean, lastSeenAction: string | null | undefined): boolean {
+  return online && lastSeenAction !== 'get-next-task:started';
 }
 
 /** Pure helper — formats a lastSeenAt unix-ms timestamp into a human-readable "X ago" string. */
@@ -493,15 +504,15 @@ export const AgentPanel = memo(function AgentPanel({
 
   // Categorize agents by presence for grouped display
   const categorizedAgents = useMemo(() => {
-    const working: string[] = []; // task-started (shown prominently at top)
-    const online: string[] = []; // online but not working
+    const working: string[] = []; // online and not idle in get-next-task (shown individually at top)
+    const online: string[] = []; // online but idle (waiting for next task)
     const offline: string[] = []; // not seen within threshold
 
     for (const role of rolesToShow) {
       const participant = participantMap.get(role.toLowerCase());
       const online_ = isOnline(participant?.lastSeenAt);
 
-      if (online_ && participant?.lastSeenAction === 'task-started') {
+      if (isWorking(online_, participant?.lastSeenAction)) {
         working.push(role);
       } else if (online_) {
         online.push(role);
@@ -580,6 +591,7 @@ export const AgentPanel = memo(function AgentPanel({
     const participant = participantMap.get(role.toLowerCase());
     const online_ = isOnline(participant?.lastSeenAt);
     const lastSeenAction = participant?.lastSeenAction ?? null;
+    const working_ = isWorking(online_, lastSeenAction);
     const isStuck = participant?.isStuck === true;
 
     const indicatorClass = online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
@@ -588,7 +600,7 @@ export const AgentPanel = memo(function AgentPanel({
     return (
       <div key={role} className="border-b border-chatroom-border last:border-b-0">
         <div
-          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${online_ && lastSeenAction === 'task-started' ? 'bg-chatroom-status-info/5' : ''} ${isStuck ? 'bg-chatroom-status-warning/5' : ''}`}
+          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${working_ ? 'bg-chatroom-status-info/5' : ''} ${isStuck ? 'bg-chatroom-status-warning/5' : ''}`}
           role="button"
           tabIndex={0}
           aria-label={`${role}: ${statusLabel}${isStuck ? ' (stuck)' : ''}. Click to view all agents.`}
@@ -613,7 +625,7 @@ export const AgentPanel = memo(function AgentPanel({
             </div>
             <div
               className={`text-[10px] font-bold uppercase tracking-wide ${
-                online_ && lastSeenAction === 'task-started'
+                working_
                   ? 'text-chatroom-status-info animate-pulse'
                   : online_
                     ? 'text-chatroom-status-success'

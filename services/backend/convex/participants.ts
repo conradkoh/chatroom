@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { HEARTBEAT_TTL_MS } from '../config/reliability';
+import { PRESENCE_THRESHOLD_MS as PRESENCE_THRESHOLD_MS_CONFIG } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsIdle, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
@@ -246,7 +246,7 @@ export const getHighestPriorityWaitingRole = query({
     const presentParticipants = participants.filter(
       (p) =>
         p.lastSeenAt !== undefined &&
-        now - p.lastSeenAt <= HEARTBEAT_TTL_MS &&
+        now - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
         p.role.toLowerCase() !== 'user'
     );
 
@@ -292,14 +292,11 @@ export const getConnectionId = query({
 
 // ─── Team Lifecycle (lastSeenAt-based) ──────────────────────────────────────
 
-/** Minimum age of lastSeenAt before an agent is considered unresponsive. */
-const STUCK_LAST_SEEN_MS = 5 * 60 * 1000; // 5 minutes
+/** Agent is considered online if seen within this window.
+ *  Kept in sync with PRESENCE_THRESHOLD_MS in config/reliability.ts. */
+const PRESENCE_THRESHOLD_MS = PRESENCE_THRESHOLD_MS_CONFIG;
 
-/** Minimum age of acknowledgedAt before a task is flagged as stuck. */
-const STUCK_ACKNOWLEDGED_MS = 30 * 1000; // 30 seconds
-
-/** Agent is considered online if seen within this window. */
-const PRESENCE_THRESHOLD_MS = 600_000; // 10 minutes
+/** An agent with an acknowledged task is flagged as stuck when it goes offline (last seen > PRESENCE_THRESHOLD_MS). */
 
 /**
  * Get team lifecycle data for the frontend.
@@ -340,11 +337,10 @@ export const getTeamLifecycle = query({
     for (const task of acknowledgedTasks) {
       const role = task.assignedTo?.toLowerCase();
       if (!role) continue;
-      const acknowledgedAge = task.acknowledgedAt != null ? now - task.acknowledgedAt : Infinity;
-      if (acknowledgedAge < STUCK_ACKNOWLEDGED_MS) continue;
       const participant = participantByRole.get(role);
       const lastSeenAge = participant?.lastSeenAt != null ? now - participant.lastSeenAt : Infinity;
-      if (lastSeenAge >= STUCK_LAST_SEEN_MS) {
+      // Agent is stuck if it has an acknowledged task and is offline (last seen > PRESENCE_THRESHOLD_MS)
+      if (lastSeenAge >= PRESENCE_THRESHOLD_MS) {
         stuckRoles.add(role);
       }
     }
