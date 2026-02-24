@@ -198,9 +198,8 @@ export async function requireChatroomAccess(
 
 /**
  * Check if all agents in the chatroom are idle (waiting for a task).
- * An agent is considered idle if its `lastSeenAction` is 'get-next-task:started'
- * (or the legacy 'wait-for-task:started'), meaning it is sitting in the wait
- * loop and ready to receive a task.
+ * An agent is considered idle if its `lastSeenAction` is 'get-next-task:started',
+ * meaning it is sitting in the wait loop and ready to receive a task.
  * Returns false if there are no participants (vacuous false — no agents = not idle).
  */
 export async function areAllAgentsIdle(
@@ -214,10 +213,7 @@ export async function areAllAgentsIdle(
 
   if (participants.length === 0) return false;
 
-  return participants.every(
-    (p) =>
-      p.lastSeenAction === 'get-next-task:started' || p.lastSeenAction === 'wait-for-task:started' // legacy alias
-  );
+  return participants.every((p) => p.lastSeenAction === 'get-next-task:started');
 }
 
 /**

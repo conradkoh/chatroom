@@ -120,7 +120,7 @@ const SetupContent = memo(function SetupContent({ chatroomId }: { chatroomId: st
           Connection Command
         </label>
         <div className="font-mono text-[10px] text-chatroom-text-secondary break-all p-3 bg-chatroom-bg-tertiary border border-chatroom-border leading-relaxed">
-          chatroom wait-for-task --chatroom-id={chatroomId} --role=&lt;role&gt;
+          chatroom get-next-task --chatroom-id={chatroomId} --role=&lt;role&gt;
         </div>
       </div>
     </div>

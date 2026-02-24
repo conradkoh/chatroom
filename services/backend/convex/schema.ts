@@ -308,7 +308,6 @@ export default defineSchema({
     // For get-next-task (persistent connection), two distinct action names are used:
     //   "get-next-task:started" — written when the loop begins
     //   "get-next-task:stopped" — written just before the loop exits
-    // Legacy aliases: "wait-for-task:started" / "wait-for-task:stopped" also accepted
     lastSeenAction: v.optional(v.string()),
     // Timestamp of the last token output observed from the agent.
     // Written by the CLI whenever the agent produces output (throttled to once per 30s).

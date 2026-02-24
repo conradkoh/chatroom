@@ -185,7 +185,7 @@ export const ReconnectModal = memo(function ReconnectModal({
               <li>
                 Run{' '}
                 <code className="bg-chatroom-bg-tertiary px-1.5 py-0.5 text-chatroom-status-success font-mono text-[11px]">
-                  wait-for-task
+                  get-next-task
                 </code>{' '}
                 to reconnect
               </li>
