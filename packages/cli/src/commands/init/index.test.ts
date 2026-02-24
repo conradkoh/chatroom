@@ -75,6 +75,8 @@ describe('init', () => {
 
       const written = store.get(`${dir}/AGENTS.md`);
       expect(written).toBeDefined();
+      expect(written).toContain('<chatroom>');
+      expect(written).toContain('</chatroom>');
       expect(written).toContain('CHATROOM INTEGRATION');
       expect(written).toContain('Workflow Loop');
       expect(written).toContain('Reliability');
@@ -102,7 +104,9 @@ describe('init', () => {
       // Original content preserved
       expect(written).toContain('My Project');
       expect(written).toContain('Some existing content here.');
-      // Section appended
+      // Section appended with tags
+      expect(written).toContain('<chatroom>');
+      expect(written).toContain('</chatroom>');
       expect(written).toContain('CHATROOM INTEGRATION');
       expect(written).toContain('Workflow Loop');
       expect(written).toContain('Reliability');
@@ -112,10 +116,10 @@ describe('init', () => {
   });
 
   describe('file exists, section already present', () => {
-    it('replaces the section in place, file is in filesModified (not filesSkipped)', async () => {
+    it('replaces the section in place using <chatroom> tags, file is in filesModified (not filesSkipped)', async () => {
       const dir = '/fake/project';
       const oldSection =
-        '## 6. CHATROOM INTEGRATION\n\nOld content here that should be replaced.\n';
+        '<chatroom>\n## CHATROOM INTEGRATION\n\nOld content here that should be replaced.\n</chatroom>';
       const existingContent = `# My Project\n\nMain content.\n\n---\n\n${oldSection}`;
       const { store, deps } = createFakeFs({
         [`${dir}/AGENTS.md`]: existingContent,
@@ -134,15 +138,38 @@ describe('init', () => {
       expect(written).toContain('Main content.');
       // Old section content gone
       expect(written).not.toContain('Old content here that should be replaced.');
-      // New section present
+      // New section present with tags
+      expect(written).toContain('<chatroom>');
+      expect(written).toContain('</chatroom>');
       expect(written).toContain('CHATROOM INTEGRATION');
       expect(written).toContain('Workflow Loop');
       expect(written).toContain('Reliability');
       expect(written).toContain('Command Reference');
       expect(written).toContain('Context Recovery');
-      // No duplicate headings
-      const matches = (written ?? '').match(/CHATROOM INTEGRATION/g);
-      expect(matches).toHaveLength(1);
+      // No duplicate chatroom tags
+      const openMatches = (written ?? '').match(/<chatroom>/g);
+      expect(openMatches).toHaveLength(1);
+    });
+
+    it('gracefully appends when old heading-only format (no tags) is present', async () => {
+      const dir = '/fake/project';
+      // Old format: heading but no <chatroom> tags
+      const oldSection = '## 6. CHATROOM INTEGRATION\n\nOld heading-only format.\n';
+      const existingContent = `# My Project\n\nMain content.\n\n---\n\n${oldSection}`;
+      const { store, deps } = createFakeFs({
+        [`${dir}/AGENTS.md`]: existingContent,
+      });
+
+      const result = await init({ dir }, deps);
+
+      // No <chatroom> tag in old content → hasIntegrationSection returns false → append
+      expect(result.filesModified).toContain('AGENTS.md');
+
+      const written = store.get(`${dir}/AGENTS.md`);
+      expect(written).toBeDefined();
+      expect(written).toContain('<chatroom>');
+      expect(written).toContain('</chatroom>');
+      expect(written).toContain('Workflow Loop');
     });
   });
 
@@ -164,9 +191,11 @@ describe('init', () => {
       expect(result2.filesSkipped).toHaveLength(0);
 
       const finalContent = store.get(`${dir}/AGENTS.md`) ?? '';
-      // Section appears exactly once
-      const matches = finalContent.match(/CHATROOM INTEGRATION/g);
-      expect(matches).toHaveLength(1);
+      // <chatroom> tag appears exactly once
+      const openMatches = finalContent.match(/<chatroom>/g);
+      expect(openMatches).toHaveLength(1);
+      const closeMatches = finalContent.match(/<\/chatroom>/g);
+      expect(closeMatches).toHaveLength(1);
       // New section content present
       expect(finalContent).toContain('Workflow Loop');
       expect(finalContent).toContain('Context Recovery');

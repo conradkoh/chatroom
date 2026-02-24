@@ -23,7 +23,8 @@ const SUPPORTED_FILES = ['AGENTS.md', 'CLAUDE.md'] as const;
  * The Section 6 text to append.
  * Sourced from packages/cli/README.md lines 154–214 (between the ```markdown fences).
  */
-const SECTION_6_TEXT = `## CHATROOM INTEGRATION
+const SECTION_6_TEXT = `<chatroom>
+## CHATROOM INTEGRATION
 
 ### Workflow Loop
 
@@ -59,7 +60,8 @@ If you suspect compaction (context starts with "Summary of:", or you're unsure o
 
 1. Run \`get-system-prompt\` to reload full instructions
 2. Check todo list for last known step
-3. Resume with \`get-next-task\` or \`handoff\``;
+3. Resume with \`get-next-task\` or \`handoff\`
+</chatroom>`;
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -104,17 +106,18 @@ async function fileExists(fsOps: InitDeps['fs'], filePath: string): Promise<bool
 }
 
 function hasIntegrationSection(content: string): boolean {
-  // Match any heading that contains CHATROOM INTEGRATION
-  return /#+\s.*CHATROOM INTEGRATION/.test(content);
+  return content.includes('<chatroom>');
 }
 
 function replaceIntegrationSection(content: string, newSection: string): string {
-  // Find the start of the CHATROOM INTEGRATION heading
-  const match = content.match(/^#{1,6}\s.*CHATROOM INTEGRATION/m);
-  if (!match || match.index === undefined) return content + '\n\n' + newSection;
-  // Everything before the heading (strip trailing whitespace/dashes separator)
-  const before = content.slice(0, match.index).replace(/[\s\-]+$/, '');
-  return before + '\n\n---\n\n' + newSection;
+  const start = content.indexOf('<chatroom>');
+  const end = content.indexOf('</chatroom>');
+  if (start === -1 || end === -1) {
+    // Tags not found — fall back to append
+    return content + '\n\n' + newSection;
+  }
+  const before = content.slice(0, start).replace(/\s+$/, '');
+  return before + '\n\n' + newSection;
 }
 
 // ─── Entry Point ───────────────────────────────────────────────────────────
