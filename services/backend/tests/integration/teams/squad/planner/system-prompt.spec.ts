@@ -199,6 +199,8 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       **Delegation Guidelines:**
       - Break complex tasks into small, focused phases — delegate ONE phase at a time
+      - **Phase design**: each phase should be targeted and result in a working version of the code — never leave the codebase in a broken state mid-feature
+      - **Cleanup phases**: always add cleanup/refactoring phases at the end of a feature to remove scaffolding, consolidate duplication, and prevent tech debt build-up
       - Each delegation should be a single, well-scoped unit of work (e.g. one file, one feature, one fix)
       - Include acceptance criteria so team members know when they're done
       - After receiving completed work, review it before delegating the next phase
