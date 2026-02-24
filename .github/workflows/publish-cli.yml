@@ -80,7 +80,8 @@ jobs:
         run: pnpm install
 
       - name: Build CLI (with dependencies)
-        run: npx nx run @workspace/cli:build
+        run: pnpm build
+        working-directory: packages/cli
 
       - name: Publish to npm
         working-directory: packages/cli
