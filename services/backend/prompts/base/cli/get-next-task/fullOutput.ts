@@ -328,28 +328,69 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       })
     );
 
-    let nextStepNum = 2;
-    if (isEntryPoint) {
+    if (role === 'planner') {
+      // Planner role receiving a new user task — show phase-planning loop
+      lines.push('');
+      lines.push('**Phase Planning Loop:**');
+      lines.push('```');
+      lines.push('@startuml');
+      lines.push('start');
+      lines.push(':Classify and understand the task;');
+      lines.push(':Break task into phases;');
+      lines.push('repeat');
+      lines.push('  :Delegate ONE phase to builder;');
+      lines.push('  :Builder completes phase;');
+      lines.push("  :Review builder's work;");
+      lines.push('  if (phase accepted?) then (yes)');
+      lines.push('  else (no)');
+      lines.push('    :Send back with feedback;');
+      lines.push('  endif');
+      lines.push('repeat while (more phases?) is (yes)');
+      lines.push('->no;');
+      lines.push(':Deliver final result to user;');
+      lines.push('stop');
+      lines.push('@enduml');
+      lines.push('```');
       lines.push('');
       lines.push(
-        `${nextStepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
+        `2. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
       );
+      lines.push('3. Delegate phase 1 to builder:');
+      lines.push('```');
+      lines.push(
+        `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=builder << 'EOF'`
+      );
+      lines.push('---MESSAGE---');
+      lines.push('[Your message here]');
+      lines.push('EOF');
+      lines.push('```');
+      if (availableHandoffTargets.length > 0) {
+        lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
+      }
+    } else {
+      // Non-coordinator role receiving a user message (entry-point implementer or non-entry-point)
+      let nextStepNum = 2;
+      if (isEntryPoint) {
+        lines.push('');
+        lines.push(
+          `${nextStepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
+        );
+        nextStepNum++;
+      }
+      lines.push(`${nextStepNum}. Do the work → follow PROCESS above`);
       nextStepNum++;
-    }
-
-    lines.push(`${nextStepNum}. Do the work → follow PROCESS above`);
-    nextStepNum++;
-    lines.push(`${nextStepNum}. Hand off when complete:`);
-    lines.push('```');
-    lines.push(
-      `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
-    );
-    lines.push('---MESSAGE---');
-    lines.push('[Your message here]');
-    lines.push('EOF');
-    lines.push('```');
-    if (availableHandoffTargets.length > 0) {
-      lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
+      lines.push(`${nextStepNum}. Hand off when complete:`);
+      lines.push('```');
+      lines.push(
+        `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
+      );
+      lines.push('---MESSAGE---');
+      lines.push('[Your message here]');
+      lines.push('EOF');
+      lines.push('```');
+      if (availableHandoffTargets.length > 0) {
+        lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
+      }
     }
   } else if (message) {
     lines.push('');

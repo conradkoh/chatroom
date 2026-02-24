@@ -128,13 +128,33 @@ describe('Squad Team > Planner > Get Next Task', () => {
       <tech-specs>
       EOF
 
+      **Phase Planning Loop:**
+      \`\`\`
+      @startuml
+      start
+      :Classify and understand the task;
+      :Break task into phases;
+      repeat
+        :Delegate ONE phase to builder;
+        :Builder completes phase;
+        :Review builder's work;
+        if (phase accepted?) then (yes)
+        else (no)
+          :Send back with feedback;
+        endif
+      repeat while (more phases?) is (yes)
+      ->no;
+      :Deliver final result to user;
+      stop
+      @enduml
+      \`\`\`
+
       2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="planner" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
-      3. Do the work → follow PROCESS above
-      4. Hand off when complete:
+      3. Delegate phase 1 to builder:
       \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role=<target> << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role=builder << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
