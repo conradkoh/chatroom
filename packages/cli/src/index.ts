@@ -709,6 +709,17 @@ artifactCommand
     });
   });
 
+program
+  .command('get-system-prompt')
+  .description('Fetch the system prompt for your role in a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role (e.g., planner, builder, reviewer)')
+  .action(async (options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+    const { getSystemPrompt } = await import('./commands/get-system-prompt/index.js');
+    await getSystemPrompt(options.chatroomId, { role: options.role });
+  });
+
 // ============================================================================
 // MACHINE COMMANDS (auth required)
 // ============================================================================
