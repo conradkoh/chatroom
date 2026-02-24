@@ -470,7 +470,6 @@ interface MessageItemProps {
   message: Message;
   onFeatureClick?: (message: Message) => void;
   onAttachedTaskClick?: (task: AttachedTask) => void;
-  onMessageContentClick?: (message: Message) => void;
 }
 
 // System notification message (e.g. context change)
@@ -540,7 +539,6 @@ const MessageItem = memo(function MessageItem({
   message,
   onFeatureClick,
   onAttachedTaskClick,
-  onMessageContentClick,
 }: MessageItemProps) {
   // Check if this is a new_feature message with a title
   const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
@@ -550,13 +548,6 @@ const MessageItem = memo(function MessageItem({
       onFeatureClick(message);
     }
   }, [hasFeatureTitle, onFeatureClick, message]);
-
-  // Handle message content click for user messages
-  const handleContentClick = useCallback(() => {
-    if (message.senderRole.toLowerCase() === 'user' && onMessageContentClick) {
-      onMessageContentClick(message);
-    }
-  }, [message, onMessageContentClick]);
 
   // Render new-context messages as sticky visual dividers (after all hooks)
   if (message.type === 'new-context') {
@@ -569,7 +560,7 @@ const MessageItem = memo(function MessageItem({
   const isUserMessage = message.senderRole.toLowerCase() === 'user';
 
   return (
-    <div className="px-4 py-3 border-b-2 border-chatroom-border transition-all duration-100 last:border-b-0 bg-transparent hover:bg-chatroom-accent-subtle">
+    <div className="px-4 py-3 border-b-2 border-chatroom-border last:border-b-0 bg-transparent">
       {/* Message Header - only show for non-user messages (user message info is in TaskHeader) */}
       {!isUserMessage && (
         <div className="flex justify-between items-center mb-2 pb-1.5 border-b transition-colors border-chatroom-border">
@@ -613,17 +604,11 @@ const MessageItem = memo(function MessageItem({
       )}
       {/* Message Content - truncated for user messages, full for others */}
       {isUserMessage ? (
-        <button
-          onClick={handleContentClick}
-          className="w-full text-left cursor-pointer hover:bg-chatroom-accent-subtle transition-colors -mx-2 px-2 py-1 rounded"
-        >
-          <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-hidden line-clamp-2 prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:my-0 prose-p:my-0 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:hidden prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-table:hidden prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
-            <Markdown remarkPlugins={REMARK_PLUGINS} components={baseMarkdownComponents}>
-              {message.content}
-            </Markdown>
-          </div>
-          <span className="text-[10px] text-chatroom-text-muted mt-1 block">Tap to expand</span>
-        </button>
+        <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:my-0 prose-p:my-0 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:hidden prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-table:hidden prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:my-0 prose-ul:my-0 prose-ol:my-0 prose-li:my-0">
+          <Markdown remarkPlugins={REMARK_PLUGINS} components={baseMarkdownComponents}>
+            {message.content}
+          </Markdown>
+        </div>
       ) : (
         <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
           <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
@@ -936,7 +921,6 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
               message={message}
               onFeatureClick={handleFeatureClick}
               onAttachedTaskClick={handleAttachedTaskClick}
-              onMessageContentClick={handleMessageDetailClick}
             />
           </React.Fragment>
         ))}
