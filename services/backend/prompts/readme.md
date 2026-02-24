@@ -14,7 +14,7 @@ prompts/
 │   │   │   └── command.ts       # Command generator
 │   │   ├── handoff/
 │   │   │   └── command.ts       # Command generator
-│   │   └── wait-for-task/
+│   │   └── get-next-task/
 │   │       └── command.ts       # Command generator
 │   ├── roles/          # Role definitions (builder, reviewer)
 │   ├── workflows/      # Workflow definitions
@@ -27,43 +27,44 @@ prompts/
 ## Command Generators
 
 Each CLI command has a `command.ts` file that generates command strings. This ensures:
+
 - **Single source of truth** for command format
 - **Type safety** via discriminated unions
 - **No drift** between prompts and actual CLI
 
 ### Available Commands
 
-| Command | Generator | Description |
-|---------|-----------|-------------|
-| `task-started` | `base/cli/task-started/command.ts` | Acknowledge and classify a task |
-| `handoff` | `base/cli/handoff/command.ts` | Complete task and hand off to next role |
-| `wait-for-task` | `base/cli/wait-for-task/command.ts` | Wait for incoming tasks |
+| Command         | Generator                           | Description                             |
+| --------------- | ----------------------------------- | --------------------------------------- |
+| `task-started`  | `base/cli/task-started/command.ts`  | Acknowledge and classify a task         |
+| `handoff`       | `base/cli/handoff/command.ts`       | Complete task and hand off to next role |
+| `get-next-task` | `base/cli/get-next-task/command.ts` | Wait for incoming tasks                 |
 
 ### Usage
 
 ```typescript
 import { taskStartedCommand } from './base/cli/task-started/command.js';
 import { handoffCommand } from './base/cli/handoff/command.js';
-import { waitForTaskCommand } from './base/cli/wait-for-task/command.js';
+import { getNextTaskCommand } from './base/cli/get-next-task/command.js';
 
 // Examples with placeholders (for documentation)
-taskStartedCommand({ type: 'example' })
+taskStartedCommand({ type: 'example' });
 // → "chatroom task-started <chatroom-id> --role=<role> --task-id=<task-id> ..."
 
-handoffCommand({ type: 'example' })
+handoffCommand({ type: 'example' });
 // → "chatroom handoff <chatroom-id> --role=<role> --message-file=<message-file> --next-role=<target>"
 
-waitForTaskCommand({ type: 'example' })
-// → "chatroom wait-for-task <chatroom-id> --role=<role>"
+getNextTaskCommand({ type: 'example' });
+// → "chatroom get-next-task <chatroom-id> --role=<role>"
 
 // Commands with real values (for actual prompts)
-taskStartedCommand({ 
-  type: 'command', 
-  chatroomId: 'abc', 
-  role: 'builder', 
-  taskId: 'xyz', 
-  classification: 'question' 
-})
+taskStartedCommand({
+  type: 'command',
+  chatroomId: 'abc',
+  role: 'builder',
+  taskId: 'xyz',
+  classification: 'question',
+});
 // → "chatroom task-started abc --role=builder --task-id=xyz --origin-message-classification=question"
 ```
 
