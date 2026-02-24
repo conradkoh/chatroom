@@ -278,6 +278,11 @@ describe('Pair Team > Reviewer > System Prompt', () => {
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
+      **Re-fetch your system prompt (after context reset):**
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id=10002;chatroom_rooms --role=reviewer
+      \`\`\`
+
       ### Next
 
       Run:

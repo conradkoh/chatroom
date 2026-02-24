@@ -359,6 +359,11 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
+      **Re-fetch your system prompt (after context reset):**
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id=10002;chatroom_rooms --role=builder
+      \`\`\`
+
       ### Next
 
       Run:
@@ -1561,6 +1566,11 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
+      **Re-fetch your system prompt (after context reset):**
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id=10087;chatroom_rooms --role=reviewer
+      \`\`\`
+
       ### Next
 
       Run:
@@ -1935,6 +1945,11 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
+      **Re-fetch your system prompt (after context reset):**
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id=10102;chatroom_rooms --role=builder
+      \`\`\`
+
       ### Next
 
       Run:
@@ -2198,6 +2213,11 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       \`\`\`
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+      **Re-fetch your system prompt (after context reset):**
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id=10107;chatroom_rooms --role=reviewer
+      \`\`\`
 
       ### Next
 

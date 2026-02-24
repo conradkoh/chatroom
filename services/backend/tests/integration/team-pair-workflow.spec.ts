@@ -240,7 +240,12 @@ Test technical specifications`,
         chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=builder
         \`\`\`
 
-        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you"
+        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+        **Re-fetch your system prompt (after context reset):**
+        \`\`\`
+        chatroom get-system-prompt --chatroom-id=10002;chatroom_rooms --role=builder
+        \`\`\`"
       `);
 
       // ========================================
@@ -484,7 +489,12 @@ Test technical specifications`,
         chatroom get-next-task --chatroom-id=10002;chatroom_rooms --role=reviewer
         \`\`\`
 
-        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you"
+        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+        **Re-fetch your system prompt (after context reset):**
+        \`\`\`
+        chatroom get-system-prompt --chatroom-id=10002;chatroom_rooms --role=reviewer
+        \`\`\`"
       `);
 
       // ========================================
@@ -723,7 +733,12 @@ Test technical specifications`,
         chatroom get-next-task --chatroom-id=10028;chatroom_rooms --role=builder
         \`\`\`
 
-        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you"
+        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+
+        **Re-fetch your system prompt (after context reset):**
+        \`\`\`
+        chatroom get-system-prompt --chatroom-id=10028;chatroom_rooms --role=builder
+        \`\`\`"
       `);
 
       // Builder hands off directly to user (should succeed)
