@@ -110,6 +110,57 @@ describe('readContext', () => {
       expect(output).toContain('Hello');
     });
 
+    it('shows "To: <role>" when message has targetRole', async () => {
+      const deps = createMockDeps();
+      (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue({
+        messages: [
+          {
+            _id: 'msg_handoff',
+            _creationTime: Date.now(),
+            senderRole: 'planner',
+            targetRole: 'builder',
+            type: 'handoff',
+            content: 'Handing off to builder',
+          },
+        ],
+        pendingTasksForRole: 0,
+        originMessage: null,
+        classification: null,
+      });
+
+      await readContext(TEST_CHATROOM_ID, { role: 'planner' }, deps);
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      const output = getAllLogOutput();
+      expect(output).toContain('From: planner');
+      expect(output).toContain('To: builder');
+    });
+
+    it('does not show "To:" line when message has no targetRole', async () => {
+      const deps = createMockDeps();
+      (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue({
+        messages: [
+          {
+            _id: 'msg_1',
+            _creationTime: Date.now(),
+            senderRole: 'planner',
+            type: 'text',
+            content: 'Hello',
+          },
+        ],
+        pendingTasksForRole: 0,
+        originMessage: null,
+        classification: null,
+      });
+
+      await readContext(TEST_CHATROOM_ID, { role: 'planner' }, deps);
+
+      expect(exitSpy).not.toHaveBeenCalled();
+      const output = getAllLogOutput();
+      expect(output).toContain('From: planner');
+      expect(output).not.toContain('To:');
+    });
+
     it('shows no context available when messages array is empty', async () => {
       const deps = createMockDeps();
       (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue({
