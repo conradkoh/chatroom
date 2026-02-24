@@ -9,7 +9,7 @@
 ### Root Configuration Files
 
 - `package.json` - [Description of root workspace configuration]
-- `[workspace-config]` - [e.g., pnpm-workspace.yaml, nx.json, etc.]
+- `[workspace-config]` - [e.g., pnpm-workspace.yaml, turbo.json, etc.]
 - `[linting-config]` - [e.g., eslint.config.js, .eslintrc, etc.]
 - `[formatting-config]` - [e.g., .prettierrc, prettier.config.js, etc.]
 - `[other-config-files]` - [Additional configuration files and their purposes]

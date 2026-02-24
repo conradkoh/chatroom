@@ -1,305 +1,212 @@
-# Chatroom
+# NextJS Convex Starter App
 
-A multi-agent chatroom collaboration tool. Enables users and AI agents to interact in real-time with role-based turn management and team coordination.
+This is a starter application using NextJS and Convex, managed with Turbo for monorepo capabilities.
 
-## Quick Start
+## Getting Started
 
-### 1. Install the CLI
-
-```bash
-npm install -g chatroom-cli@latest
-```
-
-This makes the `chatroom` command available globally.
-
-### 2. Login with the Web App
-
-Go to [chatroom.duskfare.com](https://chatroom.duskfare.com) and login with an anonymous account.
-
-### 3. Authenticate the CLI
-
-```bash
-chatroom auth login
-```
-
-This opens your browser for authentication. Confirm in the browser to complete the login.
-
-### 4. Create a Chatroom
-
-In the web app, click **+ New** and select a team:
-
-- **Pair** - builder, reviewer
-- **Squad** - manager, architect, builder, frontend-designer, reviewer, tester
-
-### 5. Initialize Agents
-
-Copy the agent prompt from the web UI sidebar and paste it into your AI assistant. The prompt includes the `get-next-task` command that the agent will use to join.
-
-Each agent needs:
-
-```bash
-CHATROOM_CONVEX_URL=https://wonderful-raven-192.convex.cloud \
-chatroom get-next-task --chatroom-id=<chatroom-id> --role=<role>
-```
-
-### 6. Send a Task
-
-Once all agents have joined (team shows as "ready"), type your task in the message box and press Enter.
-
----
-
-## Command Reference
-
-### Authentication Commands
-
-| Command                | Description                          |
-| ---------------------- | ------------------------------------ |
-| `chatroom auth login`  | Authenticate CLI via browser         |
-| `chatroom auth logout` | Logout and clear authentication data |
-| `chatroom auth status` | Check current authentication status  |
-
-### User Commands
-
-| Command               | Description                          |
-| --------------------- | ------------------------------------ |
-| `chatroom update`     | Update the CLI to the latest version |
-| `chatroom guidelines` | Display development guidelines       |
-
-### Agent Commands
-
-> **Note:** Agent commands require the `CHATROOM_CONVEX_URL` environment variable. Set it to the Convex backend URL (e.g., `https://wonderful-raven-192.convex.cloud`).
-
-| Command                                                                                                        | Description                                                           |
-| -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `chatroom get-next-task --chatroom-id=<id> --role=<role>`                                                      | Join chatroom and wait for tasks                                      |
-| `chatroom task-started --chatroom-id=<id> --role=<role> --task-id=<id> --origin-message-classification=<type>` | Acknowledge and classify a task (question, new_feature, or follow_up) |
-| `chatroom task-complete --chatroom-id=<id> --role=<role>`                                                      | Mark task as complete without handing off                             |
-| `chatroom report-progress --chatroom-id=<id> --role=<role>`                                                    | Send progress update on current task (message via stdin)              |
-| `chatroom handoff --chatroom-id=<id> --role=<role> --next-role=<role>`                                         | Complete task and hand off to next role (message via stdin)           |
-| `chatroom context read --chatroom-id=<id> --role=<role>`                                                       | View chatroom conversation history                                    |
-| `chatroom messages list --chatroom-id=<id> --role=<role>`                                                      | List and filter chatroom messages                                     |
-
-### Backlog Commands
-
-| Command                                                                            | Description                              |
-| ---------------------------------------------------------------------------------- | ---------------------------------------- |
-| `chatroom backlog list --chatroom-id=<id> --role=<role> --status=<status>`         | List tasks in backlog (filter by status) |
-| `chatroom backlog add --chatroom-id=<id> --role=<role> --content="..."`            | Add a task to the backlog                |
-| `chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --task-id=<id>` | Mark backlog item for user review        |
-
-### Machine Daemon Commands
-
-The machine daemon enables remote agent control from the web UI. It listens for commands sent to your registered machine and spawns agent processes automatically.
-
-| Command                          | Description                                    |
-| -------------------------------- | ---------------------------------------------- |
-| `chatroom machine daemon start`  | Start the daemon to listen for remote commands |
-| `chatroom machine daemon stop`   | Stop the running daemon                        |
-| `chatroom machine daemon status` | Check if the daemon is running                 |
-
-**How it works:**
-
-1. When you run `get-next-task`, your machine is automatically registered with the backend
-2. The daemon polls for commands (e.g., "start agent") sent from the web UI
-3. Agent harnesses (e.g., OpenCode) are detected and spawned as needed
-
-> **Note:** Chatrooms are created via the WebUI.
-
----
-
-## Key Concepts
-
-### Agent Harness
-
-An **agent harness** is the AI development environment that runs an agent (e.g., OpenCode, Cursor). We use "harness" instead of "tool" to avoid confusion with AI tools (read file, web search, etc.).
-
-### Machine Identity
-
-Each machine that runs the CLI is automatically registered with a stable UUID stored in `~/.chatroom/machine.json`. This enables:
-
-- Remote agent control from the web UI
-- Machine-specific agent configuration
-- Daemon-based command processing
-
-### Agent Status FSM
-
-The system maintains an explicit agent status state machine that tracks the full lifecycle:
-
-| Status               | Description                                                |
-| -------------------- | ---------------------------------------------------------- |
-| `offline`            | Agent has never connected or has been explicitly stopped   |
-| `ready`              | Agent is connected and awaiting tasks                      |
-| `working`            | Agent is actively processing a task                        |
-| `dead`               | Agent has stopped responding and is being restarted        |
-| `restarting`         | Daemon is attempting to restart the agent                  |
-| `dead_failed_revive` | All restart attempts failed - manual intervention required |
-
-The UI always shows an authoritative, real-time status derived from this FSM rather than computing it ad-hoc.
-
----
-
-## How It Works
-
-### Role Hierarchy
-
-Messages are routed by priority (lower = higher priority):
-
-| Priority | Role              |
-| -------- | ----------------- |
-| 0        | manager           |
-| 1        | architect         |
-| 2        | builder           |
-| 3        | frontend-designer |
-| 4        | reviewer          |
-| 5        | tester            |
-| 100      | user              |
-
-**Note:** User messages always go to the team's designated entry point role (e.g., `builder` for pair, `manager` for squad).
-
-### Self-Healing
-
-The system includes automatic recovery mechanisms:
-
-- **Daemon self-healing** — A daemon that resumes heartbeating after a transient disconnect automatically recovers its connected status
-- **Participant self-healing** — A CLI agent whose participant record was deleted by cleanup automatically re-joins via the heartbeat signal
-- **Agent crash recovery** — The daemon automatically restarts agents that crash, showing "RESTARTING" status until successful or "DEAD (UNRECOVERABLE)" after all attempts fail
-
-### Workflow
-
-1. User creates chatroom and sends a task
-2. Highest-priority agent receives the message
-3. Agent completes work and hands off to next role
-4. Process repeats until `--next-role=user`
-
-```
-User → Builder → Reviewer → User
-```
-
----
-
-## Project Structure
-
-```
-chatroom/
-├── apps/webapp/          # Web application (chatroom.duskfare.com)
-├── docs/                 # Documentation and design plans
-│   └── plans/            # Numbered feature plans (PRD, architecture, phases)
-├── packages/cli/         # CLI package (chatroom-cli on npm)
-└── services/backend/     # Convex backend
-```
-
-## Architecture Highlights
-
-### Agent Lifecycle
-
-The backend maintains a formal agent status FSM that tracks:
-
-1. `offline` → `ready` (agent connects)
-2. `ready` → `working` (task received)
-3. `working` → `ready` (task complete)
-4. Any state → `dead` (timeout detected)
-5. `dead` → `restarting` (daemon attempts recovery)
-6. `restarting` → `ready` (recovery successful) or `dead_failed_revive` (all attempts failed)
-
-## Development
-
-### Prerequisites
+### Pre-requisites
 
 - Node.js 22 or later
 - pnpm package manager
+- Convex account - Register at https://www.convex.dev/
 
 ### Setup
 
-1. Run `pnpm install` to install dependencies
-2. Run `pnpm run setup` to initialize the Convex backend
-3. Run `pnpm dev` to start the development server
+1. Run `pnpm install` to install the dependencies
+2. Run `pnpm run setup` to initialize the Convex backend and configure the webapp
 
----
+   This script will:
+   - **Check and update branding** - Detects if you're using template branding and prompts you to customize:
+     - Application name and short name
+     - App description
+     - Landing page title
+     - Package name
+   - Initialize the Convex backend using `npx convex dev --once`
+   - Extract the CONVEX_URL from the backend's .env.local file
+   - Create/update the webapp's .env.local file with the NEXT_PUBLIC_CONVEX_URL
 
-## Local Development with CLI
+   The setup script is **idempotent** - you can run it multiple times safely. It will:
+   - Show ✅ CONFIGURED for branding that's already customized
+   - Show ⚠️ TEMPLATE for branding that still uses default values
+   - Only prompt for updates if template values are detected
 
-This section covers running a fully local setup where the CLI connects to your local backend instead of production.
+   **Non-Interactive Mode**: For CI/CD or automated setups:
 
-### 1. Start Local Services
+   ```bash
+   node scripts/setup.js --non-interactive \
+     --app-name "My App" \
+     --app-short-name "MyApp" \
+     --app-description "Description" \
+     --landing-page-title "Welcome" \
+     --package-name "my-app"
 
-Start the Convex backend and webapp:
+   # Or skip branding entirely
+   node scripts/setup.js --skip-branding
+
+   # Show all options
+   node scripts/setup.js --help
+   ```
+
+3. Run `pnpm dev` in the root directory to start the NextJS application and Convex backend
+
+#### Manual Setup (Alternative)
+
+If you prefer to set up manually:
+
+1. Go to `services/backend` and run `npx convex dev --once` - this should prompt you to login to Convex and create a new project.
+   Note: This will create a .env.local file with the CONVEX_URL environment variable.
+2. Create a `.env.local` file in the `apps/webapp` directory and add the following:
+   ```sh
+   NEXT_PUBLIC_CONVEX_URL=<your-convex-project-url> # copy this from the backend .env.local file
+   ```
+3. Run `pnpm dev` in the root directory to start both services
+
+## System Administration Setup
+
+To create a system administrator:
+
+1. **Login anonymously** via the login page
+2. **Set admin privileges** in [Convex Dashboard](https://dashboard.convex.dev):
+   - Go to Data > `users` table
+   - Find your user record and set `accessLevel` to `"system_admin"`
+3. **Access admin dashboard** by clicking your username → "System Admin"
+
+System admins can configure Google OAuth, manage authentication providers, and access system settings.
+
+## Google Auth Setup
+
+To enable Google OAuth authentication:
+
+1. **Configure Google OAuth** in your app's admin dashboard:
+   - Login with your system admin account
+   - Go to your username → "System Admin" → "Google Auth Config"
+   - Follow the instructions to set up Google OAuth credentials
+2. **Transfer admin role to Google account** (Recommended):
+   - After Google Auth is configured, sign in with your Google account
+   - In [Convex Dashboard](https://dashboard.convex.dev), go to Data > `users` table
+   - Find your Google account user record and set `accessLevel` to `"system_admin"`
+   - Remove the `system_admin` access level from the temporary anonymous account
+
+This ensures your system admin access is tied to a verified Google account for better security.
+
+## Project Structure
+
+- `apps/webapp`: The frontend NextJS application
+- `services/backend`: The Convex backend service
+
+## Development
+
+To run both the frontend and backend in parallel:
 
 ```bash
-# Terminal 1: Start backend
-pnpm dev
+pnpm run dev
 ```
 
-This starts:
+This will start:
 
-- **Convex backend** at `http://127.0.0.1:3210`
-- **Webapp** at `http://localhost:3000`
+- The webapp at http://localhost:3000
+- The Convex backend development server
 
-### 2. Install CLI Locally
+## Testing
 
-Link the CLI package for local development:
+This project uses [Vitest](https://vitest.dev/) for testing across both frontend and backend.
+
+### Quick Start
+
+Run all tests:
 
 ```bash
-cd packages/cli
-pnpm link --global
+pnpm test
 ```
 
-Or install from npm if you don't need to modify the CLI:
+Run tests in watch mode:
 
 ```bash
-npm install -g chatroom-cli@latest
+pnpm test:watch
 ```
 
-### 3. Authenticate CLI with Local Backend
+For comprehensive testing guidelines, conventions, and examples, see the [Testing Guide](guides/testing/testing.md).
 
-When connecting to a local backend, you must set both environment variables:
+## Turbo Configuration
 
-```bash
-CHATROOM_WEB_URL=http://localhost:3000 \
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 \
-chatroom auth login
-```
+This project uses Turbo to manage the monorepo and run tasks in parallel. The main configuration files are:
 
-This opens the local webapp for authentication. You need to be logged in to the local webapp first.
+- `turbo.json`: Main Turbo configuration
+- `apps/webapp/package.json`: Webapp project configuration
+- `services/backend/package.json`: Backend project configuration
 
-### 4. Run CLI Commands
+The dev command is configured to run both services in parallel without dependencies between them, allowing for independent development.
 
-For all subsequent CLI commands, prefix with the Convex URL:
+## Adding New Projects
 
-```bash
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=<chatroom-id> --role=builder
-```
+To add a new project to the monorepo:
 
-### Environment Variables
+1. Create the project in the appropriate directory (`apps/` or `services/`)
+2. Add a `project.json` file to define the project's targets
+3. Update the root `package.json` to include the new project in the dev command if needed
 
-| Variable              | Description                         | Example                 |
-| --------------------- | ----------------------------------- | ----------------------- |
-| `CHATROOM_CONVEX_URL` | Override the Convex backend URL     | `http://127.0.0.1:3210` |
-| `CHATROOM_WEB_URL`    | Override the webapp URL (auth only) | `http://localhost:3000` |
+## Deployment
 
-**Note:** Sessions are stored per Convex URL. You can be authenticated to both production and local backends simultaneously.
+### Convex Backend Deployment
 
-### Quick Reference
+To deploy your Convex backend to production:
 
-```bash
-# Auth login (local)
-CHATROOM_WEB_URL=http://localhost:3000 \
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 \
-chatroom auth login
+1. Generate a deployment key from the Convex dashboard:
+   - Go to your project in the [Convex dashboard](https://dashboard.convex.dev)
+   - Navigate to Settings > URL & Deploy Key
+   - Create a new deployment key
 
-# Check auth status
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom auth status
+2. Add the deployment key to GitHub Secrets:
+   - Go to your GitHub repository
+   - Navigate to Settings > Secrets and variables > Actions
+   - Click "New repository secret"
+   - Name: `CONVEX_DEPLOY_KEY_PROD`
+   - Value: Your deployment key from the Convex dashboard
 
-# Get next task (local)
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id=<id> --role=builder
+3. The GitHub Action workflow included in this template will handle deployment of your Convex backend automatically when you push to the main branch.
 
-# Handoff (local)
-CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id=<id> --role=builder --next-role=reviewer << 'EOF'
-[Your handoff message here]
-EOF
-```
+This setup allows for secure automated deployments of your Convex functions and schema without exposing your credentials.
 
----
+### Vercel Frontend Deployment
 
-## License
+To deploy your NextJS frontend to Vercel:
 
-MIT
+1. Navigate to your Convex dashboard:
+   - Go to [Convex dashboard](https://dashboard.convex.dev)
+   - Navigate to Settings > URL & Deploy Key
+   - Copy the Deployment URL
+
+2. Set up the Vercel deployment
+   - Go to the Vercel dashboard
+   - Navigate to Project Settings > Build and Deployment > Root Directory
+     - Set the Root Directory to `apps/webapp`
+   - Navigate to Project Settings > Environment Variables
+     - Add a new variable:
+     - Name: `NEXT_PUBLIC_CONVEX_URL`
+     - Value: Paste the Deployment URL you copied from Convex
+
+3. Deploy your NextJS application to Vercel as usual.
+
+<br/>
+
+# FAQ
+
+## Why Convex?
+
+Convex is chosen as the backend service for the following reasons:
+
+1. **Simplicity of code generation and architecture**
+
+   Convex follows a reactive paradigm that allows reactive queries from the client to cause automatic re-renders when a dataset has been updated. This significantly reduces complexity and amount of code required, while solving the problem of cache invalidation.
+
+   Simple and less code required for a feature also means fewer chances for AI generated code to be incorrect.
+
+2. **Transactionality and consistency**
+
+   All convex mutations run "inside" of the database. Any error thrown in the mutation will result in an automatic rollback. This ensures that we are able to use a single language for both querying data and business logic, while maintaining transactionality.
+
+3. **Simple end to end reactivity**
+
+   Many platforms offer subscription to DB events (e.g. firebase, supabase). However, it still leaves a significant amount of code to transform the event into the actual state for your application. Convex solves this by simply providing the full state for the query's data, and does a re-render of that state when the data has been updated.
+
+4. **Single language for frontend and backend**

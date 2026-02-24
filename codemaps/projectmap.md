@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A full-stack web application starter template built with Next.js and Convex, featuring real-time capabilities, authentication, and modern development tools. The project includes functionality for presentations, discussions, attendance tracking, checklists, and user management with a monorepo structure managed by NX and pnpm workspaces.
+A full-stack web application starter template built with Next.js and Convex, featuring real-time capabilities, authentication, and modern development tools. The project includes functionality for presentations, discussions, attendance tracking, checklists, and user management with a monorepo structure managed by Turbo and pnpm workspaces.
 
 ## Project Structure
 
@@ -10,7 +10,7 @@ A full-stack web application starter template built with Next.js and Convex, fea
 
 - `package.json` - Root workspace configuration with development scripts, dependencies, and workspace orchestration
 - `pnpm-workspace.yaml` - pnpm workspace configuration defining packages in `apps/*` and `services/*`
-- `nx.json` - NX monorepo configuration for task orchestration and caching
+- `turbo.json` - Turbo monorepo configuration for task orchestration and caching
 - `eslint.config.mjs` - ESLint configuration for linting with strict TypeScript, React, and Convex rules
 - `.github/` - GitHub workflows, issue templates, and project automation
 
@@ -206,7 +206,7 @@ A full-stack web application starter template built with Next.js and Convex, fea
 
 ### Development Tools
 
-- **NX** (v21.4.1) - Build system and monorepo orchestration with caching and task scheduling
+- **Turbo** (v2.4.4) - Build system and monorepo orchestration with caching and task scheduling
 - **Vite** (v6.3.5) - Build tool and development server for fast hot module replacement
 - **Vitest** (v3.1.3) - Testing framework with TypeScript support and Vite integration
 

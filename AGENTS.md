@@ -164,15 +164,15 @@ pnpm lint:fix
 pnpm format:fix
 ```
 
-### Nx Commands
+### Turbo Commands
 
 ```bash
 # Run a target on specific project
-nx run @workspace/webapp:dev
-nx run @workspace/backend:typecheck
+turbo run dev --filter=webapp
+turbo run typecheck --filter=backend
 
 # Run many targets
-nx run-many --target=test --projects=@workspace/webapp,@workspace/backend
+turbo run test --filter=webapp --filter=backend
 ```
 
 ---

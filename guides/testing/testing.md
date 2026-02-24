@@ -18,14 +18,13 @@ This project uses [Vitest](https://vitest.dev/) for testing across both frontend
 - **Framework**: [Vitest](https://vitest.dev/) v4.0.6
 - **Frontend**: React Testing Library, jsdom
 - **Backend**: convex-test (for Convex function testing)
-- **Test Runner**: NX (monorepo task runner)
+- **Test Runner**: Turbo (monorepo task runner)
 
 ### Test File Naming Conventions
 
 - **Frontend**: Use `.test.tsx` or `.spec.tsx` extension
   - Place test files next to the component/utility being tested
   - Example: `button.tsx` → `button.test.tsx`
-  
 - **Backend**: Use `.spec.ts` extension
   - Place test files in the same directory as the module being tested
   - Example: `convex/auth.ts` → `convex/auth.spec.ts`
@@ -66,6 +65,7 @@ cd apps/webapp && pnpm test:ui
 ### Setup
 
 Frontend tests are configured in `apps/webapp/vitest.config.ts`:
+
 - **Environment**: jsdom (simulates browser DOM)
 - **Test Utilities**: Available in `apps/webapp/src/test-utils.tsx`
 - **Path Aliases**: `@/*` resolves to `apps/webapp/src/*`
@@ -87,10 +87,10 @@ describe('ComponentName', () => {
   it('should handle user interactions', async () => {
     const handleClick = vi.fn();
     const user = userEvent.setup();
-    
+
     render(<ComponentName onClick={handleClick} />);
     const button = screen.getByRole('button');
-    
+
     await user.click(button);
     expect(handleClick).toHaveBeenCalledTimes(1);
   });
@@ -175,6 +175,7 @@ Client components (`'use client'`) can be tested normally with React Testing Lib
 #### Testing Server Components
 
 Server components require special handling. Consider:
+
 - Testing the rendered output
 - Testing client components that use server component data
 - Using integration tests for full page flows
@@ -216,6 +217,7 @@ vi.mock('convex-helpers/react/sessions', () => ({
 ### Setup
 
 Backend tests are configured in `services/backend/vitest.config.mts`:
+
 - **Environment**: edge-runtime (matches Convex runtime)
 - **Test Helper**: `t` exported from `services/backend/test.setup.ts`
 - **Schema**: Automatically loaded from `convex/schema.ts`
@@ -230,10 +232,10 @@ import { api } from './_generated/api';
 test('functionName', async () => {
   // Arrange: Set up test data
   const sessionId = '123' as SessionId;
-  
+
   // Act: Call the function
   const result = await t.mutation(api.module.functionName, { sessionId, arg: 'value' });
-  
+
   // Assert: Verify the result
   expect(result).toBeDefined();
   expect(result.success).toBe(true);
@@ -275,10 +277,10 @@ import { api } from './_generated/api';
 test('loginAnon - creates new user when session is new', async () => {
   // Arrange
   const sessionId = 'test-session-123' as SessionId;
-  
+
   // Act
   const login = await t.mutation(api.auth.loginAnon, { sessionId });
-  
+
   // Assert
   expect(login.success).toBe(true);
   expect(login.userId).toBeDefined();
@@ -289,10 +291,10 @@ test('getState - returns authenticated state after login', async () => {
   const sessionId = 'test-session-456' as SessionId;
   const login = await t.mutation(api.auth.loginAnon, { sessionId });
   const userId = login.userId;
-  
+
   // Act
   const loginState = await t.query(api.auth.getState, { sessionId });
-  
+
   // Assert
   expect(loginState.state).toBe('authenticated');
   if (loginState.state === 'authenticated') {
@@ -306,7 +308,7 @@ test('getState - returns authenticated state after login', async () => {
 ```ts
 test('functionName - throws error when validation fails', async () => {
   const sessionId = 'test-session' as SessionId;
-  
+
   await expect(
     t.mutation(api.module.functionName, { sessionId, invalidArg: null })
   ).rejects.toThrow();
@@ -359,13 +361,13 @@ describe('LoginForm', () => {
   it('submits form with valid data', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
-    
+
     render(<LoginForm onSubmit={onSubmit} />);
-    
+
     await user.type(screen.getByLabelText(/email/i), 'test@example.com');
     await user.type(screen.getByLabelText(/password/i), 'password123');
     await user.click(screen.getByRole('button', { name: /submit/i }));
-    
+
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith({
         email: 'test@example.com',
@@ -385,15 +387,15 @@ import { describe, expect, it, vi } from 'vitest';
 describe('DataLoader', () => {
   it('displays loading state, then data', async () => {
     const fetchData = vi.fn(() => Promise.resolve({ data: 'test' }));
-    
+
     render(<DataLoader fetchData={fetchData} />);
-    
+
     expect(screen.getByText(/loading/i)).toBeInTheDocument();
-    
+
     await waitFor(() => {
       expect(screen.getByText('test')).toBeInTheDocument();
     });
-    
+
     expect(fetchData).toHaveBeenCalledTimes(1);
   });
 });
@@ -411,7 +413,7 @@ test('userCanAccessResource - allows access for authenticated user', async () =>
   // Setup: Create authenticated session
   const sessionId = 'session-123' as SessionId;
   await t.mutation(api.auth.loginAnon, { sessionId });
-  
+
   // Test: Verify access
   const result = await t.query(api.resources.getResource, { sessionId, resourceId: '123' });
   expect(result).toBeDefined();
@@ -419,7 +421,7 @@ test('userCanAccessResource - allows access for authenticated user', async () =>
 
 test('userCanAccessResource - denies access for unauthenticated user', async () => {
   const sessionId = 'unauthenticated-session' as SessionId;
-  
+
   await expect(
     t.query(api.resources.getResource, { sessionId, resourceId: '123' })
   ).rejects.toThrow();
@@ -432,15 +434,15 @@ test('userCanAccessResource - denies access for unauthenticated user', async () 
 test('createItem - creates item and updates related data', async () => {
   const sessionId = 'session-123' as SessionId;
   await t.mutation(api.auth.loginAnon, { sessionId });
-  
+
   // Create item
   const item = await t.mutation(api.items.create, {
     sessionId,
     name: 'Test Item',
   });
-  
+
   expect(item._id).toBeDefined();
-  
+
   // Verify related data was updated
   const list = await t.query(api.items.list, { sessionId });
   expect(list).toContainEqual(expect.objectContaining({ name: 'Test Item' }));
@@ -452,23 +454,29 @@ test('createItem - creates item and updates related data', async () => {
 ### Frontend Tests
 
 **Issue**: Tests fail with "window is not defined"
+
 - **Solution**: Ensure `jsdom` environment is configured in `vitest.config.ts`
 
 **Issue**: CSS imports cause errors
+
 - **Solution**: `css: true` is already set in config. For Tailwind, ensure classes are properly processed.
 
 **Issue**: Next.js router not working in tests
+
 - **Solution**: Mock `next/navigation` as shown in the examples above
 
 ### Backend Tests
 
 **Issue**: "convex-test module not found"
+
 - **Solution**: Ensure `convex-test` is in `devDependencies` and modules are properly globbed in `test.setup.ts`
 
 **Issue**: Schema changes not reflected in tests
+
 - **Solution**: Restart test watcher - schema is loaded at startup
 
 **Issue**: Tests fail with authentication errors
+
 - **Solution**: Ensure you're creating a session with `t.mutation(api.auth.loginAnon, { sessionId })` before testing authenticated functions
 
 ## Resources
@@ -477,4 +485,3 @@ test('createItem - creates item and updates related data', async () => {
 - [React Testing Library](https://testing-library.com/react)
 - [Convex Testing Guide](https://docs.convex.dev/testing)
 - [Testing Best Practices](https://kentcdodds.com/blog/common-mistakes-with-react-testing-library)
-

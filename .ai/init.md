@@ -28,7 +28,7 @@ Process each file in `.ai/commands/` one at a time as authoritative reference ma
 
 ## Step 3 · Inspect the project structure
 
-1. Review repository configuration files that describe workspace boundaries (e.g. `pnpm-workspace.yaml`, `nx.json`, `package.json`, or tool-specific configs).
+1. Review repository configuration files that describe workspace boundaries (e.g. `pnpm-workspace.yaml`, `turbo.json`, `package.json`, or tool-specific configs).
 2. Walk the top-level directories (`apps/`, `services/`, `packages/`, etc.) to confirm actual layout.
 3. Record the workspace names, shared libraries, and any special tooling you discover—these inform scope-specific rules.
 

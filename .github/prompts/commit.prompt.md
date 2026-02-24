@@ -40,7 +40,7 @@ This document uses RFC 2119 terminology:
    - Check `package.json` for scripts related to: `typecheck`, `test`, `lint`, `build`
    - Identify the testing framework (vitest, jest, bun:test, or none)
    - Identify the linting tool (eslint, prettier, or none)
-   - Check for monorepo tools (nx, turborepo, pnpm workspaces, npm workspaces)
+   - Check for monorepo tools (turborepo, pnpm workspaces, npm workspaces)
 2. You MUST NOT assume validation tools exist
 3. You MUST NOT execute validation commands that are not configured in the project
 
@@ -57,8 +57,7 @@ This document uses RFC 2119 terminology:
 # Examples (adapt to your codebase):
 npm run typecheck          # If script exists
 pnpm typecheck             # If using pnpm
-npx nx run-many -t typecheck  # If using Nx
-npx turbo typecheck        # If using Turborepo
+pnpm typecheck             # If using Turborepo
 npx tsc --noEmit           # Direct TypeScript check
 ```
 
@@ -76,8 +75,7 @@ npx tsc --noEmit           # Direct TypeScript check
 # Examples (adapt to your codebase):
 npm test                   # If script exists
 pnpm test                  # If using pnpm
-npx nx run-many -t test    # If using Nx
-npx turbo test             # If using Turborepo
+pnpm test                  # If using Turborepo
 npx vitest run             # If using Vitest
 npx jest                   # If using Jest
 bun test                   # If using Bun
@@ -97,8 +95,7 @@ bun test                   # If using Bun
 # Examples (adapt to your codebase):
 npm run lint               # If script exists
 pnpm lint                  # If using pnpm
-npx nx run-many -t lint    # If using Nx
-npx turbo lint             # If using Turborepo
+pnpm lint                  # If using Turborepo
 npx eslint .               # If using ESLint
 ```
 
@@ -114,8 +111,7 @@ npx eslint .               # If using ESLint
 # Examples (adapt to your codebase):
 npm run build              # If script exists
 pnpm build                 # If using pnpm
-npx nx run-many -t build   # If using Nx
-npx turbo build            # If using Turborepo
+pnpm build                 # If using Turborepo
 ```
 
 #### Validation Failures
