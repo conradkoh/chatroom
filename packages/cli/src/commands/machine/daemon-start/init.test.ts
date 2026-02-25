@@ -37,7 +37,7 @@ vi.mock('../../../infrastructure/convex/client.js', () => ({
   getConvexUrl: vi.fn().mockReturnValue('http://localhost:3210'),
   getConvexClient: vi.fn().mockResolvedValue({
     mutation: vi.fn().mockResolvedValue(undefined),
-    query: vi.fn().mockResolvedValue(undefined),
+    query: vi.fn().mockResolvedValue({ valid: true, userId: 'user-1', userName: 'Test User' }),
   }),
 }));
 
@@ -120,7 +120,7 @@ beforeEach(() => {
   vi.mocked(getConvexUrl).mockReturnValue('http://localhost:3210');
   vi.mocked(getConvexClient).mockResolvedValue({
     mutation: vi.fn().mockResolvedValue(undefined),
-    query: vi.fn().mockResolvedValue(undefined),
+    query: vi.fn().mockResolvedValue({ valid: true, userId: 'user-1', userName: 'Test User' }),
   } as never);
   vi.mocked(getMachineId).mockReturnValue('machine-abc');
   vi.mocked(loadMachineConfig).mockReturnValue({
@@ -220,6 +220,35 @@ describe('initDaemon', () => {
 
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('other environments'));
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('http://other:3210'));
+  });
+
+  it('exits when backend session validation fails (invalid session)', async () => {
+    const mockClient = await getMockClient();
+    mockClient.query.mockResolvedValueOnce({ valid: false, reason: 'Session expired' });
+
+    await initDaemon();
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Session invalid: Session expired')
+    );
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('chatroom auth login'));
+    expect(releaseLock).toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('continues when backend session validation succeeds (valid session)', async () => {
+    const mockClient = await getMockClient();
+    mockClient.query.mockResolvedValueOnce({
+      valid: true,
+      userId: 'user-1',
+      userName: 'Test User',
+    });
+
+    const ctx = await initDaemon();
+
+    expect(ctx).toBeDefined();
+    expect(ctx.sessionId).toBe('session-123');
+    expect(exitSpy).not.toHaveBeenCalled();
   });
 
   it('exits when machine ID is missing', async () => {
