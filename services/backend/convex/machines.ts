@@ -156,7 +156,7 @@ export const register = mutation({
     os: v.string(),
     availableHarnesses: v.array(agentHarnessValidator),
     harnessVersions: v.optional(v.record(v.string(), harnessVersionValidator)),
-    availableModels: v.optional(v.array(v.string())),
+    availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
@@ -318,7 +318,7 @@ export const listMachines = query({
         os: m.os,
         availableHarnesses: m.availableHarnesses,
         harnessVersions: m.harnessVersions ?? {},
-        availableModels: m.availableModels ?? [],
+        availableModels: m.availableModels ?? {},
         daemonConnected: m.daemonConnected,
         lastSeenAt: m.lastSeenAt,
         registeredAt: m.registeredAt,

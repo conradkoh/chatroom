@@ -31,18 +31,17 @@ const MODEL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
  * Called periodically to keep the model list fresh.
  */
 async function refreshModels(ctx: DaemonContext): Promise<void> {
-  // Collect models from all available services and deduplicate
-  const allModels = new Set<string>();
-  for (const service of ctx.agentServices.values()) {
+  // Collect models from all available services, keyed by harness
+  const models: Record<string, string[]> = {};
+  for (const [harness, service] of ctx.agentServices) {
     try {
-      const models = await service.listModels();
-      for (const m of models) allModels.add(m);
+      models[harness] = await service.listModels();
     } catch {
       // Non-critical — skip failed service
     }
   }
-  const models = Array.from(allModels);
   if (!ctx.config) return;
+  const totalCount = Object.values(models).flat().length;
 
   try {
     await ctx.deps.backend.mutation(api.machines.register, {
@@ -55,7 +54,7 @@ async function refreshModels(ctx: DaemonContext): Promise<void> {
       availableModels: models,
     });
     console.log(
-      `[${formatTimestamp()}] 🔄 Model refresh: ${models.length > 0 ? `${models.length} models` : 'none discovered'}`
+      `[${formatTimestamp()}] 🔄 Model refresh: ${totalCount > 0 ? `${totalCount} models` : 'none discovered'}`
     );
   } catch (error) {
     console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${(error as Error).message}`);

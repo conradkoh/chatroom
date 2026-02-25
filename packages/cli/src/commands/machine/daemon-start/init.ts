@@ -35,15 +35,23 @@ import { formatTimestamp } from './utils.js';
 // ─── Model Discovery ────────────────────────────────────────────────────────
 
 /**
- * Discover available models from the remote agent service.
- * Non-critical: returns empty array on failure.
+ * Discover available models from all installed remote agent services.
+ * Non-critical: returns empty record on failure per harness.
  */
-export async function discoverModels(service: RemoteAgentService): Promise<string[]> {
-  try {
-    return await service.listModels();
-  } catch {
-    return [];
+export async function discoverModels(
+  agentServices: Map<string, RemoteAgentService>
+): Promise<Record<string, string[]>> {
+  const results: Record<string, string[]> = {};
+  for (const [harness, service] of agentServices) {
+    if (service.isInstalled()) {
+      try {
+        results[harness] = await service.listModels();
+      } catch {
+        results[harness] = [];
+      }
+    }
   }
+  return results;
 }
 
 // ─── Default Dependencies ───────────────────────────────────────────────────
@@ -156,10 +164,8 @@ export async function initDaemon(): Promise<DaemonContext> {
     ['pi', piService],
   ]);
 
-  // Discover available models from the installed harness (dynamic)
-  // Use whichever service is installed; default to opencode for backward compat.
-  const primaryService = openCodeService.isInstalled() ? openCodeService : piService;
-  const availableModels = await discoverModels(primaryService);
+  // Discover available models from all installed harnesses (dynamic)
+  const availableModels = await discoverModels(agentServices);
 
   // Register/update machine info in backend (includes harnesses and models)
   // This ensures the web UI has current machine capabilities
@@ -222,7 +228,7 @@ export async function initDaemon(): Promise<DaemonContext> {
   console.log(`   Hostname: ${config?.hostname ?? 'Unknown'}`);
   console.log(`   Available harnesses: ${config?.availableHarnesses.join(', ') || 'none'}`);
   console.log(
-    `   Available models: ${availableModels.length > 0 ? `${availableModels.length} models` : 'none discovered'}`
+    `   Available models: ${Object.keys(availableModels).length > 0 ? `${Object.values(availableModels).flat().length} models across ${Object.keys(availableModels).join(', ')}` : 'none discovered'}`
   );
   console.log(`   PID: ${process.pid}`);
 

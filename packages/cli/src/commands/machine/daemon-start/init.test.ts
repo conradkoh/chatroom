@@ -162,30 +162,36 @@ async function getMockClient() {
 describe('discoverModels', () => {
   it('returns models from the remote agent service', async () => {
     const mockService = {
+      isInstalled: vi.fn().mockReturnValue(true),
       listModels: vi.fn().mockResolvedValue(['gpt-4', 'claude-3']),
     } as any;
 
-    const models = await discoverModels(mockService);
-    expect(models).toEqual(['gpt-4', 'claude-3']);
+    const agentServices = new Map([['opencode', mockService]]);
+    const models = await discoverModels(agentServices);
+    expect(models).toEqual({ opencode: ['gpt-4', 'claude-3'] });
     expect(mockService.listModels).toHaveBeenCalledOnce();
   });
 
-  it('returns empty array when service throws (non-critical)', async () => {
+  it('returns empty record entry when service throws (non-critical)', async () => {
     const mockService = {
+      isInstalled: vi.fn().mockReturnValue(true),
       listModels: vi.fn().mockRejectedValue(new Error('Service broken')),
     } as any;
 
-    const models = await discoverModels(mockService);
-    expect(models).toEqual([]);
+    const agentServices = new Map([['opencode', mockService]]);
+    const models = await discoverModels(agentServices);
+    expect(models).toEqual({ opencode: [] });
   });
 
-  it('returns empty array when service returns empty list', async () => {
+  it('returns empty record when service is not installed', async () => {
     const mockService = {
+      isInstalled: vi.fn().mockReturnValue(false),
       listModels: vi.fn().mockResolvedValue([]),
     } as any;
 
-    const models = await discoverModels(mockService);
-    expect(models).toEqual([]);
+    const agentServices = new Map([['opencode', mockService]]);
+    const models = await discoverModels(agentServices);
+    expect(models).toEqual({});
   });
 });
 

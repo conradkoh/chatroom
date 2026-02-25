@@ -182,7 +182,7 @@ describe('startAgent — harness validation', () => {
       hostname: 'test-host',
       os: 'darwin',
       availableHarnesses: [],
-      availableModels: [],
+      availableModels: {},
     });
     await t.mutation(api.machines.updateDaemonStatus, {
       sessionId,

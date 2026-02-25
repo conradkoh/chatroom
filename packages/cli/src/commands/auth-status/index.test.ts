@@ -39,7 +39,7 @@ function createMockDeps(overrides?: Partial<AuthStatusDeps>): AuthStatusDeps {
       availableHarnesses: ['opencode'],
       harnessVersions: {},
     }),
-    listAvailableModels: vi.fn().mockResolvedValue([]),
+    listAvailableModels: vi.fn().mockResolvedValue({}),
     ...overrides,
   };
 }

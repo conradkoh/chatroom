@@ -20,16 +20,29 @@ export type { AuthStatusDeps } from './deps.js';
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
-async function listAvailableModelsDefault(): Promise<string[]> {
+async function listAvailableModelsDefault(): Promise<Record<string, string[]>> {
+  const results: Record<string, string[]> = {};
   try {
-    const { OpenCodeAgentService } = await import(
-      '../../infrastructure/services/remote-agents/opencode/index.js'
-    );
+    const { OpenCodeAgentService } =
+      await import('../../infrastructure/services/remote-agents/opencode/index.js');
     const agentService = new OpenCodeAgentService();
-    return await agentService.listModels();
+    if (agentService.isInstalled()) {
+      results['opencode'] = await agentService.listModels();
+    }
   } catch {
-    return [];
+    /* non-critical */
   }
+  try {
+    const { PiAgentService } =
+      await import('../../infrastructure/services/remote-agents/pi/index.js');
+    const piService = new PiAgentService();
+    if (piService.isInstalled()) {
+      results['pi'] = await piService.listModels();
+    }
+  } catch {
+    /* non-critical */
+  }
+  return results;
 }
 
 async function createDefaultDeps(): Promise<AuthStatusDeps> {
@@ -108,8 +121,9 @@ export async function authStatus(deps?: AuthStatusDeps): Promise<void> {
         if (machineInfo.availableHarnesses.length > 0) {
           console.log(`   Harnesses: ${machineInfo.availableHarnesses.join(', ')}`);
         }
-        if (availableModels.length > 0) {
-          console.log(`   Models: ${availableModels.length} discovered`);
+        const totalModels = Object.values(availableModels).flat().length;
+        if (totalModels > 0) {
+          console.log(`   Models: ${totalModels} discovered`);
         }
       } catch (machineError) {
         const err = machineError as Error;

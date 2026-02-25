@@ -25,5 +25,5 @@ export interface AuthStatusDeps {
   getVersion: () => string;
   ensureMachineRegistered: () => MachineRegistrationInfo;
   /** Discover available models from harnesses (optional, non-critical) */
-  listAvailableModels: () => Promise<string[]>;
+  listAvailableModels: () => Promise<Record<string, string[]>>;
 }

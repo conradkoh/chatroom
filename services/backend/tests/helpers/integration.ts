@@ -77,7 +77,7 @@ export async function registerMachineWithDaemon(
     hostname: 'test-host',
     os: 'darwin',
     availableHarnesses: ['opencode'],
-    availableModels: ['claude-sonnet-4'],
+    availableModels: { opencode: ['claude-sonnet-4'] },
   });
   await t.mutation(api.machines.updateDaemonStatus, {
     sessionId,

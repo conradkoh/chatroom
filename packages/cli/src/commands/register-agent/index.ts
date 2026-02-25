@@ -13,6 +13,7 @@ import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/sto
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { ensureMachineRegistered, type AgentHarness } from '../../infrastructure/machine/index.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
+import { PiAgentService } from '../../infrastructure/services/remote-agents/pi/index.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -110,13 +111,23 @@ export async function registerAgent(
     try {
       const machineInfo = ensureMachineRegistered();
 
-      // Discover available models (non-critical)
-      let availableModels: string[] = [];
+      // Discover available models from all installed harnesses (non-critical)
+      const availableModels: Record<string, string[]> = {};
       try {
-        const agentService = new OpenCodeAgentService();
-        availableModels = await agentService.listModels();
+        const opencodeService = new OpenCodeAgentService();
+        if (opencodeService.isInstalled()) {
+          availableModels['opencode'] = await opencodeService.listModels();
+        }
       } catch {
-        // Model discovery is non-critical
+        /* non-critical */
+      }
+      try {
+        const piService = new PiAgentService();
+        if (piService.isInstalled()) {
+          availableModels['pi'] = await piService.listModels();
+        }
+      } catch {
+        /* non-critical */
       }
 
       // Register/update machine in backend
