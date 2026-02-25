@@ -16,7 +16,11 @@
  * All known backend error codes as a string literal union.
  * Each code uniquely identifies an error condition.
  */
-export type BackendErrorCode = 'PARTICIPANT_NOT_FOUND' | 'CHATROOM_NOT_FOUND' | 'SESSION_INVALID';
+export type BackendErrorCode =
+  | 'PARTICIPANT_NOT_FOUND'
+  | 'CHATROOM_NOT_FOUND'
+  | 'SESSION_INVALID'
+  | 'CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT';
 
 /**
  * Mapping of error names to their string code values.
@@ -29,6 +33,8 @@ export const BACKEND_ERROR_CODES = {
   CHATROOM_NOT_FOUND: 'CHATROOM_NOT_FOUND',
   /** Session is invalid or expired */
   SESSION_INVALID: 'SESSION_INVALID',
+  /** Cannot create a new context without a handoff sent since the last context was created */
+  CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT: 'CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT',
 } as const satisfies Record<BackendErrorCode, BackendErrorCode>;
 
 /**
@@ -69,7 +75,9 @@ export const FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
  * Error codes that are non-fatal — the CLI logs a warning but continues running.
  * These represent transient or expected conditions (race conditions, stale data).
  */
-export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [] as const;
+export const NON_FATAL_ERROR_CODES: readonly BackendErrorCode[] = [
+  BACKEND_ERROR_CODES.CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT,
+] as const;
 
 /**
  * Structured response from getPendingTasksForRole subscription.

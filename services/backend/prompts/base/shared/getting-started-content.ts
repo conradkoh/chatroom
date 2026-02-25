@@ -19,7 +19,7 @@ import { getCliEnvPrefix } from '../../utils/index.js';
 export function getContextGainingGuidance(params: ContextGainingParams): string {
   const { chatroomId, role, convexUrl, agentType } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  const typeValue = agentType ?? '<remote|custom>';
+  const typeValue = agentType && agentType !== 'unset' ? agentType : '<remote|custom>';
 
   return `## Getting Started
 

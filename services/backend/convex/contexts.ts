@@ -30,6 +30,34 @@ export const createContext = mutation({
       });
     }
 
+    // If there is an existing context, require that the role has sent a handoff since it was created.
+    // This prevents creating redundant contexts without any meaningful work in between.
+    if (chatroom.currentContextId) {
+      const currentContext = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
+      if (currentContext) {
+        const handoffSinceContext = await ctx.db
+          .query('chatroom_messages')
+          .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('senderRole', args.role).eq('type', 'handoff')
+          )
+          .filter((q) => q.gt(q.field('_creationTime'), currentContext.createdAt))
+          .first();
+
+        if (!handoffSinceContext) {
+          throw new ConvexError({
+            code: 'CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT',
+            message:
+              'Cannot create a new context without first sending a handoff since the last context was created.',
+            existingContext: {
+              content: currentContext.content,
+              createdAt: currentContext.createdAt,
+              createdBy: currentContext.createdBy,
+            },
+          });
+        }
+      }
+    }
+
     // Get current message count in chatroom for staleness detection
     const messages = await ctx.db
       .query('chatroom_messages')

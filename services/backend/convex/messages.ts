@@ -1636,6 +1636,14 @@ export const getInitPrompt = query({
       .filter((p) => p.lastSeenAt != null && _now1678 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS)
       .map((p) => p.role);
 
+    // Look up existing team agent config to include the agent type in the prompt
+    const teamId = chatroom.teamId || chatroom._id;
+    const teamRoleKey = `team_${teamId}#role_${args.role.toLowerCase()}`;
+    const existingAgentConfig = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+      .unique();
+
     const promptInput = {
       chatroomId: args.chatroomId,
       role: args.role,
@@ -1644,6 +1652,7 @@ export const getInitPrompt = query({
       teamEntryPoint: chatroom.teamEntryPoint,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
       availableMembers,
+      agentType: (existingAgentConfig?.type ?? 'unset') as 'remote' | 'custom' | 'unset',
     };
 
     // Compose init prompt (system prompt + init message + combined)

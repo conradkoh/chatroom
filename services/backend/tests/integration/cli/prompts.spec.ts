@@ -26,6 +26,7 @@ describe('Context Gaining Prompt', () => {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       convexUrl: 'http://127.0.0.1:3210',
+      agentType: 'unset',
     });
 
     // Should use Getting Started header (not Available Actions)
@@ -55,6 +56,7 @@ describe('Context Gaining Prompt', () => {
       chatroomId: 'abc123',
       role: 'reviewer',
       convexUrl: 'http://localhost:3000',
+      agentType: 'unset',
     });
 
     expect(guidance).toContain('chatroom get-next-task --chatroom-id="abc123" --role="reviewer"');
@@ -65,6 +67,7 @@ describe('Context Gaining Prompt', () => {
       chatroomId: 'test-123',
       role: 'builder',
       convexUrl: 'http://127.0.0.1:3210',
+      agentType: 'unset',
     });
 
     expect(guidance).toContain('--type=<remote|custom>');

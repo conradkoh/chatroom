@@ -17,6 +17,7 @@ export function getGettingStartedSection(ctx: SelectorContext): PromptSection {
     chatroomId: ctx.chatroomId ?? '',
     role: ctx.role,
     convexUrl: ctx.convexUrl,
+    agentType: ctx.agentType,
   });
   return createSection('getting-started', 'knowledge', content);
 }

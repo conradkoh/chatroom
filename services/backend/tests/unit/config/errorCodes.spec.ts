@@ -62,7 +62,7 @@ describe('errorCodes', () => {
 
   // ─── Non-fatal codes ──────────────────────────────────────────────────────
 
-  it('NON_FATAL_ERROR_CODES is empty (all current codes are fatal)', () => {
-    expect(NON_FATAL_ERROR_CODES).toHaveLength(0);
+  it('NON_FATAL_ERROR_CODES contains CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT', () => {
+    expect(NON_FATAL_ERROR_CODES).toContain('CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT');
   });
 });

@@ -133,6 +133,16 @@ export async function initDaemon(): Promise<DaemonContext> {
   // between our storage format and Convex's branded type system.
   const typedSessionId: SessionId = sessionId;
 
+  // Validate session with backend before proceeding
+  // This catches expired/revoked tokens early rather than failing mid-run on a mutation.
+  const validation = await client.query(api.cliAuth.validateSession, { sessionId: typedSessionId });
+  if (!validation.valid) {
+    console.error(`❌ Session invalid: ${validation.reason}`);
+    console.error(`\nRun: chatroom auth login`);
+    releaseLock();
+    process.exit(1);
+  }
+
   // Load and cache machine config (read once, reused by handlers)
   const config = loadMachineConfig();
 
