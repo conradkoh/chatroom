@@ -4,6 +4,14 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useCallback } from 'react';
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
 interface TeamDefinition {
   name: string;
   description: string;
@@ -101,17 +109,22 @@ export function CreateChatroomForm({ onCreated, onCancel }: CreateChatroomFormPr
           <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
             Team
           </label>
-          <select
-            className="bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary p-3 text-sm focus:outline-none focus:border-chatroom-border-strong"
-            value={selectedTeam}
-            onChange={(e) => setSelectedTeam(e.target.value)}
-          >
-            {Object.entries(config.teams).map(([id, team]) => (
-              <option key={id} value={id}>
-                {team.name}
-              </option>
-            ))}
-          </select>
+          <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+            <SelectTrigger className="bg-chatroom-bg-primary border-2 border-chatroom-border text-chatroom-text-primary h-auto p-3 text-sm focus:ring-0 focus:outline-none focus:border-chatroom-border-strong rounded-none">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-chatroom-bg-tertiary border-2 border-chatroom-border rounded-none">
+              {Object.entries(config.teams).map(([id, team]) => (
+                <SelectItem
+                  key={id}
+                  value={id}
+                  className="text-sm text-chatroom-text-primary hover:bg-chatroom-bg-hover rounded-none"
+                >
+                  {team.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Team Preview */}
