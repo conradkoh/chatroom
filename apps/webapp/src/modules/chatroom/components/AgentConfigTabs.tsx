@@ -114,11 +114,11 @@ export function useAgentControls({
     }
   }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs]);
 
-  // Available models from the selected machine (discovered dynamically)
+  // Available models from the selected machine filtered by selected harness
   const availableModelsForHarness = useMemo(() => {
     if (!selectedMachineId || !selectedHarness) return [];
     const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
-    return machine?.availableModels || [];
+    return machine?.availableModels[selectedHarness] ?? [];
   }, [selectedMachineId, selectedHarness, connectedMachines]);
 
   // Auto-select harness (priority: role config > single available harness)

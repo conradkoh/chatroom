@@ -36,8 +36,8 @@ export interface MachineInfo {
   os: string;
   availableHarnesses: AgentHarness[];
   harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
-  /** Available AI models discovered dynamically via `opencode models` */
-  availableModels: string[];
+  /** Available AI models discovered dynamically, keyed by harness name */
+  availableModels: Record<string, string[]>;
   daemonConnected: boolean;
   lastSeenAt: number;
 }
