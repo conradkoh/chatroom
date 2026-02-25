@@ -140,7 +140,7 @@ export function buildSelectorContext(params: {
   chatroomId?: string;
   availableMembers?: string[];
   workflow?: 'new_feature' | 'question' | 'follow_up' | null;
-  agentType?: 'remote' | 'custom';
+  agentType?: 'remote' | 'custom' | 'unset';
 }): SelectorContext {
   const entryPoint = params.teamEntryPoint || params.teamRoles[0] || 'builder';
   return {
@@ -152,7 +152,7 @@ export function buildSelectorContext(params: {
     isEntryPoint: params.role.toLowerCase() === entryPoint.toLowerCase(),
     convexUrl: params.convexUrl,
     chatroomId: params.chatroomId,
-    agentType: params.agentType,
+    agentType: params.agentType ?? 'unset',
   };
 }
 
@@ -542,8 +542,8 @@ export interface InitPromptInput {
   convexUrl: string; // Required Convex URL for env var prefix generation
   /** Currently available (waiting) team members. Falls back to teamRoles if not provided. */
   availableMembers?: string[];
-  /** Agent type for register-agent command — when set, replaces the `<remote|custom>` placeholder */
-  agentType?: 'remote' | 'custom';
+  /** Agent type for register-agent command — 'unset' produces `<remote|custom>` placeholder */
+  agentType?: 'remote' | 'custom' | 'unset';
 }
 
 /**

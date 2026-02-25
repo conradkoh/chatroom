@@ -1652,7 +1652,7 @@ export const getInitPrompt = query({
       teamEntryPoint: chatroom.teamEntryPoint,
       convexUrl: config.getConvexURLWithFallback(args.convexUrl),
       availableMembers,
-      agentType: existingAgentConfig?.type,
+      agentType: (existingAgentConfig?.type ?? 'unset') as 'remote' | 'custom' | 'unset',
     };
 
     // Compose init prompt (system prompt + init message + combined)

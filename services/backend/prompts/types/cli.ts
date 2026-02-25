@@ -118,6 +118,6 @@ export interface PlannerGuidanceParams extends BasePromptParams {
 export interface ContextGainingParams extends BasePromptParams {
   chatroomId: string;
   role: string;
-  /** When set, the register-agent command uses this fixed type instead of `<remote|custom>` placeholder */
-  agentType?: 'remote' | 'custom';
+  /** When set, the register-agent command uses this fixed type; 'unset' produces `<remote|custom>` placeholder */
+  agentType: 'remote' | 'custom' | 'unset';
 }
