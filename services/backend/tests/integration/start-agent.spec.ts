@@ -217,6 +217,137 @@ describe('startAgent — harness validation', () => {
   });
 });
 
+// ─── teamRoleKey collision regression ────────────────────────────────────────
+
+describe('startAgent — teamRoleKey collision regression', () => {
+  test('two chatrooms with the same teamId but different _id produce different teamRoleKeys', async () => {
+    // ===== SETUP =====
+    // Create two separate chatrooms both using the "pair" team type.
+    // Before the fix, both would generate the same teamRoleKey because the key
+    // used chatroom.teamId ("pair") instead of chatroom._id (unique per chatroom).
+    const { sessionId } = await createTestSession('test-sa-collision-1');
+    const chatroomId1 = await createPairTeamChatroom(sessionId);
+    const chatroomId2 = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-sa-collision-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    // ===== ACTION =====
+    // Start a builder agent in each chatroom with different models so we can
+    // distinguish which config belongs to which chatroom.
+    await t.run(async (ctx) => {
+      const user = await ctx.db.query('users').first();
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+
+      await startAgent(
+        ctx,
+        {
+          machineId,
+          chatroomId: chatroomId1,
+          role: 'builder',
+          userId: user!._id,
+          model: 'model-for-chatroom-1',
+          agentHarness: 'opencode',
+          workingDir: '/workspace/chatroom1',
+        },
+        machine!
+      );
+
+      await startAgent(
+        ctx,
+        {
+          machineId,
+          chatroomId: chatroomId2,
+          role: 'builder',
+          userId: user!._id,
+          model: 'model-for-chatroom-2',
+          agentHarness: 'opencode',
+          workingDir: '/workspace/chatroom2',
+        },
+        machine!
+      );
+    });
+
+    // ===== VERIFY =====
+    // There must be two distinct teamAgentConfigs — one per chatroom.
+    // Before the fix, the second startAgent would have overwritten the first
+    // (same teamRoleKey), so only one row would exist.
+    const allTeamConfigs = await t.run(async (ctx) => {
+      return ctx.db.query('chatroom_teamAgentConfigs').collect();
+    });
+
+    const config1 = allTeamConfigs.find(
+      (c) => c.chatroomId === chatroomId1 && c.role === 'builder'
+    );
+    const config2 = allTeamConfigs.find(
+      (c) => c.chatroomId === chatroomId2 && c.role === 'builder'
+    );
+
+    // Both configs must exist independently
+    expect(config1).toBeDefined();
+    expect(config2).toBeDefined();
+
+    // Each config must carry its own model — no cross-chatroom overwrite
+    expect(config1!.model).toBe('model-for-chatroom-1');
+    expect(config2!.model).toBe('model-for-chatroom-2');
+
+    // The two teamRoleKeys must be different
+    expect(config1!.teamRoleKey).not.toBe(config2!.teamRoleKey);
+  });
+
+  test('teamRoleKey includes chatroom._id (not teamId) in its format', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-sa-key-format-1');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-sa-key-format-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    // ===== ACTION =====
+    await t.run(async (ctx) => {
+      const user = await ctx.db.query('users').first();
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+
+      return startAgent(
+        ctx,
+        {
+          machineId,
+          chatroomId,
+          role: 'builder',
+          userId: user!._id,
+          model: 'claude-sonnet-4',
+          agentHarness: 'opencode',
+          workingDir: '/test/workspace',
+        },
+        machine!
+      );
+    });
+
+    // ===== VERIFY =====
+    const teamConfig = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .filter((q) => q.eq(q.field('chatroomId'), chatroomId))
+        .first();
+    });
+
+    expect(teamConfig).toBeDefined();
+    const key = teamConfig!.teamRoleKey;
+
+    // Key must contain the actual chatroom._id value
+    expect(key).toContain(chatroomId);
+
+    // Key must NOT contain the static teamId string "pair" as the discriminator
+    // (it may appear elsewhere in the string, but the primary identifier is _id)
+    expect(key).toMatch(/^chatroom_/);
+    expect(key).toContain('#role_builder');
+  });
+});
+
 // ─── Command payload correctness ─────────────────────────────────────────────
 
 describe('startAgent — command payload', () => {

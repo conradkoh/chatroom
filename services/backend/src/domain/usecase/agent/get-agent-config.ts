@@ -105,15 +105,18 @@ export async function getAgentConfig(
 ): Promise<GetAgentConfigResult> {
   const { chatroomId, role } = input;
 
-  // ── Step 1: Look up the chatroom to derive the team ID ───────────────
+  // ── Step 1: Look up the chatroom to derive the unique chatroom key ──────
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   if (!chatroom) {
     return { found: false };
   }
 
-  const teamId = chatroom.teamId || chatroom._id;
-  const teamRoleKey = `team_${teamId}#role_${role.toLowerCase()}`;
+  // IMPORTANT: Use chatroom._id (always unique per chatroom) — NOT chatroom.teamId.
+  // chatroom.teamId is a static team type string like "duo" or "pair", shared across
+  // all chatrooms of the same type. Using it as the key would cause configs from
+  // different chatrooms to collide and overwrite each other.
+  const teamRoleKey = `chatroom_${chatroom._id}#role_${role.toLowerCase()}`;
 
   // ── Step 2: Look up team config (primary source) ─────────────────────
 

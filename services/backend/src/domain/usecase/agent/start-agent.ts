@@ -59,11 +59,15 @@ export interface StartAgentResult {
 
 /**
  * Build a unique teamRoleKey from a chatroom and role.
- * Format: team_<teamId>#role_<roleLowerCase>
+ * Format: chatroom_<chatroomId>#role_<roleLowerCase>
+ *
+ * IMPORTANT: We use chatroom._id (always unique per chatroom) — NOT chatroom.teamId.
+ * chatroom.teamId is a static team type string like "duo" or "pair", which is shared
+ * across all chatrooms of the same type. Using it as the key would cause configs from
+ * different chatrooms to collide and overwrite each other.
  */
 function buildTeamRoleKey(chatroom: Doc<'chatroom_rooms'>, role: string): string {
-  const teamId = chatroom.teamId || chatroom._id;
-  return `team_${teamId}#role_${role.toLowerCase()}`;
+  return `chatroom_${chatroom._id}#role_${role.toLowerCase()}`;
 }
 
 // ─── Use Case ────────────────────────────────────────────────────────────────
