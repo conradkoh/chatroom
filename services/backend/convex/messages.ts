@@ -1642,6 +1642,7 @@ export const getInitPrompt = query({
       .withIndex('by_chatroom_role', (q) =>
         q.eq('chatroomId', args.chatroomId).eq('role', args.role)
       )
+      .order('desc')
       .first();
 
     const promptInput = {
