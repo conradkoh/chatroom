@@ -128,11 +128,16 @@ function createCtx(deps: DaemonDeps): DaemonContext {
     config: null as unknown as DaemonContext['config'],
     deps,
     events: new DaemonEventBus(),
-    remoteAgentService: new OpenCodeAgentService({
-      execSync: vi.fn(),
-      spawn: vi.fn() as any,
-      kill: vi.fn(),
-    }),
+    agentServices: new Map([
+      [
+        'opencode',
+        new OpenCodeAgentService({
+          execSync: vi.fn(),
+          spawn: vi.fn() as any,
+          kill: vi.fn(),
+        }),
+      ],
+    ]),
   };
 }
 
@@ -301,7 +306,8 @@ describe('handleStopAgent', () => {
   });
 
   it('handles stale PID (process not alive)', async () => {
-    vi.spyOn(ctx.remoteAgentService, 'isAlive').mockReturnValue(false);
+    const openCodeService = ctx.agentServices.get('opencode')!;
+    vi.spyOn(openCodeService, 'isAlive').mockReturnValue(false);
 
     vi.mocked(deps.backend.query).mockResolvedValue({
       configs: [

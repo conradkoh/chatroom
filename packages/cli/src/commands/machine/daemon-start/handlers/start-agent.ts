@@ -65,7 +65,9 @@ export async function handleStartAgent(
     );
     if (existingConfig?.spawnedAgentPid) {
       const existingPid = existingConfig.spawnedAgentPid;
-      const isAlive = ctx.remoteAgentService.isAlive(existingPid);
+      // Use any available service to check if the PID is alive (OS-level check)
+      const anyService = ctx.agentServices.values().next().value;
+      const isAlive = anyService ? anyService.isAlive(existingPid) : false;
       if (isAlive) {
         console.log(
           `   ⚠️  Existing agent detected (PID: ${existingPid}) — stopping before respawn`
@@ -95,14 +97,24 @@ export async function handleStartAgent(
 
   console.log(`   Fetched split init prompt from backend`);
 
-  // Spawn via RemoteAgentService
-  const combinedPrompt = `${initPromptResult.rolePrompt}\n\n${initPromptResult.initialMessage}`;
+  // Spawn via the appropriate RemoteAgentService for the requested harness
+  const service = ctx.agentServices.get(agentHarness);
+  if (!service) {
+    const msg = `Unknown agent harness: ${agentHarness}`;
+    console.log(`   ⚠️  ${msg}`);
+    return { result: msg, failed: true };
+  }
 
+  // Spawn with split prompt: systemPrompt (rolePrompt) + prompt (initialMessage)
+  // Each service handles the split differently:
+  // - OpenCodeAgentService: combines them and pipes via stdin
+  // - PiAgentService: passes them as --system-prompt and positional arg
   let spawnResult;
   try {
-    spawnResult = await ctx.remoteAgentService.spawn({
+    spawnResult = await service.spawn({
       workingDir,
-      prompt: combinedPrompt,
+      prompt: initPromptResult.initialMessage,
+      systemPrompt: initPromptResult.rolePrompt,
       model,
       context: { machineId: ctx.machineId, chatroomId, role },
     });

@@ -5,7 +5,7 @@
 import type { DaemonDeps } from './deps.js';
 import type { DaemonEventBus } from './event-bus.js';
 import type { Id } from '../../../api.js';
-import type { MachineConfig } from '../../../infrastructure/machine/types.js';
+import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────
 
@@ -18,7 +18,7 @@ import type { RemoteAgentService } from '../../../infrastructure/services/remote
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type SessionId = any;
 
-export type { MachineConfig };
+export type { MachineConfig, AgentHarness };
 
 // ─── Command Types ──────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ export interface StartAgentCommand extends MachineCommandBase {
   payload: {
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
-    agentHarness: 'opencode';
+    agentHarness: 'opencode' | 'pi';
     model?: string;
     workingDir?: string;
   };
@@ -91,7 +91,7 @@ export interface RawMachineCommand {
   payload: {
     chatroomId?: Id<'chatroom_rooms'>;
     role?: string;
-    agentHarness?: 'opencode';
+    agentHarness?: 'opencode' | 'pi';
     model?: string;
     workingDir?: string;
   };
@@ -118,5 +118,5 @@ export interface DaemonContext {
   config: MachineConfig | null;
   deps: DaemonDeps;
   events: DaemonEventBus;
-  remoteAgentService: RemoteAgentService;
+  agentServices: Map<AgentHarness, RemoteAgentService>;
 }

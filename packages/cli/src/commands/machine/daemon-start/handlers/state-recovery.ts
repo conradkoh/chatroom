@@ -11,7 +11,7 @@ import { clearAgentPidEverywhere } from './shared.js';
  *
  * Reads locally persisted PIDs from the per-machine state file
  * (~/.chatroom/machines/state/<machine-id>.json), verifies each is still
- * alive using `remoteAgentService.isAlive()`, and reconciles with Convex:
+ * alive using `agentServices.isAlive()`, and reconciles with Convex:
  * - Alive agents: log as recovered, keep PID in local state and Convex
  * - Dead agents: clear PID from local state and Convex
  *
@@ -30,7 +30,10 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
 
   for (const { chatroomId, role, entry } of entries) {
     const { pid, harness } = entry;
-    const alive = ctx.remoteAgentService.isAlive(pid);
+    // Any service can check a PID (it's an OS-level check via kill(pid, 0)).
+    // Use the harness-specific service if available, fall back to any available.
+    const service = ctx.agentServices.get(harness) ?? ctx.agentServices.values().next().value;
+    const alive = service ? service.isAlive(pid) : false;
 
     if (alive) {
       console.log(`   ✅ Recovered: ${role} (PID ${pid}, harness: ${harness})`);

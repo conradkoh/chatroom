@@ -15,11 +15,16 @@ function createTestContext(): DaemonContext {
     machineId: 'test-machine',
     config: null,
     events: new DaemonEventBus(),
-    remoteAgentService: new OpenCodeAgentService({
-      execSync: vi.fn(),
-      spawn: vi.fn() as any,
-      kill: vi.fn(),
-    }),
+    agentServices: new Map([
+      [
+        'opencode',
+        new OpenCodeAgentService({
+          execSync: vi.fn(),
+          spawn: vi.fn() as any,
+          kill: vi.fn(),
+        }),
+      ],
+    ]),
     deps: {
       backend: {
         mutation: vi.fn().mockResolvedValue(undefined),

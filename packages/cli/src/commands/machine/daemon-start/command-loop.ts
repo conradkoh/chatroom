@@ -31,7 +31,17 @@ const MODEL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
  * Called periodically to keep the model list fresh.
  */
 async function refreshModels(ctx: DaemonContext): Promise<void> {
-  const models = await ctx.remoteAgentService.listModels();
+  // Collect models from all available services and deduplicate
+  const allModels = new Set<string>();
+  for (const service of ctx.agentServices.values()) {
+    try {
+      const models = await service.listModels();
+      for (const m of models) allModels.add(m);
+    } catch {
+      // Non-critical — skip failed service
+    }
+  }
+  const models = Array.from(allModels);
   if (!ctx.config) return;
 
   try {

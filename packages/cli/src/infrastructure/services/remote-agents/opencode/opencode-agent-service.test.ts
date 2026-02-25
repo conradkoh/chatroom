@@ -185,6 +185,7 @@ describe('OpenCodeAgentService', () => {
       const result = await service.spawn({
         workingDir: '/tmp/test',
         prompt: 'Hello agent',
+        systemPrompt: 'You are a test agent',
         model: 'anthropic/claude-3.5-sonnet',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
       });
@@ -200,7 +201,7 @@ describe('OpenCodeAgentService', () => {
         })
       );
 
-      expect(mockStdin.write).toHaveBeenCalledWith('Hello agent');
+      expect(mockStdin.write).toHaveBeenCalledWith('You are a test agent\n\nHello agent');
       expect(mockStdin.end).toHaveBeenCalled();
       expect(result.pid).toBe(42);
       expect(typeof result.onExit).toBe('function');
@@ -231,6 +232,7 @@ describe('OpenCodeAgentService', () => {
       await service.spawn({
         workingDir: '/tmp',
         prompt: 'test',
+        systemPrompt: 'test system prompt',
         context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
       });
 
@@ -257,6 +259,7 @@ describe('OpenCodeAgentService', () => {
         service.spawn({
           workingDir: '/tmp',
           prompt: 'test',
+          systemPrompt: 'test system prompt',
           context: { machineId: 'test-machine', chatroomId: 'test-chatroom', role: 'test-role' },
         })
       ).rejects.toThrow('exited immediately');

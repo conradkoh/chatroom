@@ -145,15 +145,21 @@ function createMockContext(options?: {
     untrack: vi.fn(),
   } as unknown as RemoteAgentService;
 
-  return {
+  const ctx: DaemonContext = {
     client: {},
     sessionId: 'test-session-id',
     machineId: 'test-machine-id',
     config: null,
     deps,
     events: new DaemonEventBus(),
-    remoteAgentService,
+    agentServices: new Map([['opencode', remoteAgentService]]),
   };
+
+  // Attach for test convenience (not part of DaemonContext type)
+  (ctx as unknown as { _remoteAgentService: RemoteAgentService })._remoteAgentService =
+    remoteAgentService;
+
+  return ctx;
 }
 
 // ---------------------------------------------------------------------------
@@ -382,7 +388,8 @@ describe('handleStartAgent', () => {
     });
 
     // Existing PID is alive
-    (ctx.remoteAgentService.isAlive as ReturnType<typeof vi.fn>).mockReturnValue(true);
+    const service = ctx.agentServices.get('opencode')!;
+    (service.isAlive as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
     const cmd = createCommand({ workingDir: '/tmp/test' });
     const result = await handleStartAgent(ctx, cmd);
@@ -401,7 +408,8 @@ describe('handleStartAgent', () => {
     });
 
     // PID is NOT alive
-    (ctx.remoteAgentService.isAlive as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    const service = ctx.agentServices.get('opencode')!;
+    (service.isAlive as ReturnType<typeof vi.fn>).mockReturnValue(false);
 
     const cmd = createCommand({ workingDir: '/tmp/test' });
     const result = await handleStartAgent(ctx, cmd);

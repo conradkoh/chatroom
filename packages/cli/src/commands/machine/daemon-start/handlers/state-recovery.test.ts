@@ -48,7 +48,7 @@ function createMockContext(
     },
   };
 
-  // remoteAgentService.isAlive(pid) uses deps.kill(pid, 0) — throws => dead, no throw => alive
+  // agentService.isAlive(pid) uses deps.kill(pid, 0) — throws => dead, no throw => alive
   const killMock = vi.fn().mockImplementation((pid: number, _signal: number | string) => {
     if (aliveCheck && !aliveCheck(pid)) {
       throw new Error('ESRCH');
@@ -62,11 +62,16 @@ function createMockContext(
     config: null,
     deps,
     events: new DaemonEventBus(),
-    remoteAgentService: new OpenCodeAgentService({
-      execSync: vi.fn(),
-      spawn: vi.fn() as any,
-      kill: killMock,
-    }),
+    agentServices: new Map([
+      [
+        'opencode',
+        new OpenCodeAgentService({
+          execSync: vi.fn(),
+          spawn: vi.fn() as any,
+          kill: killMock,
+        }),
+      ],
+    ]),
   };
 }
 

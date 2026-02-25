@@ -56,8 +56,10 @@ export function registerEventListeners(ctx: DaemonContext): () => void {
       // Clear PID from local state
       ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
 
-      // Stop tracking in the remote agent service
-      ctx.remoteAgentService.untrack(pid);
+      // Stop tracking in all remote agent services (pid tracking is per-service)
+      for (const service of ctx.agentServices.values()) {
+        service.untrack(pid);
+      }
 
       // Remove participant record so the UI reflects the exit
       ctx.deps.backend

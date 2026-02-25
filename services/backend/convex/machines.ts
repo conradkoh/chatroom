@@ -130,7 +130,7 @@ async function getOwnedMachine(
 }
 
 // Agent harness type validator (shared across functions)
-const agentHarnessValidator = v.literal('opencode');
+const agentHarnessValidator = v.union(v.literal('opencode'), v.literal('pi'));
 
 // ============================================================================
 // MACHINE REGISTRATION
@@ -641,6 +641,7 @@ export const sendCommand = mutation({
       const resolvedModel = args.payload.model ?? existingConfig?.model;
       const resolvedHarness = (args.payload.agentHarness ?? existingConfig?.agentType) as
         | 'opencode'
+        | 'pi'
         | undefined;
       const resolvedWorkingDir = args.payload.workingDir ?? existingConfig?.workingDir;
 

@@ -21,7 +21,9 @@ import {
   clearIntentionalStop,
 } from '../../../infrastructure/machine/intentional-stops.js';
 import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';
+import { PiAgentService } from '../../../infrastructure/services/remote-agents/pi/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
+import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
@@ -146,12 +148,18 @@ export async function initDaemon(): Promise<DaemonContext> {
   // Load and cache machine config (read once, reused by handlers)
   const config = loadMachineConfig();
 
-  // Instantiate remote agent service early — needed for model discovery
-  const remoteAgentService = new OpenCodeAgentService();
+  // Instantiate remote agent services — one for each supported harness
+  const openCodeService = new OpenCodeAgentService();
+  const piService = new PiAgentService();
+  const agentServices = new Map<AgentHarness, RemoteAgentService>([
+    ['opencode', openCodeService],
+    ['pi', piService],
+  ]);
 
-  // Discover available models from installed harnesses (dynamic)
-  // This ensures models are available in the UI as soon as the daemon connects
-  const availableModels = await discoverModels(remoteAgentService);
+  // Discover available models from the installed harness (dynamic)
+  // Use whichever service is installed; default to opencode for backward compat.
+  const primaryService = openCodeService.isInstalled() ? openCodeService : piService;
+  const availableModels = await discoverModels(primaryService);
 
   // Register/update machine info in backend (includes harnesses and models)
   // This ensures the web UI has current machine capabilities
@@ -202,7 +210,7 @@ export async function initDaemon(): Promise<DaemonContext> {
     config,
     deps,
     events,
-    remoteAgentService,
+    agentServices,
   };
 
   // Register centralized event listeners for agent lifecycle side-effects

@@ -1,8 +1,11 @@
 /**
- * OpenCodeAgentService — concrete RemoteAgentService for the OpenCode runtime.
+ * PiAgentService — concrete RemoteAgentService for the Pi CLI runtime.
  *
- * Encapsulates all interactions with OpenCode: installation detection,
+ * Encapsulates all interactions with the `pi` CLI: installation detection,
  * version queries, model discovery, agent spawning, and process lifecycle.
+ *
+ * Spawns agents using:
+ *   pi -p --no-session --system-prompt "<systemPrompt>" "<prompt>"
  *
  * Maintains an internal process registry that tracks spawned PIDs, their
  * associated context (machineId, chatroomId, role), and last output timestamps
@@ -22,7 +25,7 @@ import type {
 
 // ─── Dependency Injection ─────────────────────────────────────────────────────
 
-export interface OpenCodeAgentServiceDeps {
+export interface PiAgentServiceDeps {
   /** Execute a synchronous command (for detection/version/model queries). */
   execSync: (cmd: string, options?: object) => Buffer;
   /** Spawn a child process (for agent lifecycle). */
@@ -31,7 +34,7 @@ export interface OpenCodeAgentServiceDeps {
   kill: (pid: number, signal: number | string) => boolean;
 }
 
-function defaultDeps(): OpenCodeAgentServiceDeps {
+function defaultDeps(): PiAgentServiceDeps {
   return {
     execSync,
     spawn,
@@ -41,24 +44,33 @@ function defaultDeps(): OpenCodeAgentServiceDeps {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const OPENCODE_COMMAND = 'opencode';
+const PI_COMMAND = 'pi';
 const KILL_TIMEOUT_MS = 5000;
 const POLL_INTERVAL_MS = 200;
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Shell-escape a string so it can be safely embedded in a shell argument.
+ * Wraps the value in single quotes and escapes any embedded single quotes.
+ */
+function shellEscape(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 // ─── Implementation ──────────────────────────────────────────────────────────
 
-export class OpenCodeAgentService implements RemoteAgentService {
-  private readonly deps: OpenCodeAgentServiceDeps;
+export class PiAgentService implements RemoteAgentService {
+  private readonly deps: PiAgentServiceDeps;
   private readonly processes = new Map<number, { context: SpawnContext; lastOutputAt: number }>();
 
-  constructor(deps?: Partial<OpenCodeAgentServiceDeps>) {
+  constructor(deps?: Partial<PiAgentServiceDeps>) {
     this.deps = { ...defaultDeps(), ...deps };
   }
 
   isInstalled(): boolean {
     try {
-      const checkCmd =
-        process.platform === 'win32' ? `where ${OPENCODE_COMMAND}` : `which ${OPENCODE_COMMAND}`;
+      const checkCmd = process.platform === 'win32' ? `where ${PI_COMMAND}` : `which ${PI_COMMAND}`;
       this.deps.execSync(checkCmd, { stdio: 'ignore' });
       return true;
     } catch {
@@ -69,7 +81,7 @@ export class OpenCodeAgentService implements RemoteAgentService {
   getVersion(): VersionInfo | null {
     try {
       const output = this.deps
-        .execSync(`${OPENCODE_COMMAND} --version`, {
+        .execSync(`${PI_COMMAND} --version`, {
           stdio: ['pipe', 'pipe', 'pipe'],
           timeout: 5000,
         })
@@ -91,7 +103,7 @@ export class OpenCodeAgentService implements RemoteAgentService {
   async listModels(): Promise<string[]> {
     try {
       const output = this.deps
-        .execSync(`${OPENCODE_COMMAND} models`, {
+        .execSync(`${PI_COMMAND} --list-models`, {
           stdio: ['pipe', 'pipe', 'pipe'],
           timeout: 10000,
         })
@@ -100,37 +112,44 @@ export class OpenCodeAgentService implements RemoteAgentService {
 
       if (!output) return [];
 
-      return output
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
+      // Parse table output: first two columns are provider + model, joined as "provider/model".
+      // Expected format (tab or whitespace separated):
+      //   anthropic   claude-3-5-sonnet   ...
+      const models: string[] = [];
+      for (const line of output.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('-')) continue;
+        const cols = trimmed.split(/\s+/);
+        // Skip header row (first line: "provider  model  context  max-out  thinking  images")
+        if (cols[0] === 'provider') continue;
+        if (cols.length >= 2) {
+          models.push(`${cols[0]}/${cols[1]}`);
+        } else if (cols.length === 1 && cols[0]) {
+          models.push(cols[0]);
+        }
+      }
+      return models;
     } catch {
       return [];
     }
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const args: string[] = ['run'];
-    if (options.model) {
-      args.push('--model', options.model);
-    }
+    const systemPrompt = options.systemPrompt ?? '';
+    const prompt = options.prompt;
 
-    // Combine systemPrompt and prompt — opencode doesn't have a --system-prompt flag,
-    // so we prepend the role prompt to the initial message as a single combined prompt.
-    const fullPrompt = options.systemPrompt
-      ? `${options.systemPrompt}\n\n${options.prompt}`
-      : options.prompt;
+    // Build command: pi -p --no-session --system-prompt '<systemPrompt>' '<prompt>'
+    // We use shell: true so that the shell handles the quoted arguments correctly.
+    const escapedSystemPrompt = shellEscape(systemPrompt);
+    const escapedPrompt = shellEscape(prompt);
+    const shellCmd = `${PI_COMMAND} -p --no-session --system-prompt ${escapedSystemPrompt} ${escapedPrompt}`;
 
-    const childProcess: ChildProcess = this.deps.spawn(OPENCODE_COMMAND, args, {
+    const childProcess: ChildProcess = this.deps.spawn(shellCmd, [], {
       cwd: options.workingDir,
       stdio: ['pipe', 'pipe', 'pipe'],
-      shell: false,
+      shell: true,
       detached: true,
     });
-
-    // Write combined prompt to stdin
-    childProcess.stdin?.write(fullPrompt);
-    childProcess.stdin?.end();
 
     // Wait briefly for immediate crash detection
     await new Promise((resolve) => setTimeout(resolve, 500));

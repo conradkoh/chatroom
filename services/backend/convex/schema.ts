@@ -591,7 +591,7 @@ export default defineSchema({
     // Operating system (darwin, linux, win32)
     os: v.string(),
     // Available agent harnesses on this machine
-    availableHarnesses: v.array(v.literal('opencode')),
+    availableHarnesses: v.array(v.union(v.literal('opencode'), v.literal('pi'))),
     // Detected harness versions (keyed by harness name, e.g. { opencode: { version: "1.2.3", major: 1 } })
     harnessVersions: v.optional(
       v.record(
@@ -629,7 +629,7 @@ export default defineSchema({
     // Role this config is for
     role: v.string(),
     // Agent harness used (must be in machine's availableHarnesses)
-    agentType: v.literal('opencode'),
+    agentType: v.union(v.literal('opencode'), v.literal('pi')),
     // Working directory on the machine
     workingDir: v.string(),
     // AI model to use (e.g. "github-copilot/claude-sonnet-4.5")
@@ -662,7 +662,7 @@ export default defineSchema({
     payload: v.object({
       chatroomId: v.optional(v.id('chatroom_rooms')),
       role: v.optional(v.string()),
-      agentHarness: v.optional(v.literal('opencode')),
+      agentHarness: v.optional(v.union(v.literal('opencode'), v.literal('pi'))),
       // AI model to use when starting agent (e.g. "github-copilot/claude-sonnet-4.5")
       model: v.optional(v.string()),
       // Working directory for the agent (absolute path on the remote machine)
@@ -708,7 +708,7 @@ export default defineSchema({
 
     // Remote agent config (only present when type === 'remote')
     machineId: v.optional(v.string()),
-    agentHarness: v.optional(v.literal('opencode')),
+    agentHarness: v.optional(v.union(v.literal('opencode'), v.literal('pi'))),
     model: v.optional(v.string()),
     workingDir: v.optional(v.string()),
 

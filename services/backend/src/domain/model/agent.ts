@@ -15,9 +15,9 @@
  * The type of agent harness used to run an agent process.
  *
  * A harness is the execution environment that hosts the AI agent.
- * Currently only 'opencode' is supported.
+ * Supported harnesses: 'opencode', 'pi'.
  */
-export type AgentHarness = 'opencode';
+export type AgentHarness = 'opencode' | 'pi';
 
 // ─── Agent Type ──────────────────────────────────────────────────────────────
 

@@ -135,11 +135,16 @@ function createCtx(deps: DaemonDeps): DaemonContext {
     config: null as unknown as DaemonContext['config'],
     deps,
     events: new DaemonEventBus(),
-    remoteAgentService: new OpenCodeAgentService({
-      execSync: vi.fn(),
-      spawn: vi.fn() as any,
-      kill: vi.fn(),
-    }),
+    agentServices: new Map([
+      [
+        'opencode',
+        new OpenCodeAgentService({
+          execSync: vi.fn(),
+          spawn: vi.fn() as any,
+          kill: vi.fn(),
+        }),
+      ],
+    ]),
   };
 }
 

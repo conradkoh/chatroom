@@ -48,8 +48,10 @@ export async function handleStopAgent(
   const pidToKill = targetConfig.spawnedAgentPid;
   console.log(`   Stopping agent with PID: ${pidToKill}`);
 
-  // Verify the PID is still alive before attempting shutdown
-  const isAlive = ctx.remoteAgentService.isAlive(pidToKill);
+  // Verify the PID is still alive before attempting shutdown.
+  // Any service can check a PID (it's an OS-level check via kill(pid, 0)).
+  const anyService = ctx.agentServices.values().next().value;
+  const isAlive = anyService ? anyService.isAlive(pidToKill) : false;
 
   if (!isAlive) {
     console.log(`   ⚠️  PID ${pidToKill} does not appear to belong to the expected agent`);

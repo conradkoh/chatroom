@@ -23,6 +23,8 @@ export interface SpawnContext {
 export interface SpawnOptions {
   workingDir: string;
   prompt: string;
+  /** Optional system prompt (role prompt) passed separately to agents that support it. */
+  systemPrompt?: string;
   model?: string;
   context: SpawnContext;
 }
