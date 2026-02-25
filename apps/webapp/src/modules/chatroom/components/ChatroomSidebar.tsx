@@ -51,6 +51,11 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
         {displayName}
       </span>
 
+      {/* Favorite star indicator */}
+      {chatroom.isFavorite && (
+        <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
+      )}
+
       {/* Unread indicator - square per theme guidelines */}
       {chatroom.hasUnread && <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />}
     </button>
@@ -67,9 +72,11 @@ interface ChatroomSidebarProps {
  * Designed for desktop use within the chatroom view to allow quick switching.
  *
  * Sections:
- * - Favorites: Chatrooms marked as favorite
- * - Recent: Top 5 most recently active chatrooms
+ * - Active: Chatrooms with chatStatus 'working' or 'active' (agents present and engaged)
+ * - Recent: Top 5 most recently active non-active chatrooms
  * - Completed: Collapsible section for completed chatrooms
+ *
+ * Favorites are indicated by a star icon on the chatroom item rather than a separate section.
  */
 export const ChatroomSidebar = memo(function ChatroomSidebar({
   activeChatroomId,
@@ -79,21 +86,23 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
   const [completedExpanded, setCompletedExpanded] = useState(false);
 
   // Compute sections
-  const { favorites, recent, completed } = useMemo(() => {
-    if (!chatrooms) return { favorites: [], recent: [], completed: [] };
+  const { activeChatrooms, recent, completed } = useMemo(() => {
+    if (!chatrooms) return { activeChatrooms: [], recent: [], completed: [] };
 
     // Completed chatrooms
     const completedChatrooms = chatrooms.filter((c) => c.chatStatus === 'completed');
 
-    // Active chatrooms (non-completed)
-    const activeChatrooms = chatrooms.filter((c) => c.chatStatus !== 'completed');
+    // Active chatrooms: agents present and engaged (working or active status)
+    const engagedChatrooms = chatrooms.filter(
+      (c) => c.chatStatus === 'working' || c.chatStatus === 'active'
+    );
 
-    // Favorites (active only)
-    const favoriteChatrooms = activeChatrooms.filter((c) => c.isFavorite);
-
-    // Recent: Top 5 by lastActivityAt, excluding favorites to avoid duplication
-    const nonFavoriteActive = activeChatrooms.filter((c) => !c.isFavorite);
-    const sortedByActivity = [...nonFavoriteActive].sort((a, b) => {
+    // Recent: Top 5 by lastActivityAt, excluding active and completed chatrooms
+    const engagedIds = new Set(engagedChatrooms.map((c) => c._id));
+    const remainingChatrooms = chatrooms.filter(
+      (c) => !engagedIds.has(c._id) && c.chatStatus !== 'completed'
+    );
+    const sortedByActivity = [...remainingChatrooms].sort((a, b) => {
       const aTime = a.lastActivityAt || a._creationTime;
       const bTime = b.lastActivityAt || b._creationTime;
       return bTime - aTime;
@@ -101,7 +110,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
     const recentChatrooms = sortedByActivity.slice(0, 5);
 
     return {
-      favorites: favoriteChatrooms,
+      activeChatrooms: engagedChatrooms,
       recent: recentChatrooms,
       completed: completedChatrooms,
     };
@@ -138,16 +147,16 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
       </div>
       {/* Scrollable list */}
       <div className="flex-1 overflow-y-auto">
-        {/* Favorites Section */}
-        {favorites.length > 0 && (
+        {/* Active Section - chatrooms with agents present and engaged */}
+        {activeChatrooms.length > 0 && (
           <>
             <div className="px-3 py-2 flex items-center gap-1.5 bg-chatroom-bg-tertiary">
-              <Star size={10} className="text-yellow-500" fill="currentColor" />
+              <span className="w-1.5 h-1.5 bg-chatroom-status-success flex-shrink-0" />
               <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-                Favorites
+                Active
               </span>
             </div>
-            {favorites.map((chatroom) => (
+            {activeChatrooms.map((chatroom) => (
               <ChatroomSidebarItem
                 key={chatroom._id}
                 chatroom={chatroom}
@@ -162,7 +171,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
         {recent.length > 0 && (
           <>
             <div
-              className={`px-3 py-2 flex items-center gap-1.5 bg-chatroom-bg-tertiary ${favorites.length > 0 ? 'border-t border-chatroom-border' : ''}`}
+              className={`px-3 py-2 flex items-center gap-1.5 bg-chatroom-bg-tertiary ${activeChatrooms.length > 0 ? 'border-t border-chatroom-border' : ''}`}
             >
               <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
                 Recent
