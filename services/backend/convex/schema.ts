@@ -604,7 +604,11 @@ export default defineSchema({
     ),
     // Available AI models discovered per harness (dynamic, per-machine)
     // Shape: { opencode: [...], pi: [...] }
-    availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
+    // DEPRECATED SHAPE: v.array(v.string()) — kept to pass validation until
+    // migration.migrateAvailableModelsToPerHarness has run. Remove after migration.
+    availableModels: v.optional(
+      v.union(v.record(v.string(), v.array(v.string())), v.array(v.string()))
+    ),
     // When machine was first registered
     registeredAt: v.number(),
     // Last sync/heartbeat from CLI

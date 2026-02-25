@@ -30,10 +30,14 @@ const MODEL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
  * Re-discover models and update the backend registration.
  * Called periodically to keep the model list fresh.
  */
-async function refreshModels(ctx: DaemonContext): Promise<void> {
-  // Collect models from all available services, keyed by harness
+export async function refreshModels(ctx: DaemonContext): Promise<void> {
+  // Collect models from all installed services, keyed by harness.
+  // Only query services that are actually installed — mirrors discoverModels() in init.ts.
+  // Uninstalled services are excluded entirely so they don't overwrite a previously
+  // discovered model list with an empty entry.
   const models: Record<string, string[]> = {};
   for (const [harness, service] of ctx.agentServices) {
+    if (!service.isInstalled()) continue;
     try {
       models[harness] = await service.listModels();
     } catch {

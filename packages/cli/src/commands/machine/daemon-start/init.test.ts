@@ -193,6 +193,71 @@ describe('discoverModels', () => {
     const models = await discoverModels(agentServices);
     expect(models).toEqual({});
   });
+
+  it('discovers models from multiple harnesses independently', async () => {
+    const opencodeService = {
+      isInstalled: vi.fn().mockReturnValue(true),
+      listModels: vi.fn().mockResolvedValue(['opencode/model-a']),
+    } as any;
+    const piService = {
+      isInstalled: vi.fn().mockReturnValue(true),
+      listModels: vi.fn().mockResolvedValue(['github-copilot/claude-sonnet-4.5', 'github-copilot/gpt-4o']),
+    } as any;
+
+    const agentServices = new Map([
+      ['opencode', opencodeService],
+      ['pi', piService],
+    ]);
+    const models = await discoverModels(agentServices);
+
+    expect(models).toEqual({
+      opencode: ['opencode/model-a'],
+      pi: ['github-copilot/claude-sonnet-4.5', 'github-copilot/gpt-4o'],
+    });
+  });
+
+  it('excludes pi harness when pi is not installed, keeps opencode', async () => {
+    const opencodeService = {
+      isInstalled: vi.fn().mockReturnValue(true),
+      listModels: vi.fn().mockResolvedValue(['opencode/model-a']),
+    } as any;
+    const piService = {
+      isInstalled: vi.fn().mockReturnValue(false),
+      listModels: vi.fn(),
+    } as any;
+
+    const agentServices = new Map([
+      ['opencode', opencodeService],
+      ['pi', piService],
+    ]);
+    const models = await discoverModels(agentServices);
+
+    expect(models).toEqual({ opencode: ['opencode/model-a'] });
+    // pi.listModels should never be called when pi is not installed
+    expect(piService.listModels).not.toHaveBeenCalled();
+  });
+
+  it('keeps successful harness when other harness listModels throws', async () => {
+    const opencodeService = {
+      isInstalled: vi.fn().mockReturnValue(true),
+      listModels: vi.fn().mockRejectedValue(new Error('opencode broke')),
+    } as any;
+    const piService = {
+      isInstalled: vi.fn().mockReturnValue(true),
+      listModels: vi.fn().mockResolvedValue(['github-copilot/gpt-4o']),
+    } as any;
+
+    const agentServices = new Map([
+      ['opencode', opencodeService],
+      ['pi', piService],
+    ]);
+    const models = await discoverModels(agentServices);
+
+    expect(models).toEqual({
+      opencode: [],   // failed → empty array fallback
+      pi: ['github-copilot/gpt-4o'],
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
