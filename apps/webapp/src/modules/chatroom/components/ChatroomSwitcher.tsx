@@ -68,9 +68,6 @@ export function ChatroomSwitcher() {
                 <span className="text-xs font-bold uppercase tracking-wide text-foreground">
                   {getChatroomDisplayName(chatroom)}
                 </span>
-                {chatroom.teamName && (
-                  <span className="text-muted-foreground text-xs">{chatroom.teamName}</span>
-                )}
               </CommandItem>
             ))}
           </CommandGroup>
