@@ -17,6 +17,11 @@ export interface OnAgentShutdownResult {
 /**
  * Handle a single agent's shutdown: kill process, clear all state.
  * All cleanup steps are best-effort — errors are logged, never thrown.
+ *
+ * Key invariants:
+ * - PID (local + backend) is cleared ONLY after the process is confirmed dead
+ * - All external calls are wrapped in try/catch so no exception propagates
+ * - stops.mark is called BEFORE kill to prevent crash-detection race conditions
  */
 export async function onAgentShutdown(
   ctx: DaemonContext,
@@ -26,16 +31,31 @@ export async function onAgentShutdown(
 
   // Step 1: Mark as intentional stop BEFORE killing — prevents race condition where
   // the process exits before the mark, causing onExit to treat it as an unexpected crash.
-  ctx.deps.stops.mark(chatroomId, role);
+  // Wrapped in try/catch: if marking fails we still want to proceed with the kill.
+  try {
+    ctx.deps.stops.mark(chatroomId, role);
+  } catch (e) {
+    console.log(`   ⚠️  Failed to mark intentional stop for ${role}: ${(e as Error).message}`);
+  }
 
   // Step 2: Kill the process with verified shutdown
   let killed = false;
   if (!skipKill) {
     // 2a. Send SIGTERM to entire process group (negative PID)
+    // Only treat ESRCH as "process already dead"; other errors (EPERM etc.) mean
+    // the kill failed but the process may still be running.
     try {
       ctx.deps.processes.kill(-pid, 'SIGTERM');
-    } catch {
-      killed = true; // ESRCH — process already dead
+    } catch (e) {
+      const isEsrch =
+        (e as NodeJS.ErrnoException).code === 'ESRCH' || (e as Error).message?.includes('ESRCH');
+      if (isEsrch) {
+        killed = true; // Process already dead
+      }
+      // Non-ESRCH errors (e.g. EPERM): log and continue to polling loop
+      if (!isEsrch) {
+        console.log(`   ⚠️  Failed to send SIGTERM to ${role}: ${(e as Error).message}`);
+      }
     }
 
     if (!killed) {
@@ -48,6 +68,7 @@ export async function onAgentShutdown(
         try {
           ctx.deps.processes.kill(pid, 0);
         } catch {
+          // Any exception on signal=0 means process is gone
           killed = true;
           break;
         }
@@ -75,22 +96,31 @@ export async function onAgentShutdown(
     }
   }
 
-  // Step 3: Clear local PID state
-  ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
+  // Step 3: Clear local PID state — ONLY if process is confirmed dead
+  // Wrapped in try/catch: if local state clear fails, continue to backend cleanup.
+  if (killed || skipKill) {
+    try {
+      ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
+    } catch (e) {
+      console.log(`   ⚠️  Failed to clear local PID for ${role}: ${(e as Error).message}`);
+    }
+  }
 
-  // Step 4: Clear backend spawnedAgent
+  // Step 4: Clear backend spawnedAgent — ONLY if process is confirmed dead
   let spawnedAgentCleared = false;
-  try {
-    await ctx.deps.backend.mutation(api.machines.updateSpawnedAgent, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-      pid: undefined,
-    });
-    spawnedAgentCleared = true;
-  } catch (e) {
-    console.log(`   ⚠️  Failed to clear spawnedAgent for ${role}: ${(e as Error).message}`);
+  if (killed || skipKill) {
+    try {
+      await ctx.deps.backend.mutation(api.machines.updateSpawnedAgent, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        role,
+        pid: undefined,
+      });
+      spawnedAgentCleared = true;
+    } catch (e) {
+      console.log(`   ⚠️  Failed to clear spawnedAgent for ${role}: ${(e as Error).message}`);
+    }
   }
 
   // Step 5: Remove participant record
@@ -106,5 +136,8 @@ export async function onAgentShutdown(
     console.log(`   ⚠️  Failed to remove participant for ${role}: ${(e as Error).message}`);
   }
 
-  return { killed, cleaned: spawnedAgentCleared && participantRemoved };
+  return {
+    killed: killed || (skipKill ?? false),
+    cleaned: spawnedAgentCleared && participantRemoved,
+  };
 }
