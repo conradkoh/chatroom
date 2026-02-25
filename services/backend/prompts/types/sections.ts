@@ -30,6 +30,8 @@ export interface SelectorContext {
   convexUrl: string;
   /** Chatroom ID for CLI command generation */
   chatroomId?: string;
+  /** Agent type for register-agent command — when set, replaces the `<remote|custom>` placeholder */
+  agentType?: 'remote' | 'custom';
 }
 
 /**
