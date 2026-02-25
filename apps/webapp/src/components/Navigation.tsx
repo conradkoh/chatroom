@@ -30,10 +30,10 @@ export function Navigation() {
   const hideUserMenu = portalContent.hideUserMenu ?? false;
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b-2 border-border/15 bg-background/95 dark:bg-zinc-950/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 dark:supports-[backdrop-filter]:bg-zinc-950/80">
-      <div className="flex h-14 items-center justify-between px-4 sm:px-6">
+    <header className="sticky top-0 z-50 w-full h-14 border-b-2 border-border/15 bg-background/95 dark:bg-zinc-950/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 dark:supports-[backdrop-filter]:bg-zinc-950/80">
+      <div className="flex h-full items-center justify-between px-4 sm:px-6">
         {/* Left section: Logo and portal content */}
-        <div className="flex items-center gap-4">
+        <div className="flex h-full items-center gap-4">
           {!hideAppTitle && (
             <Link
               href={authStatus.isAuthenticated ? '/app' : '/'}
@@ -50,11 +50,11 @@ export function Navigation() {
 
         {/* Center section: Portal content */}
         {portalContent.center && (
-          <div className="hidden sm:flex items-center">{portalContent.center}</div>
+          <div className="hidden sm:flex h-full items-center">{portalContent.center}</div>
         )}
 
         {/* Right section: Portal content and auth */}
-        <div className="flex items-center gap-3">
+        <div className="flex h-full items-center gap-3">
           {portalContent.right}
           {!hideUserMenu && _renderAuthSection(authStatus.isLoading, authStatus.isAuthenticated)}
         </div>
