@@ -248,6 +248,36 @@ export async function newContext(
     console.log(`   Created by: ${options.role}`);
     console.log(`\n📌 This context is now pinned for all agents in this chatroom.`);
   } catch (err) {
+    // Check for structured ConvexError with a known code
+    const errData = (
+      err as {
+        data?: {
+          code?: string;
+          message?: string;
+          existingContext?: { content: string; createdAt: number; createdBy: string };
+        };
+      }
+    ).data;
+    if (errData?.code === 'CONTEXT_NO_HANDOFF_SINCE_LAST_CONTEXT' && errData.existingContext) {
+      const { content, createdAt, createdBy } = errData.existingContext;
+      console.error(
+        `❌ Cannot create new context: no handoff sent since last context was created.`
+      );
+      console.error(`\n📌 Current Context (resume from here):`);
+      console.error(`   Created by: ${sanitizeForTerminal(createdBy)}`);
+      console.error(`   Created at: ${new Date(createdAt).toLocaleString()}`);
+      console.error(`   Content:`);
+      const safeContent = sanitizeForTerminal(content);
+      console.error(
+        safeContent
+          .split('\n')
+          .map((l) => `      ${l}`)
+          .join('\n')
+      );
+      console.error(`\n💡 Send a handoff first, then create a new context.`);
+      process.exit(1);
+      return;
+    }
     console.error(`❌ Failed to create context: ${(err as Error).message}`);
     process.exit(1);
     return;
