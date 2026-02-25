@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 import { PageSpinner } from '@/components/ui/spinner';
 import { AuthErrorBoundary } from '@/modules/auth/AuthErrorBoundary';
 import { RequireLogin } from '@/modules/auth/RequireLogin';
+import { ChatroomSwitcher } from '@/modules/chatroom/components/ChatroomSwitcher';
 import { ChatroomListingProvider } from '@/modules/chatroom/context/ChatroomListingContext';
 
 /**
@@ -33,6 +34,7 @@ export default function AppLayout({
     <RequireLogin>
       <AuthErrorBoundary>
         <ChatroomListingProvider>
+          <ChatroomSwitcher />
           <Suspense fallback={<PageSpinner />}>{children}</Suspense>
         </ChatroomListingProvider>
       </AuthErrorBoundary>
