@@ -9,6 +9,7 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { getAvailableActions } from '../../prompts/base/cli/get-next-task/available-actions';
 import { buildSelectorContext } from '../../prompts/generator';
 import {
   getRoleDescriptionSection,
@@ -130,6 +131,31 @@ describe('getTeamContextSection', () => {
       expect(section.id).toBe('team-context');
       expect(section.content).toBe('');
     });
+  });
+});
+
+describe('getAvailableActions', () => {
+  test('entry point role includes Context Management section', () => {
+    const output = getAvailableActions({
+      chatroomId: 'test-chatroom-id',
+      role: 'planner',
+      convexUrl: 'http://127.0.0.1:3210',
+      isEntryPoint: true,
+    });
+    expect(output).toContain('### Context Management');
+    expect(output).toContain('context new');
+    expect(output).toContain('Only the entry point role can create new contexts');
+  });
+
+  test('non-entry-point role does not include Context Management section', () => {
+    const output = getAvailableActions({
+      chatroomId: 'test-chatroom-id',
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+      isEntryPoint: false,
+    });
+    expect(output).not.toContain('### Context Management');
+    expect(output).not.toContain('Only the entry point role can create new contexts');
   });
 });
 
