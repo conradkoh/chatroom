@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import React, { memo, useMemo, useState } from 'react';
 
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
+import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
 // Status indicator colors - using squares per theme guidelines
 const getStatusIndicatorClasses = (chatStatus: ChatroomWithStatus['chatStatus']) => {
@@ -32,7 +33,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   isActive,
   onSelect,
 }: ChatroomSidebarItemProps) {
-  const displayName = chatroom.name || chatroom.teamName || 'Chatroom';
+  const displayName = getChatroomDisplayName(chatroom);
 
   return (
     <button

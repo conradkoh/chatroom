@@ -12,6 +12,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { useChatroomListing } from '@/modules/chatroom/context/ChatroomListingContext';
+import { getChatroomDisplayName } from '@/modules/chatroom/viewModels/chatroomViewModel';
 
 /**
  * Global Cmd+K chatroom switcher.
@@ -60,11 +61,13 @@ export function ChatroomSwitcher() {
             {chatrooms.map((chatroom) => (
               <CommandItem
                 key={chatroom._id}
-                value={chatroom.name ?? chatroom._id}
+                value={getChatroomDisplayName(chatroom)}
                 onSelect={() => handleSelect(chatroom._id)}
                 className="flex flex-col items-start gap-0.5"
               >
-                <span className="text-foreground font-medium">{chatroom.name ?? chatroom._id}</span>
+                <span className="text-xs font-bold uppercase tracking-wide text-foreground">
+                  {getChatroomDisplayName(chatroom)}
+                </span>
                 {chatroom.teamName && (
                   <span className="text-muted-foreground text-xs">{chatroom.teamName}</span>
                 )}
