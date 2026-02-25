@@ -22,9 +22,19 @@ export interface SpawnContext {
 
 export interface SpawnOptions {
   workingDir: string;
+  /**
+   * The immediate action or message to deliver to the agent.
+   * Always provided. Each service implementation decides how to deliver it
+   * (e.g. stdin, positional arg, etc.).
+   */
   prompt: string;
-  /** Optional system prompt (role prompt) passed separately to agents that support it. */
-  systemPrompt?: string;
+  /**
+   * The role/system prompt that establishes the agent's identity and context.
+   * Always provided. Each service decides whether to pass it separately
+   * (e.g. Pi's --system-prompt flag) or combine it with the prompt
+   * (e.g. OpenCode prepends it to stdin input).
+   */
+  systemPrompt: string;
   model?: string;
   context: SpawnContext;
 }

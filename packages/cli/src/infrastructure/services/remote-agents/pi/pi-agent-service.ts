@@ -7,46 +7,23 @@
  * Spawns agents using:
  *   pi -p --no-session --system-prompt "<systemPrompt>" "<prompt>"
  *
- * Maintains an internal process registry that tracks spawned PIDs, their
- * associated context (machineId, chatroomId, role), and last output timestamps
- * for idle detection.
+ * Extends BaseCLIAgentService which handles all shared boilerplate:
+ * process registry, stop/isAlive/getTrackedProcesses/untrack, and
+ * the underlying isInstalled/getVersion helpers.
  */
 
-import { spawn, execSync, type ChildProcess } from 'node:child_process';
+import { type ChildProcess } from 'node:child_process';
 
-import type {
-  RemoteAgentService,
-  SpawnContext,
-  SpawnOptions,
-  SpawnResult,
-  ProcessInfo,
-  VersionInfo,
-} from '../remote-agent-service.js';
+import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
+import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 
-// ─── Dependency Injection ─────────────────────────────────────────────────────
+// ─── Re-export deps type under the legacy name for backwards compatibility ────
 
-export interface PiAgentServiceDeps {
-  /** Execute a synchronous command (for detection/version/model queries). */
-  execSync: (cmd: string, options?: object) => Buffer;
-  /** Spawn a child process (for agent lifecycle). */
-  spawn: typeof spawn;
-  /** Check if a PID is alive. Throws if dead. */
-  kill: (pid: number, signal: number | string) => boolean;
-}
-
-function defaultDeps(): PiAgentServiceDeps {
-  return {
-    execSync,
-    spawn,
-    kill: (pid, signal) => process.kill(pid, signal),
-  };
-}
+export type PiAgentServiceDeps = CLIAgentServiceDeps;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PI_COMMAND = 'pi';
-const KILL_TIMEOUT_MS = 5000;
-const POLL_INTERVAL_MS = 200;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -60,44 +37,17 @@ function shellEscape(value: string): string {
 
 // ─── Implementation ──────────────────────────────────────────────────────────
 
-export class PiAgentService implements RemoteAgentService {
-  private readonly deps: PiAgentServiceDeps;
-  private readonly processes = new Map<number, { context: SpawnContext; lastOutputAt: number }>();
-
-  constructor(deps?: Partial<PiAgentServiceDeps>) {
-    this.deps = { ...defaultDeps(), ...deps };
+export class PiAgentService extends BaseCLIAgentService {
+  constructor(deps?: Partial<CLIAgentServiceDeps>) {
+    super(deps);
   }
 
   isInstalled(): boolean {
-    try {
-      const checkCmd = process.platform === 'win32' ? `where ${PI_COMMAND}` : `which ${PI_COMMAND}`;
-      this.deps.execSync(checkCmd, { stdio: 'ignore' });
-      return true;
-    } catch {
-      return false;
-    }
+    return this.checkInstalled(PI_COMMAND);
   }
 
-  getVersion(): VersionInfo | null {
-    try {
-      const output = this.deps
-        .execSync(`${PI_COMMAND} --version`, {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          timeout: 5000,
-        })
-        .toString()
-        .trim();
-
-      const match = output.match(/v?(\d+)\.(\d+)\.(\d+)/);
-      if (!match) return null;
-
-      return {
-        version: `${match[1]}.${match[2]}.${match[3]}`,
-        major: parseInt(match[1], 10),
-      };
-    } catch {
-      return null;
-    }
+  getVersion() {
+    return this.checkVersion(PI_COMMAND);
   }
 
   async listModels(): Promise<string[]> {
@@ -135,8 +85,7 @@ export class PiAgentService implements RemoteAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const systemPrompt = options.systemPrompt ?? '';
-    const prompt = options.prompt;
+    const { systemPrompt, prompt } = options;
 
     // Build command: pi -p --no-session --system-prompt '<systemPrompt>' '<prompt>'
     // We use shell: true so that the shell handles the quoted arguments correctly.
@@ -166,8 +115,7 @@ export class PiAgentService implements RemoteAgentService {
     const context = options.context;
 
     // Register in process registry
-    const entry = { context, lastOutputAt: Date.now() };
-    this.processes.set(pid, entry);
+    const entry = this.registerProcess(pid, context);
 
     // Output tracking callbacks (for external consumers) + internal timestamp update
     const outputCallbacks: (() => void)[] = [];
@@ -190,7 +138,7 @@ export class PiAgentService implements RemoteAgentService {
       pid,
       onExit: (cb) => {
         childProcess.on('exit', (code, signal) => {
-          this.processes.delete(pid);
+          this.deleteProcess(pid);
           cb({ code, signal, context });
         });
       },
@@ -198,52 +146,5 @@ export class PiAgentService implements RemoteAgentService {
         outputCallbacks.push(cb);
       },
     };
-  }
-
-  async stop(pid: number): Promise<void> {
-    // SIGTERM → entire process group (negative PID)
-    try {
-      this.deps.kill(-pid, 'SIGTERM');
-    } catch {
-      return; // Already dead
-    }
-
-    const deadline = Date.now() + KILL_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      try {
-        this.deps.kill(pid, 0);
-      } catch {
-        return; // Exited
-      }
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-    }
-
-    // Still alive — SIGKILL
-    try {
-      this.deps.kill(-pid, 'SIGKILL');
-    } catch {
-      // May have exited between check and kill
-    }
-  }
-
-  isAlive(pid: number): boolean {
-    try {
-      this.deps.kill(pid, 0);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  getTrackedProcesses(): ProcessInfo[] {
-    return Array.from(this.processes.entries()).map(([pid, entry]) => ({
-      pid,
-      context: entry.context,
-      lastOutputAt: entry.lastOutputAt,
-    }));
-  }
-
-  untrack(pid: number): void {
-    this.processes.delete(pid);
   }
 }
