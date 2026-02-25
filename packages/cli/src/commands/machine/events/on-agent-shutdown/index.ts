@@ -24,10 +24,14 @@ export async function onAgentShutdown(
 ): Promise<OnAgentShutdownResult> {
   const { chatroomId, role, pid, skipKill } = options;
 
-  // Step 1: Kill the process with verified shutdown
+  // Step 1: Mark as intentional stop BEFORE killing — prevents race condition where
+  // the process exits before the mark, causing onExit to treat it as an unexpected crash.
+  ctx.deps.stops.mark(chatroomId, role);
+
+  // Step 2: Kill the process with verified shutdown
   let killed = false;
   if (!skipKill) {
-    // 1a. Send SIGTERM to entire process group (negative PID)
+    // 2a. Send SIGTERM to entire process group (negative PID)
     try {
       ctx.deps.processes.kill(-pid, 'SIGTERM');
     } catch {
@@ -35,7 +39,7 @@ export async function onAgentShutdown(
     }
 
     if (!killed) {
-      // 1b. Wait up to 10s for graceful exit (check parent via positive PID)
+      // 2b. Wait up to 10s for graceful exit (check parent via positive PID)
       const SIGTERM_TIMEOUT_MS = 10_000;
       const POLL_INTERVAL_MS = 500;
       const deadline = Date.now() + SIGTERM_TIMEOUT_MS;
@@ -50,7 +54,7 @@ export async function onAgentShutdown(
       }
     }
 
-    // 1c. If still alive after SIGTERM timeout, SIGKILL entire process group
+    // 2c. If still alive after SIGTERM timeout, SIGKILL entire process group
     if (!killed) {
       try {
         ctx.deps.processes.kill(-pid, 'SIGKILL');
@@ -59,7 +63,7 @@ export async function onAgentShutdown(
       }
     }
 
-    // 1d. Final check — wait 5s and log if still alive (check parent via positive PID)
+    // 2d. Final check — wait 5s and log if still alive (check parent via positive PID)
     if (!killed) {
       await ctx.deps.clock.delay(5_000);
       try {
@@ -70,9 +74,6 @@ export async function onAgentShutdown(
       }
     }
   }
-
-  // Step 2: Mark as intentional stop (so onExit callback skips cleanup)
-  ctx.deps.stops.mark(chatroomId, role);
 
   // Step 3: Clear local PID state
   ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
