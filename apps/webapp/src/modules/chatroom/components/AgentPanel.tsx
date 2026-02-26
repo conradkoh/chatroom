@@ -15,6 +15,7 @@ import {
 import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
 
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
+import type { AgentPreference } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
 import type { ParticipantInfo, TeamReadiness } from '../types/readiness';
@@ -183,6 +184,10 @@ interface InlineAgentCardProps {
   sendCommand: SendCommandFn;
   onViewPrompt?: (role: string) => void;
   teamConfig?: TeamAgentConfig;
+  /** User's saved preference for this role's remote agent config */
+  agentPreference?: AgentPreference;
+  /** Called when user starts an agent — persists preference to backend */
+  onSavePreference?: (pref: AgentPreference) => void;
 }
 
 // Resolve machine hostname from connected machines by machineId
@@ -210,6 +215,8 @@ const InlineAgentCard = memo(function InlineAgentCard({
   sendCommand,
   onViewPrompt,
   teamConfig,
+  agentPreference,
+  onSavePreference,
 }: InlineAgentCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>('remote');
@@ -221,6 +228,8 @@ const InlineAgentCard = memo(function InlineAgentCard({
     agentConfigs,
     sendCommand,
     teamConfigModel: teamConfig?.model,
+    agentPreference,
+    onSavePreference,
   });
 
   const indicatorClass = online ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
@@ -433,6 +442,13 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamAgentConfig[] | undefined;
 
+  // Fetch user's saved agent preferences for pre-populating Remote tab defaults
+  const agentPreferencesResult = useSessionQuery(api.machines.getAgentPreferences, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  }) as AgentPreference[] | undefined;
+
+  const saveAgentPreference = useSessionMutation(api.machines.saveAgentPreference);
+
   const sendCommand = useSessionMutation(api.machines.sendCommand);
 
   const connectedMachines = useMemo(() => {
@@ -451,6 +467,29 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     if (!teamAgentConfigs) return new Map<string, TeamAgentConfig>();
     return new Map(teamAgentConfigs.map((c) => [c.role.toLowerCase(), c]));
   }, [teamAgentConfigs]);
+
+  // Build a lookup map from agentPreferences keyed by role (lowercase)
+  const agentPreferenceMap = useMemo(() => {
+    if (!agentPreferencesResult) return new Map<string, AgentPreference>();
+    return new Map(agentPreferencesResult.map((p) => [p.role.toLowerCase(), p]));
+  }, [agentPreferencesResult]);
+
+  // Handler to save a preference to the backend
+  const handleSavePreference = useCallback(
+    (pref: AgentPreference) => {
+      saveAgentPreference({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        role: pref.role,
+        machineId: pref.machineId,
+        agentHarness: pref.agentHarness,
+        model: pref.model,
+        workingDir: pref.workingDir,
+      }).catch((err) => {
+        console.error('[AgentPanel] Failed to save agent preference:', err);
+      });
+    },
+    [saveAgentPreference, chatroomId]
+  );
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose}>
@@ -476,6 +515,8 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
               sendCommand={sendCommand}
               onViewPrompt={onViewPrompt}
               teamConfig={teamConfigMap.get(role.toLowerCase())}
+              agentPreference={agentPreferenceMap.get(role.toLowerCase())}
+              onSavePreference={handleSavePreference}
             />
           ))}
         </FixedModalBody>

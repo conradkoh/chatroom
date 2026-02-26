@@ -36,6 +36,15 @@ export interface AgentConfigTabsProps {
   onViewPrompt?: (role: string) => void;
 }
 
+/** User's saved preference for a single role's remote agent config. */
+export interface AgentPreference {
+  role: string;
+  machineId: string;
+  agentHarness: AgentHarness;
+  model?: string;
+  workingDir?: string;
+}
+
 // ─── Hook: useAgentControls ─────────────────────────────────────────
 // Encapsulates all state + logic for machine/harness/model selection and
 // start/stop/restart actions. Used by both the shared tab content and
@@ -58,6 +67,8 @@ export function useAgentControls({
   agentConfigs,
   sendCommand,
   teamConfigModel,
+  agentPreference,
+  onSavePreference,
 }: {
   role: string;
   chatroomId: string;
@@ -66,6 +77,10 @@ export function useAgentControls({
   sendCommand: AgentConfigTabsProps['sendCommand'];
   /** Model from team config — used as fallback when machine config has no model */
   teamConfigModel?: string;
+  /** User's saved preference for this role — used as default pre-population */
+  agentPreference?: AgentPreference;
+  /** Called when user starts an agent — saves preference for future sessions */
+  onSavePreference?: (pref: AgentPreference) => void;
 }) {
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedHarness, setSelectedHarness] = useState<AgentHarness | null>(null);
@@ -107,7 +122,7 @@ export function useAgentControls({
     return machine?.harnessVersions || {};
   }, [selectedMachineId, connectedMachines]);
 
-  // Auto-select machine (priority: running agent > role config > first available)
+  // Auto-select machine (priority: running agent > role config > saved preference > first available)
   useEffect(() => {
     if (!selectedMachineId && connectedMachines.length > 0) {
       let nextMachineId: string;
@@ -121,6 +136,12 @@ export function useAgentControls({
         );
         nextMachineId = configMachine ? configMachine.machineId : connectedMachines[0].machineId;
         reason = configMachine ? 'role config' : 'first available (config machine not online)';
+      } else if (
+        agentPreference &&
+        connectedMachines.some((m) => m.machineId === agentPreference.machineId)
+      ) {
+        nextMachineId = agentPreference.machineId;
+        reason = 'saved preference';
       } else {
         nextMachineId = connectedMachines[0].machineId;
         reason = 'first available';
@@ -128,7 +149,7 @@ export function useAgentControls({
       console.log(`[AgentControls:${role}] auto-select machine (${reason}) → ${nextMachineId}`);
       setSelectedMachineId(nextMachineId);
     }
-  }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs, role]);
+  }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs, role, agentPreference]);
 
   // Available models from the selected machine filtered by selected harness
   const availableModelsForHarness = useMemo(() => {
@@ -142,7 +163,7 @@ export function useAgentControls({
     return models;
   }, [selectedMachineId, selectedHarness, connectedMachines, role]);
 
-  // Auto-select harness (priority: role config > single available harness)
+  // Auto-select harness (priority: role config > saved preference > single available harness)
   useEffect(() => {
     if (selectedMachineId) {
       const config = roleConfigs.find((c) => c.machineId === selectedMachineId);
@@ -153,6 +174,18 @@ export function useAgentControls({
         setSelectedHarness(config.agentType);
         return;
       }
+      // Use saved preference harness if machine matches and harness is available
+      if (
+        agentPreference &&
+        agentPreference.machineId === selectedMachineId &&
+        availableHarnessesForMachine.includes(agentPreference.agentHarness)
+      ) {
+        console.log(
+          `[AgentControls:${role}] auto-select harness (saved preference) → ${agentPreference.agentHarness}`
+        );
+        setSelectedHarness(agentPreference.agentHarness);
+        return;
+      }
       if (availableHarnessesForMachine.length === 1) {
         console.log(
           `[AgentControls:${role}] auto-select harness (only one available) → ${availableHarnessesForMachine[0]}`
@@ -160,7 +193,7 @@ export function useAgentControls({
         setSelectedHarness(availableHarnessesForMachine[0]);
       }
     }
-  }, [selectedMachineId, roleConfigs, availableHarnessesForMachine, role]);
+  }, [selectedMachineId, roleConfigs, availableHarnessesForMachine, role, agentPreference]);
 
   // ── Derived model selection ──────────────────────────────────────
   // selectedModel is a pure derivation — no useEffect, no setState.
@@ -171,7 +204,8 @@ export function useAgentControls({
   //   1. User's explicit per-harness choice (userModelByHarness), if still valid
   //   2. Saved machine config model for the same harness (agentType must match)
   //   3. Team config model
-  //   4. First available model for this harness
+  //   4. Saved user preference model (for the same harness)
+  //   5. First available model for this harness
   const selectedModel = useMemo((): string | null => {
     if (!selectedHarness || availableModelsForHarness.length === 0) {
       return null;
@@ -205,7 +239,21 @@ export function useAgentControls({
       return teamConfigModel;
     }
 
-    // 4. First available for this harness
+    // 4. Saved user preference model (for the same harness and machine)
+    if (
+      agentPreference &&
+      agentPreference.machineId === selectedMachineId &&
+      agentPreference.agentHarness === selectedHarness &&
+      agentPreference.model &&
+      availableModelsForHarness.includes(agentPreference.model)
+    ) {
+      console.log(
+        `[AgentControls:${role}] model derived (saved preference) → ${agentPreference.model} [harness=${selectedHarness}]`
+      );
+      return agentPreference.model;
+    }
+
+    // 5. First available for this harness
     const first = availableModelsForHarness[0];
     console.log(
       `[AgentControls:${role}] model derived (first available) → ${first} [harness=${selectedHarness}]`,
@@ -219,11 +267,13 @@ export function useAgentControls({
     roleConfigs,
     selectedMachineId,
     teamConfigModel,
+    agentPreference,
     role,
   ]);
 
-  // Pre-populate workingDir from existing config when switching machines
-  // Skip if user has manually set the working directory
+  // Pre-populate workingDir from existing config when switching machines.
+  // Priority: machine config > saved preference > most-recent config > empty.
+  // Skip if user has manually set the working directory.
   useEffect(() => {
     if (isWorkingDirManuallySet) return; // User manually set, don't override
 
@@ -231,6 +281,12 @@ export function useAgentControls({
       const existingConfig = roleConfigs.find((c) => c.machineId === selectedMachineId);
       if (existingConfig?.workingDir) {
         setWorkingDir(existingConfig.workingDir);
+        return;
+      }
+      // Use saved preference working dir if machine matches
+      if (agentPreference && agentPreference.machineId === selectedMachineId && agentPreference.workingDir) {
+        console.log(`[AgentControls:${role}] workingDir pre-populated from saved preference → ${agentPreference.workingDir}`);
+        setWorkingDir(agentPreference.workingDir);
         return;
       }
     }
@@ -241,8 +297,14 @@ export function useAgentControls({
         return;
       }
     }
+    // Fall back to saved preference working dir (any machine)
+    if (agentPreference?.workingDir) {
+      console.log(`[AgentControls:${role}] workingDir pre-populated from saved preference (fallback) → ${agentPreference.workingDir}`);
+      setWorkingDir(agentPreference.workingDir);
+      return;
+    }
     setWorkingDir('');
-  }, [selectedMachineId, roleConfigs, isWorkingDirManuallySet]);
+  }, [selectedMachineId, roleConfigs, isWorkingDirManuallySet, agentPreference, role]);
 
   const isAgentRunning = !!runningAgentConfig;
   const isBusy = isStarting || isStopping;
@@ -274,6 +336,14 @@ export function useAgentControls({
           workingDir: workingDir.trim() || undefined,
         },
       });
+      // Save user preference so the Remote tab pre-populates these values next time
+      onSavePreference?.({
+        role,
+        machineId: selectedMachineId,
+        agentHarness: selectedHarness,
+        model: selectedModel || undefined,
+        workingDir: workingDir.trim() || undefined,
+      });
       setSuccess('Start command sent!');
       setTimeout(() => setSuccess(null), 2000);
     } catch (err) {
@@ -289,6 +359,7 @@ export function useAgentControls({
     sendCommand,
     chatroomId,
     role,
+    onSavePreference,
   ]);
 
   const handleStopAgent = useCallback(async () => {
