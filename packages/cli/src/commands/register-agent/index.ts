@@ -11,7 +11,7 @@ import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
-import { ensureMachineRegistered, type AgentHarness } from '../../infrastructure/machine/index.js';
+import { ensureMachineRegistered } from '../../infrastructure/machine/index.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
 import { PiAgentService } from '../../infrastructure/services/remote-agents/pi/index.js';
 
@@ -141,10 +141,6 @@ export async function registerAgent(
         availableModels,
       });
 
-      // Determine agent harness (default to first available)
-      const agentHarness: AgentHarness | undefined =
-        machineInfo.availableHarnesses.length > 0 ? machineInfo.availableHarnesses[0] : undefined;
-
       // Save team agent config with machine details.
       // NOTE: agentHarness is intentionally NOT sent here — start-agent owns
       // that field. Sending it here would overwrite the explicitly chosen harness
@@ -162,9 +158,6 @@ export async function registerAgent(
       console.log(`✅ Registered as remote agent for role "${role}"`);
       console.log(`   Machine: ${machineInfo.hostname} (${machineInfo.machineId})`);
       console.log(`   Working directory: ${process.cwd()}`);
-      if (agentHarness) {
-        console.log(`   Agent harness: ${agentHarness}`);
-      }
     } catch (error) {
       console.error(`❌ Registration failed: ${(error as Error).message}`);
       process.exit(1);
