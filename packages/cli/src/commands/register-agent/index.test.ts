@@ -140,14 +140,17 @@ describe('registerAgent', () => {
       expect(output).toContain('planner');
     });
 
-    it('calls register, saveTeamAgentConfig mutations and logs success (remote)', async () => {
+    it('calls machines.register mutation only and logs success (remote)', async () => {
+      // register-agent for remote type must ONLY call machines.register.
+      // saveTeamAgentConfig is intentionally NOT called — start-agent (the UI
+      // "Start Agent" button) exclusively owns the team agent config for remote agents.
       const deps = createMockDeps();
 
       await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'remote' }), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
-      // Two mutations: machines.register + machines.saveTeamAgentConfig
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
+      // Only one mutation: machines.register (no saveTeamAgentConfig)
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
 
       const output = getAllLogOutput();
       expect(output).toContain('Registered as remote agent');
@@ -156,27 +159,26 @@ describe('registerAgent', () => {
     });
   });
 
-  describe('agentHarness not forwarded to saveTeamAgentConfig', () => {
-    it('does NOT include agentHarness in the saveTeamAgentConfig mutation call (remote)', async () => {
-      // register-agent must NOT pass agentHarness to saveTeamAgentConfig.
-      // start-agent owns that field; register-agent would overwrite it with the
-      // "first available harness" heuristic, which breaks agents that were
-      // explicitly started with a different harness (e.g. pi vs opencode).
+  describe('saveTeamAgentConfig not called for remote type', () => {
+    it('does NOT call saveTeamAgentConfig for remote type', async () => {
+      // register-agent must NOT call saveTeamAgentConfig for remote agents.
+      // start-agent (the UI "Start Agent" button) exclusively owns the team
+      // agent config. Any call here would write incomplete/premature config
+      // (missing harness, model) before the user configures the agent via the UI.
       const deps = createMockDeps();
 
       await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'remote' }), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
 
-      // Find the saveTeamAgentConfig call (second mutation after machines.register)
+      // Only one mutation call: machines.register
       const mutationCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
-      // The second call is saveTeamAgentConfig
-      const saveConfigCall = mutationCalls[1];
-      const saveConfigArgs = saveConfigCall?.[1] as Record<string, unknown> | undefined;
+      expect(mutationCalls).toHaveLength(1);
 
-      // agentHarness must be absent (undefined means the key should not be present)
-      expect(saveConfigArgs).toBeDefined();
-      expect(saveConfigArgs!['agentHarness']).toBeUndefined();
+      // That one call must be machines.register (not saveTeamAgentConfig)
+      const [endpoint] = mutationCalls[0] as [{ _name?: string } | string, unknown];
+      const endpointStr = typeof endpoint === 'string' ? endpoint : JSON.stringify(endpoint);
+      expect(endpointStr).not.toContain('saveTeamAgentConfig');
     });
   });
 
@@ -196,11 +198,11 @@ describe('registerAgent', () => {
       expect(errOutput).toContain('Permission denied');
     });
 
-    it('exits with code 1 when saveTeamAgentConfig mutation throws (remote)', async () => {
+    it('exits with code 1 when machines.register mutation throws (remote)', async () => {
       const deps = createMockDeps();
-      (deps.backend.mutation as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(undefined) // machines.register succeeds
-        .mockRejectedValueOnce(new Error('Config save failed')); // saveTeamAgentConfig fails
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('Register failed')
+      );
 
       await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'remote' }), deps);
 
@@ -208,7 +210,7 @@ describe('registerAgent', () => {
 
       const errOutput = getAllErrorOutput();
       expect(errOutput).toContain('Registration failed');
-      expect(errOutput).toContain('Config save failed');
+      expect(errOutput).toContain('Register failed');
     });
   });
 });

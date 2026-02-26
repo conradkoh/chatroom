@@ -107,7 +107,13 @@ export async function registerAgent(
   }
 
   if (type === 'remote') {
-    // Remote type: register machine and include machine details
+    // Remote type: register machine only.
+    // NOTE: saveTeamAgentConfig is intentionally NOT called here.
+    // The team agent config (harness, model, workingDir) is owned exclusively
+    // by start-agent (the UI "Start Agent" button). Calling saveTeamAgentConfig
+    // here would write stale/incomplete config before the user has configured
+    // the agent via the UI, violating the invariant that config is only set
+    // when the user explicitly starts the agent.
     try {
       const machineInfo = ensureMachineRegistered();
 
@@ -130,7 +136,7 @@ export async function registerAgent(
         /* non-critical */
       }
 
-      // Register/update machine in backend
+      // Register/update machine in backend (machine identity + capabilities only)
       await d.backend.mutation(api.machines.register, {
         sessionId,
         machineId: machineInfo.machineId,
@@ -139,20 +145,6 @@ export async function registerAgent(
         availableHarnesses: machineInfo.availableHarnesses,
         harnessVersions: machineInfo.harnessVersions,
         availableModels,
-      });
-
-      // Save team agent config with machine details.
-      // NOTE: agentHarness is intentionally NOT sent here — start-agent owns
-      // that field. Sending it here would overwrite the explicitly chosen harness
-      // (e.g. 'pi') with whatever is first in availableHarnesses ('opencode').
-      // saveTeamAgentConfig preserves the existing agentHarness when undefined.
-      await d.backend.mutation(api.machines.saveTeamAgentConfig, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        type: 'remote',
-        machineId: machineInfo.machineId,
-        workingDir: process.cwd(),
       });
 
       console.log(`✅ Registered as remote agent for role "${role}"`);
