@@ -102,8 +102,9 @@ export const check = internalMutation({
         continue;
       }
 
-      if (config.desiredState === 'stopped') {
-        // User intentionally stopped this agent — do not auto-restart.
+      if (config.desiredState !== 'running') {
+        // Only restart agents that are explicitly desired to be running.
+        // Absent desiredState (undefined) and 'stopped' both skip restart.
         continue;
       }
 

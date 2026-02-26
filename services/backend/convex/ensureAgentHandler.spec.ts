@@ -149,13 +149,13 @@ describe('ensureAgentHandler — desiredState guard', () => {
     expect(startCount).toBe(1); // agent should be restarted
   });
 
-  test('dispatches start-agent when desiredState is absent (backward compat)', async () => {
+  test('skips restart when desiredState is absent (treated as stopped)', async () => {
     const { sessionId } = await createTestSession('eah-3');
     const chatroomId = await createChatroom(sessionId);
     const machineId = 'eah-machine-3';
 
     await registerMachine(sessionId, machineId);
-    // No desiredState — old row
+    // No desiredState — treated as 'stopped', so restart is skipped
     await seedTeamAgentConfig(chatroomId, machineId, undefined);
 
     const snapshot = Date.now() - 1;
@@ -171,6 +171,6 @@ describe('ensureAgentHandler — desiredState guard', () => {
     });
 
     const startCount = await countStartCommands(chatroomId);
-    expect(startCount).toBe(1); // old rows default to restart behavior
+    expect(startCount).toBe(0); // undefined desiredState is now treated as 'stopped'
   });
 });
