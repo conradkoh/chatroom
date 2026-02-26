@@ -3,6 +3,11 @@
  *
  * Delegates to onAgentShutdown for the actual kill + cleanup sequence,
  * ensuring consistent process-group kills and state cleanup.
+ *
+ * PIDs are collected from two sources before stopping:
+ *   1. Backend (authoritative DB record via getAgentConfigs)
+ *   2. Local daemon state (may diverge if updateSpawnedAgent mutation failed)
+ * All unique live PIDs are killed to prevent ghost processes.
  */
 
 import { api } from '../../../../api.js';
@@ -22,7 +27,7 @@ export async function handleStopAgent(
   console.log(`      Chatroom: ${chatroomId}`);
   console.log(`      Role: ${role}`);
 
-  // Query the backend for the current PID (single source of truth)
+  // Query the backend for the current PID (source 1: authoritative DB record)
   const configsResult: {
     configs: {
       machineId: string;
@@ -38,60 +43,87 @@ export async function handleStopAgent(
   const targetConfig = configsResult.configs.find(
     (c) => c.machineId === ctx.machineId && c.role.toLowerCase() === role.toLowerCase()
   );
+  const backendPid = targetConfig?.spawnedAgentPid;
 
-  if (!targetConfig?.spawnedAgentPid) {
+  // Source 2: local daemon state — may differ from backend if updateSpawnedAgent failed
+  const localEntry = ctx.deps.machine
+    .listAgentEntries(ctx.machineId)
+    .find((e) => e.chatroomId === chatroomId && e.role.toLowerCase() === role.toLowerCase());
+  const localPid = localEntry?.entry.pid;
+
+  // Collect all unique PIDs from both sources
+  const allPids = [...new Set([backendPid, localPid].filter((p): p is number => p !== undefined))];
+
+  if (allPids.length === 0) {
     const msg = 'No running agent found (no PID recorded)';
     console.log(`   ⚠️  ${msg}`);
     return { result: msg, failed: true };
   }
 
-  const pidToKill = targetConfig.spawnedAgentPid;
-  console.log(`   Stopping agent with PID: ${pidToKill}`);
-
-  // Verify the PID is still alive before attempting shutdown.
-  // Any service can check a PID (it's an OS-level check via kill(pid, 0)).
+  // Any service can check a PID (it's an OS-level check via kill(pid, 0))
   const anyService = ctx.agentServices.values().next().value;
-  const isAlive = anyService ? anyService.isAlive(pidToKill) : false;
 
-  if (!isAlive) {
-    console.log(`   ⚠️  PID ${pidToKill} does not appear to belong to the expected agent`);
-    await clearAgentPidEverywhere(ctx, chatroomId, role);
-    console.log(`   Cleared stale PID`);
+  let anyKilled = false;
+  let lastError: Error | null = null;
 
-    try {
-      await ctx.deps.backend.mutation(api.participants.leave, {
-        sessionId: ctx.sessionId,
-        chatroomId,
-        role,
-      });
-      console.log(`   Removed participant record`);
-    } catch {
-      // Non-critical
+  for (const pid of allPids) {
+    console.log(`   Stopping agent with PID: ${pid}`);
+    const isAlive = anyService ? anyService.isAlive(pid) : false;
+
+    if (!isAlive) {
+      console.log(`   ⚠️  PID ${pid} does not appear to belong to the expected agent`);
+      await clearAgentPidEverywhere(ctx, chatroomId, role);
+      console.log(`   Cleared stale PID`);
+
+      try {
+        await ctx.deps.backend.mutation(api.participants.leave, {
+          sessionId: ctx.sessionId,
+          chatroomId,
+          role,
+        });
+        console.log(`   Removed participant record`);
+      } catch {
+        // Non-critical
+      }
+      continue;
     }
 
+    // Delegate to onAgentShutdown for kill + cleanup (process group kill, state cleanup)
+    try {
+      const shutdownResult = await onAgentShutdown(ctx, {
+        chatroomId,
+        role,
+        pid,
+      });
+
+      const msg = shutdownResult.killed
+        ? `Agent stopped (PID: ${pid})`
+        : `Agent stop attempted (PID: ${pid}) — process may still be running`;
+
+      console.log(`   ${shutdownResult.killed ? '✅' : '⚠️ '} ${msg}`);
+      if (shutdownResult.killed) {
+        anyKilled = true;
+      }
+    } catch (e) {
+      lastError = e as Error;
+      console.log(`   ⚠️  Failed to stop agent (PID: ${pid}): ${(e as Error).message}`);
+    }
+  }
+
+  if (lastError && !anyKilled) {
+    const msg = `Failed to stop agent: ${lastError.message}`;
+    console.log(`   ⚠️  ${msg}`);
+    return { result: msg, failed: true };
+  }
+
+  if (!anyKilled) {
+    // All PIDs were stale
     return {
-      result: `PID ${pidToKill} appears stale (process not found or belongs to different program)`,
+      result: `All recorded PIDs appear stale (processes not found or belong to different programs)`,
       failed: true,
     };
   }
 
-  // Delegate to onAgentShutdown for kill + cleanup (process group kill, state cleanup)
-  try {
-    const shutdownResult = await onAgentShutdown(ctx, {
-      chatroomId,
-      role,
-      pid: pidToKill,
-    });
-
-    const msg = shutdownResult.killed
-      ? `Agent stopped (PID: ${pidToKill})`
-      : `Agent stop attempted (PID: ${pidToKill}) — process may still be running`;
-
-    console.log(`   ${shutdownResult.killed ? '✅' : '⚠️ '} ${msg}`);
-    return { result: msg, failed: !shutdownResult.killed };
-  } catch (e) {
-    const msg = `Failed to stop agent: ${(e as Error).message}`;
-    console.log(`   ⚠️  ${msg}`);
-    return { result: msg, failed: true };
-  }
+  const killedCount = allPids.length > 1 ? ` (${allPids.length} PIDs)` : ``;
+  return { result: `Agent stopped${killedCount}`, failed: false };
 }

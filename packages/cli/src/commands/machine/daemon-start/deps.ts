@@ -60,7 +60,7 @@ export interface MachineStateOps {
 export interface StartAgentDeps {
   backend: BackendOps;
   fs: FsOps;
-  machine: Pick<MachineStateOps, 'persistAgentPid'>;
+  machine: Pick<MachineStateOps, 'persistAgentPid' | 'listAgentEntries'>;
   stops: Pick<IntentionalStopOps, 'consume'>;
 }
 
@@ -68,7 +68,7 @@ export interface StartAgentDeps {
 export interface StopAgentDeps {
   backend: BackendOps;
   processes: ProcessOps;
-  machine: Pick<MachineStateOps, 'clearAgentPid'>;
+  machine: Pick<MachineStateOps, 'clearAgentPid' | 'listAgentEntries'>;
   stops: Pick<IntentionalStopOps, 'mark' | 'clear'>;
 }
 

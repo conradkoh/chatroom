@@ -68,6 +68,12 @@ function createMockContext(options?: {
   lifecycleState?: { state: string } | null;
   lifecycleError?: boolean;
   agentConfigs?: { machineId: string; role: string; spawnedAgentPid?: number }[];
+  /** Local daemon state entries (simulates persisted PIDs from a previous spawn) */
+  localAgentEntries?: {
+    chatroomId: string;
+    role: string;
+    entry: { pid: number; harness: 'opencode' };
+  }[];
 }): DaemonContext {
   const spawnMock = vi.fn().mockImplementation(async () => {
     if (options?.spawnError) throw options.spawnError;
@@ -129,7 +135,7 @@ function createMockContext(options?: {
     machine: {
       clearAgentPid: vi.fn(),
       persistAgentPid: vi.fn(),
-      listAgentEntries: vi.fn().mockReturnValue([]),
+      listAgentEntries: vi.fn().mockReturnValue(options?.localAgentEntries ?? []),
     },
     clock: {
       now: vi.fn().mockReturnValue(Date.now()),
@@ -416,5 +422,99 @@ describe('handleStartAgent', () => {
 
     expect(result.failed).toBe(false);
     expect(onAgentShutdownMock).not.toHaveBeenCalled();
+  });
+
+  it('kills both backend PID and diverged local PID when both are alive', async () => {
+    // Regression test: the backend PID (1111) and local daemon state PID (2222)
+    // diverged (e.g. updateSpawnedAgent mutation failed after the previous spawn).
+    // Both must be killed before the new agent is spawned.
+    const ctx = createMockContext({
+      agentConfigs: [{ machineId: 'test-machine-id', role: 'builder', spawnedAgentPid: 1111 }],
+      localAgentEntries: [
+        {
+          chatroomId: 'test-chatroom-123',
+          role: 'builder',
+          entry: { pid: 2222, harness: 'opencode' },
+        },
+      ],
+    });
+
+    // Both PIDs are alive
+    const service = ctx.agentServices.get('opencode')!;
+    (service.isAlive as ReturnType<typeof vi.fn>).mockReturnValue(true);
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    // Both PIDs must have been killed
+    expect(onAgentShutdownMock).toHaveBeenCalledTimes(2);
+    expect(onAgentShutdownMock).toHaveBeenCalledWith(ctx, {
+      chatroomId: 'test-chatroom-123',
+      role: 'builder',
+      pid: 1111,
+    });
+    expect(onAgentShutdownMock).toHaveBeenCalledWith(ctx, {
+      chatroomId: 'test-chatroom-123',
+      role: 'builder',
+      pid: 2222,
+    });
+  });
+
+  it('kills only the unique PID when backend and local state agree on the same PID', async () => {
+    // When both sources have the same PID, it should only be killed once (deduplication).
+    const ctx = createMockContext({
+      agentConfigs: [{ machineId: 'test-machine-id', role: 'builder', spawnedAgentPid: 5555 }],
+      localAgentEntries: [
+        {
+          chatroomId: 'test-chatroom-123',
+          role: 'builder',
+          entry: { pid: 5555, harness: 'opencode' },
+        },
+      ],
+    });
+
+    const service = ctx.agentServices.get('opencode')!;
+    (service.isAlive as ReturnType<typeof vi.fn>).mockReturnValue(true);
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    // Only called once despite both sources reporting the same PID
+    expect(onAgentShutdownMock).toHaveBeenCalledTimes(1);
+    expect(onAgentShutdownMock).toHaveBeenCalledWith(ctx, {
+      chatroomId: 'test-chatroom-123',
+      role: 'builder',
+      pid: 5555,
+    });
+  });
+
+  it('kills local PID even when backend has no recorded PID', async () => {
+    // Backend has no PID (e.g. updateSpawnedAgent never completed),
+    // but local state has the PID from a previous spawn.
+    const ctx = createMockContext({
+      agentConfigs: [{ machineId: 'test-machine-id', role: 'builder', spawnedAgentPid: undefined }],
+      localAgentEntries: [
+        {
+          chatroomId: 'test-chatroom-123',
+          role: 'builder',
+          entry: { pid: 7777, harness: 'opencode' },
+        },
+      ],
+    });
+
+    const service = ctx.agentServices.get('opencode')!;
+    (service.isAlive as ReturnType<typeof vi.fn>).mockReturnValue(true);
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    const result = await handleStartAgent(ctx, cmd);
+
+    expect(result.failed).toBe(false);
+    expect(onAgentShutdownMock).toHaveBeenCalledWith(ctx, {
+      chatroomId: 'test-chatroom-123',
+      role: 'builder',
+      pid: 7777,
+    });
   });
 });

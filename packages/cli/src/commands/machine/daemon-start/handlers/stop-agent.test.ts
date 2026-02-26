@@ -327,4 +327,83 @@ describe('handleStopAgent', () => {
     expect(deps.stops.mark).not.toHaveBeenCalled();
     expect(deps.machine.clearAgentPid).toHaveBeenCalled();
   });
+
+  it('kills both backend PID and diverged local PID when both are alive', async () => {
+    // Backend records PID 1234, but local daemon state has PID 5678 (diverged).
+    // Both must be killed.
+    vi.mocked(deps.backend.query).mockResolvedValue({
+      configs: [
+        {
+          machineId: 'test-machine',
+          role: 'builder',
+          spawnedAgentPid: 1234,
+          agentType: 'opencode',
+        },
+      ],
+    });
+
+    vi.mocked(deps.machine.listAgentEntries).mockReturnValue([
+      {
+        chatroomId: CHATROOM_ID,
+        role: 'builder',
+        entry: { pid: 5678, harness: 'opencode' },
+      },
+    ]);
+
+    const openCodeService = ctx.agentServices.get('opencode')!;
+    vi.spyOn(openCodeService, 'isAlive').mockReturnValue(true);
+
+    // processes.kill: SIGTERM succeeds, kill(0) throws ESRCH (process died)
+    vi.mocked(deps.processes.kill).mockImplementation(
+      (pid: number, signal?: NodeJS.Signals | number) => {
+        if (signal === 'SIGTERM' || signal === 'SIGKILL') return;
+        if (signal === 0) throw new Error('ESRCH');
+      }
+    );
+
+    const result = await handleStopAgent(ctx, createStopCommand());
+
+    expect(result.failed).toBe(false);
+    // Both PIDs were killed — stops.mark called for each
+    expect(deps.stops.mark).toHaveBeenCalledTimes(2);
+    // Both PIDs sent SIGTERM to their process groups
+    expect(deps.processes.kill).toHaveBeenCalledWith(-1234, 'SIGTERM');
+    expect(deps.processes.kill).toHaveBeenCalledWith(-5678, 'SIGTERM');
+  });
+
+  it('kills local PID when backend has no recorded PID', async () => {
+    // Backend has no PID, but local daemon state has one from a previous spawn.
+    vi.mocked(deps.backend.query).mockResolvedValue({
+      configs: [
+        {
+          machineId: 'test-machine',
+          role: 'builder',
+          spawnedAgentPid: undefined,
+        },
+      ],
+    });
+
+    vi.mocked(deps.machine.listAgentEntries).mockReturnValue([
+      {
+        chatroomId: CHATROOM_ID,
+        role: 'builder',
+        entry: { pid: 9999, harness: 'opencode' },
+      },
+    ]);
+
+    const openCodeService = ctx.agentServices.get('opencode')!;
+    vi.spyOn(openCodeService, 'isAlive').mockReturnValue(true);
+
+    vi.mocked(deps.processes.kill).mockImplementation(
+      (pid: number, signal?: NodeJS.Signals | number) => {
+        if (signal === 'SIGTERM' || signal === 'SIGKILL') return;
+        if (signal === 0) throw new Error('ESRCH');
+      }
+    );
+
+    const result = await handleStopAgent(ctx, createStopCommand());
+
+    expect(result.failed).toBe(false);
+    expect(deps.processes.kill).toHaveBeenCalledWith(-9999, 'SIGTERM');
+  });
 });

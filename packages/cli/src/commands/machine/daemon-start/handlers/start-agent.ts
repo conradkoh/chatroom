@@ -53,7 +53,11 @@ export async function handleStartAgent(
   // Kill any existing agent for this (chatroomId, role) before spawning.
   // This prevents duplicate/ghost agents when start-agent is called while a
   // previous instance is still running (e.g. slow agent, ensureAgentHandler firing).
-  // Fail-open: if the query errors, skip the pre-kill and proceed with spawn.
+  // We collect PIDs from two sources:
+  //   1. Backend (authoritative DB record)
+  //   2. Local daemon state (may diverge if updateSpawnedAgent mutation failed)
+  // Both are killed to ensure no ghost processes survive.
+  // Fail-open: if the backend query errors, skip the pre-kill and proceed with spawn.
   try {
     const existingConfigs = await ctx.deps.backend.query(api.machines.getAgentConfigs, {
       sessionId: ctx.sessionId,
@@ -63,17 +67,27 @@ export async function handleStartAgent(
       (c: { machineId: string; role: string; spawnedAgentPid?: number }) =>
         c.machineId === ctx.machineId && c.role.toLowerCase() === role.toLowerCase()
     );
-    if (existingConfig?.spawnedAgentPid) {
-      const existingPid = existingConfig.spawnedAgentPid;
-      // Use any available service to check if the PID is alive (OS-level check)
-      const anyService = ctx.agentServices.values().next().value;
-      const isAlive = anyService ? anyService.isAlive(existingPid) : false;
+    const backendPid = existingConfig?.spawnedAgentPid;
+
+    // Also check local daemon state — it may differ from the backend if a
+    // previous updateSpawnedAgent mutation failed or a race left a stale entry.
+    const localEntry = ctx.deps.machine
+      .listAgentEntries(ctx.machineId)
+      .find((e) => e.chatroomId === chatroomId && e.role.toLowerCase() === role.toLowerCase());
+    const localPid = localEntry?.entry.pid;
+
+    // Deduplicate: build a set of all PIDs to kill from both sources.
+    const pidsToKill = [
+      ...new Set([backendPid, localPid].filter((p): p is number => p !== undefined)),
+    ];
+
+    const anyService = ctx.agentServices.values().next().value;
+    for (const pid of pidsToKill) {
+      const isAlive = anyService ? anyService.isAlive(pid) : false;
       if (isAlive) {
-        console.log(
-          `   ⚠️  Existing agent detected (PID: ${existingPid}) — stopping before respawn`
-        );
-        await onAgentShutdown(ctx, { chatroomId, role, pid: existingPid });
-        console.log(`   ✅ Existing agent stopped`);
+        console.log(`   ⚠️  Existing agent detected (PID: ${pid}) — stopping before respawn`);
+        await onAgentShutdown(ctx, { chatroomId, role, pid });
+        console.log(`   ✅ Existing agent stopped (PID: ${pid})`);
       }
     }
   } catch (e) {
