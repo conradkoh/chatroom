@@ -161,7 +161,33 @@ describe('PiAgentService', () => {
       return child;
     }
 
-    it('builds the correct shell command with --system-prompt and positional prompt', async () => {
+    it('builds the correct args array with --system-prompt, --model, and positional prompt', async () => {
+      const child = makeChildProcess(42);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/test',
+        systemPrompt: 'You are a test agent',
+        prompt: 'Hello world',
+        model: 'github-copilot/claude-sonnet-4.6',
+        context: { machineId: 'machine1', chatroomId: 'room1', role: 'tester' },
+      });
+
+      expect(spawnFn).toHaveBeenCalledWith(
+        'pi',
+        ['-p', '--no-session', '--model', 'github-copilot/claude-sonnet-4.6', '--system-prompt', 'You are a test agent', 'Hello world'],
+        expect.objectContaining({
+          cwd: '/tmp/test',
+          stdio: ['pipe', 'pipe', 'pipe'],
+          shell: false,
+          detached: true,
+        })
+      );
+    });
+
+    it('omits --model flag when model is not specified', async () => {
       const child = makeChildProcess(42);
       const spawnFn = vi.fn().mockReturnValue(child);
       const deps = createMockDeps({ spawn: spawnFn as any });
@@ -174,19 +200,11 @@ describe('PiAgentService', () => {
         context: { machineId: 'machine1', chatroomId: 'room1', role: 'tester' },
       });
 
-      expect(spawnFn).toHaveBeenCalledWith(
-        "pi -p --no-session --system-prompt 'You are a test agent' 'Hello world'",
-        [],
-        expect.objectContaining({
-          cwd: '/tmp/test',
-          stdio: ['pipe', 'pipe', 'pipe'],
-          shell: true,
-          detached: true,
-        })
-      );
+      const args = spawnFn.mock.calls[0][1] as string[];
+      expect(args).not.toContain('--model');
     });
 
-    it('shell-escapes single quotes in system prompt and prompt', async () => {
+    it('passes system prompt and prompt as separate args (no shell escaping needed)', async () => {
       const child = makeChildProcess(43);
       const spawnFn = vi.fn().mockReturnValue(child);
       const deps = createMockDeps({ spawn: spawnFn as any });
@@ -194,17 +212,31 @@ describe('PiAgentService', () => {
 
       await service.spawn({
         workingDir: '/tmp',
-        systemPrompt: "It's a system prompt",
+        systemPrompt: "It's a system prompt with 'quotes'",
         prompt: "Don't stop",
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
-      // Single quotes inside are escaped as '\''
-      expect(spawnFn).toHaveBeenCalledWith(
-        "pi -p --no-session --system-prompt 'It'\\''s a system prompt' 'Don'\\''t stop'",
-        [],
-        expect.any(Object)
-      );
+      const args = spawnFn.mock.calls[0][1] as string[];
+      // Args are passed as-is — no shell escaping needed when shell: false
+      expect(args).toContain("It's a system prompt with 'quotes'");
+      expect(args).toContain("Don't stop");
+    });
+
+    it('closes stdin immediately after spawn', async () => {
+      const child = makeChildProcess(42);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp/test',
+        systemPrompt: 'system',
+        prompt: 'prompt',
+        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+      });
+
+      expect(child.stdin.end).toHaveBeenCalled();
     });
 
     it('throws when process exits immediately', async () => {

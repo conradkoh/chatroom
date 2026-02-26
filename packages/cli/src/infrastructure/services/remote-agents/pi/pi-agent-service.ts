@@ -25,16 +25,6 @@ export type PiAgentServiceDeps = CLIAgentServiceDeps;
 
 const PI_COMMAND = 'pi';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/**
- * Shell-escape a string so it can be safely embedded in a shell argument.
- * Wraps the value in single quotes and escapes any embedded single quotes.
- */
-function shellEscape(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
-
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class PiAgentService extends BaseCLIAgentService {
@@ -85,20 +75,38 @@ export class PiAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const { systemPrompt, prompt } = options;
+    const { systemPrompt, prompt, model } = options;
 
-    // Build command: pi -p --no-session --system-prompt '<systemPrompt>' '<prompt>'
-    // We use shell: true so that the shell handles the quoted arguments correctly.
-    const escapedSystemPrompt = shellEscape(systemPrompt);
-    const escapedPrompt = shellEscape(prompt);
-    const shellCmd = `${PI_COMMAND} -p --no-session --system-prompt ${escapedSystemPrompt} ${escapedPrompt}`;
+    // Build args array — prefer passing args directly (shell: false) so we don't
+    // need to shell-escape anything and avoid the stdin-blocking issue that occurs
+    // when shell: true wraps pi in /bin/sh.
+    //
+    // pi takes the prompt as a positional argument and ignores stdin, but it still
+    // blocks waiting for stdin to close when stdio is piped. We close stdin immediately
+    // after spawn (see below) to unblock it.
+    const args: string[] = ['-p', '--no-session'];
 
-    const childProcess: ChildProcess = this.deps.spawn(shellCmd, [], {
+    if (model) {
+      args.push('--model', model);
+    }
+
+    if (systemPrompt) {
+      args.push('--system-prompt', systemPrompt);
+    }
+
+    // Prompt is the positional argument (last)
+    args.push(prompt);
+
+    const childProcess: ChildProcess = this.deps.spawn(PI_COMMAND, args, {
       cwd: options.workingDir,
       stdio: ['pipe', 'pipe', 'pipe'],
-      shell: true,
+      shell: false,
       detached: true,
     });
+
+    // pi doesn't read from stdin (prompt is a CLI arg), but it blocks waiting
+    // for stdin to close when stdio is piped. End stdin immediately to unblock.
+    childProcess.stdin?.end();
 
     // Wait briefly for immediate crash detection
     await new Promise((resolve) => setTimeout(resolve, 500));

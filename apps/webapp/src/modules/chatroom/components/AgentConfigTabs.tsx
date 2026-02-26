@@ -40,6 +40,16 @@ export interface AgentConfigTabsProps {
 // Encapsulates all state + logic for machine/harness/model selection and
 // start/stop/restart actions. Used by both the shared tab content and
 // any container that needs programmatic access.
+//
+// Model selection architecture:
+//   `selectedModel` is DERIVED (useMemo), not state driven by an effect.
+//   This guarantees that switching harness ALWAYS shows a model from the
+//   new harness's list in the same render — no stale carry-over is possible.
+//
+//   Per-harness user choices are stored in `userModelByHarness`. When the
+//   user picks a model on harness A then switches to harness B, harness B
+//   starts fresh (auto-select). Switching back to harness A restores the
+//   user's earlier choice (if it's still valid).
 
 export function useAgentControls({
   role,
@@ -59,15 +69,18 @@ export function useAgentControls({
 }) {
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedHarness, setSelectedHarness] = useState<AgentHarness | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  // Per-harness user model choice. Keyed by AgentHarness string.
+  // null entry means "use auto-select for this harness".
+  const [userModelByHarness, setUserModelByHarness] = useState<
+    Partial<Record<AgentHarness, string>>
+  >({});
   const [workingDir, setWorkingDir] = useState<string>('');
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Track if user has manually set these values (prevents auto-selection override)
-  const [isModelManuallySet, setIsModelManuallySet] = useState(false);
+  // Track if user has manually set the working directory (prevents auto-fill override)
   const [isWorkingDirManuallySet, setIsWorkingDirManuallySet] = useState(false);
 
   // Get configs for this role
@@ -97,22 +110,25 @@ export function useAgentControls({
   // Auto-select machine (priority: running agent > role config > first available)
   useEffect(() => {
     if (!selectedMachineId && connectedMachines.length > 0) {
+      let nextMachineId: string;
+      let reason: string;
       if (runningAgentConfig) {
-        setSelectedMachineId(runningAgentConfig.machineId);
+        nextMachineId = runningAgentConfig.machineId;
+        reason = 'running agent';
       } else if (roleConfigs.length > 0) {
         const configMachine = connectedMachines.find((m) =>
           roleConfigs.some((c) => c.machineId === m.machineId)
         );
-        if (configMachine) {
-          setSelectedMachineId(configMachine.machineId);
-        } else {
-          setSelectedMachineId(connectedMachines[0].machineId);
-        }
+        nextMachineId = configMachine ? configMachine.machineId : connectedMachines[0].machineId;
+        reason = configMachine ? 'role config' : 'first available (config machine not online)';
       } else {
-        setSelectedMachineId(connectedMachines[0].machineId);
+        nextMachineId = connectedMachines[0].machineId;
+        reason = 'first available';
       }
+      console.log(`[AgentControls:${role}] auto-select machine (${reason}) → ${nextMachineId}`);
+      setSelectedMachineId(nextMachineId);
     }
-  }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs]);
+  }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs, role]);
 
   // Available models from the selected machine filtered by selected harness
   const availableModelsForHarness = useMemo(() => {
@@ -132,7 +148,7 @@ export function useAgentControls({
       const config = roleConfigs.find((c) => c.machineId === selectedMachineId);
       if (config && availableHarnessesForMachine.includes(config.agentType)) {
         console.log(
-          `[AgentControls:${role}] auto-select harness from config → ${config.agentType}`
+          `[AgentControls:${role}] auto-select harness (role config) → ${config.agentType}`
         );
         setSelectedHarness(config.agentType);
         return;
@@ -146,58 +162,62 @@ export function useAgentControls({
     }
   }, [selectedMachineId, roleConfigs, availableHarnessesForMachine, role]);
 
-  // Auto-select model when harness or machine changes.
-  // Priority: saved config model for the SAME harness > team config model > first available model.
-  // Skip if user has manually set the model.
+  // ── Derived model selection ──────────────────────────────────────
+  // selectedModel is a pure derivation — no useEffect, no setState.
+  // Because it's computed synchronously in useMemo, switching harness
+  // is guaranteed to show a model from the NEW harness in the same render.
   //
-  // Important: only match a saved config model when config.agentType === selectedHarness.
-  // This prevents cross-harness bleed where an opencode model string that happens to
-  // exist in the pi model list gets auto-selected when switching to pi harness.
-  useEffect(() => {
-    if (isModelManuallySet) return; // User manually selected, don't override
-
-    if (selectedHarness) {
-      const models = availableModelsForHarness;
-      if (models.length === 0) {
-        console.log(
-          `[AgentControls:${role}] model reset → no models available for harness=${selectedHarness}`
-        );
-        setSelectedModel(null);
-        return;
-      }
-      // Only use saved config model if it matches the currently selected harness
-      const config = roleConfigs.find(
-        (c) => c.machineId === selectedMachineId && c.agentType === selectedHarness && c.model
-      );
-      if (config?.model && models.includes(config.model)) {
-        console.log(
-          `[AgentControls:${role}] auto-select model from config → ${config.model} (harness=${selectedHarness})`
-        );
-        setSelectedModel(config.model);
-        return;
-      }
-      // Fall back to team config model
-      if (teamConfigModel && models.includes(teamConfigModel)) {
-        console.log(
-          `[AgentControls:${role}] auto-select model from team config → ${teamConfigModel}`
-        );
-        setSelectedModel(teamConfigModel);
-        return;
-      }
-      // Last resort: first available model for this harness
-      console.log(
-        `[AgentControls:${role}] auto-select model (first available for harness=${selectedHarness}) → ${models[0]}`
-      );
-      setSelectedModel(models[0]);
-    } else {
-      setSelectedModel(null);
+  // Priority within a harness:
+  //   1. User's explicit per-harness choice (userModelByHarness), if still valid
+  //   2. Saved machine config model for the same harness (agentType must match)
+  //   3. Team config model
+  //   4. First available model for this harness
+  const selectedModel = useMemo((): string | null => {
+    if (!selectedHarness || availableModelsForHarness.length === 0) {
+      return null;
     }
+
+    // 1. Per-harness user choice (if still valid in current model list)
+    const userChoice = userModelByHarness[selectedHarness];
+    if (userChoice && availableModelsForHarness.includes(userChoice)) {
+      console.log(
+        `[AgentControls:${role}] model derived (user choice) → ${userChoice} [harness=${selectedHarness}]`
+      );
+      return userChoice;
+    }
+
+    // 2. Machine config model — only if it's saved under the same harness type
+    const config = roleConfigs.find(
+      (c) => c.machineId === selectedMachineId && c.agentType === selectedHarness && c.model
+    );
+    if (config?.model && availableModelsForHarness.includes(config.model)) {
+      console.log(
+        `[AgentControls:${role}] model derived (machine config) → ${config.model} [harness=${selectedHarness}]`
+      );
+      return config.model;
+    }
+
+    // 3. Team config model
+    if (teamConfigModel && availableModelsForHarness.includes(teamConfigModel)) {
+      console.log(
+        `[AgentControls:${role}] model derived (team config) → ${teamConfigModel} [harness=${selectedHarness}]`
+      );
+      return teamConfigModel;
+    }
+
+    // 4. First available for this harness
+    const first = availableModelsForHarness[0];
+    console.log(
+      `[AgentControls:${role}] model derived (first available) → ${first} [harness=${selectedHarness}]`,
+      availableModelsForHarness
+    );
+    return first;
   }, [
     selectedHarness,
     availableModelsForHarness,
+    userModelByHarness,
     roleConfigs,
     selectedMachineId,
-    isModelManuallySet,
     teamConfigModel,
     role,
   ]);
@@ -324,29 +344,55 @@ export function useAgentControls({
     }
   }, [runningAgentConfig, selectedModel, sendCommand, chatroomId, role]);
 
-  // Wrapper for machine change - resets manual flags since options change
-  const handleMachineChange = useCallback((machineId: string | null) => {
-    setSelectedMachineId(machineId);
-    setSelectedHarness(null);
-    // Reset manual flags since machine change means different available options
-    setIsModelManuallySet(false);
-    setIsWorkingDirManuallySet(false);
-  }, []);
+  // Wrapper for machine change — clears harness, per-harness model memory, and working dir flag
+  const handleMachineChange = useCallback(
+    (machineId: string | null) => {
+      console.log(
+        `[AgentControls:${role}] machine changed (manual) → ${machineId} (was: ${selectedMachineId})`
+      );
+      setSelectedMachineId(machineId);
+      setSelectedHarness(null);
+      setUserModelByHarness({});
+      setIsWorkingDirManuallySet(false);
+    },
+    [role, selectedMachineId]
+  );
 
-  // Wrapper for harness change - resets model manual flag since models may differ
-  const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
-    console.log(`[AgentControls:${role}] harness changed → ${harness} (was: ${selectedHarness})`);
-    setSelectedHarness(harness);
-    setSelectedModel(null);
-    // Reset model manual flag since harness change means different available models
-    setIsModelManuallySet(false);
-  }, [role, selectedHarness]);
+  // Wrapper for harness change — does NOT clear other harnesses' model memory.
+  // The new harness will derive its model fresh from userModelByHarness[newHarness]
+  // (or fall back to auto-select if no entry exists).
+  const handleHarnessChange = useCallback(
+    (harness: AgentHarness | null) => {
+      console.log(
+        `[AgentControls:${role}] harness changed (manual) → ${harness} (was: ${selectedHarness})`
+      );
+      setSelectedHarness(harness);
+      // Note: userModelByHarness is intentionally NOT cleared here.
+      // Each harness has its own slot; switching harness never bleeds across.
+    },
+    [role, selectedHarness]
+  );
 
-  // Wrapper for user manually selecting a model
-  const handleModelChange = useCallback((model: string | null) => {
-    setSelectedModel(model);
-    setIsModelManuallySet(true);
-  }, []);
+  // Wrapper for user manually selecting a model — stored per harness
+  const handleModelChange = useCallback(
+    (model: string | null) => {
+      if (!selectedHarness) return;
+      console.log(
+        `[AgentControls:${role}] model changed (manual) → ${model} [harness=${selectedHarness}]`
+      );
+      if (model) {
+        setUserModelByHarness((prev) => ({ ...prev, [selectedHarness]: model }));
+      } else {
+        // Clearing the model reverts to auto-select for this harness
+        setUserModelByHarness((prev) => {
+          const next = { ...prev };
+          delete next[selectedHarness];
+          return next;
+        });
+      }
+    },
+    [role, selectedHarness]
+  );
 
   // Wrapper for user manually changing working directory
   const handleWorkingDirChange = useCallback((dir: string) => {
@@ -360,7 +406,6 @@ export function useAgentControls({
     selectedHarness,
     setSelectedHarness,
     selectedModel,
-    setSelectedModel,
     workingDir,
     setWorkingDir,
     isStarting,
@@ -381,7 +426,6 @@ export function useAgentControls({
     handleStartAgent,
     handleStopAgent,
     handleRestartAgent,
-    // New wrapper functions that track manual changes
     handleMachineChange,
     handleHarnessChange,
     handleModelChange,
