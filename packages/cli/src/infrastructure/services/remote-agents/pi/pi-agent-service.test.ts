@@ -161,7 +161,7 @@ describe('PiAgentService', () => {
       return child;
     }
 
-    it('builds the correct args array with --system-prompt, --model, and positional prompt', async () => {
+    it('builds the correct args array with --mode rpc, --system-prompt, and --model', async () => {
       const child = makeChildProcess(42);
       const spawnFn = vi.fn().mockReturnValue(child);
       const deps = createMockDeps({ spawn: spawnFn as any });
@@ -178,13 +178,13 @@ describe('PiAgentService', () => {
       expect(spawnFn).toHaveBeenCalledWith(
         'pi',
         [
-          '-p',
+          '--mode',
+          'rpc',
           '--no-session',
           '--model',
           'github-copilot/claude-sonnet-4.6',
           '--system-prompt',
           'You are a test agent',
-          'Hello world',
         ],
         expect.objectContaining({
           cwd: '/tmp/test',
@@ -212,7 +212,7 @@ describe('PiAgentService', () => {
       expect(args).not.toContain('--model');
     });
 
-    it('passes system prompt and prompt as separate args (no shell escaping needed)', async () => {
+    it('sends the prompt as a JSON RPC command over stdin', async () => {
       const child = makeChildProcess(43);
       const spawnFn = vi.fn().mockReturnValue(child);
       const deps = createMockDeps({ spawn: spawnFn as any });
@@ -225,13 +225,14 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
-      const args = spawnFn.mock.calls[0][1] as string[];
-      // Args are passed as-is — no shell escaping needed when shell: false
-      expect(args).toContain("It's a system prompt with 'quotes'");
-      expect(args).toContain("Don't stop");
+      // The prompt is sent as a JSON RPC command — NOT as a positional CLI arg
+      const writeCall = child.stdin.write.mock.calls[0][0] as string;
+      const parsed = JSON.parse(writeCall.trim()) as { type: string; message: string };
+      expect(parsed.type).toBe('prompt');
+      expect(parsed.message).toBe("Don't stop");
     });
 
-    it('closes stdin immediately after spawn', async () => {
+    it('does NOT close stdin after spawn (RPC mode keeps stdin open)', async () => {
       const child = makeChildProcess(42);
       const spawnFn = vi.fn().mockReturnValue(child);
       const deps = createMockDeps({ spawn: spawnFn as any });
@@ -244,7 +245,7 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
-      expect(child.stdin.end).toHaveBeenCalled();
+      expect(child.stdin.end).not.toHaveBeenCalled();
     });
 
     it('throws when process exits immediately', async () => {
@@ -302,11 +303,12 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
-      const args = spawnFn.mock.calls[0][1] as string[];
-      // Last positional arg should be the default trigger, not empty string
-      const lastArg = args[args.length - 1];
-      expect(lastArg).toBeTruthy();
-      expect(lastArg).not.toBe('');
+      // The prompt is written to stdin as JSON — it should use the default trigger
+      const writeCall = child.stdin.write.mock.calls[0][0] as string;
+      const parsed = JSON.parse(writeCall.trim()) as { type: string; message: string };
+      expect(parsed.type).toBe('prompt');
+      expect(parsed.message).toBeTruthy();
+      expect(parsed.message).not.toBe('');
     });
 
     it('uses default trigger message when prompt is whitespace only', async () => {
@@ -322,10 +324,30 @@ describe('PiAgentService', () => {
         context: { machineId: 'm', chatroomId: 'c', role: 'r' },
       });
 
+      const writeCall = child.stdin.write.mock.calls[0][0] as string;
+      const parsed = JSON.parse(writeCall.trim()) as { type: string; message: string };
+      expect(parsed.type).toBe('prompt');
+      expect(parsed.message.trim()).toBeTruthy();
+    });
+
+    it('passes system prompt as CLI flag (no shell escaping needed)', async () => {
+      const child = makeChildProcess(43);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp',
+        systemPrompt: "It's a system prompt with 'quotes'",
+        prompt: "Don't stop",
+        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+      });
+
       const args = spawnFn.mock.calls[0][1] as string[];
-      const lastArg = args[args.length - 1];
-      expect(lastArg).toBeTruthy();
-      expect(lastArg.trim()).toBeTruthy();
+      // System prompt is still passed as a CLI flag — no shell escaping needed (shell: false)
+      expect(args).toContain("It's a system prompt with 'quotes'");
+      // Prompt is NOT in args — it goes via stdin
+      expect(args).not.toContain("Don't stop");
     });
   });
 });

@@ -5,7 +5,15 @@
  * version queries, model discovery, agent spawning, and process lifecycle.
  *
  * Spawns agents using:
- *   pi -p --no-session [--model <model>] [--system-prompt <systemPrompt>] <prompt>
+ *   pi --mode rpc --no-session [--model <model>] [--system-prompt <systemPrompt>]
+ *
+ * The prompt is sent to the long-running process over stdin as a JSON command:
+ *   {"type": "prompt", "message": "<prompt>"}
+ *
+ * Pi streams events back on stdout as newline-delimited JSON, parsed by PiRpcReader.
+ * Text and thinking deltas are buffered per-line and emitted with [pi text] /
+ * [pi thinking] prefixes so PM2 / daemon logs capture them as distinct log lines.
+ * The process stays alive after each turn so future prompts can be sent over stdin.
  *
  * Extends BaseCLIAgentService which handles all shared boilerplate:
  * process registry, stop/isAlive/getTrackedProcesses/untrack, and
@@ -16,6 +24,7 @@ import { type ChildProcess } from 'node:child_process';
 
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
+import { PiRpcReader } from './pi-rpc-reader.js';
 
 // ─── Re-export deps type under the legacy name for backwards compatibility ────
 
@@ -91,14 +100,9 @@ export class PiAgentService extends BaseCLIAgentService {
     // the caller passes an empty prompt (e.g. composeInitMessage returns '').
     const prompt = options.prompt?.trim() ? options.prompt : DEFAULT_TRIGGER_PROMPT;
 
-    // Build args array — prefer passing args directly (shell: false) so we don't
-    // need to shell-escape anything and avoid the stdin-blocking issue that occurs
-    // when shell: true wraps pi in /bin/sh.
-    //
-    // pi takes the prompt as a positional argument and ignores stdin, but it still
-    // blocks waiting for stdin to close when stdio is piped. We close stdin immediately
-    // after spawn (see below) to unblock it.
-    const args: string[] = ['-p', '--no-session'];
+    // Build args for RPC mode. The prompt is NOT a positional arg — it is sent
+    // over stdin as a JSON command after the process starts.
+    const args: string[] = ['--mode', 'rpc', '--no-session'];
 
     if (model) {
       args.push('--model', model);
@@ -108,9 +112,6 @@ export class PiAgentService extends BaseCLIAgentService {
       args.push('--system-prompt', systemPrompt);
     }
 
-    // Prompt is the positional argument (last)
-    args.push(prompt);
-
     const childProcess: ChildProcess = this.deps.spawn(PI_COMMAND, args, {
       cwd: options.workingDir,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -118,9 +119,9 @@ export class PiAgentService extends BaseCLIAgentService {
       detached: true,
     });
 
-    // pi doesn't read from stdin (prompt is a CLI arg), but it blocks waiting
-    // for stdin to close when stdio is piped. End stdin immediately to unblock.
-    childProcess.stdin?.end();
+    // Send the initial prompt as a JSON RPC command over stdin.
+    // Do NOT close stdin — the process must stay alive to receive future prompts.
+    childProcess.stdin?.write(JSON.stringify({ type: 'prompt', message: prompt }) + '\n');
 
     // Wait briefly for immediate crash detection
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -141,13 +142,75 @@ export class PiAgentService extends BaseCLIAgentService {
 
     // Output tracking callbacks (for external consumers) + internal timestamp update
     const outputCallbacks: (() => void)[] = [];
+
     if (childProcess.stdout) {
-      childProcess.stdout.pipe(process.stdout, { end: false });
-      childProcess.stdout.on('data', () => {
+      // Parse the RPC JSON event stream — fire output callbacks on every event
+      // so the daemon knows the agent is still producing output.
+      const reader = new PiRpcReader(childProcess.stdout);
+
+      // Buffer accumulated text/thinking so we can emit complete lines with
+      // a [pi text] / [pi thinking] prefix — PM2 captures output per-line,
+      // so raw streaming tokens without newlines don't appear as distinct log
+      // entries. We flush on natural newlines in the delta and on section boundaries.
+      let textBuffer = '';
+      let thinkingBuffer = '';
+
+      const flushText = () => {
+        if (!textBuffer) return;
+        for (const line of textBuffer.split('\n')) {
+          if (line) process.stdout.write(`[pi text] ${line}\n`);
+        }
+        textBuffer = '';
+      };
+
+      const flushThinking = () => {
+        if (!thinkingBuffer) return;
+        for (const line of thinkingBuffer.split('\n')) {
+          if (line) process.stdout.write(`[pi thinking] ${line}\n`);
+        }
+        thinkingBuffer = '';
+      };
+
+      reader.onTextDelta((delta) => {
+        flushThinking(); // switch section
+        textBuffer += delta;
+        // Flush on natural line breaks so logs stay responsive
+        if (textBuffer.includes('\n')) flushText();
         entry.lastOutputAt = Date.now();
         for (const cb of outputCallbacks) cb();
       });
+
+      reader.onThinkingDelta((delta) => {
+        flushText(); // switch section
+        thinkingBuffer += delta;
+        // Flush on natural line breaks
+        if (thinkingBuffer.includes('\n')) flushThinking();
+        entry.lastOutputAt = Date.now();
+        for (const cb of outputCallbacks) cb();
+      });
+
+      reader.onAnyEvent(() => {
+        // Non-text events (agent_start, tool_execution_start/end, agent_end, …)
+        // still count as activity for the purposes of the output timestamp.
+        entry.lastOutputAt = Date.now();
+        for (const cb of outputCallbacks) cb();
+      });
+
+      reader.onAgentEnd(() => {
+        // Flush any buffered text before the turn boundary marker
+        flushText();
+        flushThinking();
+        process.stdout.write('[pi agent_end]\n');
+      });
+
+      reader.onToolCall((name) => {
+        // Flush buffered content before the tool marker
+        flushText();
+        flushThinking();
+        process.stdout.write(`[pi tool: ${name}]\n`);
+      });
     }
+
     if (childProcess.stderr) {
       childProcess.stderr.pipe(process.stderr, { end: false });
       childProcess.stderr.on('data', () => {
