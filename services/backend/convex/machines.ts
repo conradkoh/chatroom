@@ -924,3 +924,86 @@ export const getTeamAgentConfigs = query({
       .collect();
   },
 });
+
+// ─── Agent Preferences ────────────────────────────────────────────────────────
+
+/**
+ * Save (upsert) user's preferred remote agent configuration for a chatroom+role.
+ * Called by the UI whenever the user clicks "Start Agent" in the Remote tab.
+ * The saved values become the default pre-population for the Remote tab on
+ * subsequent visits.
+ */
+export const saveAgentPreference = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    machineId: v.string(),
+    agentHarness: agentHarnessValidator,
+    model: v.optional(v.string()),
+    workingDir: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) throw new Error('Chatroom not found');
+    if (chatroom.ownerId !== auth.user._id) {
+      throw new Error('Not authorized to save agent preferences for this chatroom');
+    }
+
+    const existing = await ctx.db
+      .query('chatroom_agentPreferences')
+      .withIndex('by_userId_chatroom_role', (q) =>
+        q.eq('userId', auth.user._id).eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .first();
+
+    const now = Date.now();
+    const pref = {
+      userId: auth.user._id,
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      agentHarness: args.agentHarness,
+      model: args.model,
+      workingDir: args.workingDir,
+      updatedAt: now,
+    };
+
+    if (existing) {
+      await ctx.db.patch('chatroom_agentPreferences', existing._id, pref);
+    } else {
+      await ctx.db.insert('chatroom_agentPreferences', { ...pref, createdAt: now });
+    }
+
+    return { success: true };
+  },
+});
+
+/**
+ * Get user's preferred remote agent configurations for a chatroom.
+ * Returns all preferences for the current user in the given chatroom.
+ * Used by the Remote tab UI to pre-populate machine/harness/model/workingDir.
+ */
+export const getAgentPreferences = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return [];
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom || chatroom.ownerId !== auth.user._id) return [];
+
+    return await ctx.db
+      .query('chatroom_agentPreferences')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .filter((q) => q.eq(q.field('userId'), auth.user._id))
+      .collect();
+  },
+});
