@@ -14,6 +14,7 @@ import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
+import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -876,6 +877,7 @@ export const saveTeamAgentConfig = mutation({
       model: resolvedModel,
       workingDir: args.type === 'remote' ? args.workingDir : undefined,
       updatedAt: now,
+      desiredState: 'running' as const,
     };
 
     if (existing) {
@@ -886,6 +888,13 @@ export const saveTeamAgentConfig = mutation({
         createdAt: now,
       });
     }
+
+    await ensureOnlyAgentForRole(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      userId: auth.user._id,
+      excludeMachineId: args.type === 'remote' ? args.machineId : undefined,
+    });
 
     return { success: true };
   },

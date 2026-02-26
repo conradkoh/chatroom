@@ -102,6 +102,11 @@ export const check = internalMutation({
         continue;
       }
 
+      if (config.desiredState === 'stopped') {
+        // User intentionally stopped this agent — do not auto-restart.
+        continue;
+      }
+
       // Resolve the machine document to get the owner (sentBy).
       const machine = await ctx.db
         .query('chatroom_machines')

@@ -147,6 +147,7 @@ export async function startAgent(
       model,
       workingDir,
       updatedAt: teamConfigNow,
+      desiredState: 'running' as const,
     };
 
     if (existingTeamConfig) {

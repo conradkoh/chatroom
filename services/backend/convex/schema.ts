@@ -720,6 +720,9 @@ export default defineSchema({
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
+
+    // Desired state for this agent (used by ensureAgentHandler to skip auto-restart)
+    desiredState: v.optional(v.union(v.literal('running'), v.literal('stopped'))),
   })
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])

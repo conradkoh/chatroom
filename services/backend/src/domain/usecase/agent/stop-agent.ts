@@ -59,5 +59,17 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
     createdAt: now,
   });
 
+  // Mark the agent config as desired-stopped so ensureAgentHandler won't auto-restart it.
+  const teamConfig = await ctx.db
+    .query('chatroom_teamAgentConfigs')
+    .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+    .first();
+
+  if (teamConfig) {
+    await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
+      desiredState: 'stopped',
+    });
+  }
+
   return { commandId };
 }
