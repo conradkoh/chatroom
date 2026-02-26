@@ -478,3 +478,121 @@ describe('startAgent — command payload', () => {
     expect(cmd.payload.role).toBe('builder');
   });
 });
+
+// ─── saveTeamAgentConfig — agentHarness preservation ─────────────────────────
+
+describe('saveTeamAgentConfig — agentHarness preservation', () => {
+  test('preserves existing agentHarness when called without agentHarness (register-agent flow)', async () => {
+    // ===== SETUP =====
+    // Simulate the full flow:
+    // 1. start-agent sets agentHarness='pi' on the team config
+    // 2. register-agent calls saveTeamAgentConfig WITHOUT agentHarness
+    // Expected: agentHarness='pi' is preserved (not overwritten with undefined)
+
+    const { sessionId } = await createTestSession('test-harness-preserve-1');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-harness-preserve-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    // Step 1: Write team config with agentHarness='pi' (as start-agent would do via startAgent)
+    await t.mutation(api.machines.saveTeamAgentConfig, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      type: 'remote',
+      machineId,
+      agentHarness: 'pi',
+      workingDir: '/home/pi/workspace',
+    });
+
+    // Verify it was written
+    const before = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .filter((q) =>
+          q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'builder'))
+        )
+        .first();
+    });
+    expect(before?.agentHarness).toBe('pi');
+
+    // Step 2: Call saveTeamAgentConfig WITHOUT agentHarness (as register-agent does)
+    await t.mutation(api.machines.saveTeamAgentConfig, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      type: 'remote',
+      machineId,
+      // agentHarness intentionally omitted — register-agent doesn't pass it
+      workingDir: '/home/pi/workspace',
+    });
+
+    // ===== VERIFY =====
+    // agentHarness='pi' must still be there (not clobbered with undefined)
+    const after = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .filter((q) =>
+          q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'builder'))
+        )
+        .first();
+    });
+    expect(after?.agentHarness).toBe('pi');
+  });
+
+  test('sets agentHarness on first registration when provided', async () => {
+    // When no prior record exists and agentHarness is provided, it should be saved.
+    const { sessionId } = await createTestSession('test-harness-preserve-2');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-harness-preserve-2';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    await t.mutation(api.machines.saveTeamAgentConfig, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      type: 'remote',
+      machineId,
+      agentHarness: 'opencode',
+      workingDir: '/workspace',
+    });
+
+    const config = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .filter((q) =>
+          q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'builder'))
+        )
+        .first();
+    });
+    expect(config?.agentHarness).toBe('opencode');
+  });
+
+  test('leaves agentHarness undefined when never set', async () => {
+    // When no agentHarness was ever written, it should remain absent.
+    const { sessionId } = await createTestSession('test-harness-preserve-3');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-harness-preserve-3';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    await t.mutation(api.machines.saveTeamAgentConfig, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      type: 'remote',
+      machineId,
+      // No agentHarness
+      workingDir: '/workspace',
+    });
+
+    const config = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .filter((q) =>
+          q.and(q.eq(q.field('chatroomId'), chatroomId), q.eq(q.field('role'), 'builder'))
+        )
+        .first();
+    });
+    expect(config?.agentHarness).toBeUndefined();
+  });
+});

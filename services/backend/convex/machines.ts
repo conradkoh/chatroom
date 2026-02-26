@@ -866,6 +866,9 @@ export const saveTeamAgentConfig = mutation({
     const now = Date.now();
     // Preserve existing model if the new value is undefined (e.g. register-agent doesn't pass model)
     const resolvedModel = args.type === 'remote' ? (args.model ?? existing?.model) : undefined;
+    // Preserve existing agentHarness if the new value is undefined (e.g. register-agent doesn't pass agentHarness)
+    const resolvedAgentHarness =
+      args.type === 'remote' ? (args.agentHarness ?? existing?.agentHarness) : undefined;
 
     const config = {
       teamRoleKey,
@@ -873,7 +876,7 @@ export const saveTeamAgentConfig = mutation({
       role: args.role,
       type: args.type,
       machineId: args.type === 'remote' ? args.machineId : undefined,
-      agentHarness: args.type === 'remote' ? args.agentHarness : undefined,
+      agentHarness: resolvedAgentHarness,
       model: resolvedModel,
       workingDir: args.type === 'remote' ? args.workingDir : undefined,
       updatedAt: now,

@@ -145,14 +145,17 @@ export async function registerAgent(
       const agentHarness: AgentHarness | undefined =
         machineInfo.availableHarnesses.length > 0 ? machineInfo.availableHarnesses[0] : undefined;
 
-      // Save team agent config with machine details
+      // Save team agent config with machine details.
+      // NOTE: agentHarness is intentionally NOT sent here — start-agent owns
+      // that field. Sending it here would overwrite the explicitly chosen harness
+      // (e.g. 'pi') with whatever is first in availableHarnesses ('opencode').
+      // saveTeamAgentConfig preserves the existing agentHarness when undefined.
       await d.backend.mutation(api.machines.saveTeamAgentConfig, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         role,
         type: 'remote',
         machineId: machineInfo.machineId,
-        agentHarness,
         workingDir: process.cwd(),
       });
 

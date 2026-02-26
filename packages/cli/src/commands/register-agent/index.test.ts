@@ -156,6 +156,30 @@ describe('registerAgent', () => {
     });
   });
 
+  describe('agentHarness not forwarded to saveTeamAgentConfig', () => {
+    it('does NOT include agentHarness in the saveTeamAgentConfig mutation call (remote)', async () => {
+      // register-agent must NOT pass agentHarness to saveTeamAgentConfig.
+      // start-agent owns that field; register-agent would overwrite it with the
+      // "first available harness" heuristic, which breaks agents that were
+      // explicitly started with a different harness (e.g. pi vs opencode).
+      const deps = createMockDeps();
+
+      await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'remote' }), deps);
+
+      expect(exitSpy).not.toHaveBeenCalled();
+
+      // Find the saveTeamAgentConfig call (second mutation after machines.register)
+      const mutationCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
+      // The second call is saveTeamAgentConfig
+      const saveConfigCall = mutationCalls[1];
+      const saveConfigArgs = saveConfigCall?.[1] as Record<string, unknown> | undefined;
+
+      // agentHarness must be absent (undefined means the key should not be present)
+      expect(saveConfigArgs).toBeDefined();
+      expect(saveConfigArgs!['agentHarness']).toBeUndefined();
+    });
+  });
+
   describe('registration failure', () => {
     it('exits with code 1 when saveTeamAgentConfig mutation throws (custom)', async () => {
       const deps = createMockDeps();
