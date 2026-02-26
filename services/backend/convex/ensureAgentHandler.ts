@@ -26,7 +26,7 @@ import { internalMutation } from './_generated/server';
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 /** Delay (ms) between task creation/transition and the ensure-agent check. */
-export const ENSURE_AGENT_DELAY_MS = 30_000;
+export const ENSURE_AGENT_DELAY_MS = 120_000;
 
 /** Task statuses that indicate an agent should be running. */
 const ACTIVE_TASK_STATUSES = new Set(['pending', 'acknowledged', 'in_progress']);
