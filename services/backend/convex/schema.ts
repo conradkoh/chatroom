@@ -699,7 +699,7 @@ export default defineSchema({
    * When type is 'custom' (or no config exists), auto-restart is skipped.
    */
   chatroom_teamAgentConfigs: defineTable({
-    // Unique key: team_<teamId>#role_<role>
+    // Unique key: chatroom_<chatroomId>#role_<role>
     teamRoleKey: v.string(),
 
     // Reference to the chatroom (for cascading deletes/queries)

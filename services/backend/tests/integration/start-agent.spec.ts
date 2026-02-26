@@ -348,6 +348,91 @@ describe('startAgent — teamRoleKey collision regression', () => {
   });
 });
 
+// ─── getInitPrompt agentType regression ──────────────────────────────────────
+
+describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
+  test('agentType reflects registered config when queried via getInitPrompt', async () => {
+    // Regression test for the missed location in commit 8a79c7ee:
+    // messages.ts was still building teamRoleKey as `team_${teamId}#role_...`
+    // instead of `chatroom_${chatroom._id}#role_...`, causing getInitPrompt
+    // to always return agentType='unset' when teamId != chatroom._id.
+
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-init-prompt-agenttype-1');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-init-prompt-agenttype-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    // Join participants so getInitPrompt can read presence
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'reviewer' });
+
+    // ===== ACTION =====
+    // Start a remote agent — this writes chatroom_teamAgentConfigs with type='remote'
+    await t.run(async (ctx) => {
+      const user = await ctx.db.query('users').first();
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+
+      return startAgent(
+        ctx,
+        {
+          machineId,
+          chatroomId,
+          role: 'builder',
+          userId: user!._id,
+          model: 'claude-sonnet-4',
+          agentHarness: 'opencode',
+          workingDir: '/test/workspace',
+        },
+        machine!
+      );
+    });
+
+    // ===== VERIFY =====
+    // getInitPrompt must look up the config by the correct key
+    // (`chatroom_${chatroom._id}#role_builder`) and return agentType='remote'.
+    // Before the fix, the key was `team_pair#role_builder` which would not
+    // match the stored config (keyed by chatroom._id), so agentType would be
+    // 'unset' and the prompt would show `--type=<remote|custom>` instead of
+    // `--type=remote`.
+    const initPrompt = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(initPrompt).toBeDefined();
+    // agentType='remote' causes `--type=remote` to appear in the register-agent command
+    expect(initPrompt?.prompt).toContain('--type=remote');
+    // agentType='unset' would produce the placeholder instead
+    expect(initPrompt?.prompt).not.toContain('--type=<remote|custom>');
+  });
+
+  test('agentType is unset when no config exists for chatroom+role', async () => {
+    // Verifies the fallback path is still correct.
+    const { sessionId } = await createTestSession('test-init-prompt-agenttype-2');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'builder' });
+    await t.mutation(api.participants.join, { sessionId, chatroomId, role: 'reviewer' });
+
+    const initPrompt = await t.query(api.messages.getInitPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    expect(initPrompt).toBeDefined();
+    // agentType='unset' produces the placeholder `--type=<remote|custom>`
+    expect(initPrompt?.prompt).toContain('--type=<remote|custom>');
+  });
+});
+
 // ─── Command payload correctness ─────────────────────────────────────────────
 
 describe('startAgent — command payload', () => {

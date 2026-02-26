@@ -1637,8 +1637,7 @@ export const getInitPrompt = query({
       .map((p) => p.role);
 
     // Look up existing team agent config to include the agent type in the prompt
-    const teamId = chatroom.teamId || chatroom._id;
-    const teamRoleKey = `team_${teamId}#role_${args.role.toLowerCase()}`;
+    const teamRoleKey = `chatroom_${chatroom._id}#role_${args.role.toLowerCase()}`;
     const existingAgentConfig = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
