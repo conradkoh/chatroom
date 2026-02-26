@@ -177,7 +177,15 @@ describe('PiAgentService', () => {
 
       expect(spawnFn).toHaveBeenCalledWith(
         'pi',
-        ['-p', '--no-session', '--model', 'github-copilot/claude-sonnet-4.6', '--system-prompt', 'You are a test agent', 'Hello world'],
+        [
+          '-p',
+          '--no-session',
+          '--model',
+          'github-copilot/claude-sonnet-4.6',
+          '--system-prompt',
+          'You are a test agent',
+          'Hello world',
+        ],
         expect.objectContaining({
           cwd: '/tmp/test',
           stdio: ['pipe', 'pipe', 'pipe'],
@@ -279,6 +287,45 @@ describe('PiAgentService', () => {
       expect(result.pid).toBe(99);
       expect(typeof result.onExit).toBe('function');
       expect(typeof result.onOutput).toBe('function');
+    });
+
+    it('uses default trigger message when prompt is empty string', async () => {
+      const child = makeChildProcess(55);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp',
+        systemPrompt: 'You are an agent',
+        prompt: '',
+        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+      });
+
+      const args = spawnFn.mock.calls[0][1] as string[];
+      // Last positional arg should be the default trigger, not empty string
+      const lastArg = args[args.length - 1];
+      expect(lastArg).toBeTruthy();
+      expect(lastArg).not.toBe('');
+    });
+
+    it('uses default trigger message when prompt is whitespace only', async () => {
+      const child = makeChildProcess(56);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      await service.spawn({
+        workingDir: '/tmp',
+        systemPrompt: 'You are an agent',
+        prompt: '   ',
+        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+      });
+
+      const args = spawnFn.mock.calls[0][1] as string[];
+      const lastArg = args[args.length - 1];
+      expect(lastArg).toBeTruthy();
+      expect(lastArg.trim()).toBeTruthy();
     });
   });
 });

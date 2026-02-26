@@ -5,7 +5,7 @@
  * version queries, model discovery, agent spawning, and process lifecycle.
  *
  * Spawns agents using:
- *   pi -p --no-session --system-prompt "<systemPrompt>" "<prompt>"
+ *   pi -p --no-session [--model <model>] [--system-prompt <systemPrompt>] <prompt>
  *
  * Extends BaseCLIAgentService which handles all shared boilerplate:
  * process registry, stop/isAlive/getTrackedProcesses/untrack, and
@@ -24,6 +24,16 @@ export type PiAgentServiceDeps = CLIAgentServiceDeps;
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PI_COMMAND = 'pi';
+
+/**
+ * Default trigger message used when the caller provides no prompt.
+ *
+ * Pi requires at least one user message to call the AI API. When the init
+ * prompt is empty (e.g. composeInitMessage returns ''), we send this trigger
+ * so Pi can read the system prompt and execute the Getting Started steps.
+ */
+const DEFAULT_TRIGGER_PROMPT =
+  'Please read your system prompt carefully and follow the Getting Started instructions.';
 
 // ─── Implementation ──────────────────────────────────────────────────────────
 
@@ -75,7 +85,11 @@ export class PiAgentService extends BaseCLIAgentService {
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {
-    const { systemPrompt, prompt, model } = options;
+    const { systemPrompt, model } = options;
+
+    // Pi requires at least one user message — fall back to a default trigger when
+    // the caller passes an empty prompt (e.g. composeInitMessage returns '').
+    const prompt = options.prompt?.trim() ? options.prompt : DEFAULT_TRIGGER_PROMPT;
 
     // Build args array — prefer passing args directly (shell: false) so we don't
     // need to shell-escape anything and avoid the stdin-blocking issue that occurs
