@@ -1010,3 +1010,65 @@ export const getAgentPreferences = query({
       .collect();
   },
 });
+
+/**
+ * Get the model visibility filters for a specific machine+harness combination.
+ * Machine-level — shared across all users and chatrooms.
+ * Returns null if no filters have been configured.
+ */
+export const getMachineModelFilters = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+  },
+  handler: async (ctx, args) => {
+    const filter = await ctx.db
+      .query('chatroom_machineModelFilters')
+      .withIndex('by_machine_harness', (q) =>
+        q.eq('machineId', args.machineId).eq('agentHarness', args.agentHarness)
+      )
+      .unique();
+    return filter ?? null;
+  },
+});
+
+/**
+ * Upsert the model visibility filters for a specific machine+harness combination.
+ * Machine-level — shared across all users and chatrooms.
+ * Hidden models appear greyed-out in the UI but are still selectable.
+ */
+export const upsertMachineModelFilters = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+    hiddenModels: v.array(v.string()),
+    hiddenProviders: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('chatroom_machineModelFilters')
+      .withIndex('by_machine_harness', (q) =>
+        q.eq('machineId', args.machineId).eq('agentHarness', args.agentHarness)
+      )
+      .unique();
+
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch('chatroom_machineModelFilters', existing._id, {
+        hiddenModels: args.hiddenModels,
+        hiddenProviders: args.hiddenProviders,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert('chatroom_machineModelFilters', {
+        machineId: args.machineId,
+        agentHarness: args.agentHarness,
+        hiddenModels: args.hiddenModels,
+        hiddenProviders: args.hiddenProviders,
+        updatedAt: now,
+      });
+    }
+  },
+});

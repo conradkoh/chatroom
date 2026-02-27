@@ -696,6 +696,24 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId']),
 
   /**
+   * Model visibility filters for a machine's harness.
+   * Machine-level — shared across all users and chatrooms.
+   * Hidden models appear greyed-out in the UI but are still visible.
+   */
+  chatroom_machineModelFilters: defineTable({
+    // Machine these filters apply to
+    machineId: v.string(),
+    // Harness these filters apply to
+    agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+    // Individual model IDs to hide (e.g. "github-copilot/claude-haiku-4.5")
+    hiddenModels: v.array(v.string()),
+    // Provider prefixes to hide all models for (e.g. "github-copilot")
+    hiddenProviders: v.array(v.string()),
+    // Last updated
+    updatedAt: v.number(),
+  }).index('by_machine_harness', ['machineId', 'agentHarness']),
+
+  /**
    * Commands sent to machines for remote execution.
    * Daemon subscribes to pending commands and processes them.
    */
