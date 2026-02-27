@@ -4,9 +4,16 @@
  * A scheduled internalMutation that fires ~120 seconds after a task enters a
  * pending/acknowledged/in_progress state.  It checks whether the task has been
  * updated since the snapshot was taken.  If it has not been updated (i.e. no
- * agent has picked it up), it dispatches a `start-agent` command to every
- * remote-configured machine for the chatroom so that a crashed or missing
- * agent is automatically restarted.
+ * agent has picked it up), it dispatches a `start-agent` command to the
+ * machine(s) configured for the ASSIGNED role of the task — not all agents.
+ *
+ * ROLE TARGETING
+ * ──────────────
+ * Only the agent responsible for the task is restarted:
+ * - If task.assignedTo is set → restart only that role's agent.
+ * - If task has no assignee  → restart only the entry point's agent.
+ *   (user message tasks are now pre-assigned at creation, so this is
+ *    a defensive fallback for legacy tasks only.)
  *
  * SMART TOKEN CHECK (in_progress tasks)
  * ──────────────────────────────────────
@@ -147,6 +154,32 @@ export const check = internalMutation({
       return;
     }
 
+    // ── 5a. Determine which role(s) to restart ────────────────────────────
+    //
+    // Only restart the agent that is responsible for this task.
+    // - If the task is assigned to a specific role → restart only that role.
+    // - If the task has no assignee (should not happen after fix in messages.ts,
+    //   but handled defensively) → restart only the entry point.
+    //
+    // This prevents "restart all agents" when only the entry point needs to
+    // wake up to claim a user message.
+
+    let rolesToRestart: Set<string>;
+
+    if (task.assignedTo) {
+      rolesToRestart = new Set([task.assignedTo.toLowerCase()]);
+    } else {
+      // Defensive fallback: fetch the chatroom to get the entry point.
+      const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+      const entryPoint = chatroom?.teamEntryPoint || chatroom?.teamRoles?.[0];
+      if (entryPoint) {
+        rolesToRestart = new Set([entryPoint.toLowerCase()]);
+      } else {
+        // No entry point configured — fall back to restarting all configured agents.
+        rolesToRestart = new Set(remoteConfigs.map((c) => c.role.toLowerCase()));
+      }
+    }
+
     // ── 6. Dispatch start-agent commands for each remote config ───────────
 
     const now = Date.now();
@@ -160,6 +193,11 @@ export const check = internalMutation({
       if (config.desiredState !== 'running') {
         // Only restart agents that are explicitly desired to be running.
         // Absent desiredState (undefined) and 'stopped' both skip restart.
+        continue;
+      }
+
+      if (!rolesToRestart.has(config.role.toLowerCase())) {
+        // This agent is not responsible for the current task — skip.
         continue;
       }
 
