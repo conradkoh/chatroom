@@ -814,7 +814,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                                   handleModelChange(model);
                                   setModelPopoverOpen(false);
                                 }}
-                                className="text-[10px] font-bold tracking-wide text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
+                                className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
                               >
                                 <span className="truncate">{getModelDisplayLabel(model)}</span>
                                 {displayModel === model && (

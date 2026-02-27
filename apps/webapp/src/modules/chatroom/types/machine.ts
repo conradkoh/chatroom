@@ -97,42 +97,45 @@ export const HARNESS_DISPLAY_NAMES: Record<AgentHarness, string> = {
 // ─── Helpers ────────────────────────────────────────────────────────
 
 /**
- * Title-case a hyphenated slug: "claude-sonnet-4.5" → "Claude Sonnet 4.5"
+ * Convert a hyphenated slug to an uppercase display label.
+ * Replaces hyphens with spaces and uppercases all characters.
+ *
+ * "github-copilot" → "GITHUB COPILOT"
+ * "gpt-4o" → "GPT 4O"
+ * "claude-sonnet-4.5" → "CLAUDE SONNET 4.5"
  */
-function titleCase(slug: string): string {
-  return slug
-    .split('-')
-    .map((word) => (word.length > 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word))
-    .join(' ');
+function slugToLabel(slug: string): string {
+  return slug.replace(/-/g, ' ').toUpperCase();
 }
 
 /**
  * Parse an OpenCode model ID (provider/model-slug format) into display parts.
  *
  * OpenCode models use the format "provider/model-slug", e.g.:
- *   "github-copilot/claude-sonnet-4.5" → { provider: "Github Copilot", model: "Claude Sonnet 4.5" }
- *   "opencode/big-pickle" → { provider: "Opencode", model: "Big Pickle" }
+ *   "github-copilot/claude-sonnet-4.5" → { provider: "GITHUB COPILOT", model: "CLAUDE SONNET 4.5" }
+ *   "opencode/big-pickle" → { provider: "OPENCODE", model: "BIG PICKLE" }
  *
  * For IDs without a slash, the entire string is treated as the model name.
  */
 function parseModelId(modelId: string): { provider: string; model: string } {
   const slashIdx = modelId.indexOf('/');
   if (slashIdx === -1) {
-    return { provider: '', model: titleCase(modelId) };
+    return { provider: '', model: slugToLabel(modelId) };
   }
 
   const providerSlug = modelId.substring(0, slashIdx);
   const modelSlug = modelId.substring(slashIdx + 1);
 
   return {
-    provider: titleCase(providerSlug),
-    model: titleCase(modelSlug),
+    provider: slugToLabel(providerSlug),
+    model: slugToLabel(modelSlug),
   };
 }
 
 /**
  * Get the full display label for a model, including its provider.
- * e.g. "Github Copilot / Claude Sonnet 4.5"
+ * Returns an UPPERCASE label using slug-to-label normalization.
+ * e.g. "github-copilot/gpt-4o" → "GITHUB COPILOT / GPT 4O"
  *
  * Uses algorithmic transformation — no hardcoded model name mappings.
  * This handles the OpenCode "provider/model-slug" format.
@@ -144,8 +147,8 @@ export function getModelDisplayLabel(modelId: string): string {
 }
 
 /**
- * Get only the short model name (without provider).
- * e.g. "Claude Sonnet 4.5" or "Big Pickle"
+ * Get only the short model name (without provider), uppercase.
+ * e.g. "CLAUDE SONNET 4.5" or "GPT 4O"
  */
 export function getModelShortName(modelId: string): string {
   const { model } = parseModelId(modelId);

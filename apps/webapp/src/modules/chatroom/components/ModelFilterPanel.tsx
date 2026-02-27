@@ -194,8 +194,8 @@ export function ModelFilterPanel({
                       <span
                         className={
                           isEffectivelyHidden
-                            ? 'text-[10px] text-chatroom-text-muted flex-1 truncate opacity-50'
-                            : 'text-[10px] text-chatroom-text-primary flex-1 truncate'
+                            ? 'text-[10px] uppercase tracking-wider text-chatroom-text-muted flex-1 truncate opacity-50'
+                            : 'text-[10px] uppercase tracking-wider text-chatroom-text-primary flex-1 truncate'
                         }
                       >
                         {getModelDisplayLabel(model)}
