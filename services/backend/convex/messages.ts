@@ -133,7 +133,12 @@ async function _sendMessageHandler(
 
     // Determine the task creator and assignment
     const createdBy = isHandoffToAgent ? args.senderRole : 'user';
-    const assignedTo = isHandoffToAgent ? targetRole : undefined;
+    // For handoff messages, assign to the target role.
+    // For user messages, pre-assign to the entry point so the ensure-agent handler
+    // knows which agent to restart if nobody is listening.
+    const assignedTo = isHandoffToAgent
+      ? targetRole
+      : chatroom?.teamEntryPoint ?? chatroom?.teamRoles?.[0];
 
     // Create the task via the use case
     // - Handoff messages to agents always start as 'pending' (targeted, not queued)

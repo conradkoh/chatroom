@@ -85,7 +85,9 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
       });
       expect(tasks.length).toBe(1);
       expect(tasks[0]?.status).toBe('pending');
-      expect(tasks[0]?.assignedTo).toBeUndefined();
+      // User message tasks are pre-assigned to the entry point so the ensure-agent
+      // handler knows which agent to restart if nobody is listening.
+      expect(tasks[0]?.assignedTo).toBe('builder');
       expect(tasks[0]?.acknowledgedAt).toBeUndefined();
       const taskId = tasks[0]?._id as Id<'chatroom_tasks'>;
 
