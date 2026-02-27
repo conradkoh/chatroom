@@ -13,7 +13,7 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { StopAgentReason } from '../../model/agent';
+import type { StopAgentReason } from '../../entities/agent';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

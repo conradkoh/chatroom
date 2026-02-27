@@ -18,7 +18,7 @@
 
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { AgentHarness, AgentType, StartAgentReason } from '../../model/agent';
+import type { AgentHarness, AgentType, StartAgentReason } from '../../entities/agent';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
