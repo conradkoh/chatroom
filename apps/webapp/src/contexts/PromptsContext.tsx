@@ -3,22 +3,26 @@
 /**
  * Prompts Context
  *
- * Pre-fetches and caches agent prompts for all team roles through Convex subscriptions.
- * Components can synchronously access prompts for any role without additional queries.
+ * Pre-generates and caches agent prompts for all team roles synchronously.
+ * Prompt generation runs entirely on the frontend using the shared prompt
+ * generation library — no API calls required.
  *
- * Uses a single `getTeamPrompts` backend query that returns all role prompts in one call,
- * avoiding React Rules of Hooks issues when the team (and number of roles) changes.
+ * Previously prompts were fetched via Convex queries (getTeamPrompts,
+ * checkIsProductionUrl). Moving generation to the frontend eliminates
+ * 1 API call per role per chatroom visit.
  */
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useQuery } from 'convex/react';
+import {
+  generateAgentPrompt,
+  isProductionConvexUrl,
+} from '@workspace/backend/prompts/base/webapp';
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useMemo } from 'react';
 
 interface PromptsContextValue {
   /**
    * Get the full agent prompt for a role.
-   * Returns the cached prompt or undefined if not yet loaded.
+   * Returns the generated prompt string (synchronous — always available).
    */
   getAgentPrompt: (role: string) => string | undefined;
 
@@ -30,6 +34,7 @@ interface PromptsContextValue {
 
   /**
    * Check if all prompts are loaded.
+   * Always true since generation is synchronous.
    */
   isLoaded: boolean;
 }
@@ -53,48 +58,35 @@ export function PromptsProvider({
 }: PromptsProviderProps) {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 
-  // Check if URL is production
-  const isProductionUrl = useQuery(api.prompts.webapp.checkIsProductionUrl, {
-    convexUrl,
-  });
+  // Derive isProductionUrl synchronously from the env var
+  const isProductionUrl = useMemo(() => isProductionConvexUrl(convexUrl), [convexUrl]);
 
-  // Single query to fetch all team prompts at once.
-  // Returns Record<string, string> mapping role -> prompt.
-  // This avoids calling useQuery in a loop (which violates React Rules of Hooks
-  // when teamRoles changes size, e.g. pair→squad).
-  const teamPrompts = useQuery(api.prompts.webapp.getTeamPrompts, {
-    chatroomId,
-    teamName,
-    teamRoles,
-    teamEntryPoint,
-    convexUrl,
-  });
-
-  // Build a map of role -> prompt from the backend response
+  // Generate all prompts synchronously — no API call needed
   const promptMap = useMemo(() => {
     const map = new Map<string, string>();
-    if (teamPrompts) {
-      for (const [role, prompt] of Object.entries(teamPrompts)) {
-        map.set(role.toLowerCase(), prompt);
-      }
+    for (const role of teamRoles) {
+      map.set(
+        role.toLowerCase(),
+        generateAgentPrompt({
+          chatroomId,
+          role,
+          teamName,
+          teamRoles,
+          teamEntryPoint,
+          convexUrl,
+        })
+      );
     }
     return map;
-  }, [teamPrompts]);
-
-  // Check if all prompts are loaded
-  const isLoaded = useMemo(() => {
-    return isProductionUrl !== undefined && teamPrompts !== undefined;
-  }, [isProductionUrl, teamPrompts]);
+  }, [chatroomId, teamName, teamRoles, teamEntryPoint, convexUrl]);
 
   const contextValue = useMemo<PromptsContextValue>(
     () => ({
-      getAgentPrompt: (role: string) => {
-        return promptMap.get(role.toLowerCase());
-      },
+      getAgentPrompt: (role: string) => promptMap.get(role.toLowerCase()),
       isProductionUrl,
-      isLoaded,
+      isLoaded: true, // Always loaded — generation is synchronous
     }),
-    [promptMap, isProductionUrl, isLoaded]
+    [promptMap, isProductionUrl]
   );
 
   return <PromptsContext.Provider value={contextValue}>{children}</PromptsContext.Provider>;

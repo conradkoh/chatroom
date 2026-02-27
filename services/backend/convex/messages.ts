@@ -11,7 +11,6 @@ import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
 import { getCompletionStatus } from './lib/taskWorkflows';
 import { generateFullCliOutput } from '../prompts/base/cli/get-next-task/fullOutput.js';
-import { generateAgentPrompt as generateWebappPrompt } from '../prompts/base/webapp';
 import { getConfig } from '../prompts/config/index.js';
 import { getCliEnvPrefix } from '../prompts/utils/index.js';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
@@ -2030,48 +2029,6 @@ export const getTaskDeliveryPrompt = query({
     return {
       fullCliOutput,
       json: deliveryContext,
-    };
-  },
-});
-
-/**
- * Get a simplified display prompt for webapp UI.
- * This is used by the webapp dashboard to show agent setup instructions.
- * Requires CLI session authentication and chatroom access.
- */
-export const getWebappDisplayPrompt = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-    role: v.string(),
-    convexUrl: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
-
-    // Fetch chatroom after authz validation
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom) {
-      throw new ConvexError({
-        code: 'CHATROOM_NOT_FOUND',
-        message: 'Chatroom not found',
-      });
-    }
-
-    // Generate the webapp display prompt
-    const prompt = generateWebappPrompt({
-      chatroomId: args.chatroomId,
-      role: args.role,
-      teamName: chatroom.teamName || 'Team',
-      teamRoles: chatroom.teamRoles || [],
-      teamEntryPoint: chatroom.teamEntryPoint,
-      convexUrl: args.convexUrl,
-    });
-
-    return {
-      prompt,
-      teamName: chatroom.teamName || 'Team',
-      teamRoles: chatroom.teamRoles || [],
     };
   },
 });
