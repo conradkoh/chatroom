@@ -1,6 +1,8 @@
 'use client';
 
+import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   Play,
   Square,
@@ -9,11 +11,13 @@ import {
   AlertCircle,
   ChevronDown,
   CheckCircle,
+  SlidersHorizontal,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
 
 import { CopyButton } from './CopyButton';
+import { ModelFilterPanel } from './ModelFilterPanel';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -32,6 +36,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -472,6 +477,22 @@ export function useAgentControls({
   };
 }
 
+// ─── Model Filter Helper ─────────────────────────────────────────────
+
+/**
+ * Returns true if the given model should be hidden based on the machine-level filter.
+ * Checks both exact model IDs and provider prefixes (the part before the first '/').
+ */
+function isModelHidden(
+  modelId: string,
+  filter: { hiddenModels: string[]; hiddenProviders: string[] } | null | undefined
+): boolean {
+  if (!filter) return false;
+  if (filter.hiddenModels.includes(modelId)) return true;
+  const provider = modelId.split('/')[0];
+  return filter.hiddenProviders.includes(provider);
+}
+
 // ─── Component: RemoteTabContent ────────────────────────────────────
 // The "Remote" tab UI: machine selection, harness, model, working dir,
 // start/stop/restart buttons.
@@ -525,6 +546,30 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   const hasNoMachines = !isLoadingMachines && connectedMachines.length === 0;
 
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+
+  // Load machine-level model filters for the selected machine + harness
+  const machineModelFilter = useSessionQuery(
+    api.machines.getMachineModelFilters,
+    displayMachineId && displayHarness
+      ? { machineId: displayMachineId, agentHarness: displayHarness }
+      : 'skip'
+  );
+
+  const upsertModelFilter = useSessionMutation(api.machines.upsertMachineModelFilters);
+
+  const handleFilterChange = useCallback(
+    (hiddenModels: string[], hiddenProviders: string[]) => {
+      if (!displayMachineId || !displayHarness) return;
+      upsertModelFilter({
+        machineId: displayMachineId,
+        agentHarness: displayHarness,
+        hiddenModels,
+        hiddenProviders,
+      });
+    },
+    [displayMachineId, displayHarness, upsertModelFilter]
+  );
 
   return (
     <div className="bg-chatroom-bg-surface border border-chatroom-border px-2.5 py-2 space-y-2">
@@ -634,52 +679,91 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           {/* Row 3: Model + Start/Stop */}
           <div className="flex items-center gap-2">
             {hasModels ? (
-              <div className="flex-1 min-w-0">
-                <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      disabled={isBusy || isAgentRunning || !displayHarness}
-                      className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
-                      title="Select Model"
-                    >
-                      <span className="truncate">
-                        {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
-                      </span>
-                      <ChevronDown size={10} className="ml-1 flex-shrink-0 text-chatroom-text-muted" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 w-[280px] rounded-none">
-                    <Command className="bg-chatroom-bg-tertiary rounded-none">
-                      <CommandInput
-                        placeholder="Search model..."
-                        className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-tertiary border-b border-chatroom-border focus:ring-0 focus:outline-none h-8"
-                      />
-                      <CommandList className="max-h-60 overflow-y-auto">
-                        <CommandEmpty className="text-[10px] text-chatroom-text-muted uppercase tracking-wider py-2 text-center">
-                          No models found.
-                        </CommandEmpty>
-                        <CommandGroup>
-                          {availableModelsForHarness.map((model) => (
-                            <CommandItem
-                              key={model}
-                              value={getModelDisplayLabel(model)}
-                              onSelect={() => {
-                                handleModelChange(model);
-                                setModelPopoverOpen(false);
-                              }}
-                              className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
-                            >
-                              <span className="truncate">{getModelDisplayLabel(model)}</span>
-                              {displayModel === model && (
-                                <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
-                              )}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+              <div className="flex items-center gap-1 flex-1 min-w-0">
+                {/* Model Combobox */}
+                <div className="flex-1 min-w-0">
+                  <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        disabled={isBusy || isAgentRunning || !displayHarness}
+                        className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+                        title="Select Model"
+                      >
+                        <span className="truncate">
+                          {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
+                        </span>
+                        <ChevronDown size={10} className="ml-1 flex-shrink-0 text-chatroom-text-muted" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 w-[280px] rounded-none">
+                      <Command className="bg-chatroom-bg-tertiary rounded-none">
+                        <CommandInput
+                          placeholder="Search model..."
+                          className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-tertiary border-b border-chatroom-border focus:ring-0 focus:outline-none h-8"
+                        />
+                        <CommandList className="max-h-60 overflow-y-auto">
+                          <CommandEmpty className="text-[10px] text-chatroom-text-muted uppercase tracking-wider py-2 text-center">
+                            No models found.
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {availableModelsForHarness.map((model) => {
+                              const hidden = isModelHidden(model, machineModelFilter);
+                              return (
+                                <CommandItem
+                                  key={model}
+                                  value={getModelDisplayLabel(model)}
+                                  onSelect={() => {
+                                    if (hidden) return;
+                                    handleModelChange(model);
+                                    setModelPopoverOpen(false);
+                                  }}
+                                  className={cn(
+                                    'text-[10px] font-bold uppercase tracking-wider cursor-pointer flex items-center justify-between rounded-none',
+                                    hidden
+                                      ? 'opacity-40 cursor-not-allowed text-chatroom-text-muted'
+                                      : 'text-chatroom-text-primary hover:bg-chatroom-bg-hover'
+                                  )}
+                                >
+                                  <span className="truncate">{getModelDisplayLabel(model)}</span>
+                                  {displayModel === model && !hidden && (
+                                    <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
+                                  )}
+                                  {hidden && (
+                                    <span className="ml-2 flex-shrink-0 text-chatroom-text-muted text-[9px]">
+                                      HIDDEN
+                                    </span>
+                                  )}
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Filter Icon */}
+                {displayMachineId && displayHarness && (
+                  <ModelFilterPanel
+                    open={filterPanelOpen}
+                    onOpenChange={setFilterPanelOpen}
+                    trigger={
+                      <button
+                        type="button"
+                        disabled={isBusy || isAgentRunning}
+                        className="w-7 h-7 flex items-center justify-center bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-muted hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                        title="Filter models"
+                      >
+                        <SlidersHorizontal size={10} />
+                      </button>
+                    }
+                    availableModels={availableModelsForHarness}
+                    filter={machineModelFilter}
+                    onFilterChange={handleFilterChange}
+                    disabled={isBusy || isAgentRunning}
+                  />
+                )}
               </div>
             ) : (
               <div className="flex-1" />
