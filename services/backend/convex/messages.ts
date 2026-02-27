@@ -2,7 +2,6 @@ import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { PRESENCE_THRESHOLD_MS } from '../config/reliability';
 import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
@@ -865,13 +864,10 @@ export const getAllowedHandoffRoles = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Find present participants (seen within presence window, excluding current role)
-    const _now914 = Date.now();
+    // Find waiting participants (all participants except current role)
+    // No presence filter - always send notification regardless of last seen time
     const waitingParticipants = participants.filter(
-      (p) =>
-        p.lastSeenAt != null &&
-        _now914 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
-        p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) => p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
     // Get the most recent classified user message to determine restrictions (optimized)
@@ -1318,12 +1314,10 @@ export const getLatestForRole = query({
       .collect();
 
     // Find present participants (seen within presence window, excluding current role)
-    const _now1366 = Date.now();
+    // Find waiting participants (all participants except current role)
+    // No presence filter - always send notification regardless of last seen time
     const waitingParticipants = participants.filter(
-      (p) =>
-        p.lastSeenAt != null &&
-        _now1366 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
-        p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) => p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
     // Sort by priority to find highest priority waiting
@@ -1543,13 +1537,9 @@ export const getRolePrompt = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Find present participants (seen within presence window, excluding current role)
-    const _now1592 = Date.now();
+    // Find present participants (excluding current role)
     const waitingParticipants = participants.filter(
-      (p) =>
-        p.lastSeenAt != null &&
-        _now1592 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
-        p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) => p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
     // Get the most recent classified user message to determine restrictions (optimized)
@@ -1631,10 +1621,8 @@ export const getInitPrompt = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    const _now1678 = Date.now();
-    const availableMembers = participants
-      .filter((p) => p.lastSeenAt != null && _now1678 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS)
-      .map((p) => p.role);
+    // All participants are available members (no presence filter)
+    const availableMembers = participants.map((p) => p.role);
 
     // Look up existing team agent config to include the agent type in the prompt
     const teamRoleKey = `chatroom_${chatroom._id}#role_${args.role.toLowerCase()}`;
@@ -1756,12 +1744,8 @@ export const getTaskDeliveryPrompt = query({
       .collect();
 
     // Get role prompt info (reuse existing logic)
-    const _now1796 = Date.now();
     const waitingParticipants = participants.filter(
-      (p) =>
-        p.lastSeenAt != null &&
-        _now1796 - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
-        p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) => p.role.toLowerCase() !== args.role.toLowerCase()
     );
 
     // Get recent messages for classification
