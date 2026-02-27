@@ -6,6 +6,7 @@ import { areAllAgentsIdle, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
+import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
 
 /**
  * Join a chatroom as a participant.
@@ -322,12 +323,21 @@ export const getTeamLifecycle = query({
       .collect();
 
     const stuckRoles = new Set<string>();
+    const now = Date.now();
     for (const task of acknowledgedTasks) {
       const role = task.assignedTo?.toLowerCase();
       if (!role) continue;
       const participant = participantByRole.get(role);
-      // Agent is stuck if it has an acknowledged task and has never been seen (lastSeenAt == null)
+      // Agent is stuck if it has an acknowledged task and either:
+      // 1. Has never been seen (lastSeenAt == null — never registered), OR
+      // 2. Has not produced a token in over STUCK_TOKEN_THRESHOLD_MS
+      //    (registered and seen but stopped producing output)
       if (participant?.lastSeenAt == null) {
+        stuckRoles.add(role);
+      } else if (
+        participant.lastSeenTokenAt != null &&
+        now - participant.lastSeenTokenAt > STUCK_TOKEN_THRESHOLD_MS
+      ) {
         stuckRoles.add(role);
       }
     }

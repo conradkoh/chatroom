@@ -9,7 +9,9 @@
  *
  * All agents are always considered "present" (no time-based filtering).
  * An agent is considered "working" if `lastSeenAction !== 'get-next-task:started'`.
- * An agent is stuck if they have an acknowledged task AND have never been seen (lastSeenAt == null).
+ * An agent is stuck if they have an acknowledged task AND either:
+ *   - Have never been seen (lastSeenAt == null), OR
+ *   - Have not produced a token in over STUCK_TOKEN_THRESHOLD_MS
  *
  * ## Daemon Heartbeat
  *
@@ -21,6 +23,13 @@
  * Changing these values affects system behavior across the CLI, daemon, and
  * backend cron jobs. Test timing changes end-to-end before deploying.
  */
+
+// ─── Stuck Agent Detection ───────────────────────────────────────────────────
+
+/** If an agent has an acknowledged task AND has not produced a token in over this
+ *  threshold, it is considered stuck. Set to 5 minutes — long enough to tolerate
+ *  slow LLM responses, short enough to detect genuinely hung agents. */
+export const STUCK_TOKEN_THRESHOLD_MS = 300_000; // 5 min
 
 // ─── Grace Period ────────────────────────────────────────────────────────────
 
