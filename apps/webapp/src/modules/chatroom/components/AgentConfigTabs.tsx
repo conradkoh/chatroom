@@ -13,6 +13,13 @@ import {
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
 import { CopyButton } from './CopyButton';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -621,25 +628,33 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           {/* Row 3: Model + Start/Stop */}
           <div className="flex items-center gap-2">
             {hasModels ? (
-              <div className="relative flex-1 min-w-0">
-                <select
+              <div className="flex-1 min-w-0">
+                <Select
                   value={displayModel || ''}
-                  onChange={(e) => handleModelChange(e.target.value || null)}
+                  onValueChange={(val) => handleModelChange(val === '__none__' ? null : val)}
                   disabled={isBusy || isAgentRunning || !displayHarness}
-                  className="w-full appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent truncate"
-                  title="Select Model"
                 >
-                  <option value="">Model...</option>
-                  {availableModelsForHarness.map((model) => (
-                    <option key={model} value={model}>
-                      {getModelDisplayLabel(model)}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={10}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-chatroom-text-muted pointer-events-none"
-                />
+                  <SelectTrigger
+                    className="w-full bg-chatroom-bg-tertiary border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto rounded-none hover:border-chatroom-border-strong focus:ring-0 focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Select Model"
+                  >
+                    <SelectValue placeholder="Model..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-chatroom-bg-tertiary border-chatroom-border max-h-60">
+                    <SelectItem value="__none__" className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
+                      Model...
+                    </SelectItem>
+                    {availableModelsForHarness.map((model) => (
+                      <SelectItem
+                        key={model}
+                        value={model}
+                        className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary"
+                      >
+                        {getModelDisplayLabel(model)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             ) : (
               <div className="flex-1" />

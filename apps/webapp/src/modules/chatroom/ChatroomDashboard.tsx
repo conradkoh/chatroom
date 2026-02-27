@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { PromptsProvider } from '@/contexts/PromptsContext';
+import { getAppTitle } from '@/lib/environment';
 import { useSetHeaderPortal } from '@/modules/header/HeaderPortalProvider';
 
 // ─── Teams Config ────────────────────────────────────────────────────────────
@@ -458,7 +459,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   useEffect(() => {
     if (chatroom) {
       const previousTitle = document.title;
-      document.title = `${displayName} | Chatroom`;
+      document.title = `${displayName} | ${getAppTitle('Chatroom')}`;
       return () => {
         document.title = previousTitle;
       };
