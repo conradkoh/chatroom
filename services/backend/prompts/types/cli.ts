@@ -88,6 +88,11 @@ export interface BuilderGuidanceParams extends BasePromptParams {
   isEntryPoint: boolean;
   /** Override the default question/simple-task handoff target (default: 'user') */
   questionTarget?: string;
+  /**
+   * Override the handoff target after code changes (default: 'reviewer').
+   * Set to 'planner' in teams where there is no reviewer (e.g. duo team).
+   */
+  codeChangesTarget?: string;
 }
 
 /**

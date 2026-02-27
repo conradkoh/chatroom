@@ -17,6 +17,6 @@ export function getBuilderGuidance(ctx: BuilderGuidanceParams): string {
  - After completing work, hand off back to planner
  - **NEVER hand off directly to \`user\`** — always go through the planner
  
- ${getBaseBuilderGuidance({ ...ctx, questionTarget: 'planner' })}
+ ${getBaseBuilderGuidance({ ...ctx, questionTarget: 'planner', codeChangesTarget: 'planner' })}
  `;
 }

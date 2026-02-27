@@ -10,9 +10,11 @@ import { taskStartedCommand } from '../task-started/command';
  * Generate builder-specific guidance
  */
 export function getBuilderGuidance(params: BuilderGuidanceParams): string {
-  const { isEntryPoint, convexUrl, questionTarget: questionTargetParam } = params;
+  const { isEntryPoint, convexUrl, questionTarget: questionTargetParam, codeChangesTarget: codeChangesTargetParam } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const questionTarget = questionTargetParam ?? 'user';
+  const codeChangesTarget = codeChangesTargetParam ?? 'reviewer';
+  const hasReviewer = codeChangesTarget === 'reviewer';
   // Use command generator with env prefix
   const taskStartedExample = taskStartedCommand({ cliEnvPrefix });
 
@@ -22,7 +24,7 @@ export function getBuilderGuidance(params: BuilderGuidanceParams): string {
 As the entry point, you receive user messages directly. When you receive a user message:
 1. First run \`${taskStartedExample}\` to classify the original message (question, new_feature, or follow_up)
 2. Then do your work
-3. Hand off to reviewer for code changes, or directly to ${questionTarget} for questions`
+3. Hand off to ${codeChangesTarget} for code changes, or directly to ${questionTarget} for questions`
     : '';
 
   return `
@@ -37,11 +39,11 @@ ${classificationNote}
 @startuml
 start
 :Receive task;
-note right: from user or handoff from reviewer
+${hasReviewer ? 'note right: from user or handoff from reviewer' : 'note right: from planner handoff'}
 :Implement changes;
 :Commit work;
 if (classification?) then (new_feature or code changes)
-  :Hand off to **reviewer**;
+  :Hand off to **${codeChangesTarget}**;
 else (question)
   :Hand off to **${questionTarget}**;
 endif
@@ -50,13 +52,13 @@ stop
 \`\`\`
 
 **Handoff Rules:**
-- **After code changes** → Hand off to \`reviewer\`
+- **After code changes** → Hand off to \`${codeChangesTarget}\`
 - **For simple questions** → Can hand off directly to \`${questionTarget}\`
-- **For \`new_feature\` classification** → MUST hand off to \`reviewer\` (cannot skip review)
-
+- **For \`new_feature\` classification** → MUST hand off to \`${codeChangesTarget}\` (cannot skip ${hasReviewer ? 'review' : 'planner'})
+${hasReviewer ? `
 **When you receive handoffs from the reviewer:**
 You will receive feedback on your code. Review the feedback, make the requested changes, and hand back to the reviewer.
-
+` : ''}
 **Development Best Practices:**
 - Write clean, maintainable code
 - Add appropriate tests when applicable
