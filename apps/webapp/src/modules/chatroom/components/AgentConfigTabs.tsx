@@ -488,9 +488,17 @@ function isModelHidden(
   filter: { hiddenModels: string[]; hiddenProviders: string[] } | null | undefined
 ): boolean {
   if (!filter) return false;
-  if (filter.hiddenModels.includes(modelId)) return true;
   const provider = modelId.split('/')[0];
-  return filter.hiddenProviders.includes(provider);
+  const providerHidden = filter.hiddenProviders.includes(provider);
+  const hasExplicitOverride = filter.hiddenModels.includes(modelId);
+
+  if (providerHidden) {
+    // Provider is hidden; hiddenModels contains exceptions (models to UN-hide)
+    return !hasExplicitOverride;
+  } 
+    // Provider is visible; hiddenModels contains models to hide
+    return hasExplicitOverride;
+  
 }
 
 // ─── Component: RemoteTabContent ────────────────────────────────────

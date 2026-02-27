@@ -5,6 +5,7 @@ import React, { useMemo } from 'react';
 import { getModelDisplayLabel } from '../types/machine';
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 interface ModelFilterPanelProps {
   open: boolean;
@@ -34,6 +35,10 @@ function titleCaseProvider(provider: string): string {
 /**
  * ModelFilterPanel — Popover panel for configuring model visibility per machine+harness.
  * Groups models by provider, with toggles for individual models and entire providers.
+ *
+ * Semantics of hiddenModels:
+ * - When provider is NOT in hiddenProviders: hiddenModels = models to explicitly hide
+ * - When provider IS in hiddenProviders: hiddenModels = exception overrides (models to show)
  */
 export function ModelFilterPanel({
   open,
@@ -61,8 +66,9 @@ export function ModelFilterPanel({
 
   const handleModelToggle = (modelId: string) => {
     if (disabled) return;
-    const isCurrentlyHidden = hiddenModels.includes(modelId);
-    const newHiddenModels = isCurrentlyHidden
+    // Toggle membership in hiddenModels — the isModelHidden() logic handles the semantics
+    const isCurrentlyInList = hiddenModels.includes(modelId);
+    const newHiddenModels = isCurrentlyInList
       ? hiddenModels.filter((m) => m !== modelId)
       : [...hiddenModels, modelId];
     onFilterChange(newHiddenModels, hiddenProviders);
@@ -71,15 +77,15 @@ export function ModelFilterPanel({
   const handleProviderToggle = (provider: string) => {
     if (disabled) return;
     const isProviderHidden = hiddenProviders.includes(provider);
+    const providerModels = modelsByProvider.get(provider) ?? [];
     if (isProviderHidden) {
-      // SHOW ALL — remove provider from hiddenProviders
+      // SHOW ALL — remove provider from hiddenProviders, also clear any overrides
       onFilterChange(
-        hiddenModels,
+        hiddenModels.filter((m) => !providerModels.includes(m)),
         hiddenProviders.filter((p) => p !== provider)
       );
     } else {
-      // HIDE ALL — add provider to hiddenProviders, remove individual models of this provider
-      const providerModels = modelsByProvider.get(provider) ?? [];
+      // HIDE ALL — add provider to hiddenProviders, clear individual model overrides
       const newHiddenModels = hiddenModels.filter((m) => !providerModels.includes(m));
       onFilterChange(newHiddenModels, [...hiddenProviders, provider]);
     }
@@ -138,45 +144,50 @@ export function ModelFilterPanel({
                   </button>
                 </div>
 
-                {/* Individual model rows — hidden when provider is hidden */}
-                {!isProviderHidden &&
-                  models.map((model) => {
-                    const isModelHidden = hiddenModels.includes(model);
-                    return (
+                {/* Individual model rows — always shown, even when provider is hidden */}
+                {models.map((model) => {
+                  const hasOverride = hiddenModels.includes(model);
+                  // Effective visibility: provider hidden means model is hidden unless there's an override
+                  const isEffectivelyHidden = isProviderHidden ? !hasOverride : hasOverride;
+
+                  return (
+                    <div
+                      key={model}
+                      className={cn(
+                        'py-1 flex items-center gap-2 hover:bg-chatroom-bg-hover cursor-pointer group',
+                        isProviderHidden ? 'pl-5 pr-4 border-l-2 border-chatroom-border' : 'px-4'
+                      )}
+                      onClick={() => handleModelToggle(model)}
+                      role="checkbox"
+                      aria-checked={!isEffectivelyHidden}
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleModelToggle(model);
+                        }
+                      }}
+                    >
+                      {/* Square indicator: filled = visible, empty = hidden */}
                       <div
-                        key={model}
-                        className="px-4 py-1 flex items-center gap-2 hover:bg-chatroom-bg-hover cursor-pointer group"
-                        onClick={() => handleModelToggle(model)}
-                        role="checkbox"
-                        aria-checked={!isModelHidden}
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            handleModelToggle(model);
-                          }
-                        }}
+                        className={
+                          isEffectivelyHidden
+                            ? 'w-3 h-3 border border-chatroom-border bg-chatroom-bg-tertiary flex-shrink-0'
+                            : 'w-3 h-3 border border-chatroom-accent bg-chatroom-accent flex-shrink-0'
+                        }
+                      />
+                      <span
+                        className={
+                          isEffectivelyHidden
+                            ? 'text-[10px] text-chatroom-text-muted flex-1 truncate opacity-50'
+                            : 'text-[10px] text-chatroom-text-primary flex-1 truncate'
+                        }
                       >
-                        {/* Square indicator */}
-                        <div
-                          className={
-                            isModelHidden
-                              ? 'w-3 h-3 border border-chatroom-border bg-chatroom-bg-tertiary flex-shrink-0'
-                              : 'w-3 h-3 border border-chatroom-accent bg-chatroom-accent flex-shrink-0'
-                          }
-                        />
-                        <span
-                          className={
-                            isModelHidden
-                              ? 'text-[10px] text-chatroom-text-muted flex-1 truncate opacity-50'
-                              : 'text-[10px] text-chatroom-text-primary flex-1 truncate'
-                          }
-                        >
-                          {getModelDisplayLabel(model)}
-                        </span>
-                      </div>
-                    );
-                  })}
+                        {getModelDisplayLabel(model)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
