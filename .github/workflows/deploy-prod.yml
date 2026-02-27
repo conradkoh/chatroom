@@ -44,26 +44,16 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
       - name: Install dependencies
         run: pnpm install
 
-      - name: Run migration - migrateAvailableModelsToPerHarness
+      - name: Run database migrations
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_PROD }}
-        working-directory: services/backend
-        run: npx convex run migration:migrateAvailableModelsToPerHarness --prod
-
-      - name: Run migration - stripParticipantStaleFields
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_PROD }}
-        working-directory: services/backend
-        run: npx convex run migration:stripParticipantStaleFields --prod
-
-      - name: Run migration - deleteOldFormatAgentPreferences
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_PROD }}
-        working-directory: services/backend
-        run: npx convex run migration:deleteOldFormatAgentPreferences --prod
+        run: pnpm run migrate
