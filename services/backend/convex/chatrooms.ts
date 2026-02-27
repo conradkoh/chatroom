@@ -201,13 +201,6 @@ export const listByUserWithStatus = query({
           chatStatus,
           isFavorite: favoriteIds.has(chatroom._id),
           hasUnread,
-          teamReadiness: {
-            isReady: agents.some(
-              (a) => a.lastSeenAt != null && now - a.lastSeenAt <= LAST_SEEN_ACTIVE_MS
-            ),
-            missingRoles: [],
-            expiredRoles: [],
-          },
         };
       })
     );

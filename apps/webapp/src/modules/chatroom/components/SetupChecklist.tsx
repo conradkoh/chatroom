@@ -16,7 +16,6 @@ import { usePrompts } from '@/contexts/PromptsContext';
 
 interface Participant {
   role: string;
-  status: string;
 }
 
 interface SetupChecklistProps {

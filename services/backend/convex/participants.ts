@@ -241,7 +241,6 @@ export const getHighestPriorityWaitingRole = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    const now = Date.now();
     const presentParticipants = participants.filter(
       (p) => p.role.toLowerCase() !== 'user'
     );
@@ -291,8 +290,8 @@ export const getConnectionId = query({
 /**
  * Get team lifecycle data for the frontend.
  *
- * Returns participants[], expectedRoles, missingRoles, expiredRoles, isReady,
- * hasHistory — status is derived from lastSeenAt (no FSM table).
+ * Returns raw participant state — role, lastSeenAt, lastSeenAction, isStuck, agentType.
+ * All status derivation (online/offline, ready, etc.) is done on the frontend.
  */
 export const getTeamLifecycle = query({
   args: {
@@ -346,14 +345,6 @@ export const getTeamLifecycle = query({
       };
     });
 
-    const aliveRoles = new Set(
-      participants
-        .filter((p) => p.lastSeenAt != null)
-        .map((p) => p.role.toLowerCase())
-    );
-
-    const missingRoles: string[] = [];
-
     const firstUserMessage = await ctx.db
       .query('chatroom_messages')
       .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
@@ -365,12 +356,6 @@ export const getTeamLifecycle = query({
       teamId: chatroom.teamId,
       teamName: chatroom.teamName ?? chatroom.teamId,
       expectedRoles,
-      presentRoles: participants
-        .filter((p) => p.lastSeenAt != null)
-        .map((p) => p.role),
-      missingRoles,
-      expiredRoles: [] as string[], // FSM concept — always empty now; kept for API compat
-      isReady: missingRoles.length === 0,
       participants,
       hasHistory: firstUserMessage !== null,
     };

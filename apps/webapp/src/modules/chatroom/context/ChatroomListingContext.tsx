@@ -10,12 +10,6 @@ export interface Agent {
   lastSeenAt: number | null;
 }
 
-export interface TeamReadiness {
-  isReady: boolean;
-  missingRoles: string[];
-  expiredRoles: string[];
-}
-
 export interface ChatroomWithStatus {
   _id: string;
   _creationTime: number;
@@ -30,7 +24,6 @@ export interface ChatroomWithStatus {
   chatStatus: 'working' | 'active' | 'idle' | 'completed';
   isFavorite: boolean;
   hasUnread: boolean;
-  teamReadiness: TeamReadiness;
 }
 
 interface ChatroomListingContextValue {

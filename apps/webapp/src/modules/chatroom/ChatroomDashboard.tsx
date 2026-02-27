@@ -29,7 +29,7 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { TaskQueue } from './components/TaskQueue';
 import { AttachedTasksProvider } from './context/AttachedTasksContext';
-import type { TeamReadiness } from './types/readiness';
+import type { TeamLifecycle } from './types/readiness';
 // TeamStatus is now consolidated into AgentPanel
 
 import {
@@ -210,15 +210,6 @@ interface Chatroom {
   teamEntryPoint?: string;
 }
 
-interface Participant {
-  _id: string;
-  chatroomId: string;
-  role: string;
-  status: string;
-  readyUntil?: number;
-  activeUntil?: number;
-}
-
 // Hook to check if screen is small (< 768px)
 // Returns undefined during SSR/hydration to prevent layout flickering
 function useIsSmallScreen(): boolean | undefined {
@@ -333,13 +324,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     return () => clearInterval(interval);
   }, [chatroom, chatroomId, markAsRead]);
 
-  const participants = useSessionQuery(api.participants.list, {
+  const lifecycle = useSessionQuery(api.participants.getTeamLifecycle, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as Participant[] | undefined;
-
-  const readiness = useSessionQuery(api.participants.getTeamLifecycle, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as TeamReadiness | null | undefined;
+  }) as TeamLifecycle | null | undefined;
 
   const activeTask = useSessionQuery(api.tasks.getActiveTask, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -349,60 +336,57 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const teamRoles = useMemo(() => chatroom?.teamRoles || [], [chatroom?.teamRoles]);
   const teamName = useMemo(() => chatroom?.teamName || 'Team', [chatroom?.teamName]);
 
-  // Create a memoized map of roles to participants
-  const participantMap = useMemo(
-    () => new Map((participants || []).map((p) => [p.role.toLowerCase(), p])),
-    [participants]
+  // Derive participants list from lifecycle data
+  const participants = useMemo(
+    () => lifecycle?.participants ?? [],
+    [lifecycle?.participants]
   );
 
   // Check if all team members have joined (memoized)
   const allMembersJoined = useMemo(
-    () => teamRoles.every((role) => participantMap.has(role.toLowerCase())),
-    [teamRoles, participantMap]
+    () =>
+      teamRoles.every((role) =>
+        participants.some(
+          (p) => p.role.toLowerCase() === role.toLowerCase() && p.lastSeenAt != null
+        )
+      ),
+    [teamRoles, participants]
   );
 
-  // Compute aggregate status for sidebar indicator
-  // Blue (working) if any agent is active, Green (ready) if all are waiting
-  // Must check expiration timestamps to detect disconnected agents
+  // Compute aggregate status for sidebar indicator using presence (lastSeenAt)
+  // Blue (working) if any agent has a recent non-idle action, Green (ready) if all are online
+  const PRESENCE_THRESHOLD_MS = 600_000; // 10 minutes — matches AgentPanel.tsx
   const aggregateStatus = useMemo(() => {
-    if (!participants || participants.length === 0) return 'none';
+    if (participants.length === 0) return 'none';
+    const now = Date.now();
     const nonUserParticipants = participants.filter((p) => p.role.toLowerCase() !== 'user');
     if (nonUserParticipants.length === 0) return 'none';
 
-    const now = Date.now();
+    const onlineAgents = nonUserParticipants.filter(
+      (p) => p.lastSeenAt != null && now - p.lastSeenAt <= PRESENCE_THRESHOLD_MS
+    );
 
-    // Check if any agent has expired (disconnected)
-    // - Active agents expire based on activeUntil
-    // - Waiting agents expire based on readyUntil
-    const isExpired = (p: Participant): boolean => {
-      if (p.status === 'active') {
-        return p.activeUntil ? p.activeUntil < now : false;
-      }
-      if (p.status === 'waiting') {
-        return p.readyUntil ? p.readyUntil < now : false;
-      }
-      return false;
-    };
+    if (onlineAgents.length === 0) return 'none';
 
-    // Filter to get non-expired agents
-    const connectedAgents = nonUserParticipants.filter((p) => !isExpired(p));
+    const hasWorking = onlineAgents.some(
+      (p) => p.lastSeenAction && p.lastSeenAction !== 'get-next-task:started'
+    );
+    if (hasWorking) return 'working';
 
-    // If any agent is expired, check if we have enough connected agents
-    const hasDisconnected = nonUserParticipants.some(isExpired);
-    if (hasDisconnected && connectedAgents.length === 0) return 'partial';
-
-    // Check for active non-expired agents
-    const hasActiveAgent = connectedAgents.some((p) => p.status === 'active');
-    if (hasActiveAgent) return 'working';
-
-    // All non-expired agents must be waiting for "ready" status
-    const allReady =
-      connectedAgents.length > 0 &&
-      connectedAgents.every((p) => p.status === 'waiting' || p.status === 'active');
-    if (allReady && !hasDisconnected) return 'ready';
+    if (onlineAgents.length === nonUserParticipants.length) return 'ready';
 
     return 'partial';
-  }, [participants]);
+  }, [participants, PRESENCE_THRESHOLD_MS]);
+
+  // Derive expired roles (previously seen but now offline) for the ReconnectModal
+  const expiredRoles = useMemo(() => {
+    const now = Date.now();
+    return teamRoles.filter((role) => {
+      const p = participants.find((p) => p.role.toLowerCase() === role.toLowerCase());
+      if (!p?.lastSeenAt) return false;
+      return now - p.lastSeenAt > PRESENCE_THRESHOLD_MS;
+    });
+  }, [teamRoles, participants, PRESENCE_THRESHOLD_MS]);
 
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
@@ -481,24 +465,13 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // - No chat history (no user messages)
   // - Not all team members have joined yet
   // Once the chatroom has been used (hasHistory), never show setup again
-  const isSetupMode = !allMembersJoined && !readiness?.hasHistory;
-
-  // Check if team has disconnected (expired) agents
-  const hasDisconnectedAgents = useMemo(() => {
-    return readiness?.expiredRoles && readiness.expiredRoles.length > 0;
-  }, [readiness?.expiredRoles]);
-
-  // Determine if team is not ready due to disconnection (vs initial setup)
-  const isTeamDisconnected = useMemo(() => {
-    return !isSetupMode && !readiness?.isReady && !!hasDisconnectedAgents;
-  }, [isSetupMode, readiness?.isReady, hasDisconnectedAgents]);
+  const isSetupMode = !allMembersJoined && !lifecycle?.hasHistory;
 
   // Status badge colors - using chatroom status variables for theme support
   const getStatusBadgeClasses = useCallback(
-    (status: string, isSetup: boolean, isDisconnected: boolean) => {
+    (status: string, isSetup: boolean) => {
       const base =
         'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide inline-flex items-center border-2 border-transparent';
-      if (isDisconnected) return `${base} bg-chatroom-status-error/15 text-chatroom-status-error`;
       if (isSetup) return `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`;
       switch (status) {
         case 'active':
@@ -605,10 +578,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            <span
-              className={getStatusBadgeClasses(chatroom.status, isSetupMode, isTeamDisconnected)}
-            >
-              {isTeamDisconnected ? 'Disconnected' : isSetupMode ? 'Setting Up' : chatroom.status}
+            <span className={getStatusBadgeClasses(chatroom.status, isSetupMode)}>
+              {isSetupMode ? 'Setting Up' : chatroom.status}
             </span>
             {/* Setup Button - shown when setup modal is dismissed but still in setup mode */}
             {isSetupMode && !setupModalOpen && (
@@ -673,7 +644,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     chatroom,
     chatroomId,
     isSetupMode,
-    isTeamDisconnected,
     onBack,
     sidebarVisible,
     aggregateStatus,
@@ -690,8 +660,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Wait for all required data and hydration before rendering to prevent flickering
   if (
     chatroom === undefined ||
-    participants === undefined ||
-    readiness === undefined ||
+    lifecycle === undefined ||
     isSmallScreen === undefined
   ) {
     return (
@@ -728,7 +697,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 <MessageFeed
                   chatroomId={chatroomId}
-                  readiness={readiness}
                   activeTask={activeTask}
                 />
                 <SendForm chatroomId={chatroomId} />
@@ -759,7 +727,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 <AgentPanel
                   chatroomId={chatroomId}
                   teamRoles={teamRoles}
-                  readiness={readiness}
+                  lifecycle={lifecycle}
                   onViewPrompt={handleViewPrompt}
                   onReconnect={handleOpenReconnect}
                   openAgentListRequested={agentListRequested}
@@ -789,7 +757,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             isOpen={reconnectModalOpen}
             onClose={handleCloseReconnect}
             chatroomId={chatroomId}
-            expiredRoles={readiness?.expiredRoles || []}
+            expiredRoles={expiredRoles}
             onViewPrompt={handleViewPrompt}
             onStartAgent={handleOpenAgentList}
           />

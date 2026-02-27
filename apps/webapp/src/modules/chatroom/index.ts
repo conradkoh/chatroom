@@ -29,5 +29,4 @@ export {
   useChatroomListing,
   type ChatroomWithStatus,
   type Agent,
-  type TeamReadiness,
 } from './context/ChatroomListingContext';

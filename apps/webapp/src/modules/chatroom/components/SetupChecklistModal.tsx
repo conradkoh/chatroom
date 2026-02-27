@@ -7,7 +7,6 @@ import { SetupChecklist } from './SetupChecklist';
 
 interface Participant {
   role: string;
-  status: string;
 }
 
 interface SetupChecklistModalProps {

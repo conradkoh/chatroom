@@ -3,15 +3,19 @@
 import { CheckCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
 import React, { memo } from 'react';
 
-import type { TeamReadiness } from '../types/readiness';
+import type { TeamLifecycle } from '../types/readiness';
+
+// PRESENCE_THRESHOLD_MS — agents unseen for longer are considered offline
+const PRESENCE_THRESHOLD_MS = 600_000; // 10 minutes
 
 interface TeamStatusProps {
-  readiness: TeamReadiness | null | undefined;
+  lifecycle: TeamLifecycle | null | undefined;
   onReconnect?: () => void;
 }
 
-export const TeamStatus = memo(function TeamStatus({ readiness, onReconnect }: TeamStatusProps) {
-  if (readiness === undefined) {
+/** @deprecated TeamStatus is consolidated into AgentPanel. This component is kept for API compatibility only. */
+export const TeamStatus = memo(function TeamStatus({ lifecycle, onReconnect }: TeamStatusProps) {
+  if (lifecycle === undefined) {
     return (
       <div className="p-4 border-b-2 border-chatroom-border-strong">
         <div className="bg-chatroom-bg-tertiary p-4 flex flex-col items-center justify-center">
@@ -22,13 +26,22 @@ export const TeamStatus = memo(function TeamStatus({ readiness, onReconnect }: T
   }
 
   // Legacy chatroom without team
-  if (readiness === null) {
+  if (lifecycle === null) {
     return null;
   }
 
-  // Check if there are expired roles (team was ready but now agents have disconnected)
-  const hasExpiredRoles = readiness.expiredRoles && readiness.expiredRoles.length > 0;
-  const isDisconnected = !readiness.isReady && hasExpiredRoles;
+  // Derive status from raw presence data
+  const now = Date.now();
+  const expiredRoles = lifecycle.expectedRoles.filter((role) => {
+    const p = lifecycle.participants.find((p) => p.role.toLowerCase() === role.toLowerCase());
+    return p?.lastSeenAt != null && now - p.lastSeenAt > PRESENCE_THRESHOLD_MS;
+  });
+  const missingRoles = lifecycle.expectedRoles.filter((role) => {
+    const p = lifecycle.participants.find((p) => p.role.toLowerCase() === role.toLowerCase());
+    return p?.lastSeenAt == null;
+  });
+  const isReady = expiredRoles.length === 0 && missingRoles.length === 0;
+  const isDisconnected = !isReady && expiredRoles.length > 0;
 
   return (
     <div className="p-4 border-b-2 border-chatroom-border-strong">
@@ -39,14 +52,14 @@ export const TeamStatus = memo(function TeamStatus({ readiness, onReconnect }: T
         {/* Status Icon */}
         <div
           className={`${
-            readiness.isReady
+            isReady
               ? 'text-chatroom-status-success'
               : isDisconnected
                 ? 'text-chatroom-status-error'
                 : 'text-chatroom-status-warning'
           }`}
         >
-          {readiness.isReady ? (
+          {isReady ? (
             <CheckCircle size={20} />
           ) : isDisconnected ? (
             <AlertTriangle size={20} />
@@ -57,14 +70,14 @@ export const TeamStatus = memo(function TeamStatus({ readiness, onReconnect }: T
         {/* Status Text */}
         <div
           className={`text-xs font-bold uppercase tracking-wide ${
-            readiness.isReady
+            isReady
               ? 'text-chatroom-status-success'
               : isDisconnected
                 ? 'text-chatroom-status-error'
                 : 'text-chatroom-status-warning'
           }`}
         >
-          {readiness.isReady
+          {isReady
             ? 'Team Ready'
             : isDisconnected
               ? 'Agents Disconnected'
@@ -72,11 +85,11 @@ export const TeamStatus = memo(function TeamStatus({ readiness, onReconnect }: T
         </div>
         {/* Status Detail */}
         <div className="text-[10px] text-chatroom-text-muted text-center">
-          {readiness.isReady
-            ? `All ${readiness.expectedRoles.length} members present`
+          {isReady
+            ? `All ${lifecycle.expectedRoles.length} members present`
             : isDisconnected
-              ? `Disconnected: ${readiness.expiredRoles?.join(', ')}`
-              : `Missing: ${readiness.missingRoles.join(', ')}`}
+              ? `Disconnected: ${expiredRoles.join(', ')}`
+              : `Missing: ${missingRoles.join(', ')}`}
         </div>
         {/* Reconnect Button - shown when agents are disconnected */}
         {isDisconnected && onReconnect && (

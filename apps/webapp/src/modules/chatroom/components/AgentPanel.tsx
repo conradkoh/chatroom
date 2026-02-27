@@ -18,7 +18,7 @@ import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentCon
 import type { AgentPreference } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
-import type { ParticipantInfo, TeamReadiness } from '../types/readiness';
+import type { ParticipantInfo, TeamLifecycle } from '../types/readiness';
 
 import {
   DropdownMenu,
@@ -38,7 +38,7 @@ import { usePrompts } from '@/contexts/PromptsContext';
 interface AgentPanelProps {
   chatroomId: string;
   teamRoles?: string[];
-  readiness: TeamReadiness | null | undefined;
+  lifecycle: TeamLifecycle | null | undefined;
   onViewPrompt?: (role: string) => void;
   onReconnect?: () => void;
   /** When true, the unified agent list modal opens automatically. Reset to false by the component. */
@@ -528,7 +528,7 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
 export const AgentPanel = memo(function AgentPanel({
   chatroomId,
   teamRoles = [],
-  readiness,
+  lifecycle,
   onViewPrompt,
   onReconnect,
   openAgentListRequested,
@@ -550,16 +550,16 @@ export const AgentPanel = memo(function AgentPanel({
   }, [openAgentListRequested, onAgentListOpened]);
   const { getAgentPrompt } = usePrompts();
 
-  // Build participant map from readiness data
+  // Build participant map from lifecycle data
   const participantMap = useMemo(() => {
-    if (!readiness?.participants) return new Map<string, ParticipantInfo>();
-    return new Map(readiness.participants.map((p) => [p.role.toLowerCase(), p as ParticipantInfo]));
-  }, [readiness?.participants]);
+    if (!lifecycle?.participants) return new Map<string, ParticipantInfo>();
+    return new Map(lifecycle.participants.map((p) => [p.role.toLowerCase(), p as ParticipantInfo]));
+  }, [lifecycle?.participants]);
 
   // Determine which roles to show (memoized)
   const rolesToShow = useMemo(
-    () => (teamRoles.length > 0 ? teamRoles : readiness?.expectedRoles || []),
-    [teamRoles, readiness?.expectedRoles]
+    () => (teamRoles.length > 0 ? teamRoles : lifecycle?.expectedRoles || []),
+    [teamRoles, lifecycle?.expectedRoles]
   );
 
   // Categorize agents by presence for grouped display
@@ -616,12 +616,33 @@ export const AgentPanel = memo(function AgentPanel({
     setIsAgentListModalOpen(false);
   }, []);
 
-  // Compute team status
-  const hasExpiredRoles = readiness?.expiredRoles && readiness.expiredRoles.length > 0;
-  const isDisconnected = !readiness?.isReady && hasExpiredRoles;
+  // Compute team status from raw presence data
+  // expiredRoles: roles that were previously seen but are now offline
+  // missingRoles: roles that have never been seen (no lastSeenAt)
+  const { expiredRoles, missingRoles, isReady } = useMemo(() => {
+    const expired: string[] = [];
+    const missing: string[] = [];
+    let allOnline = rolesToShow.length > 0;
+    for (const role of rolesToShow) {
+      const p = participantMap.get(role.toLowerCase());
+      const online_ = isOnline(p?.lastSeenAt);
+      if (!online_) {
+        allOnline = false;
+        if (p?.lastSeenAt != null) {
+          expired.push(role);
+        } else {
+          missing.push(role);
+        }
+      }
+    }
+    return { expiredRoles: expired, missingRoles: missing, isReady: allOnline };
+  }, [rolesToShow, participantMap]);
+
+  const hasExpiredRoles = expiredRoles.length > 0;
+  const isDisconnected = !isReady && hasExpiredRoles;
 
   // Loading state
-  if (readiness === undefined) {
+  if (lifecycle === undefined) {
     return (
       <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
@@ -635,7 +656,7 @@ export const AgentPanel = memo(function AgentPanel({
   }
 
   // Legacy chatroom without team
-  if (readiness === null) {
+  if (lifecycle === null) {
     return (
       <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
@@ -771,7 +792,7 @@ export const AgentPanel = memo(function AgentPanel({
         <div className="p-3 bg-chatroom-bg-tertiary border-t border-chatroom-border">
           <div className="flex items-center justify-between">
             <div className="text-[10px] text-chatroom-text-muted">
-              {`Disconnected: ${readiness.expiredRoles?.join(', ')}`}
+              {`Disconnected: ${expiredRoles.join(', ')}`}
             </div>
             {onReconnect && (
               <button
@@ -787,10 +808,10 @@ export const AgentPanel = memo(function AgentPanel({
       )}
 
       {/* Waiting footer - only shown when waiting for agents */}
-      {!readiness.isReady && !isDisconnected && (
+      {!isReady && !isDisconnected && (
         <div className="p-3 bg-chatroom-bg-tertiary border-t border-chatroom-border">
           <div className="text-[10px] text-chatroom-text-muted">
-            {`Missing: ${readiness.missingRoles.join(', ')}`}
+            {`Missing: ${missingRoles.join(', ')}`}
           </div>
         </div>
       )}

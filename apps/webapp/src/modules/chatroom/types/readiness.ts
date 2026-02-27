@@ -17,16 +17,17 @@ export interface ParticipantInfo {
   isStuck?: boolean;
 }
 
-/** Team readiness data from the backend — single source of truth for agent panel state */
-export interface TeamReadiness {
-  isReady: boolean;
+/**
+ * Team lifecycle data from the backend.
+ * Raw state only — all status derivation (online/offline, ready, etc.) is done on the frontend.
+ */
+export interface TeamLifecycle {
+  teamId: string;
+  teamName: string;
   expectedRoles: string[];
-  missingRoles: string[];
-  expiredRoles?: string[];
-  participants?: ParticipantInfo[];
-  /** Optional — only some consumers need these */
-  teamName?: string;
-  presentRoles?: string[];
+  participants: ParticipantInfo[];
   /** Whether the chatroom has been used (has user messages) */
-  hasHistory?: boolean;
+  hasHistory: boolean;
 }
+
+

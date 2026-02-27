@@ -56,7 +56,6 @@ const REMARK_PLUGINS = [remarkGfm];
 
 interface MessageFeedProps {
   chatroomId: string;
-  readiness?: { participants?: { role: string; lastSeenAction?: string | null }[] } | null;
   activeTask?: { status: string; assignedTo?: string } | null;
 }
 
