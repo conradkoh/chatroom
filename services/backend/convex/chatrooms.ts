@@ -404,3 +404,128 @@ export const markAsRead = mutation({
     }
   },
 });
+
+/**
+ * Returns the IDs of chatrooms that the authenticated user has favorited.
+ * Lightweight subscription — only invalidated when favorites change.
+ */
+export const listFavoriteIds = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const sessionResult = await validateSession(ctx, args.sessionId);
+    if (!sessionResult.valid) {
+      throw new Error(`Authentication failed: ${sessionResult.reason}`);
+    }
+
+    const favorites = await ctx.db
+      .query('chatroom_favorites')
+      .withIndex('by_userId', (q) => q.eq('userId', sessionResult.userId))
+      .collect();
+
+    return favorites.map((f) => f.chatroomId as string);
+  },
+});
+
+/**
+ * Returns unread status for each chatroom the user owns.
+ * A chatroom is unread if it has a message newer than the user's read cursor,
+ * or if it has any messages and the user has no cursor.
+ * Lightweight subscription — only invalidated when messages or read cursors change.
+ */
+export const listUnreadStatus = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const sessionResult = await validateSession(ctx, args.sessionId);
+    if (!sessionResult.valid) {
+      throw new Error(`Authentication failed: ${sessionResult.reason}`);
+    }
+
+    // Fetch all chatrooms and read cursors in parallel
+    const [chatrooms, readCursors] = await Promise.all([
+      ctx.db
+        .query('chatroom_rooms')
+        .withIndex('by_ownerId', (q) => q.eq('ownerId', sessionResult.userId))
+        .collect(),
+      ctx.db
+        .query('chatroom_read_cursors')
+        .withIndex('by_userId', (q) => q.eq('userId', sessionResult.userId))
+        .collect(),
+    ]);
+
+    const readCursorMap = new Map(readCursors.map((c) => [c.chatroomId.toString(), c.lastSeenAt]));
+
+    const unreadStatus = await Promise.all(
+      chatrooms.map(async (chatroom) => {
+        const lastSeenAt = readCursorMap.get(chatroom._id.toString());
+        let hasUnread = false;
+
+        if (lastSeenAt !== undefined) {
+          // Check if there's any message newer than the cursor
+          const newerMessage = await ctx.db
+            .query('chatroom_messages')
+            .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+            .order('desc')
+            .first();
+          hasUnread = newerMessage !== null && newerMessage._creationTime > lastSeenAt;
+        } else {
+          // No cursor — check if there are any messages at all
+          const anyMessage = await ctx.db
+            .query('chatroom_messages')
+            .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+            .first();
+          hasUnread = anyMessage !== null;
+        }
+
+        return { chatroomId: chatroom._id as string, hasUnread };
+      })
+    );
+
+    return unreadStatus;
+  },
+});
+
+/**
+ * Returns participant presence for all chatrooms owned by the authenticated user.
+ * Each entry contains { chatroomId, role, lastSeenAt } — sufficient for the
+ * frontend to derive agent presence dots and chat status.
+ * Subscription is invalidated by participant heartbeats but isolated from
+ * favorites, unread, and base chatroom changes.
+ */
+export const listParticipantPresence = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const sessionResult = await validateSession(ctx, args.sessionId);
+    if (!sessionResult.valid) {
+      throw new Error(`Authentication failed: ${sessionResult.reason}`);
+    }
+
+    const chatrooms = await ctx.db
+      .query('chatroom_rooms')
+      .withIndex('by_ownerId', (q) => q.eq('ownerId', sessionResult.userId))
+      .collect();
+
+    const presence = await Promise.all(
+      chatrooms.map(async (chatroom) => {
+        const participants = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
+          .collect();
+
+        return participants.map((p) => ({
+          chatroomId: chatroom._id as string,
+          role: p.role,
+          lastSeenAt: p.lastSeenAt ?? null,
+          lastSeenAction: p.lastSeenAction ?? null,
+        }));
+      })
+    );
+
+    return presence.flat();
+  },
+});

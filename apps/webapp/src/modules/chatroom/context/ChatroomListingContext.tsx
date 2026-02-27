@@ -4,10 +4,12 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
-// Types based on backend response from listByUserWithStatus
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 export interface Agent {
   role: string;
   lastSeenAt: number | null;
+  lastSeenAction: string | null;
 }
 
 export interface ChatroomWithStatus {
@@ -26,6 +28,8 @@ export interface ChatroomWithStatus {
   hasUnread: boolean;
 }
 
+// ─── Context ──────────────────────────────────────────────────────────────────
+
 interface ChatroomListingContextValue {
   chatrooms: ChatroomWithStatus[] | undefined;
   isLoading: boolean;
@@ -33,16 +37,94 @@ interface ChatroomListingContextValue {
 
 const ChatroomListingContext = createContext<ChatroomListingContextValue | null>(null);
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** Agents unseen for longer than this are considered offline in the listing view. */
+const LAST_SEEN_ACTIVE_MS = 600_000; // 10 minutes
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
+
 /**
- * Provider that fetches and maintains chatroom listing data with computed statuses.
- * Uses Convex subscriptions which persist across navigations, preventing re-fetches
- * when navigating between chatroom pages.
+ * Provider that fetches chatroom listing data using four focused subscriptions:
+ *
+ * 1. `listByUser`            — base chatroom rows (sorted, lightweight)
+ * 2. `listParticipantPresence` — agent presence; re-fires on heartbeats (30s)
+ * 3. `listFavoriteIds`       — favorited chatroom IDs
+ * 4. `listUnreadStatus`      — per-chatroom unread indicator
+ *
+ * Splitting into four subscriptions means a participant heartbeat (every 30s)
+ * only re-runs `listParticipantPresence`, not the entire bundle.
  */
 export function ChatroomListingProvider({ children }: { children: ReactNode }) {
-  // Single query - Convex subscriptions maintain data across navigations
-  const chatrooms = useSessionQuery(api.chatrooms.listByUserWithStatus) as
-    | ChatroomWithStatus[]
-    | undefined;
+  // 1. Base chatroom data — lightweight, invalidated only by chatroom changes
+  const baseChatrooms = useSessionQuery(api.chatrooms.listByUser);
+
+  // 2. Participant presence — re-fires on every agent heartbeat (30s)
+  const presenceData = useSessionQuery(api.chatrooms.listParticipantPresence);
+
+  // 3. Favorites — re-fires only when favorites change
+  const favoriteIds = useSessionQuery(api.chatrooms.listFavoriteIds);
+
+  // 4. Unread status — re-fires when messages or read cursors change
+  const unreadStatus = useSessionQuery(api.chatrooms.listUnreadStatus);
+
+  // Merge the four subscriptions into a single ChatroomWithStatus[] for consumers
+  const chatrooms = useMemo<ChatroomWithStatus[] | undefined>(() => {
+    // Wait for all subscriptions to resolve before returning data
+    if (
+      baseChatrooms === undefined ||
+      presenceData === undefined ||
+      favoriteIds === undefined ||
+      unreadStatus === undefined
+    ) {
+      return undefined;
+    }
+
+    const favoriteSet = new Set(favoriteIds);
+    const unreadMap = new Map(unreadStatus.map((u) => [u.chatroomId, u.hasUnread]));
+
+    // Group presence by chatroomId
+    const presenceByRoom = new Map<string, Agent[]>();
+    for (const p of presenceData) {
+      const existing = presenceByRoom.get(p.chatroomId) ?? [];
+      existing.push({ role: p.role, lastSeenAt: p.lastSeenAt, lastSeenAction: p.lastSeenAction });
+      presenceByRoom.set(p.chatroomId, existing);
+    }
+
+    const now = Date.now();
+
+    return baseChatrooms.map((chatroom) => {
+      const agents = presenceByRoom.get(chatroom._id) ?? [];
+
+      // Derive chatStatus from presence and chatroom status
+      type ChatStatus = 'working' | 'active' | 'idle' | 'completed';
+      let chatStatus: ChatStatus;
+      if (chatroom.status === 'completed') {
+        chatStatus = 'completed';
+      } else {
+        const onlineAgents = agents.filter(
+          (a) => a.lastSeenAt != null && now - a.lastSeenAt <= LAST_SEEN_ACTIVE_MS
+        );
+        if (onlineAgents.length === 0) {
+          chatStatus = 'idle';
+        } else {
+          // 'working': any online agent is actively doing something (not waiting for next task)
+          const hasWorking = onlineAgents.some(
+            (a) => a.lastSeenAction && a.lastSeenAction !== 'get-next-task:started'
+          );
+          chatStatus = hasWorking ? 'working' : 'active';
+        }
+      }
+
+      return {
+        ...chatroom,
+        agents,
+        chatStatus,
+        isFavorite: favoriteSet.has(chatroom._id),
+        hasUnread: unreadMap.get(chatroom._id) ?? false,
+      } as ChatroomWithStatus;
+    });
+  }, [baseChatrooms, presenceData, favoriteIds, unreadStatus]);
 
   const value = useMemo(
     () => ({
@@ -57,13 +139,15 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// ─── Hook ──────────────────────────────────────────────────────────────────────
+
 /**
  * Hook to access chatroom listing data.
  * Must be used within a ChatroomListingProvider.
  *
  * Returns:
  * - chatrooms: Array of chatrooms with computed agent and chat statuses
- * - isLoading: True while data is being fetched
+ * - isLoading: True while any subscription is still loading
  */
 export function useChatroomListing() {
   const context = useContext(ChatroomListingContext);
