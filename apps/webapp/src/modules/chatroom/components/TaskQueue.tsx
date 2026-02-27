@@ -26,6 +26,8 @@ import { baseMarkdownComponents, compactMarkdownComponents } from './markdown-ut
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
 
+import type { TeamLifecycle } from '../types/readiness';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -80,14 +82,10 @@ interface TaskCounts {
   cancelled: number; // deprecated
 }
 
-interface QueueHealth {
-  hasActiveTask: boolean;
-  queuedCount: number;
-  needsPromotion: boolean;
-}
-
 interface TaskQueueProps {
   chatroomId: string;
+  /** Lifecycle data from the parent — used to derive needsPromotion without a separate checkQueueHealth subscription */
+  lifecycle?: TeamLifecycle | null;
 }
 
 // Status badge colors - using chatroom status variables for theme support
@@ -168,7 +166,7 @@ const PENDING_REVIEW_PREVIEW_LIMIT = 3;
 // Maximum number of current tasks to show in sidebar before "View More"
 const CURRENT_TASKS_PREVIEW_LIMIT = 3;
 
-export function TaskQueue({ chatroomId }: TaskQueueProps) {
+export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState('');
@@ -190,10 +188,25 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TaskCounts | undefined;
 
-  // Query queue health
-  const queueHealth = useSessionQuery(api.tasks.checkQueueHealth, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as QueueHealth | undefined;
+  // Derive needsPromotion from counts and lifecycle (replaces checkQueueHealth subscription)
+  // A promotion is needed when: no active task, there are queued tasks, and all agents are idle
+  const needsPromotion = useMemo(() => {
+    if (!counts) return false;
+    const hasActiveTask =
+      counts.pending > 0 ||
+      counts.acknowledged > 0 ||
+      counts.in_progress > 0 ||
+      counts.backlog_acknowledged > 0;
+    const hasQueuedTasks = counts.queued > 0;
+    if (!hasActiveTask && hasQueuedTasks) {
+      // Check if all agents are idle (lastSeenAction === 'get-next-task:started')
+      const participants = lifecycle?.participants ?? [];
+      if (participants.length === 0) return true; // No agents registered — allow promote
+      const allIdle = participants.every((p) => p.lastSeenAction === 'get-next-task:started');
+      return allIdle;
+    }
+    return false;
+  }, [counts, lifecycle]);
 
   // Query pending review tasks (tasks with pending_user_review status)
   const pendingReviewTasks = useSessionQuery(api.tasks.listTasks, {
@@ -490,7 +503,7 @@ export function TaskQueue({ chatroomId }: TaskQueueProps) {
       {/* Scrollable Task List Container */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {/* Queue Health Warning - Show when promotion needed */}
-        {queueHealth?.needsPromotion && (
+        {needsPromotion && (
           <div className="p-3 border-b border-chatroom-border bg-chatroom-status-warning/10">
             <div className="flex items-center justify-between">
               <span className="text-xs text-chatroom-status-warning">

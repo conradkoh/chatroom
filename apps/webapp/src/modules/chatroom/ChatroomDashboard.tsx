@@ -696,7 +696,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   onViewPrompt={handleViewPrompt}
                   onConfigure={handleOpenSettings}
                 />
-                <TaskQueue chatroomId={chatroomId} />
+                <TaskQueue chatroomId={chatroomId} lifecycle={lifecycle} />
                 <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
                   <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
                     Chatroom ID
