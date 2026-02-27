@@ -96,7 +96,7 @@ export function ModelFilterPanel({
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
-        className="bg-chatroom-bg-secondary border border-chatroom-border p-0 w-[300px] rounded-none"
+        className="bg-chatroom-bg-primary border border-chatroom-border p-0 w-[300px] rounded-none"
         align="end"
       >
         {/* Header */}
