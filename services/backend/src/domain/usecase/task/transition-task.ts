@@ -29,7 +29,7 @@ import { internal } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { areAllAgentsIdle } from '../../../../convex/auth/cliSessionAuth';
-import { ENSURE_AGENT_DELAY_MS, ENSURE_AGENT_DELAY_IN_PROGRESS_MS } from '../../../../convex/ensureAgentHandler';
+import { ENSURE_AGENT_DELAY_MS } from '../../../../convex/ensureAgentHandler';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 
@@ -108,14 +108,12 @@ export async function transitionTask(
 
   // 3. After active-status transitions, schedule an ensure-agent check.
   //    Re-fetch AFTER the FSM transition so updatedAt is the post-transition timestamp.
-  //    Use a longer delay for in_progress tasks (agents may take up to 10 min),
-  //    and the standard 120s for pending/acknowledged.
+  //    For in_progress tasks, the check itself handles the token-activity guard
+  //    (rescheduling if the agent is still producing output, restarting if stale).
   if (ENSURE_AGENT_TRIGGER_STATUSES.has(newStatus)) {
     const activeTask = await ctx.db.get('chatroom_tasks', taskId);
     if (activeTask) {
-      const delay =
-        newStatus === 'in_progress' ? ENSURE_AGENT_DELAY_IN_PROGRESS_MS : ENSURE_AGENT_DELAY_MS;
-      await ctx.scheduler.runAfter(delay, internal.ensureAgentHandler.check, {
+      await ctx.scheduler.runAfter(ENSURE_AGENT_DELAY_MS, internal.ensureAgentHandler.check, {
         taskId,
         chatroomId: activeTask.chatroomId,
         snapshotUpdatedAt: activeTask.updatedAt,

@@ -1,12 +1,20 @@
 /**
  * Ensure Agent Handler
  *
- * A scheduled internalMutation that fires ~30 seconds after a task enters a
+ * A scheduled internalMutation that fires ~120 seconds after a task enters a
  * pending/acknowledged/in_progress state.  It checks whether the task has been
  * updated since the snapshot was taken.  If it has not been updated (i.e. no
  * agent has picked it up), it dispatches a `start-agent` command to every
  * remote-configured machine for the chatroom so that a crashed or missing
  * agent is automatically restarted.
+ *
+ * SMART TOKEN CHECK (in_progress tasks)
+ * ──────────────────────────────────────
+ * For tasks already in_progress, the handler first checks whether the assigned
+ * role's participant has produced a token recently (within STUCK_TOKEN_THRESHOLD_MS).
+ * If the agent is still actively outputting tokens, it is considered healthy and
+ * the check is rescheduled for another 120s instead of triggering a restart.
+ * Only when token output goes stale does the handler proceed with a restart.
  *
  * DESIGN NOTES
  * ─────────────
@@ -16,27 +24,24 @@
  * • No session auth — this is an internal system mutation; it is never
  *   exposed as a public API surface.
  * • Callers are responsible for scheduling via `ctx.scheduler.runAfter` after
- *   creating or transitioning a task (Phase 4).
+ *   creating or transitioning a task.
  */
 
 import { v } from 'convex/values';
 
+import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
+import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 /**
- * Delay (ms) for tasks in pending or acknowledged status.
- * An agent should pick these up quickly; 120s is the grace period.
+ * Delay (ms) between task creation/transition and the ensure-agent check.
+ * Used for pending, acknowledged, and in_progress tasks.
+ * For in_progress tasks, the check is rescheduled if the agent is still
+ * producing tokens (see smart token check above).
  */
 export const ENSURE_AGENT_DELAY_MS = 120_000;
-
-/**
- * Delay (ms) for tasks already in_progress.
- * An agent may legitimately take a long time; allow 10 minutes before
- * assuming the agent has died.
- */
-export const ENSURE_AGENT_DELAY_IN_PROGRESS_MS = 600_000;
 
 /** Task statuses that indicate an agent should be running. */
 const ACTIVE_TASK_STATUSES = new Set(['pending', 'acknowledged', 'in_progress']);
@@ -47,6 +52,10 @@ const ACTIVE_TASK_STATUSES = new Set(['pending', 'acknowledged', 'in_progress'])
  * Scheduled check: if the task is still in an active status and has not been
  * updated since the snapshot, dispatch `start-agent` commands to all remote
  * agents configured for this chatroom.
+ *
+ * For in_progress tasks, the agent's token activity is checked first.
+ * If the agent is still producing output, the check is rescheduled instead
+ * of triggering a restart.
  */
 export const check = internalMutation({
   args: {
@@ -88,7 +97,43 @@ export const check = internalMutation({
       return;
     }
 
-    // ── 4. Find all remote agent configs for this chatroom ────────────────
+    // ── 4. Smart token check for in_progress tasks ────────────────────────
+    //
+    // If the task is already in_progress, the agent may still be actively
+    // working (just taking a long time). Check whether the assigned role's
+    // participant is producing tokens before deciding to restart.
+    //
+    // If tokens are fresh (within STUCK_TOKEN_THRESHOLD_MS), reschedule
+    // another check instead of restarting — the agent is still alive.
+
+    if (task.status === 'in_progress' && task.assignedTo) {
+      const participant = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', task.assignedTo!)
+        )
+        .first();
+
+      if (participant?.lastSeenTokenAt != null) {
+        const now = Date.now();
+        const tokenAge = now - participant.lastSeenTokenAt;
+
+        if (tokenAge < STUCK_TOKEN_THRESHOLD_MS) {
+          // Agent is still producing tokens — healthy. Reschedule another
+          // check in ENSURE_AGENT_DELAY_MS to keep monitoring.
+          await ctx.scheduler.runAfter(ENSURE_AGENT_DELAY_MS, internal.ensureAgentHandler.check, {
+            taskId,
+            chatroomId,
+            snapshotUpdatedAt: task.updatedAt,
+          });
+          return;
+        }
+        // Token output is stale — fall through to restart.
+      }
+      // No participant record or no token activity recorded — fall through to restart.
+    }
+
+    // ── 5. Find all remote agent configs for this chatroom ────────────────
 
     const teamAgentConfigs = await ctx.db
       .query('chatroom_teamAgentConfigs')
@@ -102,7 +147,7 @@ export const check = internalMutation({
       return;
     }
 
-    // ── 5. Dispatch start-agent commands for each remote config ───────────
+    // ── 6. Dispatch start-agent commands for each remote config ───────────
 
     const now = Date.now();
 
