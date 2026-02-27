@@ -38,6 +38,7 @@ function createCommand(overrides?: Partial<StartAgentCommand['payload']>): Start
     _id: 'cmd-1' as StartAgentCommand['_id'],
     createdAt: Date.now(),
     type: 'start-agent',
+    reason: 'test',
     payload: {
       chatroomId: 'test-chatroom-123' as StartAgentCommand['payload']['chatroomId'],
       role: 'builder',

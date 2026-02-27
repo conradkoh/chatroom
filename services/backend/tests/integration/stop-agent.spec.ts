@@ -32,6 +32,7 @@ describe('stopAgent', () => {
         chatroomId,
         role: 'builder',
         userId: user!._id,
+        reason: 'test',
       });
     });
 
@@ -64,6 +65,7 @@ describe('stopAgent', () => {
         chatroomId,
         role: 'reviewer',
         userId: user!._id,
+        reason: 'test',
       });
     });
 
@@ -91,12 +93,14 @@ describe('stopAgent', () => {
         chatroomId,
         role: 'builder',
         userId: user!._id,
+        reason: 'test',
       });
       await stopAgent(ctx, {
         machineId,
         chatroomId,
         role: 'reviewer',
         userId: user!._id,
+        reason: 'test',
       });
     });
 

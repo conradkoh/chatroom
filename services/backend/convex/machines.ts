@@ -427,6 +427,7 @@ export const getPendingCommands = query({
       commands: commands.map((cmd) => ({
         _id: cmd._id,
         type: cmd.type,
+        reason: cmd.reason,
         payload: cmd.payload,
         createdAt: cmd.createdAt,
       })),
@@ -663,6 +664,7 @@ export const sendCommand = mutation({
           model: resolvedModel,
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
+          reason: 'user-start',
         },
         machine
       );
@@ -676,6 +678,7 @@ export const sendCommand = mutation({
         chatroomId: args.payload.chatroomId,
         role: args.payload.role,
         userId: user._id,
+        reason: 'user-stop',
       });
       return { commandId: result.commandId };
     }

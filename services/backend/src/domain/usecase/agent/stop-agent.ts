@@ -13,6 +13,7 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import type { StopAgentReason } from '../../model/agent';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,12 @@ export interface StopAgentInput {
   role: string;
   /** The user dispatching the stop (must own the machine). */
   userId: Id<'users'>;
+  /**
+   * Human-readable reason for this stop command.
+   * Stored in the command record and logged by the daemon to aid tracing.
+   * Examples: 'user-stop', 'dedup-stop'
+   */
+  reason: StopAgentReason;
 }
 
 /** Result of a stop-agent operation. */
@@ -44,7 +51,7 @@ export interface StopAgentResult {
  * @returns The command ID
  */
 export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promise<StopAgentResult> {
-  const { machineId, chatroomId, role, userId } = input;
+  const { machineId, chatroomId, role, userId, reason } = input;
 
   const now = Date.now();
   const commandId = await ctx.db.insert('chatroom_machineCommands', {
@@ -54,6 +61,7 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
       chatroomId,
       role,
     },
+    reason,
     status: 'pending',
     sentBy: userId,
     createdAt: now,

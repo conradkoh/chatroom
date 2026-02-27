@@ -148,6 +148,7 @@ function createStopCommand(overrides?: Partial<StopAgentCommand['payload']>): St
   return {
     _id: COMMAND_ID,
     type: 'stop-agent',
+    reason: 'test',
     payload: {
       chatroomId: CHATROOM_ID,
       role: 'builder',

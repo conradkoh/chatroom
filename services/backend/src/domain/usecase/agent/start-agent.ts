@@ -18,7 +18,7 @@
 
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { AgentHarness, AgentType } from '../../model/agent';
+import type { AgentHarness, AgentType, StartAgentReason } from '../../model/agent';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,6 +41,13 @@ export interface StartAgentInput {
   agentHarness: AgentHarness;
   /** Working directory on the machine (absolute path). */
   workingDir: string;
+
+  /**
+   * Human-readable reason for this start command.
+   * Stored in the command record and logged by the daemon to aid tracing.
+   * Examples: 'user-start', 'user-restart', 'ensure-agent-retry'
+   */
+  reason: StartAgentReason;
 }
 
 /** Successful result of a start-agent operation. */
@@ -90,7 +97,7 @@ export async function startAgent(
   input: StartAgentInput,
   machine: Doc<'chatroom_machines'>
 ): Promise<StartAgentResult> {
-  const { machineId, chatroomId, role, userId, model, agentHarness, workingDir } = input;
+  const { machineId, chatroomId, role, userId, model, agentHarness, workingDir, reason } = input;
 
   // ── Step 1: Upsert machine agent config ───────────────────────────────
 
@@ -173,6 +180,7 @@ export async function startAgent(
       model,
       workingDir,
     },
+    reason,
     status: 'pending',
     sentBy: userId,
     createdAt: now,

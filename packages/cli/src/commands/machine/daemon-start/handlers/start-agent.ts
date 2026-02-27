@@ -22,6 +22,9 @@ export async function handleStartAgent(
   console.log(`      Chatroom: ${chatroomId}`);
   console.log(`      Role: ${role}`);
   console.log(`      Harness: ${agentHarness}`);
+  if (command.reason) {
+    console.log(`      Reason: ${command.reason}`);
+  }
   if (model) {
     console.log(`      Model: ${model}`);
   }

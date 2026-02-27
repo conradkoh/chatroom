@@ -57,6 +57,7 @@ export async function ensureOnlyAgentForRole(
       machineId: config.machineId as string,
       type: 'stop-agent',
       payload: { chatroomId, role },
+      reason: 'dedup-stop',
       status: 'pending',
       sentBy: userId,
       createdAt: Date.now(),

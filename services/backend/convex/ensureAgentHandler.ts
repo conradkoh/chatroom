@@ -25,8 +25,18 @@ import { internalMutation } from './_generated/server';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-/** Delay (ms) between task creation/transition and the ensure-agent check. */
+/**
+ * Delay (ms) for tasks in pending or acknowledged status.
+ * An agent should pick these up quickly; 120s is the grace period.
+ */
 export const ENSURE_AGENT_DELAY_MS = 120_000;
+
+/**
+ * Delay (ms) for tasks already in_progress.
+ * An agent may legitimately take a long time; allow 10 minutes before
+ * assuming the agent has died.
+ */
+export const ENSURE_AGENT_DELAY_IN_PROGRESS_MS = 600_000;
 
 /** Task statuses that indicate an agent should be running. */
 const ACTIVE_TASK_STATUSES = new Set(['pending', 'acknowledged', 'in_progress']);
@@ -129,6 +139,7 @@ export const check = internalMutation({
           model: config.model,
           workingDir: config.workingDir,
         },
+        reason: 'ensure-agent-retry',
         status: 'pending',
         sentBy: machine.userId,
         createdAt: now,

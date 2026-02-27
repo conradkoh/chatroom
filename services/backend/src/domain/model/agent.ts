@@ -41,7 +41,26 @@ export type MachineCommandType = 'start-agent' | 'stop-agent' | 'ping' | 'status
  */
 export type MachineCommandStatus = 'pending' | 'completed' | 'failed';
 
-// ─── Model Resolution ────────────────────────────────────────────────────────
+// ─── Command Reason Types ─────────────────────────────────────────────────────
+
+/**
+ * Human-readable reasons for dispatching a start-agent command.
+ *
+ * - `user-start`: User explicitly started the agent via UI or CLI
+ * - `user-restart`: User explicitly restarted the agent via UI or CLI
+ * - `ensure-agent-retry`: Auto-restart triggered by the ensure-agent scheduled check
+ * - `test`: Used in integration and unit tests only
+ */
+export type StartAgentReason = 'user-start' | 'user-restart' | 'ensure-agent-retry' | 'test';
+
+/**
+ * Human-readable reasons for dispatching a stop-agent command.
+ *
+ * - `user-stop`: User explicitly stopped the agent via UI or CLI
+ * - `dedup-stop`: Agent stopped automatically to deduplicate roles (another agent took over)
+ * - `test`: Used in integration and unit tests only
+ */
+export type StopAgentReason = 'user-stop' | 'dedup-stop' | 'test';
 
 /**
  * Where the agent's AI model was resolved from in the config hierarchy.

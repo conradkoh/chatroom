@@ -2,7 +2,7 @@
  * Daemon Utilities — shared helpers for the daemon command module.
  */
 
-import type { MachineCommand, RawMachineCommand } from './types.js';
+import type { MachineCommand, RawMachineCommand, StartAgentReason, StopAgentReason } from './types.js';
 
 /**
  * Format timestamp for daemon log output.
@@ -15,6 +15,10 @@ export function formatTimestamp(): string {
  * Parse a raw command from Convex into the type-safe discriminated union.
  * Validates that required fields are present for each command type.
  * Returns null if the command has invalid/missing payload fields.
+ *
+ * NOTE: `reason` is mandatory for start-agent and stop-agent commands.
+ * Commands missing a required reason are rejected (returned as null) so the
+ * daemon can ack them as failed and surface the issue in logs.
  */
 export function parseMachineCommand(raw: RawMachineCommand): MachineCommand | null {
   switch (raw.type) {
@@ -30,9 +34,14 @@ export function parseMachineCommand(raw: RawMachineCommand): MachineCommand | nu
         );
         return null;
       }
+      if (!raw.reason) {
+        console.error(`   ⚠️  Invalid start-agent command: missing required reason field`);
+        return null;
+      }
       return {
         _id: raw._id,
         type: 'start-agent',
+        reason: raw.reason as StartAgentReason,
         payload: {
           chatroomId,
           role,
@@ -49,9 +58,14 @@ export function parseMachineCommand(raw: RawMachineCommand): MachineCommand | nu
         console.error(`   ⚠️  Invalid stop-agent command: missing chatroomId or role`);
         return null;
       }
+      if (!raw.reason) {
+        console.error(`   ⚠️  Invalid stop-agent command: missing required reason field`);
+        return null;
+      }
       return {
         _id: raw._id,
         type: 'stop-agent',
+        reason: raw.reason as StopAgentReason,
         payload: { chatroomId, role },
         createdAt: raw.createdAt,
       };

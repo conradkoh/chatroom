@@ -704,6 +704,22 @@ export default defineSchema({
       v.literal('ping'),
       v.literal('status')
     ),
+    // Human-readable reason explaining why this command was dispatched.
+    // Helps trace the source of automatic restarts vs. user-initiated actions.
+    // Required for start-agent and stop-agent commands; absent for ping/status.
+    reason: v.optional(
+      v.union(
+        // start-agent reasons
+        v.literal('user-start'),
+        v.literal('user-restart'),
+        v.literal('ensure-agent-retry'),
+        // stop-agent reasons
+        v.literal('user-stop'),
+        v.literal('dedup-stop'),
+        // test-only reason (used in integration and unit tests)
+        v.literal('test')
+      )
+    ),
     // Command payload (varies by type)
     payload: v.object({
       chatroomId: v.optional(v.id('chatroom_rooms')),

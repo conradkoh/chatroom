@@ -127,6 +127,7 @@ function createStartAgentCommand(): StartAgentCommand {
     _id: 'cmd-start' as StartAgentCommand['_id'],
     createdAt: Date.now(),
     type: 'start-agent',
+    reason: 'test',
     payload: {
       chatroomId: 'room-1' as StartAgentCommand['payload']['chatroomId'],
       role: 'builder',
@@ -140,6 +141,7 @@ function createStopAgentCommand(): StopAgentCommand {
     _id: 'cmd-stop' as StopAgentCommand['_id'],
     createdAt: Date.now(),
     type: 'stop-agent',
+    reason: 'test',
     payload: {
       chatroomId: 'room-1' as StopAgentCommand['payload']['chatroomId'],
       role: 'builder',

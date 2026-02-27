@@ -20,6 +20,27 @@ export type SessionId = any;
 
 export type { MachineConfig, AgentHarness };
 
+// ─── Command Reason Types ─────────────────────────────────────────────────────
+
+/**
+ * Human-readable reasons for dispatching a start-agent command.
+ *
+ * - `user-start`: User explicitly started the agent via UI or CLI
+ * - `user-restart`: User explicitly restarted the agent via UI or CLI
+ * - `ensure-agent-retry`: Auto-restart triggered by the ensure-agent scheduled check
+ * - `test`: Used in integration and unit tests only
+ */
+export type StartAgentReason = 'user-start' | 'user-restart' | 'ensure-agent-retry' | 'test';
+
+/**
+ * Human-readable reasons for dispatching a stop-agent command.
+ *
+ * - `user-stop`: User explicitly stopped the agent via UI or CLI
+ * - `dedup-stop`: Agent stopped automatically to deduplicate roles (another agent took over)
+ * - `test`: Used in integration and unit tests only
+ */
+export type StopAgentReason = 'user-stop' | 'dedup-stop' | 'test';
+
 // ─── Command Types ──────────────────────────────────────────────────────────
 
 /**
@@ -36,6 +57,11 @@ export interface MachineCommandBase {
  */
 export interface StartAgentCommand extends MachineCommandBase {
   type: 'start-agent';
+  /**
+   * Mandatory reason for the start command.
+   * Logged by the daemon to distinguish automatic restarts from user-initiated starts.
+   */
+  reason: StartAgentReason;
   payload: {
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
@@ -51,6 +77,11 @@ export interface StartAgentCommand extends MachineCommandBase {
  */
 export interface StopAgentCommand extends MachineCommandBase {
   type: 'stop-agent';
+  /**
+   * Mandatory reason for the stop command.
+   * Logged by the daemon to distinguish user-initiated stops from automatic deduplication.
+   */
+  reason: StopAgentReason;
   payload: {
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
@@ -88,6 +119,8 @@ export type MachineCommand = StartAgentCommand | StopAgentCommand | PingCommand 
 export interface RawMachineCommand {
   _id: Id<'chatroom_machineCommands'>;
   type: 'start-agent' | 'stop-agent' | 'ping' | 'status';
+  /** Human-readable reason for the command (may be undefined for older records). */
+  reason?: string;
   payload: {
     chatroomId?: Id<'chatroom_rooms'>;
     role?: string;

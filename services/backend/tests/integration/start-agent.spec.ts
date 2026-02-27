@@ -46,6 +46,7 @@ describe('startAgent — config persistence', () => {
           model: 'claude-sonnet-4',
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
+          reason: 'test',
         },
         machine!
       );
@@ -109,6 +110,7 @@ describe('startAgent — config persistence', () => {
           model: 'old-model',
           agentHarness: 'opencode',
           workingDir: '/old/path',
+          reason: 'test',
         },
         machine!
       );
@@ -133,6 +135,7 @@ describe('startAgent — config persistence', () => {
           model: 'new-model',
           agentHarness: 'opencode',
           workingDir: '/new/path',
+          reason: 'test',
         },
         machine!
       );
@@ -209,6 +212,7 @@ describe('startAgent — harness validation', () => {
             model: 'claude-sonnet-4',
             agentHarness: 'opencode',
             workingDir: '/test/workspace',
+            reason: 'test',
           },
           machine!
         );
@@ -251,6 +255,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           model: 'model-for-chatroom-1',
           agentHarness: 'opencode',
           workingDir: '/workspace/chatroom1',
+          reason: 'test',
         },
         machine!
       );
@@ -265,6 +270,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           model: 'model-for-chatroom-2',
           agentHarness: 'opencode',
           workingDir: '/workspace/chatroom2',
+          reason: 'test',
         },
         machine!
       );
@@ -322,6 +328,7 @@ describe('startAgent — teamRoleKey collision regression', () => {
           model: 'claude-sonnet-4',
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
+          reason: 'test',
         },
         machine!
       );
@@ -386,6 +393,7 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
           model: 'claude-sonnet-4',
           agentHarness: 'opencode',
           workingDir: '/test/workspace',
+          reason: 'test',
         },
         machine!
       );
@@ -461,6 +469,7 @@ describe('startAgent — command payload', () => {
           model: 'my-specific-model',
           agentHarness: 'opencode',
           workingDir: '/specific/path',
+          reason: 'test',
         },
         machine!
       );
