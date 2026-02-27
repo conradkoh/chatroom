@@ -12,14 +12,8 @@ import {
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
+
 import { CopyButton } from './CopyButton';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import type {
   AgentHarness,
   HarnessVersionInfo,
@@ -28,6 +22,16 @@ import type {
   SendCommandFn,
 } from '../types/machine';
 import { HARNESS_DISPLAY_NAMES, getModelDisplayLabel } from '../types/machine';
+
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -520,6 +524,8 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 
   const hasNoMachines = !isLoadingMachines && connectedMachines.length === 0;
 
+  const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
+
   return (
     <div className="bg-chatroom-bg-surface border border-chatroom-border px-2.5 py-2 space-y-2">
       {isLoadingMachines ? (
@@ -629,32 +635,51 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           <div className="flex items-center gap-2">
             {hasModels ? (
               <div className="flex-1 min-w-0">
-                <Select
-                  value={displayModel || ''}
-                  onValueChange={(val) => handleModelChange(val === '__none__' ? null : val)}
-                  disabled={isBusy || isAgentRunning || !displayHarness}
-                >
-                  <SelectTrigger
-                    className="w-full bg-chatroom-bg-tertiary border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto rounded-none hover:border-chatroom-border-strong focus:ring-0 focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Select Model"
-                  >
-                    <SelectValue placeholder="Model..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-chatroom-bg-tertiary border-chatroom-border max-h-60">
-                    <SelectItem value="__none__" className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted">
-                      Model...
-                    </SelectItem>
-                    {availableModelsForHarness.map((model) => (
-                      <SelectItem
-                        key={model}
-                        value={model}
-                        className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary"
-                      >
-                        {getModelDisplayLabel(model)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      disabled={isBusy || isAgentRunning || !displayHarness}
+                      className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+                      title="Select Model"
+                    >
+                      <span className="truncate">
+                        {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
+                      </span>
+                      <ChevronDown size={10} className="ml-1 flex-shrink-0 text-chatroom-text-muted" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 w-[280px] rounded-none">
+                    <Command className="bg-chatroom-bg-tertiary rounded-none">
+                      <CommandInput
+                        placeholder="Search model..."
+                        className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-tertiary border-b border-chatroom-border focus:ring-0 focus:outline-none h-8"
+                      />
+                      <CommandList className="max-h-60 overflow-y-auto">
+                        <CommandEmpty className="text-[10px] text-chatroom-text-muted uppercase tracking-wider py-2 text-center">
+                          No models found.
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {availableModelsForHarness.map((model) => (
+                            <CommandItem
+                              key={model}
+                              value={getModelDisplayLabel(model)}
+                              onSelect={() => {
+                                handleModelChange(model);
+                                setModelPopoverOpen(false);
+                              }}
+                              className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
+                            >
+                              <span className="truncate">{getModelDisplayLabel(model)}</span>
+                              {displayModel === model && (
+                                <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
+                              )}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             ) : (
               <div className="flex-1" />
