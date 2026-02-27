@@ -36,6 +36,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -584,6 +585,17 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     [availableModelsForHarness, machineModelFilter]
   );
 
+  // True when the currently selected model exists in the full list but is filtered out
+  const isSelectedModelHidden = useMemo(
+    () =>
+      !!(
+        displayModel &&
+        availableModelsForHarness.includes(displayModel) &&
+        !visibleModels.includes(displayModel)
+      ),
+    [displayModel, availableModelsForHarness, visibleModels]
+  );
+
   return (
     <div className="bg-chatroom-bg-surface border border-chatroom-border px-2.5 py-2 space-y-2">
       {isLoadingMachines ? (
@@ -702,10 +714,18 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                         className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
                         title="Select Model"
                       >
-                        <span className="truncate">
+                        <span className={cn('truncate', isSelectedModelHidden && 'text-chatroom-status-warning')}>
                           {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
                         </span>
                         <div className="flex items-center gap-1 flex-shrink-0">
+                          {/* Warning: selected model is filtered out */}
+                          {isSelectedModelHidden && (
+                            <AlertCircle
+                              size={10}
+                              className="text-chatroom-status-warning flex-shrink-0"
+                              aria-label="Selected model is hidden by filter — choose a new model"
+                            />
+                          )}
                           {/* Active filter indicator */}
                           {machineModelFilter &&
                             (machineModelFilter.hiddenModels.length > 0 ||
@@ -722,7 +742,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                     <PopoverContent className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 w-[280px] rounded-none">
                       <Command className="bg-chatroom-bg-tertiary rounded-none">
                         <CommandInput
-                          placeholder="Search model..."
+                          placeholder="Search..."
                           className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-tertiary border-b border-chatroom-border focus:ring-0 focus:outline-none h-8"
                         />
                         <CommandList className="max-h-60 overflow-y-auto">
@@ -738,7 +758,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                                   handleModelChange(model);
                                   setModelPopoverOpen(false);
                                 }}
-                                className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
+                                className="text-[10px] font-bold tracking-wide text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
                               >
                                 <span className="truncate">{getModelDisplayLabel(model)}</span>
                                 {displayModel === model && (

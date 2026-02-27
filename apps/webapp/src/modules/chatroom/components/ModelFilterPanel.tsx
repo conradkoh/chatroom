@@ -96,7 +96,17 @@ export function ModelFilterPanel({
     onFilterChange([], []);
   };
 
-  const hasAnyFilter = hiddenModels.length > 0 || hiddenProviders.length > 0;
+  // Count models that are effectively hidden (used for the header badge)
+  const hiddenCount = useMemo(() => {
+    return availableModels.filter((model) => {
+      const provider = model.split('/')[0];
+      const providerHidden = hiddenProviders.includes(provider);
+      const hasOverride = hiddenModels.includes(model);
+      return providerHidden ? !hasOverride : hasOverride;
+    }).length;
+  }, [availableModels, hiddenModels, hiddenProviders]);
+
+  const hasAnyFilter = hiddenCount > 0;
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -110,9 +120,9 @@ export function ModelFilterPanel({
           <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary">
             Model Visibility
           </span>
-          {hasAnyFilter && (
-            <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-accent">
-              FILTERED
+          {hiddenCount > 0 && (
+            <span className="text-[9px] font-bold uppercase tracking-wider text-chatroom-status-warning">
+              {hiddenCount} HIDDEN
             </span>
           )}
         </div>
@@ -138,7 +148,12 @@ export function ModelFilterPanel({
                     type="button"
                     disabled={disabled}
                     onClick={() => handleProviderToggle(provider)}
-                    className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={cn(
+                      'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                      isProviderHidden
+                        ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-amber-400 hover:text-amber-400'
+                        : 'border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
+                    )}
                   >
                     {isProviderHidden ? 'Show All' : 'Hide All'}
                   </button>
