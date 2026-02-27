@@ -596,11 +596,15 @@ export default defineSchema({
     // Chatroom this preference applies to
     chatroomId: v.id('chatroom_rooms'),
     // Role this preference is for (e.g. "planner", "builder")
-    role: v.string(),
+    // DEPRECATED SHAPE: old documents (pre-migration) may be missing this field.
+    // See migration.migrateAgentPreferencesToPerRole for cleanup.
+    role: v.optional(v.string()),
     // Preferred machine ID
     machineId: v.string(),
     // Preferred agent harness
-    agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+    // DEPRECATED SHAPE: old documents (pre-migration) may be missing this field.
+    // See migration.migrateAgentPreferencesToPerRole for cleanup.
+    agentHarness: v.optional(v.union(v.literal('opencode'), v.literal('pi'))),
     // Preferred AI model
     model: v.optional(v.string()),
     // Preferred working directory (absolute path on the machine)
@@ -608,7 +612,8 @@ export default defineSchema({
     // When this preference was last saved
     updatedAt: v.number(),
     // When this preference was first created
-    createdAt: v.number(),
+    // DEPRECATED SHAPE: old documents (pre-migration) may be missing this field.
+    createdAt: v.optional(v.number()),
   })
     .index('by_userId_chatroom_role', ['userId', 'chatroomId', 'role'])
     .index('by_chatroom', ['chatroomId']),

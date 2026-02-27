@@ -161,3 +161,51 @@ export const removeIdleParticipants = internalMutation({
     };
   },
 });
+
+/**
+ * Migration: Delete old-format chatroom_agentPreferences documents.
+ *
+ * The chatroom_agentPreferences table was redesigned from a per-chatroom format
+ * (with harnessByRole/modelByRole maps) to a per-role format (with agentHarness,
+ * role, model as scalar fields). Old documents in production still use the old
+ * shape and fail schema validation on deployment.
+ *
+ * Since agentPreferences are purely UI hints and have no behavioral impact,
+ * the safest migration is to delete old-format documents. Users will need to
+ * re-save their preferences after the migration (by clicking "Start Agent" again).
+ *
+ * After this migration has run successfully in production:
+ *   1. In schema.ts — restore agentHarness, role, and createdAt to required fields:
+ *        role: v.string(),
+ *        agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+ *        createdAt: v.number(),
+ *      (remove the DEPRECATED SHAPE comments and v.optional wrappers)
+ *   2. Remove this migration (move description to "Previously executed" list above).
+ *
+ * Idempotent: documents already in the new format (with agentHarness) are skipped.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.deleteOldFormatAgentPreferences
+ */
+export const deleteOldFormatAgentPreferences = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allPrefs = await ctx.db.query('chatroom_agentPreferences').collect();
+
+    let deleted = 0;
+    let skipped = 0;
+
+    for (const pref of allPrefs) {
+      // Old format: missing agentHarness (has harnessByRole map instead)
+      const raw = pref as Record<string, unknown>;
+      if (raw.agentHarness === undefined) {
+        await ctx.db.delete('chatroom_agentPreferences', pref._id);
+        deleted++;
+      } else {
+        skipped++;
+      }
+    }
+
+    return { deleted, skipped, total: allPrefs.length };
+  },
+});
