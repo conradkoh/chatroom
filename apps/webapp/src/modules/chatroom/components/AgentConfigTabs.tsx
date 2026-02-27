@@ -10,7 +10,7 @@ import {
   ChevronDown,
   CheckCircle,
 } from 'lucide-react';
-import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
 import { CopyButton } from './CopyButton';
 import type {
@@ -50,15 +50,87 @@ export interface AgentPreference {
 // start/stop/restart actions. Used by both the shared tab content and
 // any container that needs programmatic access.
 //
-// Model selection architecture:
-//   `selectedModel` is DERIVED (useMemo), not state driven by an effect.
-//   This guarantees that switching harness ALWAYS shows a model from the
-//   new harness's list in the same render — no stale carry-over is possible.
+// INITIALIZATION MODEL
+// ────────────────────
+// Form state is initialized ONCE when machines first become available,
+// using a snapshot of the agentPreference taken at mount time.
+// After initialization, all state changes come exclusively from explicit
+// user interactions (handleMachineChange, handleHarnessChange, etc.) — never
+// from reactive prop updates.
 //
-//   Per-harness user choices are stored in `userModelByHarness`. When the
-//   user picks a model on harness A then switches to harness B, harness B
-//   starts fresh (auto-select). Switching back to harness A restores the
-//   user's earlier choice (if it's still valid).
+// DISPLAY WHEN RUNNING
+// ─────────────────────
+// When an agent is running (isAgentRunning), the display values shown in
+// the form come directly from runningAgentConfig — not from internal state.
+// Internal state is preserved and used when the agent stops.
+//
+// MODEL SELECTION
+// ───────────────
+// `selectedModel` is DERIVED (useMemo), not state. Per-harness user choices
+// are stored in `userModelByHarness` so switching harness never loses context.
+
+// ─── Pure helpers for initialization ────────────────────────────────
+
+function deriveInitialMachine(
+  connectedMachines: MachineInfo[],
+  roleConfigs: AgentConfig[],
+  runningAgentConfig: AgentConfig | undefined,
+  preference: AgentPreference | undefined
+): string | null {
+  if (connectedMachines.length === 0) return null;
+  // Priority: running agent > existing config machine > saved preference > first available
+  if (runningAgentConfig) return runningAgentConfig.machineId;
+  const configMachine = connectedMachines.find((m) =>
+    roleConfigs.some((c) => c.machineId === m.machineId)
+  );
+  if (configMachine) return configMachine.machineId;
+  if (preference && connectedMachines.some((m) => m.machineId === preference.machineId)) {
+    return preference.machineId;
+  }
+  return connectedMachines[0]?.machineId ?? null;
+}
+
+function deriveInitialHarness(
+  machineId: string | null,
+  connectedMachines: MachineInfo[],
+  roleConfigs: AgentConfig[],
+  preference: AgentPreference | undefined
+): AgentHarness | null {
+  if (!machineId) return null;
+  const machine = connectedMachines.find((m) => m.machineId === machineId);
+  const available = machine?.availableHarnesses ?? [];
+  // Priority: existing config harness > saved preference > only option
+  const config = roleConfigs.find((c) => c.machineId === machineId);
+  if (config && available.includes(config.agentType)) return config.agentType;
+  if (
+    preference &&
+    preference.machineId === machineId &&
+    available.includes(preference.agentHarness)
+  ) {
+    return preference.agentHarness;
+  }
+  if (available.length === 1) return available[0];
+  return null;
+}
+
+function deriveInitialWorkingDir(
+  machineId: string | null,
+  roleConfigs: AgentConfig[],
+  preference: AgentPreference | undefined
+): string {
+  if (machineId) {
+    const config = roleConfigs.find((c) => c.machineId === machineId);
+    if (config?.workingDir) return config.workingDir;
+    if (preference && preference.machineId === machineId && preference.workingDir) {
+      return preference.workingDir;
+    }
+  }
+  if (roleConfigs.length > 0) {
+    const latest = roleConfigs.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
+    if (latest.workingDir) return latest.workingDir;
+  }
+  return preference?.workingDir ?? '';
+}
 
 export function useAgentControls({
   role,
@@ -82,10 +154,12 @@ export function useAgentControls({
   /** Called when user starts an agent — saves preference for future sessions */
   onSavePreference?: (pref: AgentPreference) => void;
 }) {
+  // Snapshot the preference at mount — never react to preference updates
+  const initialPreferenceRef = useRef(agentPreference);
+
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedHarness, setSelectedHarness] = useState<AgentHarness | null>(null);
   // Per-harness user model choice. Keyed by AgentHarness string.
-  // null entry means "use auto-select for this harness".
   const [userModelByHarness, setUserModelByHarness] = useState<
     Partial<Record<AgentHarness, string>>
   >({});
@@ -94,9 +168,8 @@ export function useAgentControls({
   const [isStopping, setIsStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
-  // Track if user has manually set the working directory (prevents auto-fill override)
-  const [isWorkingDirManuallySet, setIsWorkingDirManuallySet] = useState(false);
+  // Guards initialization — fires exactly once when machines become available
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Get configs for this role
   const roleConfigs = useMemo(() => {
@@ -122,78 +195,30 @@ export function useAgentControls({
     return machine?.harnessVersions || {};
   }, [selectedMachineId, connectedMachines]);
 
-  // Auto-select machine (priority: running agent > role config > saved preference > first available)
+  // ── Single initialize-once effect ────────────────────────────────
+  // Fires exactly once — when machines first become available.
+  // Uses initialPreferenceRef.current (snapshotted at mount) so this
+  // never re-runs due to preference updates from Convex.
   useEffect(() => {
-    if (!selectedMachineId && connectedMachines.length > 0) {
-      let nextMachineId: string;
-      let reason: string;
-      if (runningAgentConfig) {
-        nextMachineId = runningAgentConfig.machineId;
-        reason = 'running agent';
-      } else if (roleConfigs.length > 0) {
-        const configMachine = connectedMachines.find((m) =>
-          roleConfigs.some((c) => c.machineId === m.machineId)
-        );
-        nextMachineId = configMachine ? configMachine.machineId : connectedMachines[0].machineId;
-        reason = configMachine ? 'role config' : 'first available (config machine not online)';
-      } else if (
-        agentPreference &&
-        connectedMachines.some((m) => m.machineId === agentPreference.machineId)
-      ) {
-        nextMachineId = agentPreference.machineId;
-        reason = 'saved preference';
-      } else {
-        nextMachineId = connectedMachines[0].machineId;
-        reason = 'first available';
-      }
-      console.log(`[AgentControls:${role}] auto-select machine (${reason}) → ${nextMachineId}`);
-      setSelectedMachineId(nextMachineId);
-    }
-  }, [connectedMachines, selectedMachineId, runningAgentConfig, roleConfigs, role, agentPreference]);
+    if (isInitialized || connectedMachines.length === 0) return;
+
+    const pref = initialPreferenceRef.current;
+    const machine = deriveInitialMachine(connectedMachines, roleConfigs, runningAgentConfig, pref);
+    const harness = deriveInitialHarness(machine, connectedMachines, roleConfigs, pref);
+    const wd = deriveInitialWorkingDir(machine, roleConfigs, pref);
+
+    setSelectedMachineId(machine);
+    setSelectedHarness(harness);
+    setWorkingDir(wd);
+    setIsInitialized(true);
+  }, [isInitialized, connectedMachines, roleConfigs, runningAgentConfig]);
 
   // Available models from the selected machine filtered by selected harness
   const availableModelsForHarness = useMemo(() => {
     if (!selectedMachineId || !selectedHarness) return [];
     const machine = connectedMachines.find((m) => m.machineId === selectedMachineId);
-    const models = machine?.availableModels[selectedHarness] ?? [];
-    console.log(
-      `[AgentControls:${role}] availableModelsForHarness → harness=${selectedHarness} machine=${selectedMachineId} count=${models.length}`,
-      models
-    );
-    return models;
-  }, [selectedMachineId, selectedHarness, connectedMachines, role]);
-
-  // Auto-select harness (priority: role config > saved preference > single available harness)
-  useEffect(() => {
-    if (selectedMachineId) {
-      const config = roleConfigs.find((c) => c.machineId === selectedMachineId);
-      if (config && availableHarnessesForMachine.includes(config.agentType)) {
-        console.log(
-          `[AgentControls:${role}] auto-select harness (role config) → ${config.agentType}`
-        );
-        setSelectedHarness(config.agentType);
-        return;
-      }
-      // Use saved preference harness if machine matches and harness is available
-      if (
-        agentPreference &&
-        agentPreference.machineId === selectedMachineId &&
-        availableHarnessesForMachine.includes(agentPreference.agentHarness)
-      ) {
-        console.log(
-          `[AgentControls:${role}] auto-select harness (saved preference) → ${agentPreference.agentHarness}`
-        );
-        setSelectedHarness(agentPreference.agentHarness);
-        return;
-      }
-      if (availableHarnessesForMachine.length === 1) {
-        console.log(
-          `[AgentControls:${role}] auto-select harness (only one available) → ${availableHarnessesForMachine[0]}`
-        );
-        setSelectedHarness(availableHarnessesForMachine[0]);
-      }
-    }
-  }, [selectedMachineId, roleConfigs, availableHarnessesForMachine, role, agentPreference]);
+    return machine?.availableModels[selectedHarness] ?? [];
+  }, [selectedMachineId, selectedHarness, connectedMachines]);
 
   // ── Derived model selection ──────────────────────────────────────
   // selectedModel is a pure derivation — no useEffect, no setState.
@@ -204,7 +229,7 @@ export function useAgentControls({
   //   1. User's explicit per-harness choice (userModelByHarness), if still valid
   //   2. Saved machine config model for the same harness (agentType must match)
   //   3. Team config model
-  //   4. Saved user preference model (for the same harness)
+  //   4. Saved user preference model (from mount-time snapshot)
   //   5. First available model for this harness
   const selectedModel = useMemo((): string | null => {
     if (!selectedHarness || availableModelsForHarness.length === 0) {
@@ -214,9 +239,6 @@ export function useAgentControls({
     // 1. Per-harness user choice (if still valid in current model list)
     const userChoice = userModelByHarness[selectedHarness];
     if (userChoice && availableModelsForHarness.includes(userChoice)) {
-      console.log(
-        `[AgentControls:${role}] model derived (user choice) → ${userChoice} [harness=${selectedHarness}]`
-      );
       return userChoice;
     }
 
@@ -225,41 +247,28 @@ export function useAgentControls({
       (c) => c.machineId === selectedMachineId && c.agentType === selectedHarness && c.model
     );
     if (config?.model && availableModelsForHarness.includes(config.model)) {
-      console.log(
-        `[AgentControls:${role}] model derived (machine config) → ${config.model} [harness=${selectedHarness}]`
-      );
       return config.model;
     }
 
     // 3. Team config model
     if (teamConfigModel && availableModelsForHarness.includes(teamConfigModel)) {
-      console.log(
-        `[AgentControls:${role}] model derived (team config) → ${teamConfigModel} [harness=${selectedHarness}]`
-      );
       return teamConfigModel;
     }
 
-    // 4. Saved user preference model (for the same harness and machine)
+    // 4. Saved user preference model (from mount-time snapshot — not reactive)
+    const pref = initialPreferenceRef.current;
     if (
-      agentPreference &&
-      agentPreference.machineId === selectedMachineId &&
-      agentPreference.agentHarness === selectedHarness &&
-      agentPreference.model &&
-      availableModelsForHarness.includes(agentPreference.model)
+      pref &&
+      pref.machineId === selectedMachineId &&
+      pref.agentHarness === selectedHarness &&
+      pref.model &&
+      availableModelsForHarness.includes(pref.model)
     ) {
-      console.log(
-        `[AgentControls:${role}] model derived (saved preference) → ${agentPreference.model} [harness=${selectedHarness}]`
-      );
-      return agentPreference.model;
+      return pref.model;
     }
 
     // 5. First available for this harness
-    const first = availableModelsForHarness[0];
-    console.log(
-      `[AgentControls:${role}] model derived (first available) → ${first} [harness=${selectedHarness}]`,
-      availableModelsForHarness
-    );
-    return first;
+    return availableModelsForHarness[0];
   }, [
     selectedHarness,
     availableModelsForHarness,
@@ -267,44 +276,7 @@ export function useAgentControls({
     roleConfigs,
     selectedMachineId,
     teamConfigModel,
-    agentPreference,
-    role,
   ]);
-
-  // Pre-populate workingDir from existing config when switching machines.
-  // Priority: machine config > saved preference > most-recent config > empty.
-  // Skip if user has manually set the working directory.
-  useEffect(() => {
-    if (isWorkingDirManuallySet) return; // User manually set, don't override
-
-    if (selectedMachineId) {
-      const existingConfig = roleConfigs.find((c) => c.machineId === selectedMachineId);
-      if (existingConfig?.workingDir) {
-        setWorkingDir(existingConfig.workingDir);
-        return;
-      }
-      // Use saved preference working dir if machine matches
-      if (agentPreference && agentPreference.machineId === selectedMachineId && agentPreference.workingDir) {
-        console.log(`[AgentControls:${role}] workingDir pre-populated from saved preference → ${agentPreference.workingDir}`);
-        setWorkingDir(agentPreference.workingDir);
-        return;
-      }
-    }
-    if (roleConfigs.length > 0) {
-      const latest = roleConfigs.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
-      if (latest.workingDir) {
-        setWorkingDir(latest.workingDir);
-        return;
-      }
-    }
-    // Fall back to saved preference working dir (any machine)
-    if (agentPreference?.workingDir) {
-      console.log(`[AgentControls:${role}] workingDir pre-populated from saved preference (fallback) → ${agentPreference.workingDir}`);
-      setWorkingDir(agentPreference.workingDir);
-      return;
-    }
-    setWorkingDir('');
-  }, [selectedMachineId, roleConfigs, isWorkingDirManuallySet, agentPreference, role]);
 
   const isAgentRunning = !!runningAgentConfig;
   const isBusy = isStarting || isStopping;
@@ -415,46 +387,32 @@ export function useAgentControls({
     }
   }, [runningAgentConfig, selectedModel, sendCommand, chatroomId, role]);
 
-  // Wrapper for machine change — clears harness, per-harness model memory, and working dir flag
+  // Wrapper for machine change — clears harness, per-harness model memory, and re-initializes for new machine
   const handleMachineChange = useCallback(
     (machineId: string | null) => {
-      console.log(
-        `[AgentControls:${role}] machine changed (manual) → ${machineId} (was: ${selectedMachineId})`
-      );
       setSelectedMachineId(machineId);
       setSelectedHarness(null);
       setUserModelByHarness({});
-      setIsWorkingDirManuallySet(false);
+      // Re-initialize working dir for the new machine from current roleConfigs
+      const pref = initialPreferenceRef.current;
+      const wd = deriveInitialWorkingDir(machineId, roleConfigs, pref);
+      setWorkingDir(wd);
     },
-    [role, selectedMachineId]
+    [roleConfigs]
   );
 
   // Wrapper for harness change — does NOT clear other harnesses' model memory.
-  // The new harness will derive its model fresh from userModelByHarness[newHarness]
-  // (or fall back to auto-select if no entry exists).
-  const handleHarnessChange = useCallback(
-    (harness: AgentHarness | null) => {
-      console.log(
-        `[AgentControls:${role}] harness changed (manual) → ${harness} (was: ${selectedHarness})`
-      );
-      setSelectedHarness(harness);
-      // Note: userModelByHarness is intentionally NOT cleared here.
-      // Each harness has its own slot; switching harness never bleeds across.
-    },
-    [role, selectedHarness]
-  );
+  const handleHarnessChange = useCallback((harness: AgentHarness | null) => {
+    setSelectedHarness(harness);
+  }, []);
 
   // Wrapper for user manually selecting a model — stored per harness
   const handleModelChange = useCallback(
     (model: string | null) => {
       if (!selectedHarness) return;
-      console.log(
-        `[AgentControls:${role}] model changed (manual) → ${model} [harness=${selectedHarness}]`
-      );
       if (model) {
         setUserModelByHarness((prev) => ({ ...prev, [selectedHarness]: model }));
       } else {
-        // Clearing the model reverts to auto-select for this harness
         setUserModelByHarness((prev) => {
           const next = { ...prev };
           delete next[selectedHarness];
@@ -462,13 +420,12 @@ export function useAgentControls({
         });
       }
     },
-    [role, selectedHarness]
+    [selectedHarness]
   );
 
   // Wrapper for user manually changing working directory
   const handleWorkingDirChange = useCallback((dir: string) => {
     setWorkingDir(dir);
-    setIsWorkingDirManuallySet(true);
   }, []);
 
   return {
@@ -531,6 +488,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     availableHarnessesForMachine,
     harnessVersionsForMachine,
     availableModelsForHarness,
+    runningAgentConfig,
     isAgentRunning,
     isBusy,
     hasModels,
@@ -540,12 +498,18 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleStartAgent,
     handleStopAgent,
     handleRestartAgent,
-    // Use wrapper functions that track manual changes
     handleMachineChange,
     handleHarnessChange,
     handleModelChange,
     handleWorkingDirChange,
   } = controls;
+
+  // When an agent is running, display the live config values — never internal form state.
+  // Internal state is preserved so it's ready again when the agent stops.
+  const displayMachineId = isAgentRunning ? runningAgentConfig!.machineId : selectedMachineId;
+  const displayHarness = isAgentRunning ? runningAgentConfig!.agentType : selectedHarness;
+  const displayModel = isAgentRunning ? (runningAgentConfig!.model ?? null) : selectedModel;
+  const displayWorkingDir = isAgentRunning ? (runningAgentConfig!.workingDir ?? '') : workingDir;
 
   const hasNoMachines = !isLoadingMachines && connectedMachines.length === 0;
 
@@ -582,7 +546,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           <div className="flex items-center gap-2">
             <div className="relative flex-1 min-w-0">
               <select
-                value={selectedMachineId || ''}
+                value={displayMachineId || ''}
                 onChange={(e) => handleMachineChange(e.target.value || null)}
                 disabled={isBusy || isAgentRunning}
                 className="w-full appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent truncate"
@@ -602,12 +566,12 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             </div>
             <div className="relative flex-1 min-w-0">
               <select
-                value={selectedHarness || ''}
+                value={displayHarness || ''}
                 onChange={(e) => handleHarnessChange((e.target.value as AgentHarness) || null)}
                 disabled={
                   isBusy ||
                   isAgentRunning ||
-                  !selectedMachineId ||
+                  !displayMachineId ||
                   availableHarnessesForMachine.length === 0
                 }
                 className="w-full appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent truncate"
@@ -635,7 +599,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           <div className="flex items-center gap-1">
             <input
               type="text"
-              value={workingDir}
+              value={displayWorkingDir}
               onChange={(e) => handleWorkingDirChange(e.target.value)}
               placeholder="/path/to/project"
               disabled={isBusy || isAgentRunning}
@@ -644,9 +608,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
             />
-            {workingDir.trim() && (
+            {displayWorkingDir.trim() && (
               <CopyButton
-                text={workingDir.trim()}
+                text={displayWorkingDir.trim()}
                 label="Copy Path"
                 copiedLabel="Copied!"
                 variant="compact"
@@ -659,9 +623,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
             {hasModels ? (
               <div className="relative flex-1 min-w-0">
                 <select
-                  value={selectedModel || ''}
+                  value={displayModel || ''}
                   onChange={(e) => handleModelChange(e.target.value || null)}
-                  disabled={isBusy || isAgentRunning || !selectedHarness}
+                  disabled={isBusy || isAgentRunning || !displayHarness}
                   className="w-full appearance-none bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary pl-2 pr-6 py-1.5 cursor-pointer hover:border-chatroom-border-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:border-chatroom-accent truncate"
                   title="Select Model"
                 >
