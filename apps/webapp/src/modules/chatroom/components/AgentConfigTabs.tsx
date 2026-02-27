@@ -795,7 +795,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                         </div>
                       </button>
                     </PopoverTrigger>
-                    <PopoverContent className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 w-[280px] rounded-none">
+                    <PopoverContent className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 w-[420px] rounded-none">
                       <Command className="bg-chatroom-bg-tertiary rounded-none">
                         <CommandInput
                           placeholder="Search..."
