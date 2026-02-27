@@ -2,8 +2,8 @@
  * Planner role-specific guidance for squad team
  */
 
-import { getPlannerGuidance as getBasePlannerGuidance } from '../../../base/cli/roles/planner.js';
-import type { PlannerGuidanceParams } from '../../../types/cli.js';
+import { getPlannerGuidance as getBasePlannerGuidance } from '../../../base/cli/roles/planner';
+import type { PlannerGuidanceParams } from '../../../types/cli';
 
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
   const hasBuilder = (ctx.availableMembers ?? ctx.teamRoles).some(

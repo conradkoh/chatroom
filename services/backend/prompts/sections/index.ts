@@ -15,28 +15,28 @@ export {
   getTeamHeaderSection,
   getRoleTitleSection,
   getRoleDescriptionSection,
-} from './role-identity.js';
+} from './role-identity';
 
 // Getting Started
-export { getGettingStartedSection } from './getting-started.js';
+export { getGettingStartedSection } from './getting-started';
 
 // Classification Guide
-export { getClassificationGuideSection } from './classification-guide.js';
+export { getClassificationGuideSection } from './classification-guide';
 
 // Team Context
-export { getTeamContextSection } from './team-context.js';
+export { getTeamContextSection } from './team-context';
 
 // Role Guidance
-export { getRoleGuidanceSection } from './role-guidance.js';
+export { getRoleGuidanceSection } from './role-guidance';
 
 // Current Classification
-export { getCurrentClassificationSection } from './current-classification.js';
+export { getCurrentClassificationSection } from './current-classification';
 
 // Handoff Options
-export { getHandoffOptionsSection } from './handoff-options.js';
+export { getHandoffOptionsSection } from './handoff-options';
 
 // Commands Reference
-export { getCommandsReferenceSection } from './commands-reference.js';
+export { getCommandsReferenceSection } from './commands-reference';
 
 // Next Step
-export { getNextStepSection } from './next-step.js';
+export { getNextStepSection } from './next-step';

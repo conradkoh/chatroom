@@ -4,8 +4,8 @@
  * Task context based on current classification (question, new_feature, follow_up).
  */
 
-import type { PromptSection } from '../types/sections.js';
-import { createSection } from '../types/sections.js';
+import type { PromptSection } from '../types/sections';
+import { createSection } from '../types/sections';
 
 /**
  * Generate the current classification context section.

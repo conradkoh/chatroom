@@ -2,8 +2,8 @@
  * Main CLI prompt for the task-started command.
  */
 
-import { taskStartedCommand } from './command.js';
-import { contextNewCommand } from '../context/new.js';
+import { taskStartedCommand } from './command';
+import { contextNewCommand } from '../context/new';
 
 /**
  * Generate the main CLI prompt for task-started command (entry point roles)

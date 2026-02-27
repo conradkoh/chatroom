@@ -5,7 +5,7 @@
  * organized by command for better maintainability.
  */
 
-import * as taskStarted from './task-started/index.js';
+import * as taskStarted from './task-started/index';
 
 // Re-export task-started functions
 export const {
@@ -22,17 +22,17 @@ export {
   getNextTaskGuidance,
   getWaitForTaskReminder,
   getWaitForTaskGuidance,
-} from './get-next-task/reminder.js';
+} from './get-next-task/reminder';
 
 // Re-export init functions
-export { getContextGainingGuidance } from '../shared/getting-started-content.js';
+export { getContextGainingGuidance } from '../shared/getting-started-content';
 
 // Handoff CLI prompts (to be implemented)
 // export {
 //   getHandoffPrompt,
 //   getHandoffExamples,
 //   getHandoffValidation,
-// } from './handoff/index.js';
+// } from './handoff/index';
 
 /** Shared context for CLI command prompt generation */
 interface CliCommandContext {

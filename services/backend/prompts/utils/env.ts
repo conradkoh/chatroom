@@ -2,10 +2,10 @@
  * Environment utilities for generating CLI command prefixes
  *
  * Re-exports from config layer for backward compatibility.
- * Prefer importing from '../config/index.js' directly.
+ * Prefer importing from '../config/index' directly.
  */
 
-import { getConfig } from '../config/index.js';
+import { getConfig } from '../config/index';
 
 const config = getConfig();
 

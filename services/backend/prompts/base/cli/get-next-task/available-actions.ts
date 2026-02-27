@@ -5,8 +5,8 @@
  * This is designed to be progressively disclosed based on the current stage.
  */
 
-import { getCliEnvPrefix } from '../../../utils/index.js';
-import { contextNewCommand } from '../context/new.js';
+import { getCliEnvPrefix } from '../../../utils/index';
+import { contextNewCommand } from '../context/new';
 
 export interface AvailableActionsParams {
   chatroomId: string;

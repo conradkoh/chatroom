@@ -2,9 +2,9 @@
  * Reviewer role-specific guidance for pair team
  */
 
-import { getReviewerGuidance as getBaseReviewerGuidance } from '../../../base/cli/roles/reviewer.js';
-import { getAvailablePolicies } from '../../../policies/index.js';
-import type { ReviewerGuidanceParams } from '../../../types/cli.js';
+import { getReviewerGuidance as getBaseReviewerGuidance } from '../../../base/cli/roles/reviewer';
+import { getAvailablePolicies } from '../../../policies/index';
+import type { ReviewerGuidanceParams } from '../../../types/cli';
 
 export function getReviewerGuidance(ctx: ReviewerGuidanceParams): string {
   return `

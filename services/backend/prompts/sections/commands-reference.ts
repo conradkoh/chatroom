@@ -4,13 +4,13 @@
  * CLI command reference (handoff, report-progress, get-next-task).
  */
 
-import { getNextTaskCommand } from '../base/cli/get-next-task/command.js';
-import { getNextTaskReminder } from '../base/cli/get-next-task/reminder.js';
-import { handoffCommand } from '../base/cli/handoff/command.js';
-import { reportProgressCommand } from '../base/cli/report-progress/command.js';
-import type { PromptSection } from '../types/sections.js';
-import { createSection } from '../types/sections.js';
-import { getCliEnvPrefix } from '../utils/index.js';
+import { getNextTaskCommand } from '../base/cli/get-next-task/command';
+import { getNextTaskReminder } from '../base/cli/get-next-task/reminder';
+import { handoffCommand } from '../base/cli/handoff/command';
+import { reportProgressCommand } from '../base/cli/report-progress/command';
+import type { PromptSection } from '../types/sections';
+import { createSection } from '../types/sections';
+import { getCliEnvPrefix } from '../utils/index';
 
 export interface CommandsReferenceParams {
   chatroomId: string;

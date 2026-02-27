@@ -2,8 +2,8 @@
  * New feature classification guidance for CLI task-started command.
  */
 
-import { HANDOFF_DIR } from '../../../../utils/config.js';
-import { taskStartedCommand } from '../command.js';
+import { HANDOFF_DIR } from '../../../../utils/config';
+import { taskStartedCommand } from '../command';
 
 /**
  * Generate new feature classification guidance

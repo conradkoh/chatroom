@@ -2,12 +2,12 @@
  * Duo team role prompts
  */
 
-export { getPlannerGuidance } from './planner.js';
-export { getBuilderGuidance } from './builder.js';
+export { getPlannerGuidance } from './planner';
+export { getBuilderGuidance } from './builder';
 
 // SelectorContext-based adapters
 export {
   getDuoRoleGuidanceFromContext,
   getDuoBuilderGuidanceFromContext,
   getDuoPlannerGuidanceFromContext,
-} from './fromContext.js';
+} from './fromContext';

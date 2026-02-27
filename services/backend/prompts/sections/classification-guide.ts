@@ -9,10 +9,10 @@
 import {
   getTaskStartedPrompt,
   getTaskStartedPromptForHandoffRecipient,
-} from '../base/cli/index.js';
-import type { SelectorContext, PromptSection } from '../types/sections.js';
-import { createSection } from '../types/sections.js';
-import { getCliEnvPrefix } from '../utils/index.js';
+} from '../base/cli/index';
+import type { SelectorContext, PromptSection } from '../types/sections';
+import { createSection } from '../types/sections';
+import { getCliEnvPrefix } from '../utils/index';
 
 /**
  * Generate the classification guide section based on whether the role is an entry point.

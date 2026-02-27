@@ -5,7 +5,7 @@
  * Now uses stdin with ---PARAM--- delimiters for new_feature classification.
  */
 
-import type { TaskStartedParams } from '../../../types/cli.js';
+import type { TaskStartedParams } from '../../../types/cli';
 
 /**
  * Generate a task-started command string.

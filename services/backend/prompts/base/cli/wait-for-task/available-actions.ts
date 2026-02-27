@@ -3,5 +3,5 @@
  * Re-exports from get-next-task for backward compatibility.
  */
 
-export { getAvailableActions } from '../get-next-task/available-actions.js';
-export type { AvailableActionsParams } from '../get-next-task/available-actions.js';
+export { getAvailableActions } from '../get-next-task/available-actions';
+export type { AvailableActionsParams } from '../get-next-task/available-actions';

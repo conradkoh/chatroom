@@ -8,4 +8,4 @@ export {
   getNextTaskGuidance,
   getWaitForTaskReminder,
   getWaitForTaskGuidance,
-} from '../get-next-task/reminder.js';
+} from '../get-next-task/reminder';

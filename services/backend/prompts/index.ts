@@ -31,7 +31,7 @@ export {
   getTaskStartedExamples,
   getTaskStartedValidation,
   getClassificationGuidance,
-} from './base/cli/index.js';
+} from './base/cli/index';
 
 // Team configurations
 export {
@@ -46,7 +46,7 @@ export {
   duoTeamConfig,
   getDuoPlannerGuidance,
   getDuoBuilderGuidance,
-} from './teams/index.js';
+} from './teams/index';
 
 // Base prompts
 export {
@@ -54,13 +54,13 @@ export {
   getPlannerGuidance as getBasePlannerGuidance,
   getReviewerGuidance as getBaseReviewerGuidance,
   getRoleSpecificGuidance,
-} from './base/cli/roles/index.js';
+} from './base/cli/roles/index';
 
 // Shared prompt components
-export { getContextGainingGuidance } from './base/shared/getting-started-content.js';
+export { getContextGainingGuidance } from './base/shared/getting-started-content';
 
 // Shared utilities
-export { HANDOFF_DIR, getHandoffFileSnippet } from './utils/index.js';
+export { HANDOFF_DIR, getHandoffFileSnippet } from './utils/index';
 
 // Guidelines and policies
 export { getReviewGuidelines } from './teams/pair/roles';

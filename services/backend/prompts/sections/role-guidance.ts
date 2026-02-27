@@ -5,9 +5,9 @@
  * Wraps getRoleGuidanceFromContext into a PromptSection.
  */
 
-import { buildSelectorContext, getRoleGuidanceFromContext } from '../generator.js';
-import type { SelectorContext, PromptSection } from '../types/sections.js';
-import { createSection } from '../types/sections.js';
+import { buildSelectorContext, getRoleGuidanceFromContext } from '../generator';
+import type { SelectorContext, PromptSection } from '../types/sections';
+import { createSection } from '../types/sections';
 
 /**
  * Generate the role guidance section using the SelectorContext dispatcher.

@@ -6,9 +6,9 @@
  * ensuring work meets requirements before delivery.
  */
 
-import type { PlannerGuidanceParams } from '../../../types/cli.js';
-import { getCliEnvPrefix } from '../../../utils/env.js';
-import { taskStartedCommand } from '../task-started/command.js';
+import type { PlannerGuidanceParams } from '../../../types/cli';
+import { getCliEnvPrefix } from '../../../utils/env';
+import { taskStartedCommand } from '../task-started/command';
 
 /**
  * Generate planner-specific guidance

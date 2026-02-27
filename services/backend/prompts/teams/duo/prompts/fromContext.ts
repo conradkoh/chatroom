@@ -5,10 +5,10 @@
  * duo-specific role guidance functions.
  */
 
-import { getBuilderGuidance } from './builder.js';
-import { getPlannerGuidance } from './planner.js';
-import type { BuilderGuidanceParams, PlannerGuidanceParams } from '../../../types/cli.js';
-import type { SelectorContext } from '../../../types/sections.js';
+import { getBuilderGuidance } from './builder';
+import { getPlannerGuidance } from './planner';
+import type { BuilderGuidanceParams, PlannerGuidanceParams } from '../../../types/cli';
+import type { SelectorContext } from '../../../types/sections';
 
 // =============================================================================
 // Parameter Converters

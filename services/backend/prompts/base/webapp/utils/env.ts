@@ -5,7 +5,7 @@
  * Uses the centralized configuration from prompts/config.
  */
 
-import { getConfig } from '../../../config/index.js';
+import { getConfig } from '../../../config/index';
 
 const config = getConfig();
 

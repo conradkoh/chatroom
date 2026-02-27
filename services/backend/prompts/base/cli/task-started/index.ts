@@ -2,9 +2,9 @@
  * CLI-specific prompts for the task-started command
  */
 
-import { getClassificationGuidance } from './classification/index.js';
-import { taskStartedCommand } from './command.js';
-import { getTaskStartedPrompt, getTaskStartedPromptForHandoffRecipient } from './main-prompt.js';
+import { getClassificationGuidance } from './classification/index';
+import { taskStartedCommand } from './command';
+import { getTaskStartedPrompt, getTaskStartedPromptForHandoffRecipient } from './main-prompt';
 
 /**
  * Generate usage examples for task-started

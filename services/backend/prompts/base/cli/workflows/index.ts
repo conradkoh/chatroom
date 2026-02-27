@@ -2,6 +2,6 @@
  * Workflow definitions
  */
 
-export { getPairWorkflow } from './pair.js';
+export { getPairWorkflow } from './pair';
 
-export * from './pair.js';
+export * from './pair';

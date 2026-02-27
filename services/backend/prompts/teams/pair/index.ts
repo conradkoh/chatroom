@@ -2,6 +2,6 @@
  * Pair team exports
  */
 
-export { pairTeamConfig } from './config.js';
-export { getPairWorkflow } from './workflow.js';
-export * from './prompts/index.js';
+export { pairTeamConfig } from './config';
+export { getPairWorkflow } from './workflow';
+export * from './prompts/index';

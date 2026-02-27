@@ -2,9 +2,9 @@
  * Squad team role prompts
  */
 
-export { getPlannerGuidance } from './planner.js';
-export { getBuilderGuidance } from './builder.js';
-export { getReviewerGuidance } from './reviewer.js';
+export { getPlannerGuidance } from './planner';
+export { getBuilderGuidance } from './builder';
+export { getReviewerGuidance } from './reviewer';
 
 // SelectorContext-based adapters (Phase 1.3)
 export {
@@ -12,4 +12,4 @@ export {
   getSquadBuilderGuidanceFromContext,
   getSquadReviewerGuidanceFromContext,
   getSquadPlannerGuidanceFromContext,
-} from './fromContext.js';
+} from './fromContext';

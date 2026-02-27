@@ -8,9 +8,9 @@
  * See docs/prompt-engineering/design.md
  */
 
-import { getRoleTemplate } from '../templates.js';
-import type { SelectorContext, PromptSection } from '../types/sections.js';
-import { createSection } from '../types/sections.js';
+import { getRoleTemplate } from '../templates';
+import type { SelectorContext, PromptSection } from '../types/sections';
+import { createSection } from '../types/sections';
 
 /**
  * Generate the team header section.

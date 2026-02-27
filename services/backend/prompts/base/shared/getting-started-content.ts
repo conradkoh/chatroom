@@ -8,8 +8,8 @@
  * task delivery flow, not in the context-gaining prompt.
  */
 
-import type { ContextGainingParams } from '../../types/cli.js';
-import { getCliEnvPrefix } from '../../utils/index.js';
+import type { ContextGainingParams } from '../../types/cli';
+import { getCliEnvPrefix } from '../../utils/index';
 
 /**
  * Get context-gaining guidance for agents joining a conversation.

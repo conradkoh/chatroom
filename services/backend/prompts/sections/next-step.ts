@@ -4,10 +4,10 @@
  * The final "next action" guidance in the init prompt.
  */
 
-import { getNextTaskCommand } from '../base/cli/get-next-task/command.js';
-import type { PromptSection } from '../types/sections.js';
-import { createSection } from '../types/sections.js';
-import { getCliEnvPrefix } from '../utils/index.js';
+import { getNextTaskCommand } from '../base/cli/get-next-task/command';
+import type { PromptSection } from '../types/sections';
+import { createSection } from '../types/sections';
+import { getCliEnvPrefix } from '../utils/index';
 
 export interface NextStepParams {
   chatroomId: string;

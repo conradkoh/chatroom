@@ -8,15 +8,15 @@
  * See docs/prompt-engineering/design.md
  */
 
-import { getBuilderGuidance } from './builder.js';
-import { getPlannerGuidance } from './planner.js';
-import { getReviewerGuidance } from './reviewer.js';
+import { getBuilderGuidance } from './builder';
+import { getPlannerGuidance } from './planner';
+import { getReviewerGuidance } from './reviewer';
 import type {
   BuilderGuidanceParams,
   PlannerGuidanceParams,
   ReviewerGuidanceParams,
-} from '../../../types/cli.js';
-import type { SelectorContext } from '../../../types/sections.js';
+} from '../../../types/cli';
+import type { SelectorContext } from '../../../types/sections';
 
 // =============================================================================
 // Parameter Converters

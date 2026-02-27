@@ -2,9 +2,9 @@
  * Reviewer role-specific guidance for agent initialization prompts.
  */
 
-import type { ReviewerGuidanceParams } from '../../../types/cli.js';
-import { getCliEnvPrefix } from '../../../utils/env.js';
-import { handoffCommand } from '../handoff/command.js';
+import type { ReviewerGuidanceParams } from '../../../types/cli';
+import { getCliEnvPrefix } from '../../../utils/env';
+import { handoffCommand } from '../handoff/command';
 
 /**
  * Generate reviewer-specific guidance

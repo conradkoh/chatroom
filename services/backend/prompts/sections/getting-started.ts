@@ -5,9 +5,9 @@
  * Wraps getContextGainingGuidance into a PromptSection.
  */
 
-import { getContextGainingGuidance } from '../base/shared/getting-started-content.js';
-import type { SelectorContext, PromptSection } from '../types/sections.js';
-import { createSection } from '../types/sections.js';
+import { getContextGainingGuidance } from '../base/shared/getting-started-content';
+import type { SelectorContext, PromptSection } from '../types/sections';
+import { createSection } from '../types/sections';
 
 /**
  * Generate the Getting Started section with context read and get-next-task commands.

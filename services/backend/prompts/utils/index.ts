@@ -2,7 +2,7 @@
  * Shared utilities exports
  */
 
-export * from './config.js';
-export * from './types.js';
-export * from './formatters.js';
-export * from './env.js';
+export * from './config';
+export * from './types';
+export * from './formatters';
+export * from './env';

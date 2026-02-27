@@ -71,7 +71,7 @@ const configInstance = new PromptConfigImpl();
  * Get the prompt configuration instance
  *
  * @example
- * import { getConfig } from './prompts/config/index.js';
+ * import { getConfig } from './prompts/config/index';
  *
  * const config = getConfig();
  * const convexURL = config.getConvexURL();

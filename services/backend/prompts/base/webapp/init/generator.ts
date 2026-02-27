@@ -6,11 +6,11 @@
  * This is kept for backward compatibility with UI components.
  */
 
-import { getRoleTemplate } from './templates.js';
-import { buildSelectorContext } from '../../../generator.js';
-import { getTeamContextSection } from '../../../sections/team-context.js';
-import { getContextGainingGuidance } from '../../shared/getting-started-content.js';
-import { getCliEnvPrefix } from '../utils/env.js';
+import { getRoleTemplate } from './templates';
+import { buildSelectorContext } from '../../../generator';
+import { getTeamContextSection } from '../../../sections/team-context';
+import { getContextGainingGuidance } from '../../shared/getting-started-content';
+import { getCliEnvPrefix } from '../utils/env';
 
 export interface PromptContext {
   chatroomId: string;

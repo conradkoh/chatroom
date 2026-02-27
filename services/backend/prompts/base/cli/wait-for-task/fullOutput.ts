@@ -3,5 +3,5 @@
  * Re-exports from get-next-task for backward compatibility.
  */
 
-export { generateFullCliOutput } from '../get-next-task/fullOutput.js';
-export type { FullCliOutputParams } from '../get-next-task/fullOutput.js';
+export { generateFullCliOutput } from '../get-next-task/fullOutput';
+export type { FullCliOutputParams } from '../get-next-task/fullOutput';

@@ -4,8 +4,8 @@
  * Available handoff targets and restriction notices.
  */
 
-import type { PromptSection } from '../types/sections.js';
-import { createSection } from '../types/sections.js';
+import type { PromptSection } from '../types/sections';
+import { createSection } from '../types/sections';
 
 export interface HandoffOptionsParams {
   availableHandoffRoles: string[];

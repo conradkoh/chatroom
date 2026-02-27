@@ -12,11 +12,11 @@
  * - Reminder footer
  */
 
-import { getNextTaskCommand } from './command.js';
-import { getNextTaskReminder } from './reminder.js';
-import { contextNewCommand } from '../context/new.js';
-import { reportProgressCommand } from '../report-progress/command.js';
-import { taskStartedCommand } from '../task-started/command.js';
+import { getNextTaskCommand } from './command';
+import { getNextTaskReminder } from './reminder';
+import { contextNewCommand } from '../context/new';
+import { reportProgressCommand } from '../report-progress/command';
+import { taskStartedCommand } from '../task-started/command';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

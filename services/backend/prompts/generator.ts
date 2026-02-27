@@ -22,30 +22,30 @@
  * duplication.
  */
 
-import { getNextTaskCommand } from './base/cli/get-next-task/command.js';
-import { getNextTaskGuidance } from './base/cli/get-next-task/reminder.js';
-import { handoffCommand } from './base/cli/handoff/command.js';
-import { reportProgressCommand } from './base/cli/report-progress/command.js';
-import { getBaseRoleGuidanceFromContext } from './base/cli/roles/fromContext.js';
-import { getClassificationGuideSection } from './sections/classification-guide.js';
-import { getCommandsReferenceSection } from './sections/commands-reference.js';
-import { getCurrentClassificationSection } from './sections/current-classification.js';
-import { getGettingStartedSection } from './sections/getting-started.js';
-import { getHandoffOptionsSection } from './sections/handoff-options.js';
-import { getNextStepSection } from './sections/next-step.js';
-import { getRoleGuidanceSection } from './sections/role-guidance.js';
+import { getNextTaskCommand } from './base/cli/get-next-task/command';
+import { getNextTaskGuidance } from './base/cli/get-next-task/reminder';
+import { handoffCommand } from './base/cli/handoff/command';
+import { reportProgressCommand } from './base/cli/report-progress/command';
+import { getBaseRoleGuidanceFromContext } from './base/cli/roles/fromContext';
+import { getClassificationGuideSection } from './sections/classification-guide';
+import { getCommandsReferenceSection } from './sections/commands-reference';
+import { getCurrentClassificationSection } from './sections/current-classification';
+import { getGettingStartedSection } from './sections/getting-started';
+import { getHandoffOptionsSection } from './sections/handoff-options';
+import { getNextStepSection } from './sections/next-step';
+import { getRoleGuidanceSection } from './sections/role-guidance';
 import {
   getTeamHeaderSection,
   getRoleTitleSection,
   getRoleDescriptionSection,
-} from './sections/role-identity.js';
-import { getDuoRoleGuidanceFromContext } from './teams/duo/prompts/fromContext.js';
-import { getPairRoleGuidanceFromContext } from './teams/pair/prompts/fromContext.js';
-import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext.js';
+} from './sections/role-identity';
+import { getDuoRoleGuidanceFromContext } from './teams/duo/prompts/fromContext';
+import { getPairRoleGuidanceFromContext } from './teams/pair/prompts/fromContext';
+import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromContext';
 // getRoleTemplate is now used by section modules (role-identity.ts, role-guidance fromContext adapters)
-import type { SelectorContext, PromptSection } from './types/sections.js';
-import { composeSections } from './types/sections.js';
-import { getCliEnvPrefix } from './utils/index.js';
+import type { SelectorContext, PromptSection } from './types/sections';
+import { composeSections } from './types/sections';
+import { getCliEnvPrefix } from './utils/index';
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed
