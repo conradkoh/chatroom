@@ -614,6 +614,14 @@ export default defineSchema({
     // When this preference was first created
     // DEPRECATED SHAPE: old documents (pre-migration) may be missing this field.
     createdAt: v.optional(v.number()),
+    // DEPRECATED SHAPE: old documents (pre-migration) may have these role-map fields
+    // instead of the per-role `agentHarness` and `role` fields.
+    // See migration.deleteOldFormatAgentPreferences for cleanup.
+    // These fields must remain in the schema until the migration has run in production.
+    harnessByRole: v.optional(
+      v.record(v.string(), v.union(v.literal('opencode'), v.literal('pi')))
+    ),
+    modelByRole: v.optional(v.record(v.string(), v.string())),
   })
     .index('by_userId_chatroom_role', ['userId', 'chatroomId', 'role'])
     .index('by_chatroom', ['chatroomId']),
