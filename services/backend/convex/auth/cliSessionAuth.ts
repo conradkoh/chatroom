@@ -15,6 +15,7 @@ import { ConvexError } from 'convex/values';
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
+import { getTeamEntryPoint } from '../../src/domain/entities/team';
 
 export interface ValidatedSession {
   sessionId: string;
@@ -223,7 +224,7 @@ export async function areAllAgentsIdle(
  * @param chatroom - The chatroom document (to avoid re-fetching)
  */
 export function getEntryPointRole(chatroom: Doc<'chatroom_rooms'>): string | null {
-  return chatroom.teamEntryPoint || chatroom.teamRoles?.[0] || null;
+  return getTeamEntryPoint(chatroom);
 }
 
 /**

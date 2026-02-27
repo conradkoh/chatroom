@@ -7,6 +7,7 @@ import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
 import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
+import { getTeamEntryPoint } from '../src/domain/entities/team';
 
 /**
  * Join a chatroom as a participant.
@@ -82,7 +83,7 @@ export const join = mutation({
     // Auto-promote queued tasks when the entry point (primary) role joins
     // AND all other agents are ready (waiting, not active)
     // This ensures resilience - if a worker reconnects after being stuck, queued items get promoted
-    const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
+    const entryPoint = getTeamEntryPoint(chatroom);
     const normalizedRole = args.role.toLowerCase();
     const normalizedEntryPoint = entryPoint?.toLowerCase();
 

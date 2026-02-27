@@ -3,6 +3,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/cliSessionAuth';
+import { getTeamEntryPoint } from '../src/domain/entities/team';
 
 /**
  * Create a new context for a chatroom.
@@ -22,7 +23,7 @@ export const createContext = mutation({
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Only the team entry point (planner/coordinator) can create contexts
-    const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
+    const entryPoint = getTeamEntryPoint(chatroom);
     if (entryPoint && args.role.toLowerCase() !== entryPoint.toLowerCase()) {
       throw new ConvexError({
         code: 'CONTEXT_RESTRICTED',

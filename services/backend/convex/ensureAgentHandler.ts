@@ -39,6 +39,7 @@ import { v } from 'convex/values';
 import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
+import { getTeamEntryPoint } from '../src/domain/entities/team';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -171,7 +172,7 @@ export const check = internalMutation({
     } else {
       // Defensive fallback: fetch the chatroom to get the entry point.
       const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
-      const entryPoint = chatroom?.teamEntryPoint || chatroom?.teamRoles?.[0];
+      const entryPoint = getTeamEntryPoint(chatroom ?? {});
       if (entryPoint) {
         rolesToRestart = new Set([entryPoint.toLowerCase()]);
       } else {

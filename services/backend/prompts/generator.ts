@@ -22,6 +22,7 @@
  * duplication.
  */
 
+import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getNextTaskCommand } from './base/cli/get-next-task/command';
 import { getNextTaskGuidance } from './base/cli/get-next-task/reminder';
 import { handoffCommand } from './base/cli/handoff/command';
@@ -142,7 +143,7 @@ export function buildSelectorContext(params: {
   workflow?: 'new_feature' | 'question' | 'follow_up' | null;
   agentType?: 'remote' | 'custom' | 'unset';
 }): SelectorContext {
-  const entryPoint = params.teamEntryPoint || params.teamRoles[0] || 'builder';
+  const entryPoint = getTeamEntryPoint({ teamEntryPoint: params.teamEntryPoint, teamRoles: params.teamRoles }) ?? 'builder';
   return {
     role: params.role,
     team: detectTeamType(params.teamRoles, params.teamName),

@@ -17,6 +17,7 @@ import {
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { transitionTask } from '../src/domain/usecase/task/transition-task';
+import { getTeamEntryPoint } from '../src/domain/entities/team';
 
 /**
  * Maximum number of active tasks per chatroom.
@@ -120,7 +121,7 @@ export const claimTask = mutation({
     }
 
     const normalizedRole = args.role.toLowerCase();
-    const normalizedEntryPoint = (chatroom.teamEntryPoint || 'builder').toLowerCase();
+    const normalizedEntryPoint = (getTeamEntryPoint(chatroom) ?? 'builder').toLowerCase();
     const isRelevantForRole = (task: { assignedTo?: string; createdBy: string }) => {
       if (task.assignedTo) {
         return task.assignedTo.toLowerCase() === normalizedRole;
@@ -551,7 +552,7 @@ export const moveToQueue = mutation({
 
     // Create a message from 'user' with the message content
     // This makes the task visible in the chat message list
-    const targetRole = chatroom.teamEntryPoint || chatroom.teamRoles?.[0] || 'builder';
+    const targetRole = getTeamEntryPoint(chatroom) ?? 'builder';
     const messageId = await ctx.db.insert('chatroom_messages', {
       chatroomId: task.chatroomId,
       senderRole: 'user',
@@ -801,7 +802,7 @@ export const sendBackForRework = mutation({
     // If feedback provided, create a message from user
     let messageId = null;
     if (args.feedback?.trim()) {
-      const targetRole = chatroom.teamEntryPoint || chatroom.teamRoles?.[0] || 'builder';
+      const targetRole = getTeamEntryPoint(chatroom) ?? 'builder';
       messageId = await ctx.db.insert('chatroom_messages', {
         chatroomId: task.chatroomId,
         senderRole: 'user',
@@ -1258,7 +1259,7 @@ export const getPendingTasksForRole = query({
       }
 
       // Determine the entry point role for user messages
-      const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
+      const entryPoint = getTeamEntryPoint(chatroom);
       const normalizedRole = args.role.toLowerCase();
       const normalizedEntryPoint = entryPoint?.toLowerCase();
 

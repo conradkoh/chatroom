@@ -16,6 +16,7 @@ import { getCliEnvPrefix } from '../prompts/utils/index.js';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
+import { getTeamEntryPoint } from '../src/domain/entities/team';
 
 const config = getConfig();
 
@@ -93,12 +94,7 @@ async function _sendMessageHandler(
 
   // For user messages without explicit target, route to entry point
   if (!targetRole && args.senderRole.toLowerCase() === 'user' && args.type === 'message') {
-    if (chatroom?.teamEntryPoint) {
-      targetRole = chatroom.teamEntryPoint;
-    } else if (chatroom?.teamRoles && chatroom.teamRoles.length > 0) {
-      // Default to first role if no entry point specified
-      targetRole = chatroom.teamRoles[0];
-    }
+    targetRole = getTeamEntryPoint(chatroom ?? {}) ?? undefined;
   }
 
   const messageId = await ctx.db.insert('chatroom_messages', {
@@ -138,7 +134,7 @@ async function _sendMessageHandler(
     // knows which agent to restart if nobody is listening.
     const assignedTo = isHandoffToAgent
       ? targetRole
-      : chatroom?.teamEntryPoint ?? chatroom?.teamRoles?.[0];
+      : getTeamEntryPoint(chatroom ?? {}) ?? undefined;
 
     // Create the task via the use case
     // - Handoff messages to agents always start as 'pending' (targeted, not queued)
@@ -1329,7 +1325,7 @@ export const getLatestForRole = query({
     const highestPriorityWaiting = waitingParticipants[0]?.role;
 
     // Determine entry point for user messages
-    const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
+    const entryPoint = getTeamEntryPoint(chatroom);
 
     // Filter messages after the specified ID
     let relevantMessages = messages;
@@ -1991,9 +1987,8 @@ export const getTaskDeliveryPrompt = query({
     const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
 
     // Determine entry point status for context management
-    const entryPoint = chatroom.teamEntryPoint || chatroom.teamRoles?.[0];
+    const entryPoint = getTeamEntryPoint(chatroom);
     const isEntryPoint = entryPoint ? args.role.toLowerCase() === entryPoint.toLowerCase() : true; // Default to true if no entry point configured
-
     // Generate the complete CLI output (backend-generated, CLI just prints it)
     const fullCliOutput = generateFullCliOutput({
       chatroomId: args.chatroomId,

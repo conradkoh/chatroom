@@ -11,6 +11,7 @@ import { buildSelectorContext } from '../../../generator';
 import { getTeamContextSection } from '../../../sections/team-context';
 import { getContextGainingGuidance } from '../../shared/getting-started-content';
 import { getCliEnvPrefix } from '../utils/env';
+import { getTeamEntryPoint } from '../../../../src/domain/entities/team';
 
 export interface PromptContext {
   chatroomId: string;
@@ -57,9 +58,10 @@ export function generateAgentPrompt(context: PromptContext): string {
 
   // Compute handoff options based on team structure
   const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
+  const entryPoint = getTeamEntryPoint({ teamEntryPoint, teamRoles }) ?? 'planner';
   const canHandoffToUser =
     selectorCtx.team === 'squad'
-      ? role.toLowerCase() === (teamEntryPoint || 'planner').toLowerCase()
+      ? role.toLowerCase() === entryPoint.toLowerCase()
       : true;
   const handoffTargets = canHandoffToUser
     ? [...new Set([...otherRoles, 'user'])]
@@ -82,7 +84,7 @@ ${teamRoles.join(', ')}
 
 ## Handoff Options
 
-Available targets: ${handoffTargets.join(', ')}${!canHandoffToUser ? `\n\n> **Note:** In squad team, only the ${teamEntryPoint || 'planner'} can hand off to the user.` : ''}
+Available targets: ${handoffTargets.join(', ')}${!canHandoffToUser ? `\n\n> **Note:** In squad team, only the ${entryPoint} can hand off to the user.` : ''}
 
 ## Next Steps
 
