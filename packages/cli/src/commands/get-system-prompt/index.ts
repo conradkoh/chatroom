@@ -75,6 +75,7 @@ export async function getSystemPrompt(
     const prompt = await d.backend.query(api.prompts.webapp.getAgentPrompt, {
       chatroomId,
       role,
+      teamId: chatroom.teamId,
       teamName: chatroom.teamName,
       teamRoles: chatroom.teamRoles,
       teamEntryPoint: chatroom.teamEntryPoint,

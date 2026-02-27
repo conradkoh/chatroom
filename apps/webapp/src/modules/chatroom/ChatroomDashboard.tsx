@@ -2,6 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { getTeamEntryPoint } from '@workspace/backend/src/domain/entities/team';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   ArrowLeft,
@@ -373,7 +374,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
-    () => chatroom?.teamEntryPoint || teamRoles[0] || 'builder',
+    () => getTeamEntryPoint({ teamEntryPoint: chatroom?.teamEntryPoint, teamRoles }) ?? 'builder',
     [chatroom?.teamEntryPoint, teamRoles]
   );
 
@@ -651,6 +652,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     <AttachedTasksProvider>
       <PromptsProvider
         chatroomId={chatroomId}
+        teamId={chatroom?.teamId}
         teamName={teamName}
         teamRoles={teamRoles}
         teamEntryPoint={teamEntryPoint}

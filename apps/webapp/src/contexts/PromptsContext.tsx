@@ -44,6 +44,7 @@ const PromptsContext = createContext<PromptsContextValue | null>(null);
 interface PromptsProviderProps {
   children: ReactNode;
   chatroomId: string;
+  teamId?: string;
   teamName: string;
   teamRoles: string[];
   teamEntryPoint?: string;
@@ -52,6 +53,7 @@ interface PromptsProviderProps {
 export function PromptsProvider({
   children,
   chatroomId,
+  teamId,
   teamName,
   teamRoles,
   teamEntryPoint,
@@ -70,6 +72,7 @@ export function PromptsProvider({
         generateAgentPrompt({
           chatroomId,
           role,
+          teamId,
           teamName,
           teamRoles,
           teamEntryPoint,
@@ -78,7 +81,7 @@ export function PromptsProvider({
       );
     }
     return map;
-  }, [chatroomId, teamName, teamRoles, teamEntryPoint, convexUrl]);
+  }, [chatroomId, teamId, teamName, teamRoles, teamEntryPoint, convexUrl]);
 
   const contextValue = useMemo<PromptsContextValue>(
     () => ({
