@@ -3,19 +3,17 @@
 /**
  * Database Migration Runner
  *
- * Runs all pending Convex database migrations against the production deployment.
- * Requires the CONVEX_DEPLOY_KEY environment variable to be set.
+ * Runs all pending Convex database migrations. Automatically targets:
+ *   - LOCAL development server — when CONVEX_DEPLOY_KEY is not set (default)
+ *   - PRODUCTION deployment    — when CONVEX_DEPLOY_KEY is set (e.g. in CI)
  *
  * All migrations are idempotent — safe to run multiple times.
  *
  * Usage:
  *   pnpm run migrate
  *
- * Or directly:
- *   bun scripts/migrate.ts
- *
  * Environment:
- *   CONVEX_DEPLOY_KEY  — Convex deploy key for the target environment (required)
+ *   CONVEX_DEPLOY_KEY  — when set, targets production; otherwise targets local dev
  */
 
 import { $ } from 'bun';
@@ -25,12 +23,17 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_DIR = path.resolve(__dirname, '../services/backend');
 
-// ─── Validation ──────────────────────────────────────────────────────────────
+// ─── Environment Detection ───────────────────────────────────────────────────
 
-if (!process.env.CONVEX_DEPLOY_KEY) {
-  console.error('❌ CONVEX_DEPLOY_KEY environment variable is not set.');
-  console.error('   Set it to your Convex deploy key before running migrations.');
-  process.exit(1);
+// Production is inferred from CONVEX_DEPLOY_KEY being set (e.g. in CI).
+// Otherwise, assume local development — requires `convex dev` to be running.
+const isLocal = !process.env.CONVEX_DEPLOY_KEY;
+
+if (isLocal) {
+  console.log('🏠 Running migrations against LOCAL development server.');
+  console.log('   Make sure `convex dev` is running in another terminal.\n');
+} else {
+  console.log('☁️  Running migrations against PRODUCTION deployment.\n');
 }
 
 // ─── Migration Registry ───────────────────────────────────────────────────────
@@ -73,7 +76,9 @@ const MIGRATIONS: Migration[] = [
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
 
-console.log(`\n🚀 Running ${MIGRATIONS.length} migration(s)...\n`);
+const convexArgs = isLocal ? [] : ['--prod'];
+
+console.log(`🚀 Running ${MIGRATIONS.length} migration(s)...\n`);
 
 let passed = 0;
 let failed = 0;
@@ -81,8 +86,10 @@ let failed = 0;
 for (const migration of MIGRATIONS) {
   process.stdout.write(`  ▶ ${migration.name} (added ${migration.addedAt}) ... `);
   try {
-    const result =
-      await $`npx convex run ${migration.name} --prod`.cwd(BACKEND_DIR).quiet();
+    const cmd = convexArgs.length > 0
+      ? $`npx convex run ${migration.name} ${convexArgs[0]}`.cwd(BACKEND_DIR).quiet()
+      : $`npx convex run ${migration.name}`.cwd(BACKEND_DIR).quiet();
+    const result = await cmd;
     const output = result.stdout.toString().trim();
     console.log(`✅`);
     if (output) {
