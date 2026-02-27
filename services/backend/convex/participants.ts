@@ -1,7 +1,6 @@
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { PRESENCE_THRESHOLD_MS as PRESENCE_THRESHOLD_MS_CONFIG } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsIdle, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
@@ -244,10 +243,7 @@ export const getHighestPriorityWaitingRole = query({
 
     const now = Date.now();
     const presentParticipants = participants.filter(
-      (p) =>
-        p.lastSeenAt !== undefined &&
-        now - p.lastSeenAt <= PRESENCE_THRESHOLD_MS &&
-        p.role.toLowerCase() !== 'user'
+      (p) => p.role.toLowerCase() !== 'user'
     );
 
     if (presentParticipants.length === 0) {
@@ -292,12 +288,6 @@ export const getConnectionId = query({
 
 // ─── Team Lifecycle (lastSeenAt-based) ──────────────────────────────────────
 
-/** Agent is considered online if seen within this window.
- *  Kept in sync with PRESENCE_THRESHOLD_MS in config/reliability.ts. */
-const PRESENCE_THRESHOLD_MS = PRESENCE_THRESHOLD_MS_CONFIG;
-
-/** An agent with an acknowledged task is flagged as stuck when it goes offline (last seen > PRESENCE_THRESHOLD_MS). */
-
 /**
  * Get team lifecycle data for the frontend.
  *
@@ -332,15 +322,13 @@ export const getTeamLifecycle = query({
       )
       .collect();
 
-    const now = Date.now();
     const stuckRoles = new Set<string>();
     for (const task of acknowledgedTasks) {
       const role = task.assignedTo?.toLowerCase();
       if (!role) continue;
       const participant = participantByRole.get(role);
-      const lastSeenAge = participant?.lastSeenAt != null ? now - participant.lastSeenAt : Infinity;
-      // Agent is stuck if it has an acknowledged task and is offline (last seen > PRESENCE_THRESHOLD_MS)
-      if (lastSeenAge >= PRESENCE_THRESHOLD_MS) {
+      // Agent is stuck if it has an acknowledged task and has never been seen (lastSeenAt == null)
+      if (participant?.lastSeenAt == null) {
         stuckRoles.add(role);
       }
     }
@@ -360,11 +348,11 @@ export const getTeamLifecycle = query({
 
     const aliveRoles = new Set(
       participants
-        .filter((p) => p.lastSeenAt != null && now - p.lastSeenAt <= PRESENCE_THRESHOLD_MS)
+        .filter((p) => p.lastSeenAt != null)
         .map((p) => p.role.toLowerCase())
     );
 
-    const missingRoles = expectedRoles.filter((r) => !aliveRoles.has(r.toLowerCase()));
+    const missingRoles: string[] = [];
 
     const firstUserMessage = await ctx.db
       .query('chatroom_messages')
@@ -378,7 +366,7 @@ export const getTeamLifecycle = query({
       teamName: chatroom.teamName ?? chatroom.teamId,
       expectedRoles,
       presentRoles: participants
-        .filter((p) => p.lastSeenAt != null && now - p.lastSeenAt <= PRESENCE_THRESHOLD_MS)
+        .filter((p) => p.lastSeenAt != null)
         .map((p) => p.role),
       missingRoles,
       expiredRoles: [] as string[], // FSM concept — always empty now; kept for API compat

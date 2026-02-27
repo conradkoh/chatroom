@@ -7,10 +7,9 @@
  *
  * ## Agent Presence Model
  *
- * A single threshold governs agent online/offline status:
- * - `PRESENCE_THRESHOLD_MS` — agent is "online" if seen within this window (10 min)
- *
- * An online agent is considered "working" if `lastSeenAction !== 'get-next-task:started'`.
+ * All agents are always considered "present" (no time-based filtering).
+ * An agent is considered "working" if `lastSeenAction !== 'get-next-task:started'`.
+ * An agent is stuck if they have an acknowledged task AND have never been seen (lastSeenAt == null).
  *
  * ## Daemon Heartbeat
  *
@@ -22,13 +21,6 @@
  * Changing these values affects system behavior across the CLI, daemon, and
  * backend cron jobs. Test timing changes end-to-end before deploying.
  */
-
-// ─── Agent Presence ──────────────────────────────────────────────────────────
-
-/** How long an agent is considered online after the last action/heartbeat (ms).
- *  Used in both the backend (participant queries) and frontend (AgentPanel display).
- *  Must be kept in sync with the frontend PRESENCE_THRESHOLD_MS constant. */
-export const PRESENCE_THRESHOLD_MS = 600_000; // 10 min
 
 // ─── Grace Period ────────────────────────────────────────────────────────────
 
