@@ -23,6 +23,7 @@ export interface RolePromptContext {
 export interface InitPromptInput {
   chatroomId: string;
   role: string;
+  teamId?: string;
   teamName: string;
   teamRoles: string[];
   teamEntryPoint?: string;

@@ -22,7 +22,7 @@
  * duplication.
  */
 
-import { getTeamEntryPoint } from '../src/domain/entities/team';
+import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
 import { getNextTaskCommand } from './base/cli/get-next-task/command';
 import { getNextTaskGuidance } from './base/cli/get-next-task/reminder';
 import { handoffCommand } from './base/cli/handoff/command';
@@ -136,6 +136,7 @@ export function buildSelectorContext(params: {
   role: string;
   teamRoles: string[];
   teamName?: string;
+  teamId?: string;
   teamEntryPoint?: string;
   convexUrl: string;
   chatroomId?: string;
@@ -144,9 +145,16 @@ export function buildSelectorContext(params: {
   agentType?: 'remote' | 'custom' | 'unset';
 }): SelectorContext {
   const entryPoint = getTeamEntryPoint({ teamEntryPoint: params.teamEntryPoint, teamRoles: params.teamRoles }) ?? 'builder';
+  const teamConfig = toTeam({
+    teamId: params.teamId,
+    teamName: params.teamName,
+    teamRoles: params.teamRoles,
+    teamEntryPoint: params.teamEntryPoint,
+  }) ?? undefined;
   return {
     role: params.role,
     team: detectTeamType(params.teamRoles, params.teamName),
+    teamConfig,
     workflow: params.workflow,
     teamRoles: params.teamRoles,
     availableMembers: params.availableMembers,
@@ -195,6 +203,7 @@ export function getRoleGuidanceFromContext(ctx: SelectorContext): string {
 export interface RolePromptContext {
   chatroomId: string;
   role: string;
+  teamId?: string;
   teamName: string;
   teamRoles: string[];
   teamEntryPoint?: string;
@@ -225,6 +234,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   const selectorCtx = buildSelectorContext({
     role: ctx.role,
     teamRoles: ctx.teamRoles,
+    teamId: ctx.teamId,
     teamName: ctx.teamName,
     teamEntryPoint: ctx.teamEntryPoint,
     convexUrl: ctx.convexUrl,
@@ -537,6 +547,7 @@ Task ID: ${taskId}`;
 export interface InitPromptInput {
   chatroomId: string;
   role: string;
+  teamId?: string;
   teamName: string;
   teamRoles: string[];
   teamEntryPoint?: string;
@@ -577,12 +588,13 @@ export interface ComposedInitPrompt {
  * initialization header. Including them here would cause duplication.
  */
 export function composeSystemPrompt(input: InitPromptInput): string {
-  const { chatroomId, role, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
+  const { chatroomId, role, teamId, teamName, teamRoles, teamEntryPoint, convexUrl } = input;
 
   // Build SelectorContext for unified dispatching
   const selectorCtx = buildSelectorContext({
     role,
     teamRoles,
+    teamId,
     teamName,
     teamEntryPoint,
     convexUrl,

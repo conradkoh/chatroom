@@ -5,6 +5,8 @@
  * See docs/prompt-engineering/design.md for the full design.
  */
 
+import type { Team } from '../../src/domain/entities/team';
+
 /**
  * The three-dimensional context that determines which prompt sections to include.
  *
@@ -18,6 +20,13 @@ export interface SelectorContext {
   role: string;
   /** Team type (e.g., 'pair', 'squad', or custom team name) */
   team: 'pair' | 'squad' | 'duo' | 'unknown';
+  /**
+   * Full team configuration entity.
+   * Available when the chatroom has a valid team configuration.
+   * Provides typed access to team roles, entry point, and display name
+   * without needing to read individual teamId/teamRoles/teamEntryPoint fields.
+   */
+  teamConfig?: Team;
   /** Current workflow/classification (e.g., 'new_feature', 'question', 'follow_up') */
   workflow?: 'new_feature' | 'question' | 'follow_up' | null;
   /** Team roles as configured */

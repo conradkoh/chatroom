@@ -1580,6 +1580,7 @@ export const getRolePrompt = query({
     const prompt = generateRolePrompt({
       chatroomId: args.chatroomId,
       role: args.role,
+      teamId: chatroom.teamId,
       teamName: chatroom.teamName || 'Team',
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,
@@ -1634,6 +1635,7 @@ export const getInitPrompt = query({
     const promptInput = {
       chatroomId: args.chatroomId,
       role: args.role,
+      teamId: chatroom.teamId,
       teamName: chatroom.teamName || 'Team',
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,
@@ -1785,6 +1787,7 @@ export const getTaskDeliveryPrompt = query({
     const rolePromptText = generateRolePrompt({
       chatroomId: args.chatroomId,
       role: args.role,
+      teamId: chatroom.teamId,
       teamName: chatroom.teamName || 'Team',
       teamRoles: chatroom.teamRoles || [],
       teamEntryPoint: chatroom.teamEntryPoint,

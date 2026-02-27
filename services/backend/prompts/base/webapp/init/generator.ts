@@ -16,6 +16,7 @@ import { getTeamEntryPoint } from '../../../../src/domain/entities/team';
 export interface PromptContext {
   chatroomId: string;
   role: string;
+  teamId?: string;
   teamName: string;
   teamRoles: string[];
   teamEntryPoint?: string;
@@ -28,7 +29,7 @@ export interface PromptContext {
  * Note: This is a simplified version. The CLI fetches the full prompt from the backend.
  */
 export function generateAgentPrompt(context: PromptContext): string {
-  const { chatroomId, role, teamName, teamRoles, teamEntryPoint, convexUrl } = context;
+  const { chatroomId, role, teamId, teamName, teamRoles, teamEntryPoint, convexUrl } = context;
   const template = getRoleTemplate(role);
 
   // Use shared getting started content
@@ -46,6 +47,7 @@ export function generateAgentPrompt(context: PromptContext): string {
   const selectorCtx = buildSelectorContext({
     role,
     teamRoles,
+    teamId,
     teamName,
     teamEntryPoint,
     convexUrl: convexUrl ?? '',

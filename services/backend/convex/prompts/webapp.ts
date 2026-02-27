@@ -24,6 +24,7 @@ export const getAgentPrompt = query({
   args: {
     chatroomId: v.string(),
     role: v.string(),
+    teamId: v.optional(v.string()),
     teamName: v.string(),
     teamRoles: v.array(v.string()),
     teamEntryPoint: v.optional(v.string()),
@@ -33,6 +34,7 @@ export const getAgentPrompt = query({
     return generateAgentPrompt({
       chatroomId: args.chatroomId,
       role: args.role,
+      teamId: args.teamId,
       teamName: args.teamName,
       teamRoles: args.teamRoles,
       teamEntryPoint: args.teamEntryPoint,
