@@ -35,9 +35,19 @@ if (!process.env.CONVEX_DEPLOY_KEY) {
 
 // ─── Migration Registry ───────────────────────────────────────────────────────
 
+interface Migration {
+  /** Convex function path (as passed to `convex run`). */
+  name: string;
+  /**
+   * ISO 8601 UTC timestamp recording when this migration was added to the registry.
+   * For historical reference — does not affect execution order or behavior.
+   */
+  addedAt: string;
+}
+
 /**
  * List of migrations to run, in order.
- * Each entry is the Convex function path (as passed to `convex run`).
+ * Each entry specifies the Convex function path and when the migration was added.
  *
  * ALL migrations must be idempotent — they are run on every deploy.
  *
@@ -46,10 +56,19 @@ if (!process.env.CONVEX_DEPLOY_KEY) {
  * documents have been cleaned up, remove it from this list AND from migration.ts,
  * AND update the "Previously executed" comment in migration.ts.
  */
-const MIGRATIONS: string[] = [
-  'migration:migrateAvailableModelsToPerHarness',
-  'migration:stripParticipantStaleFields',
-  'migration:deleteOldFormatAgentPreferences',
+const MIGRATIONS: Migration[] = [
+  {
+    name: 'migration:migrateAvailableModelsToPerHarness',
+    addedAt: '2025-01-01T00:00:00.000Z', // exact date unknown — grandfathered
+  },
+  {
+    name: 'migration:stripParticipantStaleFields',
+    addedAt: '2025-01-01T00:00:00.000Z', // exact date unknown — grandfathered
+  },
+  {
+    name: 'migration:deleteOldFormatAgentPreferences',
+    addedAt: '2026-02-27T07:53:09.000Z',
+  },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
@@ -60,10 +79,10 @@ let passed = 0;
 let failed = 0;
 
 for (const migration of MIGRATIONS) {
-  process.stdout.write(`  ▶ ${migration} ... `);
+  process.stdout.write(`  ▶ ${migration.name} (added ${migration.addedAt}) ... `);
   try {
     const result =
-      await $`npx convex run ${migration} --prod`.cwd(BACKEND_DIR).quiet();
+      await $`npx convex run ${migration.name} --prod`.cwd(BACKEND_DIR).quiet();
     const output = result.stdout.toString().trim();
     console.log(`✅`);
     if (output) {
