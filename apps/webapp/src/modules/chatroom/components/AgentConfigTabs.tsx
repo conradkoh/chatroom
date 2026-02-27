@@ -36,7 +36,6 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -579,6 +578,12 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     [displayMachineId, displayHarness, upsertModelFilter]
   );
 
+  // Compute visible models (exclude hidden models entirely from combobox)
+  const visibleModels = useMemo(
+    () => availableModelsForHarness.filter((m) => !isModelHidden(m, machineModelFilter)),
+    [availableModelsForHarness, machineModelFilter]
+  );
+
   return (
     <div className="bg-chatroom-bg-surface border border-chatroom-border px-2.5 py-2 space-y-2">
       {isLoadingMachines ? (
@@ -700,7 +705,18 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                         <span className="truncate">
                           {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
                         </span>
-                        <ChevronDown size={10} className="ml-1 flex-shrink-0 text-chatroom-text-muted" />
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {/* Active filter indicator */}
+                          {machineModelFilter &&
+                            (machineModelFilter.hiddenModels.length > 0 ||
+                              machineModelFilter.hiddenProviders.length > 0) && (
+                              <div
+                                className="w-1.5 h-1.5 bg-chatroom-accent"
+                                title="Some models are hidden"
+                              />
+                            )}
+                          <ChevronDown size={10} className="text-chatroom-text-muted" />
+                        </div>
                       </button>
                     </PopoverTrigger>
                     <PopoverContent className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 w-[280px] rounded-none">
@@ -714,36 +730,22 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                             No models found.
                           </CommandEmpty>
                           <CommandGroup>
-                            {availableModelsForHarness.map((model) => {
-                              const hidden = isModelHidden(model, machineModelFilter);
-                              return (
-                                <CommandItem
-                                  key={model}
-                                  value={getModelDisplayLabel(model)}
-                                  onSelect={() => {
-                                    if (hidden) return;
-                                    handleModelChange(model);
-                                    setModelPopoverOpen(false);
-                                  }}
-                                  className={cn(
-                                    'text-[10px] font-bold uppercase tracking-wider cursor-pointer flex items-center justify-between rounded-none',
-                                    hidden
-                                      ? 'opacity-40 cursor-not-allowed text-chatroom-text-muted'
-                                      : 'text-chatroom-text-primary hover:bg-chatroom-bg-hover'
-                                  )}
-                                >
-                                  <span className="truncate">{getModelDisplayLabel(model)}</span>
-                                  {displayModel === model && !hidden && (
-                                    <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
-                                  )}
-                                  {hidden && (
-                                    <span className="ml-2 flex-shrink-0 text-chatroom-text-muted text-[9px]">
-                                      HIDDEN
-                                    </span>
-                                  )}
-                                </CommandItem>
-                              );
-                            })}
+                            {visibleModels.map((model) => (
+                              <CommandItem
+                                key={model}
+                                value={getModelDisplayLabel(model)}
+                                onSelect={() => {
+                                  handleModelChange(model);
+                                  setModelPopoverOpen(false);
+                                }}
+                                className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
+                              >
+                                <span className="truncate">{getModelDisplayLabel(model)}</span>
+                                {displayModel === model && (
+                                  <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
+                                )}
+                              </CommandItem>
+                            ))}
                           </CommandGroup>
                         </CommandList>
                       </Command>
