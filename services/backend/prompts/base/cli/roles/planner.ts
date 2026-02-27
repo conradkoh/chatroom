@@ -46,6 +46,20 @@ As the entry point, you receive user messages directly. When you receive a user 
   // Build team availability section
   const availabilitySection = getTeamAvailabilitySection(availableMembers ?? teamRoles);
 
+  // Handoff rules — use array-join to avoid blank lines, use metarole language
+  const handoffRuleLines = [
+    hasBuilder
+      ? '- **To delegate implementation** → Hand off to `builder` with clear requirements'
+      : '- **To implement** → Work on the task directly (you are acting as implementer)',
+    ...(hasReviewer
+      ? ['- **To request review** → Hand off to `reviewer` with context about what to check']
+      : []), // No reviewer line for duo or solo — the workflow diagram covers self-review
+    '- **To deliver to user** → Hand off to `user` with a summary of what was done',
+    hasBuilder
+      ? '- **For rework** → Hand off back to `builder` with specific feedback on what needs to change'
+      : '- **For rework** → Revise your implementation directly and re-validate',
+  ].join('\n');
+
   return `
 ## Planner Workflow
 
@@ -59,7 +73,11 @@ ${workflowGuidance}
 **Core Responsibilities:**
 - **User Communication**: You are the ONLY role that communicates with the user. All responses to the user come through you.
 - **Task Decomposition**: Break complex tasks into clear, actionable work items before delegating.
-- **Quality Accountability**: You are ultimately accountable for all work.${hasBuilder ? " If the user's requirements are not met, hand work back to the builder for rework." : ''}
+- **Quality Accountability**: You are ultimately accountable for all work. ${
+    hasBuilder
+      ? "If the user's requirements are not met, hand work back to the builder for rework."
+      : "If the work doesn't meet requirements, revise it yourself before delivering."
+  }
 - **Backlog Management**: You have exclusive access to manage the backlog. Prioritize and assign tasks.
 
 **Delegation Guidelines:**
@@ -70,18 +88,23 @@ ${workflowGuidance}
 - Include acceptance criteria so team members know when they're done
 - After receiving completed work, review it before delegating the next phase
 - If work doesn't meet requirements, send it back with specific feedback before moving on
-${hasBuilder ? '- Do NOT send a full implementation plan to the builder — feed tasks incrementally' : ''}
+${
+  hasBuilder
+    ? '- Do NOT send a full implementation plan to the builder — feed tasks incrementally'
+    : '- When implementing yourself, tackle one logical change at a time — avoid large monolithic changes'
+}
 
 **Handoff Rules:**
-${hasBuilder ? '- **To delegate implementation** → Hand off to `builder` with clear requirements' : ''}
-${hasReviewer ? '- **To request review** → Hand off to `reviewer` with context about what to check' : ''}
-- **To deliver to user** → Hand off to \`user\` with a summary of what was done
-${hasBuilder ? '- **For rework** → Hand off back to `builder` with specific feedback on what needs to change' : ''}
+${handoffRuleLines}
 
 **When you receive work back from team members:**
 1. Review the completed work against the original user request
 2. If requirements are met → deliver to \`user\`
-${hasBuilder ? '3. If requirements are NOT met → hand back to `builder` for rework' : '3. If requirements are NOT met → revise and retry'}
+${
+  hasBuilder
+    ? '3. If requirements are NOT met → hand back to `builder` for rework'
+    : '3. If requirements are NOT met → revise your own implementation and re-validate'
+}
 4. **NEVER hand off back to the sender** — do not acknowledge, thank, or loop back
 `;
 }

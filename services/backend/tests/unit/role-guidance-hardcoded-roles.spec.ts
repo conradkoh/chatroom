@@ -1,8 +1,12 @@
 /**
- * Tests for hardcoded role names in prompt system.
+ * REGRESSION GUARD: Conditional role references in planner guidance.
  *
- * Detects instances where role names (reviewer, builder, planner) are
- * hardcoded into prompts when they should be conditional based on team config.
+ * Ensures that the planner prompt uses metarole-aware language:
+ * - When a named role (builder/reviewer) is absent, the prompt describes
+ *   WHAT FUNCTION the planner fills, rather than silently omitting instructions.
+ * - No blank lines in rendered sections due to empty conditional expressions.
+ * - Handoff Rules, Delegation Guidelines, and Core Responsibilities are all
+ *   conditional on team composition.
  *
  * Uses inline snapshots to visualize rendered prompt content.
  */
@@ -20,14 +24,6 @@ const CONVEX_URL = 'http://127.0.0.1:3210';
 // =============================================================================
 
 describe('getPlannerGuidance - Handoff Rules should be conditional on team members', () => {
-  /**
-   * BUG: The "Handoff Rules" section unconditionally includes:
-   *   - "Hand off to `reviewer`" even when no reviewer exists
-   *   - "Hand off to `builder`" even when no builder exists
-   *
-   * These should only appear when the respective role is available.
-   */
-
   test('duo team planner (builder only, no reviewer) should NOT mention reviewer in Handoff Rules', () => {
     const guidance = getPlannerGuidance({
       role: 'planner',
@@ -40,8 +36,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     // The workflow section correctly shows "Planner + Builder (no reviewer)"
     expect(guidance).toContain('Current Workflow: Planner + Builder (no reviewer)');
 
-    // BUG: The Handoff Rules section still hardcodes reviewer
-    // This should NOT contain reviewer handoff rule since duo has no reviewer
+    // Duo team (no reviewer) should NOT contain reviewer handoff rule
     expect(guidance).not.toContain('**To request review** → Hand off to `reviewer`');
   });
 
@@ -61,17 +56,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
       - **To delegate implementation** → Hand off to \`builder\` with clear requirements
-
       - **To deliver to user** → Hand off to \`user\` with a summary of what was done
       - **For rework** → Hand off back to \`builder\` with specific feedback on what needs to change"
     `);
-
-    // ❌ The handoff rules INCORRECTLY mention reviewer for a duo team (no reviewer)
-    // EXPECTED (after fix):
-    // "**Handoff Rules:**
-    // - **To delegate implementation** → Hand off to `builder` with clear requirements
-    // - **To deliver to user** → Hand off to `user` with a summary of what was done
-    // - **For rework** → Hand off back to `builder` with specific feedback on what needs to change"
   });
 
   test('full team planner (builder + reviewer) SHOULD mention reviewer in Handoff Rules', () => {
@@ -99,20 +86,16 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
 
     expect(guidance).toContain('Current Workflow: Planner Solo');
 
-    // Should NOT mention builder or reviewer in handoff rules when solo
+    // Should NOT mention builder or reviewer — uses metarole language instead
     const handoffRulesMatch = guidance.match(/\*\*Handoff Rules:\*\*[\s\S]*?(?=\n\n\*\*|\n## |\n$)/);
     const handoffRulesSection = handoffRulesMatch ? handoffRulesMatch[0] : '(not found)';
 
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
-
-
+      - **To implement** → Work on the task directly (you are acting as implementer)
       - **To deliver to user** → Hand off to \`user\` with a summary of what was done
-      "
+      - **For rework** → Revise your implementation directly and re-validate"
     `);
-
-    // ❌ The handoff rules INCORRECTLY mention builder and reviewer for a solo team
-    // EXPECTED (after fix): Only delivery to user since there are no other members
   });
 
   test('planner + reviewer only (no builder) should NOT mention builder in Handoff Rules', () => {
@@ -126,20 +109,89 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
 
     expect(guidance).toContain('Current Workflow: Planner + Reviewer (no builder)');
 
-    // Should NOT mention builder in handoff rules
+    // Should NOT mention builder in handoff rules — uses metarole language instead
     const handoffRulesMatch = guidance.match(/\*\*Handoff Rules:\*\*[\s\S]*?(?=\n\n\*\*|\n## |\n$)/);
     const handoffRulesSection = handoffRulesMatch ? handoffRulesMatch[0] : '(not found)';
 
     expect(handoffRulesSection).toMatchInlineSnapshot(`
       "**Handoff Rules:**
-
+      - **To implement** → Work on the task directly (you are acting as implementer)
       - **To request review** → Hand off to \`reviewer\` with context about what to check
       - **To deliver to user** → Hand off to \`user\` with a summary of what was done
-      "
+      - **For rework** → Revise your implementation directly and re-validate"
     `);
+  });
 
-    // ❌ The handoff rules INCORRECTLY mention builder (delegation) for a planner+reviewer team
-    // EXPECTED (after fix): Only delegation to reviewer and delivery to user
+  // ---------------------------------------------------------------------------
+  // Delegation Guidelines: metarole language
+  // ---------------------------------------------------------------------------
+
+  test('duo team: Delegation Guidelines mentions builder-specific instruction', () => {
+    const guidance = getPlannerGuidance({
+      role: 'planner',
+      teamRoles: ['planner', 'builder'],
+      isEntryPoint: true,
+      convexUrl: CONVEX_URL,
+      availableMembers: ['planner', 'builder'],
+    });
+    expect(guidance).toContain(
+      'Do NOT send a full implementation plan to the builder — feed tasks incrementally'
+    );
+    expect(guidance).not.toContain('tackle one logical change at a time');
+  });
+
+  test('solo planner: Delegation Guidelines mentions self-implementation instruction', () => {
+    const guidance = getPlannerGuidance({
+      role: 'planner',
+      teamRoles: ['planner'],
+      isEntryPoint: true,
+      convexUrl: CONVEX_URL,
+      availableMembers: ['planner'],
+    });
+    expect(guidance).toContain('tackle one logical change at a time');
+    expect(guidance).not.toContain('Do NOT send a full implementation plan to the builder');
+  });
+
+  test('planner+reviewer only: Delegation Guidelines uses self-implementation instruction', () => {
+    const guidance = getPlannerGuidance({
+      role: 'planner',
+      teamRoles: ['planner', 'reviewer'],
+      isEntryPoint: true,
+      convexUrl: CONVEX_URL,
+      availableMembers: ['planner', 'reviewer'],
+    });
+    expect(guidance).toContain('tackle one logical change at a time');
+    expect(guidance).not.toContain('Do NOT send a full implementation plan to the builder');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Core Responsibilities: Quality Accountability metarole language
+  // ---------------------------------------------------------------------------
+
+  test('duo team: Quality Accountability mentions builder for rework', () => {
+    const guidance = getPlannerGuidance({
+      role: 'planner',
+      teamRoles: ['planner', 'builder'],
+      isEntryPoint: true,
+      convexUrl: CONVEX_URL,
+      availableMembers: ['planner', 'builder'],
+    });
+    expect(guidance).toContain(
+      "If the user's requirements are not met, hand work back to the builder for rework."
+    );
+    expect(guidance).not.toContain("revise it yourself before delivering");
+  });
+
+  test('solo planner: Quality Accountability mentions self-revision', () => {
+    const guidance = getPlannerGuidance({
+      role: 'planner',
+      teamRoles: ['planner'],
+      isEntryPoint: true,
+      convexUrl: CONVEX_URL,
+      availableMembers: ['planner'],
+    });
+    expect(guidance).toContain("If the work doesn't meet requirements, revise it yourself before delivering.");
+    expect(guidance).not.toContain("hand work back to the builder");
   });
 });
 
@@ -258,8 +310,7 @@ describe('getRoleGuidanceFromContext - duo team should produce correct guidance'
     // Workflow should show builder-only flow
     expect(guidance).toContain('Planner + Builder (no reviewer)');
 
-    // BUG: Handoff Rules still incorrectly mention reviewer
-    // After fix, this assertion should pass:
+    // No reviewer in duo team — should not appear in Handoff Rules
     expect(guidance).not.toContain('**To request review** → Hand off to `reviewer`');
   });
 
