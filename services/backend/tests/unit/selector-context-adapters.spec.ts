@@ -8,7 +8,7 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { getBuilderGuidance as getBaseBuilder } from '../../prompts/base/cli/roles/builder';
+import { getBuilderGuidance as getBaseBuilder } from '../../prompts/cli/roles/builder';
 import { buildSelectorContext, getRoleGuidanceFromContext } from '../../prompts/generator';
 import { getBuilderGuidance as getPairBuilder } from '../../prompts/teams/pair/prompts/builder';
 import { getReviewerGuidance as getPairReviewer } from '../../prompts/teams/pair/prompts/reviewer';

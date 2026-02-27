@@ -6,10 +6,7 @@
  * non-entry-point roles get handoff recipient acknowledgement.
  */
 
-import {
-  getTaskStartedPrompt,
-  getTaskStartedPromptForHandoffRecipient,
-} from '../base/cli/index';
+import { getTaskStartedPrompt, getTaskStartedPromptForHandoffRecipient } from '../cli/index';
 import type { SelectorContext, PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';

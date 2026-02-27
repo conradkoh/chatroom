@@ -144,16 +144,6 @@ describe('Squad Team > Planner > System Prompt', () => {
       EOF
       \`\`\`
 
-
-       **Squad Team Context:**
-       - You coordinate a team of builder and reviewer
-       - You are the ONLY role that communicates directly with the user
-       - You are ultimately accountable for all work quality
-       - You manage the backlog and prioritize tasks
-       - Builder is available for implementation tasks
-       - Reviewer is available for code review
-       
-       
       ## Planner Workflow
 
       You are the team coordinator and the **single point of contact** for the user.
@@ -164,6 +154,14 @@ describe('Squad Team > Planner > System Prompt', () => {
       2. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
       3. Decompose the task into actionable work items if needed
       4. Delegate to the appropriate team member or handle it yourself
+
+      **Squad Team Context:**
+      - You coordinate a team of builder and reviewer
+      - You are the ONLY role that communicates directly with the user
+      - You are ultimately accountable for all work quality
+      - You manage the backlog and prioritize tasks
+      - Builder is available for implementation tasks
+      - Reviewer is available for code review
 
       **Team Availability:** builder, reviewer available.
 
@@ -218,8 +216,6 @@ describe('Squad Team > Planner > System Prompt', () => {
       2. If requirements are met → deliver to \`user\`
       3. If requirements are NOT met → hand back to \`builder\` for rework
       4. **NEVER hand off back to the sender** — do not acknowledge, thank, or loop back
-
-       
 
       ### Handoff Options
       Available targets: builder, reviewer, user

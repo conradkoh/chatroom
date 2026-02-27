@@ -15,12 +15,12 @@ import { handoff, type HandoffOptions } from './index.js';
 // Mock modules
 // ---------------------------------------------------------------------------
 
-vi.mock('@workspace/backend/prompts/base/cli/handoff/command.js', () => ({
+vi.mock('@workspace/backend/prompts/cli/handoff/command.js', () => ({
   handoffCommand: (opts: { chatroomId: string; role: string; nextRole: string }) =>
     `chatroom handoff --chatroom-id=${opts.chatroomId} --role=${opts.role} --next-role=${opts.nextRole}`,
 }));
 
-vi.mock('@workspace/backend/prompts/base/cli/get-next-task/command.js', () => ({
+vi.mock('@workspace/backend/prompts/cli/get-next-task/command.js', () => ({
   getNextTaskCommand: (opts: { chatroomId: string; role: string }) =>
     `chatroom get-next-task --chatroom-id=${opts.chatroomId} --role=${opts.role}`,
 }));

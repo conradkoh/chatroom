@@ -5,7 +5,7 @@
  * participant join, init prompt) and then delegates to `GetNextTaskSession.start()`.
  */
 
-import { getNextTaskGuidance } from '@workspace/backend/prompts/base/cli/index.js';
+import { getNextTaskGuidance } from '@workspace/backend/prompts/cli/index.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
 import { GetNextTaskSession } from './session.js';

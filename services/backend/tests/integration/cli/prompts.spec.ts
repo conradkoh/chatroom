@@ -7,10 +7,10 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { getAvailableActions } from '../../../prompts/base/cli/get-next-task/available-actions';
-import { handoffCommand } from '../../../prompts/base/cli/handoff/command';
-import { reportProgressCommand } from '../../../prompts/base/cli/report-progress/command';
-import { getTaskStartedPrompt } from '../../../prompts/base/cli/task-started/main-prompt';
+import { getAvailableActions } from '../../../prompts/cli/get-next-task/available-actions';
+import { handoffCommand } from '../../../prompts/cli/handoff/command';
+import { reportProgressCommand } from '../../../prompts/cli/report-progress/command';
+import { getTaskStartedPrompt } from '../../../prompts/cli/task-started/main-prompt';
 import { getContextGainingGuidance } from '../../../prompts/base/shared/getting-started-content';
 import { generateAgentPrompt } from '../../../prompts/base/webapp/init/generator';
 import { getConfig } from '../../../prompts/config/index';

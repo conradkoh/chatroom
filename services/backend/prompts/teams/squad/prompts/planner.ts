@@ -1,27 +1,88 @@
 /**
- * Planner role-specific guidance for squad team
+ * Planner role-specific guidance for squad team.
+ *
+ * In the squad team, the planner coordinates builder and reviewer.
+ * The planner is the ONLY role that communicates directly with the user.
+ *
+ * Team composition is fixed: planner + builder + reviewer.
+ * Static sections (handoff rules, delegation guidelines, responsibilities,
+ * when-work-comes-back) use this hardcoded config — no runtime conditionals.
+ * Dynamic sections (team availability, workflow diagram) adapt to which
+ * members are currently online.
  */
 
-import { getPlannerGuidance as getBasePlannerGuidance } from '../../../base/cli/roles/planner';
 import type { PlannerGuidanceParams } from '../../../types/cli';
+import { getCliEnvPrefix } from '../../../utils/env';
+import { taskStartedCommand } from '../../../cli/task-started/command';
+import {
+  getCoreResponsibilitiesSection,
+  getDelegationGuidelinesSection,
+  getHandoffRulesSection,
+  getWhenWorkComesBackSection,
+  getTeamAvailabilitySection,
+  getFullTeamWorkflow,
+  getPlannerPlusBuilderWorkflow,
+  getPlannerPlusReviewerWorkflow,
+  getPlannerSoloWorkflow,
+} from '../../../cli/sections';
+
+/** Squad team always has a builder and reviewer (fixed team composition) */
+const SQUAD_TEAM_CONFIG = { hasBuilder: true, hasReviewer: true } as const;
 
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
-  const hasBuilder = (ctx.availableMembers ?? ctx.teamRoles).some(
-    (r) => r.toLowerCase() === 'builder'
-  );
-  const hasReviewer = (ctx.availableMembers ?? ctx.teamRoles).some(
-    (r) => r.toLowerCase() === 'reviewer'
-  );
+  const { isEntryPoint, convexUrl, teamRoles, availableMembers } = ctx;
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
+  const taskStartedExample = taskStartedCommand({ cliEnvPrefix });
 
-  return `
- **Squad Team Context:**
- - You coordinate a team of builder and reviewer
- - You are the ONLY role that communicates directly with the user
- - You are ultimately accountable for all work quality
- - You manage the backlog and prioritize tasks
- ${hasBuilder ? '- Builder is available for implementation tasks' : '- Builder is NOT available — you or the reviewer must implement'}
- ${hasReviewer ? '- Reviewer is available for code review' : '- Reviewer is NOT available — you must review work yourself'}
- 
- ${getBasePlannerGuidance(ctx)}
- `;
+  // Dynamic: which members are currently online
+  const members = availableMembers ?? teamRoles;
+  const builderOnline = members.some((r) => r.toLowerCase() === 'builder');
+  const reviewerOnline = members.some((r) => r.toLowerCase() === 'reviewer');
+
+  const classificationNote = isEntryPoint
+    ? `
+**Classification (Entry Point Role):**
+As the entry point, you receive user messages directly. When you receive a user message:
+1. First run \`${taskStartedExample}\` to classify the original message (question, new_feature, or follow_up)
+2. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
+3. Decompose the task into actionable work items if needed
+4. Delegate to the appropriate team member or handle it yourself`
+    : '';
+
+  // Workflow diagram adapts to current availability
+  let workflowGuidance: string;
+  if (builderOnline && reviewerOnline) {
+    workflowGuidance = getFullTeamWorkflow();
+  } else if (builderOnline && !reviewerOnline) {
+    workflowGuidance = getPlannerPlusBuilderWorkflow();
+  } else if (!builderOnline && reviewerOnline) {
+    workflowGuidance = getPlannerPlusReviewerWorkflow();
+  } else {
+    workflowGuidance = getPlannerSoloWorkflow();
+  }
+
+  return `## Planner Workflow
+
+You are the team coordinator and the **single point of contact** for the user.
+${classificationNote}
+
+**Squad Team Context:**
+- You coordinate a team of builder and reviewer
+- You are the ONLY role that communicates directly with the user
+- You are ultimately accountable for all work quality
+- You manage the backlog and prioritize tasks
+${builderOnline ? '- Builder is available for implementation tasks' : '- Builder is NOT available — you or the reviewer must implement'}
+${reviewerOnline ? '- Reviewer is available for code review' : '- Reviewer is NOT available — you must review work yourself'}
+
+${getTeamAvailabilitySection(members)}
+
+${workflowGuidance}
+
+${getCoreResponsibilitiesSection(SQUAD_TEAM_CONFIG)}
+
+${getDelegationGuidelinesSection(SQUAD_TEAM_CONFIG)}
+
+${getHandoffRulesSection(SQUAD_TEAM_CONFIG)}
+
+${getWhenWorkComesBackSection(SQUAD_TEAM_CONFIG)}`;
 }

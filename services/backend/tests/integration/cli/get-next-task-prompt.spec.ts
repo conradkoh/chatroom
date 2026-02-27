@@ -10,7 +10,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { getNextTaskGuidance, getNextTaskReminder } from '../../../prompts/base/cli/index';
+import { getNextTaskGuidance, getNextTaskReminder } from '../../../prompts/cli/index';
 import { t } from '../../../test.setup';
 
 /**

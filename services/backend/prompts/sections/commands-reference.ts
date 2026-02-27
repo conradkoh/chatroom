@@ -4,10 +4,10 @@
  * CLI command reference (handoff, report-progress, get-next-task).
  */
 
-import { getNextTaskCommand } from '../base/cli/get-next-task/command';
-import { getNextTaskReminder } from '../base/cli/get-next-task/reminder';
-import { handoffCommand } from '../base/cli/handoff/command';
-import { reportProgressCommand } from '../base/cli/report-progress/command';
+import { getNextTaskCommand } from '../cli/get-next-task/command';
+import { getNextTaskReminder } from '../cli/get-next-task/reminder';
+import { handoffCommand } from '../cli/handoff/command';
+import { reportProgressCommand } from '../cli/report-progress/command';
 import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';

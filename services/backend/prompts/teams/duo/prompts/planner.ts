@@ -1,28 +1,80 @@
 /**
- * Planner role-specific guidance for duo team
+ * Planner role-specific guidance for duo team.
  *
  * In the duo team, the planner is the entry point and communicates
  * with the user. The planner delegates implementation to the builder and
  * delivers the final result back to the user.
+ *
+ * Team composition is fixed: planner + builder (no reviewer).
+ * Static sections (handoff rules, delegation guidelines, responsibilities,
+ * when-work-comes-back) use this hardcoded config — no runtime conditionals.
+ * Dynamic sections (team availability, workflow diagram) adapt to which
+ * members are currently online.
  */
 
-import { getPlannerGuidance as getBasePlannerGuidance } from '../../../base/cli/roles/planner';
 import type { PlannerGuidanceParams } from '../../../types/cli';
+import { getCliEnvPrefix } from '../../../utils/env';
+
+import { taskStartedCommand } from '../../../cli/task-started/command';
+import {
+  getCoreResponsibilitiesSection,
+  getDelegationGuidelinesSection,
+  getHandoffRulesSection,
+  getWhenWorkComesBackSection,
+  getTeamAvailabilitySection,
+  getPlannerPlusBuilderWorkflow,
+  getPlannerSoloWorkflow,
+} from '../../../cli/sections';
+
+/** Duo team always has a builder and no reviewer (fixed team composition) */
+const DUO_TEAM_CONFIG = { hasBuilder: true, hasReviewer: false } as const;
 
 export function getPlannerGuidance(ctx: PlannerGuidanceParams): string {
-  const hasBuilder = (ctx.availableMembers ?? ctx.teamRoles).some(
-    (r) => r.toLowerCase() === 'builder'
-  );
+  const { isEntryPoint, convexUrl, teamRoles, availableMembers } = ctx;
+  const cliEnvPrefix = getCliEnvPrefix(convexUrl);
+  const taskStartedExample = taskStartedCommand({ cliEnvPrefix });
 
-  return `
- **Duo Team Context:**
- - You are the entry point — you communicate directly with the user
- - You coordinate with the builder for implementation tasks
- - You are ultimately accountable for all work quality
- ${hasBuilder ? '- Builder is available for implementation tasks' : '- Builder is NOT available — you must implement yourself'}
- - After reviewing builder output, deliver results to the user
- - **Only you can hand off to \`user\`**
- 
- ${getBasePlannerGuidance(ctx)}
- `;
+  // Dynamic: which members are currently online (builder may be offline)
+  const members = availableMembers ?? teamRoles;
+  const builderOnline = members.some((r) => r.toLowerCase() === 'builder');
+
+  const classificationNote = isEntryPoint
+    ? `
+**Classification (Entry Point Role):**
+As the entry point, you receive user messages directly. When you receive a user message:
+1. First run \`${taskStartedExample}\` to classify the original message (question, new_feature, or follow_up)
+2. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
+3. Decompose the task into actionable work items if needed
+4. Delegate to the appropriate team member or handle it yourself`
+    : '';
+
+  // Workflow diagram adapts to current availability
+  const workflowGuidance = builderOnline
+    ? getPlannerPlusBuilderWorkflow()
+    : getPlannerSoloWorkflow();
+
+  return `## Planner Workflow
+
+You are the team coordinator and the **single point of contact** for the user.
+${classificationNote}
+
+**Duo Team Context:**
+- You are the entry point — you communicate directly with the user
+- You coordinate with the builder for implementation tasks
+- You are ultimately accountable for all work quality
+${builderOnline ? '- Builder is available for implementation tasks' : '- Builder is NOT available — you must implement yourself'}
+- After reviewing builder output, deliver results to the user
+- **Only you can hand off to \`user\`**
+
+${getTeamAvailabilitySection(members)}
+
+${workflowGuidance}
+
+${getCoreResponsibilitiesSection(DUO_TEAM_CONFIG)}
+
+${getDelegationGuidelinesSection(DUO_TEAM_CONFIG)}
+
+${getHandoffRulesSection(DUO_TEAM_CONFIG)}
+
+${getWhenWorkComesBackSection(DUO_TEAM_CONFIG)}`;
 }

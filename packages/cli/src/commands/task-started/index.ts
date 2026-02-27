@@ -2,7 +2,7 @@
  * Acknowledge a task has started and classify the user message
  */
 
-import { taskStartedCommand } from '@workspace/backend/prompts/base/cli/task-started/command.js';
+import { taskStartedCommand } from '@workspace/backend/prompts/cli/task-started/command.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 
 import type { TaskStartedDeps } from './deps.js';

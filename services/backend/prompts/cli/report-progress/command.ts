@@ -5,7 +5,7 @@
  * Uses stdin (EOF format) for message content, consistent with handoff command.
  */
 
-import type { ReportProgressParams } from '../../../types/cli';
+import type { ReportProgressParams } from '../../types/cli';
 
 /**
  * Generate a report-progress command string using stdin.

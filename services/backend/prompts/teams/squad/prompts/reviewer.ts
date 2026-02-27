@@ -5,7 +5,7 @@
  * In the squad team, the reviewer hands off to the planner (not directly to user).
  */
 
-import { getReviewerGuidance as getBaseReviewerGuidance } from '../../../base/cli/roles/reviewer';
+import { getReviewerGuidance as getBaseReviewerGuidance } from '../../../cli/roles/reviewer';
 import { getAvailablePolicies } from '../../../policies/index';
 import type { ReviewerGuidanceParams } from '../../../types/cli';
 

@@ -23,11 +23,11 @@
  */
 
 import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
-import { getNextTaskCommand } from './base/cli/get-next-task/command';
-import { getNextTaskGuidance } from './base/cli/get-next-task/reminder';
-import { handoffCommand } from './base/cli/handoff/command';
-import { reportProgressCommand } from './base/cli/report-progress/command';
-import { getBaseRoleGuidanceFromContext } from './base/cli/roles/fromContext';
+import { getNextTaskCommand } from './cli/get-next-task/command';
+import { getNextTaskGuidance } from './cli/get-next-task/reminder';
+import { handoffCommand } from './cli/handoff/command';
+import { reportProgressCommand } from './cli/report-progress/command';
+import { getBaseRoleGuidanceFromContext } from './cli/roles/fromContext';
 import { getClassificationGuideSection } from './sections/classification-guide';
 import { getCommandsReferenceSection } from './sections/commands-reference';
 import { getCurrentClassificationSection } from './sections/current-classification';
@@ -144,13 +144,16 @@ export function buildSelectorContext(params: {
   workflow?: 'new_feature' | 'question' | 'follow_up' | null;
   agentType?: 'remote' | 'custom' | 'unset';
 }): SelectorContext {
-  const entryPoint = getTeamEntryPoint({ teamEntryPoint: params.teamEntryPoint, teamRoles: params.teamRoles }) ?? 'builder';
-  const teamConfig = toTeam({
-    teamId: params.teamId,
-    teamName: params.teamName,
-    teamRoles: params.teamRoles,
-    teamEntryPoint: params.teamEntryPoint,
-  }) ?? undefined;
+  const entryPoint =
+    getTeamEntryPoint({ teamEntryPoint: params.teamEntryPoint, teamRoles: params.teamRoles }) ??
+    'builder';
+  const teamConfig =
+    toTeam({
+      teamId: params.teamId,
+      teamName: params.teamName,
+      teamRoles: params.teamRoles,
+      teamEntryPoint: params.teamEntryPoint,
+    }) ?? undefined;
   return {
     role: params.role,
     team: detectTeamType(params.teamRoles, params.teamName),

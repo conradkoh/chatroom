@@ -2,8 +2,8 @@
  * Builder role-specific guidance for agent initialization prompts.
  */
 
-import type { BuilderGuidanceParams } from '../../../types/cli';
-import { getCliEnvPrefix } from '../../../utils/env';
+import type { BuilderGuidanceParams } from '../../types/cli';
+import { getCliEnvPrefix } from '../../utils/env';
 import { taskStartedCommand } from '../task-started/command';
 
 /**

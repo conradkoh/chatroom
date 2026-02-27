@@ -4,7 +4,7 @@
  * These prompts are used by the webapp for UI display purposes only.
  * They provide a simplified view of agent initialization for the dashboard.
  *
- * The CLI uses the full prompts from base/cli/ which are served by the backend.
+ * The CLI uses the full prompts from cli/ which are served by the backend.
  */
 
 export { generateAgentPrompt, generateShortPrompt } from './init/generator';

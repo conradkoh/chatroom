@@ -4,7 +4,7 @@
  * The final "next action" guidance in the init prompt.
  */
 
-import { getNextTaskCommand } from '../base/cli/get-next-task/command';
+import { getNextTaskCommand } from '../cli/get-next-task/command';
 import type { PromptSection } from '../types/sections';
 import { createSection } from '../types/sections';
 import { getCliEnvPrefix } from '../utils/index';

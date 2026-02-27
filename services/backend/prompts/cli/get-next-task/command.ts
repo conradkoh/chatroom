@@ -4,7 +4,7 @@
  * Single source of truth for all get-next-task command examples and actual commands.
  */
 
-import type { GetNextTaskParams } from '../../../types/cli';
+import type { GetNextTaskParams } from '../../types/cli';
 
 /**
  * Generate a get-next-task command string.

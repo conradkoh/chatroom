@@ -9,7 +9,7 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { getAvailableActions } from '../../prompts/base/cli/get-next-task/available-actions';
+import { getAvailableActions } from '../../prompts/cli/get-next-task/available-actions';
 import { buildSelectorContext } from '../../prompts/generator';
 import {
   getRoleDescriptionSection,

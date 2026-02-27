@@ -31,7 +31,7 @@ export {
   getTaskStartedExamples,
   getTaskStartedValidation,
   getClassificationGuidance,
-} from './base/cli/index';
+} from './cli/index';
 
 // Team configurations
 export {
@@ -54,7 +54,7 @@ export {
   getPlannerGuidance as getBasePlannerGuidance,
   getReviewerGuidance as getBaseReviewerGuidance,
   getRoleSpecificGuidance,
-} from './base/cli/roles/index';
+} from './cli/roles/index';
 
 // Shared prompt components
 export { getContextGainingGuidance } from './base/shared/getting-started-content';

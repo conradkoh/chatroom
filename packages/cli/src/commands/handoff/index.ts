@@ -11,8 +11,8 @@
  * 6. Promotes the next queued task to pending
  */
 
-import { getNextTaskCommand } from '@workspace/backend/prompts/base/cli/get-next-task/command.js';
-import { handoffCommand } from '@workspace/backend/prompts/base/cli/handoff/command.js';
+import { getNextTaskCommand } from '@workspace/backend/prompts/cli/get-next-task/command.js';
+import { handoffCommand } from '@workspace/backend/prompts/cli/handoff/command.js';
 import { getCliEnvPrefix } from '@workspace/backend/prompts/utils/env.js';
 import { ConvexError } from 'convex/values';
 

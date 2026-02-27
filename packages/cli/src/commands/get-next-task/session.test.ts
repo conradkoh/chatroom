@@ -24,7 +24,7 @@ vi.mock('../../infrastructure/convex/client.js', () => ({
 }));
 
 // Mock getNextTaskCommand to return a predictable string
-vi.mock('@workspace/backend/prompts/base/cli/get-next-task/command.js', () => ({
+vi.mock('@workspace/backend/prompts/cli/get-next-task/command.js', () => ({
   getNextTaskCommand: (opts: { chatroomId: string; role: string; cliEnvPrefix: string }) =>
     `${opts.cliEnvPrefix}chatroom get-next-task --chatroom-id=${opts.chatroomId} --role=${opts.role}`,
 }));

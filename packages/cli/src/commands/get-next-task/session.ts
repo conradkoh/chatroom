@@ -10,7 +10,7 @@ import {
   type BackendErrorCode,
   FATAL_ERROR_CODES,
 } from '@workspace/backend/config/errorCodes.js';
-import { getNextTaskCommand } from '@workspace/backend/prompts/base/cli/get-next-task/command.js';
+import { getNextTaskCommand } from '@workspace/backend/prompts/cli/get-next-task/command.js';
 import { ConvexError } from 'convex/values';
 import type { SessionId } from 'convex-helpers/server/sessions';
 

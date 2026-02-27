@@ -15,7 +15,7 @@ import { taskStarted, type TaskStartedOptions } from './index.js';
 // Mock modules (only for non-injectable side effects)
 // ---------------------------------------------------------------------------
 
-vi.mock('@workspace/backend/prompts/base/cli/task-started/command.js', () => ({
+vi.mock('@workspace/backend/prompts/cli/task-started/command.js', () => ({
   taskStartedCommand: (opts: { chatroomId: string; role: string; taskId: string }) =>
     `chatroom task-started --chatroom-id=${opts.chatroomId} --role=${opts.role} --task-id=${opts.taskId}`,
 }));

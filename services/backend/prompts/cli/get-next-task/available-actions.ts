@@ -5,7 +5,7 @@
  * This is designed to be progressively disclosed based on the current stage.
  */
 
-import { getCliEnvPrefix } from '../../../utils/index';
+import { getCliEnvPrefix } from '../../utils/index';
 import { contextNewCommand } from '../context/new';
 
 export interface AvailableActionsParams {

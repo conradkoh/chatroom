@@ -10,7 +10,7 @@ import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliS
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
 import { getCompletionStatus } from './lib/taskWorkflows';
-import { generateFullCliOutput } from '../prompts/base/cli/get-next-task/fullOutput.js';
+import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput.js';
 import { getConfig } from '../prompts/config/index.js';
 import { getCliEnvPrefix } from '../prompts/utils/index.js';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
@@ -134,7 +134,7 @@ async function _sendMessageHandler(
     // knows which agent to restart if nobody is listening.
     const assignedTo = isHandoffToAgent
       ? targetRole
-      : getTeamEntryPoint(chatroom ?? {}) ?? undefined;
+      : (getTeamEntryPoint(chatroom ?? {}) ?? undefined);
 
     // Create the task via the use case
     // - Handoff messages to agents always start as 'pending' (targeted, not queued)

@@ -25,7 +25,7 @@ export {
 } from './get-next-task/reminder';
 
 // Re-export init functions
-export { getContextGainingGuidance } from '../shared/getting-started-content';
+export { getContextGainingGuidance } from '../base/shared/getting-started-content';
 
 // Handoff CLI prompts (to be implemented)
 // export {

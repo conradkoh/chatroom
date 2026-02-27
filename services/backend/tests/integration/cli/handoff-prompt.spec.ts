@@ -7,7 +7,7 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { handoffCommand } from '../../../prompts/base/cli/handoff/command';
+import { handoffCommand } from '../../../prompts/cli/handoff/command';
 import { getConfig } from '../../../prompts/config/index';
 
 // Test URLs for different environments

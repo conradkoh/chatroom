@@ -13,8 +13,8 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { getPlannerGuidance } from '../../prompts/base/cli/roles/planner';
-import { getBuilderGuidance } from '../../prompts/base/cli/roles/builder';
+import { getPlannerGuidance } from '../../prompts/cli/roles/planner';
+import { getBuilderGuidance } from '../../prompts/cli/roles/builder';
 import { buildSelectorContext, getRoleGuidanceFromContext } from '../../prompts/generator';
 
 const CONVEX_URL = 'http://127.0.0.1:3210';
@@ -50,7 +50,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     });
 
     // Extract just the Handoff Rules section
-    const handoffRulesMatch = guidance.match(/\*\*Handoff Rules:\*\*[\s\S]*?(?=\n\n\*\*|\n## |\n$)/);
+    const handoffRulesMatch = guidance.match(
+      /\*\*Handoff Rules:\*\*[\s\S]*?(?=\n\n\*\*|\n## |\n$)/
+    );
     const handoffRulesSection = handoffRulesMatch ? handoffRulesMatch[0] : '(not found)';
 
     expect(handoffRulesSection).toMatchInlineSnapshot(`
@@ -87,7 +89,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(guidance).toContain('Current Workflow: Planner Solo');
 
     // Should NOT mention builder or reviewer — uses metarole language instead
-    const handoffRulesMatch = guidance.match(/\*\*Handoff Rules:\*\*[\s\S]*?(?=\n\n\*\*|\n## |\n$)/);
+    const handoffRulesMatch = guidance.match(
+      /\*\*Handoff Rules:\*\*[\s\S]*?(?=\n\n\*\*|\n## |\n$)/
+    );
     const handoffRulesSection = handoffRulesMatch ? handoffRulesMatch[0] : '(not found)';
 
     expect(handoffRulesSection).toMatchInlineSnapshot(`
@@ -110,7 +114,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(guidance).toContain('Current Workflow: Planner + Reviewer (no builder)');
 
     // Should NOT mention builder in handoff rules — uses metarole language instead
-    const handoffRulesMatch = guidance.match(/\*\*Handoff Rules:\*\*[\s\S]*?(?=\n\n\*\*|\n## |\n$)/);
+    const handoffRulesMatch = guidance.match(
+      /\*\*Handoff Rules:\*\*[\s\S]*?(?=\n\n\*\*|\n## |\n$)/
+    );
     const handoffRulesSection = handoffRulesMatch ? handoffRulesMatch[0] : '(not found)';
 
     expect(handoffRulesSection).toMatchInlineSnapshot(`
@@ -179,7 +185,7 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
     expect(guidance).toContain(
       "If the user's requirements are not met, hand work back to the builder for rework."
     );
-    expect(guidance).not.toContain("revise it yourself before delivering");
+    expect(guidance).not.toContain('revise it yourself before delivering');
   });
 
   test('solo planner: Quality Accountability mentions self-revision', () => {
@@ -190,8 +196,10 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
       availableMembers: ['planner'],
     });
-    expect(guidance).toContain("If the work doesn't meet requirements, revise it yourself before delivering.");
-    expect(guidance).not.toContain("hand work back to the builder");
+    expect(guidance).toContain(
+      "If the work doesn't meet requirements, revise it yourself before delivering."
+    );
+    expect(guidance).not.toContain('hand work back to the builder');
   });
 });
 

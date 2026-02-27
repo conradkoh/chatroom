@@ -2,7 +2,7 @@
  * Reviewer role-specific guidance for pair team
  */
 
-import { getReviewerGuidance as getBaseReviewerGuidance } from '../../../base/cli/roles/reviewer';
+import { getReviewerGuidance as getBaseReviewerGuidance } from '../../../cli/roles/reviewer';
 import { getAvailablePolicies } from '../../../policies/index';
 import type { ReviewerGuidanceParams } from '../../../types/cli';
 

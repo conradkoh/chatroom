@@ -15,8 +15,8 @@ import type {
   BuilderGuidanceParams,
   PlannerGuidanceParams,
   ReviewerGuidanceParams,
-} from '../../../types/cli';
-import type { SelectorContext } from '../../../types/sections';
+} from '../../types/cli';
+import type { SelectorContext } from '../../types/sections';
 
 // =============================================================================
 // Parameter Converters

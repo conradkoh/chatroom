@@ -10,7 +10,7 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { generateFullCliOutput } from '../../../../../prompts/base/cli/get-next-task/fullOutput';
+import { generateFullCliOutput } from '../../../../../prompts/cli/get-next-task/fullOutput';
 
 const BASE_PARAMS = {
   chatroomId: 'test-chatroom-id',

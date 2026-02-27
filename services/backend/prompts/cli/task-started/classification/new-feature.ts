@@ -2,7 +2,7 @@
  * New feature classification guidance for CLI task-started command.
  */
 
-import { HANDOFF_DIR } from '../../../../utils/config';
+import { HANDOFF_DIR } from '../../../utils/config';
 import { taskStartedCommand } from '../command';
 
 /**

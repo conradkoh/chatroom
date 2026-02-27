@@ -6,7 +6,7 @@
  * Now uses stdin (HERE documents) instead of file-based approach.
  */
 
-import type { HandoffParams } from '../../../types/cli';
+import type { HandoffParams } from '../../types/cli';
 
 /**
  * Generate a handoff command string using stdin.
