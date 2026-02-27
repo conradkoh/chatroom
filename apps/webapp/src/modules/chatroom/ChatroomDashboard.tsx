@@ -24,7 +24,6 @@ import { AgentPanel } from './components/AgentPanel';
 import { AgentSettingsModal } from './components/AgentSettingsModal';
 import { MessageFeed } from './components/MessageFeed';
 import { PromptModal } from './components/PromptModal';
-import { ReconnectModal } from './components/ReconnectModal';
 import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { TaskQueue } from './components/TaskQueue';
@@ -237,17 +236,11 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     role: '',
   });
 
-  // Reconnect modal state
-  const [reconnectModalOpen, setReconnectModalOpen] = useState(false);
-
   // Agent settings modal state
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
 
   // Setup checklist modal state - starts open
   const [setupModalOpen, setSetupModalOpen] = useState(true);
-
-  // Agent list modal trigger (used when ReconnectModal's "Start Agent Remotely" is clicked)
-  const [agentListRequested, setAgentListRequested] = useState(false);
 
   // Sidebar visibility state - hidden by default on small screens
   const isSmallScreen = useIsSmallScreen();
@@ -378,16 +371,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     return 'partial';
   }, [participants, PRESENCE_THRESHOLD_MS]);
 
-  // Derive expired roles (previously seen but now offline) for the ReconnectModal
-  const expiredRoles = useMemo(() => {
-    const now = Date.now();
-    return teamRoles.filter((role) => {
-      const p = participants.find((p) => p.role.toLowerCase() === role.toLowerCase());
-      if (!p?.lastSeenAt) return false;
-      return now - p.lastSeenAt > PRESENCE_THRESHOLD_MS;
-    });
-  }, [teamRoles, participants, PRESENCE_THRESHOLD_MS]);
-
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
     () => chatroom?.teamEntryPoint || teamRoles[0] || 'builder',
@@ -409,15 +392,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     });
   }, []);
 
-  // Reconnect modal handlers
-  const handleOpenReconnect = useCallback(() => {
-    setReconnectModalOpen(true);
-  }, []);
-
-  const handleCloseReconnect = useCallback(() => {
-    setReconnectModalOpen(false);
-  }, []);
-
   // Open settings modal
   const handleOpenSettings = useCallback(() => {
     setSettingsModalOpen(true);
@@ -434,15 +408,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   const handleCloseSetup = useCallback(() => {
     setSetupModalOpen(false);
-  }, []);
-
-  // Open the unified agents panel (triggered from ReconnectModal)
-  const handleOpenAgentList = useCallback(() => {
-    setAgentListRequested(true);
-  }, []);
-
-  const handleAgentListOpened = useCallback(() => {
-    setAgentListRequested(false);
   }, []);
 
   // Mark complete handler
@@ -729,9 +694,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   teamRoles={teamRoles}
                   lifecycle={lifecycle}
                   onViewPrompt={handleViewPrompt}
-                  onReconnect={handleOpenReconnect}
-                  openAgentListRequested={agentListRequested}
-                  onAgentListOpened={handleAgentListOpened}
                   onConfigure={handleOpenSettings}
                 />
                 <TaskQueue chatroomId={chatroomId} />
@@ -751,15 +713,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             isOpen={modalState.isOpen}
             onClose={handleCloseModal}
             role={modalState.role}
-          />
-
-          <ReconnectModal
-            isOpen={reconnectModalOpen}
-            onClose={handleCloseReconnect}
-            chatroomId={chatroomId}
-            expiredRoles={expiredRoles}
-            onViewPrompt={handleViewPrompt}
-            onStartAgent={handleOpenAgentList}
           />
 
           <AgentSettingsModal

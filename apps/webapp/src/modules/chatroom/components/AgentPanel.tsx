@@ -6,7 +6,6 @@ import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessio
 import {
   ChevronRight,
   AlertTriangle,
-  RefreshCw,
   ChevronDown,
   ChevronUp,
   MoreHorizontal,
@@ -40,11 +39,6 @@ interface AgentPanelProps {
   teamRoles?: string[];
   lifecycle: TeamLifecycle | null | undefined;
   onViewPrompt?: (role: string) => void;
-  onReconnect?: () => void;
-  /** When true, the unified agent list modal opens automatically. Reset to false by the component. */
-  openAgentListRequested?: boolean;
-  /** Called when the component has consumed the openAgentListRequested flag */
-  onAgentListOpened?: () => void;
   /** Called when user clicks Configure in the menu */
   onConfigure?: () => void;
 }
@@ -530,9 +524,6 @@ export const AgentPanel = memo(function AgentPanel({
   teamRoles = [],
   lifecycle,
   onViewPrompt,
-  onReconnect,
-  openAgentListRequested,
-  onAgentListOpened,
   onConfigure,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
@@ -541,13 +532,6 @@ export const AgentPanel = memo(function AgentPanel({
   // without needing a DB write to trigger a Convex query re-run.
   usePresenceTick();
 
-  // Allow parent to request opening the agent list modal
-  useEffect(() => {
-    if (openAgentListRequested) {
-      setIsAgentListModalOpen(true);
-      onAgentListOpened?.();
-    }
-  }, [openAgentListRequested, onAgentListOpened]);
   const { getAgentPrompt } = usePrompts();
 
   // Build participant map from lifecycle data
@@ -615,31 +599,6 @@ export const AgentPanel = memo(function AgentPanel({
   const closeAgentListModal = useCallback(() => {
     setIsAgentListModalOpen(false);
   }, []);
-
-  // Compute team status from raw presence data
-  // expiredRoles: roles that were previously seen but are now offline
-  // missingRoles: roles that have never been seen (no lastSeenAt)
-  const { expiredRoles, missingRoles, isReady } = useMemo(() => {
-    const expired: string[] = [];
-    const missing: string[] = [];
-    let allOnline = rolesToShow.length > 0;
-    for (const role of rolesToShow) {
-      const p = participantMap.get(role.toLowerCase());
-      const online_ = isOnline(p?.lastSeenAt);
-      if (!online_) {
-        allOnline = false;
-        if (p?.lastSeenAt != null) {
-          expired.push(role);
-        } else {
-          missing.push(role);
-        }
-      }
-    }
-    return { expiredRoles: expired, missingRoles: missing, isReady: allOnline };
-  }, [rolesToShow, participantMap]);
-
-  const hasExpiredRoles = expiredRoles.length > 0;
-  const isDisconnected = !isReady && hasExpiredRoles;
 
   // Loading state
   if (lifecycle === undefined) {
@@ -786,35 +745,6 @@ export const AgentPanel = memo(function AgentPanel({
           />
         )}
       </div>
-
-      {/* Reconnect footer - only shown when agents are disconnected */}
-      {isDisconnected && (
-        <div className="p-3 bg-chatroom-bg-tertiary border-t border-chatroom-border">
-          <div className="flex items-center justify-between">
-            <div className="text-[10px] text-chatroom-text-muted">
-              {`Disconnected: ${expiredRoles.join(', ')}`}
-            </div>
-            {onReconnect && (
-              <button
-                onClick={onReconnect}
-                className="flex items-center gap-1 px-2 py-1 border border-chatroom-status-info text-chatroom-status-info text-[10px] font-bold uppercase tracking-wide hover:bg-chatroom-status-info/10 transition-all duration-100"
-              >
-                <RefreshCw size={10} />
-                Reconnect
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Waiting footer - only shown when waiting for agents */}
-      {!isReady && !isDisconnected && (
-        <div className="p-3 bg-chatroom-bg-tertiary border-t border-chatroom-border">
-          <div className="text-[10px] text-chatroom-text-muted">
-            {`Missing: ${missingRoles.join(', ')}`}
-          </div>
-        </div>
-      )}
 
       {/* Unified Agent List Modal - shows ALL agents with inline config/controls */}
       <UnifiedAgentListModal
