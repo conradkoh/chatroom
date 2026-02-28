@@ -1,8 +1,8 @@
 /**
  * Participant Lifecycle Integration Tests
  *
- * Tests for participant idle-state tracking and queue promotion:
- * - areAllAgentsIdle correctly identifies agents not in the wait loop
+ * Tests for participant waiting-state tracking and queue promotion:
+ * - areAllAgentsWaiting correctly identifies agents not in the wait loop
  */
 
 import { describe, expect, test } from 'vitest';
@@ -15,8 +15,8 @@ import { createTestSession, createPairTeamChatroom, joinParticipant } from '../h
 // ---------------------------------------------------------------------------
 
 describe('Participant Lifecycle', () => {
-  describe('areAllAgentsIdle with non-idle participants', () => {
-    test('areAllAgentsIdle returns false when a participant has no lastSeenAction', async () => {
+  describe('areAllAgentsWaiting with non-waiting participants', () => {
+    test('areAllAgentsWaiting returns false when a participant has no lastSeenAction', async () => {
       const { sessionId } = await createTestSession('test-idle-no-action');
       const chatroomId = await createPairTeamChatroom(sessionId);
 
@@ -24,7 +24,7 @@ describe('Participant Lifecycle', () => {
       await joinParticipant(sessionId, chatroomId, 'builder');
       await joinParticipant(sessionId, chatroomId, 'reviewer');
 
-      // Directly verify that areAllAgentsIdle logic returns false
+      // Directly verify that areAllAgentsWaiting logic returns false
       // (no lastSeenAction set — agents haven't called get-next-task yet)
       await t.run(async (ctx) => {
         const participants = await ctx.db
@@ -32,14 +32,14 @@ describe('Participant Lifecycle', () => {
           .filter((q) => q.eq(q.field('chatroomId'), chatroomId))
           .collect();
 
-        const allIdle = participants.every((p) => p.lastSeenAction === 'get-next-task:started');
+        const allWaiting = participants.every((p) => p.lastSeenAction === 'get-next-task:started');
 
-        // No agent has lastSeenAction = 'get-next-task:started' → allIdle should be false
-        expect(allIdle).toBe(false);
+        // No agent has lastSeenAction = 'get-next-task:started' → allWaiting should be false
+        expect(allWaiting).toBe(false);
       });
     });
 
-    test('areAllAgentsIdle returns true when all participants have lastSeenAction = get-next-task:started', async () => {
+    test('areAllAgentsWaiting returns true when all participants have lastSeenAction = get-next-task:started', async () => {
       const { sessionId } = await createTestSession('test-idle-all-waiting');
       const chatroomId = await createPairTeamChatroom(sessionId);
 
@@ -65,18 +65,18 @@ describe('Participant Lifecycle', () => {
           .filter((q) => q.eq(q.field('chatroomId'), chatroomId))
           .collect();
 
-        const allIdle = participants.every((p) => p.lastSeenAction === 'get-next-task:started');
+        const allWaiting = participants.every((p) => p.lastSeenAction === 'get-next-task:started');
 
-        // All participants are in wait loop → allIdle should be true
-        expect(allIdle).toBe(true);
+        // All participants are in wait loop → allWaiting should be true
+        expect(allWaiting).toBe(true);
       });
     });
 
-    test('non-idle participant blocks queue promotion on entry point join', async () => {
+    test('busy participant blocks queue promotion on entry point join', async () => {
       const { sessionId } = await createTestSession('test-non-idle-blocks-promo');
       const chatroomId = await createPairTeamChatroom(sessionId);
 
-      // Join reviewer first (no lastSeenAction — not idle)
+      // Join reviewer first (no lastSeenAction — not waiting)
       await joinParticipant(sessionId, chatroomId, 'reviewer');
 
       // Create a queued task directly

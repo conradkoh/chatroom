@@ -189,7 +189,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   }) as TaskCounts | undefined;
 
   // Derive needsPromotion from counts and lifecycle (replaces checkQueueHealth subscription)
-  // A promotion is needed when: no active task, there are queued tasks, and all agents are idle
+  // A promotion is needed when: no active task, there are queued tasks, and all agents are waiting
   const needsPromotion = useMemo(() => {
     if (!counts) return false;
     const hasActiveTask =
@@ -199,11 +199,11 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
       counts.backlog_acknowledged > 0;
     const hasQueuedTasks = counts.queued > 0;
     if (!hasActiveTask && hasQueuedTasks) {
-      // Check if all agents are idle (lastSeenAction === 'get-next-task:started')
+      // Check if all agents are waiting (lastSeenAction === 'get-next-task:started')
       const participants = lifecycle?.participants ?? [];
       if (participants.length === 0) return true; // No agents registered — allow promote
-      const allIdle = participants.every((p) => p.lastSeenAction === 'get-next-task:started');
-      return allIdle;
+      const allWaiting = participants.every((p) => p.lastSeenAction === 'get-next-task:started');
+      return allWaiting;
     }
     return false;
   }, [counts, lifecycle]);

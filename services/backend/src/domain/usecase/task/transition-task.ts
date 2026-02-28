@@ -28,7 +28,7 @@ import { promoteNextTask } from './promote-next-task';
 import { internal } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { areAllAgentsIdle } from '../../../../convex/auth/cliSessionAuth';
+import { areAllAgentsWaiting } from '../../../../convex/auth/cliSessionAuth';
 import { ENSURE_AGENT_DELAY_MS } from '../../../../convex/ensureAgentHandler';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
@@ -88,7 +88,7 @@ export async function transitionTask(
     const task = await ctx.db.get('chatroom_tasks', taskId);
     if (task) {
       await promoteNextTask(task.chatroomId, {
-        areAllAgentsIdle: (chatroomId) => areAllAgentsIdle(ctx, chatroomId),
+        areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
         getOldestQueuedTask: async (chatroomId) => {
           const tasks = await ctx.db
             .query('chatroom_tasks')

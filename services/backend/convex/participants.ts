@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { areAllAgentsIdle, requireChatroomAccess } from './auth/cliSessionAuth';
+import { areAllAgentsWaiting, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
@@ -102,7 +102,7 @@ export const join = mutation({
 
       if (activeTasks.length === 0) {
         await promoteNextTask(args.chatroomId, {
-          areAllAgentsIdle: (chatroomId) => areAllAgentsIdle(ctx, chatroomId),
+          areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
           getOldestQueuedTask: async (chatroomId) => {
             const tasks = await ctx.db
               .query('chatroom_tasks')

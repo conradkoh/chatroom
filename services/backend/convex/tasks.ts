@@ -9,7 +9,7 @@ import {
 import { DAEMON_HEARTBEAT_TTL_MS, RECOVERY_GRACE_PERIOD_MS } from '../config/reliability';
 import { internalMutation, mutation, query } from './_generated/server';
 import {
-  areAllAgentsIdle,
+  areAllAgentsWaiting,
   getAndIncrementQueuePosition,
   requireChatroomAccess,
   validateSession,
@@ -1114,7 +1114,7 @@ export const promoteNextTask = mutation({
 
     // Delegate to the promote-next-task usecase with deps wired from ctx
     const result = await promoteNextTaskUsecase(args.chatroomId, {
-      areAllAgentsIdle: (chatroomId) => areAllAgentsIdle(ctx, chatroomId),
+      areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
       getOldestQueuedTask: async (chatroomId) => {
         const tasks = await ctx.db
           .query('chatroom_tasks')
@@ -1174,18 +1174,18 @@ export const checkQueueHealth = query({
       )
       .collect();
 
-    // Check if all agents are idle (waiting for task)
-    const allAgentsIdle = await areAllAgentsIdle(ctx, args.chatroomId);
+    // Check if all agents are waiting for a task
+    const allAgentsWaiting = await areAllAgentsWaiting(ctx, args.chatroomId);
 
     const hasActiveTask = activeTasks.length > 0;
     const hasQueuedTasks = queuedTasks.length > 0;
-    // Promotion is possible only if no active tasks, there are queued tasks, AND all agents are idle
-    const needsPromotion = !hasActiveTask && hasQueuedTasks && allAgentsIdle;
+    // Promotion is possible only if no active tasks, there are queued tasks, AND all agents are waiting
+    const needsPromotion = !hasActiveTask && hasQueuedTasks && allAgentsWaiting;
 
     return {
       hasActiveTask,
       queuedCount: queuedTasks.length,
-      allAgentsReady: allAgentsIdle,
+      allAgentsReady: allAgentsWaiting,
       needsPromotion,
     };
   },

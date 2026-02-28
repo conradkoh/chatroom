@@ -23,7 +23,7 @@ function makeTask(id: Id<'chatroom_tasks'>, queuePosition: number): QueuedTask {
 
 function makeDeps(overrides: Partial<PromoteNextTaskDeps> = {}): PromoteNextTaskDeps {
   return {
-    areAllAgentsIdle: vi.fn().mockResolvedValue(true),
+    areAllAgentsWaiting: vi.fn().mockResolvedValue(true),
     getOldestQueuedTask: vi.fn().mockResolvedValue(makeTask(TASK_ID_A, 1)),
     transitionTaskToPending: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -35,13 +35,13 @@ function makeDeps(overrides: Partial<PromoteNextTaskDeps> = {}): PromoteNextTask
 // ---------------------------------------------------------------------------
 
 describe('promoteNextTask — happy path', () => {
-  test('promotes the oldest queued task when all agents are idle', async () => {
+  test('promotes the oldest queued task when all agents are waiting', async () => {
     const deps = makeDeps();
 
     const result = await promoteNextTask(CHATROOM_ID, deps);
 
     expect(result).toEqual({ promoted: TASK_ID_A, reason: 'success' });
-    expect(deps.areAllAgentsIdle).toHaveBeenCalledWith(CHATROOM_ID);
+    expect(deps.areAllAgentsWaiting).toHaveBeenCalledWith(CHATROOM_ID);
     expect(deps.getOldestQueuedTask).toHaveBeenCalledWith(CHATROOM_ID);
     expect(deps.transitionTaskToPending).toHaveBeenCalledWith(TASK_ID_A);
   });
@@ -58,11 +58,11 @@ describe('promoteNextTask — happy path', () => {
     expect(deps.transitionTaskToPending).toHaveBeenCalledWith(TASK_ID_A);
   });
 
-  test('calls areAllAgentsIdle before getOldestQueuedTask (guard order)', async () => {
+  test('calls areAllAgentsWaiting before getOldestQueuedTask (guard order)', async () => {
     const callOrder: string[] = [];
     const deps = makeDeps({
-      areAllAgentsIdle: vi.fn().mockImplementation(async () => {
-        callOrder.push('areAllAgentsIdle');
+      areAllAgentsWaiting: vi.fn().mockImplementation(async () => {
+        callOrder.push('areAllAgentsWaiting');
         return true;
       }),
       getOldestQueuedTask: vi.fn().mockImplementation(async () => {
@@ -73,7 +73,7 @@ describe('promoteNextTask — happy path', () => {
 
     await promoteNextTask(CHATROOM_ID, deps);
 
-    expect(callOrder).toEqual(['areAllAgentsIdle', 'getOldestQueuedTask']);
+    expect(callOrder).toEqual(['areAllAgentsWaiting', 'getOldestQueuedTask']);
   });
 });
 
@@ -82,15 +82,15 @@ describe('promoteNextTask — happy path', () => {
 // ---------------------------------------------------------------------------
 
 describe('promoteNextTask — guards', () => {
-  test('returns agents_not_idle when not all agents are idle', async () => {
+  test('returns agents_busy when not all agents are waiting', async () => {
     const deps = makeDeps({
-      areAllAgentsIdle: vi.fn().mockResolvedValue(false),
+      areAllAgentsWaiting: vi.fn().mockResolvedValue(false),
     });
 
     const result = await promoteNextTask(CHATROOM_ID, deps);
 
-    expect(result).toEqual({ promoted: null, reason: 'agents_not_idle' });
-    // Must NOT query the queue if agents are not idle
+    expect(result).toEqual({ promoted: null, reason: 'agents_busy' });
+    // Must NOT query the queue if agents are busy
     expect(deps.getOldestQueuedTask).not.toHaveBeenCalled();
     expect(deps.transitionTaskToPending).not.toHaveBeenCalled();
   });
@@ -106,9 +106,9 @@ describe('promoteNextTask — guards', () => {
     expect(deps.transitionTaskToPending).not.toHaveBeenCalled();
   });
 
-  test('does not promote when agents are idle but queue is empty', async () => {
+  test('does not promote when agents are waiting but queue is empty', async () => {
     const deps = makeDeps({
-      areAllAgentsIdle: vi.fn().mockResolvedValue(true),
+      areAllAgentsWaiting: vi.fn().mockResolvedValue(true),
       getOldestQueuedTask: vi.fn().mockResolvedValue(null),
     });
 
@@ -132,9 +132,9 @@ describe('promoteNextTask — error propagation', () => {
     await expect(promoteNextTask(CHATROOM_ID, deps)).rejects.toThrow('FSM error');
   });
 
-  test('propagates errors thrown by areAllAgentsIdle', async () => {
+  test('propagates errors thrown by areAllAgentsWaiting', async () => {
     const deps = makeDeps({
-      areAllAgentsIdle: vi.fn().mockRejectedValue(new Error('DB error')),
+      areAllAgentsWaiting: vi.fn().mockRejectedValue(new Error('DB error')),
     });
 
     await expect(promoteNextTask(CHATROOM_ID, deps)).rejects.toThrow('DB error');
@@ -166,13 +166,13 @@ describe('promoteNextTask — side-effect boundaries', () => {
     expect(deps.transitionTaskToPending).toHaveBeenCalledWith(TASK_ID_A);
   });
 
-  test('passes exactly the chatroomId to areAllAgentsIdle', async () => {
+  test('passes exactly the chatroomId to areAllAgentsWaiting', async () => {
     const OTHER_ID = 'chatroom_rooms:other' as Id<'chatroom_rooms'>;
     const deps = makeDeps();
 
     await promoteNextTask(OTHER_ID, deps);
 
-    expect(deps.areAllAgentsIdle).toHaveBeenCalledWith(OTHER_ID);
+    expect(deps.areAllAgentsWaiting).toHaveBeenCalledWith(OTHER_ID);
   });
 
   test('passes exactly the chatroomId to getOldestQueuedTask', async () => {

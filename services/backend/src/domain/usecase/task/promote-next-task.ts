@@ -2,7 +2,7 @@
  * promote-next-task usecase
  *
  * Promotes the oldest queued task to pending when all agents in the chatroom
- * are idle (waiting for a task).
+ * are waiting for a task (in the get-next-task loop).
  *
  * This usecase is the single source of truth for queue promotion logic.
  * All callers — task completion, cancellation, force-completion, handoff,
@@ -18,8 +18,8 @@
  *
  * ## Trigger Flow
  *
- * 1. Check if all agents in the chatroom are idle via `deps.areAllAgentsIdle`
- * 2. If not idle → return `{ promoted: null, reason: 'agents_not_idle' }`
+ * 1. Check if all agents in the chatroom are waiting via `deps.areAllAgentsWaiting`
+ * 2. If not waiting → return `{ promoted: null, reason: 'agents_busy' }`
  * 3. Query the oldest queued task by `queuePosition` via `deps.getOldestQueuedTask`
  * 4. If no queued task → return `{ promoted: null, reason: 'no_queued_tasks' }`
  * 5. Transition it to `pending` via `deps.transitionTask`
@@ -49,9 +49,9 @@ export interface QueuedTask {
 export interface PromoteNextTaskDeps {
   /**
    * Returns true if every participant in the chatroom has
-   * `lastSeenAction === 'get-next-task:started'`.
+   * `lastSeenAction === 'get-next-task:started'` (i.e. is in the wait loop).
    */
-  areAllAgentsIdle: (chatroomId: Id<'chatroom_rooms'>) => Promise<boolean>;
+  areAllAgentsWaiting: (chatroomId: Id<'chatroom_rooms'>) => Promise<boolean>;
 
   /**
    * Returns all tasks in the chatroom with status 'queued',
@@ -73,14 +73,14 @@ export interface PromoteNextTaskDeps {
 
 export type PromoteNextTaskResult =
   | { promoted: Id<'chatroom_tasks'>; reason: 'success' }
-  | { promoted: null; reason: 'agents_not_idle' | 'no_queued_tasks' };
+  | { promoted: null; reason: 'agents_busy' | 'no_queued_tasks' };
 
 // ============================================================================
 // USECASE
 // ============================================================================
 
 /**
- * Promotes the next queued task to pending if all agents are idle.
+ * Promotes the next queued task to pending if all agents are waiting.
  *
  * Pure function — all side effects are injected via `deps`.
  *
@@ -92,10 +92,10 @@ export async function promoteNextTask(
   chatroomId: Id<'chatroom_rooms'>,
   deps: PromoteNextTaskDeps
 ): Promise<PromoteNextTaskResult> {
-  // 1. Guard: all agents must be idle before we promote
-  const allIdle = await deps.areAllAgentsIdle(chatroomId);
-  if (!allIdle) {
-    return { promoted: null, reason: 'agents_not_idle' };
+  // 1. Guard: all agents must be waiting (in the get-next-task loop) before we promote
+  const allWaiting = await deps.areAllAgentsWaiting(chatroomId);
+  if (!allWaiting) {
+    return { promoted: null, reason: 'agents_busy' };
   }
 
   // 2. Find the oldest queued task
