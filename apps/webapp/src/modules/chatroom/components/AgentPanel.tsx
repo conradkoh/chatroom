@@ -16,7 +16,7 @@ import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import type { AgentPreference } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
-import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
+import type { AgentHarness, MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
 import type { ParticipantInfo, TeamLifecycle } from '../types/readiness';
 
 import {
@@ -157,7 +157,7 @@ interface TeamAgentConfig {
   role: string;
   type: 'remote' | 'custom';
   machineId?: string;
-  agentHarness?: 'opencode';
+  agentHarness?: AgentHarness;
   model?: string;
   workingDir?: string;
 }

@@ -551,6 +551,17 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   const displayModel = isAgentRunning ? (runningAgentConfig!.model ?? null) : selectedModel;
   const displayWorkingDir = isAgentRunning ? (runningAgentConfig!.workingDir ?? '') : workingDir;
 
+  // Harness version lookup must use `displayMachineId` — when an agent is running,
+  // `selectedMachineId` (form state) may still point to the same machine, but
+  // `runningAgentConfig.machineId` is authoritative and may differ. Using
+  // `displayMachineId` ensures the version label is always consistent with the
+  // harness shown in the button.
+  const displayHarnessVersionsForMachine = useMemo(() => {
+    if (!displayMachineId) return {} as Partial<Record<AgentHarness, HarnessVersionInfo>>;
+    const machine = connectedMachines.find((m) => m.machineId === displayMachineId);
+    return machine?.harnessVersions ?? {};
+  }, [displayMachineId, connectedMachines]);
+
   const hasNoMachines = !isLoadingMachines && connectedMachines.length === 0;
 
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
@@ -691,7 +702,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                     <span className="truncate">
                       {displayHarness
                         ? (() => {
-                            const ver = harnessVersionsForMachine[displayHarness];
+                            const ver = displayHarnessVersionsForMachine[displayHarness];
                             return `${HARNESS_DISPLAY_NAMES[displayHarness]}${ver ? ` v${ver.version}` : ''}`;
                           })()
                         : 'Harness...'}
