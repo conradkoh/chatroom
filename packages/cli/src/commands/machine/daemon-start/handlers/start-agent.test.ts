@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RemoteAgentService } from '../../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import type { DaemonDeps } from '../deps.js';
-import { DaemonEventBus } from '../event-bus.js';
+import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import type { DaemonContext, StartAgentCommand } from '../types.js';
 import { handleStartAgent } from './start-agent.js';
 

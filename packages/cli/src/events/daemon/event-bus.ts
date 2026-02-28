@@ -10,7 +10,7 @@
  * - No external dependencies — uses a simple Map<string, Set<Function>> internally.
  */
 
-import type { Id } from '../../../api.js';
+import type { Id } from '../../api.js';
 
 // ─── Event Definitions ──────────────────────────────────────────────────────
 

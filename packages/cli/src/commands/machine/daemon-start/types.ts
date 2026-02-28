@@ -3,7 +3,7 @@
  */
 
 import type { DaemonDeps } from './deps.js';
-import type { DaemonEventBus } from './event-bus.js';
+import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import type { Id } from '../../../api.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';

@@ -28,8 +28,8 @@ import { isNetworkError, formatConnectivityError } from '../../../utils/error-fo
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
 import type { DaemonDeps } from './deps.js';
-import { DaemonEventBus } from './event-bus.js';
-import { registerEventListeners } from './event-listeners.js';
+import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import type { DaemonContext, SessionId } from './types.js';
 import { formatTimestamp } from './utils.js';
 // ─── Model Discovery ────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { DaemonEventBus } from './event-bus.js';
-import { registerEventListeners } from './event-listeners.js';
+import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import type { DaemonContext } from './types.js';
 import type { Id } from '../../../api.js';
 import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';

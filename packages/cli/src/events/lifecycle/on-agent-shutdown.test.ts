@@ -17,7 +17,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '../../api.js';
 import type { DaemonDeps } from '../../commands/machine/daemon-start/deps.js';
-import { DaemonEventBus } from '../../commands/machine/daemon-start/event-bus.js';
+import { DaemonEventBus } from '../daemon/event-bus.js';
 import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
 

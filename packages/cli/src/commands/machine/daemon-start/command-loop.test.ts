@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { processCommand, refreshModels } from './command-loop.js';
 import type { DaemonDeps } from './deps.js';
-import { DaemonEventBus } from './event-bus.js';
+import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import type {
   DaemonContext,
   AgentHarness,
