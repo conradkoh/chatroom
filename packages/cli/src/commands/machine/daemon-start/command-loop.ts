@@ -5,8 +5,17 @@
 import { DAEMON_HEARTBEAT_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
 
 import { api } from '../../../api.js';
+import type { Id } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
+import {
+  onCommandStartAgent,
+  type CommandStartAgentEventPayload,
+} from '../../../events/daemon/command/on-command-start-agent.js';
+import {
+  onCommandStopAgent,
+  type CommandStopAgentEventPayload,
+} from '../../../events/daemon/command/on-command-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
 import { handleStartAgent } from './handlers/start-agent.js';
@@ -274,6 +283,71 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
       enqueueCommands(parsed);
       await drainQueue();
+    }
+  );
+
+  // ── Stream command subscription ──────────────────────────────────────────
+  // Subscribes to chatroom_eventStream for command events directed at this machine.
+  // Uses executeStartAgent/executeStopAgent directly — no synthetic _id needed.
+  // The existing getPendingCommands subscription is kept as a transitional fallback.
+
+  // Initialize the stream cursor to the latest event before subscribing.
+  // This ensures we only process events that arrive while the daemon is running,
+  // not replayed historical events from before daemon start.
+  let lastSeenEventId: Id<'chatroom_eventStream'> | undefined = undefined;
+
+  try {
+    const initialEvents = await ctx.deps.backend.query(api.machines.getCommandEvents, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      afterId: undefined,
+    });
+    if (initialEvents.events.length > 0) {
+      lastSeenEventId = initialEvents.events[initialEvents.events.length - 1]._id;
+    }
+  } catch (err) {
+    console.warn(
+      `[${formatTimestamp()}] ⚠️  Failed to initialize stream cursor: ${(err as Error).message}`
+    );
+  }
+
+  // Track processed event IDs to prevent duplicate processing within the same session
+  const processedStreamEventIds = new Set<string>();
+
+  wsClient.onUpdate(
+    api.machines.getCommandEvents,
+    {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      afterId: lastSeenEventId,
+    },
+    async (result: { events: Array<{ _id: string; type: string; [key: string]: unknown }> }) => {
+      if (!result.events || result.events.length === 0) return;
+
+      for (const event of result.events) {
+        const eventId = event._id.toString();
+
+        // Idempotency: skip events already processed in this session
+        if (processedStreamEventIds.has(eventId)) continue;
+        processedStreamEventIds.add(eventId);
+
+        // Advance cursor
+        lastSeenEventId = event._id as Id<'chatroom_eventStream'>;
+
+        try {
+          console.log(`[${formatTimestamp()}] 📡 Stream command event: ${event.type}`);
+
+          if (event.type === 'command.startAgent') {
+            await onCommandStartAgent(ctx, event as unknown as CommandStartAgentEventPayload);
+          } else if (event.type === 'command.stopAgent') {
+            await onCommandStopAgent(ctx, event as unknown as CommandStopAgentEventPayload);
+          }
+        } catch (err) {
+          console.error(
+            `[${formatTimestamp()}] ❌ Stream command event failed: ${(err as Error).message}`
+          );
+        }
+      }
     }
   );
 
