@@ -859,6 +859,7 @@ export default defineSchema({
         chatroomId: v.id('chatroom_rooms'),
         taskId: v.id('chatroom_tasks'),
         role: v.string(),
+        machineId: v.optional(v.string()),
         taskStatus: v.string(),
         taskContent: v.string(),
         timestamp: v.number(),
@@ -869,6 +870,7 @@ export default defineSchema({
         chatroomId: v.id('chatroom_rooms'),
         taskId: v.id('chatroom_tasks'),
         role: v.string(),
+        machineId: v.optional(v.string()),
         finalStatus: v.string(),
         timestamp: v.number(),
       }),
@@ -897,5 +899,6 @@ export default defineSchema({
   )
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_type', ['chatroomId', 'type'])
+    .index('by_machineId_type', ['machineId', 'type'])
     .index('by_timestamp', ['timestamp']),
 });
