@@ -2,14 +2,15 @@
  * onAgentShutdown TDD Tests
  *
  * Tests for onAgentShutdown using dependency injection.
- * These tests define the DESIRED behavior — some will fail against the current
- * implementation (red phase), confirming the TDD approach before implementation
- * is updated in Phase 2.
  *
  * Key behaviors tested:
  * - stops.mark called before kill
  * - PID cleared ONLY after confirming process is dead
  * - All exceptions from external calls are caught and handled gracefully
+ *
+ * Note: Backend cleanup (updateSpawnedAgent, participants.leave) is no longer
+ * done in onAgentShutdown — it is handled by the agent:exited event listener
+ * via recordAgentExited.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -277,79 +278,24 @@ describe('onAgentShutdown', () => {
     expect(result!.killed).toBe(false);
   });
 
-  // ─── Test 4: clears backend PID only after confirming process is dead ─────
+  // ─── Test 4: does NOT call backend mutations (backend handled by event listener) ─
 
-  it('clears backend PID only after confirming process is dead', async () => {
-    // Setup: kill(signal=0) throws after SIGTERM — process is dead
-    const callOrder: string[] = [];
-
+  it('does NOT call backend updateSpawnedAgent or participants.leave', async () => {
+    // Setup: kill(signal=0) throws ESRCH after SIGTERM — process is dead
     vi.mocked(deps.processes.kill).mockImplementation(
       (pid: number, signal?: NodeJS.Signals | number) => {
         if (signal === 'SIGTERM' || signal === 'SIGKILL') return;
-        if (signal === 0) {
-          callOrder.push(`kill(${pid}, 0)`);
-          throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
-        }
+        if (signal === 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
       }
     );
-    vi.mocked(deps.backend.mutation).mockImplementation(async (endpoint: string) => {
-      callOrder.push(`mutation(${endpoint})`);
-      return undefined;
-    });
 
     await onAgentShutdown(ctx, createOptions());
 
-    // Backend mutation with pid: undefined must be called
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'machines.updateSpawnedAgent',
-      expect.objectContaining({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-        pid: undefined,
-      })
-    );
-
-    // Backend mutation must come AFTER kill check confirmed process gone
-    const killCheckIndex = callOrder.findIndex((c) => c.startsWith(`kill(${PID}, 0)`));
-    const mutationIndex = callOrder.indexOf('mutation(machines.updateSpawnedAgent)');
-    expect(killCheckIndex).toBeGreaterThanOrEqual(0);
-    expect(mutationIndex).toBeGreaterThan(killCheckIndex);
+    // Backend mutations must NOT be called — backend cleanup is done by recordAgentExited
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 
-  // ─── Test 5: does NOT clear backend PID if process never confirmed dead ───
-
-  it('does NOT clear backend PID if process never confirmed dead', async () => {
-    // Setup: kill(signal=0) never throws — process appears alive throughout
-    vi.mocked(deps.processes.kill).mockImplementation(
-      (_pid: number, _signal?: NodeJS.Signals | number) => {
-        // Never throw — process always alive
-      }
-    );
-
-    // Use fake timers + advance time on each delay() call to skip polling loop
-    vi.useFakeTimers();
-    vi.mocked(deps.clock.delay).mockImplementation(async (ms: number) => {
-      vi.advanceTimersByTime(ms);
-    });
-    ctx = createCtx(deps);
-
-    try {
-      await onAgentShutdown(ctx, createOptions());
-    } finally {
-      vi.useRealTimers();
-    }
-
-    // Backend mutation with pid: undefined must NOT be called
-    const updateSpawnedAgentCalls = vi
-      .mocked(deps.backend.mutation)
-      .mock.calls.filter(([endpoint]) => endpoint === 'machines.updateSpawnedAgent');
-    const pidClearCalls = updateSpawnedAgentCalls.filter(
-      ([, args]) => (args as { pid?: number }).pid === undefined
-    );
-    expect(pidClearCalls).toHaveLength(0);
-  });
-
-  // ─── Test 6: handles exception from stops.mark gracefully ────────────────
+  // ─── Test 5: handles exception from stops.mark gracefully ────────────────
 
   it('handles exception from stops.mark gracefully', async () => {
     // Setup: stops.mark throws
@@ -371,7 +317,7 @@ describe('onAgentShutdown', () => {
     expect(deps.processes.kill).toHaveBeenCalledWith(-PID, 'SIGTERM');
   });
 
-  // ─── Test 7: handles exception from processes.kill SIGTERM gracefully ────
+  // ─── Test 6: handles exception from processes.kill SIGTERM gracefully ────
 
   it('handles exception from processes.kill SIGTERM gracefully', async () => {
     // Setup: SIGTERM kill throws non-ESRCH error (EPERM)
@@ -392,7 +338,7 @@ describe('onAgentShutdown', () => {
     expect(signal0Calls.length).toBeGreaterThan(0);
   });
 
-  // ─── Test 8: handles exception from kill signal-0 check (treats as dead) ─
+  // ─── Test 7: handles exception from kill signal-0 check (treats as dead) ─
 
   it('handles exception from processes.kill signal-0 check gracefully (treats as dead)', async () => {
     // Setup: kill(pid, 0) throws any error — treated as process gone
@@ -409,63 +355,7 @@ describe('onAgentShutdown', () => {
     expect(deps.machine.clearAgentPid).toHaveBeenCalled();
   });
 
-  // ─── Test 9: handles exception from backend mutation (updateSpawnedAgent) ─
-
-  it('handles exception from backend mutation (updateSpawnedAgent) gracefully', async () => {
-    // Setup: kill(pid, 0) throws ESRCH — process confirmed dead
-    vi.mocked(deps.processes.kill).mockImplementation(
-      (pid: number, signal?: NodeJS.Signals | number) => {
-        if (signal === 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
-      }
-    );
-
-    // Setup: updateSpawnedAgent mutation throws
-    vi.mocked(deps.backend.mutation).mockImplementation(async (endpoint: string) => {
-      if (endpoint === 'machines.updateSpawnedAgent') {
-        throw new Error('backend mutation failed');
-      }
-      return undefined;
-    });
-
-    // Must not throw
-    await expect(onAgentShutdown(ctx, createOptions())).resolves.toBeDefined();
-
-    // Still attempts participants.leave mutation
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'participants.leave',
-      expect.objectContaining({
-        chatroomId: CHATROOM_ID,
-        role: ROLE,
-      })
-    );
-  });
-
-  // ─── Test 10: handles exception from participants.leave gracefully ────────
-
-  it('handles exception from backend mutation (participants.leave) gracefully', async () => {
-    // Setup: kill(pid, 0) throws ESRCH — process confirmed dead
-    vi.mocked(deps.processes.kill).mockImplementation(
-      (pid: number, signal?: NodeJS.Signals | number) => {
-        if (signal === 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
-      }
-    );
-
-    // Setup: participants.leave throws
-    vi.mocked(deps.backend.mutation).mockImplementation(async (endpoint: string) => {
-      if (endpoint === 'participants.leave') {
-        throw new Error('leave mutation failed');
-      }
-      return undefined;
-    });
-
-    // Must not throw
-    const result = await onAgentShutdown(ctx, createOptions());
-
-    // cleaned is false because leave failed
-    expect(result.cleaned).toBe(false);
-  });
-
-  // ─── Test 11: handles exception from machine.clearAgentPid gracefully ────
+  // ─── Test 8: handles exception from machine.clearAgentPid gracefully ────
 
   it('handles exception from machine.clearAgentPid gracefully', async () => {
     // Setup: kill(pid, 0) throws ESRCH — process confirmed dead
@@ -483,14 +373,11 @@ describe('onAgentShutdown', () => {
     // Must not throw
     await expect(onAgentShutdown(ctx, createOptions())).resolves.toBeDefined();
 
-    // Still attempts backend mutations after clearAgentPid failure
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'machines.updateSpawnedAgent',
-      expect.objectContaining({ pid: undefined })
-    );
+    // No backend mutations should be called (backend cleanup is via event listener)
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 
-  // ─── Test 12: happy path — returns killed=true when process dies ──────────
+  // ─── Test 9: happy path — returns killed=true when process dies ──────────
 
   it('returns killed=true when process dies after SIGTERM', async () => {
     // Setup: kill(signal=0) throws after SIGTERM
@@ -507,7 +394,7 @@ describe('onAgentShutdown', () => {
     expect(result.cleaned).toBe(true);
   });
 
-  // ─── Test 13: returns killed=false when process survives all attempts ─────
+  // ─── Test 10: returns killed=false when process survives all attempts ─────
 
   it('returns killed=false when process survives all kill attempts', async () => {
     // Setup: kill(signal=0) never throws — stubborn process

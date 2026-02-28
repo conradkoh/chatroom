@@ -198,7 +198,7 @@ describe('handleStopAgent', () => {
     expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, 'builder');
   });
 
-  it('clears PID from backend and local state via onAgentShutdown', async () => {
+  it('clears local state via onAgentShutdown', async () => {
     vi.mocked(deps.backend.query).mockResolvedValue({
       configs: [
         {
@@ -219,21 +219,13 @@ describe('handleStopAgent', () => {
 
     await handleStopAgent(ctx, createStopCommand());
 
-    // onAgentShutdown clears PID via backend mutation
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'machines.updateSpawnedAgent',
-      expect.objectContaining({
-        chatroomId: CHATROOM_ID,
-        role: 'builder',
-        pid: undefined,
-      })
-    );
-
-    // onAgentShutdown clears local PID state
+    // onAgentShutdown clears local PID state (backend cleanup via event listener)
     expect(deps.machine.clearAgentPid).toHaveBeenCalledWith('test-machine', CHATROOM_ID, 'builder');
+    // No direct backend mutations from onAgentShutdown (backend cleanup via recordAgentExited)
+    expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 
-  it('removes participant record via onAgentShutdown', async () => {
+  it('does not call participants.leave directly (backend cleanup via event listener)', async () => {
     vi.mocked(deps.backend.query).mockResolvedValue({
       configs: [
         {
@@ -254,13 +246,11 @@ describe('handleStopAgent', () => {
 
     await handleStopAgent(ctx, createStopCommand());
 
-    expect(deps.backend.mutation).toHaveBeenCalledWith(
-      'participants.leave',
-      expect.objectContaining({
-        chatroomId: CHATROOM_ID,
-        role: 'builder',
-      })
+    // participants.leave is NOT called directly — it's called by recordAgentExited
+    const leaveCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([endpoint]) => endpoint === 'participants.leave'
     );
+    expect(leaveCalls).toHaveLength(0);
   });
 
   it('returns failed when no PID is recorded', async () => {

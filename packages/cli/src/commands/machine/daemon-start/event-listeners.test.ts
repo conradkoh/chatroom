@@ -55,7 +55,7 @@ function createTestContext(): DaemonContext {
 }
 
 describe('registerEventListeners', () => {
-  test('agent:exited clears PID from backend and local state', async () => {
+  test('agent:exited calls recordAgentExited and clears local state', async () => {
     const ctx = createTestContext();
     registerEventListeners(ctx);
 
@@ -75,7 +75,8 @@ describe('registerEventListeners', () => {
         expect.objectContaining({
           chatroomId: CHATROOM_ID,
           role: 'builder',
-          pid: undefined,
+          pid: 1234,
+          intentional: false,
         })
       );
     });
@@ -87,7 +88,7 @@ describe('registerEventListeners', () => {
     );
   });
 
-  test('agent:exited removes participant record', async () => {
+  test('agent:exited passes intentional=true for intentional stops', async () => {
     const ctx = createTestContext();
     registerEventListeners(ctx);
 
@@ -102,11 +103,13 @@ describe('registerEventListeners', () => {
 
     await vi.waitFor(() => {
       const calls = (ctx.deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
-      const leaveCall = calls.find(
+      const recordCall = calls.find(
         (c) =>
-          c[1]?.role === 'builder' && c[1]?.chatroomId === CHATROOM_ID && c[1]?.pid === undefined
+          c[1]?.role === 'builder' &&
+          c[1]?.chatroomId === CHATROOM_ID &&
+          c[1]?.intentional === true
       );
-      expect(leaveCall).toBeDefined();
+      expect(recordCall).toBeDefined();
     });
   });
 
@@ -150,7 +153,7 @@ describe('registerEventListeners', () => {
 
     await vi.waitFor(() => {
       expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to clear PID in backend')
+        expect.stringContaining('Failed to record agent exit event')
       );
     });
 

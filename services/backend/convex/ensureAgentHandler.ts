@@ -7,6 +7,15 @@
  * agent has picked it up), it dispatches a `start-agent` command to the
  * machine(s) configured for the ASSIGNED role of the task — not all agents.
  *
+ * TRIGGER PATHS
+ * ─────────────
+ * 1. Scheduled timer: transition-task.ts schedules this 120s after task
+ *    creation/transition (belt-and-suspenders fallback for stale tasks).
+ * 2. Immediate: machines.recordAgentExited schedules this with
+ *    snapshotUpdatedAt=0 when an agent crashes unintentionally.
+ *    The 0 value bypasses the staleness guard unconditionally, ensuring
+ *    crash recovery fires regardless of when the task was last updated.
+ *
  * ROLE TARGETING
  * ──────────────
  * Only the agent responsible for the task is restarted:
@@ -27,7 +36,7 @@
  * ─────────────
  * • Idempotency — the `snapshotUpdatedAt` guard prevents double-firing: if
  *   any mutation has touched the task between scheduling and execution, the
- *   handler exits silently.
+ *   handler exits silently. snapshotUpdatedAt=0 bypasses this guard.
  * • No session auth — this is an internal system mutation; it is never
  *   exposed as a public API surface.
  * • Callers are responsible for scheduling via `ctx.scheduler.runAfter` after

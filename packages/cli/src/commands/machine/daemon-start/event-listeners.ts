@@ -20,9 +20,9 @@ export function registerEventListeners(ctx: DaemonContext): () => void {
 
   // ── agent:exited ────────────────────────────────────────────────────────
   // When an agent process exits (crash or intentional), clean up all state:
-  // 1. Clear PID from backend (updateSpawnedAgent)
+  // 1. Report to backend via recordAgentExited (clears PID, removes participant, triggers crash recovery)
   // 2. Clear PID from local machine state
-  // 3. Remove participant record (so UI shows offline)
+  // 3. Untrack PID in all remote agent services
   unsubs.push(
     ctx.events.on('agent:exited', (payload) => {
       const { chatroomId, role, pid, code, signal, intentional } = payload;
@@ -39,19 +39,6 @@ export function registerEventListeners(ctx: DaemonContext): () => void {
             `(PID: ${pid}, role: ${role}, code: ${code}, signal: ${signal})`
         );
       }
-
-      // Clear PID from backend
-      ctx.deps.backend
-        .mutation(api.machines.updateSpawnedAgent, {
-          sessionId: ctx.sessionId,
-          machineId: ctx.machineId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          role,
-          pid: undefined,
-        })
-        .catch((err: Error) => {
-          console.log(`   ⚠️  Failed to clear PID in backend: ${err.message}`);
-        });
 
       // Record agent exit event and clear state atomically via recordAgentExited
       ctx.deps.backend
@@ -76,17 +63,6 @@ export function registerEventListeners(ctx: DaemonContext): () => void {
       for (const service of ctx.agentServices.values()) {
         service.untrack(pid);
       }
-
-      // Remove participant record so the UI reflects the exit
-      ctx.deps.backend
-        .mutation(api.participants.leave, {
-          sessionId: ctx.sessionId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          role,
-        })
-        .catch((err: Error) => {
-          console.log(`   ⚠️  Could not remove participant: ${err.message}`);
-        });
     })
   );
 

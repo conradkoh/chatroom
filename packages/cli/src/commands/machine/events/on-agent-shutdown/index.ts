@@ -1,4 +1,3 @@
-import { api, type Id } from '../../../../api.js';
 import type { DaemonContext } from '../../daemon-start/types.js';
 
 export interface OnAgentShutdownOptions {
@@ -15,11 +14,18 @@ export interface OnAgentShutdownResult {
 }
 
 /**
- * Handle a single agent's shutdown: kill process, clear all state.
- * All cleanup steps are best-effort — errors are logged, never thrown.
+ * Handle a single agent's shutdown: kill process and clear local state.
+ * Backend cleanup (PID clearing, participant removal, crash recovery scheduling)
+ * is handled by the `agent:exited` event listener via `recordAgentExited`.
+ * All steps are best-effort — errors are logged, never thrown.
+ *
+ * Responsibilities:
+ * 1. Mark intentional stop (before killing) to prevent crash-detection race conditions
+ * 2. Kill the process with verified shutdown (SIGTERM → wait → SIGKILL)
+ * 3. Clear local PID state
  *
  * Key invariants:
- * - PID (local + backend) is cleared ONLY after the process is confirmed dead
+ * - PID (local) is cleared ONLY after the process is confirmed dead
  * - All external calls are wrapped in try/catch so no exception propagates
  * - stops.mark is called BEFORE kill to prevent crash-detection race conditions
  */
@@ -97,7 +103,7 @@ export async function onAgentShutdown(
   }
 
   // Step 3: Clear local PID state — ONLY if process is confirmed dead
-  // Wrapped in try/catch: if local state clear fails, continue to backend cleanup.
+  // Wrapped in try/catch: if local state clear fails, continue gracefully.
   if (killed || skipKill) {
     try {
       ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
@@ -106,38 +112,11 @@ export async function onAgentShutdown(
     }
   }
 
-  // Step 4: Clear backend spawnedAgent — ONLY if process is confirmed dead
-  let spawnedAgentCleared = false;
-  if (killed || skipKill) {
-    try {
-      await ctx.deps.backend.mutation(api.machines.updateSpawnedAgent, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        pid: undefined,
-      });
-      spawnedAgentCleared = true;
-    } catch (e) {
-      console.log(`   ⚠️  Failed to clear spawnedAgent for ${role}: ${(e as Error).message}`);
-    }
-  }
-
-  // Step 5: Remove participant record
-  let participantRemoved = false;
-  try {
-    await ctx.deps.backend.mutation(api.participants.leave, {
-      sessionId: ctx.sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-    });
-    participantRemoved = true;
-  } catch (e) {
-    console.log(`   ⚠️  Failed to remove participant for ${role}: ${(e as Error).message}`);
-  }
+  // Backend cleanup (PID clearing, participant removal, crash recovery) is handled
+  // by the agent:exited event listener via recordAgentExited — not here.
 
   return {
     killed: killed || (skipKill ?? false),
-    cleaned: spawnedAgentCleared && participantRemoved,
+    cleaned: killed || (skipKill ?? false),
   };
 }

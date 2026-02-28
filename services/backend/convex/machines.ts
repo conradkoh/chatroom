@@ -706,6 +706,10 @@ export const sendCommand = mutation({
 /**
  * Update spawned agent PID (from daemon after spawning).
  * Used to track running agents for stop functionality.
+ *
+ * Note: This mutation records the PID when an agent starts.
+ * When an agent exits, use `recordAgentExited` instead — it handles
+ * PID clearing, participant removal, and crash recovery scheduling.
  */
 export const updateSpawnedAgent = mutation({
   args: {
