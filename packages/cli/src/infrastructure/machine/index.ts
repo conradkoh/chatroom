@@ -21,6 +21,8 @@ export {
   clearAgentPid,
   listAgentEntries,
   persistAgentPid,
+  persistEventCursor,
+  loadEventCursor,
 } from './daemon-state.js';
 
 // Intentional stop tracking (in-memory, volatile)

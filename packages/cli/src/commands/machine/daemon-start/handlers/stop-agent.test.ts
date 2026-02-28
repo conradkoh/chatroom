@@ -61,6 +61,8 @@ vi.mock('../../../../infrastructure/machine/index.js', () => ({
   clearAgentPid: vi.fn(),
   getMachineId: vi.fn(() => 'test-machine'),
   listAgentEntries: vi.fn(() => []),
+      persistEventCursor: vi.fn(),
+      loadEventCursor: vi.fn().mockReturnValue(null),
   loadMachineConfig: vi.fn(() => null),
   persistAgentPid: vi.fn(),
 }));
@@ -111,6 +113,8 @@ function createMockDeps(overrides?: Partial<DaemonDeps>): DaemonDeps {
       clearAgentPid: vi.fn(),
       persistAgentPid: vi.fn(),
       listAgentEntries: vi.fn(() => []),
+      persistEventCursor: vi.fn(),
+      loadEventCursor: vi.fn().mockReturnValue(null),
     },
     clock: {
       now: () => Date.now(),

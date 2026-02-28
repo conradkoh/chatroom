@@ -41,6 +41,8 @@ function createMockContext(
       clearAgentPid: vi.fn(),
       persistAgentPid: vi.fn(),
       listAgentEntries: vi.fn().mockReturnValue(entries),
+      persistEventCursor: vi.fn(),
+      loadEventCursor: vi.fn().mockReturnValue(null),
     },
     clock: {
       now: vi.fn().mockReturnValue(Date.now()),

@@ -291,24 +291,32 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Uses executeStartAgent/executeStopAgent directly — no synthetic _id needed.
   // The existing getPendingCommands subscription is kept as a transitional fallback.
 
-  // Initialize the stream cursor to the latest event before subscribing.
-  // This ensures we only process events that arrive while the daemon is running,
-  // not replayed historical events from before daemon start.
+  // Initialize the stream cursor.
+  // Priority 1: persisted cursor from previous daemon run (survives restarts).
+  // Priority 2: query latest event ID (skip history, only process new events).
   let lastSeenEventId: Id<'chatroom_eventStream'> | undefined = undefined;
 
-  try {
-    const initialEvents = await ctx.deps.backend.query(api.machines.getCommandEvents, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      afterId: undefined,
-    });
-    if (initialEvents.events.length > 0) {
-      lastSeenEventId = initialEvents.events[initialEvents.events.length - 1]._id;
+  const persistedCursor = ctx.deps.machine.loadEventCursor(ctx.machineId);
+  if (persistedCursor !== null) {
+    // Resume from where the previous daemon run left off
+    lastSeenEventId = persistedCursor as Id<'chatroom_eventStream'>;
+    console.log(`[${formatTimestamp()}] 📌 Resumed event stream cursor from persisted state`);
+  } else {
+    // No persisted cursor — initialize to latest event to avoid replaying history
+    try {
+      const initialEvents = await ctx.deps.backend.query(api.machines.getCommandEvents, {
+        sessionId: ctx.sessionId,
+        machineId: ctx.machineId,
+        afterId: undefined,
+      });
+      if (initialEvents.events.length > 0) {
+        lastSeenEventId = initialEvents.events[initialEvents.events.length - 1]._id;
+      }
+    } catch (err) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Failed to initialize stream cursor: ${(err as Error).message}`
+      );
     }
-  } catch (err) {
-    console.warn(
-      `[${formatTimestamp()}] ⚠️  Failed to initialize stream cursor: ${(err as Error).message}`
-    );
   }
 
   // Track processed event IDs to prevent duplicate processing within the same session
@@ -347,6 +355,11 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
             `[${formatTimestamp()}] ❌ Stream command event failed: ${(err as Error).message}`
           );
         }
+      }
+
+      // Persist the cursor after processing each batch (best-effort)
+      if (lastSeenEventId !== undefined) {
+        ctx.deps.machine.persistEventCursor(ctx.machineId, lastSeenEventId.toString());
       }
     }
   );

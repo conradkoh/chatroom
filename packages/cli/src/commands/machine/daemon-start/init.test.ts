@@ -55,6 +55,8 @@ vi.mock('../../../infrastructure/machine/index.js', () => ({
   clearAgentPid: vi.fn(),
   persistAgentPid: vi.fn(),
   listAgentEntries: vi.fn().mockReturnValue([]),
+      persistEventCursor: vi.fn(),
+      loadEventCursor: vi.fn().mockReturnValue(null),
 }));
 
 vi.mock('../../../infrastructure/machine/intentional-stops.js', () => ({

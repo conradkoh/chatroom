@@ -64,6 +64,11 @@ export interface DaemonStateFile {
   updatedAt: string;
   /** Spawned agents keyed by "<chatroomId>/<role>" */
   agents: Record<string, DaemonAgentEntry>;
+  /**
+   * Last processed event stream event ID (string form of Convex `_id`).
+   * Persisted so the daemon resumes from the correct cursor after restart.
+   */
+  lastSeenEventId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -212,4 +217,33 @@ export function listAgentEntries(
   }
 
   return results;
+}
+
+/**
+ * Persist the event stream cursor (last processed event ID) to daemon state.
+ *
+ * Best-effort: if the write fails, logs a warning but does not throw.
+ * Call this after each processed batch of stream events to survive daemon restarts.
+ */
+export function persistEventCursor(machineId: string, lastSeenEventId: string): void {
+  try {
+    const state = loadOrCreate(machineId);
+    state.lastSeenEventId = lastSeenEventId;
+    state.updatedAt = new Date().toISOString();
+    saveDaemonState(state);
+  } catch (err) {
+    // Best-effort: log and continue — never block command processing
+    console.warn(`⚠️  Failed to persist event cursor: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * Load the event stream cursor from persisted daemon state.
+ *
+ * Returns the last seen event ID string if present, or null if none is stored.
+ * Called at daemon startup to resume the stream from the correct position.
+ */
+export function loadEventCursor(machineId: string): string | null {
+  const state = loadDaemonState(machineId);
+  return state?.lastSeenEventId ?? null;
 }

@@ -77,6 +77,8 @@ function createMockContext(): DaemonContext {
       clearAgentPid: vi.fn(),
       persistAgentPid: vi.fn(),
       listAgentEntries: vi.fn().mockReturnValue([]),
+      persistEventCursor: vi.fn(),
+      loadEventCursor: vi.fn().mockReturnValue(null),
     },
     clock: {
       now: vi.fn().mockReturnValue(Date.now()),
@@ -317,6 +319,8 @@ describe('refreshModels', () => {
         clearAgentPid: vi.fn(),
         persistAgentPid: vi.fn(),
         listAgentEntries: vi.fn().mockReturnValue([]),
+      persistEventCursor: vi.fn(),
+      loadEventCursor: vi.fn().mockReturnValue(null),
       },
       clock: { now: vi.fn().mockReturnValue(Date.now()), delay: vi.fn().mockResolvedValue(undefined) },
     };

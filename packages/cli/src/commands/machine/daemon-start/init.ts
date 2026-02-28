@@ -14,6 +14,8 @@ import {
   listAgentEntries,
   loadMachineConfig,
   persistAgentPid,
+  persistEventCursor,
+  loadEventCursor,
 } from '../../../infrastructure/machine/index.js';
 import {
   markIntentionalStop,
@@ -86,6 +88,8 @@ export function createDefaultDeps(): DaemonDeps {
       clearAgentPid,
       persistAgentPid,
       listAgentEntries,
+      persistEventCursor,
+      loadEventCursor,
     },
     clock: {
       now: () => Date.now(),

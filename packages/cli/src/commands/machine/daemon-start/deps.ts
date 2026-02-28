@@ -52,6 +52,10 @@ export interface MachineStateOps {
   listAgentEntries: (
     machineId: string
   ) => { chatroomId: string; role: string; entry: { pid: number; harness: AgentHarness } }[];
+  /** Persist the event stream cursor (last processed event ID) */
+  persistEventCursor: (machineId: string, lastSeenEventId: string) => void;
+  /** Load the event stream cursor from persisted state. Returns null if absent. */
+  loadEventCursor: (machineId: string) => string | null;
 }
 
 // ─── Per-Handler Dep Interfaces ─────────────────────────────────────────────
