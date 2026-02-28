@@ -349,7 +349,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   );
 
   // Compute aggregate status for sidebar indicator using presence (lastSeenAt)
-  // Blue (working) if any agent has a recent non-idle action, Green (ready) if all are online
+  // Blue (working) if any agent has a recent non-waiting action, Green (ready) if all are online
   const PRESENCE_THRESHOLD_MS = 600_000; // 10 minutes — matches AgentPanel.tsx
   const aggregateStatus = useMemo(() => {
     if (participants.length === 0) return 'none';

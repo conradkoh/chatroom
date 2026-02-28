@@ -58,7 +58,7 @@ function isOnline(lastSeenAt: number | null | undefined): boolean {
 }
 
 /**
- * Returns true if the agent is considered "working" — online and not idle in get-next-task.
+ * Returns true if the agent is considered "working" — online and not waiting in get-next-task.
  * Working agents are shown individually (not grouped) in the sidebar.
  */
 function isWorking(online: boolean, lastSeenAction: string | null | undefined): boolean {
@@ -548,8 +548,8 @@ export const AgentPanel = memo(function AgentPanel({
 
   // Categorize agents by presence for grouped display
   const categorizedAgents = useMemo(() => {
-    const working: string[] = []; // online and not idle in get-next-task (shown individually at top)
-    const online: string[] = []; // online but idle (waiting for next task)
+    const working: string[] = []; // online and not waiting in get-next-task (shown individually at top)
+    const online: string[] = []; // online and waiting (in get-next-task loop)
     const offline: string[] = []; // not seen within threshold
 
     for (const role of rolesToShow) {

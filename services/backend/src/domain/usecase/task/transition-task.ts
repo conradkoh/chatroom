@@ -60,7 +60,7 @@ const ENSURE_AGENT_TRIGGER_STATUSES: ReadonlySet<TaskStatus> = new Set([
 /**
  * Transitions a task to a new status via the FSM and, for terminal
  * transitions, automatically promotes the next queued task if all
- * agents are idle.
+ * agents are waiting.
  *
  * Exposes the same signature as the underlying FSM function so all
  * callers can use this as a drop-in replacement.

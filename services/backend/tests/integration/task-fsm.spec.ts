@@ -43,7 +43,7 @@ async function createPairTeamChatroom(sessionId: SessionId): Promise<Id<'chatroo
 }
 
 /**
- * Helper to join participants to the chatroom with idle (get-next-task) status
+ * Helper to join participants to the chatroom with waiting (get-next-task) status
  */
 async function joinParticipants(
   sessionId: SessionId,
