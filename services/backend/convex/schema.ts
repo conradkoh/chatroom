@@ -815,4 +815,87 @@ export default defineSchema({
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_role', ['chatroomId', 'role']),
+
+  // ============================================================================
+  // EVENT STREAM TABLE
+  // Append-only log of all significant events in the chatroom system.
+  // Used for crash recovery, audit, and daemon-driven reactions.
+  // ============================================================================
+
+  /**
+   * Immutable event log for the chatroom system.
+   * Each row represents one discrete event. Consumers read forward from a
+   * checkpoint and react to events without fetching additional data.
+   */
+  chatroom_eventStream: defineTable(
+    v.union(
+      // Agent spawned successfully
+      v.object({
+        type: v.literal('agent.started'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+        model: v.string(),
+        workingDir: v.string(),
+        pid: v.number(),
+        timestamp: v.number(),
+      }),
+      // Agent process exited (crash or intentional)
+      v.object({
+        type: v.literal('agent.exited'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        pid: v.number(),
+        intentional: v.boolean(),
+        exitCode: v.optional(v.number()),
+        signal: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Task entered an active state needing an agent
+      v.object({
+        type: v.literal('task.activated'),
+        chatroomId: v.id('chatroom_rooms'),
+        taskId: v.id('chatroom_tasks'),
+        role: v.string(),
+        taskStatus: v.string(),
+        taskContent: v.string(),
+        timestamp: v.number(),
+      }),
+      // Task reached a terminal state
+      v.object({
+        type: v.literal('task.completed'),
+        chatroomId: v.id('chatroom_rooms'),
+        taskId: v.id('chatroom_tasks'),
+        role: v.string(),
+        finalStatus: v.string(),
+        timestamp: v.number(),
+      }),
+      // A start-agent command was dispatched
+      v.object({
+        type: v.literal('command.startAgent'),
+        chatroomId: v.id('chatroom_rooms'),
+        machineId: v.string(),
+        role: v.string(),
+        agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+        model: v.string(),
+        workingDir: v.string(),
+        reason: v.string(),
+        timestamp: v.number(),
+      }),
+      // A stop-agent command was dispatched
+      v.object({
+        type: v.literal('command.stopAgent'),
+        chatroomId: v.id('chatroom_rooms'),
+        machineId: v.string(),
+        role: v.string(),
+        reason: v.string(),
+        timestamp: v.number(),
+      }),
+    )
+  )
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_type', ['chatroomId', 'type'])
+    .index('by_timestamp', ['timestamp']),
 });
