@@ -389,10 +389,60 @@ export const getAgentConfigs = query({
 });
 
 /**
+ * Get command events from the event stream for a machine (daemon subscribes to this).
+ *
+ * Returns all `command.startAgent` and `command.stopAgent` events for the given
+ * machine, filtered by an optional `afterId` cursor for incremental delivery.
+ */
+export const getCommandEvents = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    afterId: v.optional(v.id('chatroom_eventStream')),
+  },
+  handler: async (ctx, args) => {
+    // 1. Auth check
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return { events: [] };
+
+    // 2. Machine ownership check
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!machine || machine.userId !== auth.user._id) return { events: [] };
+
+    // 3. Fetch command.startAgent events using the machineId+type index
+    const startEvents = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_machineId_type', (q) =>
+        q.eq('machineId', args.machineId).eq('type', 'command.startAgent')
+      )
+      .order('asc')
+      .collect();
+
+    // 4. Fetch command.stopAgent events
+    const stopEvents = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_machineId_type', (q) =>
+        q.eq('machineId', args.machineId).eq('type', 'command.stopAgent')
+      )
+      .order('asc')
+      .collect();
+
+    // 5. Merge, apply cursor, sort by _creationTime ascending
+    const all = [...startEvents, ...stopEvents]
+      .filter((e) => !args.afterId || e._id > args.afterId)
+      .sort((a, b) => (a._creationTime < b._creationTime ? -1 : 1));
+
+    return { events: all };
+  },
+});
+
+/**
  * Get pending commands for a machine (daemon subscribes to this).
  */
-export const getPendingCommands = query({
-  args: {
+export const getPendingCommands = query({  args: {
     ...SessionIdArg,
     machineId: v.string(),
   },
