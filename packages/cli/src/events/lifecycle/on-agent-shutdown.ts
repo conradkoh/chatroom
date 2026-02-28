@@ -1,4 +1,4 @@
-import type { DaemonContext } from '../../daemon-start/types.js';
+import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
 
 export interface OnAgentShutdownOptions {
   chatroomId: string;

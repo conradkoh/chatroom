@@ -11,7 +11,7 @@
  */
 
 import { api } from '../../../../api.js';
-import { onAgentShutdown } from '../../events/on-agent-shutdown/index.js';
+import { onAgentShutdown } from '../../../../events/lifecycle/on-agent-shutdown.js';
 import type { CommandResult, DaemonContext, StopAgentCommand } from '../types.js';
 import { clearAgentPidEverywhere } from './shared.js';
 

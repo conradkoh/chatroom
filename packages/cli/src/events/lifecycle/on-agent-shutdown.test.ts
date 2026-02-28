@@ -15,11 +15,11 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Id } from '../../../../api.js';
-import type { DaemonDeps } from '../../daemon-start/deps.js';
-import { DaemonEventBus } from '../../daemon-start/event-bus.js';
-import type { DaemonContext } from '../../daemon-start/types.js';
-import { OpenCodeAgentService } from '../../../../infrastructure/services/remote-agents/opencode/index.js';
+import type { Id } from '../../api.js';
+import type { DaemonDeps } from '../../commands/machine/daemon-start/deps.js';
+import { DaemonEventBus } from '../../commands/machine/daemon-start/event-bus.js';
+import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
+import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
 
 // ---------------------------------------------------------------------------
 // Mock module-level imports (same pattern as stop-agent.test.ts)
@@ -34,7 +34,7 @@ vi.mock('../../pid.js', () => ({
   releaseLock: vi.fn(),
 }));
 
-vi.mock('../../../../api.js', () => ({
+vi.mock('../../api.js', () => ({
   api: {
     machines: {
       updateSpawnedAgent: 'machines.updateSpawnedAgent',
@@ -54,18 +54,18 @@ vi.mock('../../../../api.js', () => ({
   },
 }));
 
-vi.mock('../../../../infrastructure/auth/storage.js', () => ({
+vi.mock('../../infrastructure/auth/storage.js', () => ({
   getSessionId: vi.fn(() => 'test-session'),
   getOtherSessionUrls: vi.fn(() => []),
 }));
 
-vi.mock('../../../../infrastructure/convex/client.js', () => ({
+vi.mock('../../infrastructure/convex/client.js', () => ({
   getConvexUrl: vi.fn(() => 'http://test:3210'),
   getConvexClient: vi.fn(),
   getConvexWsClient: vi.fn(),
 }));
 
-vi.mock('../../../../infrastructure/machine/index.js', () => ({
+vi.mock('../../infrastructure/machine/index.js', () => ({
   clearAgentPid: vi.fn(),
   getMachineId: vi.fn(() => 'test-machine'),
   listAgentEntries: vi.fn(() => []),
@@ -73,7 +73,7 @@ vi.mock('../../../../infrastructure/machine/index.js', () => ({
   persistAgentPid: vi.fn(),
 }));
 
-vi.mock('../../../../infrastructure/machine/intentional-stops.js', () => ({
+vi.mock('../../infrastructure/machine/intentional-stops.js', () => ({
   markIntentionalStop: vi.fn(),
   consumeIntentionalStop: vi.fn(() => false),
   clearIntentionalStop: vi.fn(),
@@ -92,7 +92,7 @@ vi.mock('../../../../version.js', () => ({
 // Import function under test (after mocks are set up)
 // ---------------------------------------------------------------------------
 
-const { onAgentShutdown } = await import('./index.js');
+const { onAgentShutdown } = await import('./on-agent-shutdown.js');
 
 // ---------------------------------------------------------------------------
 // Helpers

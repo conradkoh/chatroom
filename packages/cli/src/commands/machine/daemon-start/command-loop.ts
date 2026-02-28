@@ -6,7 +6,7 @@ import { DAEMON_HEARTBEAT_INTERVAL_MS } from '@workspace/backend/config/reliabil
 
 import { api } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
-import { onDaemonShutdown } from '../events/on-daemon-shutdown/index.js';
+import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
 import { handleStartAgent } from './handlers/start-agent.js';

@@ -4,7 +4,7 @@
 
 import { api } from '../../../../api.js';
 import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
-import { onAgentShutdown } from '../../events/on-agent-shutdown/index.js';
+import { onAgentShutdown } from '../../../../events/lifecycle/on-agent-shutdown.js';
 import type { CommandResult, DaemonContext, StartAgentCommand } from '../types.js';
 
 /**

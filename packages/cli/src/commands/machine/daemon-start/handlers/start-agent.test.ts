@@ -25,7 +25,7 @@ vi.mock('../../../../infrastructure/convex/client.js', () => ({
 
 // Module-level mock for onAgentShutdown so individual tests can spy on it.
 const onAgentShutdownMock = vi.fn().mockResolvedValue(undefined);
-vi.mock('../../events/on-agent-shutdown/index.js', () => ({
+vi.mock('../../../../events/lifecycle/on-agent-shutdown.js', () => ({
   onAgentShutdown: (...args: unknown[]) => onAgentShutdownMock(...args),
 }));
 
