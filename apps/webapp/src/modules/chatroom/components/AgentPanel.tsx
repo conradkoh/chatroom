@@ -222,6 +222,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
     agentConfigs,
     sendCommand,
     teamConfigModel: teamConfig?.model,
+    teamConfigHarness: teamConfig?.agentHarness,
     agentPreference,
     onSavePreference,
   });

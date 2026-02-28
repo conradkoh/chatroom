@@ -110,14 +110,16 @@ function deriveInitialHarness(
   machineId: string | null,
   connectedMachines: MachineInfo[],
   roleConfigs: AgentConfig[],
-  preference: AgentPreference | undefined
+  preference: AgentPreference | undefined,
+  teamConfigHarness?: AgentHarness
 ): AgentHarness | null {
   if (!machineId) return null;
   const machine = connectedMachines.find((m) => m.machineId === machineId);
   const available = machine?.availableHarnesses ?? [];
-  // Priority: existing config harness > saved preference > only option
+  // Priority: existing config harness > team config harness > saved preference > only option
   const config = roleConfigs.find((c) => c.machineId === machineId);
   if (config && available.includes(config.agentType)) return config.agentType;
+  if (teamConfigHarness && available.includes(teamConfigHarness)) return teamConfigHarness;
   if (
     preference &&
     preference.machineId === machineId &&
@@ -155,6 +157,7 @@ export function useAgentControls({
   agentConfigs,
   sendCommand,
   teamConfigModel,
+  teamConfigHarness,
   agentPreference,
   onSavePreference,
 }: {
@@ -165,6 +168,9 @@ export function useAgentControls({
   sendCommand: AgentConfigTabsProps['sendCommand'];
   /** Model from team config — used as fallback when machine config has no model */
   teamConfigModel?: string;
+  /** Harness from team config — used as a seeding hint for initialization when
+   *  no roleConfig or matching preference is found */
+  teamConfigHarness?: AgentHarness;
   /** User's saved preference for this role — used as default pre-population */
   agentPreference?: AgentPreference;
   /** Called when user starts an agent — saves preference for future sessions */
@@ -172,6 +178,8 @@ export function useAgentControls({
 }) {
   // Snapshot the preference at mount — never react to preference updates
   const initialPreferenceRef = useRef(agentPreference);
+  // Snapshot teamConfigHarness at mount — used as a seeding hint during initialization only
+  const initialTeamConfigHarnessRef = useRef(teamConfigHarness);
 
   const [selectedMachineId, setSelectedMachineId] = useState<string | null>(null);
   const [selectedHarness, setSelectedHarness] = useState<AgentHarness | null>(null);
@@ -220,7 +228,7 @@ export function useAgentControls({
 
     const pref = initialPreferenceRef.current;
     const machine = deriveInitialMachine(connectedMachines, roleConfigs, runningAgentConfig, pref);
-    const harness = deriveInitialHarness(machine, connectedMachines, roleConfigs, pref);
+    const harness = deriveInitialHarness(machine, connectedMachines, roleConfigs, pref, initialTeamConfigHarnessRef.current);
     const wd = deriveInitialWorkingDir(machine, roleConfigs, pref);
 
     setSelectedMachineId(machine);
