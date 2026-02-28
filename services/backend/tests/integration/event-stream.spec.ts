@@ -379,3 +379,125 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
   });
   expect(agentConfig?.spawnedAgentPid).toBeUndefined();
 });
+
+// ─── Test 7: Crash triggers immediate ensure-agent ────────────────────────────
+
+test('recordAgentExited with intentional=false schedules ensure-agent when active task exists', async () => {
+  // ===== SETUP =====
+  const { sessionId } = await createTestSession('test-es-crash-1');
+  const chatroomId = await createPairTeamChatroom(sessionId);
+  const machineId = 'machine-es-crash-1';
+  await registerMachineWithDaemon(sessionId, machineId);
+
+  // Create a pending task via sendMessage (assigns it to entry point 'builder')
+  await t.mutation(api.messages.sendMessage, {
+    sessionId,
+    chatroomId,
+    content: 'test task for crash recovery',
+    senderRole: 'user',
+    type: 'message',
+  });
+
+  // ===== ACTION =====
+  await t.mutation(api.machines.recordAgentExited, {
+    sessionId,
+    machineId,
+    chatroomId,
+    role: 'builder', // pair team entry point
+    pid: 12345,
+    intentional: false,
+  });
+
+  // ===== VERIFY =====
+  // An ensure-agent scheduled function should exist for this chatroom
+  const scheduled = await t.run(async (ctx) => {
+    return ctx.db.system.query('_scheduled_functions').collect();
+  });
+
+  // Find the crash-recovery scheduled function: snapshotUpdatedAt=0 for this chatroom
+  const ensureCheck = scheduled.find((s) => {
+    const argsArray = (s as { args?: unknown[] }).args;
+    const checkArgs = argsArray?.[0] as { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
+    return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
+  });
+  expect(ensureCheck).toBeDefined();
+});
+
+// ─── Test 8: Intentional stop does NOT schedule ensure-agent ─────────────────
+
+test('recordAgentExited with intentional=true does NOT schedule ensure-agent', async () => {
+  // ===== SETUP =====
+  const { sessionId } = await createTestSession('test-es-crash-2');
+  const chatroomId = await createPairTeamChatroom(sessionId);
+  const machineId = 'machine-es-crash-2';
+  await registerMachineWithDaemon(sessionId, machineId);
+
+  // Create a pending task
+  await t.mutation(api.messages.sendMessage, {
+    sessionId,
+    chatroomId,
+    content: 'test task for intentional stop',
+    senderRole: 'user',
+    type: 'message',
+  });
+
+  // ===== ACTION =====
+  await t.mutation(api.machines.recordAgentExited, {
+    sessionId,
+    machineId,
+    chatroomId,
+    role: 'builder',
+    pid: 12345,
+    intentional: true, // intentional stop
+  });
+
+  // ===== VERIFY =====
+  // No ensure-agent scheduled function should be added by recordAgentExited
+  // We check that none with snapshotUpdatedAt === 0 AND this chatroomId exist
+  const scheduled = await t.run(async (ctx) => {
+    return ctx.db.system.query('_scheduled_functions').collect();
+  });
+
+  const crashRecoveryCheck = scheduled.find((s) => {
+    const argsArray = (s as { args?: unknown[] }).args;
+    const checkArgs = argsArray?.[0] as { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
+    return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
+  });
+  expect(crashRecoveryCheck).toBeUndefined();
+});
+
+// ─── Test 9: No active task means no ensure-agent scheduled ──────────────────
+
+test('recordAgentExited with intentional=false but no active task does NOT schedule ensure-agent', async () => {
+  // ===== SETUP =====
+  const { sessionId } = await createTestSession('test-es-crash-3');
+  const chatroomId = await createPairTeamChatroom(sessionId);
+  const machineId = 'machine-es-crash-3';
+  await registerMachineWithDaemon(sessionId, machineId);
+
+  // No tasks created
+
+  // ===== ACTION =====
+  await t.mutation(api.machines.recordAgentExited, {
+    sessionId,
+    machineId,
+    chatroomId,
+    role: 'builder',
+    pid: 12345,
+    intentional: false, // unintentional crash, but no task
+  });
+
+  // ===== VERIFY =====
+  // No ensure-agent scheduled function with snapshotUpdatedAt=0 (crash recovery) for this chatroom
+  const scheduled = await t.run(async (ctx) => {
+    return ctx.db.system.query('_scheduled_functions').collect();
+  });
+
+  const crashRecoveryCheck = scheduled.find((s) => {
+    const argsArray = (s as { args?: unknown[] }).args;
+    const checkArgs = argsArray?.[0] as { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
+    return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
+  });
+  expect(crashRecoveryCheck).toBeUndefined();
+});
+

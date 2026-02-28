@@ -15,6 +15,8 @@ import { validateSession } from './auth/cliSessionAuth';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
+import { internal } from './_generated/api';
+import { getTeamEntryPoint } from '../src/domain/entities/team';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -812,6 +814,39 @@ export const recordAgentExited = mutation({
       .unique();
     if (participant) {
       await ctx.db.delete('chatroom_participants', participant._id);
+    }
+
+    // 5. If unintentional crash, immediately schedule ensure-agent for any active task
+    if (!args.intentional) {
+      const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+      const entryPoint = getTeamEntryPoint(chatroom ?? {});
+      const normalizedRole = args.role.toLowerCase();
+
+      const activeTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .filter((q) =>
+          q.or(
+            q.eq(q.field('status'), 'pending'),
+            q.eq(q.field('status'), 'acknowledged'),
+            q.eq(q.field('status'), 'in_progress')
+          )
+        )
+        .collect();
+
+      const relevantTask = activeTasks.find((task) => {
+        const assignedRole = task.assignedTo?.toLowerCase();
+        if (assignedRole) return assignedRole === normalizedRole;
+        return normalizedRole === entryPoint?.toLowerCase();
+      });
+
+      if (relevantTask) {
+        await ctx.scheduler.runAfter(0, internal.ensureAgentHandler.check, {
+          taskId: relevantTask._id,
+          chatroomId: args.chatroomId,
+          snapshotUpdatedAt: 0, // bypass staleness guard — crash recovery
+        });
+      }
     }
 
     return { success: true };
