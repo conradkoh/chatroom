@@ -3,27 +3,36 @@
  */
 
 import { api } from '../../../../api.js';
+import type { Id } from '../../../../api.js';
 import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
 import { onAgentShutdown } from '../../../../events/lifecycle/on-agent-shutdown.js';
-import type { CommandResult, DaemonContext, StartAgentCommand } from '../types.js';
+import type { CommandResult, DaemonContext, StartAgentCommand, StartAgentReason } from '../types.js';
 
 /**
- * Handle a start-agent command — spawns an agent process for a chatroom role.
+ * Execute the start-agent logic for a given set of explicit args.
  *
- * The working directory MUST be provided in the command payload by the caller
- * (frontend / backend). The daemon never resolves or caches working directories locally.
+ * This is the canonical implementation — `handleStartAgent` is a thin wrapper
+ * that maps a command envelope to these args. Stream-based callers can invoke
+ * this directly without constructing a full command object.
  */
-export async function handleStartAgent(
+export async function executeStartAgent(
   ctx: DaemonContext,
-  command: StartAgentCommand
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    agentHarness: 'opencode' | 'pi';
+    model?: string;
+    workingDir?: string;
+    reason: StartAgentReason;
+  }
 ): Promise<CommandResult> {
-  const { chatroomId, role, agentHarness, model, workingDir } = command.payload;
+  const { chatroomId, role, agentHarness, model, workingDir, reason } = args;
   console.log(`   ↪ start-agent command received`);
   console.log(`      Chatroom: ${chatroomId}`);
   console.log(`      Role: ${role}`);
   console.log(`      Harness: ${agentHarness}`);
-  if (command.reason) {
-    console.log(`      Reason: ${command.reason}`);
+  if (reason) {
+    console.log(`      Reason: ${reason}`);
   }
   if (model) {
     console.log(`      Model: ${model}`);
@@ -201,4 +210,24 @@ export async function handleStartAgent(
   });
 
   return { result: msg, failed: false };
+}
+
+/**
+ * Handle a start-agent command — thin wrapper around executeStartAgent.
+ *
+ * The working directory MUST be provided in the command payload by the caller
+ * (frontend / backend). The daemon never resolves or caches working directories locally.
+ */
+export async function handleStartAgent(
+  ctx: DaemonContext,
+  command: StartAgentCommand
+): Promise<CommandResult> {
+  return executeStartAgent(ctx, {
+    chatroomId: command.payload.chatroomId,
+    role: command.payload.role,
+    agentHarness: command.payload.agentHarness,
+    model: command.payload.model,
+    workingDir: command.payload.workingDir,
+    reason: command.reason,
+  });
 }

@@ -11,18 +11,27 @@
  */
 
 import { api } from '../../../../api.js';
+import type { Id } from '../../../../api.js';
 import { onAgentShutdown } from '../../../../events/lifecycle/on-agent-shutdown.js';
-import type { CommandResult, DaemonContext, StopAgentCommand } from '../types.js';
+import type { CommandResult, DaemonContext, StopAgentCommand, StopAgentReason } from '../types.js';
 import { clearAgentPidEverywhere } from './shared.js';
 
 /**
- * Handle a stop-agent command — stops a running agent process.
+ * Execute the stop-agent logic for a given set of explicit args.
+ *
+ * This is the canonical implementation — `handleStopAgent` is a thin wrapper
+ * that maps a command envelope to these args. Stream-based callers can invoke
+ * this directly without constructing a full command object.
  */
-export async function handleStopAgent(
+export async function executeStopAgent(
   ctx: DaemonContext,
-  command: StopAgentCommand
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    reason: StopAgentReason;
+  }
 ): Promise<CommandResult> {
-  const { chatroomId, role } = command.payload;
+  const { chatroomId, role } = args;
   console.log(`   ↪ stop-agent command received`);
   console.log(`      Chatroom: ${chatroomId}`);
   console.log(`      Role: ${role}`);
@@ -126,4 +135,18 @@ export async function handleStopAgent(
 
   const killedCount = allPids.length > 1 ? ` (${allPids.length} PIDs)` : ``;
   return { result: `Agent stopped${killedCount}`, failed: false };
+}
+
+/**
+ * Handle a stop-agent command — thin wrapper around executeStopAgent.
+ */
+export async function handleStopAgent(
+  ctx: DaemonContext,
+  command: StopAgentCommand
+): Promise<CommandResult> {
+  return executeStopAgent(ctx, {
+    chatroomId: command.payload.chatroomId,
+    role: command.payload.role,
+    reason: command.reason,
+  });
 }
