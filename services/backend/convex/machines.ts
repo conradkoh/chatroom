@@ -748,6 +748,77 @@ export const updateSpawnedAgent = mutation({
 });
 
 /**
+ * Record that an agent process has exited (from daemon).
+ *
+ * This is the single mutation the daemon calls after an agent exits, whether
+ * intentionally (after a stop-agent command) or as a crash. It:
+ *   1. Writes an `agent.exited` event to `chatroom_eventStream`
+ *   2. Clears the spawnedAgentPid from the machine agent config
+ *   3. Removes the participant record so the UI reflects the agent as offline
+ */
+export const recordAgentExited = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    pid: v.number(),
+    intentional: v.boolean(),
+    exitCode: v.optional(v.number()),
+    signal: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // 1. Auth + machine ownership check
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    const now = Date.now();
+
+    // 2. Write agent.exited event to stream
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.exited',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      pid: args.pid,
+      intentional: args.intentional,
+      exitCode: args.exitCode,
+      signal: args.signal,
+      timestamp: now,
+    });
+
+    // 3. Clear spawnedAgentPid from machine agent config
+    const config = await ctx.db
+      .query('chatroom_machineAgentConfigs')
+      .withIndex('by_machine_chatroom_role', (q) =>
+        q.eq('machineId', args.machineId).eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .first();
+    if (config) {
+      await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
+        updatedAt: now,
+      });
+    }
+
+    // 4. Remove participant record so the UI shows the agent as offline
+    const participant = await ctx.db
+      .query('chatroom_participants')
+      .withIndex('by_chatroom_and_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .unique();
+    if (participant) {
+      await ctx.db.delete('chatroom_participants', participant._id);
+    }
+
+    return { success: true };
+  },
+});
+
+/**
  * Acknowledge/complete a command (from daemon).
  */
 export const ackCommand = mutation({

@@ -186,6 +186,20 @@ export async function startAgent(
     createdAt: now,
   });
 
+  // ── Step 5: Write command.startAgent event to stream ──────────────────
+
+  await ctx.db.insert('chatroom_eventStream', {
+    type: 'command.startAgent',
+    chatroomId,
+    machineId,
+    role,
+    agentHarness,
+    model,
+    workingDir,
+    reason,
+    timestamp: now,
+  });
+
   return {
     commandId,
     agentHarness,

@@ -53,6 +53,22 @@ export function registerEventListeners(ctx: DaemonContext): () => void {
           console.log(`   ⚠️  Failed to clear PID in backend: ${err.message}`);
         });
 
+      // Record agent exit event and clear state atomically via recordAgentExited
+      ctx.deps.backend
+        .mutation(api.machines.recordAgentExited, {
+          sessionId: ctx.sessionId,
+          machineId: ctx.machineId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+          pid,
+          intentional,
+          exitCode: code ?? undefined,
+          signal: signal ?? undefined,
+        })
+        .catch((err: Error) => {
+          console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
+        });
+
       // Clear PID from local state
       ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
 

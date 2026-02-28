@@ -32,6 +32,7 @@ import { areAllAgentsWaiting } from '../../../../convex/auth/cliSessionAuth';
 import { ENSURE_AGENT_DELAY_MS } from '../../../../convex/ensureAgentHandler';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
+import { getTeamEntryPoint } from '../../entities/team';
 
 // ============================================================================
 // TERMINAL STATES THAT TRIGGER QUEUE PROMOTION
@@ -81,7 +82,42 @@ export async function transitionTask(
   // 1. Delegate the FSM transition (validates rules, applies patches, logs)
   await fsmTransitionTask(ctx, taskId, newStatus, trigger, overrides);
 
-  // 2. After terminal transitions, attempt to promote the next queued task.
+  // 2. Write event to chatroom_eventStream based on new status.
+  //    Re-fetch the task to get current fields (assignedTo, content, chatroomId).
+  const eventTask = await ctx.db.get('chatroom_tasks', taskId);
+  if (eventTask) {
+    const ACTIVATED_STATUSES = new Set<TaskStatus>(['pending', 'acknowledged', 'in_progress']);
+    const COMPLETED_STATUSES = new Set<TaskStatus>(['completed', 'closed']);
+
+    if (ACTIVATED_STATUSES.has(newStatus)) {
+      // Resolve role: prefer assignedTo, fall back to chatroom entry point
+      let role = eventTask.assignedTo;
+      if (!role) {
+        const chatroom = await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
+        role = getTeamEntryPoint(chatroom ?? {}) ?? 'unknown';
+      }
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'task.activated',
+        chatroomId: eventTask.chatroomId,
+        taskId,
+        role,
+        taskStatus: newStatus,
+        taskContent: eventTask.content,
+        timestamp: Date.now(),
+      });
+    } else if (COMPLETED_STATUSES.has(newStatus)) {
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'task.completed',
+        chatroomId: eventTask.chatroomId,
+        taskId,
+        role: eventTask.assignedTo ?? 'unknown',
+        finalStatus: newStatus,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  // 3. After terminal transitions, attempt to promote the next queued task.
   //    We re-fetch the task to get its chatroomId (the transition has already
   //    committed, so the status is now `newStatus`).
   if (PROMOTION_TRIGGER_STATUSES.has(newStatus)) {
@@ -106,7 +142,7 @@ export async function transitionTask(
     }
   }
 
-  // 3. After active-status transitions, schedule an ensure-agent check.
+  // 4. After active-status transitions, schedule an ensure-agent check.
   //    Re-fetch AFTER the FSM transition so updatedAt is the post-transition timestamp.
   //    For in_progress tasks, the check itself handles the token-activity guard
   //    (rescheduling if the agent is still producing output, restarting if stale).

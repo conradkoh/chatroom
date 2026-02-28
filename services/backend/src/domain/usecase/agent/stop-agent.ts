@@ -67,6 +67,16 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
     createdAt: now,
   });
 
+  // Write command.stopAgent event to stream
+  await ctx.db.insert('chatroom_eventStream', {
+    type: 'command.stopAgent',
+    chatroomId,
+    machineId,
+    role,
+    reason,
+    timestamp: now,
+  });
+
   // Mark the agent config as desired-stopped so ensureAgentHandler won't auto-restart it.
   const teamConfig = await ctx.db
     .query('chatroom_teamAgentConfigs')

@@ -15,6 +15,7 @@ import { internal } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { ENSURE_AGENT_DELAY_MS } from '../../../../convex/ensureAgentHandler';
+import { getTeamEntryPoint } from '../../entities/team';
 
 export interface CreateTaskArgs {
   chatroomId: Id<'chatroom_rooms'>;
@@ -90,6 +91,22 @@ export async function createTask(
       taskId,
       chatroomId: args.chatroomId,
       snapshotUpdatedAt: now,
+    });
+
+    // Write task.activated event to stream
+    let role = args.assignedTo;
+    if (!role) {
+      const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+      role = getTeamEntryPoint(chatroom ?? {}) ?? 'unknown';
+    }
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'task.activated',
+      chatroomId: args.chatroomId,
+      taskId,
+      role,
+      taskStatus: 'pending',
+      taskContent: args.content,
+      timestamp: now,
     });
   }
 
