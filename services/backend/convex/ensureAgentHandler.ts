@@ -58,9 +58,6 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
  * For in_progress tasks, the check is rescheduled if the agent is still
  * producing tokens (see smart token check above).
  */
-/** @deprecated Use ENSURE_AGENT_FALLBACK_DELAY_MS from config/reliability instead. Kept for backward compatibility. */
-export const ENSURE_AGENT_DELAY_MS = ENSURE_AGENT_FALLBACK_DELAY_MS;
-
 /** Task statuses that indicate an agent should be running. */
 const ACTIVE_TASK_STATUSES = new Set(['pending', 'acknowledged', 'in_progress']);
 

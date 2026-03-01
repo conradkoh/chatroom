@@ -874,27 +874,6 @@ export default defineSchema({
         finalStatus: v.string(),
         timestamp: v.number(),
       }),
-      // A start-agent command was dispatched
-      v.object({
-        type: v.literal('command.startAgent'),
-        chatroomId: v.id('chatroom_rooms'),
-        machineId: v.string(),
-        role: v.string(),
-        agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
-        model: v.string(),
-        workingDir: v.string(),
-        reason: v.string(),
-        timestamp: v.number(),
-      }),
-      // A stop-agent command was dispatched
-      v.object({
-        type: v.literal('command.stopAgent'),
-        chatroomId: v.id('chatroom_rooms'),
-        machineId: v.string(),
-        role: v.string(),
-        reason: v.string(),
-        timestamp: v.number(),
-      }),
       // An agent start was requested (replaces command.startAgent; includes deadline)
       v.object({
         type: v.literal('agent.requestStart'),
