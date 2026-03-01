@@ -106,6 +106,19 @@ export type TaskInProgressEvent = {
   timestamp: number;
 };
 
+export type DaemonPingEvent = {
+  type: 'daemon.ping';
+  machineId: string;
+  timestamp: number;
+};
+
+export type DaemonPongEvent = {
+  type: 'daemon.pong';
+  machineId: string;
+  pingEventId: Id<'chatroom_eventStream'>;
+  timestamp: number;
+};
+
 export type ChatroomEvent =
   | AgentStartedEvent
   | AgentExitedEvent
@@ -116,4 +129,6 @@ export type ChatroomEvent =
   | AgentRegisteredEvent
   | AgentWaitingEvent
   | TaskAcknowledgedEvent
-  | TaskInProgressEvent;
+  | TaskInProgressEvent
+  | DaemonPingEvent
+  | DaemonPongEvent;

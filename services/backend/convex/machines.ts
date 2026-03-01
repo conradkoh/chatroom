@@ -430,12 +430,57 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
-    // 5. Merge, apply cursor, sort by _creationTime ascending
-    const all = [...startEvents, ...stopEvents]
+    // 5. Fetch daemon.ping events (daemon responds to these with daemon.pong)
+    const pingEvents = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_machineId_type', (q) =>
+        q.eq('machineId', args.machineId).eq('type', 'daemon.ping')
+      )
+      .order('asc')
+      .collect();
+
+    // 6. Merge, apply cursor, sort by _creationTime ascending
+    const all = [...startEvents, ...stopEvents, ...pingEvents]
       .filter((e) => !args.afterId || e._id > args.afterId)
       .sort((a, b) => (a._creationTime < b._creationTime ? -1 : 1));
 
     return { events: all };
+  },
+});
+
+/**
+ * Get the daemon.pong event for a machine that came after a given ping event.
+ * UI calls this reactively after sending a ping to detect when the daemon responds.
+ */
+export const getDaemonPongEvent = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    afterEventId: v.optional(v.id('chatroom_eventStream')),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return null;
+
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!machine || machine.userId !== auth.user._id) return null;
+
+    const pongEvents = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_machineId_type', (q) =>
+        q.eq('machineId', args.machineId).eq('type', 'daemon.pong')
+      )
+      .order('asc')
+      .collect();
+
+    const matching = args.afterEventId
+      ? pongEvents.filter((e) => e._id > args.afterEventId!)
+      : pongEvents;
+
+    return matching.length > 0 ? matching[matching.length - 1] : null;
   },
 });
 
@@ -821,21 +866,15 @@ export const sendCommand = mutation({
       return {};
     }
 
-    // ── ping / status / stop-agent without payload: simple command ─────
+    // ── ping / status: emit daemon.ping event to stream ───────────────
     const now = Date.now();
-    const commandId = await ctx.db.insert('chatroom_machineCommands', {
+    const pingEventId = await ctx.db.insert('chatroom_eventStream', {
+      type: 'daemon.ping',
       machineId: args.machineId,
-      type: args.type,
-      payload: {
-        chatroomId: args.payload?.chatroomId,
-        role: args.payload?.role,
-      },
-      status: 'pending',
-      sentBy: user._id,
-      createdAt: now,
+      timestamp: now,
     });
 
-    return { commandId };
+    return { eventId: pingEventId };
   },
 });
 
@@ -964,6 +1003,39 @@ export const recordAgentExited = mutation({
     });
 
     return { success: true };
+  },
+});
+
+/**
+ * Acknowledge a daemon.ping by writing a daemon.pong event to the event stream.
+ * Called by the daemon when it receives a daemon.ping event.
+ */
+export const ackPing = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    pingEventId: v.id('chatroom_eventStream'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!machine || machine.userId !== auth.user._id) {
+      throw new Error('Machine not found or not owned by user');
+    }
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'daemon.pong',
+      machineId: args.machineId,
+      pingEventId: args.pingEventId,
+      timestamp: Date.now(),
+    });
   },
 });
 

@@ -302,51 +302,40 @@ type PingState = 'idle' | 'pinging' | 'success' | 'failed';
 
 interface PingInfo {
   state: PingState;
-  commandId: Id<'chatroom_machineCommands'> | null;
+  pingEventId: Id<'chatroom_eventStream'> | null;
   startedAt: number | null;
 }
 
 /**
  * Hook to manage ping state for a single machine.
- * Sends a ping command and reactively watches its status.
+ * Sends a ping event and reactively watches for a daemon.pong response event.
  */
 function useMachinePing(machineId: string) {
   const [pingInfo, setPingInfo] = useState<PingInfo>({
     state: 'idle',
-    commandId: null,
+    pingEventId: null,
     startedAt: null,
   });
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sendCommand = useSessionMutation(api.machines.sendCommand);
 
-  // Reactively watch the command status when we have a commandId
-  const commandStatus = useSessionQuery(
-    api.machines.getCommandStatus,
-    pingInfo.commandId ? { commandId: pingInfo.commandId } : 'skip'
-  ) as
-    | { status: string; result?: string; type: string; createdAt: number; processedAt?: number }
-    | null
-    | undefined;
+  // Reactively watch for a daemon.pong event after the ping was sent
+  const pongEvent = useSessionQuery(
+    api.machines.getDaemonPongEvent,
+    pingInfo.pingEventId ? { machineId, afterEventId: pingInfo.pingEventId } : 'skip'
+  );
 
-  // React to command status changes
+  // React to pong event arrival
   useEffect(() => {
-    if (!commandStatus || pingInfo.state !== 'pinging') return;
+    if (!pongEvent || pingInfo.state !== 'pinging') return;
 
-    if (commandStatus.status === 'completed' && commandStatus.result === 'pong') {
-      setPingInfo((prev) => ({ ...prev, state: 'success' }));
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    } else if (commandStatus.status === 'failed') {
-      setPingInfo((prev) => ({ ...prev, state: 'failed' }));
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
+    setPingInfo((prev) => ({ ...prev, state: 'success' }));
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
-  }, [commandStatus, pingInfo.state]);
+  }, [pongEvent, pingInfo.state]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -364,17 +353,17 @@ function useMachinePing(machineId: string) {
       timeoutRef.current = null;
     }
 
-    setPingInfo({ state: 'pinging', commandId: null, startedAt: Date.now() });
+    setPingInfo({ state: 'pinging', pingEventId: null, startedAt: Date.now() });
 
     try {
       const result = await sendCommand({
         machineId,
         type: 'ping',
       });
-      const commandId = result?.commandId as Id<'chatroom_machineCommands'> | undefined;
+      const eventId = result?.eventId as Id<'chatroom_eventStream'> | undefined;
 
-      if (commandId) {
-        setPingInfo({ state: 'pinging', commandId, startedAt: Date.now() });
+      if (eventId) {
+        setPingInfo({ state: 'pinging', pingEventId: eventId, startedAt: Date.now() });
 
         // Auto-timeout after 10 seconds
         timeoutRef.current = setTimeout(() => {
@@ -386,10 +375,10 @@ function useMachinePing(machineId: string) {
           });
         }, 10000);
       } else {
-        setPingInfo({ state: 'failed', commandId: null, startedAt: null });
+        setPingInfo({ state: 'failed', pingEventId: null, startedAt: null });
       }
     } catch {
-      setPingInfo({ state: 'failed', commandId: null, startedAt: null });
+      setPingInfo({ state: 'failed', pingEventId: null, startedAt: null });
     }
   }, [machineId, sendCommand]);
 

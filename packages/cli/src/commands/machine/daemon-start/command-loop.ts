@@ -26,9 +26,8 @@ import type {
   DaemonContext,
   MachineCommand,
   MachineCommandBase,
-  RawMachineCommand,
 } from './types.js';
-import { formatTimestamp, parseMachineCommand } from './utils.js';
+import { formatTimestamp } from './utils.js';
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
@@ -274,6 +273,14 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
             await onRequestStartAgent(ctx, event as unknown as AgentRequestStartEventPayload);
           } else if (event.type === 'agent.requestStop') {
             await onRequestStopAgent(ctx, event as unknown as AgentRequestStopEventPayload);
+          } else if (event.type === 'daemon.ping') {
+            // Respond to ping with a pong via mutation
+            handlePing();
+            await ctx.deps.backend.mutation(api.machines.ackPing, {
+              sessionId: ctx.sessionId,
+              machineId: ctx.machineId,
+              pingEventId: event._id as Id<'chatroom_eventStream'>,
+            });
           }
         } catch (err) {
           console.error(
@@ -299,49 +306,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
   // Unref the timer so it doesn't prevent process exit during shutdown
   modelRefreshTimer.unref();
-
-  // ── Ping/Status command subscription ────────────────────────────────────
-  // Subscribe to chatroom_machineCommands for interactive ping/status commands.
-  // These use the polling path because they are synchronous request/response
-  // operations where the UI awaits a specific commandId's ack result.
-  // Agent start/stop commands are NOT handled here — they come via event stream.
-  wsClient.onUpdate(
-    api.machines.getPendingCommands,
-    {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-    },
-    async (result: { commands: RawMachineCommand[] }) => {
-      if (!result.commands || result.commands.length === 0) return;
-
-      for (const raw of result.commands) {
-        // Only handle interactive commands here — not start/stop (those come via stream)
-        if (raw.type !== 'ping' && raw.type !== 'status') continue;
-
-        const command = parseMachineCommand(raw);
-        if (command === null) {
-          // Ack invalid commands as failed so they don't stay pending forever
-          try {
-            await ctx.deps.backend.mutation(api.machines.ackCommand, {
-              sessionId: ctx.sessionId,
-              commandId: raw._id,
-              status: 'failed',
-              result: `Invalid command: type="${raw.type}" missing required payload fields`,
-            });
-          } catch {
-            // Ignore ack errors
-          }
-          continue;
-        }
-
-        try {
-          await processCommand(ctx, command);
-        } catch (error) {
-          console.error(`   ❌ Ping/status command failed: ${(error as Error).message}`);
-        }
-      }
-    }
-  );
 
   // Keep process alive
   return await new Promise(() => {});

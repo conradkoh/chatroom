@@ -930,6 +930,19 @@ export default defineSchema({
         taskId: v.id('chatroom_tasks'),
         timestamp: v.number(),
       }),
+      // UI-initiated ping to verify daemon connectivity
+      v.object({
+        type: v.literal('daemon.ping'),
+        machineId: v.string(),
+        timestamp: v.number(),
+      }),
+      // Daemon response to a daemon.ping event
+      v.object({
+        type: v.literal('daemon.pong'),
+        machineId: v.string(),
+        pingEventId: v.id('chatroom_eventStream'),
+        timestamp: v.number(),
+      }),
     )
   )
     .index('by_chatroom', ['chatroomId'])
