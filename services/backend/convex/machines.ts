@@ -1118,7 +1118,6 @@ export const saveTeamAgentConfig = mutation({
     await ensureOnlyAgentForRole(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
-      userId: auth.user._id,
       excludeMachineId: args.type === 'remote' ? args.machineId : undefined,
     });
 

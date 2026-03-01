@@ -55,36 +55,24 @@ async function insertTeamConfig(
   });
 }
 
-async function countStopCommands(chatroomId: Id<'chatroom_rooms'>, role: string) {
+/** Get machine IDs that received agent.requestStop events for a given role */
+async function getStopEventMachineIds(chatroomId: Id<'chatroom_rooms'>, role: string) {
   return await t.run(async (ctx) => {
-    const commands = await ctx.db
-      .query('chatroom_machineCommands')
-      .filter((q) =>
-        q.and(
-          q.eq(q.field('type'), 'stop-agent'),
-          q.eq(q.field('payload.chatroomId'), chatroomId),
-          q.eq(q.field('payload.role'), role)
-        )
+    const events = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom_type', (q) =>
+        q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStop')
       )
       .collect();
-    return commands.length;
+    return events
+      .filter((e) => e.type === 'agent.requestStop' && e.role === role)
+      .map((e) => (e as { machineId: string }).machineId);
   });
 }
 
-async function getStopCommandMachineIds(chatroomId: Id<'chatroom_rooms'>, role: string) {
-  return await t.run(async (ctx) => {
-    const commands = await ctx.db
-      .query('chatroom_machineCommands')
-      .filter((q) =>
-        q.and(
-          q.eq(q.field('type'), 'stop-agent'),
-          q.eq(q.field('payload.chatroomId'), chatroomId),
-          q.eq(q.field('payload.role'), role)
-        )
-      )
-      .collect();
-    return commands.map((c) => c.machineId);
-  });
+/** Count agent.requestStop events for a given chatroom + role */
+async function countStopEvents(chatroomId: Id<'chatroom_rooms'>, role: string) {
+  return (await getStopEventMachineIds(chatroomId, role)).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +81,7 @@ async function getStopCommandMachineIds(chatroomId: Id<'chatroom_rooms'>, role: 
 
 describe('ensureOnlyAgentForRole', () => {
   test('stops conflicting remote agents for the same role', async () => {
-    const { sessionId, userId } = await createTestSession('eoafr-1');
+    const { sessionId } = await createTestSession('eoafr-1');
     const chatroomId = await createChatroom(sessionId);
 
     // Insert two remote configs for the same role with different teamRoleKeys
@@ -106,17 +94,16 @@ describe('ensureOnlyAgentForRole', () => {
       await ensureOnlyAgentForRole(ctx, {
         chatroomId,
         role: 'builder',
-        userId,
       });
     });
 
-    const stoppedMachines = await getStopCommandMachineIds(chatroomId, 'builder');
+    const stoppedMachines = await getStopEventMachineIds(chatroomId, 'builder');
     expect(stoppedMachines).toContain('machine-a');
     expect(stoppedMachines).toContain('machine-b');
   });
 
   test('skips the excluded machine when excludeMachineId is provided', async () => {
-    const { sessionId, userId } = await createTestSession('eoafr-2');
+    const { sessionId } = await createTestSession('eoafr-2');
     const chatroomId = await createChatroom(sessionId);
 
     // Insert two remote configs for the same role
@@ -128,34 +115,32 @@ describe('ensureOnlyAgentForRole', () => {
       await ensureOnlyAgentForRole(ctx, {
         chatroomId,
         role: 'builder',
-        userId,
         excludeMachineId: 'machine-c',
       });
     });
 
-    const stoppedMachines = await getStopCommandMachineIds(chatroomId, 'builder');
+    const stoppedMachines = await getStopEventMachineIds(chatroomId, 'builder');
     expect(stoppedMachines).toContain('machine-a');
     expect(stoppedMachines).not.toContain('machine-c');
   });
 
   test('no-op when no existing configs exist', async () => {
-    const { sessionId, userId } = await createTestSession('eoafr-3');
+    const { sessionId } = await createTestSession('eoafr-3');
     const chatroomId = await createChatroom(sessionId);
 
     await t.run(async (ctx) => {
       await ensureOnlyAgentForRole(ctx, {
         chatroomId,
         role: 'builder',
-        userId,
       });
     });
 
-    const stopCount = await countStopCommands(chatroomId, 'builder');
+    const stopCount = await countStopEvents(chatroomId, 'builder');
     expect(stopCount).toBe(0);
   });
 
   test('does not stop custom-type configs (only remote type is stopped)', async () => {
-    const { sessionId, userId } = await createTestSession('eoafr-4');
+    const { sessionId } = await createTestSession('eoafr-4');
     const chatroomId = await createChatroom(sessionId);
 
     // Insert a custom-type config — should not be stopped
@@ -165,11 +150,45 @@ describe('ensureOnlyAgentForRole', () => {
       await ensureOnlyAgentForRole(ctx, {
         chatroomId,
         role: 'builder',
-        userId,
       });
     });
 
-    const stopCount = await countStopCommands(chatroomId, 'builder');
+    const stopCount = await countStopEvents(chatroomId, 'builder');
     expect(stopCount).toBe(0);
+  });
+
+  test('emitted stop events have correct fields (deadline, reason, type)', async () => {
+    const { sessionId } = await createTestSession('eoafr-5');
+    const chatroomId = await createChatroom(sessionId);
+
+    await insertTeamConfig(chatroomId, 'builder', 'machine-f');
+
+    const before = Date.now();
+    await t.run(async (ctx) => {
+      await ensureOnlyAgentForRole(ctx, {
+        chatroomId,
+        role: 'builder',
+      });
+    });
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom_type', (q) =>
+          q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStop')
+        )
+        .collect();
+    });
+
+    expect(events.length).toBe(1);
+    const evt = events[0]!;
+    expect(evt.type).toBe('agent.requestStop');
+    if (evt.type === 'agent.requestStop') {
+      expect(evt.machineId).toBe('machine-f');
+      expect(evt.role).toBe('builder');
+      expect(evt.reason).toBe('dedup-stop');
+      expect(evt.deadline).toBeGreaterThan(before);
+      expect(typeof evt.timestamp).toBe('number');
+    }
   });
 });
