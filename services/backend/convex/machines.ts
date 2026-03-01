@@ -391,7 +391,7 @@ export const getAgentConfigs = query({
 /**
  * Get command events from the event stream for a machine (daemon subscribes to this).
  *
- * Returns all `command.startAgent` and `command.stopAgent` events for the given
+ * Returns all `agent.requestStart` and `agent.requestStop` events for the given
  * machine, filtered by an optional `afterId` cursor for incremental delivery.
  */
 export const getCommandEvents = query({
@@ -412,20 +412,20 @@ export const getCommandEvents = query({
       .first();
     if (!machine || machine.userId !== auth.user._id) return { events: [] };
 
-    // 3. Fetch command.startAgent events using the machineId+type index
+    // 3. Fetch agent.requestStart events using the machineId+type index
     const startEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'command.startAgent')
+        q.eq('machineId', args.machineId).eq('type', 'agent.requestStart')
       )
       .order('asc')
       .collect();
 
-    // 4. Fetch command.stopAgent events
+    // 4. Fetch agent.requestStop events
     const stopEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
-        q.eq('machineId', args.machineId).eq('type', 'command.stopAgent')
+        q.eq('machineId', args.machineId).eq('type', 'agent.requestStop')
       )
       .order('asc')
       .collect();

@@ -19,9 +19,9 @@ import {
   registerMachineWithDaemon,
 } from '../helpers/integration';
 
-// ─── Test 1: command.startAgent event ────────────────────────────────────────
+// ─── Test 1: agent.requestStart event ────────────────────────────────────────
 
-test('startAgent use case writes command.startAgent event', async () => {
+test('startAgent use case writes agent.requestStart event', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-start-1');
   const chatroomId = await createPairTeamChatroom(sessionId);
@@ -62,8 +62,8 @@ test('startAgent use case writes command.startAgent event', async () => {
 
   expect(events.length).toBe(1);
   const evt = events[0]!;
-  expect(evt.type).toBe('command.startAgent');
-  if (evt.type === 'command.startAgent') {
+  expect(evt.type).toBe('agent.requestStart');
+  if (evt.type === 'agent.requestStart') {
     expect(evt.chatroomId).toBe(chatroomId);
     expect(evt.machineId).toBe(machineId);
     expect(evt.role).toBe('builder');
@@ -71,13 +71,14 @@ test('startAgent use case writes command.startAgent event', async () => {
     expect(evt.model).toBe('claude-sonnet-4');
     expect(evt.workingDir).toBe('/test/workspace');
     expect(evt.reason).toBe('test');
+    expect(typeof evt.deadline).toBe('number');
     expect(typeof evt.timestamp).toBe('number');
   }
 });
 
-// ─── Test 2: command.stopAgent event ─────────────────────────────────────────
+// ─── Test 2: agent.requestStop event ─────────────────────────────────────────
 
-test('stopAgent use case writes command.stopAgent event', async () => {
+test('stopAgent use case writes agent.requestStop event', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-stop-1');
   const chatroomId = await createPairTeamChatroom(sessionId);
@@ -106,12 +107,13 @@ test('stopAgent use case writes command.stopAgent event', async () => {
 
   expect(events.length).toBe(1);
   const evt = events[0]!;
-  expect(evt.type).toBe('command.stopAgent');
-  if (evt.type === 'command.stopAgent') {
+  expect(evt.type).toBe('agent.requestStop');
+  if (evt.type === 'agent.requestStop') {
     expect(evt.chatroomId).toBe(chatroomId);
     expect(evt.machineId).toBe(machineId);
     expect(evt.role).toBe('builder');
     expect(evt.reason).toBe('test');
+    expect(typeof evt.deadline).toBe('number');
     expect(typeof evt.timestamp).toBe('number');
   }
 });
@@ -326,7 +328,7 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
     pid: 9999,
   });
 
-  // Count events so far (includes command.startAgent)
+  // Count events so far (includes agent.requestStart)
   const eventsBefore = await t.run(async (ctx) => {
     return ctx.db
       .query('chatroom_eventStream')

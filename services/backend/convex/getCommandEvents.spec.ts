@@ -47,12 +47,12 @@ async function registerMachine(sessionId: SessionId, machineId: string) {
 async function insertCommandEvent(
   chatroomId: Id<'chatroom_rooms'>,
   machineId: string,
-  type: 'command.startAgent' | 'command.stopAgent'
+  type: 'agent.requestStart' | 'agent.requestStop'
 ): Promise<Id<'chatroom_eventStream'>> {
   return await t.run(async (ctx) => {
-    if (type === 'command.startAgent') {
+    if (type === 'agent.requestStart') {
       return await ctx.db.insert('chatroom_eventStream', {
-        type: 'command.startAgent',
+        type: 'agent.requestStart',
         chatroomId,
         machineId,
         role: 'builder',
@@ -60,15 +60,17 @@ async function insertCommandEvent(
         model: 'anthropic/claude-sonnet-4',
         workingDir: '/tmp/test',
         reason: 'test',
+        deadline: Date.now() + 120_000,
         timestamp: Date.now(),
       });
     } else {
       return await ctx.db.insert('chatroom_eventStream', {
-        type: 'command.stopAgent',
+        type: 'agent.requestStop',
         chatroomId,
         machineId,
         role: 'builder',
         reason: 'test',
+        deadline: Date.now() + 120_000,
         timestamp: Date.now(),
       });
     }
@@ -112,14 +114,14 @@ test('getCommandEvents — returns empty when no command events exist', async ()
   expect(result.events).toHaveLength(0);
 });
 
-// Test 2: Returns command.startAgent events
-test('getCommandEvents — returns command.startAgent event for the machine', async () => {
+// Test 2: Returns agent.requestStart events
+test('getCommandEvents — returns agent.requestStart event for the machine', async () => {
   const { sessionId } = await createTestSession('gce-2');
   const chatroomId = await createChatroom(sessionId);
   const machineId = 'machine-gce-2';
   await registerMachine(sessionId, machineId);
 
-  await insertCommandEvent(chatroomId, machineId, 'command.startAgent');
+  await insertCommandEvent(chatroomId, machineId, 'agent.requestStart');
 
   const result = await t.query(api.machines.getCommandEvents, {
     sessionId,
@@ -127,17 +129,17 @@ test('getCommandEvents — returns command.startAgent event for the machine', as
   });
 
   expect(result.events).toHaveLength(1);
-  expect(result.events[0].type).toBe('command.startAgent');
+  expect(result.events[0].type).toBe('agent.requestStart');
 });
 
-// Test 3: Returns command.stopAgent events
-test('getCommandEvents — returns command.stopAgent event for the machine', async () => {
+// Test 3: Returns agent.requestStop events
+test('getCommandEvents — returns agent.requestStop event for the machine', async () => {
   const { sessionId } = await createTestSession('gce-3');
   const chatroomId = await createChatroom(sessionId);
   const machineId = 'machine-gce-3';
   await registerMachine(sessionId, machineId);
 
-  await insertCommandEvent(chatroomId, machineId, 'command.stopAgent');
+  await insertCommandEvent(chatroomId, machineId, 'agent.requestStop');
 
   const result = await t.query(api.machines.getCommandEvents, {
     sessionId,
@@ -145,7 +147,7 @@ test('getCommandEvents — returns command.stopAgent event for the machine', asy
   });
 
   expect(result.events).toHaveLength(1);
-  expect(result.events[0].type).toBe('command.stopAgent');
+  expect(result.events[0].type).toBe('agent.requestStop');
 });
 
 // Test 4: machineId filter — events for a different machine are NOT returned
@@ -157,7 +159,7 @@ test('getCommandEvents — filters out events for other machines', async () => {
   await registerMachine(sessionId, machineId);
 
   // Insert event for the OTHER machine
-  await insertCommandEvent(chatroomId, otherMachineId, 'command.startAgent');
+  await insertCommandEvent(chatroomId, otherMachineId, 'agent.requestStart');
 
   const result = await t.query(api.machines.getCommandEvents, {
     sessionId,
@@ -192,8 +194,8 @@ test('getCommandEvents — afterId cursor filters out older events', async () =>
   const machineId = 'machine-gce-6';
   await registerMachine(sessionId, machineId);
 
-  const firstId = await insertCommandEvent(chatroomId, machineId, 'command.startAgent');
-  const secondId = await insertCommandEvent(chatroomId, machineId, 'command.stopAgent');
+  const firstId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStart');
+  const secondId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStop');
 
   // With afterId = firstId, should only return the second event
   const result = await t.query(api.machines.getCommandEvents, {

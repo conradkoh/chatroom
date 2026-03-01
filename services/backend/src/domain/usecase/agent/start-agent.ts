@@ -19,6 +19,7 @@
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness, AgentType, StartAgentReason } from '../../entities/agent';
+import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -186,10 +187,10 @@ export async function startAgent(
     createdAt: now,
   });
 
-  // ── Step 5: Write command.startAgent event to stream ──────────────────
+  // ── Step 5: Write agent.requestStart event to stream ──────────────────
 
   await ctx.db.insert('chatroom_eventStream', {
-    type: 'command.startAgent',
+    type: 'agent.requestStart',
     chatroomId,
     machineId,
     role,
@@ -197,6 +198,7 @@ export async function startAgent(
     model,
     workingDir,
     reason,
+    deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
   });
 

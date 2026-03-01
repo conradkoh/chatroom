@@ -45,7 +45,7 @@
 
 import { v } from 'convex/values';
 
-import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
+import { STUCK_TOKEN_THRESHOLD_MS, AGENT_REQUEST_DEADLINE_MS } from '../config/reliability';
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
@@ -236,6 +236,20 @@ export const check = internalMutation({
         status: 'pending',
         sentBy: machine.userId,
         createdAt: now,
+      });
+
+      // Dual-write: also emit agent.requestStart to the event stream
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'agent.requestStart',
+        chatroomId,
+        machineId: config.machineId!,
+        role: config.role,
+        agentHarness: config.agentHarness,
+        model: config.model,
+        workingDir: config.workingDir,
+        reason: 'ensure-agent-retry',
+        deadline: now + AGENT_REQUEST_DEADLINE_MS,
+        timestamp: now,
       });
     }
   },

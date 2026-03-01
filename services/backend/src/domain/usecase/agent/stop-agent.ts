@@ -14,6 +14,7 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { StopAgentReason } from '../../entities/agent';
+import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -67,13 +68,14 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
     createdAt: now,
   });
 
-  // Write command.stopAgent event to stream
+  // Write agent.requestStop event to stream
   await ctx.db.insert('chatroom_eventStream', {
-    type: 'command.stopAgent',
+    type: 'agent.requestStop',
     chatroomId,
     machineId,
     role,
     reason,
+    deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
   });
 
