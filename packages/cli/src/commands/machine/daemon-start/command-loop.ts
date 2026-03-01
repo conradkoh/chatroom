@@ -2,7 +2,10 @@
  * Command Loop — subscribes to Convex for pending commands, processes them sequentially.
  */
 
-import { DAEMON_HEARTBEAT_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
+import {
+  AGENT_REQUEST_DEADLINE_MS,
+  DAEMON_HEARTBEAT_INTERVAL_MS,
+} from '@workspace/backend/config/reliability.js';
 
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
@@ -159,12 +162,15 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     }
   }
 
-  // Session-scoped dedup sets — prevent double-processing within a single daemon run.
+  // Session-scoped dedup maps — prevent double-processing within a single daemon run.
+  // Map<eventId, processedAt timestamp>. Entries older than AGENT_REQUEST_DEADLINE_MS
+  // are evicted at the start of each batch to bound memory growth.
+  //
   // start/stop events: deadline-filtered by backend, but reactive query may re-fire →
   //   use processedCommandIds to ensure each event is only acted on once per session.
   // ping events: cursor-filtered by backend, but guard here too for safety.
-  const processedCommandIds = new Set<string>(); // agent.requestStart / agent.requestStop
-  const processedPingIds = new Set<string>(); // daemon.ping
+  const processedCommandIds = new Map<string, number>(); // agent.requestStart / agent.requestStop
+  const processedPingIds = new Map<string, number>(); // daemon.ping
 
   wsClient.onUpdate(
     api.machines.getCommandEvents,
@@ -175,6 +181,15 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     },
     async (result: { events: Array<{ _id: string; type: string; [key: string]: unknown }> }) => {
       if (!result.events || result.events.length === 0) return;
+
+      // Evict dedup entries older than AGENT_REQUEST_DEADLINE_MS to bound memory growth
+      const evictBefore = Date.now() - AGENT_REQUEST_DEADLINE_MS;
+      for (const [id, ts] of processedCommandIds) {
+        if (ts < evictBefore) processedCommandIds.delete(id);
+      }
+      for (const [id, ts] of processedPingIds) {
+        if (ts < evictBefore) processedPingIds.delete(id);
+      }
 
       let pingCursorAdvanced = false;
 
@@ -187,17 +202,17 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
           if (event.type === 'agent.requestStart') {
             // Deadline-filtered — use processedCommandIds for session dedup
             if (processedCommandIds.has(eventId)) continue;
-            processedCommandIds.add(eventId);
+            processedCommandIds.set(eventId, Date.now());
             await onRequestStartAgent(ctx, event as unknown as AgentRequestStartEventPayload);
           } else if (event.type === 'agent.requestStop') {
             // Deadline-filtered — use processedCommandIds for session dedup
             if (processedCommandIds.has(eventId)) continue;
-            processedCommandIds.add(eventId);
+            processedCommandIds.set(eventId, Date.now());
             await onRequestStopAgent(ctx, event as unknown as AgentRequestStopEventPayload);
           } else if (event.type === 'daemon.ping') {
             // Cursor-filtered — use processedPingIds for session dedup
             if (processedPingIds.has(eventId)) continue;
-            processedPingIds.add(eventId);
+            processedPingIds.set(eventId, Date.now());
 
             // Advance ping cursor (only pings update the cursor)
             lastSeenPingEventId = event._id as Id<'chatroom_eventStream'>;
