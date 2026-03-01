@@ -29,7 +29,7 @@ import { internal } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { areAllAgentsWaiting } from '../../../../convex/auth/cliSessionAuth';
-import { ENSURE_AGENT_DELAY_MS } from '../../../../convex/ensureAgentHandler';
+import { ENSURE_AGENT_FALLBACK_DELAY_MS } from '../../../../config/reliability';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 import { getTeamEntryPoint } from '../../entities/team';
@@ -149,7 +149,7 @@ export async function transitionTask(
   if (ENSURE_AGENT_TRIGGER_STATUSES.has(newStatus)) {
     const activeTask = await ctx.db.get('chatroom_tasks', taskId);
     if (activeTask) {
-      await ctx.scheduler.runAfter(ENSURE_AGENT_DELAY_MS, internal.ensureAgentHandler.check, {
+      await ctx.scheduler.runAfter(ENSURE_AGENT_FALLBACK_DELAY_MS, internal.ensureAgentHandler.check, {
         taskId,
         chatroomId: activeTask.chatroomId,
         snapshotUpdatedAt: activeTask.updatedAt,

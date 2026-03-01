@@ -45,7 +45,7 @@
 
 import { v } from 'convex/values';
 
-import { STUCK_TOKEN_THRESHOLD_MS, AGENT_REQUEST_DEADLINE_MS } from '../config/reliability';
+import { STUCK_TOKEN_THRESHOLD_MS, AGENT_REQUEST_DEADLINE_MS, ENSURE_AGENT_FALLBACK_DELAY_MS } from '../config/reliability';
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
@@ -58,7 +58,8 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
  * For in_progress tasks, the check is rescheduled if the agent is still
  * producing tokens (see smart token check above).
  */
-export const ENSURE_AGENT_DELAY_MS = 120_000;
+/** @deprecated Use ENSURE_AGENT_FALLBACK_DELAY_MS from config/reliability instead. Kept for backward compatibility. */
+export const ENSURE_AGENT_DELAY_MS = ENSURE_AGENT_FALLBACK_DELAY_MS;
 
 /** Task statuses that indicate an agent should be running. */
 const ACTIVE_TASK_STATUSES = new Set(['pending', 'acknowledged', 'in_progress']);
@@ -137,8 +138,8 @@ export const check = internalMutation({
 
         if (tokenAge < STUCK_TOKEN_THRESHOLD_MS) {
           // Agent is still producing tokens — healthy. Reschedule another
-          // check in ENSURE_AGENT_DELAY_MS to keep monitoring.
-          await ctx.scheduler.runAfter(ENSURE_AGENT_DELAY_MS, internal.ensureAgentHandler.check, {
+          // check in ENSURE_AGENT_FALLBACK_DELAY_MS to keep monitoring.
+          await ctx.scheduler.runAfter(ENSURE_AGENT_FALLBACK_DELAY_MS, internal.ensureAgentHandler.check, {
             taskId,
             chatroomId,
             snapshotUpdatedAt: task.updatedAt,

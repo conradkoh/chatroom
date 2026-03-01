@@ -54,3 +54,13 @@ export const DAEMON_HEARTBEAT_TTL_MS = 120_000; // 2 min (Plan 026: increased fr
  *  After this deadline, daemons should ignore the request to avoid late-arriving
  *  starts/stops acting on stale intent. Set to 2 minutes. */
 export const AGENT_REQUEST_DEADLINE_MS = 120_000; // 2 minutes
+
+// ─── ensureAgentHandler Fallback Delay ──────────────────────────────────────
+
+/**
+ * Delay (ms) for the ensureAgentHandler backend fallback.
+ * Set to 5 minutes — the daemon's event-driven path handles restarts within
+ * 2 minutes (AGENT_REQUEST_DEADLINE_MS). This fallback only fires when the
+ * daemon is offline.
+ */
+export const ENSURE_AGENT_FALLBACK_DELAY_MS = 300_000; // 5 minutes

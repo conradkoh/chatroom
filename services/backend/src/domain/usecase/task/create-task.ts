@@ -14,7 +14,7 @@
 import { internal } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { ENSURE_AGENT_DELAY_MS } from '../../../../convex/ensureAgentHandler';
+import { ENSURE_AGENT_FALLBACK_DELAY_MS } from '../../../../config/reliability';
 import { getTeamEntryPoint } from '../../entities/team';
 
 export interface CreateTaskArgs {
@@ -87,7 +87,7 @@ export async function createTask(
 
   // Schedule ensure-agent check for pending tasks
   if (status === 'pending') {
-    await ctx.scheduler.runAfter(ENSURE_AGENT_DELAY_MS, internal.ensureAgentHandler.check, {
+    await ctx.scheduler.runAfter(ENSURE_AGENT_FALLBACK_DELAY_MS, internal.ensureAgentHandler.check, {
       taskId,
       chatroomId: args.chatroomId,
       snapshotUpdatedAt: now,
