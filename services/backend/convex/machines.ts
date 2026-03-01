@@ -440,6 +440,42 @@ export const getCommandEvents = query({
 });
 
 /**
+ * Get the latest event in chatroom_eventStream for a given chatroom + role.
+ *
+ * Used by the UI to derive agent status without relying on lastSeenAction heartbeats.
+ * Uses the by_chatroomId_role index for efficient lookup — no full table scan.
+ *
+ * Returns null if no events exist for the given chatroom+role or if unauthenticated.
+ */
+export const getLatestAgentEvent = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Auth check
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return null;
+
+    // Verify chatroom access
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) return null;
+
+    // Fetch the latest event for this chatroom+role using the index
+    const event = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroomId_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .order('desc')
+      .first();
+
+    return event ?? null;
+  },
+});
+
+/**
  * Get pending commands for a machine (daemon subscribes to this).
  * @deprecated Replaced by getCommandEvents (event stream subscription). Remove after e2e verification.
  */
