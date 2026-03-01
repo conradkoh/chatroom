@@ -393,18 +393,16 @@ export const getAgentConfigs = query({
  *
  * Returns:
  * - `agent.requestStart` and `agent.requestStop` events filtered by `deadline > now()`.
- *   These use deadline-based filtering rather than cursor-based so that valid commands
- *   issued before a daemon restart are not skipped when the cursor advances past them.
- *   The daemon's deadline check and `processedStreamEventIds` set handle dedup.
- * - `daemon.ping` events filtered by `afterId` cursor (fire-and-forget, no replay needed).
- *
- * @param afterId - Cursor for daemon.ping events only. Start/stop events use deadline filtering.
+ *   Deadline-based filtering ensures valid commands issued before a daemon restart are
+ *   not skipped. The daemon's `processedCommandIds` map handles session-level dedup.
+ * - All `daemon.ping` events (no cursor). Re-delivering old pings on restart is harmless
+ *   since the UI's `getDaemonPongEvent` looks for a pong AFTER a specific ping event ID.
+ *   The daemon's `processedPingIds` map prevents double-ponging within one session.
  */
 export const getCommandEvents = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    afterId: v.optional(v.id('chatroom_eventStream')),
   },
   handler: async (ctx, args) => {
     // 1. Auth check
@@ -441,20 +439,16 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
-    // 5. Fetch daemon.ping events — cursor-filtered (fire-and-forget, no replay needed)
-    const allPingEvents = await ctx.db
+    // 5. Fetch all daemon.ping events — no cursor, session dedup handled by daemon
+    const pingEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
         q.eq('machineId', args.machineId).eq('type', 'daemon.ping')
       )
       .order('asc')
       .collect();
-    const pingEvents = args.afterId
-      ? allPingEvents.filter((e) => e._id > args.afterId!)
-      : allPingEvents;
 
     // 6. Merge and sort by _creationTime ascending
-    //    (start/stop are already deadline-filtered; ping is cursor-filtered above)
     const all = [...startEvents, ...stopEvents, ...pingEvents].sort((a, b) =>
       a._creationTime < b._creationTime ? -1 : 1
     );

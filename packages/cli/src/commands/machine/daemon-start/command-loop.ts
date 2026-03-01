@@ -123,52 +123,14 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // ── Stream command subscription ──────────────────────────────────────────
   // Subscribes to chatroom_eventStream for command events directed at this machine.
   //
-  // Cursor semantics (after Phase D / deadline-filter fix):
-  // - `lastSeenPingEventId` tracks only daemon.ping events. The `afterId` arg passed
-  //   to getCommandEvents only filters ping events — start/stop use deadline-based
-  //   filtering on the backend, so they don't need a cursor.
-  // - `processedCommandIds` — session-scoped dedup set for agent.requestStart /
-  //   agent.requestStop events. Prevents double-processing if the reactive query
-  //   re-fires in the same session (deadline filter may return the same event multiple times).
-  // - `processedPingIds` — session-scoped dedup set for daemon.ping events.
-
-  // Initialize the ping cursor from persisted state or leave undefined (skip history).
-  // Priority 1: persisted cursor from previous daemon run (survives restarts).
-  // Priority 2: query latest event ID to initialize the cursor and avoid replaying old pings.
-  let lastSeenPingEventId: Id<'chatroom_eventStream'> | undefined = undefined;
-
-  const persistedCursor = ctx.deps.machine.loadEventCursor(ctx.machineId);
-  if (persistedCursor !== null) {
-    // Resume from where the previous daemon run left off (ping cursor only)
-    lastSeenPingEventId = persistedCursor as Id<'chatroom_eventStream'>;
-    console.log(`[${formatTimestamp()}] 📌 Resumed ping cursor from persisted state`);
-  } else {
-    // No persisted cursor — initialize to latest event ID to skip old pings
-    try {
-      const initialEvents = await ctx.deps.backend.query(api.machines.getCommandEvents, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
-        afterId: undefined,
-      });
-      // Use the last event as the initial ping cursor (start/stop events don't use the cursor)
-      const pings = initialEvents.events.filter((e: { type: string }) => e.type === 'daemon.ping');
-      if (pings.length > 0) {
-        lastSeenPingEventId = pings[pings.length - 1]._id;
-      }
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Failed to initialize ping cursor: ${(err as Error).message}`
-      );
-    }
-  }
-
+  // No cursor is needed — event types use their own filtering:
+  // - agent.requestStart / agent.requestStop: deadline-filtered on backend (no cursor)
+  // - daemon.ping: all ping events are delivered; re-ponging on restart is harmless
+  //   because the UI's getDaemonPongEvent looks for a pong AFTER a specific ping ID
+  //
   // Session-scoped dedup maps — prevent double-processing within a single daemon run.
   // Map<eventId, processedAt timestamp>. Entries older than AGENT_REQUEST_DEADLINE_MS
   // are evicted at the start of each batch to bound memory growth.
-  //
-  // start/stop events: deadline-filtered by backend, but reactive query may re-fire →
-  //   use processedCommandIds to ensure each event is only acted on once per session.
-  // ping events: cursor-filtered by backend, but guard here too for safety.
   const processedCommandIds = new Map<string, number>(); // agent.requestStart / agent.requestStop
   const processedPingIds = new Map<string, number>(); // daemon.ping
 
@@ -177,7 +139,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
-      afterId: lastSeenPingEventId, // Only used by the backend for ping filtering
     },
     async (result: { events: Array<{ _id: string; type: string; [key: string]: unknown }> }) => {
       if (!result.events || result.events.length === 0) return;
@@ -190,8 +151,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       for (const [id, ts] of processedPingIds) {
         if (ts < evictBefore) processedPingIds.delete(id);
       }
-
-      let pingCursorAdvanced = false;
 
       for (const event of result.events) {
         const eventId = event._id.toString();
@@ -210,13 +169,9 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
             processedCommandIds.set(eventId, Date.now());
             await onRequestStopAgent(ctx, event as unknown as AgentRequestStopEventPayload);
           } else if (event.type === 'daemon.ping') {
-            // Cursor-filtered — use processedPingIds for session dedup
+            // Session dedup — prevents re-ponging the same ping twice in one daemon run
             if (processedPingIds.has(eventId)) continue;
             processedPingIds.set(eventId, Date.now());
-
-            // Advance ping cursor (only pings update the cursor)
-            lastSeenPingEventId = event._id as Id<'chatroom_eventStream'>;
-            pingCursorAdvanced = true;
 
             // Respond to ping with a pong via mutation
             handlePing();
@@ -231,11 +186,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
             `[${formatTimestamp()}] ❌ Stream command event failed: ${(err as Error).message}`
           );
         }
-      }
-
-      // Persist the ping cursor only when it actually advanced
-      if (pingCursorAdvanced && lastSeenPingEventId !== undefined) {
-        ctx.deps.machine.persistEventCursor(ctx.machineId, lastSeenPingEventId.toString());
       }
     }
   );

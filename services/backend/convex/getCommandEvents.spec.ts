@@ -187,22 +187,20 @@ test('getCommandEvents — filters out non-command events (agent.started, task.a
   expect(result.events).toHaveLength(0);
 });
 
-// Test 6: afterId cursor — affects only daemon.ping events; start/stop use deadline filtering
-test('getCommandEvents — afterId cursor does NOT filter start/stop events (uses deadline-based filtering)', async () => {
+// Test 6: Multiple command events — all returned together
+test('getCommandEvents — returns both agent.requestStart and agent.requestStop events together', async () => {
   const { sessionId } = await createTestSession('gce-6');
   const chatroomId = await createChatroom(sessionId);
   const machineId = 'machine-gce-6';
   await registerMachine(sessionId, machineId);
 
-  const firstId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStart');
-  const _secondId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStop');
+  await insertCommandEvent(chatroomId, machineId, 'agent.requestStart');
+  await insertCommandEvent(chatroomId, machineId, 'agent.requestStop');
 
-  // With afterId = firstId, start/stop events are still returned (they use deadline filtering)
   // Both events have valid deadlines, so both should appear
   const result = await t.query(api.machines.getCommandEvents, {
     sessionId,
     machineId,
-    afterId: firstId,
   });
 
   expect(result.events).toHaveLength(2);
@@ -248,35 +246,32 @@ test('getCommandEvents — expired agent.requestStart/Stop events are NOT return
   expect(result.events).toHaveLength(0);
 });
 
-// Test 9: daemon.ping events use cursor-based afterId filtering
-test('getCommandEvents — daemon.ping events respect afterId cursor', async () => {
+// Test 9: daemon.ping events are returned without cursor filtering
+test('getCommandEvents — all daemon.ping events are returned (no cursor filter)', async () => {
   const { sessionId } = await createTestSession('gce-9');
   const machineId = 'machine-gce-9';
   await registerMachine(sessionId, machineId);
 
   // Insert two ping events
-  const pingId1 = await t.run(async (ctx) => {
-    return ctx.db.insert('chatroom_eventStream', {
+  await t.run(async (ctx) => {
+    await ctx.db.insert('chatroom_eventStream', {
       type: 'daemon.ping',
       machineId,
       timestamp: Date.now(),
     });
-  });
-  const pingId2 = await t.run(async (ctx) => {
-    return ctx.db.insert('chatroom_eventStream', {
+    await ctx.db.insert('chatroom_eventStream', {
       type: 'daemon.ping',
       machineId,
       timestamp: Date.now(),
     });
   });
 
-  // With afterId = pingId1, only the second ping should appear
+  // Both pings should be returned — no cursor filtering
   const result = await t.query(api.machines.getCommandEvents, {
     sessionId,
     machineId,
-    afterId: pingId1,
   });
 
-  expect(result.events).toHaveLength(1);
-  expect(result.events[0]._id).toBe(pingId2);
+  expect(result.events).toHaveLength(2);
+  expect(result.events.every((e) => e.type === 'daemon.ping')).toBe(true);
 });
