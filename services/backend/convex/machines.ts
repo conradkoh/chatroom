@@ -476,6 +476,56 @@ export const getLatestAgentEvent = query({
 });
 
 /**
+ * Get the latest event for each role in a chatroom.
+ *
+ * Returns a map of { role → latestEvent } for all roles that have at least one
+ * event in the stream. Used by the UI to derive status labels for all agents
+ * in a single subscription instead of N per-role subscriptions.
+ *
+ * Roles with no events are omitted from the map.
+ */
+export const getLatestAgentEventsForChatroom = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    roles: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Auth check
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return {};
+
+    // Verify chatroom access
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom) return {};
+
+    // Fetch latest event for each role in parallel
+    const results = await Promise.all(
+      args.roles.map(async (role) => {
+        const event = await ctx.db
+          .query('chatroom_eventStream')
+          .withIndex('by_chatroomId_role', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('role', role)
+          )
+          .order('desc')
+          .first();
+        return { role, event: event ?? null };
+      })
+    );
+
+    // Build role → latestEventType map (omit roles with no events)
+    const eventMap: Record<string, string> = {};
+    for (const { role, event } of results) {
+      if (event !== null) {
+        eventMap[role] = event.type;
+      }
+    }
+
+    return eventMap;
+  },
+});
+
+/**
  * Get pending commands for a machine (daemon subscribes to this).
  * @deprecated Replaced by getCommandEvents (event stream subscription). Remove after e2e verification.
  */

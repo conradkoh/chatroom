@@ -58,11 +58,53 @@ function isOnline(lastSeenAt: number | null | undefined): boolean {
 }
 
 /**
- * Returns true if the agent is considered "working" — online and not waiting in get-next-task.
- * Working agents are shown individually (not grouped) in the sidebar.
+ * Maps a chatroom_eventStream event type to a human-readable status label.
+ * Used to derive UI status from the event stream instead of lastSeenAction heartbeats.
  */
-function isWorking(online: boolean, lastSeenAction: string | null | undefined): boolean {
-  return online && lastSeenAction !== 'get-next-task:started';
+function eventTypeToStatusLabel(eventType: string | null | undefined): string {
+  switch (eventType) {
+    case 'agent.registered':
+      return 'REGISTERED';
+    case 'agent.waiting':
+      return 'WAITING';
+    case 'agent.requestStart':
+      return 'STARTING';
+    case 'agent.started':
+      return 'RUNNING';
+    case 'agent.requestStop':
+      return 'STOPPING';
+    case 'agent.exited':
+      return 'STOPPED';
+    case 'task.acknowledged':
+      return 'TASK RECEIVED';
+    case 'task.activated':
+      return 'ACTIVE';
+    case 'task.inProgress':
+      return 'IN PROGRESS';
+    case 'task.completed':
+      return 'COMPLETED';
+    default:
+      return 'ONLINE';
+  }
+}
+
+/**
+ * Returns true if the agent is considered "working" — online and not in the idle waiting state.
+ * Working agents are shown individually (not grouped) in the sidebar.
+ * Idle = agent.waiting or agent.registered (standing by).
+ */
+function isWorkingFromEvent(online: boolean, latestEventType: string | null | undefined): boolean {
+  if (!online) return false;
+  // Idle states: waiting in get-next-task loop, just registered, stopped
+  if (
+    latestEventType === 'agent.waiting' ||
+    latestEventType === 'agent.registered' ||
+    latestEventType === 'agent.exited' ||
+    latestEventType == null
+  ) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -146,7 +188,7 @@ interface AgentWithStatus {
   role: string;
   online: boolean;
   lastSeenAt?: number | null;
-  lastSeenAction?: string | null;
+  latestEventType?: string | null;
   isStuck?: boolean;
 }
 
@@ -167,7 +209,7 @@ interface InlineAgentCardProps {
   role: string;
   online: boolean;
   lastSeenAt?: number | null;
-  lastSeenAction?: string | null;
+  latestEventType?: string | null;
   isStuck?: boolean;
   prompt: string;
   chatroomId: string;
@@ -198,7 +240,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
   role,
   online,
   lastSeenAt,
-  lastSeenAction,
+  latestEventType,
   isStuck,
   prompt,
   chatroomId,
@@ -228,7 +270,8 @@ const InlineAgentCard = memo(function InlineAgentCard({
   });
 
   const indicatorClass = online ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
-  const statusLabel = online ? (lastSeenAction ?? 'online').toUpperCase() : 'OFFLINE';
+  // Derive status from event stream (event-driven status, not heartbeat string)
+  const statusLabel = online ? eventTypeToStatusLabel(latestEventType) : 'OFFLINE';
   const statusColorClass = online ? 'text-chatroom-status-success' : 'text-chatroom-text-muted';
 
   // Resolve machine hostname for remote agents
@@ -493,13 +536,13 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
           <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
         </FixedModalHeader>
         <FixedModalBody>
-          {agents.map(({ role, online, lastSeenAt, lastSeenAction, isStuck }) => (
+          {agents.map(({ role, online, lastSeenAt, latestEventType, isStuck }) => (
             <InlineAgentCard
               key={role}
               role={role}
               online={online}
               lastSeenAt={lastSeenAt}
-              lastSeenAction={lastSeenAction}
+              latestEventType={latestEventType}
               isStuck={isStuck}
               prompt={generatePrompt(role)}
               chatroomId={chatroomId}
@@ -535,29 +578,36 @@ export const AgentPanel = memo(function AgentPanel({
 
   const { getAgentPrompt } = usePrompts();
 
-  // Build participant map from lifecycle data
-  const participantMap = useMemo(() => {
-    if (!lifecycle?.participants) return new Map<string, ParticipantInfo>();
-    return new Map(lifecycle.participants.map((p) => [p.role.toLowerCase(), p as ParticipantInfo]));
-  }, [lifecycle?.participants]);
-
   // Determine which roles to show (memoized)
   const rolesToShow = useMemo(
     () => (teamRoles.length > 0 ? teamRoles : lifecycle?.expectedRoles || []),
     [teamRoles, lifecycle?.expectedRoles]
   );
 
+  // Fetch latest event type for each role — event-driven status (not heartbeat strings)
+  const latestEventsByRole = useSessionQuery(api.machines.getLatestAgentEventsForChatroom, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    roles: rolesToShow,
+  }) as Record<string, string> | undefined;
+
+  // Build participant map from lifecycle data
+  const participantMap = useMemo(() => {
+    if (!lifecycle?.participants) return new Map<string, ParticipantInfo>();
+    return new Map(lifecycle.participants.map((p) => [p.role.toLowerCase(), p as ParticipantInfo]));
+  }, [lifecycle?.participants]);
+
   // Categorize agents by presence for grouped display
   const categorizedAgents = useMemo(() => {
-    const working: string[] = []; // online and not waiting in get-next-task (shown individually at top)
-    const online: string[] = []; // online and waiting (in get-next-task loop)
+    const working: string[] = []; // online and actively working (shown individually at top)
+    const online: string[] = []; // online and idle/waiting
     const offline: string[] = []; // not seen within threshold
 
     for (const role of rolesToShow) {
       const participant = participantMap.get(role.toLowerCase());
       const online_ = isOnline(participant?.lastSeenAt);
+      const latestEventType = latestEventsByRole?.[role.toLowerCase()] ?? null;
 
-      if (isWorking(online_, participant?.lastSeenAction)) {
+      if (isWorkingFromEvent(online_, latestEventType)) {
         working.push(role);
       } else if (online_) {
         online.push(role);
@@ -567,7 +617,7 @@ export const AgentPanel = memo(function AgentPanel({
     }
 
     return { working, online, offline };
-  }, [rolesToShow, participantMap]);
+  }, [rolesToShow, participantMap, latestEventsByRole]);
 
   // Memoize prompt generation function
   const generatePrompt = useCallback(
@@ -585,11 +635,11 @@ export const AgentPanel = memo(function AgentPanel({
         role,
         online: isOnline(participant?.lastSeenAt),
         lastSeenAt: participant?.lastSeenAt,
-        lastSeenAction: participant?.lastSeenAction,
+        latestEventType: latestEventsByRole?.[role.toLowerCase()] ?? null,
         isStuck: participant?.isStuck,
       };
     });
-  }, [rolesToShow, participantMap]);
+  }, [rolesToShow, participantMap, latestEventsByRole]);
 
   // Open unified agent list modal
   const openAgentListModal = useCallback(() => {
@@ -631,12 +681,12 @@ export const AgentPanel = memo(function AgentPanel({
   const renderAgentRow = (role: string) => {
     const participant = participantMap.get(role.toLowerCase());
     const online_ = isOnline(participant?.lastSeenAt);
-    const lastSeenAction = participant?.lastSeenAction ?? null;
-    const working_ = isWorking(online_, lastSeenAction);
+    const latestEventType = latestEventsByRole?.[role.toLowerCase()] ?? null;
+    const working_ = isWorkingFromEvent(online_, latestEventType);
     const isStuck = participant?.isStuck === true;
 
     const indicatorClass = online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
-    const statusLabel = online_ ? (lastSeenAction ?? 'online').toUpperCase() : 'OFFLINE';
+    const statusLabel = online_ ? eventTypeToStatusLabel(latestEventType) : 'OFFLINE';
 
     return (
       <div key={role} className="border-b border-chatroom-border last:border-b-0">
@@ -759,3 +809,4 @@ export const AgentPanel = memo(function AgentPanel({
     </div>
   );
 });
+
