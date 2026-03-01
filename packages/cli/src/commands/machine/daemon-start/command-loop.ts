@@ -18,15 +18,7 @@ import {
 } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
-import { handleStartAgent } from './handlers/start-agent.js';
-import { handleStatus } from './handlers/status.js';
-import { handleStopAgent } from './handlers/stop-agent.js';
-import type {
-  CommandResult,
-  DaemonContext,
-  MachineCommand,
-  MachineCommandBase,
-} from './types.js';
+import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
@@ -70,92 +62,6 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
     );
   } catch (error) {
     console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${(error as Error).message}`);
-  }
-}
-
-// ─── Command Dispatch ───────────────────────────────────────────────────────
-
-/**
- * Process a single command: dispatch to the appropriate handler,
- * then ack the result back to the backend.
- */
-export async function processCommand(ctx: DaemonContext, command: MachineCommand): Promise<void> {
-  console.log(`[${formatTimestamp()}] 📨 Command received: ${command.type}`);
-
-  try {
-    // Mark as processing
-    await ctx.deps.backend.mutation(api.machines.ackCommand, {
-      sessionId: ctx.sessionId,
-      commandId: command._id,
-      status: 'processing',
-    });
-
-    ctx.events.emit('command:processing', {
-      commandId: command._id.toString(),
-      type: command.type,
-    });
-
-    // Dispatch to the appropriate handler
-    let commandResult: CommandResult;
-    switch (command.type) {
-      case 'ping':
-        commandResult = handlePing();
-        break;
-      case 'status':
-        commandResult = handleStatus(ctx);
-        break;
-      case 'start-agent':
-        commandResult = await handleStartAgent(ctx, command);
-        break;
-      case 'stop-agent':
-        commandResult = await handleStopAgent(ctx, command);
-        break;
-      default: {
-        // Exhaustiveness check: TypeScript will error if a new command type
-        // is added to MachineCommand but not handled above.
-        const _exhaustive: never = command;
-        commandResult = {
-          result: `Unknown command type: ${(_exhaustive as MachineCommandBase & { type: string }).type}`,
-          failed: true,
-        };
-      }
-    }
-
-    // Ack result back to backend
-    const finalStatus = commandResult.failed ? 'failed' : 'completed';
-    await ctx.deps.backend.mutation(api.machines.ackCommand, {
-      sessionId: ctx.sessionId,
-      commandId: command._id,
-      status: finalStatus,
-      result: commandResult.result,
-    });
-
-    ctx.events.emit('command:completed', {
-      commandId: command._id.toString(),
-      type: command.type,
-      failed: commandResult.failed,
-      result: commandResult.result,
-    });
-
-    if (commandResult.failed) {
-      console.log(`   ❌ Command failed: ${commandResult.result}`);
-    } else {
-      console.log(`   ✅ Command completed`);
-    }
-  } catch (error) {
-    console.error(`   ❌ Command failed: ${(error as Error).message}`);
-
-    // Mark as failed
-    try {
-      await ctx.deps.backend.mutation(api.machines.ackCommand, {
-        sessionId: ctx.sessionId,
-        commandId: command._id,
-        status: 'failed',
-        result: (error as Error).message,
-      });
-    } catch {
-      // Ignore ack errors
-    }
   }
 }
 

@@ -111,21 +111,8 @@ export async function setupRemoteAgentConfig(
       workingDir: '/test/workspace',
     },
   });
-
-  // Ack all commands so they're no longer pending
-  const commands = (
-    await t.query(api.machines.getPendingCommands, {
-      sessionId,
-      machineId,
-    })
-  ).commands;
-  for (const cmd of commands) {
-    await t.mutation(api.machines.ackCommand, {
-      sessionId,
-      commandId: cmd._id,
-      status: 'completed' as const,
-    });
-  }
+  // Note: sendCommand for start-agent now emits an agent.requestStart event to the
+  // event stream. No chatroom_machineCommands acking is needed (table removed in Phase D).
 }
 
 // ---------------------------------------------------------------------------
@@ -133,18 +120,7 @@ export async function setupRemoteAgentConfig(
 // ---------------------------------------------------------------------------
 
 /**
- * Get all pending machine commands for a given machine.
- */
-export async function getPendingCommands(sessionId: SessionId, machineId: string) {
-  const result = await t.query(api.machines.getPendingCommands, {
-    sessionId,
-    machineId,
-  });
-  return result.commands;
-}
-
-/**
- * Get command events (agent.requestStart / agent.requestStop) from the event stream for a machine.
+ * Get command events (agent.requestStart / agent.requestStop / daemon.ping) from the event stream for a machine.
  */
 export async function getCommandEvents(sessionId: SessionId, machineId: string) {
   const result = await t.query(api.machines.getCommandEvents, {

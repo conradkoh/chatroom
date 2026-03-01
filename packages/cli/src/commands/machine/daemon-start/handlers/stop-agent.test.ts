@@ -31,7 +31,6 @@ vi.mock('../../../../api.js', () => ({
     machines: {
       updateSpawnedAgent: 'machines.updateSpawnedAgent',
       getAgentConfigs: 'machines.getAgentConfigs',
-      ackCommand: 'machines.ackCommand',
       register: 'machines.register',
       daemonHeartbeat: 'machines.daemonHeartbeat',
       updateDaemonStatus: 'machines.updateDaemonStatus',
@@ -146,11 +145,9 @@ function createCtx(deps: DaemonDeps): DaemonContext {
 }
 
 const CHATROOM_ID = 'test-chatroom-123' as Id<'chatroom_rooms'>;
-const COMMAND_ID = 'cmd-123' as Id<'chatroom_machineCommands'>;
 
 function createStopCommand(overrides?: Partial<StopAgentCommand['payload']>): StopAgentCommand {
   return {
-    _id: COMMAND_ID,
     type: 'stop-agent',
     reason: 'test',
     payload: {
@@ -158,7 +155,6 @@ function createStopCommand(overrides?: Partial<StopAgentCommand['payload']>): St
       role: 'builder',
       ...overrides,
     },
-    createdAt: Date.now(),
   };
 }
 

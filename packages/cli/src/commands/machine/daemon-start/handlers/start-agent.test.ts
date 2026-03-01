@@ -35,8 +35,6 @@ vi.mock('../../../../events/lifecycle/on-agent-shutdown.js', () => ({
 
 function createCommand(overrides?: Partial<StartAgentCommand['payload']>): StartAgentCommand {
   return {
-    _id: 'cmd-1' as StartAgentCommand['_id'],
-    createdAt: Date.now(),
     type: 'start-agent',
     reason: 'test',
     payload: {
