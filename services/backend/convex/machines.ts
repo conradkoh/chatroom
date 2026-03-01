@@ -441,6 +441,7 @@ export const getCommandEvents = query({
 
 /**
  * Get pending commands for a machine (daemon subscribes to this).
+ * @deprecated Replaced by getCommandEvents (event stream subscription). Remove after e2e verification.
  */
 export const getPendingCommands = query({  args: {
     ...SessionIdArg,

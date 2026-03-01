@@ -26,9 +26,8 @@ import type {
   DaemonContext,
   MachineCommand,
   MachineCommandBase,
-  RawMachineCommand,
 } from './types.js';
-import { formatTimestamp, parseMachineCommand } from './utils.js';
+import { formatTimestamp } from './utils.js';
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
@@ -206,90 +205,15 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   process.on('SIGTERM', shutdown);
   process.on('SIGHUP', shutdown);
 
-  // Subscribe to pending commands
+  // Open WebSocket connection for event stream subscription
   const wsClient = await getConvexWsClient();
-
-  // In-memory queue to ensure commands aren't skipped when updates
-  // arrive while processing is in progress.
-  const commandQueue: MachineCommand[] = [];
-  const queuedCommandIds = new Set<string>();
-  let drainingQueue = false;
-
-  const enqueueCommands = (commands: MachineCommand[]) => {
-    for (const command of commands) {
-      const commandId = command._id.toString();
-      if (queuedCommandIds.has(commandId)) continue;
-      queuedCommandIds.add(commandId);
-      commandQueue.push(command);
-    }
-  };
-
-  const drainQueue = async () => {
-    if (drainingQueue) return;
-    drainingQueue = true;
-    try {
-      while (commandQueue.length > 0) {
-        const command = commandQueue.shift()!;
-        const commandId = command._id.toString();
-        queuedCommandIds.delete(commandId);
-        try {
-          await processCommand(ctx, command);
-        } catch (error) {
-          console.error(`   ❌ Command processing failed: ${(error as Error).message}`);
-        }
-      }
-    } finally {
-      drainingQueue = false;
-    }
-  };
 
   console.log(`\nListening for commands...`);
   console.log(`Press Ctrl+C to stop\n`);
 
-  wsClient.onUpdate(
-    api.machines.getPendingCommands,
-    {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-    },
-    async (result: { commands: RawMachineCommand[] }) => {
-      if (!result.commands || result.commands.length === 0) return;
-
-      // Parse raw commands into type-safe discriminated unions.
-      // Invalid commands (missing required fields) are acked as failed
-      // to prevent them from accumulating as stale pending commands.
-      const parsed: MachineCommand[] = [];
-      for (const raw of result.commands) {
-        const command = parseMachineCommand(raw);
-        if (command !== null) {
-          parsed.push(command);
-        } else {
-          // Ack invalid commands as failed so they don't stay pending forever
-          try {
-            await ctx.deps.backend.mutation(api.machines.ackCommand, {
-              sessionId: ctx.sessionId,
-              commandId: raw._id,
-              status: 'failed',
-              result: `Invalid command: type="${raw.type}" missing required payload fields`,
-            });
-            console.warn(
-              `[${formatTimestamp()}] ⚠️  Acked invalid command ${raw._id} (type=${raw.type}) as failed`
-            );
-          } catch {
-            // Ignore ack errors — will be retried on next poll
-          }
-        }
-      }
-
-      enqueueCommands(parsed);
-      await drainQueue();
-    }
-  );
-
   // ── Stream command subscription ──────────────────────────────────────────
   // Subscribes to chatroom_eventStream for command events directed at this machine.
   // Uses executeStartAgent/executeStopAgent directly — no synthetic _id needed.
-  // The existing getPendingCommands subscription is kept as a transitional fallback.
 
   // Initialize the stream cursor.
   // Priority 1: persisted cursor from previous daemon run (survives restarts).
