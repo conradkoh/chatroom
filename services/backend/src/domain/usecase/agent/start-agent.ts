@@ -96,7 +96,7 @@ export async function startAgent(
   input: StartAgentInput,
   machine: Doc<'chatroom_machines'>
 ): Promise<StartAgentResult> {
-  const { machineId, chatroomId, role, userId, model, agentHarness, workingDir, reason } = input;
+  const { machineId, chatroomId, role, model, agentHarness, workingDir, reason } = input;
 
   // ── Step 1: Upsert machine agent config ───────────────────────────────
 

@@ -792,7 +792,7 @@ export const sendCommand = mutation({
         );
       }
 
-      const result = await startAgentUseCase(
+      await startAgentUseCase(
         ctx,
         {
           machineId: args.machineId,
