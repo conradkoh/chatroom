@@ -90,6 +90,22 @@ export type AgentWaitingEvent = {
   timestamp: number;
 };
 
+export type TaskAcknowledgedEvent = {
+  type: 'task.acknowledged';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  taskId: Id<'chatroom_tasks'>;
+  timestamp: number;
+};
+
+export type TaskInProgressEvent = {
+  type: 'task.inProgress';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  taskId: Id<'chatroom_tasks'>;
+  timestamp: number;
+};
+
 export type ChatroomEvent =
   | AgentStartedEvent
   | AgentExitedEvent
@@ -98,4 +114,6 @@ export type ChatroomEvent =
   | AgentRequestStartEvent
   | AgentRequestStopEvent
   | AgentRegisteredEvent
-  | AgentWaitingEvent;
+  | AgentWaitingEvent
+  | TaskAcknowledgedEvent
+  | TaskInProgressEvent;

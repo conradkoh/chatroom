@@ -914,10 +914,27 @@ export default defineSchema({
         machineId: v.optional(v.string()),
         timestamp: v.number(),
       }),
+      // Agent claimed a pending task via get-next-task (pending → acknowledged)
+      v.object({
+        type: v.literal('task.acknowledged'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        taskId: v.id('chatroom_tasks'),
+        timestamp: v.number(),
+      }),
+      // Agent began active work via task-started command (acknowledged → in_progress)
+      v.object({
+        type: v.literal('task.inProgress'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        taskId: v.id('chatroom_tasks'),
+        timestamp: v.number(),
+      }),
     )
   )
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_type', ['chatroomId', 'type'])
+    .index('by_chatroomId_role', ['chatroomId', 'role'])
     .index('by_machineId_type', ['machineId', 'type'])
     .index('by_timestamp', ['timestamp']),
 });
