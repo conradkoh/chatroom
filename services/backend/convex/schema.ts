@@ -897,6 +897,23 @@ export default defineSchema({
         deadline: v.number(),
         timestamp: v.number(),
       }),
+      // Agent declared its type for a chatroom role (custom or remote)
+      v.object({
+        type: v.literal('agent.registered'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        agentType: v.union(v.literal('custom'), v.literal('remote')),
+        machineId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Agent entered the get-next-task loop (standing by for tasks)
+      v.object({
+        type: v.literal('agent.waiting'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
     )
   )
     .index('by_chatroom', ['chatroomId'])

@@ -73,10 +73,29 @@ export type AgentRequestStopEvent = {
   timestamp: number;
 };
 
+export type AgentRegisteredEvent = {
+  type: 'agent.registered';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  agentType: 'custom' | 'remote';
+  machineId?: string;
+  timestamp: number;
+};
+
+export type AgentWaitingEvent = {
+  type: 'agent.waiting';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId?: string;
+  timestamp: number;
+};
+
 export type ChatroomEvent =
   | AgentStartedEvent
   | AgentExitedEvent
   | TaskActivatedEvent
   | TaskCompletedEvent
   | AgentRequestStartEvent
-  | AgentRequestStopEvent;
+  | AgentRequestStopEvent
+  | AgentRegisteredEvent
+  | AgentWaitingEvent;
