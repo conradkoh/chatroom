@@ -142,3 +142,14 @@ export async function getPendingCommands(sessionId: SessionId, machineId: string
   });
   return result.commands;
 }
+
+/**
+ * Get command events (agent.requestStart / agent.requestStop) from the event stream for a machine.
+ */
+export async function getCommandEvents(sessionId: SessionId, machineId: string) {
+  const result = await t.query(api.machines.getCommandEvents, {
+    sessionId,
+    machineId,
+  });
+  return result.events;
+}

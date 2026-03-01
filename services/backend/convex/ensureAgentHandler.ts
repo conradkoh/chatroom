@@ -220,23 +220,7 @@ export const check = internalMutation({
         continue;
       }
 
-      await ctx.db.insert('chatroom_machineCommands', {
-        machineId: config.machineId,
-        type: 'start-agent',
-        payload: {
-          chatroomId,
-          role: config.role,
-          agentHarness: config.agentHarness,
-          model: config.model,
-          workingDir: config.workingDir,
-        },
-        reason: 'ensure-agent-retry',
-        status: 'pending',
-        sentBy: machine.userId,
-        createdAt: now,
-      });
-
-      // Dual-write: also emit agent.requestStart to the event stream.
+      // Emit agent.requestStart to the event stream — daemon reads this to start the agent.
       // Only emit if the remote config has all required fields for a start request.
       if (config.agentHarness && config.model && config.workingDir) {
         await ctx.db.insert('chatroom_eventStream', {

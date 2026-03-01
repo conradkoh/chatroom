@@ -38,8 +38,7 @@ export interface StopAgentInput {
 
 /** Result of a stop-agent operation. */
 export interface StopAgentResult {
-  /** The ID of the dispatched command record. */
-  commandId: Id<'chatroom_machineCommands'>;
+  // No command record — stop requests go via the event stream
 }
 
 // ─── Use Case ────────────────────────────────────────────────────────────────
@@ -52,23 +51,11 @@ export interface StopAgentResult {
  * @returns The command ID
  */
 export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promise<StopAgentResult> {
-  const { machineId, chatroomId, role, userId, reason } = input;
+  const { machineId, chatroomId, role, reason } = input;
 
   const now = Date.now();
-  const commandId = await ctx.db.insert('chatroom_machineCommands', {
-    machineId,
-    type: 'stop-agent',
-    payload: {
-      chatroomId,
-      role,
-    },
-    reason,
-    status: 'pending',
-    sentBy: userId,
-    createdAt: now,
-  });
 
-  // Write agent.requestStop event to stream
+  // Dispatch stop via event stream (daemon reads agent.requestStop events)
   await ctx.db.insert('chatroom_eventStream', {
     type: 'agent.requestStop',
     chatroomId,
@@ -91,5 +78,5 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
     });
   }
 
-  return { commandId };
+  return {};
 }

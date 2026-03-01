@@ -14,7 +14,7 @@ import { t } from '../../test.setup';
 import {
   createPairTeamChatroom,
   createTestSession,
-  getPendingCommands,
+  getCommandEvents,
   registerMachineWithDaemon,
 } from '../helpers/integration';
 
@@ -53,7 +53,6 @@ describe('startAgent — config persistence', () => {
     });
 
     // ===== VERIFY =====
-    expect(result.commandId).toBeDefined();
     expect(result.agentHarness).toBe('opencode');
     expect(result.model).toBe('claude-sonnet-4');
     expect(result.workingDir).toBe('/test/workspace');
@@ -476,15 +475,17 @@ describe('startAgent — command payload', () => {
     });
 
     // ===== VERIFY =====
-    const commands = await getPendingCommands(sessionId, machineId);
-    expect(commands.length).toBe(1);
-    const cmd = commands[0]!;
-    expect(cmd.type).toBe('start-agent');
-    expect(cmd.payload.model).toBe('my-specific-model');
-    expect(cmd.payload.agentHarness).toBe('opencode');
-    expect(cmd.payload.workingDir).toBe('/specific/path');
-    expect(cmd.payload.chatroomId).toBe(chatroomId);
-    expect(cmd.payload.role).toBe('builder');
+    const events = await getCommandEvents(sessionId, machineId);
+    expect(events.length).toBe(1);
+    const evt = events[0]!;
+    expect(evt.type).toBe('agent.requestStart');
+    if (evt.type === 'agent.requestStart') {
+      expect(evt.model).toBe('my-specific-model');
+      expect(evt.agentHarness).toBe('opencode');
+      expect(evt.workingDir).toBe('/specific/path');
+      expect(evt.chatroomId).toBe(chatroomId);
+      expect(evt.role).toBe('builder');
+    }
   });
 });
 

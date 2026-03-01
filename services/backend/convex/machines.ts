@@ -806,19 +806,19 @@ export const sendCommand = mutation({
         },
         machine
       );
-      return { commandId: result.commandId };
+      return {};
     }
 
     // ── stop-agent: delegate to use case ────────────────────────────────
     if (args.type === 'stop-agent' && args.payload?.chatroomId && args.payload?.role) {
-      const result = await stopAgentUseCase(ctx, {
+      await stopAgentUseCase(ctx, {
         machineId: args.machineId,
         chatroomId: args.payload.chatroomId,
         role: args.payload.role,
         userId: user._id,
         reason: 'user-stop',
       });
-      return { commandId: result.commandId };
+      return {};
     }
 
     // ── ping / status / stop-agent without payload: simple command ─────
