@@ -179,6 +179,15 @@ export const claimTask = mutation({
       }
     }
 
+    // Emit task.acknowledged event so UI can derive agent status from event stream
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'task.acknowledged',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      taskId: pendingTask._id,
+      timestamp: now,
+    });
+
     return { taskId: pendingTask._id, content: pendingTask.content };
   },
 });
@@ -241,6 +250,15 @@ export const startTask = mutation({
     // Transition: acknowledged → in_progress using FSM
 
     await transitionTask(ctx, acknowledgedTask._id, 'in_progress', 'startTask');
+
+    // Emit task.inProgress event so UI can derive agent status from event stream
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'task.inProgress',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      taskId: acknowledgedTask._id,
+      timestamp: Date.now(),
+    });
 
     return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
   },
