@@ -187,25 +187,27 @@ test('getCommandEvents — filters out non-command events (agent.started, task.a
   expect(result.events).toHaveLength(0);
 });
 
-// Test 6: afterId cursor — only events after cursor are returned
-test('getCommandEvents — afterId cursor filters out older events', async () => {
+// Test 6: afterId cursor — affects only daemon.ping events; start/stop use deadline filtering
+test('getCommandEvents — afterId cursor does NOT filter start/stop events (uses deadline-based filtering)', async () => {
   const { sessionId } = await createTestSession('gce-6');
   const chatroomId = await createChatroom(sessionId);
   const machineId = 'machine-gce-6';
   await registerMachine(sessionId, machineId);
 
   const firstId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStart');
-  const secondId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStop');
+  const _secondId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStop');
 
-  // With afterId = firstId, should only return the second event
+  // With afterId = firstId, start/stop events are still returned (they use deadline filtering)
+  // Both events have valid deadlines, so both should appear
   const result = await t.query(api.machines.getCommandEvents, {
     sessionId,
     machineId,
     afterId: firstId,
   });
 
-  expect(result.events).toHaveLength(1);
-  expect(result.events[0]._id).toBe(secondId);
+  expect(result.events).toHaveLength(2);
+  expect(result.events.map((e) => e.type)).toContain('agent.requestStart');
+  expect(result.events.map((e) => e.type)).toContain('agent.requestStop');
 });
 
 // Test 7: Unauthenticated request returns empty
@@ -216,4 +218,65 @@ test('getCommandEvents — unauthenticated request returns empty', async () => {
   });
 
   expect(result.events).toHaveLength(0);
+});
+
+// Test 8: Expired start/stop events are excluded (deadline < now)
+test('getCommandEvents — expired agent.requestStart/Stop events are NOT returned', async () => {
+  const { sessionId } = await createTestSession('gce-8');
+  const chatroomId = await createChatroom(sessionId);
+  const machineId = 'machine-gce-8';
+  await registerMachine(sessionId, machineId);
+
+  // Insert an event with an expired deadline
+  await t.run(async (ctx) => {
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.requestStop',
+      chatroomId,
+      machineId,
+      role: 'builder',
+      reason: 'test',
+      deadline: Date.now() - 1000, // expired 1 second ago
+      timestamp: Date.now() - 200_000,
+    });
+  });
+
+  const result = await t.query(api.machines.getCommandEvents, {
+    sessionId,
+    machineId,
+  });
+
+  expect(result.events).toHaveLength(0);
+});
+
+// Test 9: daemon.ping events use cursor-based afterId filtering
+test('getCommandEvents — daemon.ping events respect afterId cursor', async () => {
+  const { sessionId } = await createTestSession('gce-9');
+  const machineId = 'machine-gce-9';
+  await registerMachine(sessionId, machineId);
+
+  // Insert two ping events
+  const pingId1 = await t.run(async (ctx) => {
+    return ctx.db.insert('chatroom_eventStream', {
+      type: 'daemon.ping',
+      machineId,
+      timestamp: Date.now(),
+    });
+  });
+  const pingId2 = await t.run(async (ctx) => {
+    return ctx.db.insert('chatroom_eventStream', {
+      type: 'daemon.ping',
+      machineId,
+      timestamp: Date.now(),
+    });
+  });
+
+  // With afterId = pingId1, only the second ping should appear
+  const result = await t.query(api.machines.getCommandEvents, {
+    sessionId,
+    machineId,
+    afterId: pingId1,
+  });
+
+  expect(result.events).toHaveLength(1);
+  expect(result.events[0]._id).toBe(pingId2);
 });

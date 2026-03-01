@@ -391,8 +391,14 @@ export const getAgentConfigs = query({
 /**
  * Get command events from the event stream for a machine (daemon subscribes to this).
  *
- * Returns all `agent.requestStart` and `agent.requestStop` events for the given
- * machine, filtered by an optional `afterId` cursor for incremental delivery.
+ * Returns:
+ * - `agent.requestStart` and `agent.requestStop` events filtered by `deadline > now()`.
+ *   These use deadline-based filtering rather than cursor-based so that valid commands
+ *   issued before a daemon restart are not skipped when the cursor advances past them.
+ *   The daemon's deadline check and `processedStreamEventIds` set handle dedup.
+ * - `daemon.ping` events filtered by `afterId` cursor (fire-and-forget, no replay needed).
+ *
+ * @param afterId - Cursor for daemon.ping events only. Start/stop events use deadline filtering.
  */
 export const getCommandEvents = query({
   args: {
@@ -412,37 +418,46 @@ export const getCommandEvents = query({
       .first();
     if (!machine || machine.userId !== auth.user._id) return { events: [] };
 
-    // 3. Fetch agent.requestStart events using the machineId+type index
+    const now = Date.now();
+
+    // 3. Fetch agent.requestStart events — deadline-filtered (not cursor-filtered)
+    //    Ensures valid commands issued before a daemon restart are not skipped.
     const startEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
         q.eq('machineId', args.machineId).eq('type', 'agent.requestStart')
       )
+      .filter((q) => q.gt(q.field('deadline'), now))
       .order('asc')
       .collect();
 
-    // 4. Fetch agent.requestStop events
+    // 4. Fetch agent.requestStop events — deadline-filtered (not cursor-filtered)
     const stopEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
         q.eq('machineId', args.machineId).eq('type', 'agent.requestStop')
       )
+      .filter((q) => q.gt(q.field('deadline'), now))
       .order('asc')
       .collect();
 
-    // 5. Fetch daemon.ping events (daemon responds to these with daemon.pong)
-    const pingEvents = await ctx.db
+    // 5. Fetch daemon.ping events — cursor-filtered (fire-and-forget, no replay needed)
+    const allPingEvents = await ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_machineId_type', (q) =>
         q.eq('machineId', args.machineId).eq('type', 'daemon.ping')
       )
       .order('asc')
       .collect();
+    const pingEvents = args.afterId
+      ? allPingEvents.filter((e) => e._id > args.afterId!)
+      : allPingEvents;
 
-    // 6. Merge, apply cursor, sort by _creationTime ascending
-    const all = [...startEvents, ...stopEvents, ...pingEvents]
-      .filter((e) => !args.afterId || e._id > args.afterId)
-      .sort((a, b) => (a._creationTime < b._creationTime ? -1 : 1));
+    // 6. Merge and sort by _creationTime ascending
+    //    (start/stop are already deadline-filtered; ping is cursor-filtered above)
+    const all = [...startEvents, ...stopEvents, ...pingEvents].sort((a, b) =>
+      a._creationTime < b._creationTime ? -1 : 1
+    );
 
     return { events: all };
   },
