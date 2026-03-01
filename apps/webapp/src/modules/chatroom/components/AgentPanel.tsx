@@ -59,7 +59,7 @@ function isOnline(lastSeenAt: number | null | undefined): boolean {
 
 /**
  * Maps a chatroom_eventStream event type to a human-readable status label.
- * Used to derive UI status from the event stream instead of lastSeenAction heartbeats.
+ * Event-driven status derivation — decoupled from participant row heartbeats.
  */
 function eventTypeToStatusLabel(eventType: string | null | undefined): string {
   switch (eventType) {
