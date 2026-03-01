@@ -9,13 +9,13 @@ import type { Id } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import {
-  onCommandStartAgent,
-  type CommandStartAgentEventPayload,
-} from '../../../events/daemon/command/on-command-start-agent.js';
+  onRequestStartAgent,
+  type AgentRequestStartEventPayload,
+} from '../../../events/daemon/agent/on-request-start-agent.js';
 import {
-  onCommandStopAgent,
-  type CommandStopAgentEventPayload,
-} from '../../../events/daemon/command/on-command-stop-agent.js';
+  onRequestStopAgent,
+  type AgentRequestStopEventPayload,
+} from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
 import { handleStartAgent } from './handlers/start-agent.js';
@@ -345,10 +345,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
         try {
           console.log(`[${formatTimestamp()}] 📡 Stream command event: ${event.type}`);
 
-          if (event.type === 'command.startAgent') {
-            await onCommandStartAgent(ctx, event as unknown as CommandStartAgentEventPayload);
-          } else if (event.type === 'command.stopAgent') {
-            await onCommandStopAgent(ctx, event as unknown as CommandStopAgentEventPayload);
+          if (event.type === 'agent.requestStart') {
+            await onRequestStartAgent(ctx, event as unknown as AgentRequestStartEventPayload);
+          } else if (event.type === 'agent.requestStop') {
+            await onRequestStopAgent(ctx, event as unknown as AgentRequestStopEventPayload);
           }
         } catch (err) {
           console.error(

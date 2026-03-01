@@ -1,5 +1,6 @@
 /**
- * Handles a command.startAgent event from chatroom_eventStream.
+ * Handles an agent.requestStart event from chatroom_eventStream.
+ * Checks deadline before executing — expired requests are skipped.
  * Calls executeStartAgent directly — no synthetic command ID needed.
  */
 
@@ -10,19 +11,26 @@ import type {
 } from '../../../commands/machine/daemon-start/types.js';
 import { executeStartAgent } from '../../../commands/machine/daemon-start/handlers/start-agent.js';
 
-export interface CommandStartAgentEventPayload {
+export interface AgentRequestStartEventPayload {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
   agentHarness: 'opencode' | 'pi';
   model: string;
   workingDir: string;
   reason: string;
+  deadline: number;
 }
 
-export async function onCommandStartAgent(
+export async function onRequestStartAgent(
   ctx: DaemonContext,
-  event: CommandStartAgentEventPayload
+  event: AgentRequestStartEventPayload
 ): Promise<void> {
+  if (Date.now() > event.deadline) {
+    console.log(
+      `[daemon] ⏰ Skipping expired agent.requestStart for role=${event.role} (deadline passed)`
+    );
+    return;
+  }
   await executeStartAgent(ctx, {
     chatroomId: event.chatroomId,
     role: event.role,
