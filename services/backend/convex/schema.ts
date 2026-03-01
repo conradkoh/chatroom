@@ -895,6 +895,29 @@ export default defineSchema({
         reason: v.string(),
         timestamp: v.number(),
       }),
+      // An agent start was requested (replaces command.startAgent; includes deadline)
+      v.object({
+        type: v.literal('agent.requestStart'),
+        chatroomId: v.id('chatroom_rooms'),
+        machineId: v.string(),
+        role: v.string(),
+        agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+        model: v.string(),
+        workingDir: v.string(),
+        reason: v.string(),
+        deadline: v.number(),
+        timestamp: v.number(),
+      }),
+      // An agent stop was requested (replaces command.stopAgent; includes deadline)
+      v.object({
+        type: v.literal('agent.requestStop'),
+        chatroomId: v.id('chatroom_rooms'),
+        machineId: v.string(),
+        role: v.string(),
+        reason: v.string(),
+        deadline: v.number(),
+        timestamp: v.number(),
+      }),
     )
   )
     .index('by_chatroom', ['chatroomId'])

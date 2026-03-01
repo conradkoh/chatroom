@@ -47,3 +47,10 @@ export const DAEMON_HEARTBEAT_INTERVAL_MS = 30_000; // 30s
 /** How long a daemon is considered alive after the last heartbeat (ms).
  *  Must be > DAEMON_HEARTBEAT_INTERVAL_MS to tolerate missed beats. Allows 3 missed beats. */
 export const DAEMON_HEARTBEAT_TTL_MS = 120_000; // 2 min (Plan 026: increased from 90s)
+
+// ─── Agent Request Deadline ──────────────────────────────────────────────────
+
+/** How long an agent.requestStart / agent.requestStop event is considered valid (ms).
+ *  After this deadline, daemons should ignore the request to avoid late-arriving
+ *  starts/stops acting on stale intent. Set to 2 minutes. */
+export const AGENT_REQUEST_DEADLINE_MS = 120_000; // 2 minutes

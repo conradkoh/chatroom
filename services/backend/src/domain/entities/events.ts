@@ -71,10 +71,35 @@ export type CommandStopAgentEvent = {
   timestamp: number;
 };
 
+export type AgentRequestStartEvent = {
+  type: 'agent.requestStart';
+  chatroomId: Id<'chatroom_rooms'>;
+  machineId: string;
+  role: string;
+  agentHarness: 'opencode' | 'pi';
+  model: string;
+  workingDir: string;
+  reason: string;
+  deadline: number;
+  timestamp: number;
+};
+
+export type AgentRequestStopEvent = {
+  type: 'agent.requestStop';
+  chatroomId: Id<'chatroom_rooms'>;
+  machineId: string;
+  role: string;
+  reason: string;
+  deadline: number;
+  timestamp: number;
+};
+
 export type ChatroomEvent =
   | AgentStartedEvent
   | AgentExitedEvent
   | TaskActivatedEvent
   | TaskCompletedEvent
   | CommandStartAgentEvent
-  | CommandStopAgentEvent;
+  | CommandStopAgentEvent
+  | AgentRequestStartEvent
+  | AgentRequestStopEvent;
