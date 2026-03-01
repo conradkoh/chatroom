@@ -1035,6 +1035,16 @@ export const saveTeamAgentConfig = mutation({
       excludeMachineId: args.type === 'remote' ? args.machineId : undefined,
     });
 
+    // Emit agent.registered event to the event stream
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.registered',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      agentType: args.type,
+      machineId: args.machineId,
+      timestamp: now,
+    });
+
     return { success: true };
   },
 });

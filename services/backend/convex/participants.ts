@@ -120,6 +120,16 @@ export const join = mutation({
       }
     }
 
+    // Emit agent.waiting event when agent enters the get-next-task loop
+    if (args.action === 'get-next-task:started') {
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'agent.waiting',
+        chatroomId: args.chatroomId,
+        role: args.role,
+        timestamp: now,
+      });
+    }
+
     return participantId;
   },
 });
