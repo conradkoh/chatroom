@@ -525,6 +525,8 @@ interface RemoteTabContentProps {
   connectedMachines: MachineInfo[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
+  /** Harness from team config — shown as the running harness when agent is active */
+  teamConfigHarness?: AgentHarness;
 }
 
 export const RemoteTabContent = memo(function RemoteTabContent({
@@ -532,6 +534,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   connectedMachines,
   isLoadingMachines,
   daemonStartCommand,
+  teamConfigHarness,
 }: RemoteTabContentProps) {
   const {
     selectedMachineId,
@@ -561,8 +564,12 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 
   // When an agent is running, display the live config values — never internal form state.
   // Internal state is preserved so it's ready again when the agent stops.
+  // For harness: prefer teamConfigHarness (the user's current intended config) over
+  // runningAgentConfig.agentType (which may be stale from a previous start).
   const displayMachineId = isAgentRunning ? runningAgentConfig!.machineId : selectedMachineId;
-  const displayHarness = isAgentRunning ? runningAgentConfig!.agentType : selectedHarness;
+  const displayHarness = isAgentRunning
+    ? (teamConfigHarness ?? runningAgentConfig!.agentType)
+    : selectedHarness;
   const displayModel = isAgentRunning ? (runningAgentConfig!.model ?? null) : selectedModel;
   const displayWorkingDir = isAgentRunning ? (runningAgentConfig!.workingDir ?? '') : workingDir;
 
@@ -1044,6 +1051,8 @@ interface AgentConfigTabsComponentProps {
   isLoadingMachines: boolean;
   daemonStartCommand: string;
   onViewPrompt?: (role: string) => void;
+  /** Harness from team config — passed through to RemoteTabContent for display when agent is running */
+  teamConfigHarness?: AgentHarness;
 }
 
 export const AgentConfigTabs = memo(function AgentConfigTabs({
@@ -1056,6 +1065,7 @@ export const AgentConfigTabs = memo(function AgentConfigTabs({
   isLoadingMachines,
   daemonStartCommand,
   onViewPrompt,
+  teamConfigHarness,
 }: AgentConfigTabsComponentProps) {
   return (
     <>
@@ -1096,6 +1106,7 @@ export const AgentConfigTabs = memo(function AgentConfigTabs({
           connectedMachines={connectedMachines}
           isLoadingMachines={isLoadingMachines}
           daemonStartCommand={daemonStartCommand}
+          teamConfigHarness={teamConfigHarness}
         />
       )}
       {activeTab === 'custom' && (

@@ -333,6 +333,7 @@ const InlineAgentCard = memo(function InlineAgentCard({
             isLoadingMachines={isLoadingMachines}
             daemonStartCommand={daemonStartCommand}
             onViewPrompt={onViewPrompt}
+            teamConfigHarness={teamConfig?.agentHarness}
           />
         </div>
       )}
