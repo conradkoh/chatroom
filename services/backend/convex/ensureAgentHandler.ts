@@ -47,7 +47,8 @@ import { v } from 'convex/values';
 
 import { STUCK_TOKEN_THRESHOLD_MS, ENSURE_AGENT_FALLBACK_DELAY_MS } from '../config/reliability';
 import { internal } from './_generated/api';
-import { internalMutation } from './_generated/server';
+import type { Id } from './_generated/dataModel';
+import { internalMutation, type MutationCtx } from './_generated/server';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -60,6 +61,45 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
  */
 /** Task statuses that indicate an agent should be running. */
 const ACTIVE_TASK_STATUSES = new Set(['pending', 'acknowledged', 'in_progress']);
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Determine whether an in_progress agent is stuck (no recent token output).
+ *
+ * Returns `true` if the agent should be restarted:
+ * - No participant record for the role
+ * - No `lastSeenTokenAt` recorded (agent never emitted tokens)
+ * - Token output is stale (age ≥ STUCK_TOKEN_THRESHOLD_MS)
+ *
+ * Returns `false` if the agent is still healthy (producing tokens recently).
+ */
+async function isAgentStuck(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  assignedTo: string
+): Promise<boolean> {
+  const participant = await ctx.db
+    .query('chatroom_participants')
+    .withIndex('by_chatroom_and_role', (q) =>
+      q.eq('chatroomId', chatroomId).eq('role', assignedTo)
+    )
+    .first();
+
+  if (participant?.lastSeenTokenAt == null) {
+    // No participant or no token activity — assume stuck
+    return true;
+  }
+
+  const tokenAge = Date.now() - participant.lastSeenTokenAt;
+  if (tokenAge < STUCK_TOKEN_THRESHOLD_MS) {
+    // Agent is still producing tokens — healthy
+    return false;
+  }
+
+  // Token output is stale — agent is stuck
+  return true;
+}
 
 // ─── Internal Mutation ───────────────────────────────────────────────────────
 
@@ -114,38 +154,22 @@ export const check = internalMutation({
 
     // ── 4. Smart token check for in_progress tasks ────────────────────────
     //
-    // If the task is already in_progress, the agent may still be actively
-    // working (just taking a long time). Check whether the assigned role's
-    // participant is producing tokens before deciding to restart.
-    //
-    // If tokens are fresh (within STUCK_TOKEN_THRESHOLD_MS), reschedule
-    // another check instead of restarting — the agent is still alive.
+    // If the task is already in_progress, check whether the agent is still
+    // actively producing tokens. If healthy, reschedule and return without
+    // restarting. Only stuck agents (stale token output) are restarted.
 
     if (task.status === 'in_progress' && task.assignedTo) {
-      const participant = await ctx.db
-        .query('chatroom_participants')
-        .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', task.assignedTo!)
-        )
-        .first();
-
-      if (participant?.lastSeenTokenAt != null) {
-        const now = Date.now();
-        const tokenAge = now - participant.lastSeenTokenAt;
-
-        if (tokenAge < STUCK_TOKEN_THRESHOLD_MS) {
-          // Agent is still producing tokens — healthy. Reschedule another
-          // check in ENSURE_AGENT_FALLBACK_DELAY_MS to keep monitoring.
-          await ctx.scheduler.runAfter(ENSURE_AGENT_FALLBACK_DELAY_MS, internal.ensureAgentHandler.check, {
-            taskId,
-            chatroomId,
-            snapshotUpdatedAt: task.updatedAt,
-          });
-          return;
-        }
-        // Token output is stale — fall through to restart.
+      const stuck = await isAgentStuck(ctx, chatroomId, task.assignedTo);
+      if (!stuck) {
+        // Agent is still producing tokens — reschedule check and wait.
+        await ctx.scheduler.runAfter(ENSURE_AGENT_FALLBACK_DELAY_MS, internal.ensureAgentHandler.check, {
+          taskId,
+          chatroomId,
+          snapshotUpdatedAt: task.updatedAt,
+        });
+        return;
       }
-      // No participant record or no token activity recorded — fall through to restart.
+      // Agent is stuck (stale or missing token output) — fall through to restart.
     }
 
     // ── 5. Find all remote agent configs for this chatroom ────────────────
