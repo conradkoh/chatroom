@@ -7,9 +7,10 @@ import { useMemo } from 'react';
 
 import type { TeamLifecycle } from '../types/readiness';
 
-const PRESENCE_THRESHOLD_MS = 600_000; // 10 minutes
+// Event types that indicate the agent is offline (not connected)
+const OFFLINE_EVENT_TYPES = new Set(['agent.exited', null, undefined]);
 
-// Idle event types — agent is not actively working
+// Idle event types — agent is online but not actively working
 const IDLE_EVENT_TYPES = new Set([
   'agent.waiting',
   'agent.registered',
@@ -85,12 +86,12 @@ export function useAgentStatuses(
   }, [lifecycle?.participants]);
 
   const agents = useMemo((): AgentStatus[] => {
-    const now = Date.now();
     return roles.map((role) => {
       const participant = participantMap.get(role.toLowerCase());
       const lastSeenAt = participant?.lastSeenAt ?? null;
-      const online = lastSeenAt != null && now - lastSeenAt <= PRESENCE_THRESHOLD_MS;
       const latestEventType = latestEventsByRole?.[role.toLowerCase()] ?? null;
+      // Agent is online if their latest event is NOT agent.exited and NOT null (never registered)
+      const online = !OFFLINE_EVENT_TYPES.has(latestEventType as string);
       const isWorking = online && !IDLE_EVENT_TYPES.has(latestEventType as string);
       return {
         role,
