@@ -195,6 +195,13 @@ export function useAgentControls({
   // Guards initialization — fires exactly once when machines become available
   const [isInitialized, setIsInitialized] = useState(false);
 
+  // Update the ref if it's still unset and teamConfigHarness arrives before initialization.
+  // Safe to do in render: runs only before initialization, is a one-way undefined→defined
+  // transition, and setting a ref does not trigger re-renders.
+  if (!isInitialized && initialTeamConfigHarnessRef.current === undefined && teamConfigHarness !== undefined) {
+    initialTeamConfigHarnessRef.current = teamConfigHarness;
+  }
+
   // Get configs for this role
   const roleConfigs = useMemo(() => {
     return agentConfigs.filter((c) => c.role.toLowerCase() === role.toLowerCase());
