@@ -45,7 +45,7 @@
 
 import { v } from 'convex/values';
 
-import { STUCK_TOKEN_THRESHOLD_MS, AGENT_REQUEST_DEADLINE_MS, ENSURE_AGENT_FALLBACK_DELAY_MS } from '../config/reliability';
+import { STUCK_TOKEN_THRESHOLD_MS, ENSURE_AGENT_FALLBACK_DELAY_MS } from '../config/reliability';
 import { internal } from './_generated/api';
 import { internalMutation } from './_generated/server';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
@@ -232,7 +232,7 @@ export const check = internalMutation({
           model: config.model,
           workingDir: config.workingDir,
           reason: 'ensure-agent-retry',
-          deadline: now + AGENT_REQUEST_DEADLINE_MS,
+          deadline: now + ENSURE_AGENT_FALLBACK_DELAY_MS * 2,
           timestamp: now,
         });
       }
