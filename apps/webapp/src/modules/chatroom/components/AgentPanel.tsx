@@ -131,57 +131,7 @@ function formatLastSeen(lastSeenAt: number | null | undefined): string {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
-// Collapsed Agent Group Component - shows a collapsed row that opens the unified modal
-interface CollapsedAgentGroupProps {
-  title: string;
-  agents: string[];
-  variant: 'online' | 'offline';
-  onOpenModal: () => void;
-}
 
-const CollapsedAgentGroup = memo(function CollapsedAgentGroup({
-  title,
-  agents,
-  variant,
-  onOpenModal,
-}: CollapsedAgentGroupProps) {
-  const indicatorClass =
-    variant === 'online' ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
-
-  return (
-    <div className="border-b border-chatroom-border last:border-b-0">
-      {/* Clickable Header - opens unified modal */}
-      <div
-        className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-chatroom-bg-hover"
-        role="button"
-        tabIndex={0}
-        aria-label={`${title} agents (${agents.length}). Click to view all agents.`}
-        onClick={onOpenModal}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onOpenModal();
-          }
-        }}
-      >
-        {/* Status Indicator - square per theme.md */}
-        <div className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`} />
-        {/* Group Info */}
-        <div className="flex-1 min-w-0">
-          <div className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
-            {title}
-            <span className="ml-1.5 text-chatroom-text-muted">({agents.length})</span>
-          </div>
-          <div className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted truncate">
-            {agents.map((r) => r.toUpperCase()).join(', ')}
-          </div>
-        </div>
-        {/* View More Indicator */}
-        <ChevronRight className="h-4 w-4 text-chatroom-text-muted" />
-      </div>
-    </div>
-  );
-});
 
 // Agent info with presence for the unified modal
 interface AgentWithStatus {
@@ -596,29 +546,6 @@ export const AgentPanel = memo(function AgentPanel({
     return new Map(lifecycle.participants.map((p) => [p.role.toLowerCase(), p as ParticipantInfo]));
   }, [lifecycle?.participants]);
 
-  // Categorize agents by presence for grouped display
-  const categorizedAgents = useMemo(() => {
-    const working: string[] = []; // online and actively working (shown individually at top)
-    const online: string[] = []; // online and idle/waiting
-    const offline: string[] = []; // not seen within threshold
-
-    for (const role of rolesToShow) {
-      const participant = participantMap.get(role.toLowerCase());
-      const online_ = isOnline(participant?.lastSeenAt);
-      const latestEventType = latestEventsByRole?.[role.toLowerCase()] ?? null;
-
-      if (isWorkingFromEvent(online_, latestEventType)) {
-        working.push(role);
-      } else if (online_) {
-        online.push(role);
-      } else {
-        offline.push(role);
-      }
-    }
-
-    return { working, online, offline };
-  }, [rolesToShow, participantMap, latestEventsByRole]);
-
   // Memoize prompt generation function
   const generatePrompt = useCallback(
     (role: string): string => {
@@ -685,8 +612,9 @@ export const AgentPanel = memo(function AgentPanel({
     const working_ = isWorkingFromEvent(online_, latestEventType);
     const isStuck = participant?.isStuck === true;
 
+    // Fix statusLabel: always use event-based label (no "OFFLINE" string)
     const indicatorClass = online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
-    const statusLabel = online_ ? eventTypeToStatusLabel(latestEventType) : 'OFFLINE';
+    const statusLabel = eventTypeToStatusLabel(latestEventType);
 
     return (
       <div key={role} className="border-b border-chatroom-border last:border-b-0">
@@ -773,28 +701,8 @@ export const AgentPanel = memo(function AgentPanel({
       </div>
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
-        {/* Working Agents - always shown prominently at top */}
-        {categorizedAgents.working.map(renderAgentRow)}
-
-        {/* Online Agents - collapsed group that opens unified modal */}
-        {categorizedAgents.online.length > 0 && (
-          <CollapsedAgentGroup
-            title="Online"
-            agents={categorizedAgents.online}
-            variant="online"
-            onOpenModal={openAgentListModal}
-          />
-        )}
-
-        {/* Offline Agents - collapsed group that opens unified modal */}
-        {categorizedAgents.offline.length > 0 && (
-          <CollapsedAgentGroup
-            title="Offline"
-            agents={categorizedAgents.offline}
-            variant="offline"
-            onOpenModal={openAgentListModal}
-          />
-        )}
+        {/* All agents as individual compact rows */}
+        {allAgentsWithStatus.map(({ role }) => renderAgentRow(role))}
       </div>
 
       {/* Unified Agent List Modal - shows ALL agents with inline config/controls */}
