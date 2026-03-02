@@ -11,8 +11,6 @@ import {
   Check,
   Play,
   ChevronRight,
-  ChevronDown,
-  Archive,
   ClipboardCheck,
   MoreHorizontal,
   XCircle,
@@ -173,7 +171,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   const [editedContent, setEditedContent] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
-  const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
   const [isPendingReviewModalOpen, setIsPendingReviewModalOpen] = useState(false);
   const [isCurrentTasksModalOpen, setIsCurrentTasksModalOpen] = useState(false);
 
@@ -219,18 +216,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   // No frontend filtering needed - backend handles pending_review filter
   const filteredPendingReviewTasks = pendingReviewTasks ?? [];
 
-  // Query archived tasks (only when expanded)
-  const archivedTasks = useSessionQuery(
-    api.tasks.listTasks,
-    isArchivedExpanded
-      ? {
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          statusFilter: 'archived' as const,
-          limit: 100, // Match MAX_TASK_LIST_LIMIT from backend
-        }
-      : 'skip'
-  ) as Task[] | undefined;
-
   // Mutations
   const createTask = useSessionMutation(api.tasks.createTask);
   const promoteNextTask = useSessionMutation(api.tasks.promoteNextTask);
@@ -271,13 +256,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
       backlog: backlogTasks,
     };
   }, [tasks]);
-
-  // Count archived items using task counts from backend
-  // This ensures the count is accurate even when archived section is collapsed
-  const archivedCount = useMemo(() => {
-    if (!counts) return 0;
-    return counts.completed + counts.closed;
-  }, [counts]);
 
   // Handlers
   const handleAddTask = useCallback(
@@ -648,42 +626,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
           )}
         </div>
         {/* End of Backlog Tasks */}
-
-        {/* Archived Section - Expandable */}
-        {archivedCount > 0 && (
-          <div className="border-b border-chatroom-border">
-            <button
-              onClick={() => setIsArchivedExpanded(!isArchivedExpanded)}
-              className="w-full px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between hover:bg-chatroom-bg-hover transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <Archive size={12} />
-                Archived ({archivedCount})
-              </span>
-              {isArchivedExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            </button>
-
-            {isArchivedExpanded && (
-              <div>
-                {archivedTasks === undefined ? (
-                  <div className="p-3 text-center text-chatroom-text-muted text-xs">Loading...</div>
-                ) : archivedTasks.length === 0 ? (
-                  <div className="p-3 text-center text-chatroom-text-muted text-xs">
-                    No archived items
-                  </div>
-                ) : (
-                  archivedTasks.map((task) => (
-                    <ArchivedBacklogItem
-                      key={task._id}
-                      task={task}
-                      onClick={() => handleOpenTaskDetail(task)}
-                    />
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        )}
       </div>
       {/* End of Scrollable Task List Container */}
 
@@ -961,59 +903,6 @@ function CompactBacklogItem({ task, onClick }: CompactBacklogItemProps) {
         size={14}
         className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
       />
-    </div>
-  );
-}
-
-// Archived Backlog Item - for archived section display
-interface ArchivedBacklogItemProps {
-  task: Task;
-  onClick: () => void;
-}
-
-function ArchivedBacklogItem({ task, onClick }: ArchivedBacklogItemProps) {
-  const backlogStatus = task.backlog?.status;
-  const statusLabel = backlogStatus === 'complete' ? 'Complete' : 'Closed';
-  const statusClasses =
-    backlogStatus === 'complete'
-      ? 'bg-chatroom-status-success/15 text-chatroom-status-success'
-      : 'bg-chatroom-text-muted/15 text-chatroom-text-muted';
-
-  // Format date
-  const formattedDate = new Date(task.updatedAt).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-
-  return (
-    <div
-      className="flex items-center gap-2 p-2 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors cursor-pointer"
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-    >
-      {/* Status Badge */}
-      <span
-        className={`flex-shrink-0 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide ${statusClasses}`}
-      >
-        {statusLabel}
-      </span>
-
-      {/* Content - 1 line max */}
-      <div className="flex-1 min-w-0 text-xs text-chatroom-text-muted line-clamp-1">
-        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
-          {task.content}
-        </Markdown>
-      </div>
-
-      {/* Date */}
-      <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{formattedDate}</span>
     </div>
   );
 }
