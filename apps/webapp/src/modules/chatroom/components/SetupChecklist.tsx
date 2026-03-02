@@ -16,6 +16,7 @@ import { usePrompts } from '@/contexts/PromptsContext';
 
 interface Participant {
   role: string;
+  lastSeenAt?: number | null;
 }
 
 interface SetupChecklistProps {
@@ -198,7 +199,11 @@ export const SetupChecklist = memo(function SetupChecklist({
 
   // Memoize joined count
   const joinedCount = useMemo(
-    () => teamRoles.filter((role) => participantMap.has(role.toLowerCase())).length,
+    () =>
+      teamRoles.filter((role) => {
+        const p = participantMap.get(role.toLowerCase());
+        return p != null && p.lastSeenAt != null;
+      }).length,
     [teamRoles, participantMap]
   );
 
@@ -259,7 +264,8 @@ export const SetupChecklist = memo(function SetupChecklist({
       {/* Steps */}
       <div className="flex flex-col gap-4">
         {teamRoles.map((role, index) => {
-          const isJoined = participantMap.has(role.toLowerCase());
+          const participant = participantMap.get(role.toLowerCase());
+          const isJoined = participant != null && participant.lastSeenAt != null;
           const prompt = generatePrompt(role);
 
           return (

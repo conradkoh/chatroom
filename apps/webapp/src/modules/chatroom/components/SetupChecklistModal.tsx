@@ -7,6 +7,7 @@ import { SetupChecklist } from './SetupChecklist';
 
 interface Participant {
   role: string;
+  lastSeenAt?: number | null;
 }
 
 interface SetupChecklistModalProps {
@@ -65,8 +66,10 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
 
   // Calculate agent join status
   const joinedCount = useMemo(() => {
-    const participantRoles = new Set(participants.map((p) => p.role.toLowerCase()));
-    return teamRoles.filter((role) => participantRoles.has(role.toLowerCase())).length;
+    return teamRoles.filter((role) => {
+      const p = participants.find((p) => p.role.toLowerCase() === role.toLowerCase());
+      return p?.lastSeenAt != null;
+    }).length;
   }, [participants, teamRoles]);
 
   if (!isOpen) return null;
