@@ -1,34 +1,17 @@
-/**
- * Backend STDIN Decoder
- *
- * Decodes structured text input from stdin following the encoding spec.
- * This is the authoritative decoder - CLI should send raw stdin content
- * and let the backend parse it.
- *
- * Requirement #4: All parsing of EOF format content done on backend
- */
+/** Decodes structured text input from stdin for backend parsing of CLI EOF format content. */
 
 export interface DecodeResult {
   [paramName: string]: string;
 }
 
 export interface DecodeOptions {
-  /**
-   * Expected parameter names (for validation)
-   * If provided, will error on unknown parameters
-   */
+  /** Expected parameter names; if set, unknown params are rejected. */
   expectedParams?: string[];
 
-  /**
-   * Required parameter names
-   * Will error if these are missing
-   */
+  /** Required parameter names; errors if missing. */
   requiredParams?: string[];
 
-  /**
-   * Single parameter mode - treat entire input as one parameter
-   * Parameter name to use for the content
-   */
+  /** Treats entire input as a single parameter with this name. */
   singleParam?: string;
 }
 
@@ -39,33 +22,12 @@ export interface DecodeError {
   paramName?: string;
 }
 
-/**
- * Decode a single message from stdin (no delimiters).
- * Used for handoff and report-progress commands.
- *
- * @param content - Raw stdin content (markdown format)
- * @returns Trimmed message content
- *
- * @example
- * const message = decodeMessage("# Summary\n\nImplemented feature X");
- * // Returns: "# Summary\n\nImplemented feature X"
- */
+/** Trims and returns a single message string from raw stdin content. */
 export function decodeMessage(content: string): string {
   return content.trim();
 }
 
-/**
- * Decode structured multi-parameter input.
- * Used for task-started new_feature classification.
- *
- * @param content - Raw stdin content with ---PARAM--- delimiters (text format)
- * @param params - Expected parameter names
- * @returns Decoded parameters object
- *
- * @example
- * const result = decodeStructured(input, ['TITLE', 'DESCRIPTION', 'TECH_SPECS']);
- * // Returns: { TITLE: "...", DESCRIPTION: "...", TECH_SPECS: "..." }
- */
+/** Decodes multi-parameter stdin content using ---PARAM--- delimiters. */
 export function decodeStructured(content: string, params: string[]): DecodeResult {
   return decode(content, {
     expectedParams: params,
@@ -73,30 +35,7 @@ export function decodeStructured(content: string, params: string[]): DecodeResul
   });
 }
 
-/**
- * Decode structured text input into parameters.
- *
- * Supports two modes:
- * 1. Single parameter mode - entire input is one parameter
- * 2. Multi parameter mode - input split by ---PARAM_NAME--- delimiters
- *
- * @param input - Raw text input from stdin
- * @param options - Decode options
- * @returns Decoded parameters or throws DecodeError
- *
- * @example
- * // Single parameter mode
- * const result = decode(input, { singleParam: 'message' });
- * // { message: "entire input content" }
- *
- * @example
- * // Multi parameter mode
- * const result = decode(input, {
- *   expectedParams: ['TITLE', 'DESCRIPTION'],
- *   requiredParams: ['TITLE']
- * });
- * // { TITLE: "...", DESCRIPTION: "..." }
- */
+/** Decodes structured text input into a parameter map, supporting single-param and multi-param modes. */
 export function decode(input: string, options: DecodeOptions = {}): DecodeResult {
   const { singleParam, expectedParams, requiredParams } = options;
 
@@ -109,10 +48,7 @@ export function decode(input: string, options: DecodeOptions = {}): DecodeResult
   return decodeMultiParam(input, expectedParams, requiredParams);
 }
 
-/**
- * Decode multi-parameter structured input.
- * Internal function for multi-parameter mode.
- */
+/** Decodes multi-parameter structured input. */
 function decodeMultiParam(
   input: string,
   expectedParams?: string[],
@@ -235,14 +171,7 @@ function createDecodeError(
   };
 }
 
-/**
- * Validate that content doesn't contain delimiter patterns.
- * This helps detect potential collisions before they cause parse errors.
- *
- * @param content - Content to validate
- * @param paramNames - Parameter names to check for collisions
- * @returns Array of detected collisions (empty if none)
- */
+/** Returns delimiter patterns found in content that would collide with expected parameter names. */
 export function detectDelimiterCollisions(content: string, paramNames: string[]): string[] {
   const collisions: string[] = [];
   const lines = content.split('\n');

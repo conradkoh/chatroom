@@ -30,6 +30,12 @@ export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): 
         `(PID: ${pid}, role: ${role}, code: ${code}, signal: ${signal})`
     );
   } else {
+    // DESIGN DECISION: intentional=false covers both crashes AND natural completions.
+    // A process that exits cleanly (code 0) without a prior stops.mark() call is
+    // treated identically to a crash — ensureAgentHandler fires immediately to restart.
+    // Known trade-off: if an agent finishes work and exits before its handoff mutation
+    // is processed, a restart may be triggered unnecessarily. This is accepted because
+    // reliability (never leaving a task stuck) is prioritized over efficiency.
     console.log(
       `[${ts}] ⚠️  Agent process exited ` +
         `(PID: ${pid}, role: ${role}, code: ${code}, signal: ${signal})`

@@ -1,15 +1,4 @@
-/**
- * Session Authentication Helper
- *
- * Provides utilities for validating sessions and checking chatroom access.
- * Used by chatroom-related mutations and queries to enforce security.
- *
- * Supports both session types:
- * - CLI sessions: stored in `cliSessions` table (from ~/.chatroom/auth.jsonc)
- * - Web sessions: stored in `sessions` table (from convex-helpers SessionProvider)
- *
- * The validation tries CLI sessions first, then falls back to web sessions.
- */
+/** Session authentication helpers for validating CLI and web sessions and checking chatroom access. */
 
 import { ConvexError } from 'convex/values';
 
@@ -24,10 +13,7 @@ export interface ValidatedSession {
   sessionType: 'cli' | 'web';
 }
 
-/**
- * Result of requireChatroomAccess - includes both session info and chatroom document.
- * This eliminates the need to re-fetch the chatroom after authentication.
- */
+/** Authenticated chatroom access result containing session and chatroom document. */
 export interface AuthenticatedChatroomAccess {
   session: ValidatedSession;
   chatroom: Doc<'chatroom_rooms'>;
@@ -40,9 +26,7 @@ export interface ValidationError {
 
 export type SessionValidationResult = ({ valid: true } & ValidatedSession) | ValidationError;
 
-/**
- * Validate a CLI session and return user information
- */
+/** Validates a CLI session and returns user information. */
 async function validateCliSession(
   ctx: QueryCtx | MutationCtx,
   sessionId: string
@@ -79,9 +63,7 @@ async function validateCliSession(
   };
 }
 
-/**
- * Validate a web session and return user information
- */
+/** Validates a web session and returns user information. */
 async function validateWebSession(
   ctx: QueryCtx | MutationCtx,
   sessionId: string
@@ -110,9 +92,7 @@ async function validateWebSession(
   };
 }
 
-/**
- * Validate a session (tries CLI session first, then web session)
- */
+/** Validates a session, trying CLI session first then web session. */
 export async function validateSession(
   ctx: QueryCtx | MutationCtx,
   sessionId: string
@@ -133,10 +113,7 @@ export async function validateSession(
   return { valid: false, reason: 'Session not found or invalid' };
 }
 
-/**
- * Check if a user has access to a chatroom
- * Returns the chatroom document if access is granted
- */
+/** Checks if a user has access to a chatroom and returns the chatroom document. */
 export async function checkChatroomAccess(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
@@ -158,11 +135,7 @@ export async function checkChatroomAccess(
   return { hasAccess: false, reason: 'Access denied: You do not own this chatroom' };
 }
 
-/**
- * Combined helper: Validate session and check chatroom access
- * Throws an error if validation or access check fails
- * Returns both the session info and chatroom document to avoid re-fetching
- */
+/** Validates session and chatroom access, returning both session info and chatroom document. */
 export async function requireChatroomAccess(
   ctx: QueryCtx | MutationCtx,
   sessionId: string,
@@ -197,12 +170,7 @@ export async function requireChatroomAccess(
   };
 }
 
-/**
- * Check if all agents in the chatroom are waiting for a task.
- * An agent is considered waiting if its `lastSeenAction` is 'get-next-task:started',
- * meaning it is sitting in the wait loop and ready to receive a task.
- * Returns false if there are no participants (vacuous false — no agents = not waiting).
- */
+/** Returns true if all participants in the chatroom are in the get-next-task wait loop. */
 export async function areAllAgentsWaiting(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
@@ -217,27 +185,12 @@ export async function areAllAgentsWaiting(
   return participants.every((p) => p.lastSeenAction === 'get-next-task:started');
 }
 
-/**
- * Get the entry point role for a chatroom.
- * The entry point is the primary agent that receives user messages and queue promotions.
- *
- * @param chatroom - The chatroom document (to avoid re-fetching)
- */
+/** Returns the entry point role for a chatroom. */
 export function getEntryPointRole(chatroom: Doc<'chatroom_rooms'>): string | null {
   return getTeamEntryPoint(chatroom);
 }
 
-/**
- * Get and atomically increment the next queue position for a chatroom.
- * This prevents race conditions when multiple tasks are created concurrently.
- *
- * For new chatrooms without nextQueuePosition, we initialize from the current max
- * task queue position to ensure backward compatibility.
- *
- * @param ctx - Mutation context (must be mutation for atomic update)
- * @param chatroom - The chatroom document
- * @returns The next queue position to use for a new task
- */
+/** Atomically retrieves and increments the next queue position for a chatroom. */
 export async function getAndIncrementQueuePosition(
   ctx: MutationCtx,
   chatroom: Doc<'chatroom_rooms'>

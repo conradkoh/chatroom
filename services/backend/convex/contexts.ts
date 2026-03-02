@@ -5,11 +5,7 @@ import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/cliSessionAuth';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 
-/**
- * Create a new context for a chatroom.
- * This replaces the current context with a new one (explicit context management).
- * Requires session authentication and chatroom access.
- */
+/** Creates a new context for a chatroom and sets it as the current pinned context. */
 export const createContext = mutation({
   args: {
     ...SessionIdArg,
@@ -93,11 +89,7 @@ export const createContext = mutation({
   },
 });
 
-/**
- * List recent contexts for a chatroom.
- * Returns contexts ordered by creation time (newest first).
- * Requires session authentication and chatroom access.
- */
+/** Returns recent contexts for a chatroom, newest first. */
 export const listContexts = query({
   args: {
     ...SessionIdArg,
@@ -121,11 +113,7 @@ export const listContexts = query({
   },
 });
 
-/**
- * Get a specific context by ID.
- * Returns the context with associated metadata.
- * Requires session authentication and access to the chatroom.
- */
+/** Returns a context by ID with staleness metadata (messages since creation, time elapsed). */
 export const getContext = query({
   args: {
     ...SessionIdArg,
@@ -160,12 +148,7 @@ export const getContext = query({
   },
 });
 
-/**
- * Get the current active context for a chatroom.
- * Returns the context currently pinned in the chatroom, or null if none.
- * Includes staleness information (message count since creation, time elapsed).
- * Requires session authentication and chatroom access.
- */
+/** Returns the currently pinned context for a chatroom with staleness metadata, or null if none. */
 export const getCurrentContext = query({
   args: {
     ...SessionIdArg,
@@ -204,11 +187,7 @@ export const getCurrentContext = query({
   },
 });
 
-/**
- * Clear the current context for a chatroom.
- * This removes the context pin without deleting the context itself.
- * Requires session authentication and chatroom access.
- */
+/** Clears the current context pin from a chatroom without deleting the context record. */
 export const clearCurrentContext = mutation({
   args: {
     ...SessionIdArg,

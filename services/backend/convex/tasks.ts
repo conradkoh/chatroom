@@ -19,25 +19,13 @@ import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase
 import { transitionTask } from '../src/domain/usecase/task/transition-task';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 
-/**
- * Maximum number of active tasks per chatroom.
- * Active = pending + in_progress + queued + backlog (excludes completed/closed)
- */
+/** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
 
-/**
- * Maximum number of tasks to return in list queries.
- * This is a server-side limit to prevent excessive data transfer.
- */
+/** Maximum number of tasks to return in list queries. */
 const MAX_TASK_LIST_LIMIT = 100;
 
-/**
- * Create a new task in a chatroom.
- * If isBacklog is true, creates a backlog task.
- * Otherwise, creates as pending if no pending/in_progress exists, else queued.
- * Enforces 100 active task limit.
- * Requires CLI session authentication and chatroom access.
- */
+/** Creates a new task in a chatroom (pending, queued, or backlog). */
 export const createTask = mutation({
   args: {
     ...SessionIdArg,
@@ -98,12 +86,7 @@ export const createTask = mutation({
   },
 });
 
-/**
- * Claim a pending task (acknowledge it without starting work yet).
- * Transitions: pending → acknowledged
- * This is called by get-next-task to reserve a task for an agent.
- * Requires CLI session authentication and chatroom access.
- */
+/** Claims a pending task for a role (pending → acknowledged). */
 export const claimTask = mutation({
   args: {
     ...SessionIdArg,
@@ -192,12 +175,7 @@ export const claimTask = mutation({
   },
 });
 
-/**
- * Start working on an acknowledged task.
- * Transitions: acknowledged → in_progress
- * This is called when agent begins actual work (sends task-started message).
- * Requires CLI session authentication and chatroom access.
- */
+/** Transitions an acknowledged task to in_progress for the assigned role. */
 export const startTask = mutation({
   args: {
     ...SessionIdArg,
@@ -264,13 +242,7 @@ export const startTask = mutation({
   },
 });
 
-/**
- * Complete ALL in_progress tasks in the chatroom.
- * For backlog-origin tasks: transitions to pending_user_review (user must confirm).
- * For chat-origin tasks: transitions to completed directly.
- * Promotes the next queued task to pending when all agents are ready.
- * Requires CLI session authentication and chatroom access.
- */
+/** Completes all in_progress tasks in the chatroom, transitioning based on origin. */
 export const completeTask = mutation({
   args: {
     ...SessionIdArg,
@@ -342,14 +314,7 @@ export const completeTask = mutation({
   },
 });
 
-/**
- * Cancel a task.
- * Allowed for pending, acknowledged, queued, backlog, backlog_acknowledged, pending_user_review, and in_progress tasks.
- * For in_progress tasks, requires force: true to prevent accidental cancellation.
- * If a pending task is cancelled, promotes the next queued task.
- * Uses 'closed' status for all cancelled tasks.
- * Requires CLI session authentication and chatroom access.
- */
+/** Cancels a task (closes it), requiring force for in_progress tasks. */
 export const cancelTask = mutation({
   args: {
     ...SessionIdArg,
@@ -412,12 +377,7 @@ export const cancelTask = mutation({
   },
 });
 
-/**
- * Complete a specific task by ID.
- * Allowed for backlog, queued, pending, and in_progress tasks.
- * For pending/in_progress tasks, use `force: true` to complete and auto-promote the next queued task.
- * Requires CLI session authentication and chatroom access.
- */
+/** Completes a specific task by ID, requiring force for active tasks. */
 export const completeTaskById = mutation({
   args: {
     ...SessionIdArg,
@@ -478,11 +438,7 @@ export const completeTaskById = mutation({
   },
 });
 
-/**
- * Update a task's content.
- * Only allowed for queued and backlog tasks.
- * Requires CLI session authentication and chatroom access.
- */
+/** Updates the content of a queued or backlog task. */
 export const updateTask = mutation({
   args: {
     ...SessionIdArg,
@@ -516,11 +472,7 @@ export const updateTask = mutation({
   },
 });
 
-/**
- * Move a backlog task to the queue (chat).
- * Optionally specify a custom message to send instead of the task content.
- * Requires CLI session authentication and chatroom access.
- */
+/** Moves a backlog or pending_user_review task into the active chat queue. */
 export const moveToQueue = mutation({
   args: {
     ...SessionIdArg,
@@ -603,14 +555,7 @@ export const moveToQueue = mutation({
   },
 });
 
-/**
- * Mark a backlog task as complete.
- * User confirms the issue is resolved.
- * Allowed for:
- * - Tasks in 'pending_user_review' status (normal flow after agent completes)
- * - Tasks in 'backlog' status (force complete from backlog tab)
- * Requires CLI session authentication and chatroom access.
- */
+/** Marks a backlog task as completed, confirming the issue is resolved. */
 export const markBacklogComplete = mutation({
   args: {
     ...SessionIdArg,
@@ -653,12 +598,7 @@ export const markBacklogComplete = mutation({
   },
 });
 
-/**
- * Mark a backlog task as ready for user review.
- * Agent indicates they've completed work on this backlog item.
- * Only allowed for backlog-origin tasks in 'backlog' status.
- * Requires CLI session authentication and chatroom access.
- */
+/** Transitions a backlog task to pending_user_review, signaling agent completion. */
 export const markBacklogForReview = mutation({
   args: {
     ...SessionIdArg,
@@ -692,12 +632,7 @@ export const markBacklogForReview = mutation({
   },
 });
 
-/**
- * Close a backlog task without completing.
- * Used for won't fix, duplicate, or no longer relevant items.
- * Only allowed for backlog-origin tasks.
- * Requires CLI session authentication and chatroom access.
- */
+/** Closes a backlog task without completing it (won't fix / no longer relevant). */
 export const closeBacklogTask = mutation({
   args: {
     ...SessionIdArg,
@@ -730,12 +665,7 @@ export const closeBacklogTask = mutation({
   },
 });
 
-/**
- * Reopen a completed or closed backlog task.
- * Returns the task to pending_user_review status (ready for user to review again).
- * Only allowed for backlog-origin tasks.
- * Requires CLI session authentication and chatroom access.
- */
+/** Reopens a completed or closed backlog task, returning it to pending_user_review. */
 export const reopenBacklogTask = mutation({
   args: {
     ...SessionIdArg,
@@ -768,13 +698,7 @@ export const reopenBacklogTask = mutation({
   },
 });
 
-/**
- * Send a task back for re-work.
- * Transitions task from pending_user_review back to the queue.
- * User can attach an optional message with feedback for the agent.
- * Only allowed for backlog-origin tasks in pending_user_review status.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns a pending_user_review backlog task to the queue with optional feedback. */
 export const sendBackForRework = mutation({
   args: {
     ...SessionIdArg,
@@ -850,12 +774,7 @@ export const sendBackForRework = mutation({
   },
 });
 
-/**
- * Patch a task's scoring fields (complexity, value, priority).
- * Idempotent - accepts all requests regardless of task status.
- * Designed for agents to score backlog tasks for prioritization.
- * Requires CLI session authentication and chatroom access.
- */
+/** Patches scoring fields (complexity, value, priority) on a task. */
 export const patchTask = mutation({
   args: {
     ...SessionIdArg,
@@ -907,13 +826,7 @@ export const patchTask = mutation({
   },
 });
 
-/**
- * List tasks in a chatroom.
- * Optionally filter by status.
- * Backlog tasks are sorted by priority descending (higher = first), then by createdAt descending.
- * Tasks without priority sort to the end.
- * Requires CLI session authentication and chatroom access.
- */
+/** Lists tasks in a chatroom, optionally filtered by status and sorted by priority or queue position. */
 export const listTasks = query({
   args: {
     ...SessionIdArg,
@@ -992,13 +905,7 @@ export const listTasks = query({
   },
 });
 
-/**
- * List active tasks in a chatroom (all tasks that are not completed or closed).
- * Active tasks include: pending, acknowledged, in_progress, queued, backlog, backlog_acknowledged, pending_user_review.
- * Sorted by queuePosition ascending for active queue items.
- * No hard limit applied - returns all active tasks.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns all non-completed, non-closed tasks in a chatroom, sorted by queue position. */
 export const listActiveTasks = query({
   args: {
     ...SessionIdArg,
@@ -1039,12 +946,7 @@ export const listActiveTasks = query({
   },
 });
 
-/**
- * List archived tasks in a chatroom (completed or closed tasks).
- * Sorted by updatedAt descending (most recently updated first).
- * No hard limit applied - returns all archived tasks.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns completed and closed tasks in a chatroom, sorted by most recently updated. */
 export const listArchivedTasks = query({
   args: {
     ...SessionIdArg,
@@ -1076,11 +978,7 @@ export const listArchivedTasks = query({
   },
 });
 
-/**
- * Get the active task (pending or in_progress).
- * Returns at most one task.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns the current in_progress or pending task for a chatroom. */
 export const getActiveTask = query({
   args: {
     ...SessionIdArg,
@@ -1114,13 +1012,7 @@ export const getActiveTask = query({
   },
 });
 
-/**
- * Manually promote the next queued task to pending.
- * Use when the queue is stuck (queued tasks exist but no pending/in_progress).
- * Only promotes if all agents are ready (not active).
- * Logs when automatic promotion occurs.
- * Requires CLI session authentication and chatroom access.
- */
+/** Promotes the oldest queued task to pending if no active task exists and all agents are ready. */
 export const promoteNextTask = mutation({
   args: {
     ...SessionIdArg,
@@ -1160,12 +1052,7 @@ export const promoteNextTask = mutation({
   },
 });
 
-/**
- * Check queue health and promotion eligibility.
- * Returns queue status and whether promotion is possible.
- * Promotion requires: no active tasks AND all agents are ready (not active).
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns queue health status including active task presence, queued count, and promotion eligibility. */
 export const checkQueueHealth = query({
   args: {
     ...SessionIdArg,
@@ -1209,10 +1096,7 @@ export const checkQueueHealth = query({
   },
 });
 
-/**
- * Get task counts by status.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns task counts grouped by status for a chatroom. */
 export const getTaskCounts = query({
   args: {
     ...SessionIdArg,
@@ -1241,12 +1125,7 @@ export const getTaskCounts = query({
   },
 });
 
-/**
- * Get all pending tasks for a role.
- * Returns a structured GetNextTaskResponse union type instead of throwing.
- * Used by get-next-task to find work items.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns pending, acknowledged, and in_progress tasks relevant to a role, or a typed status response. */
 export const getPendingTasksForRole = query({
   args: {
     ...SessionIdArg,
@@ -1387,11 +1266,7 @@ export const getPendingTasksForRole = query({
   },
 });
 
-/**
- * Get tasks by their IDs.
- * Used by CLI to fetch full task details for attached tasks in messages.
- * Requires CLI session authentication.
- */
+/** Fetches multiple tasks by ID, enforcing chatroom-level access control. */
 export const getTasksByIds = query({
   args: {
     ...SessionIdArg,
@@ -1435,11 +1310,7 @@ export const getTasksByIds = query({
   },
 });
 
-/**
- * Get a single task by ID.
- * Used by CLI to fetch task details efficiently without listing all tasks.
- * Requires CLI session authentication and validates task belongs to specified chatroom.
- */
+/** Returns a single task by ID, verifying it belongs to the specified chatroom. */
 export const getTask = query({
   args: {
     ...SessionIdArg,
@@ -1472,11 +1343,7 @@ export const getTask = query({
   },
 });
 
-/**
- * Get task system limits.
- * Returns the configured limits for task operations.
- * This allows clients to use the same limits as the server.
- */
+/** Returns the configured task count and list limits. */
 export const getTaskLimits = query({
   args: {},
   handler: async () => {
@@ -1487,18 +1354,7 @@ export const getTaskLimits = query({
   },
 });
 
-/**
- * Internal mutation to clean up stale daemon records.
- * Called by cron job every 2 minutes.
- *
- * Agent participant cleanup via FSM has been removed — liveness is now
- * determined purely by `lastSeenAt` in the UI/queries. Acknowledged task
- * recovery has also been removed: agents are expected to call task-started
- * and then handoff normally; no background reset is needed.
- *
- * This mutation only:
- *  1. Marks daemons as disconnected when their heartbeat is stale.
- */
+/** Marks daemons with stale heartbeats as disconnected. */
 export const cleanupStaleMachines = internalMutation({
   args: {},
   handler: async (ctx) => {

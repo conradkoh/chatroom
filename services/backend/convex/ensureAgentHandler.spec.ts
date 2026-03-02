@@ -84,13 +84,13 @@ async function seedPendingTask(chatroomId: Id<'chatroom_rooms'>) {
 
 async function countStartCommands(chatroomId: Id<'chatroom_rooms'>) {
   return await t.run(async (ctx) => {
-    const commands = await ctx.db
-      .query('chatroom_machineCommands')
-      .filter((q) =>
-        q.and(q.eq(q.field('type'), 'start-agent'), q.eq(q.field('payload.chatroomId'), chatroomId))
+    const events = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom_type', (q) =>
+        q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStart')
       )
       .collect();
-    return commands.length;
+    return events.length;
   });
 }
 

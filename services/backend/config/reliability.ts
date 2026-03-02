@@ -59,8 +59,9 @@ export const AGENT_REQUEST_DEADLINE_MS = 120_000; // 2 minutes
 
 /**
  * Delay (ms) for the ensureAgentHandler backend fallback.
- * Set to 5 minutes — the daemon's event-driven path handles restarts within
- * 2 minutes (AGENT_REQUEST_DEADLINE_MS). This fallback only fires when the
- * daemon is offline.
+ * Set to 60 seconds — frequent enough to ensure that if the daemon is offline
+ * and reconnects within the deadline window (2 × 60s = 120s), the requestStart
+ * event will still be valid. Shorter interval reduces the timing gap where a
+ * daemon restart misses an expired requestStart.
  */
-export const ENSURE_AGENT_FALLBACK_DELAY_MS = 300_000; // 5 minutes
+export const ENSURE_AGENT_FALLBACK_DELAY_MS = 60_000; // 60 seconds

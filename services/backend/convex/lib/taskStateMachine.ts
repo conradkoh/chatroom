@@ -1,17 +1,4 @@
-/**
- * Task Finite State Machine (FSM)
- *
- * This module enforces strict state transitions for task lifecycle management.
- * Status is the SINGLE SOURCE OF TRUTH for workflow state.
- * Timestamps are primarily metadata, but `acknowledgedAt` and `updatedAt`
- * are used for auditing purposes.
- *
- * All task state transitions MUST go through transitionTask() to ensure:
- * - Only valid transitions are allowed
- * - Stale fields are automatically cleared
- * - Required fields are validated
- * - Transitions are logged for auditing
- */
+/** Enforces strict lifecycle state transitions for tasks, ensuring only valid transitions are applied. */
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -449,10 +436,7 @@ const TRANSITIONS: TransitionRule[] = [
 // FSM HELPER FUNCTIONS
 // ============================================================================
 
-/**
- * Get all valid transitions from a given status
- * Used for error messages and UI guidance
- */
+/** Returns all valid transitions from a given task status. */
 export function getValidTransitionsFrom(status: TaskStatus): TransitionRule[] {
   return TRANSITIONS.filter((t) => t.from === status);
 }
@@ -478,16 +462,7 @@ export function canTransition(task: Task, newStatus: TaskStatus): boolean {
   return false;
 }
 
-/**
- * Transition a task to a new status with FSM enforcement
- *
- * @param ctx - Mutation context
- * @param taskId - Task to transition
- * @param newStatus - Desired status
- * @param trigger - Name of the mutation causing this transition (for logging)
- * @param overrides - Additional fields to set (beyond FSM defaults)
- * @throws InvalidTransitionError if transition is not allowed
- */
+/** Transitions a task to a new status, enforcing FSM rules and applying field updates atomically. */
 export async function transitionTask(
   ctx: MutationCtx,
   taskId: Id<'chatroom_tasks'>,

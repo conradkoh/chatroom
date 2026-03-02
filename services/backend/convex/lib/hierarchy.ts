@@ -1,19 +1,10 @@
-/**
- * Role Hierarchy System
- *
- * Defines priority ordering for agent roles in the chatroom system.
- * Lower numbers indicate higher priority (e.g., planner=0 is highest priority).
- */
+/** Priority ordering for agent roles; lower numbers = higher priority. */
 
 export interface RoleHierarchy {
   [role: string]: number;
 }
 
-/**
- * Default role hierarchy for the pair and squad team configurations.
- * Custom roles not in this list get a default priority of 100.
- * Add new roles here as new team configurations are introduced.
- */
+/** Default priority map for built-in roles; unknown roles default to 100. */
 export const DEFAULT_ROLE_HIERARCHY: RoleHierarchy = {
   planner: 0,
   builder: 1,
@@ -21,19 +12,13 @@ export const DEFAULT_ROLE_HIERARCHY: RoleHierarchy = {
   user: 999,
 };
 
-/**
- * Get the priority number for a role.
- * Returns 100 for unknown roles.
- */
+/** Returns the priority number for a role (lower = higher priority). */
 export function getRolePriority(role: string): number {
   const normalizedRole = role.toLowerCase();
   return DEFAULT_ROLE_HIERARCHY[normalizedRole] ?? 100;
 }
 
-/**
- * Compare two roles by priority.
- * Returns negative if roleA has higher priority (lower number).
- */
+/** Compares two roles by priority (negative if roleA has higher priority). */
 export function compareRoles(roleA: string, roleB: string): number {
   return getRolePriority(roleA) - getRolePriority(roleB);
 }

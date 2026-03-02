@@ -2,7 +2,10 @@
  * Command Loop — subscribes to Convex for pending commands, processes them sequentially.
  */
 
-import { DAEMON_HEARTBEAT_INTERVAL_MS } from '@workspace/backend/config/reliability.js';
+import {
+  AGENT_REQUEST_DEADLINE_MS,
+  DAEMON_HEARTBEAT_INTERVAL_MS,
+} from '@workspace/backend/config/reliability.js';
 
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
@@ -18,15 +21,7 @@ import {
 } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
-import { handleStartAgent } from './handlers/start-agent.js';
-import { handleStatus } from './handlers/status.js';
-import { handleStopAgent } from './handlers/stop-agent.js';
-import type {
-  CommandResult,
-  DaemonContext,
-  MachineCommand,
-  MachineCommandBase,
-} from './types.js';
+import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
@@ -70,92 +65,6 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
     );
   } catch (error) {
     console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${(error as Error).message}`);
-  }
-}
-
-// ─── Command Dispatch ───────────────────────────────────────────────────────
-
-/**
- * Process a single command: dispatch to the appropriate handler,
- * then ack the result back to the backend.
- */
-export async function processCommand(ctx: DaemonContext, command: MachineCommand): Promise<void> {
-  console.log(`[${formatTimestamp()}] 📨 Command received: ${command.type}`);
-
-  try {
-    // Mark as processing
-    await ctx.deps.backend.mutation(api.machines.ackCommand, {
-      sessionId: ctx.sessionId,
-      commandId: command._id,
-      status: 'processing',
-    });
-
-    ctx.events.emit('command:processing', {
-      commandId: command._id.toString(),
-      type: command.type,
-    });
-
-    // Dispatch to the appropriate handler
-    let commandResult: CommandResult;
-    switch (command.type) {
-      case 'ping':
-        commandResult = handlePing();
-        break;
-      case 'status':
-        commandResult = handleStatus(ctx);
-        break;
-      case 'start-agent':
-        commandResult = await handleStartAgent(ctx, command);
-        break;
-      case 'stop-agent':
-        commandResult = await handleStopAgent(ctx, command);
-        break;
-      default: {
-        // Exhaustiveness check: TypeScript will error if a new command type
-        // is added to MachineCommand but not handled above.
-        const _exhaustive: never = command;
-        commandResult = {
-          result: `Unknown command type: ${(_exhaustive as MachineCommandBase & { type: string }).type}`,
-          failed: true,
-        };
-      }
-    }
-
-    // Ack result back to backend
-    const finalStatus = commandResult.failed ? 'failed' : 'completed';
-    await ctx.deps.backend.mutation(api.machines.ackCommand, {
-      sessionId: ctx.sessionId,
-      commandId: command._id,
-      status: finalStatus,
-      result: commandResult.result,
-    });
-
-    ctx.events.emit('command:completed', {
-      commandId: command._id.toString(),
-      type: command.type,
-      failed: commandResult.failed,
-      result: commandResult.result,
-    });
-
-    if (commandResult.failed) {
-      console.log(`   ❌ Command failed: ${commandResult.result}`);
-    } else {
-      console.log(`   ✅ Command completed`);
-    }
-  } catch (error) {
-    console.error(`   ❌ Command failed: ${(error as Error).message}`);
-
-    // Mark as failed
-    try {
-      await ctx.deps.backend.mutation(api.machines.ackCommand, {
-        sessionId: ctx.sessionId,
-        commandId: command._id,
-        status: 'failed',
-        result: (error as Error).message,
-      });
-    } catch {
-      // Ignore ack errors
-    }
   }
 }
 
@@ -213,77 +122,70 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
   // ── Stream command subscription ──────────────────────────────────────────
   // Subscribes to chatroom_eventStream for command events directed at this machine.
-  // Uses executeStartAgent/executeStopAgent directly — no synthetic _id needed.
-
-  // Initialize the stream cursor.
-  // Priority 1: persisted cursor from previous daemon run (survives restarts).
-  // Priority 2: query latest event ID (skip history, only process new events).
-  let lastSeenEventId: Id<'chatroom_eventStream'> | undefined = undefined;
-
-  const persistedCursor = ctx.deps.machine.loadEventCursor(ctx.machineId);
-  if (persistedCursor !== null) {
-    // Resume from where the previous daemon run left off
-    lastSeenEventId = persistedCursor as Id<'chatroom_eventStream'>;
-    console.log(`[${formatTimestamp()}] 📌 Resumed event stream cursor from persisted state`);
-  } else {
-    // No persisted cursor — initialize to latest event to avoid replaying history
-    try {
-      const initialEvents = await ctx.deps.backend.query(api.machines.getCommandEvents, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
-        afterId: undefined,
-      });
-      if (initialEvents.events.length > 0) {
-        lastSeenEventId = initialEvents.events[initialEvents.events.length - 1]._id;
-      }
-    } catch (err) {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Failed to initialize stream cursor: ${(err as Error).message}`
-      );
-    }
-  }
-
-  // Track processed event IDs to prevent duplicate processing within the same session
-  const processedStreamEventIds = new Set<string>();
+  //
+  // No cursor is needed — event types use their own filtering:
+  // - agent.requestStart / agent.requestStop: deadline-filtered on backend (no cursor)
+  // - daemon.ping: all ping events are delivered; re-ponging on restart is harmless
+  //   because the UI's getDaemonPongEvent looks for a pong AFTER a specific ping ID
+  //
+  // Session-scoped dedup maps — prevent double-processing within a single daemon run.
+  // Map<eventId, processedAt timestamp>. Entries older than AGENT_REQUEST_DEADLINE_MS
+  // are evicted at the start of each batch to bound memory growth.
+  const processedCommandIds = new Map<string, number>(); // agent.requestStart / agent.requestStop
+  const processedPingIds = new Map<string, number>(); // daemon.ping
 
   wsClient.onUpdate(
     api.machines.getCommandEvents,
     {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
-      afterId: lastSeenEventId,
     },
     async (result: { events: Array<{ _id: string; type: string; [key: string]: unknown }> }) => {
       if (!result.events || result.events.length === 0) return;
 
+      // Evict dedup entries older than AGENT_REQUEST_DEADLINE_MS to bound memory growth
+      const evictBefore = Date.now() - AGENT_REQUEST_DEADLINE_MS;
+      for (const [id, ts] of processedCommandIds) {
+        if (ts < evictBefore) processedCommandIds.delete(id);
+      }
+      for (const [id, ts] of processedPingIds) {
+        if (ts < evictBefore) processedPingIds.delete(id);
+      }
+
       for (const event of result.events) {
         const eventId = event._id.toString();
-
-        // Idempotency: skip events already processed in this session
-        if (processedStreamEventIds.has(eventId)) continue;
-        processedStreamEventIds.add(eventId);
-
-        // Advance cursor
-        lastSeenEventId = event._id as Id<'chatroom_eventStream'>;
 
         try {
           console.log(`[${formatTimestamp()}] 📡 Stream command event: ${event.type}`);
 
           if (event.type === 'agent.requestStart') {
+            // Deadline-filtered — use processedCommandIds for session dedup
+            if (processedCommandIds.has(eventId)) continue;
+            processedCommandIds.set(eventId, Date.now());
             await onRequestStartAgent(ctx, event as unknown as AgentRequestStartEventPayload);
           } else if (event.type === 'agent.requestStop') {
+            // Deadline-filtered — use processedCommandIds for session dedup
+            if (processedCommandIds.has(eventId)) continue;
+            processedCommandIds.set(eventId, Date.now());
             await onRequestStopAgent(ctx, event as unknown as AgentRequestStopEventPayload);
+          } else if (event.type === 'daemon.ping') {
+            // Session dedup — prevents re-ponging the same ping twice in one daemon run
+            if (processedPingIds.has(eventId)) continue;
+            processedPingIds.set(eventId, Date.now());
+
+            // Respond to ping with a pong via mutation
+            handlePing();
+            await ctx.deps.backend.mutation(api.machines.ackPing, {
+              sessionId: ctx.sessionId,
+              machineId: ctx.machineId,
+              pingEventId: event._id as Id<'chatroom_eventStream'>,
+            });
           }
         } catch (err) {
           console.error(
             `[${formatTimestamp()}] ❌ Stream command event failed: ${(err as Error).message}`
           );
         }
-      }
-
-      // Persist the cursor after processing each batch (best-effort)
-      if (lastSeenEventId !== undefined) {
-        ctx.deps.machine.persistEventCursor(ctx.machineId, lastSeenEventId.toString());
       }
     }
   );

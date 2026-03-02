@@ -11,6 +11,7 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -19,8 +20,6 @@ export interface EnsureOnlyAgentForRoleInput {
   chatroomId: Id<'chatroom_rooms'>;
   /** The role to deduplicate (e.g. "builder", "reviewer"). */
   role: string;
-  /** The user dispatching the stop commands. */
-  userId: Id<'users'>;
   /**
    * If provided, skip stopping this machine (used when a remote agent is
    * registering itself — we don't want to stop the machine that just registered).
@@ -34,13 +33,14 @@ export interface EnsureOnlyAgentForRoleInput {
  * Stop all remote agents for a given role in a chatroom, except the one
  * identified by `excludeMachineId` (if provided).
  *
- * Dispatches a `stop-agent` command for every conflicting remote config found.
+ * Emits an `agent.requestStop` event for every conflicting remote config found.
+ * The daemon's stream subscription handles these events directly.
  */
 export async function ensureOnlyAgentForRole(
   ctx: MutationCtx,
   input: EnsureOnlyAgentForRoleInput
 ): Promise<void> {
-  const { chatroomId, role, userId, excludeMachineId } = input;
+  const { chatroomId, role, excludeMachineId } = input;
 
   const configs = await ctx.db
     .query('chatroom_teamAgentConfigs')
@@ -52,15 +52,17 @@ export async function ensureOnlyAgentForRole(
       config.type === 'remote' && config.machineId != null && config.machineId !== excludeMachineId
   );
 
+  const now = Date.now();
+
   for (const config of conflicting) {
-    await ctx.db.insert('chatroom_machineCommands', {
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.requestStop',
+      chatroomId,
       machineId: config.machineId as string,
-      type: 'stop-agent',
-      payload: { chatroomId, role },
+      role,
       reason: 'dedup-stop',
-      status: 'pending',
-      sentBy: userId,
-      createdAt: Date.now(),
+      deadline: now + AGENT_REQUEST_DEADLINE_MS,
+      timestamp: now,
     });
   }
 }

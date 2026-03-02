@@ -1,10 +1,4 @@
-/**
- * Webapp Prompt Queries
- *
- * Provides agent prompts to the CLI through Convex queries.
- * Note: The webapp frontend generates prompts directly using the shared
- * generateAgentPrompt function — no API calls needed for webapp display.
- */
+/** Convex queries for serving agent prompts to the CLI. */
 
 import { v } from 'convex/values';
 
@@ -13,13 +7,7 @@ import {
 } from '../../prompts/base/webapp/init/generator.js';
 import { query } from '../_generated/server';
 
-/**
- * Get the full agent initialization prompt for a specific role.
- * Used by the CLI (get-system-prompt command) to fetch the display prompt.
- *
- * Note: The webapp frontend calls generateAgentPrompt directly — this query
- * exists only for CLI consumers that cannot import from the shared package.
- */
+/** Returns the full agent initialization prompt for a role (used by the CLI get-system-prompt command). */
 export const getAgentPrompt = query({
   args: {
     chatroomId: v.string(),

@@ -722,62 +722,6 @@ export default defineSchema({
   }).index('by_machine_harness', ['machineId', 'agentHarness']),
 
   /**
-   * Commands sent to machines for remote execution.
-   * Daemon subscribes to pending commands and processes them.
-   */
-  chatroom_machineCommands: defineTable({
-    // Target machine ID
-    machineId: v.string(),
-    // Command type
-    type: v.union(
-      v.literal('start-agent'),
-      v.literal('stop-agent'),
-      v.literal('ping'),
-      v.literal('status')
-    ),
-    // Human-readable reason explaining why this command was dispatched.
-    // Helps trace the source of automatic restarts vs. user-initiated actions.
-    // Required for start-agent and stop-agent commands; absent for ping/status.
-    reason: v.optional(
-      v.union(
-        // start-agent reasons
-        v.literal('user-start'),
-        v.literal('user-restart'),
-        v.literal('ensure-agent-retry'),
-        // stop-agent reasons
-        v.literal('user-stop'),
-        v.literal('dedup-stop'),
-        // test-only reason (used in integration and unit tests)
-        v.literal('test')
-      )
-    ),
-    // Command payload (varies by type)
-    payload: v.object({
-      chatroomId: v.optional(v.id('chatroom_rooms')),
-      role: v.optional(v.string()),
-      agentHarness: v.optional(v.union(v.literal('opencode'), v.literal('pi'))),
-      // AI model to use when starting agent (e.g. "github-copilot/claude-sonnet-4.5")
-      model: v.optional(v.string()),
-      // Working directory for the agent (absolute path on the remote machine)
-      workingDir: v.optional(v.string()),
-    }),
-    // Command status
-    status: v.union(
-      v.literal('pending'),
-      v.literal('processing'),
-      v.literal('completed'),
-      v.literal('failed')
-    ),
-    // Result or error message
-    result: v.optional(v.string()),
-    // Who sent the command (must own the machine)
-    sentBy: v.id('users'),
-    // Timestamps
-    createdAt: v.number(),
-    processedAt: v.optional(v.number()),
-  }).index('by_machineId_status', ['machineId', 'status']),
-
-  /**
    * Team-level agent configuration.
    * Tracks how agents for each team/role are configured to start.
    * Used by auto-restart logic to determine if an agent should be auto-restarted.
@@ -928,6 +872,19 @@ export default defineSchema({
         chatroomId: v.id('chatroom_rooms'),
         role: v.string(),
         taskId: v.id('chatroom_tasks'),
+        timestamp: v.number(),
+      }),
+      // UI-initiated ping to verify daemon connectivity
+      v.object({
+        type: v.literal('daemon.ping'),
+        machineId: v.string(),
+        timestamp: v.number(),
+      }),
+      // Daemon response to a daemon.ping event
+      v.object({
+        type: v.literal('daemon.pong'),
+        machineId: v.string(),
+        pingEventId: v.id('chatroom_eventStream'),
         timestamp: v.number(),
       }),
     )

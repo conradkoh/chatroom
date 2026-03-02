@@ -187,25 +187,25 @@ test('getCommandEvents — filters out non-command events (agent.started, task.a
   expect(result.events).toHaveLength(0);
 });
 
-// Test 6: afterId cursor — only events after cursor are returned
-test('getCommandEvents — afterId cursor filters out older events', async () => {
+// Test 6: Multiple command events — all returned together
+test('getCommandEvents — returns both agent.requestStart and agent.requestStop events together', async () => {
   const { sessionId } = await createTestSession('gce-6');
   const chatroomId = await createChatroom(sessionId);
   const machineId = 'machine-gce-6';
   await registerMachine(sessionId, machineId);
 
-  const firstId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStart');
-  const secondId = await insertCommandEvent(chatroomId, machineId, 'agent.requestStop');
+  await insertCommandEvent(chatroomId, machineId, 'agent.requestStart');
+  await insertCommandEvent(chatroomId, machineId, 'agent.requestStop');
 
-  // With afterId = firstId, should only return the second event
+  // Both events have valid deadlines, so both should appear
   const result = await t.query(api.machines.getCommandEvents, {
     sessionId,
     machineId,
-    afterId: firstId,
   });
 
-  expect(result.events).toHaveLength(1);
-  expect(result.events[0]._id).toBe(secondId);
+  expect(result.events).toHaveLength(2);
+  expect(result.events.map((e) => e.type)).toContain('agent.requestStart');
+  expect(result.events.map((e) => e.type)).toContain('agent.requestStop');
 });
 
 // Test 7: Unauthenticated request returns empty
@@ -216,4 +216,62 @@ test('getCommandEvents — unauthenticated request returns empty', async () => {
   });
 
   expect(result.events).toHaveLength(0);
+});
+
+// Test 8: Expired start/stop events are excluded (deadline < now)
+test('getCommandEvents — expired agent.requestStart/Stop events are NOT returned', async () => {
+  const { sessionId } = await createTestSession('gce-8');
+  const chatroomId = await createChatroom(sessionId);
+  const machineId = 'machine-gce-8';
+  await registerMachine(sessionId, machineId);
+
+  // Insert an event with an expired deadline
+  await t.run(async (ctx) => {
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.requestStop',
+      chatroomId,
+      machineId,
+      role: 'builder',
+      reason: 'test',
+      deadline: Date.now() - 1000, // expired 1 second ago
+      timestamp: Date.now() - 200_000,
+    });
+  });
+
+  const result = await t.query(api.machines.getCommandEvents, {
+    sessionId,
+    machineId,
+  });
+
+  expect(result.events).toHaveLength(0);
+});
+
+// Test 9: daemon.ping events are returned without cursor filtering
+test('getCommandEvents — all daemon.ping events are returned (no cursor filter)', async () => {
+  const { sessionId } = await createTestSession('gce-9');
+  const machineId = 'machine-gce-9';
+  await registerMachine(sessionId, machineId);
+
+  // Insert two ping events
+  await t.run(async (ctx) => {
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'daemon.ping',
+      machineId,
+      timestamp: Date.now(),
+    });
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'daemon.ping',
+      machineId,
+      timestamp: Date.now(),
+    });
+  });
+
+  // Both pings should be returned — no cursor filtering
+  const result = await t.query(api.machines.getCommandEvents, {
+    sessionId,
+    machineId,
+  });
+
+  expect(result.events).toHaveLength(2);
+  expect(result.events.every((e) => e.type === 'daemon.ping')).toBe(true);
 });

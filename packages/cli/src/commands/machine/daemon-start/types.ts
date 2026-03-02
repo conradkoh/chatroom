@@ -44,18 +44,10 @@ export type StopAgentReason = 'user-stop' | 'dedup-stop' | 'test';
 // ─── Command Types ──────────────────────────────────────────────────────────
 
 /**
- * Base fields shared across all machine commands.
- */
-export interface MachineCommandBase {
-  _id: Id<'chatroom_machineCommands'>;
-  createdAt: number;
-}
-
-/**
  * Start an agent process in a chatroom.
  * Requires chatroomId, role, and agentHarness. Model and workingDir are optional.
  */
-export interface StartAgentCommand extends MachineCommandBase {
+export interface StartAgentCommand {
   type: 'start-agent';
   /**
    * Mandatory reason for the start command.
@@ -75,7 +67,7 @@ export interface StartAgentCommand extends MachineCommandBase {
  * Stop a running agent process in a chatroom.
  * Requires chatroomId and role to identify the target agent.
  */
-export interface StopAgentCommand extends MachineCommandBase {
+export interface StopAgentCommand {
   type: 'stop-agent';
   /**
    * Mandatory reason for the stop command.
@@ -90,16 +82,18 @@ export interface StopAgentCommand extends MachineCommandBase {
 
 /**
  * Ping the daemon to check connectivity.
+ * @deprecated Replaced by daemon.ping event stream events (Phase C).
  */
-export interface PingCommand extends MachineCommandBase {
+export interface PingCommand {
   type: 'ping';
   payload: Record<string, never>;
 }
 
 /**
  * Query daemon status (hostname, OS, available harnesses).
+ * @deprecated Replaced by daemon.ping event stream events (Phase C).
  */
-export interface StatusCommand extends MachineCommandBase {
+export interface StatusCommand {
   type: 'status';
   payload: Record<string, never>;
 }
@@ -109,27 +103,7 @@ export interface StatusCommand extends MachineCommandBase {
  * The `type` field determines which payload shape is available,
  * enabling TypeScript to narrow types in switch/case branches.
  */
-export type MachineCommand = StartAgentCommand | StopAgentCommand | PingCommand | StatusCommand;
-
-/**
- * Raw command shape as received from the Convex backend subscription.
- * All payload fields are optional because Convex uses a single flat schema
- * for all command types.
- */
-export interface RawMachineCommand {
-  _id: Id<'chatroom_machineCommands'>;
-  type: 'start-agent' | 'stop-agent' | 'ping' | 'status';
-  /** Human-readable reason for the command (may be undefined for older records). */
-  reason?: string;
-  payload: {
-    chatroomId?: Id<'chatroom_rooms'>;
-    role?: string;
-    agentHarness?: 'opencode' | 'pi';
-    model?: string;
-    workingDir?: string;
-  };
-  createdAt: number;
-}
+export type MachineCommand = StartAgentCommand | StopAgentCommand;
 
 /** Result returned by individual command handlers. */
 export interface CommandResult {

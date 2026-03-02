@@ -19,7 +19,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import {
   createTestSession,
-  getPendingCommands,
+  getCommandEvents,
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
@@ -143,6 +143,12 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
     await setupRemoteAgentConfig(sessionId, chatroomId, plannerMachineId, 'planner');
     await setupRemoteAgentConfig(sessionId, chatroomId, builderMachineId, 'builder');
 
+    // Snapshot event counts BEFORE the ensure-agent handler fires.
+    // setupRemoteAgentConfig calls startAgent which now emits agent.requestStart events,
+    // so we take a baseline before calling ensureAgentHandler.check.
+    const plannerEventsBefore = (await getCommandEvents(sessionId, plannerMachineId)).length;
+    const builderEventsBefore = (await getCommandEvents(sessionId, builderMachineId)).length;
+
     // User sends a message — task is pre-assigned to planner (entry point)
     await t.mutation(api.messages.sendMessage, {
       sessionId,
@@ -168,12 +174,16 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
       snapshotUpdatedAt: task.updatedAt,
     });
 
-    // Only the planner's machine should receive a start-agent command
-    const plannerCommands = await getPendingCommands(sessionId, plannerMachineId);
-    const builderCommands = await getPendingCommands(sessionId, builderMachineId);
+    // Count NEW events emitted by ensureAgentHandler (delta from baseline)
+    const plannerEventsAfter = (await getCommandEvents(sessionId, plannerMachineId)).length;
+    const builderEventsAfter = (await getCommandEvents(sessionId, builderMachineId)).length;
 
-    expect(plannerCommands.filter((c) => c.type === 'start-agent').length).toBe(1);
-    expect(builderCommands.filter((c) => c.type === 'start-agent').length).toBe(0);
+    const plannerNew = plannerEventsAfter - plannerEventsBefore;
+    const builderNew = builderEventsAfter - builderEventsBefore;
+
+    // Only the planner's machine should receive a new agent.requestStart event
+    expect(plannerNew).toBe(1);
+    expect(builderNew).toBe(0);
   });
 
   test('only the assigned role agent is restarted when a handoff task is stale', async () => {
@@ -188,6 +198,10 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
 
     await setupRemoteAgentConfig(sessionId, chatroomId, plannerMachineId, 'planner');
     await setupRemoteAgentConfig(sessionId, chatroomId, builderMachineId, 'builder');
+
+    // Snapshot event counts BEFORE the handler fires
+    const plannerEventsBefore = (await getCommandEvents(sessionId, plannerMachineId)).length;
+    const builderEventsBefore = (await getCommandEvents(sessionId, builderMachineId)).length;
 
     // Planner sends handoff to builder
     await t.mutation(api.messages.sendHandoff, {
@@ -214,12 +228,16 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
       snapshotUpdatedAt: task.updatedAt,
     });
 
-    // Only builder's machine should receive a start-agent command
-    const plannerCommands = await getPendingCommands(sessionId, plannerMachineId);
-    const builderCommands = await getPendingCommands(sessionId, builderMachineId);
+    // Count NEW events emitted by ensureAgentHandler (delta from baseline)
+    const plannerEventsAfter = (await getCommandEvents(sessionId, plannerMachineId)).length;
+    const builderEventsAfter = (await getCommandEvents(sessionId, builderMachineId)).length;
 
-    expect(plannerCommands.filter((c) => c.type === 'start-agent').length).toBe(0);
-    expect(builderCommands.filter((c) => c.type === 'start-agent').length).toBe(1);
+    const plannerNew = plannerEventsAfter - plannerEventsBefore;
+    const builderNew = builderEventsAfter - builderEventsBefore;
+
+    // Only builder's machine should receive a new agent.requestStart event
+    expect(plannerNew).toBe(0);
+    expect(builderNew).toBe(1);
   });
 
   test('check is skipped if task was updated since snapshot (idempotency guard)', async () => {
@@ -229,6 +247,9 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
 
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    // Snapshot event count BEFORE the handler is called
+    const eventsBefore = (await getCommandEvents(sessionId, machineId)).length;
 
     await t.mutation(api.messages.sendMessage, {
       sessionId,
@@ -245,14 +266,15 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
     });
     const task = tasks[0]!;
 
-    // Pass an old snapshotUpdatedAt (before the task's actual updatedAt)
+    // Pass an old snapshotUpdatedAt (before the task's actual updatedAt) — handler should skip
     await t.mutation(internal.ensureAgentHandler.check, {
       taskId: task._id,
       chatroomId,
       snapshotUpdatedAt: task.updatedAt - 1, // older than current — should skip
     });
 
-    const commands = await getPendingCommands(sessionId, machineId);
-    expect(commands.filter((c) => c.type === 'start-agent').length).toBe(0);
+    const eventsAfter = (await getCommandEvents(sessionId, machineId)).length;
+    // No new events should have been emitted (handler skipped)
+    expect(eventsAfter - eventsBefore).toBe(0);
   });
 });

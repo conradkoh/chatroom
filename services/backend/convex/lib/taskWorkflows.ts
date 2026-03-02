@@ -1,12 +1,4 @@
-/**
- * Task Workflow Definitions
- *
- * Defines the state machines for different task origins.
- * Each origin (backlog, chat) has its own workflow with allowed transitions.
- *
- * NOTE: This module is being phased out in favor of taskStateMachine.ts.
- * The FSM module is now the single source of truth for task status definitions and transitions.
- */
+/** Workflow definitions, UI section mappings, and action guards for task origins (backlog, chat). */
 
 import type { TaskStatus } from './taskStateMachine';
 
@@ -25,19 +17,7 @@ export type TaskSection =
   | 'pending_review' // Pending user review section
   | 'archived'; // Archived/completed section
 
-/**
- * Workflow definitions for each origin
- *
- * Backlog workflow:
- *   backlog → (user moves to chat) → queued → pending → in_progress →
- *   pending_user_review → completed/closed OR back to queued
- *
- * Chat workflow:
- *   queued → pending → in_progress → completed
- *
- * Note: queued→pending and pending→in_progress transitions happen automatically
- * when the agent acknowledges tasks (task-started event).
- */
+/** Allowed status transitions per origin and terminal states for each workflow. */
 export const TASK_WORKFLOWS = {
   backlog: {
     initial: 'backlog' as const, // Starts in backlog tab
@@ -61,10 +41,7 @@ export const TASK_WORKFLOWS = {
   },
 } as const;
 
-/**
- * Get the UI section for a task based on its origin and status
- * Note: origin is kept for future use but currently section is determined purely by status
- */
+/** Returns the UI section for a task based on its status. */
 export function getTaskSection(_origin: TaskOrigin | undefined, status: TaskStatus): TaskSection {
   // Backlog status - shows in backlog section
   // This is the initial state for backlog-origin tasks (before moved to chat)
@@ -199,17 +176,7 @@ export function canAddToChat(origin: TaskOrigin | undefined, status: TaskStatus)
   return status === 'backlog' || status === 'pending_user_review';
 }
 
-/**
- * Get the completion status for a task when agent finishes work
- *
- * Uses the workflow transitions to determine the correct next status.
- * For backlog-origin tasks: in_progress → pending_user_review
- * For chat-origin tasks: in_progress → completed
- *
- * @param origin - Task origin (backlog or chat)
- * @param currentStatus - Current task status (should be in_progress)
- * @returns The status the task should transition to
- */
+/** Returns the completion status a task should transition to when the agent finishes work. */
 export function getCompletionStatus(
   origin: TaskOrigin | undefined,
   currentStatus: TaskStatus

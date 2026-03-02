@@ -53,8 +53,6 @@ export interface StartAgentInput {
 
 /** Successful result of a start-agent operation. */
 export interface StartAgentResult {
-  /** The ID of the dispatched command record. */
-  commandId: Id<'chatroom_machineCommands'>;
   /** The agent harness used. */
   agentHarness: AgentHarness;
   /** The model used. */
@@ -98,7 +96,7 @@ export async function startAgent(
   input: StartAgentInput,
   machine: Doc<'chatroom_machines'>
 ): Promise<StartAgentResult> {
-  const { machineId, chatroomId, role, userId, model, agentHarness, workingDir, reason } = input;
+  const { machineId, chatroomId, role, model, agentHarness, workingDir, reason } = input;
 
   // ── Step 1: Upsert machine agent config ───────────────────────────────
 
@@ -168,24 +166,9 @@ export async function startAgent(
     }
   }
 
-  // ── Step 4: Dispatch start-agent command ──────────────────────────────
+  // ── Step 4: Dispatch start-agent command via event stream ────────────
 
   const now = Date.now();
-  const commandId = await ctx.db.insert('chatroom_machineCommands', {
-    machineId,
-    type: 'start-agent',
-    payload: {
-      chatroomId,
-      role,
-      agentHarness,
-      model,
-      workingDir,
-    },
-    reason,
-    status: 'pending',
-    sentBy: userId,
-    createdAt: now,
-  });
 
   // ── Step 5: Write agent.requestStart event to stream ──────────────────
 
@@ -203,7 +186,6 @@ export async function startAgent(
   });
 
   return {
-    commandId,
     agentHarness,
     model,
     workingDir,
