@@ -1,9 +1,4 @@
-/**
- * Machine Management Module
- *
- * Handles machine registration, agent config sync, and remote command dispatch.
- * Enables users to remotely start agents on their registered machines.
- */
+/** Convex functions for machine registration, agent config, and remote command dispatch. */
 
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
@@ -19,20 +14,7 @@ import { onAgentExited as onAgentExitedEvent } from '../src/events/agent/on-agen
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
-/**
- * Validate a working directory path to prevent shell injection and path traversal.
- *
- * Rejects:
- * - Non-absolute paths (must start with /)
- * - Null bytes (\0)
- * - Shell metacharacters (;, |, &, $, `, (, ), {, }, <, >, !, #, ~)
- * - Command substitution patterns ($(...), `...`)
- * - Newlines and carriage returns
- * - Excessively long paths (>1024 chars)
- *
- * Note: The CLI daemon also validates that the directory exists on the local
- * filesystem before spawning an agent, providing defense-in-depth.
- */
+/** Validates an absolute working directory path, rejecting unsafe characters. */
 function validateWorkingDir(workingDir: string): void {
   if (!workingDir || workingDir.trim().length === 0) {
     throw new Error('Working directory cannot be empty');
@@ -68,25 +50,12 @@ function validateWorkingDir(workingDir: string): void {
   }
 }
 
-/**
- * Authentication result returned by getAuthenticatedUser.
- *
- * Uses a discriminated union so callers can narrow the type:
- *   const auth = await getAuthenticatedUser(ctx, sessionId);
- *   if (!auth.isAuthenticated) return ...;  // handle gracefully
- *   auth.user;  // TypeScript narrows to Doc<'users'>
- */
+/** Discriminated union of authentication results from getAuthenticatedUser. */
 type AuthResult =
   | { isAuthenticated: true; user: Doc<'users'> }
   | { isAuthenticated: false; user: null };
 
-/**
- * Get authenticated user from session.
- *
- * Returns a value object instead of throwing, allowing callers to handle
- * auth failures gracefully (e.g., return empty data for queries, or
- * throw their own error for mutations).
- */
+/** Returns the authenticated user from a session, or null if unauthenticated. */
 async function getAuthenticatedUser(
   ctx: QueryCtx | MutationCtx,
   sessionId: string
@@ -138,12 +107,7 @@ const agentHarnessValidator = v.union(v.literal('opencode'), v.literal('pi'));
 // MACHINE REGISTRATION
 // ============================================================================
 
-/**
- * Register or update a machine.
- *
- * Called by CLI on every get-next-task startup.
- * Creates new machine record or updates existing one.
- */
+/** Registers or updates a machine record for the current user. */
 // Harness version validator
 const harnessVersionValidator = v.object({
   version: v.string(),
@@ -215,12 +179,7 @@ export const register = mutation({
 // AGENT CONFIG MANAGEMENT
 // ============================================================================
 
-/**
- * Update agent configuration for a chatroom+role on a machine.
- *
- * Called by CLI when get-next-task starts.
- * Stores the working directory and agent type for remote restarts.
- */
+/** Upserts the agent configuration (harness, model, workingDir) for a machine+chatroom+role. */
 export const updateAgentConfig = mutation({
   args: {
     ...SessionIdArg,
@@ -329,10 +288,7 @@ export const listMachines = query({
   },
 });
 
-/**
- * Get agent configs for a specific chatroom.
- * Shows which machines have configs for which roles.
- */
+/** Returns agent configs for a chatroom, enriched with machine details. */
 export const getAgentConfigs = query({
   args: {
     ...SessionIdArg,
@@ -388,17 +344,7 @@ export const getAgentConfigs = query({
   },
 });
 
-/**
- * Get command events from the event stream for a machine (daemon subscribes to this).
- *
- * Returns:
- * - `agent.requestStart` and `agent.requestStop` events filtered by `deadline > now()`.
- *   Deadline-based filtering ensures valid commands issued before a daemon restart are
- *   not skipped. The daemon's `processedCommandIds` map handles session-level dedup.
- * - All `daemon.ping` events (no cursor). Re-delivering old pings on restart is harmless
- *   since the UI's `getDaemonPongEvent` looks for a pong AFTER a specific ping event ID.
- *   The daemon's `processedPingIds` map prevents double-ponging within one session.
- */
+/** Returns pending agent.requestStart, agent.requestStop, and daemon.ping events for a machine. */
 export const getCommandEvents = query({
   args: {
     ...SessionIdArg,
@@ -493,14 +439,7 @@ export const getDaemonPongEvent = query({
   },
 });
 
-/**
- * Get the latest event in chatroom_eventStream for a given chatroom + role.
- *
- * Used by the UI to derive agent status without relying on lastSeenAction heartbeats.
- * Uses the by_chatroomId_role index for efficient lookup — no full table scan.
- *
- * Returns null if no events exist for the given chatroom+role or if unauthenticated.
- */
+/** Returns the latest event stream entry for a given chatroom+role, or null. */
 export const getLatestAgentEvent = query({
   args: {
     ...SessionIdArg,
@@ -529,15 +468,7 @@ export const getLatestAgentEvent = query({
   },
 });
 
-/**
- * Get the latest event for each role in a chatroom.
- *
- * Returns a map of { role → latestEvent } for all roles that have at least one
- * event in the stream. Used by the UI to derive status labels for all agents
- * in a single subscription instead of N per-role subscriptions.
- *
- * Roles with no events are omitted from the map.
- */
+/** Returns a map of role → latest event type for all specified roles in a chatroom. */
 export const getLatestAgentEventsForChatroom = query({
   args: {
     ...SessionIdArg,
@@ -610,11 +541,7 @@ export const updateDaemonStatus = mutation({
   },
 });
 
-/**
- * Atomic daemon shutdown — clears daemon status, all spawnedAgent records,
- * and participant records for this machine in a single transaction.
- * Called by the daemon on graceful shutdown (SIGINT/SIGTERM/SIGHUP).
- */
+/** Clears daemon status, spawned agent records, and participant records for a machine in one transaction. */
 export const daemonShutdown = mutation({
   args: {
     ...SessionIdArg,
@@ -667,12 +594,7 @@ export const daemonShutdown = mutation({
   },
 });
 
-/**
- * Daemon heartbeat — update lastSeenAt for liveness detection.
- * Called periodically by the daemon to prove it is still alive.
- * If the daemon crashes (e.g. SIGKILL), heartbeats stop and the backend
- * can detect the stale daemon via DAEMON_HEARTBEAT_TTL_MS.
- */
+/** Updates lastSeenAt for liveness detection; sets daemonConnected to true. */
 export const daemonHeartbeat = mutation({
   args: {
     ...SessionIdArg,
@@ -695,15 +617,7 @@ export const daemonHeartbeat = mutation({
   },
 });
 
-/**
- * Send a command to a machine (from web UI).
- * Only the machine owner can send commands.
- *
- * For start-agent commands: delegates to the startAgent use case which handles
- * config resolution, config mutation, and command dispatch.
- * For stop-agent commands: delegates to the stopAgent use case.
- * For ping/status: creates a simple command record directly.
- */
+/** Dispatches a start-agent, stop-agent, or ping command to a machine on behalf of the user. */
 export const sendCommand = mutation({
   args: {
     ...SessionIdArg,
@@ -806,14 +720,7 @@ export const sendCommand = mutation({
   },
 });
 
-/**
- * Update spawned agent PID (from daemon after spawning).
- * Used to track running agents for stop functionality.
- *
- * Note: This mutation records the PID when an agent starts.
- * When an agent exits, use `recordAgentExited` instead — it handles
- * PID clearing, participant removal, and crash recovery scheduling.
- */
+/** Records the PID of a spawned agent process in the machine agent config. */
 export const updateSpawnedAgent = mutation({
   args: {
     ...SessionIdArg,
@@ -856,15 +763,7 @@ export const updateSpawnedAgent = mutation({
   },
 });
 
-/**
- * Record that an agent process has exited (from daemon).
- *
- * This is the single mutation the daemon calls after an agent exits, whether
- * intentionally (after a stop-agent command) or as a crash. It:
- *   1. Writes an `agent.exited` event to `chatroom_eventStream`
- *   2. Clears the spawnedAgentPid from the machine agent config
- *   3. Removes the participant record so the UI reflects the agent as offline
- */
+/** Records an agent exit: writes agent.exited event, clears PID, removes participant, and schedules crash recovery if unintentional. */
 export const recordAgentExited = mutation({
   args: {
     ...SessionIdArg,
@@ -972,24 +871,12 @@ export const ackPing = mutation({
 // Team-level agent configuration for auto-restart decisions
 // ============================================================================
 
-/**
- * Build a unique teamRoleKey from a chatroom and role.
- * Format: chatroom_<chatroomId>#role_<roleLowerCase>
- *
- * IMPORTANT: We use chatroom._id (always unique per chatroom) — NOT chatroom.teamId.
- * chatroom.teamId is a static team type string like "duo" or "pair", which is shared
- * across all chatrooms of the same type. Using it as the key would cause configs from
- * different chatrooms to collide and overwrite each other.
- */
+/** Builds a unique key scoped to a chatroom+role for use in chatroom_teamAgentConfigs. */
 function buildTeamRoleKey(chatroom: Doc<'chatroom_rooms'>, role: string): string {
   return `chatroom_${chatroom._id}#role_${role.toLowerCase()}`;
 }
 
-/**
- * Save or update team agent configuration.
- * Called when a user starts (or restarts) an agent to record how it was started.
- * The auto-restart logic uses this to decide whether to auto-restart.
- */
+/** Upserts team agent configuration for a chatroom+role and emits an agent.registered event. */
 export const saveTeamAgentConfig = mutation({
   args: {
     ...SessionIdArg,
@@ -1095,12 +982,7 @@ export const getTeamAgentConfigs = query({
 
 // ─── Agent Preferences ────────────────────────────────────────────────────────
 
-/**
- * Save (upsert) user's preferred remote agent configuration for a chatroom+role.
- * Called by the UI whenever the user clicks "Start Agent" in the Remote tab.
- * The saved values become the default pre-population for the Remote tab on
- * subsequent visits.
- */
+/** Upserts the user's preferred remote agent configuration (machine, harness, model, workingDir) for a chatroom+role. */
 export const saveAgentPreference = mutation({
   args: {
     ...SessionIdArg,
@@ -1152,11 +1034,7 @@ export const saveAgentPreference = mutation({
   },
 });
 
-/**
- * Get user's preferred remote agent configurations for a chatroom.
- * Returns all preferences for the current user in the given chatroom.
- * Used by the Remote tab UI to pre-populate machine/harness/model/workingDir.
- */
+/** Returns the user's preferred agent configurations for all roles in a chatroom. */
 export const getAgentPreferences = query({
   args: {
     ...SessionIdArg,
@@ -1176,11 +1054,7 @@ export const getAgentPreferences = query({
   },
 });
 
-/**
- * Get the model visibility filters for a specific machine+harness combination.
- * Machine-level — shared across all users and chatrooms.
- * Returns null if no filters have been configured.
- */
+/** Returns the model visibility filters for a machine+harness combination, or null if unconfigured. */
 export const getMachineModelFilters = query({
   args: {
     ...SessionIdArg,
@@ -1198,11 +1072,7 @@ export const getMachineModelFilters = query({
   },
 });
 
-/**
- * Upsert the model visibility filters for a specific machine+harness combination.
- * Machine-level — shared across all users and chatrooms.
- * Hidden models appear greyed-out in the UI but are still selectable.
- */
+/** Upserts model visibility filters (hidden models/providers) for a machine+harness combination. */
 export const upsertMachineModelFilters = mutation({
   args: {
     ...SessionIdArg,

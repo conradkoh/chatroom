@@ -1,47 +1,4 @@
-/**
- * Ensure Agent Handler
- *
- * A scheduled internalMutation that fires ~120 seconds after a task enters a
- * pending/acknowledged/in_progress state.  It checks whether the task has been
- * updated since the snapshot was taken.  If it has not been updated (i.e. no
- * agent has picked it up), it dispatches a `start-agent` command to the
- * machine(s) configured for the ASSIGNED role of the task — not all agents.
- *
- * TRIGGER PATHS
- * ─────────────
- * 1. Scheduled timer: transition-task.ts schedules this 120s after task
- *    creation/transition (belt-and-suspenders fallback for stale tasks).
- * 2. Immediate: machines.recordAgentExited schedules this with
- *    snapshotUpdatedAt=0 when an agent crashes unintentionally.
- *    The 0 value bypasses the staleness guard unconditionally, ensuring
- *    crash recovery fires regardless of when the task was last updated.
- *
- * ROLE TARGETING
- * ──────────────
- * Only the agent responsible for the task is restarted:
- * - If task.assignedTo is set → restart only that role's agent.
- * - If task has no assignee  → restart only the entry point's agent.
- *   (user message tasks are now pre-assigned at creation, so this is
- *    a defensive fallback for legacy tasks only.)
- *
- * SMART TOKEN CHECK (in_progress tasks)
- * ──────────────────────────────────────
- * For tasks already in_progress, the handler first checks whether the assigned
- * role's participant has produced a token recently (within STUCK_TOKEN_THRESHOLD_MS).
- * If the agent is still actively outputting tokens, it is considered healthy and
- * the check is rescheduled for another 120s instead of triggering a restart.
- * Only when token output goes stale does the handler proceed with a restart.
- *
- * DESIGN NOTES
- * ─────────────
- * • Idempotency — the `snapshotUpdatedAt` guard prevents double-firing: if
- *   any mutation has touched the task between scheduling and execution, the
- *   handler exits silently. snapshotUpdatedAt=0 bypasses this guard.
- * • No session auth — this is an internal system mutation; it is never
- *   exposed as a public API surface.
- * • Callers are responsible for scheduling via `ctx.scheduler.runAfter` after
- *   creating or transitioning a task.
- */
+/** Scheduled fallback that restarts a stale or stuck agent for an active task. */
 
 import { v } from 'convex/values';
 
@@ -53,27 +10,12 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-/**
- * Delay (ms) between task creation/transition and the ensure-agent check.
- * Used for pending, acknowledged, and in_progress tasks.
- * For in_progress tasks, the check is rescheduled if the agent is still
- * producing tokens (see smart token check above).
- */
 /** Task statuses that indicate an agent should be running. */
 const ACTIVE_TASK_STATUSES = new Set(['pending', 'acknowledged', 'in_progress']);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/**
- * Determine whether an in_progress agent is stuck (no recent token output).
- *
- * Returns `true` if the agent should be restarted:
- * - No participant record for the role
- * - No `lastSeenTokenAt` recorded (agent never emitted tokens)
- * - Token output is stale (age ≥ STUCK_TOKEN_THRESHOLD_MS)
- *
- * Returns `false` if the agent is still healthy (producing tokens recently).
- */
+/** Returns true if the assigned agent has stale or missing token output. */
 async function isAgentStuck(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
@@ -103,26 +45,11 @@ async function isAgentStuck(
 
 // ─── Internal Mutation ───────────────────────────────────────────────────────
 
-/**
- * Scheduled check: if the task is still in an active status and has not been
- * updated since the snapshot, dispatch `start-agent` commands to all remote
- * agents configured for this chatroom.
- *
- * For in_progress tasks, the agent's token activity is checked first.
- * If the agent is still producing output, the check is rescheduled instead
- * of triggering a restart.
- */
+/** Checks whether an active task is stale and restarts the responsible agent if needed. */
 export const check = internalMutation({
   args: {
-    /** The task to check. */
     taskId: v.id('chatroom_tasks'),
-    /** The chatroom the task belongs to. */
     chatroomId: v.id('chatroom_rooms'),
-    /**
-     * The `updatedAt` timestamp of the task at the time the handler was
-     * scheduled.  If the task has been updated since then, the check is
-     * skipped — an agent has already picked it up.
-     */
     snapshotUpdatedAt: v.number(),
   },
 
