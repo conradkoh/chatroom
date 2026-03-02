@@ -1,6 +1,6 @@
 /**
  * Shared types for agent presence and team readiness.
- * Single source of truth — imported by AgentPanel, ChatroomDashboard, TeamStatus, etc.
+ * Single source of truth — imported by AgentPanel, ChatroomDashboard, etc.
  */
 
 // ─── Participant Info (flat — presence-based, no FSM status) ──────────────────

@@ -20,7 +20,6 @@ export { MessageFeed } from './components/MessageFeed';
 export { PromptModal } from './components/PromptModal';
 export { SendForm } from './components/SendForm';
 export { SetupChecklist } from './components/SetupChecklist';
-export { TeamStatus } from './components/TeamStatus';
 export { WorkingIndicator } from './components/WorkingIndicator';
 
 // Context
