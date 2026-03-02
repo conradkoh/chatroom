@@ -1,4 +1,19 @@
-/** Internal mutations for one-off data migrations, triggered manually from the Convex dashboard. */
+/**
+ * Database Migrations
+ *
+ * Internal mutations and actions for one-off data migrations.
+ * Run from the Convex dashboard as internal functions.
+ *
+ * Migrations are NOT run automatically by CI — they must be triggered manually
+ * from the Convex dashboard after deploying. All migrations are idempotent and
+ * safe to re-run.
+ *
+ * Previously executed migrations (removed after completion):
+ * - Session expiration field removal (deprecated expiresAt/expiresAtLabel)
+ * - User access level defaults (set undefined → 'user')
+ * - Task origin normalization (set undefined → 'chat'/'backlog')
+ * - Tool → Harness field rename (availableTools → availableHarnesses, etc.)
+ */
 
 import { internalMutation } from './_generated/server';
 
@@ -6,7 +21,28 @@ import { internalMutation } from './_generated/server';
 // PENDING MIGRATIONS — Run these after deploying to production
 // ============================================================================
 
-/** Converts availableModels from a flat string[] to a per-harness record on chatroom_machines documents. */
+/**
+ * Migration: Convert availableModels from string[] to Record<string, string[]>.
+ *
+ * The schema changed availableModels from a flat `string[]` to a per-harness
+ * record `{ opencode: [...], pi: [...] }`. Existing machine documents written
+ * by the old CLI still store a plain array, causing schema validation errors.
+ *
+ * The schema temporarily accepts both shapes via v.union(...) to allow this
+ * migration to run without rejecting old documents. Once this migration has
+ * been successfully run in production, do the following cleanup:
+ *
+ *   1. In schema.ts — revert availableModels back to:
+ *        availableModels: v.optional(v.record(v.string(), v.array(v.string())))
+ *      (remove the v.union wrapper and the DEPRECATED SHAPE comment)
+ *
+ *   2. Remove this migration (move description to the "Previously executed" list above).
+ *
+ * Idempotent: documents already in the record shape are skipped.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.migrateAvailableModelsToPerHarness
+ */
 export const migrateAvailableModelsToPerHarness = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -45,7 +81,21 @@ export const migrateAvailableModelsToPerHarness = internalMutation({
   },
 });
 
-/** Removes stale FSM fields (status, readyUntil, etc.) from chatroom_participants documents. */
+/**
+ * Migration: Strip stale FSM fields from chatroom_participants.
+ *
+ * Phase 4 removed `status`, `readyUntil`, `activeUntil`, `cleanupDeadline`,
+ * and `statusReason` from the schema. Existing documents written by the old
+ * CLI still carry these fields, causing Convex schema validation errors.
+ *
+ * This migration patches each participant document by unsetting the stale
+ * fields. Documents without any stale fields are skipped.
+ *
+ * Idempotent: documents with no stale fields are skipped on re-run.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.stripParticipantStaleFields
+ */
 export const stripParticipantStaleFields = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -91,7 +141,15 @@ export const stripParticipantStaleFields = internalMutation({
   },
 });
 
-/** No-op migration kept for history — the status field and idle state were removed. */
+/**
+ * Migration: Remove idle participants (no-op — status field removed).
+ *
+ * The `status` field and 'idle' state were removed as part of the
+ * lastSeenAt-based lifecycle refactor. This migration is now a no-op.
+ * Kept for historical reference; safe to remove.
+ *
+ * Idempotent: always a no-op.
+ */
 export const removeIdleParticipants = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -104,7 +162,31 @@ export const removeIdleParticipants = internalMutation({
   },
 });
 
-/** Deletes old-format chatroom_agentPreferences documents that use the deprecated per-chatroom shape. */
+/**
+ * Migration: Delete old-format chatroom_agentPreferences documents.
+ *
+ * The chatroom_agentPreferences table was redesigned from a per-chatroom format
+ * (with harnessByRole/modelByRole maps) to a per-role format (with agentHarness,
+ * role, model as scalar fields). Old documents in production still use the old
+ * shape and fail schema validation on deployment.
+ *
+ * Since agentPreferences are purely UI hints and have no behavioral impact,
+ * the safest migration is to delete old-format documents. Users will need to
+ * re-save their preferences after the migration (by clicking "Start Agent" again).
+ *
+ * After this migration has run successfully in production:
+ *   1. In schema.ts — restore agentHarness, role, and createdAt to required fields:
+ *        role: v.string(),
+ *        agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+ *        createdAt: v.number(),
+ *      (remove the DEPRECATED SHAPE comments and v.optional wrappers)
+ *   2. Remove this migration (move description to "Previously executed" list above).
+ *
+ * Idempotent: documents already in the new format (with agentHarness) are skipped.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.deleteOldFormatAgentPreferences
+ */
 export const deleteOldFormatAgentPreferences = internalMutation({
   args: {},
   handler: async (ctx) => {

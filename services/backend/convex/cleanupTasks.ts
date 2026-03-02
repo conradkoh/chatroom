@@ -22,7 +22,10 @@ export interface AllCleanupResults {
   };
 }
 
-/** Deletes expired login and connect requests that are not yet completed. */
+/**
+ * Cleanup task for expired login requests.
+ * This can be called periodically to clean up expired OAuth login requests.
+ */
 export const cleanupExpiredLoginRequests = internalMutation({
   args: {},
   handler: async (ctx, _args): Promise<LoginRequestsCleanupResult> => {
@@ -65,7 +68,12 @@ export const cleanupExpiredLoginRequests = internalMutation({
   },
 });
 
-/** @deprecated Use cleanupExpiredLoginRequests instead. */
+/**
+ * Cleanup task for expired connect requests.
+ * This can be called periodically to clean up expired OAuth connect requests.
+ *
+ * @deprecated Use cleanupExpiredLoginRequests instead - it now handles both login and connect requests
+ */
 export const cleanupExpiredConnectRequests = internalMutation({
   args: {},
   handler: async (ctx, _args): Promise<CleanupResult> => {
@@ -91,7 +99,10 @@ export const cleanupExpiredConnectRequests = internalMutation({
   },
 });
 
-/** Deletes expired login codes. */
+/**
+ * Cleanup task for expired login codes.
+ * This can be called periodically to clean up expired login codes.
+ */
 export const cleanupExpiredLoginCodes = internalMutation({
   args: {},
   handler: async (ctx, _args): Promise<CleanupResult> => {
