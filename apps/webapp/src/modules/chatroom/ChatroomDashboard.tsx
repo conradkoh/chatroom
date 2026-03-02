@@ -29,8 +29,8 @@ import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { TaskQueue } from './components/TaskQueue';
 import { AttachedTasksProvider } from './context/AttachedTasksContext';
+import { useAgentStatuses } from './hooks/useAgentStatuses';
 import type { TeamLifecycle } from './types/readiness';
-// TeamStatus is now consolidated into AgentPanel
 
 import {
   DropdownMenu,
@@ -348,30 +348,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     [teamRoles, participants]
   );
 
-  // Compute aggregate status for sidebar indicator using presence (lastSeenAt)
-  // Blue (working) if any agent has a recent non-waiting action, Green (ready) if all are online
-  const PRESENCE_THRESHOLD_MS = 600_000; // 10 minutes — matches AgentPanel.tsx
-  const aggregateStatus = useMemo(() => {
-    if (participants.length === 0) return 'none';
-    const now = Date.now();
-    const nonUserParticipants = participants.filter((p) => p.role.toLowerCase() !== 'user');
-    if (nonUserParticipants.length === 0) return 'none';
-
-    const onlineAgents = nonUserParticipants.filter(
-      (p) => p.lastSeenAt != null && now - p.lastSeenAt <= PRESENCE_THRESHOLD_MS
-    );
-
-    if (onlineAgents.length === 0) return 'none';
-
-    const hasWorking = onlineAgents.some(
-      (p) => p.lastSeenAction && p.lastSeenAction !== 'get-next-task:started'
-    );
-    if (hasWorking) return 'working';
-
-    if (onlineAgents.length === nonUserParticipants.length) return 'ready';
-
-    return 'partial';
-  }, [participants, PRESENCE_THRESHOLD_MS]);
+  // Use hook to get aggregate status (event stream + lifecycle)
+  const { aggregateStatus } = useAgentStatuses(chatroomId, teamRoles);
 
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
