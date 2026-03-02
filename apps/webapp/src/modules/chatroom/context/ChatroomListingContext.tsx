@@ -12,6 +12,7 @@ export interface Agent {
   role: string;
   lastSeenAt: number | null;
   lastSeenAction: string | null;
+  isActive: boolean;
 }
 
 export interface ChatroomWithStatus {
@@ -83,15 +84,20 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
     const favoriteSet = new Set(favoriteIds);
     const unreadMap = new Map(unreadStatus.map((u) => [u.chatroomId, u.hasUnread]));
 
-    // Group presence by chatroomId
+    const now = Date.now();
+
+    // Group presence by chatroomId, computing isActive once per agent
     const presenceByRoom = new Map<string, Agent[]>();
     for (const p of presenceData) {
       const existing = presenceByRoom.get(p.chatroomId) ?? [];
-      existing.push({ role: p.role, lastSeenAt: p.lastSeenAt, lastSeenAction: p.lastSeenAction });
+      existing.push({
+        role: p.role,
+        lastSeenAt: p.lastSeenAt,
+        lastSeenAction: p.lastSeenAction,
+        isActive: p.lastSeenAt != null && now - p.lastSeenAt <= LAST_SEEN_ACTIVE_MS,
+      });
       presenceByRoom.set(p.chatroomId, existing);
     }
-
-    const now = Date.now();
 
     return baseChatrooms.map((chatroom) => {
       const agents = presenceByRoom.get(chatroom._id) ?? [];
@@ -102,9 +108,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
       if (chatroom.status === 'completed') {
         chatStatus = 'completed';
       } else {
-        const onlineAgents = agents.filter(
-          (a) => a.lastSeenAt != null && now - a.lastSeenAt <= LAST_SEEN_ACTIVE_MS
-        );
+        const onlineAgents = agents.filter((a) => a.isActive);
         if (onlineAgents.length === 0) {
           chatStatus = 'idle';
         } else {
