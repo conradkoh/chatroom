@@ -2,12 +2,7 @@ import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
 /**
- * Database schema definition for the application.
- * Defines all tables, their fields, and indexes for optimal querying.
- *
- * DEPRECATION NOTICE: The fields `expiresAt` and `expiresAtLabel` in the sessions table
- * are deprecated and no longer used for session expiry. They are only kept for migration
- * compatibility and will be removed in a future migration.
+ * Database schema definition for the chatroom application.
  */
 export default defineSchema({
   /**
@@ -17,10 +12,7 @@ export default defineSchema({
     latestVersion: v.string(),
   }),
 
-  /**
-   * Presentation state management for real-time presentation controls.
-   * Tracks current slide and active presenter information.
-   */
+  /** Presentation state for real-time slide control and active presenter tracking. */
   presentationState: defineTable({
     key: v.string(), // The presentation key that identifies this presentation
     currentSlide: v.number(), // The current slide number
@@ -32,10 +24,7 @@ export default defineSchema({
     ), // Optional object containing presenter information
   }).index('by_key', ['key']),
 
-  /**
-   * Discussion state management for collaborative discussions.
-   * Tracks discussion lifecycle, conclusions, and metadata.
-   */
+  /** Discussion state for collaborative discussions, including lifecycle and conclusions. */
   discussionState: defineTable({
     key: v.string(), // Unique identifier for the discussion
     title: v.string(), // Title of the discussion
@@ -53,10 +42,7 @@ export default defineSchema({
     concludedBy: v.optional(v.string()), // Session ID of who concluded the discussion
   }).index('by_key', ['key']),
 
-  /**
-   * Individual messages within discussions.
-   * Stores message content, sender information, and timestamps.
-   */
+  /** Individual messages within discussions. */
   discussionMessages: defineTable({
     discussionKey: v.string(), // The discussion this message belongs to
     name: v.string(), // Name of the person who wrote the message
@@ -65,10 +51,7 @@ export default defineSchema({
     sessionId: v.optional(v.string()), // Session ID of the sender (optional)
   }).index('by_discussion', ['discussionKey']),
 
-  /**
-   * Checklist state management for collaborative task tracking.
-   * Tracks checklist lifecycle and metadata.
-   */
+  /** Checklist state for collaborative task tracking. */
   checklistState: defineTable({
     key: v.string(), // Unique identifier for the checklist
     title: v.string(), // Title of the checklist
@@ -78,10 +61,7 @@ export default defineSchema({
     concludedBy: v.optional(v.string()), // Session ID of who concluded the checklist
   }).index('by_key', ['key']),
 
-  /**
-   * Individual items within checklists.
-   * Stores item content, completion status, ordering, and audit trail.
-   */
+  /** Individual items within checklists, with completion status and ordering. */
   checklistItems: defineTable({
     checklistKey: v.string(), // The checklist this item belongs to
     text: v.string(), // The item text/description
@@ -95,10 +75,7 @@ export default defineSchema({
     .index('by_checklist', ['checklistKey'])
     .index('by_checklist_order', ['checklistKey', 'order']),
 
-  /**
-   * Attendance tracking for events and meetings.
-   * Records attendance status, reasons, and participant information.
-   */
+  /** Attendance records for events, including status, reasons, and participant info. */
   attendanceRecords: defineTable({
     attendanceKey: v.string(), // The attendance session key (hardcoded)
     timestamp: v.number(), // When the attendance was recorded
@@ -113,10 +90,7 @@ export default defineSchema({
     .index('by_name_attendance', ['attendanceKey', 'name'])
     .index('by_user_attendance', ['attendanceKey', 'userId']),
 
-  /**
-   * User accounts supporting authenticated, anonymous, and Google OAuth users.
-   * Stores user credentials, names, and recovery information.
-   */
+  /** User accounts (full, anonymous, or Google OAuth) with credentials and recovery info. */
   users: defineTable(
     v.union(
       v.object({
@@ -153,10 +127,7 @@ export default defineSchema({
     .index('by_name', ['name'])
     .index('by_googleId', ['google.id']),
 
-  /**
-   * User sessions for authentication and state management.
-   * Links session IDs to user accounts with creation timestamps.
-   */
+  /** User sessions linking session IDs to user accounts with auth method and timestamps. */
   sessions: defineTable({
     sessionId: v.string(), //this is provided by the client
     userId: v.id('users'), // null means session exists but not authenticated
@@ -174,10 +145,7 @@ export default defineSchema({
     expiresAtLabel: v.optional(v.string()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
   }).index('by_sessionId', ['sessionId']),
 
-  /**
-   * Temporary login codes for cross-device authentication.
-   * Stores time-limited codes for secure device-to-device login.
-   */
+  /** Temporary login codes for time-limited cross-device authentication. */
   loginCodes: defineTable({
     code: v.string(), // The 8-letter login code
     userId: v.id('users'), // The user who generated this code
@@ -185,10 +153,7 @@ export default defineSchema({
     expiresAt: v.number(), // When the code expires (1 minute after creation)
   }).index('by_code', ['code']),
 
-  /**
-   * Authentication provider configuration for dynamic auth provider setup.
-   * Supports multiple auth providers (Google, GitHub, etc.) with unified structure.
-   */
+  /** Auth provider configurations (e.g. Google OAuth) with credentials and redirect URIs. */
   auth_providerConfigs: defineTable({
     type: v.union(v.literal('google')), // Auth provider type (extensible for future providers)
     enabled: v.boolean(), // Whether this auth provider is enabled
@@ -200,10 +165,7 @@ export default defineSchema({
     configuredAt: v.number(), // When this configuration was created/updated
   }).index('by_type', ['type']),
 
-  /**
-   * Login requests for authentication provider flows (e.g., Google OAuth).
-   * Tracks the state of a login attempt and links to sessions and users.
-   */
+  /** Login requests for OAuth flows, tracking status and linking sessions to users. */
   auth_loginRequests: defineTable({
     sessionId: v.string(), // Session initiating the login
     status: v.union(v.literal('pending'), v.literal('completed'), v.literal('failed')), // Status of the login request
@@ -215,11 +177,7 @@ export default defineSchema({
     redirectUri: v.string(), // The OAuth redirect URI used for this login request
   }),
 
-  /**
-   * Connect requests for authentication provider account linking flows (e.g., Google OAuth).
-   * Tracks the state of a connect attempt and links to sessions and users.
-   * Separate from login requests to make flow types explicit and ensure proper validation.
-   */
+  /** Connect requests for OAuth account-linking flows, separate from login requests. */
   auth_connectRequests: defineTable({
     sessionId: v.string(), // Session initiating the connect
     status: v.union(v.literal('pending'), v.literal('completed'), v.literal('failed')), // Status of the connect request
@@ -236,10 +194,7 @@ export default defineSchema({
   // Multi-agent chatroom collaboration system
   // ============================================================================
 
-  /**
-   * Chatrooms for multi-agent collaboration.
-   * Stores chatroom state and team configuration.
-   */
+  /** Chatrooms for multi-agent collaboration with team configuration and activity tracking. */
   chatroom_rooms: defineTable({
     status: v.union(v.literal('active'), v.literal('completed')),
     // Owner of this chatroom (user ID from session) - required for access control
@@ -266,11 +221,7 @@ export default defineSchema({
     .index('by_ownerId', ['ownerId'])
     .index('by_ownerId_lastActivity', ['ownerId', 'lastActivityAt']),
 
-  /**
-   * Explicit contexts for chatroom conversations.
-   * Replaces the fragile pinned message system with explicit context management.
-   * Allows users/agents to create, list, and inspect conversation contexts.
-   */
+  /** Explicit conversation contexts for chatrooms, replacing fragile pinned-message heuristics. */
   chatroom_contexts: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     // Content summary of the context (provided by user or agent)
@@ -287,10 +238,7 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_latest', ['chatroomId', 'createdAt']),
 
-  /**
-   * Participants in chatrooms.
-   * Tracks which agents/users have joined and their presence.
-   */
+  /** Chatroom participants tracking role, connection ID, presence, and token activity. */
   chatroom_participants: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
@@ -317,10 +265,7 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role']),
 
-  /**
-   * Messages in chatrooms.
-   * Supports targeted messages, broadcasts, and handoffs.
-   */
+  /** Messages in chatrooms supporting targeted messages, broadcasts, handoffs, and progress updates. */
   chatroom_messages: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     senderRole: v.string(),
@@ -377,15 +322,7 @@ export default defineSchema({
     // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
     .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type']),
 
-  /**
-   * Tasks in chatrooms for queue and backlog management.
-   * Tracks task lifecycle from creation through completion.
-   * Only one task can be pending or in_progress at a time per chatroom.
-   *
-   * Task workflows are determined by origin:
-   * - backlog: backlog → queued → pending → in_progress → pending_user_review → completed/closed
-   * - chat: queued → pending → in_progress → completed
-   */
+  /** Tasks in chatrooms for queue and backlog management with full lifecycle tracking. */
   chatroom_tasks: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     createdBy: v.string(), // 'user' or role name that created the task
@@ -454,11 +391,7 @@ export default defineSchema({
   // Device authorization flow for CLI tools
   // ============================================================================
 
-  /**
-   * CLI auth requests for device authorization flow.
-   * When a CLI runs `chatroom auth login`, it creates a pending auth request
-   * and polls for approval. User approves via web browser.
-   */
+  /** CLI device authorization requests, polling for user approval in a browser. */
   cliAuthRequests: defineTable({
     // Unique request ID (generated by CLI, used for polling)
     requestId: v.string(),
@@ -484,11 +417,7 @@ export default defineSchema({
     .index('by_requestId', ['requestId'])
     .index('by_status', ['status']),
 
-  /**
-   * CLI sessions for authenticated CLI tools.
-   * Created when a CLI auth request is approved.
-   * Validated on every CLI command.
-   */
+  /** CLI sessions created on approval of a CLI auth request. */
   cliSessions: defineTable({
     // The session ID (stored in ~/.chatroom/auth.jsonc)
     sessionId: v.string(),
@@ -512,10 +441,7 @@ export default defineSchema({
     .index('by_userId', ['userId'])
     .index('by_userId_active', ['userId', 'isActive']),
 
-  /**
-   * User favorites for chatrooms.
-   * Tracks which chatrooms a user has marked as favorite for quick access.
-   */
+  /** User-favorited chatrooms for quick access. */
   chatroom_favorites: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     userId: v.id('users'),
@@ -525,11 +451,7 @@ export default defineSchema({
     .index('by_userId_chatroomId', ['userId', 'chatroomId'])
     .index('by_chatroomId', ['chatroomId']),
 
-  /**
-   * Read cursors for tracking the last message a user has seen in each chatroom.
-   * Used to compute unread indicators efficiently without subscribing to full message history.
-   * One record per user per chatroom.
-   */
+  /** Per-user, per-chatroom read cursors for tracking last-seen message timestamps. */
   chatroom_read_cursors: defineTable({
     chatroomId: v.id('chatroom_rooms'),
     userId: v.id('users'),
@@ -541,10 +463,7 @@ export default defineSchema({
     .index('by_userId', ['userId'])
     .index('by_userId_chatroomId', ['userId', 'chatroomId']),
 
-  /**
-   * Artifacts for chatroom collaboration.
-   * Stores versioned documents that can be attached to handoffs.
-   */
+  /** Versioned artifacts (documents) that can be attached to handoffs. */
   chatroom_artifacts: defineTable({
     chatroomId: v.id('chatroom_rooms'),
 
@@ -577,19 +496,7 @@ export default defineSchema({
   // User's preferred remote agent configuration per chatroom+role
   // ============================================================================
 
-  /**
-   * User preferences for remote agent configuration per chatroom and role.
-   * Stores the last-used (or explicitly saved) machine, harness, model, and
-   * working directory so the Remote tab in the UI pre-populates these values
-   * as sensible defaults when the user opens it.
-   *
-   * This is separate from chatroom_teamAgentConfigs, which is the authoritative
-   * active config used by auto-restart logic. agentPreferences are purely
-   * informational/UI hints — they do not drive any backend behavior.
-   *
-   * Written by: the UI's "Start Agent" action (via saveAgentPreference mutation).
-   * Read by: the Remote tab UI to pre-populate fields as defaults.
-   */
+  /** User's preferred remote agent configuration (machine, harness, model, workingDir) per chatroom+role. */
   chatroom_agentPreferences: defineTable({
     // Owner of this preference (user who clicked Start Agent)
     userId: v.id('users'),
@@ -631,10 +538,7 @@ export default defineSchema({
   // Remote machine identity and command execution
   // ============================================================================
 
-  /**
-   * Registered machines for remote agent management.
-   * Each machine has a stable UUID and is owned by a user.
-   */
+  /** Registered machines with stable UUID, owner, hardware info, and daemon connectivity status. */
   chatroom_machines: defineTable({
     // UUID generated by CLI (stored in ~/.chatroom/machine.json)
     machineId: v.string(),
@@ -676,10 +580,7 @@ export default defineSchema({
     .index('by_machineId', ['machineId'])
     .index('by_userId', ['userId']),
 
-  /**
-   * Agent configurations per machine, chatroom, and role.
-   * Stores context needed to restart agents remotely.
-   */
+  /** Per-machine, per-chatroom, per-role agent config storing context needed for remote restarts. */
   chatroom_machineAgentConfigs: defineTable({
     // Reference to machine (machineId string, not Convex ID)
     machineId: v.string(),
@@ -703,11 +604,7 @@ export default defineSchema({
     .index('by_machine_chatroom_role', ['machineId', 'chatroomId', 'role'])
     .index('by_chatroom', ['chatroomId']),
 
-  /**
-   * Model visibility filters for a machine's harness.
-   * Machine-level — shared across all users and chatrooms.
-   * Hidden models appear greyed-out in the UI but are still visible.
-   */
+  /** Model visibility filters (hidden models/providers) for a machine+harness combination. */
   chatroom_machineModelFilters: defineTable({
     // Machine these filters apply to
     machineId: v.string(),
@@ -721,15 +618,7 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_machine_harness', ['machineId', 'agentHarness']),
 
-  /**
-   * Team-level agent configuration.
-   * Tracks how agents for each team/role are configured to start.
-   * Used by auto-restart logic to determine if an agent should be auto-restarted.
-   *
-   * When type is 'remote', the config contains machine/harness/model info
-   * needed to restart the agent via the daemon.
-   * When type is 'custom' (or no config exists), auto-restart is skipped.
-   */
+  /** Team-level agent configuration (type, machine, harness, desiredState) used by auto-restart logic. */
   chatroom_teamAgentConfigs: defineTable({
     // Unique key: chatroom_<chatroomId>#role_<role>
     teamRoleKey: v.string(),
@@ -766,11 +655,7 @@ export default defineSchema({
   // Used for crash recovery, audit, and daemon-driven reactions.
   // ============================================================================
 
-  /**
-   * Immutable event log for the chatroom system.
-   * Each row represents one discrete event. Consumers read forward from a
-   * checkpoint and react to events without fetching additional data.
-   */
+  /** Append-only event log for agent lifecycle, task transitions, and daemon commands. */
   chatroom_eventStream: defineTable(
     v.union(
       // Agent spawned successfully

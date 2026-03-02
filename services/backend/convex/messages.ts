@@ -195,10 +195,7 @@ async function _sendMessageHandler(
 // =============================================================================
 
 /**
- * Send a message to a chatroom.
- * Handles message routing based on sender role and message type.
- * Requires CLI session authentication and chatroom access.
- *
+ * Sends a message to a chatroom (deprecated — use sendMessage instead).
  * @deprecated Use `sendMessage` instead. This method will be removed in a future version.
  */
 export const send = mutation({
@@ -461,21 +458,7 @@ async function _handoffHandler(
   };
 }
 
-/**
- * Send a handoff message and complete the current task atomically.
- * This is the preferred way to hand off work between agents.
- *
- * Performs all of these operations in a single atomic transaction:
- * 1. Validates the handoff is allowed (classification rules)
- * 2. Completes all in_progress tasks in the chatroom
- * 3. Sends the handoff message
- * 4. Creates a task for the target agent (if not handing to user)
- * 5. Updates the sender's participant status to waiting
- *
- * Requires CLI session authentication and chatroom access.
- *
- * @deprecated Use `handoff` instead. This method will be removed in a future version.
- */
+/** Completes the current task and sends a handoff message atomically (deprecated — use handoff instead). */
 export const sendHandoff = mutation({
   args: {
     ...SessionIdArg,
@@ -490,16 +473,7 @@ export const sendHandoff = mutation({
   },
 });
 
-/**
- * Send a message to a chatroom.
- * Handles message routing based on sender role and message type.
- * Requires CLI session authentication and chatroom access.
- *
- * This is primarily used by agents to send messages without completing their current task,
- * such as asking clarifying questions or providing status updates.
- *
- * Note: Users typically send messages via the WebUI, not the CLI.
- */
+/** Sends a message to a chatroom without completing the current task. */
 export const sendMessage = mutation({
   args: {
     ...SessionIdArg,
@@ -515,19 +489,7 @@ export const sendMessage = mutation({
   },
 });
 
-/**
- * Complete your current task and hand off to the next agent.
- * This is the preferred way to finish work and pass control between agents.
- *
- * Performs all of these operations in a single atomic transaction:
- * 1. Validates the handoff is allowed (classification rules)
- * 2. Completes all in_progress tasks in the chatroom
- * 3. Sends the handoff message
- * 4. Creates a task for the target agent (if not handing to user)
- * 5. Updates the sender's participant status to waiting
- *
- * Requires CLI session authentication and chatroom access.
- */
+/** Completes the current task and sends a handoff message atomically. */
 export const handoff = mutation({
   args: {
     ...SessionIdArg,
@@ -542,22 +504,7 @@ export const handoff = mutation({
   },
 });
 
-/**
- * Report progress on the current task without completing it.
- * Used by agents to provide status updates during long-running operations.
- *
- * This is a lightweight operation that:
- * 1. Validates session and chatroom access
- * 2. Validates the sender role is in the team
- * 3. Creates a progress message visible in the webapp
- *
- * Progress messages do NOT:
- * - Create tasks
- * - Change task status
- * - Trigger handoffs or queue processing
- *
- * Requires CLI session authentication and chatroom access.
- */
+/** Sends a progress update message linked to the current in_progress task. */
 export const reportProgress = mutation({
   args: {
     ...SessionIdArg,
@@ -617,12 +564,7 @@ export const reportProgress = mutation({
   },
 });
 
-/**
- * Mark a task as started and classify the user message.
- * Called by agents when they begin working on a user message.
- * Sets the classification which determines allowed handoff paths.
- * Requires CLI session authentication and chatroom access.
- */
+/** Marks a task as started and classifies the originating user message. */
 export const taskStarted = mutation({
   args: {
     ...SessionIdArg,
@@ -843,11 +785,7 @@ export const taskStarted = mutation({
   },
 });
 
-/**
- * Get allowed handoff roles based on current message classification.
- * Used by CLI to determine valid handoff targets.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns the allowed handoff roles for a given role based on the current message classification. */
 export const getAllowedHandoffRoles = query({
   args: {
     ...SessionIdArg,
@@ -912,11 +850,7 @@ export const getAllowedHandoffRoles = query({
   },
 });
 
-/**
- * List messages in a chatroom.
- * Optionally limit the number of messages returned.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns all messages in a chatroom up to an optional limit. */
 export const list = query({
   args: {
     ...SessionIdArg,
@@ -941,12 +875,7 @@ export const list = query({
   },
 });
 
-/**
- * List messages in a chatroom with pagination.
- * Returns newest messages first (descending order).
- * Includes task status for messages with linked tasks.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns messages in descending order with task status and attached task/artifact details, paginated. */
 export const listPaginated = query({
   args: {
     ...SessionIdArg,
@@ -1062,12 +991,7 @@ export const listPaginated = query({
   },
 });
 
-/**
- * Get all progress messages for a specific task.
- * Returns progress messages in chronological order (oldest first) for timeline display.
- * Used when user expands the inline progress to see full history.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns all progress messages for a task in chronological order. */
 export const getProgressForTask = query({
   args: {
     ...SessionIdArg,
@@ -1101,20 +1025,7 @@ export const getProgressForTask = query({
   },
 });
 
-/**
- * Get context window for agents.
- * Returns the latest non-follow-up user message and all messages after it,
- * EXCLUDING user messages that haven't been acknowledged (still queued).
- * This provides agents with the full context of the current task.
- * Requires CLI session authentication and chatroom access.
- *
- * Optimized approach:
- * 1. Get recent messages (limited fetch)
- * 2. Filter out unacknowledged user messages (queued messages)
- * 3. Check if latest user message has taskOriginMessageId (fast path for follow-ups)
- * 4. Otherwise, find origin in recent messages (handles most cases)
- * 5. Fetch messages from origin onwards if needed
- */
+/** Returns the context window: messages from the latest non-follow-up user message onward. */
 export const getContextWindow = query({
   args: {
     ...SessionIdArg,
@@ -1237,11 +1148,7 @@ export const getContextWindow = query({
   },
 });
 
-/**
- * Claim a message for a specific role.
- * Used for broadcast messages to prevent multiple agents from processing the same message.
- * Requires CLI session authentication and chatroom access.
- */
+/** Claims a broadcast message for a specific role to prevent duplicate processing. */
 export const claimMessage = mutation({
   args: {
     ...SessionIdArg,
@@ -1275,17 +1182,7 @@ export const claimMessage = mutation({
   },
 });
 
-/**
- * Get the latest message for a specific role.
- * Used for polling for new messages.
- * Requires CLI session authentication and chatroom access.
- *
- * Message routing logic:
- * 1. Targeted messages (targetRole set): Only the target role receives
- * 2. Interrupt messages: All waiting agents receive
- * 3. User messages: Route to entry point (or first role in team)
- * 4. Broadcast from agents: Highest priority waiting agent receives
- */
+/** Returns the next unprocessed message for a role based on routing rules. */
 export const getLatestForRole = query({
   args: {
     ...SessionIdArg,
@@ -1369,12 +1266,7 @@ export const getLatestForRole = query({
   },
 });
 
-/**
- * List features in a chatroom.
- * Returns messages classified as new_feature that have feature metadata.
- * Used by agents to discover past features for context.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns messages classified as new_feature with feature metadata, most recent first. */
 export const listFeatures = query({
   args: {
     ...SessionIdArg,
@@ -1414,12 +1306,7 @@ export const listFeatures = query({
   },
 });
 
-/**
- * Inspect a specific feature.
- * Returns full feature details including tech specs and conversation thread.
- * Used by agents to understand implementation details of past features.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns full details and conversation thread for a specific feature message. */
 export const inspectFeature = query({
   args: {
     ...SessionIdArg,
@@ -1514,12 +1401,7 @@ export const inspectFeature = query({
   },
 });
 
-/**
- * Get role-specific prompt for an agent.
- * Returns a prompt tailored to the role, current task context, and available actions.
- * Designed to be called with every get-next-task to provide fresh context.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns a role-specific prompt with team context, classification, and allowed handoff targets. */
 export const getRolePrompt = query({
   args: {
     ...SessionIdArg,
@@ -1601,11 +1483,7 @@ export const getRolePrompt = query({
   },
 });
 
-/**
- * Get the full initialization prompt for an agent joining the chatroom.
- * This is called once when an agent first joins and provides the complete
- * setup instructions including role, workflow, and command reference.
- */
+/** Returns the full initialization prompt for an agent joining a chatroom. */
 export const getInitPrompt = query({
   args: {
     ...SessionIdArg,
@@ -1668,13 +1546,7 @@ export const getInitPrompt = query({
   },
 });
 
-/**
- * Get the complete task delivery prompt for an agent receiving a task.
- * This is called when get-next-task receives a task, replacing the
- * local prompt construction in the CLI.
- *
- * Returns both human-readable prompt sections and structured JSON data.
- */
+/** Returns the complete task delivery prompt and structured JSON context for an agent receiving a task. */
 export const getTaskDeliveryPrompt = query({
   args: {
     ...SessionIdArg,
@@ -2040,12 +1912,7 @@ export const getTaskDeliveryPrompt = query({
 // SENDER ROLE BASED QUERIES - For user-centric pagination
 // =============================================================================
 
-/**
- * List messages filtered by sender role.
- * Uses the composite index for efficient filtering.
- * Returns messages in descending order (newest first).
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns messages filtered by sender role in descending order. */
 export const listBySenderRole = query({
   args: {
     ...SessionIdArg,
@@ -2089,12 +1956,7 @@ export const listBySenderRole = query({
   },
 });
 
-/**
- * List all messages since a given message ID (inclusive).
- * Returns messages in ascending order (oldest first).
- * Useful for getting context starting from a specific user message.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns all messages from a given message ID onward (inclusive), in ascending order. */
 export const listSinceMessage = query({
   args: {
     ...SessionIdArg,
@@ -2154,19 +2016,7 @@ export const listSinceMessage = query({
   },
 });
 
-/**
- * Get context for a specific role.
- * Returns conversation history with task information, pending tasks count,
- * and the origin message classification.
- *
- * This provides agents with a comprehensive view of:
- * - Recent chat history (from origin message forward)
- * - Task information attached to each message
- * - Number of pending tasks waiting for this role
- * - Origin message and classification type
- *
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns enriched conversation history, context window, and pending task count for a role. */
 export const getContextForRole = query({
   args: {
     ...SessionIdArg,
