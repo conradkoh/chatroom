@@ -518,4 +518,45 @@ describe('handleStartAgent', () => {
       pid: 7777,
     });
   });
+
+  it('natural exit (code 0) without prior stop command emits intentional=false', async () => {
+    // DESIGN DECISION: A process that exits with code 0 (normal completion) is
+    // treated identically to a crash if no explicit stop was requested.
+    // See on-agent-exited.ts for the reliability rationale.
+    let onExitCallback: ((info: {
+      code: number | null;
+      signal: string | null;
+      context: { machineId: string; chatroomId: string; role: string };
+    }) => void) | null = null;
+
+    const ctx = createMockContext({
+      spawnResult: {
+        pid: 5678,
+        onExit: (cb) => { onExitCallback = cb; },
+        onOutput: vi.fn(),
+      },
+    });
+    // stops.consume() already returns false by default (no prior stops.mark())
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    const listener = vi.fn();
+    ctx.events.on('agent:exited', listener);
+
+    await handleStartAgent(ctx, cmd);
+
+    // Trigger natural exit (code 0)
+    onExitCallback!({
+      code: 0,
+      signal: null,
+      context: { machineId: 'test-machine-id', chatroomId: 'test-chatroom-123', role: 'builder' },
+    });
+
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 0,
+        signal: null,
+        intentional: false,  // ← the key assertion
+      })
+    );
+  });
 });

@@ -161,4 +161,41 @@ describe('registerEventListeners', () => {
 
     warnSpy.mockRestore();
   });
+
+  test('natural process exit (code 0, no explicit stop) is treated as unintentional and triggers crash recovery', async () => {
+    // DESIGN DECISION: The system does not distinguish between a natural completion
+    // and an unexpected crash. Any process exit without a prior explicit stop command
+    // (via agent.requestStop) is treated as unintentional — intentional=false.
+    //
+    // Known trade-off: if an agent finishes work and exits cleanly before the handoff
+    // mutation completes, the ensure-agent handler may fire and attempt a restart.
+    // This may result in a wasted agent start request. This is an intentional
+    // reliability choice: the system prefers restarting unnecessarily over leaving a
+    // task stuck with no agent to handle it.
+    const ctx = createTestContext();
+    registerEventListeners(ctx);
+
+    // Simulate a natural exit: code 0, no signal, no prior stops.mark() call
+    // stops.consume() returns false (default mock) — no explicit stop was issued
+    ctx.events.emit('agent:exited', {
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      pid: 9999,
+      code: 0,        // ← natural exit code (not a crash)
+      signal: null,
+      intentional: false,  // ← no prior stops.mark() — treated as unintentional
+    });
+
+    await vi.waitFor(() => {
+      expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
+        expect.objectContaining({}),
+        expect.objectContaining({
+          chatroomId: CHATROOM_ID,
+          role: 'builder',
+          pid: 9999,
+          intentional: false,  // ← crash recovery will fire on backend
+        })
+      );
+    });
+  });
 });
