@@ -80,7 +80,7 @@ export async function executeStopAgent(
     const isAlive = anyService ? anyService.isAlive(pid) : false;
 
     if (!isAlive) {
-      console.log(`   ⚠️  PID ${pid} does not appear to belong to the expected agent`);
+      console.log(`   ⚠️  PID ${pid} not found — process already exited or was never started`);
       await clearAgentPidEverywhere(ctx, chatroomId, role);
       console.log(`   Cleared stale PID`);
 
