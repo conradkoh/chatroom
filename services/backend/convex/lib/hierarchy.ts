@@ -12,19 +12,13 @@ export const DEFAULT_ROLE_HIERARCHY: RoleHierarchy = {
   user: 999,
 };
 
-/**
- * Get the priority number for a role.
- * Returns 100 for unknown roles.
- */
+/** Returns the priority number for a role (lower = higher priority). */
 export function getRolePriority(role: string): number {
   const normalizedRole = role.toLowerCase();
   return DEFAULT_ROLE_HIERARCHY[normalizedRole] ?? 100;
 }
 
-/**
- * Compare two roles by priority.
- * Returns negative if roleA has higher priority (lower number).
- */
+/** Compares two roles by priority (negative if roleA has higher priority). */
 export function compareRoles(roleA: string, roleB: string): number {
   return getRolePriority(roleA) - getRolePriority(roleB);
 }

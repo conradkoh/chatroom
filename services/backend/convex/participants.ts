@@ -123,10 +123,7 @@ export const join = mutation({
   },
 });
 
-/**
- * List all participants in a chatroom.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns all participants in a chatroom. */
 export const list = query({
   args: {
     ...SessionIdArg,
@@ -191,10 +188,7 @@ export const updateTokenActivity = mutation({
   },
 });
 
-/**
- * Get a participant by role.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns a chatroom participant by role. */
 export const getByRole = query({
   args: {
     ...SessionIdArg,

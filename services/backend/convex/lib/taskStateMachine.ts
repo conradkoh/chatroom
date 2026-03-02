@@ -436,10 +436,7 @@ const TRANSITIONS: TransitionRule[] = [
 // FSM HELPER FUNCTIONS
 // ============================================================================
 
-/**
- * Get all valid transitions from a given status
- * Used for error messages and UI guidance
- */
+/** Returns all valid transitions from a given task status. */
 export function getValidTransitionsFrom(status: TaskStatus): TransitionRule[] {
   return TRANSITIONS.filter((t) => t.from === status);
 }

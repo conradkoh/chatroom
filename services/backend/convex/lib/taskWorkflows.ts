@@ -41,10 +41,7 @@ export const TASK_WORKFLOWS = {
   },
 } as const;
 
-/**
- * Get the UI section for a task based on its origin and status
- * Note: origin is kept for future use but currently section is determined purely by status
- */
+/** Returns the UI section for a task based on its status. */
 export function getTaskSection(_origin: TaskOrigin | undefined, status: TaskStatus): TaskSection {
   // Backlog status - shows in backlog section
   // This is the initial state for backlog-origin tasks (before moved to chat)

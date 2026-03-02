@@ -403,10 +403,7 @@ export const getCommandEvents = query({
   },
 });
 
-/**
- * Get the daemon.pong event for a machine that came after a given ping event.
- * UI calls this reactively after sending a ping to detect when the daemon responds.
- */
+/** Returns the daemon.pong event for a machine that came after a given ping event. */
 export const getDaemonPongEvent = query({
   args: {
     ...SessionIdArg,
@@ -514,10 +511,7 @@ export const getLatestAgentEventsForChatroom = query({
 // COMMAND MANAGEMENT
 // ============================================================================
 
-/**
- * Update daemon connection status.
- * Called by daemon on connect/disconnect.
- */
+/** Updates daemon connection status (connected or disconnected). */
 export const updateDaemonStatus = mutation({
   args: {
     ...SessionIdArg,
@@ -833,10 +827,7 @@ export const recordAgentExited = mutation({
   },
 });
 
-/**
- * Acknowledge a daemon.ping by writing a daemon.pong event to the event stream.
- * Called by the daemon when it receives a daemon.ping event.
- */
+/** Writes a daemon.pong event in response to a daemon.ping event. */
 export const ackPing = mutation({
   args: {
     ...SessionIdArg,
@@ -958,10 +949,7 @@ export const saveTeamAgentConfig = mutation({
   },
 });
 
-/**
- * Get team agent configs for a chatroom.
- * Returns all team-level agent configurations for the given chatroom.
- */
+/** Returns all team-level agent configurations for a chatroom. */
 export const getTeamAgentConfigs = query({
   args: {
     ...SessionIdArg,

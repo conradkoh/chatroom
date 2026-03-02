@@ -66,10 +66,7 @@ function _decodeOAuthState(encodedState: string): OAuthState {
   }
 }
 
-/**
- * Gets Google authentication configuration for client use.
- * Returns public configuration data (client ID and enabled status).
- */
+/** Returns Google OAuth client configuration for client-side use. */
 export const getConfig = query({
   args: {},
   handler: async (ctx, _args) => {
@@ -453,10 +450,7 @@ export const connectGoogle = mutation({
   },
 });
 
-/**
- * Disconnects Google authentication from the current user's account.
- * Removes Google profile data while preserving the user account.
- */
+/** Removes Google authentication from the current user's account. */
 export const disconnectGoogle = mutation({
   args: {
     ...SessionIdArg,
@@ -636,10 +630,7 @@ export const getConnectRequest = query({
   },
 });
 
-/**
- * Improved Google OAuth callback handler with explicit flow detection via structured state.
- * Handles both login and connect flows with proper validation and type safety.
- */
+/** Handles Google OAuth callback, supporting both login and connect flows. */
 export const handleGoogleCallback = action({
   args: {
     code: v.string(),
@@ -782,10 +773,7 @@ export const handleGoogleCallback = action({
   },
 });
 
-/**
- * Handles Google OAuth callback for the login flow (deprecated — use handleGoogleCallback instead).
- * @deprecated Use handleGoogleCallback instead — it supports both login and connect flows.
- */
+/** @deprecated Use handleGoogleCallback instead. */
 export const handleGoogleLoginCallback = action({
   args: {
     code: v.string(),
@@ -856,10 +844,7 @@ export const handleGoogleLoginCallback = action({
   },
 });
 
-/**
- * Handles Google OAuth callback for the connect flow (deprecated — use handleGoogleCallback instead).
- * @deprecated Use handleGoogleCallback instead — it supports both login and connect flows.
- */
+/** @deprecated Use handleGoogleCallback instead. */
 export const handleGoogleConnectCallback = action({
   args: {
     code: v.string(),

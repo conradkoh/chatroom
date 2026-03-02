@@ -31,10 +31,7 @@ interface TaskDeliveryPromptResponse {
 // SHARED HANDLERS - Internal functions that contain the actual logic
 // =============================================================================
 
-/**
- * Internal handler for sending a message.
- * Called by both `send` (deprecated) and `sendMessage` (preferred).
- */
+/** Internal handler for sending a message. */
 async function _sendMessageHandler(
   ctx: MutationCtx,
   args: {
@@ -194,10 +191,7 @@ async function _sendMessageHandler(
 // PUBLIC MUTATIONS - sendMessage is preferred, send is deprecated
 // =============================================================================
 
-/**
- * Sends a message to a chatroom (deprecated — use sendMessage instead).
- * @deprecated Use `sendMessage` instead. This method will be removed in a future version.
- */
+/** @deprecated Use sendMessage instead. */
 export const send = mutation({
   args: {
     ...SessionIdArg,
@@ -213,10 +207,7 @@ export const send = mutation({
   },
 });
 
-/**
- * Internal handler for completing a task and handing off.
- * Called by both `sendHandoff` (deprecated) and `handoff` (preferred).
- */
+/** Internal handler for completing a task and handing off. */
 async function _handoffHandler(
   ctx: MutationCtx,
   args: {

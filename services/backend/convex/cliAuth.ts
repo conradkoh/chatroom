@@ -25,10 +25,7 @@ function generateId(length = 32): string {
   return result;
 }
 
-/**
- * Create a new CLI auth request
- * Called by CLI when user runs `chatroom auth login`
- */
+/** Creates a new CLI auth request and returns its ID and expiry. */
 export const createAuthRequest = mutation({
   args: {
     deviceName: v.optional(v.string()),
@@ -56,10 +53,7 @@ export const createAuthRequest = mutation({
   },
 });
 
-/**
- * Get the status of an auth request
- * Called by CLI polling for approval
- */
+/** Returns the current status of a CLI auth request. */
 export const getAuthRequestStatus = query({
   args: {
     requestId: v.string(),
@@ -120,10 +114,7 @@ export const getAuthRequestStatus = query({
   },
 });
 
-/**
- * Get auth request details for the approval page
- * Called by web app when user visits /cli-auth?request={requestId}
- */
+/** Returns the details of a CLI auth request for display on the approval page. */
 export const getAuthRequestDetails = query({
   args: {
     requestId: v.string(),
@@ -164,10 +155,7 @@ export const getAuthRequestDetails = query({
   },
 });
 
-/**
- * Approve an auth request
- * Called by web app when authenticated user clicks "Approve"
- */
+/** Approves a CLI auth request and generates a CLI session for the authenticated user. */
 export const approveAuthRequest = mutation({
   args: {
     requestId: v.string(),
@@ -241,10 +229,7 @@ export const approveAuthRequest = mutation({
   },
 });
 
-/**
- * Deny an auth request
- * Called by web app when user clicks "Deny"
- */
+/** Denies a pending CLI auth request. */
 export const denyAuthRequest = mutation({
   args: {
     requestId: v.string(),
@@ -293,10 +278,7 @@ export const denyAuthRequest = mutation({
   },
 });
 
-/**
- * Validate a CLI session
- * Called by CLI on every command to verify authentication
- */
+/** Validates a CLI session and returns user information if active. */
 export const validateSession = query({
   args: {
     ...SessionIdArg,
@@ -372,10 +354,7 @@ export const touchSession = mutation({
   },
 });
 
-/**
- * Revoke a CLI session
- * Called by web app to logout a CLI device
- */
+/** Revokes a CLI session, preventing further use. */
 export const revokeSession = mutation({
   args: {
     cliSessionId: v.string(),
@@ -428,10 +407,7 @@ export const revokeSession = mutation({
   },
 });
 
-/**
- * List all CLI sessions for a user
- * Called by web app to show active sessions
- */
+/** Returns all CLI sessions for the authenticated user. */
 export const listUserSessions = query({
   args: {
     ...SessionIdArg, // The user's web session ID for auth verification

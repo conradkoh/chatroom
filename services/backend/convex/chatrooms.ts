@@ -4,10 +4,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
 
-/**
- * Create a new chatroom with team configuration.
- * Requires session authentication. The chatroom will be owned by the authenticated user.
- */
+/** Creates a new chatroom with the given team configuration. */
 export const create = mutation({
   args: {
     ...SessionIdArg,
@@ -35,10 +32,7 @@ export const create = mutation({
   },
 });
 
-/**
- * Get a chatroom by ID.
- * Requires session authentication and chatroom access.
- */
+/** Returns a chatroom by ID. */
 export const get = query({
   args: {
     ...SessionIdArg,
@@ -196,10 +190,7 @@ export const listByUserWithStatus = query({
   },
 });
 
-/**
- * Update the status of a chatroom.
- * Requires CLI session authentication and chatroom access.
- */
+/** Updates the status of a chatroom. */
 export const updateStatus = mutation({
   args: {
     ...SessionIdArg,
@@ -311,10 +302,7 @@ export const toggleFavorite = mutation({
   },
 });
 
-/**
- * Check if a chatroom is favorited by the current user.
- * Requires session authentication.
- */
+/** Returns whether the current user has favorited a chatroom. */
 export const isFavorite = query({
   args: {
     ...SessionIdArg,
@@ -374,10 +362,7 @@ export const markAsRead = mutation({
   },
 });
 
-/**
- * Returns the IDs of chatrooms that the authenticated user has favorited.
- * Lightweight subscription — only invalidated when favorites change.
- */
+/** Returns the IDs of chatrooms that the authenticated user has favorited. */
 export const listFavoriteIds = query({
   args: {
     ...SessionIdArg,

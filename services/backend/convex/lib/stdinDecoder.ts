@@ -5,22 +5,13 @@ export interface DecodeResult {
 }
 
 export interface DecodeOptions {
-  /**
-   * Expected parameter names (for validation)
-   * If provided, will error on unknown parameters
-   */
+  /** Expected parameter names; if set, unknown params are rejected. */
   expectedParams?: string[];
 
-  /**
-   * Required parameter names
-   * Will error if these are missing
-   */
+  /** Required parameter names; errors if missing. */
   requiredParams?: string[];
 
-  /**
-   * Single parameter mode - treat entire input as one parameter
-   * Parameter name to use for the content
-   */
+  /** Treats entire input as a single parameter with this name. */
   singleParam?: string;
 }
 
@@ -57,10 +48,7 @@ export function decode(input: string, options: DecodeOptions = {}): DecodeResult
   return decodeMultiParam(input, expectedParams, requiredParams);
 }
 
-/**
- * Decode multi-parameter structured input.
- * Internal function for multi-parameter mode.
- */
+/** Decodes multi-parameter structured input. */
 function decodeMultiParam(
   input: string,
   expectedParams?: string[],

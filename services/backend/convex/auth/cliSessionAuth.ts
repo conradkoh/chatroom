@@ -26,9 +26,7 @@ export interface ValidationError {
 
 export type SessionValidationResult = ({ valid: true } & ValidatedSession) | ValidationError;
 
-/**
- * Validate a CLI session and return user information
- */
+/** Validates a CLI session and returns user information. */
 async function validateCliSession(
   ctx: QueryCtx | MutationCtx,
   sessionId: string
@@ -65,9 +63,7 @@ async function validateCliSession(
   };
 }
 
-/**
- * Validate a web session and return user information
- */
+/** Validates a web session and returns user information. */
 async function validateWebSession(
   ctx: QueryCtx | MutationCtx,
   sessionId: string
@@ -96,9 +92,7 @@ async function validateWebSession(
   };
 }
 
-/**
- * Validate a session (tries CLI session first, then web session)
- */
+/** Validates a session, trying CLI session first then web session. */
 export async function validateSession(
   ctx: QueryCtx | MutationCtx,
   sessionId: string
@@ -119,10 +113,7 @@ export async function validateSession(
   return { valid: false, reason: 'Session not found or invalid' };
 }
 
-/**
- * Check if a user has access to a chatroom
- * Returns the chatroom document if access is granted
- */
+/** Checks if a user has access to a chatroom and returns the chatroom document. */
 export async function checkChatroomAccess(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>,
