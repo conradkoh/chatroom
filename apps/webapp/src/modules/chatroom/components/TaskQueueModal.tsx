@@ -5,6 +5,7 @@ import { Search, X, Pencil, Trash2 } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 
 type TaskStatus =
   | 'pending'
@@ -421,7 +422,7 @@ function TaskListItem({
 
       {/* Content - with simplified markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-        <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
           {task.content}
         </Markdown>
       </div>

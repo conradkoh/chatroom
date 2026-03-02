@@ -33,6 +33,7 @@ import React, {
 } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 
 import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
@@ -52,7 +53,7 @@ import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
 
 // Stable reference for remarkPlugins — avoids re-allocation on every render
 // which would cause react-markdown to re-parse the AST unnecessarily
-const REMARK_PLUGINS = [remarkGfm];
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
 
 interface MessageFeedProps {
   chatroomId: string;

@@ -20,6 +20,7 @@ import {
 import React, { useState, useCallback, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 
 import { BacklogCreateModal } from './BacklogCreateModal';
 import { baseMarkdownComponents, compactMarkdownComponents } from './markdown-utils';
@@ -844,7 +845,7 @@ function TaskItem({
 
       {/* Content - Rendered as Markdown */}
       <div className="text-xs text-chatroom-text-primary line-clamp-3 mb-2 prose dark:prose-invert prose-xs max-w-none prose-p:my-0 prose-headings:my-0 prose-headings:text-xs prose-headings:font-bold prose-ul:my-0 prose-ol:my-0 prose-li:my-0 prose-code:text-[10px] prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-pre:bg-chatroom-bg-tertiary prose-pre:text-chatroom-text-primary prose-pre:p-2 prose-pre:my-1 prose-pre:overflow-x-auto">
-        <Markdown remarkPlugins={[remarkGfm]} components={baseMarkdownComponents}>
+        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
           {task.content}
         </Markdown>
       </div>
@@ -950,7 +951,7 @@ function CompactBacklogItem({ task, onClick }: CompactBacklogItemProps) {
 
       {/* Content - 2 lines max, with simplified markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-        <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
           {task.content}
         </Markdown>
       </div>
@@ -1006,7 +1007,7 @@ function ArchivedBacklogItem({ task, onClick }: ArchivedBacklogItemProps) {
 
       {/* Content - 1 line max */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-muted line-clamp-1">
-        <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
           {task.content}
         </Markdown>
       </div>
@@ -1078,7 +1079,7 @@ function PendingReviewItem({ task, onClick }: PendingReviewItemProps) {
 
       {/* Content - 2 lines max */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-        <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
           {task.content}
         </Markdown>
       </div>
@@ -1207,7 +1208,7 @@ function PendingReviewModalItem({ task, onClick }: PendingReviewModalItemProps) 
 
       {/* Content - with markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
-        <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
           {task.content}
         </Markdown>
       </div>
@@ -1326,7 +1327,7 @@ function CurrentTasksModalItem({ task, onClick }: CurrentTasksModalItemProps) {
 
       {/* Content - with markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
-        <Markdown remarkPlugins={[remarkGfm]} components={compactMarkdownComponents}>
+        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
           {task.content}
         </Markdown>
       </div>
