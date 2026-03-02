@@ -1,16 +1,4 @@
-/**
- * CLI Authentication module
- * Implements device authorization flow for CLI tools
- *
- * Flow:
- * 1. CLI calls createAuthRequest() to get a requestId
- * 2. CLI opens browser to /cli-auth?request={requestId}
- * 3. CLI polls getAuthRequestStatus() waiting for approval
- * 4. User logs in (if needed) and approves the request
- * 5. Backend calls approveAuthRequest() which generates a sessionId
- * 6. CLI receives sessionId via polling and stores in ~/.chatroom/auth.jsonc
- * 7. CLI uses sessionId for all subsequent commands via validateSession()
- */
+/** Device authorization flow for CLI authentication — creates requests, polls for approval, and manages sessions. */
 
 import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
@@ -356,10 +344,7 @@ export const validateSession = query({
   },
 });
 
-/**
- * Update last used timestamp for a CLI session
- * Called by CLI periodically to keep session fresh
- */
+/** Updates lastUsedAt and extends the expiry of a CLI session (sliding window). */
 export const touchSession = mutation({
   args: {
     ...SessionIdArg,

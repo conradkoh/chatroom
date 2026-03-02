@@ -7,14 +7,7 @@ import { api, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { action, internalMutation, mutation, query } from '../../_generated/server';
 
-/**
- * SYSTEM ADMIN ONLY: Google Authentication Provider Configuration Management
- *
- * All functions in this module require system administrator access.
- * These functions are used to configure and manage Google OAuth settings.
- *
- * Security Note: Every function in this module MUST verify system admin access.
- */
+/** System-admin-only functions for configuring Google OAuth provider settings. */
 
 /**
  * Configuration object for Google Auth settings.
@@ -232,11 +225,7 @@ export const toggleEnabled = mutation({
   },
 });
 
-/**
- * Tests Google Auth configuration by validating credentials with Google's API.
- * Self-contained function that handles authentication, database access, and external
- * Google API testing all within a single action. No additional API calls needed.
- */
+/** Tests Google Auth configuration by validating credentials with Google's token API. */
 export const testConfig = action({
   args: {
     clientId: v.string(),
@@ -296,11 +285,7 @@ export const testConfig = action({
   },
 });
 
-/**
- * Internal mutation to retrieve the client secret for testing purposes.
- * Only accessible by system administrators. Returns the client secret directly.
- * This is an internal function to prevent external access to sensitive data.
- */
+/** Returns the saved client secret for admin testing purposes (system admin only). */
 export const getClientSecretForTesting = internalMutation({
   args: {
     ...SessionIdArg,

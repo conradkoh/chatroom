@@ -21,10 +21,7 @@ interface _GoogleAuthConfig {
   enabled?: boolean;
 }
 
-/**
- * Gets application information including version and authentication configuration.
- * Provides frontend components with app metadata and Google Auth availability status.
- */
+/** Returns app version and Google Auth configuration status. */
 export const get = query({
   args: {},
   handler: async (ctx, _args): Promise<AppInfo> => {

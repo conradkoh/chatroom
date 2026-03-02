@@ -308,11 +308,7 @@ export const loginWithGoogle = mutation({
   },
 });
 
-/**
- * Connects/links a Google account to the current logged-in user.
- * This is different from loginWithGoogle as it preserves the current session
- * and only adds Google profile data to the existing user.
- */
+/** Links a Google account to the current user's account without changing the session. */
 export const connectGoogle = mutation({
   args: {
     profile: v.object({
@@ -530,10 +526,7 @@ export const disconnectGoogle = mutation({
   },
 });
 
-/**
- * Mutation to create a new login request for authentication provider (e.g., Google OAuth).
- * Returns the id of the inserted login request as loginId.
- */
+/** Creates a new OAuth login request and returns its ID. */
 export const createLoginRequest = mutation({
   args: {
     ...SessionIdArg,
@@ -558,10 +551,7 @@ export const createLoginRequest = mutation({
   },
 });
 
-/**
- * Mutation to create a new connect request for authentication provider account linking (e.g., Google OAuth).
- * Returns the id of the inserted connect request as connectId.
- */
+/** Creates a new OAuth connect request and returns its ID. */
 export const createConnectRequest = mutation({
   args: {
     ...SessionIdArg,
@@ -586,10 +576,7 @@ export const createConnectRequest = mutation({
   },
 });
 
-/**
- * Mutation to complete or fail a login request after OAuth callback.
- * Updates status, completedAt, and error fields.
- */
+/** Updates a login request's status and completedAt after OAuth callback. */
 export const completeLoginRequest = mutation({
   args: {
     loginRequestId: v.id('auth_loginRequests'),
@@ -607,10 +594,7 @@ export const completeLoginRequest = mutation({
   },
 });
 
-/**
- * Mutation to complete or fail a connect request after OAuth callback.
- * Updates status, completedAt, and error fields.
- */
+/** Updates a connect request's status and completedAt after OAuth callback. */
 export const completeConnectRequest = mutation({
   args: {
     connectRequestId: v.id('auth_connectRequests'),
@@ -799,11 +783,8 @@ export const handleGoogleCallback = action({
 });
 
 /**
- * Handles Google OAuth callback for login flow.
- * Processes the OAuth code, exchanges it for a profile, logs in the user, and marks the request as completed.
- *
- * @deprecated Use handleGoogleCallback instead - the new handler uses explicit flow detection via structured state
- * and supports both login and connect flows with proper type safety and validation.
+ * Handles Google OAuth callback for the login flow (deprecated — use handleGoogleCallback instead).
+ * @deprecated Use handleGoogleCallback instead — it supports both login and connect flows.
  */
 export const handleGoogleLoginCallback = action({
   args: {
@@ -876,11 +857,8 @@ export const handleGoogleLoginCallback = action({
 });
 
 /**
- * Handles Google OAuth callback for profile connect flow.
- * Processes the OAuth code, exchanges it for a profile, connects the account to existing user, and marks the request as completed.
- *
- * @deprecated Use handleGoogleCallback instead - the new handler uses explicit flow detection via structured state
- * and supports both login and connect flows with proper type safety and validation.
+ * Handles Google OAuth callback for the connect flow (deprecated — use handleGoogleCallback instead).
+ * @deprecated Use handleGoogleCallback instead — it supports both login and connect flows.
  */
 export const handleGoogleConnectCallback = action({
   args: {
@@ -952,10 +930,7 @@ export const handleGoogleConnectCallback = action({
   },
 });
 
-/**
- * Converts an anonymous user to a full user with Google profile data.
- * This is used when an anonymous user connects their Google account.
- */
+/** Converts an anonymous user to a full user by attaching a Google profile. */
 async function _convertAnonymousToFullUser(
   ctx: MutationCtx,
   anonymousUser: Doc<'users'>,

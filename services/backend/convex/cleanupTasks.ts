@@ -69,10 +69,8 @@ export const cleanupExpiredLoginRequests = internalMutation({
 });
 
 /**
- * Cleanup task for expired connect requests.
- * This can be called periodically to clean up expired OAuth connect requests.
- *
- * @deprecated Use cleanupExpiredLoginRequests instead - it now handles both login and connect requests
+ * Deletes expired connect requests (deprecated — cleanupExpiredLoginRequests handles both).
+ * @deprecated Use cleanupExpiredLoginRequests instead.
  */
 export const cleanupExpiredConnectRequests = internalMutation({
   args: {},

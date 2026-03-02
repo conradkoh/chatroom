@@ -1,9 +1,4 @@
-/**
- * Guidelines API for fetching review guidelines by type
- *
- * Provides a layer of indirection so different review types can have
- * different guidelines (coding, design, documentation, etc.)
- */
+/** Guideline queries for fetching review guidelines (coding, security, design, performance) by type. */
 
 import { v } from 'convex/values';
 
@@ -19,12 +14,7 @@ import { getReviewGuidelines } from '../prompts/teams/pair/roles';
 export const GUIDELINE_TYPES = ['coding', 'security', 'design', 'performance', 'all'] as const;
 export type GuidelineType = (typeof GUIDELINE_TYPES)[number];
 
-/**
- * Get guidelines by type
- *
- * Returns the guidelines content for the specified type.
- * This allows reviewers to fetch specific guidelines as needed.
- */
+/** Returns review guidelines content for the specified type (coding, security, design, performance, or all). */
 export const getGuidelines = query({
   args: {
     type: v.union(
