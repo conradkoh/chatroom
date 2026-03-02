@@ -4,6 +4,8 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
+import { LAST_SEEN_ACTIVE_MS, usePresenceTick } from '../hooks/usePresenceTick';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface Agent {
@@ -37,11 +39,6 @@ interface ChatroomListingContextValue {
 
 const ChatroomListingContext = createContext<ChatroomListingContextValue | null>(null);
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-/** Agents unseen for longer than this are considered offline in the listing view. */
-const LAST_SEEN_ACTIVE_MS = 600_000; // 10 minutes
-
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 /**
@@ -67,6 +64,9 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
 
   // 4. Unread status — re-fires when messages or read cursors change
   const unreadStatus = useSessionQuery(api.chatrooms.listUnreadStatus);
+
+  // Tick every 30s to keep time-based `chatStatus` fresh without DB writes
+  const tick = usePresenceTick();
 
   // Merge the four subscriptions into a single ChatroomWithStatus[] for consumers
   const chatrooms = useMemo<ChatroomWithStatus[] | undefined>(() => {
@@ -124,7 +124,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
         hasUnread: unreadMap.get(chatroom._id) ?? false,
       } as ChatroomWithStatus;
     });
-  }, [baseChatrooms, presenceData, favoriteIds, unreadStatus]);
+  }, [baseChatrooms, presenceData, favoriteIds, unreadStatus, tick]);
 
   const value = useMemo(
     () => ({

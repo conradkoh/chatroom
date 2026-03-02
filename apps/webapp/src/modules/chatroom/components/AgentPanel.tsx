@@ -11,13 +11,14 @@ import {
   MoreHorizontal,
   Settings,
 } from 'lucide-react';
-import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
 import type { AgentPreference } from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
 import type { AgentHarness, MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
 import type { TeamLifecycle } from '../types/readiness';
+import { usePresenceTick } from '../hooks/usePresenceTick';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 
 import {
@@ -72,21 +73,6 @@ function eventTypeToStatusLabel(eventType: string | null | undefined): string {
     default:
       return 'ONLINE';
   }
-}
-
-/**
- * Hook that returns a monotonically-increasing tick counter, updated every
- * `intervalMs` milliseconds.  Components that call this will re-render on
- * each tick, ensuring that time-based checks (isOnline, formatLastSeen) stay
- * accurate without needing a DB write to trigger a Convex query re-run.
- */
-function usePresenceTick(intervalMs = 30_000): number {
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return tick;
 }
 
 /** Pure helper — formats a lastSeenAt unix-ms timestamp into a human-readable "X ago" string. */
