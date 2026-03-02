@@ -9,18 +9,7 @@ import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
 import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 
-/**
- * Join a chatroom as a participant.
- * If already joined, updates lastSeenAt and optionally lastSeenAction + connectionId.
- * When the entry point (primary) role joins, auto-promotes queued tasks if no active task exists.
- * Requires CLI session authentication and chatroom access.
- *
- * The connectionId is used to detect concurrent get-next-task processes.
- * When a new get-next-task starts, it generates a unique connectionId.
- * Any old process with a different connectionId should detect the mismatch and exit.
- *
- * The action parameter records the CLI command that triggered the join (e.g. 'get-next-task:started').
- */
+/** Upserts a chatroom participant record, emits agent.waiting if entering get-next-task loop, and auto-promotes queued tasks for the entry point role. */
 export const join = mutation({
   args: {
     ...SessionIdArg,
@@ -154,11 +143,7 @@ export const list = query({
   },
 });
 
-/**
- * Remove a participant from a chatroom.
- * Called when an agent is stopped to ensure the UI no longer shows "Ready".
- * Requires CLI session authentication and chatroom access.
- */
+/** Removes a participant from a chatroom (agent stopped). */
 export const leave = mutation({
   args: {
     ...SessionIdArg,
@@ -183,12 +168,7 @@ export const leave = mutation({
   },
 });
 
-/**
- * Update the last token activity timestamp for a participant.
- * Called by the CLI whenever the agent produces output (throttled to once per 30s).
- * Used to detect stuck agents that have stopped producing output mid-task.
- * Requires CLI session authentication and chatroom access.
- */
+/** Updates lastSeenTokenAt for a participant to track live token output from the agent. */
 export const updateTokenActivity = mutation({
   args: {
     ...SessionIdArg,
@@ -234,11 +214,7 @@ export const getByRole = query({
   },
 });
 
-/**
- * Get the highest priority waiting role in a chatroom.
- * Used for determining who should receive broadcast messages.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns the highest-priority participant role in a chatroom for broadcast message routing. */
 export const getHighestPriorityWaitingRole = query({
   args: {
     ...SessionIdArg,
@@ -270,12 +246,7 @@ export const getHighestPriorityWaitingRole = query({
 
 // updateAgentStatus removed — liveness is now tracked via lastSeenAt + lastSeenAction only.
 
-/**
- * Get the current connection ID for a participant.
- * Used by CLI to detect if another get-next-task process has taken over.
- * If the returned connectionId differs from the caller's, the caller should exit.
- * Requires CLI session authentication and chatroom access.
- */
+/** Returns the current connection ID for a participant role, used to detect superseded get-next-task processes. */
 export const getConnectionId = query({
   args: {
     ...SessionIdArg,
@@ -299,12 +270,7 @@ export const getConnectionId = query({
 
 // ─── Team Lifecycle (lastSeenAt-based) ──────────────────────────────────────
 
-/**
- * Get team lifecycle data for the frontend.
- *
- * Returns raw participant state — role, lastSeenAt, lastSeenAction, isStuck, agentType.
- * All status derivation (online/offline, ready, etc.) is done on the frontend.
- */
+/** Returns raw participant state (lastSeenAt, lastSeenAction, isStuck, agentType) for all team roles. */
 export const getTeamLifecycle = query({
   args: {
     ...SessionIdArg,

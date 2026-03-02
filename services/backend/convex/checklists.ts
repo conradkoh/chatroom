@@ -12,12 +12,7 @@ interface _ChecklistItemUpdateData {
   completedBy?: string;
 }
 
-/**
- * Retrieves the current state of a checklist by its key.
- * Returns default values if the checklist doesn't exist yet.
- * @param key - The unique identifier for the checklist
- * @returns The checklist state with existence flag
- */
+/** Returns checklist state by key, or default values if it doesn't exist. */
 export const getChecklistState = query({
   args: {
     key: v.string(),
@@ -46,11 +41,7 @@ export const getChecklistState = query({
   },
 });
 
-/**
- * Retrieves all items for a specific checklist, ordered by their order field.
- * @param key - The unique identifier for the checklist
- * @returns Array of checklist items sorted by order
- */
+/** Returns all items for a checklist, ordered by their order field. */
 export const getChecklistItems = query({
   args: {
     key: v.string(),
@@ -68,13 +59,7 @@ export const getChecklistItems = query({
   },
 });
 
-/**
- * Creates a new checklist with the specified key and title.
- * Returns existing checklist ID if one already exists with the same key.
- * @param key - The unique identifier for the checklist
- * @param title - The display title for the checklist
- * @returns The ID of the created or existing checklist
- */
+/** Creates a new checklist, or returns the existing one if the key is already in use. */
 export const createChecklist = mutation({
   args: {
     key: v.string(),
@@ -103,13 +88,7 @@ export const createChecklist = mutation({
   },
 });
 
-/**
- * Adds a new item to an existing active checklist.
- * The item is appended at the end with the next available order number.
- * @param checklistKey - The unique identifier for the checklist
- * @param text - The text content of the checklist item
- * @returns The ID of the created checklist item
- */
+/** Appends a new item to an active checklist. */
 export const addChecklistItem = mutation({
   args: {
     checklistKey: v.string(),
@@ -151,12 +130,7 @@ export const addChecklistItem = mutation({
   },
 });
 
-/**
- * Toggles the completion status of a checklist item.
- * Updates completion timestamp and user when marking as completed.
- * @param itemId - The ID of the checklist item to toggle
- * @returns The result of the patch operation
- */
+/** Toggles the completion status of a checklist item. */
 export const toggleChecklistItem = mutation({
   args: {
     itemId: v.id('checklistItems'),
@@ -179,11 +153,7 @@ export const toggleChecklistItem = mutation({
   },
 });
 
-/**
- * Deletes a checklist item from an active checklist.
- * @param itemId - The ID of the checklist item to delete
- * @returns Success confirmation object
- */
+/** Deletes a checklist item from an active checklist. */
 export const deleteChecklistItem = mutation({
   args: {
     itemId: v.id('checklistItems'),
@@ -205,12 +175,7 @@ export const deleteChecklistItem = mutation({
   },
 });
 
-/**
- * Concludes an active checklist, marking it as inactive.
- * Records the conclusion timestamp and user.
- * @param checklistKey - The unique identifier for the checklist
- * @returns The result of the patch operation
- */
+/** Marks a checklist as inactive (concluded). */
 export const concludeChecklist = mutation({
   args: {
     checklistKey: v.string(),
@@ -229,12 +194,7 @@ export const concludeChecklist = mutation({
   },
 });
 
-/**
- * Reopens a concluded checklist, making it active again.
- * Clears the conclusion timestamp and user data.
- * @param checklistKey - The unique identifier for the checklist
- * @returns The result of the patch operation
- */
+/** Reopens a concluded checklist, making it active again. */
 export const reopenChecklist = mutation({
   args: {
     checklistKey: v.string(),
@@ -253,11 +213,7 @@ export const reopenChecklist = mutation({
   },
 });
 
-/**
- * Removes all completed items from an active checklist.
- * @param checklistKey - The unique identifier for the checklist
- * @returns Object containing the count of deleted items
- */
+/** Deletes all completed items from an active checklist. */
 export const clearCompletedItems = mutation({
   args: {
     checklistKey: v.string(),
@@ -281,12 +237,7 @@ export const clearCompletedItems = mutation({
   },
 });
 
-/**
- * Updates the order of multiple checklist items in a single operation.
- * @param checklistKey - The unique identifier for the checklist
- * @param itemOrders - Array of item IDs and their new order values
- * @returns Success confirmation object
- */
+/** Updates the order of multiple checklist items in a single operation. */
 export const reorderChecklistItems = mutation({
   args: {
     checklistKey: v.string(),
@@ -313,18 +264,12 @@ export const reorderChecklistItems = mutation({
   },
 });
 
-/**
- * Calculates the next order number for a new checklist item.
- * Internal helper function for item ordering.
- */
+/** Returns the next order number for a new checklist item. */
 function _calculateNextOrder(existingItems: { order: number }[]): number {
   return existingItems.length > 0 ? Math.max(...existingItems.map((item) => item.order)) + 1 : 0;
 }
 
-/**
- * Builds update data object for toggling checklist item completion status.
- * Internal helper function for toggle operations.
- */
+/** Builds update data for toggling a checklist item's completion status. */
 function _buildToggleUpdateData(isCompleted: boolean, sessionId: string): _ChecklistItemUpdateData {
   const updateData: _ChecklistItemUpdateData = {
     isCompleted,
@@ -341,10 +286,7 @@ function _buildToggleUpdateData(isCompleted: boolean, sessionId: string): _Check
   return updateData;
 }
 
-/**
- * Retrieves a checklist by key and validates it exists.
- * Internal helper function for checklist lookup.
- */
+/** Looks up a checklist by key, throwing if not found. */
 async function _getChecklistByKey(ctx: QueryCtx | MutationCtx, checklistKey: string) {
   const checklist = await ctx.db
     .query('checklistState')
@@ -358,10 +300,7 @@ async function _getChecklistByKey(ctx: QueryCtx | MutationCtx, checklistKey: str
   return checklist;
 }
 
-/**
- * Retrieves a checklist by key and validates it exists and is active.
- * Internal helper function for active checklist operations.
- */
+/** Looks up a checklist by key, throwing if not found or not active. */
 async function _getActiveChecklist(ctx: QueryCtx | MutationCtx, checklistKey: string) {
   const checklist = await _getChecklistByKey(ctx, checklistKey);
 

@@ -51,11 +51,7 @@ export const get = query({
   },
 });
 
-/**
- * List chatrooms owned by the authenticated user, sorted by last activity (most recent first).
- * Falls back to creation time for chatrooms without activity.
- * Requires session authentication.
- */
+/** Returns chatrooms owned by the user, sorted by last activity. */
 export const listByUser = query({
   args: {
     ...SessionIdArg,
@@ -83,16 +79,7 @@ export const listByUser = query({
   },
 });
 
-/**
- * List chatrooms owned by the authenticated user with computed agent and chat status.
- * Returns enriched chatroom data with:
- * - agents: Array of agent presence with lastSeenAt
- * - chatStatus: Computed overall status ('working' | 'active' | 'idle' | 'completed')
- * - teamReadiness: Summary of team readiness state
- *
- * This is the single source of truth for chatroom listing display.
- * Requires session authentication.
- */
+/** Returns chatrooms owned by the user, enriched with agent presence, chat status, and unread indicators. */
 export const listByUserWithStatus = query({
   args: {
     ...SessionIdArg,
@@ -226,12 +213,7 @@ export const updateStatus = mutation({
   },
 });
 
-/**
- * Update the team configuration for an existing chatroom.
- * Allows dynamic switching between team types (e.g., pair → squad).
- * Active agents will need to reconnect after the switch.
- * Requires CLI session authentication and chatroom access.
- */
+/** Updates the team configuration (roles, entry point) for an existing chatroom. */
 export const updateTeam = mutation({
   args: {
     ...SessionIdArg,
@@ -266,11 +248,7 @@ export const updateTeam = mutation({
   },
 });
 
-/**
- * Rename a chatroom.
- * Allows users to set a custom name for easier identification.
- * Requires CLI session authentication and chatroom access.
- */
+/** Sets a custom display name for a chatroom. */
 export const rename = mutation({
   args: {
     ...SessionIdArg,
@@ -299,11 +277,7 @@ export const rename = mutation({
 // FAVORITES
 // ============================================================================
 
-/**
- * Toggle favorite status for a chatroom.
- * If currently favorited, removes the favorite. Otherwise, adds it.
- * Requires session authentication and chatroom access.
- */
+/** Toggles the favorite status of a chatroom for the current user. */
 export const toggleFavorite = mutation({
   args: {
     ...SessionIdArg,
@@ -365,12 +339,7 @@ export const isFavorite = query({
 // READ CURSORS (for unread indicators)
 // ============================================================================
 
-/**
- * Mark a chatroom as read by updating the user's read cursor.
- * Called when the user opens/views a chatroom.
- * Sets the cursor to the current time so future messages will be unread.
- * Requires session authentication and chatroom access.
- */
+/** Updates the user's read cursor for a chatroom to the current timestamp. */
 export const markAsRead = mutation({
   args: {
     sessionId: v.string(),
@@ -428,12 +397,7 @@ export const listFavoriteIds = query({
   },
 });
 
-/**
- * Returns unread status for each chatroom the user owns.
- * A chatroom is unread if it has a message newer than the user's read cursor,
- * or if it has any messages and the user has no cursor.
- * Lightweight subscription — only invalidated when messages or read cursors change.
- */
+/** Returns unread status (has messages newer than read cursor) for each chatroom the user owns. */
 export const listUnreadStatus = query({
   args: {
     ...SessionIdArg,
@@ -488,13 +452,7 @@ export const listUnreadStatus = query({
   },
 });
 
-/**
- * Returns participant presence for all chatrooms owned by the authenticated user.
- * Each entry contains { chatroomId, role, lastSeenAt } — sufficient for the
- * frontend to derive agent presence dots and chat status.
- * Subscription is invalidated by participant heartbeats but isolated from
- * favorites, unread, and base chatroom changes.
- */
+/** Returns participant presence (role, lastSeenAt, lastSeenAction) for all chatrooms the user owns. */
 export const listParticipantPresence = query({
   args: {
     ...SessionIdArg,

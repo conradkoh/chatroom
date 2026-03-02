@@ -1,19 +1,10 @@
-/**
- * Role Hierarchy System
- *
- * Defines priority ordering for agent roles in the chatroom system.
- * Lower numbers indicate higher priority (e.g., planner=0 is highest priority).
- */
+/** Priority ordering for agent roles; lower numbers = higher priority. */
 
 export interface RoleHierarchy {
   [role: string]: number;
 }
 
-/**
- * Default role hierarchy for the pair and squad team configurations.
- * Custom roles not in this list get a default priority of 100.
- * Add new roles here as new team configurations are introduced.
- */
+/** Default priority map for built-in roles; unknown roles default to 100. */
 export const DEFAULT_ROLE_HIERARCHY: RoleHierarchy = {
   planner: 0,
   builder: 1,
