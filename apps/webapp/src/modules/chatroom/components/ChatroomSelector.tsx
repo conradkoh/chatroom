@@ -8,7 +8,7 @@ import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import { CreateChatroomForm } from './CreateChatroomForm';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
-import { LAST_SEEN_ACTIVE_MS, usePresenceTick } from '../hooks/usePresenceTick';
+import { usePresenceTick, isAgentPresent } from '../hooks/usePresenceTick';
 
 import {
   DropdownMenu,
@@ -27,8 +27,7 @@ interface ChatroomSelectorProps {
 // Agent status indicator — pure helper, accepts `now` so it stays fresh with tick
 function getAgentIndicatorClasses(lastSeenAt: number | null, now: number): string {
   const base = 'w-1.5 h-1.5 flex-shrink-0';
-  const isActive = lastSeenAt != null && now - lastSeenAt <= LAST_SEEN_ACTIVE_MS;
-  return isActive
+  return isAgentPresent(lastSeenAt, now)
     ? `${base} bg-chatroom-status-success`
     : `${base} bg-chatroom-text-muted opacity-40`;
 }

@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
-import { LAST_SEEN_ACTIVE_MS, usePresenceTick } from '../hooks/usePresenceTick';
+import { usePresenceTick, isAgentPresent } from '../hooks/usePresenceTick';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -102,9 +102,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
       if (chatroom.status === 'completed') {
         chatStatus = 'completed';
       } else {
-        const onlineAgents = agents.filter(
-          (a) => a.lastSeenAt != null && now - a.lastSeenAt <= LAST_SEEN_ACTIVE_MS
-        );
+        const onlineAgents = agents.filter((a) => isAgentPresent(a.lastSeenAt, now));
         if (onlineAgents.length === 0) {
           chatStatus = 'idle';
         } else {
