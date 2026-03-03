@@ -134,6 +134,9 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           isStuck={isStuck}
         />
 
+        {/* Hairline separator between identity and tab bar */}
+        <div className="border-b border-chatroom-border" />
+
         {/* Tab bar — inline, no separator */}
         <div className="pl-[18px] flex gap-3">
           <button
@@ -172,14 +175,14 @@ export const InlineAgentCard = memo(function InlineAgentCard({
         )}
       </div>
 
-      {/* Column 2: Copy button — full height, centered */}
-      <div className="flex items-center justify-center flex-shrink-0">
+      {/* Column 2: Copy button — anchored to top */}
+      <div className="flex items-start justify-center flex-shrink-0 pt-1">
         <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" variant="compact" />
       </div>
 
-      {/* Column 3: Start/Stop button — full height, centered (only for remote agents) */}
+      {/* Column 3: Start/Stop button — anchored to top (only for remote agents) */}
       {teamConfig?.type === 'remote' && (
-        <div className="flex items-center justify-center flex-shrink-0">
+        <div className="flex items-start justify-center flex-shrink-0 pt-1">
           <AgentActionButtons
             canStart={Boolean(controls.canStart)}
             canStop={Boolean(controls.canStop)}
