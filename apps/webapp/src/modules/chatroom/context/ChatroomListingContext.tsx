@@ -28,6 +28,8 @@ export interface ChatroomWithStatus {
   chatStatus: 'working' | 'active' | 'idle' | 'completed';
   isFavorite: boolean;
   hasUnread: boolean;
+  remoteAgentStatus: 'running' | 'stopped' | 'none';
+  runningAgentConfigs: Array<{ machineId: string; role: string }>;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -42,14 +44,15 @@ const ChatroomListingContext = createContext<ChatroomListingContextValue | null>
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 /**
- * Provider that fetches chatroom listing data using four focused subscriptions:
+ * Provider that fetches chatroom listing data using five focused subscriptions:
  *
- * 1. `listByUser`            — base chatroom rows (sorted, lightweight)
- * 2. `listParticipantPresence` — agent presence; re-fires on heartbeats (30s)
- * 3. `listFavoriteIds`       — favorited chatroom IDs
- * 4. `listUnreadStatus`      — per-chatroom unread indicator
+ * 1. `listByUser`                    — base chatroom rows (sorted, lightweight)
+ * 2. `listParticipantPresence`       — agent presence; re-fires on heartbeats (30s)
+ * 3. `listFavoriteIds`               — favorited chatroom IDs
+ * 4. `listUnreadStatus`              — per-chatroom unread indicator
+ * 5. `listRemoteAgentRunningStatus`  — remote agent running state per chatroom
  *
- * Splitting into four subscriptions means a participant heartbeat (every 30s)
+ * Splitting into five subscriptions means a participant heartbeat (every 30s)
  * only re-runs `listParticipantPresence`, not the entire bundle.
  */
 export function ChatroomListingProvider({ children }: { children: ReactNode }) {
@@ -65,23 +68,30 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
   // 4. Unread status — re-fires when messages or read cursors change
   const unreadStatus = useSessionQuery(api.chatrooms.listUnreadStatus);
 
+  // 5. Remote agent running status — re-fires when any machine spawnedAgentPid changes
+  const remoteAgentStatusData = useSessionQuery(api.machines.listRemoteAgentRunningStatus);
+
   // Tick every 30s to keep time-based `chatStatus` fresh without DB writes
   const tick = usePresenceTick();
 
-  // Merge the four subscriptions into a single ChatroomWithStatus[] for consumers
+  // Merge the five subscriptions into a single ChatroomWithStatus[] for consumers
   const chatrooms = useMemo<ChatroomWithStatus[] | undefined>(() => {
     // Wait for all subscriptions to resolve before returning data
     if (
       baseChatrooms === undefined ||
       presenceData === undefined ||
       favoriteIds === undefined ||
-      unreadStatus === undefined
+      unreadStatus === undefined ||
+      remoteAgentStatusData === undefined
     ) {
       return undefined;
     }
 
     const favoriteSet = new Set(favoriteIds);
     const unreadMap = new Map(unreadStatus.map((u) => [u.chatroomId, u.hasUnread]));
+    const remoteAgentStatusMap = new Map(
+      remoteAgentStatusData.map((entry) => [entry.chatroomId as string, entry])
+    );
 
     // Group presence by chatroomId
     const presenceByRoom = new Map<string, Agent[]>();
@@ -120,9 +130,11 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
         chatStatus,
         isFavorite: favoriteSet.has(chatroom._id),
         hasUnread: unreadMap.get(chatroom._id) ?? false,
+        remoteAgentStatus: (remoteAgentStatusMap.get(chatroom._id)?.remoteAgentStatus ?? 'none') as 'running' | 'stopped' | 'none',
+        runningAgentConfigs: remoteAgentStatusMap.get(chatroom._id)?.runningConfigs ?? [],
       } as ChatroomWithStatus;
     });
-  }, [baseChatrooms, presenceData, favoriteIds, unreadStatus, tick]);
+  }, [baseChatrooms, presenceData, favoriteIds, unreadStatus, remoteAgentStatusData, tick]);
 
   const value = useMemo(
     () => ({
