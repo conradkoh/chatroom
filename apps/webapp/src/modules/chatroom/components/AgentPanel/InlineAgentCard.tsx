@@ -175,7 +175,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
 
       {/* Column 2: Start/Stop button — anchored to top (only for remote agents) */}
       {teamConfig?.type === 'remote' && (
-        <div className="flex items-start justify-center flex-shrink-0 pt-1">
+        <div className="flex items-start justify-center flex-shrink-0">
           <AgentActionButtons
             canStart={Boolean(controls.canStart)}
             canStop={Boolean(controls.canStop)}
