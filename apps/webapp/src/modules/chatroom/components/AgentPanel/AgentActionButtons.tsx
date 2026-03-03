@@ -33,7 +33,7 @@ export const AgentActionButtons = memo(function AgentActionButtons({
             onStop();
           }}
           title={isStopping ? 'Stopping...' : 'Stop agent'}
-          className="w-6 h-6 flex items-center justify-center flex-shrink-0 text-chatroom-text-muted hover:text-chatroom-status-error hover:bg-chatroom-status-error/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-6 h-6 flex items-center justify-center flex-shrink-0 text-red-400 dark:text-red-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {isStopping ? (
             <Loader2 size={12} className="animate-spin" />
