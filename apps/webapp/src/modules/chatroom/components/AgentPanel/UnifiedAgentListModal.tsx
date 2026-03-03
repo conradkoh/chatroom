@@ -73,6 +73,8 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     return machinesResult.machines.filter((m) => m.daemonConnected);
   }, [machinesResult?.machines]);
 
+  const isLoadingMachines = machinesResult === undefined || configsResult === undefined;
+
   const agentConfigs = useMemo(() => configsResult?.configs ?? [], [configsResult?.configs]);
 
   const teamConfigMap = useMemo(() => {
@@ -148,6 +150,7 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
             generatePrompt={generatePrompt}
             chatroomId={chatroomId}
             connectedMachines={connectedMachines}
+            isLoadingMachines={isLoadingMachines}
             agentConfigs={agentConfigs}
             sendCommand={sendCommand}
             teamConfigMap={teamConfigMap}

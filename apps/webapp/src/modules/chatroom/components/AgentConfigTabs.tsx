@@ -12,11 +12,13 @@ import {
   ChevronDown,
   CheckCircle,
   SlidersHorizontal,
+  FileText,
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
 
 import { CopyButton } from './CopyButton';
+import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { ModelFilterPanel } from './ModelFilterPanel';
 import type {
   AgentHarness,
@@ -966,27 +968,36 @@ interface CustomTabContentProps {
 }
 
 export const CustomTabContent = memo(function CustomTabContent({
+  role,
   prompt,
 }: CustomTabContentProps) {
-  const charCount = prompt.length;
-  const charLabel =
-    charCount > 1000
-      ? `~${Math.round(charCount / 100) * 100} chars`
-      : `${charCount} chars`;
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   return (
-    <div className="space-y-3">
-      {/* Descriptor */}
-      <div>
-        <p className="text-[12px] font-medium text-chatroom-text-secondary">
-          Agent prompt ready to copy
-        </p>
-        <p className="text-[10px] text-chatroom-text-muted mt-0.5">{charLabel}</p>
-      </div>
+    <>
+      {/* Single prompt row */}
+      <button
+        type="button"
+        className="w-full flex items-center gap-2 text-left hover:bg-chatroom-bg-hover transition-colors px-2 py-2 -mx-2"
+        onClick={() => setViewerOpen(true)}
+      >
+        <FileText size={14} className="text-chatroom-text-muted flex-shrink-0" />
+        <span className="flex-1 text-[12px] font-medium text-chatroom-text-secondary">
+          {toTitleCase(role)} Prompt
+        </span>
+        <div onClick={(e) => e.stopPropagation()}>
+          <CopyButton text={prompt} label="Copy" copiedLabel="Copied!" variant="compact" />
+        </div>
+      </button>
 
-      {/* Copy action */}
-      <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
-    </div>
+      {/* Prompt viewer modal */}
+      <PromptViewerModal
+        open={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        role={role}
+        prompt={prompt}
+      />
+    </>
   );
 });
 

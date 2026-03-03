@@ -23,6 +23,7 @@ interface WorkspaceAgentListProps {
   generatePrompt: (role: string) => string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
+  isLoadingMachines: boolean;
   agentConfigs: AgentConfig[];
   sendCommand: SendCommandFn;
   teamConfigMap: Map<string, TeamAgentConfig>;
@@ -37,6 +38,7 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
   generatePrompt,
   chatroomId,
   connectedMachines,
+  isLoadingMachines,
   agentConfigs,
   sendCommand,
   teamConfigMap,
@@ -62,8 +64,8 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
 
   return (
     <div className="flex-1 overflow-hidden flex flex-col">
-      {/* Workspace details header — includes AGENTS footer */}
-      <div className="border-b-2 border-chatroom-border px-4 pt-3 pb-0 flex-shrink-0 space-y-2">
+      {/* Workspace details header — fixed, does not scroll */}
+      <div className="border-b-2 border-chatroom-border px-4 pt-4 pb-3 flex-shrink-0 space-y-3">
         {/* Section label */}
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Workspace
@@ -103,16 +105,16 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
             </span>
           </div>
         </div>
-
-        {/* AGENTS label — bottom of header, flush-bottom style */}
-        {workspaceAgents.length > 0 && (
-          <div className="pt-1 pb-2 border-t border-chatroom-border mt-1">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-              Agents
-            </span>
-          </div>
-        )}
       </div>
+
+      {/* "AGENTS" section label — pinned, does not scroll */}
+      {workspaceAgents.length > 0 && (
+        <div className="px-4 py-2 border-b border-chatroom-border flex-shrink-0 bg-chatroom-bg-surface">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+            Agents
+          </span>
+        </div>
+      )}
 
       {/* Agent list — scrollable */}
       {workspaceAgents.length === 0 ? (
@@ -134,6 +136,7 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
               prompt={generatePrompt(role)}
               chatroomId={chatroomId}
               connectedMachines={connectedMachines}
+              isLoadingMachines={isLoadingMachines}
               agentConfigs={agentConfigs}
               sendCommand={sendCommand}
               teamConfig={teamConfigMap.get(role.toLowerCase())}
