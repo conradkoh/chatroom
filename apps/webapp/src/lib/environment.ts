@@ -41,12 +41,19 @@ export function getDaemonStartCommand(): string {
 
 /**
  * Returns the chatroom auth login command with env vars for this environment.
- * @param webUrl - The web URL (window.location.origin). Pass explicitly to avoid SSR issues.
+ * @param webUrl - The web URL (window.location.origin). Required in local/dev environments.
  */
-export function getAuthLoginCommand(webUrl = 'http://localhost:3000'): string {
+export function getAuthLoginCommand(webUrl: string): string {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!convexUrl || convexUrl === PRODUCTION_CONVEX_URL) {
     return 'chatroom auth login';
+  }
+  // Local environment — webUrl is required
+  if (!webUrl) {
+    throw new Error(
+      'getAuthLoginCommand: webUrl is required in local/dev environments. ' +
+        'Pass window.location.origin from a client component.'
+    );
   }
   return `CHATROOM_WEB_URL=${webUrl} \\\nCHATROOM_CONVEX_URL=${convexUrl} \\\nchatroom auth login`;
 }

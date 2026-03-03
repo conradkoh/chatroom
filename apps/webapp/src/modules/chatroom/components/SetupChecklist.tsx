@@ -182,9 +182,7 @@ export const SetupChecklist = memo(function SetupChecklist({
   );
 
   // Generate the auth login command with appropriate env vars
-  const authLoginCommand = getAuthLoginCommand(
-    typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
-  );
+  const authLoginCommand = getAuthLoginCommand(window.location.origin);
 
   // Memoize joined count
   const joinedCount = useMemo(
