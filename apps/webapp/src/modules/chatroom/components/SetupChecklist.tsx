@@ -10,6 +10,7 @@ import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentCon
 import { CopyButton } from './CopyButton';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
 
+import { getDaemonStartCommand, getAuthLoginCommand, isLocalEnvironment } from '@/lib/environment';
 import { usePrompts } from '@/contexts/PromptsContext';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -137,7 +138,7 @@ export const SetupChecklist = memo(function SetupChecklist({
   onViewPrompt,
   hideHeader = false,
 }: SetupChecklistProps) {
-  const { getAgentPrompt, isProductionUrl } = usePrompts();
+  const { getAgentPrompt } = usePrompts();
 
   // ── Machine data (same pattern as UnifiedAgentListModal) ──────────
   const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
@@ -162,13 +163,7 @@ export const SetupChecklist = memo(function SetupChecklist({
   const isLoadingMachines = machinesResult === undefined || configsResult === undefined;
 
   // Compute the full daemon start command with env var if needed
-  const daemonStartCommand = useMemo(() => {
-    if (isProductionUrl) {
-      return 'chatroom machine daemon start';
-    }
-    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-    return `CHATROOM_CONVEX_URL=${convexUrl} chatroom machine daemon start`;
-  }, [isProductionUrl]);
+  const daemonStartCommand = getDaemonStartCommand();
 
   // ── Participants & prompts ────────────────────────────────────────
 
@@ -187,15 +182,9 @@ export const SetupChecklist = memo(function SetupChecklist({
   );
 
   // Generate the auth login command with appropriate env vars
-  const authLoginCommand = useMemo(() => {
-    if (isProductionUrl) {
-      return 'chatroom auth login';
-    }
-    // For non-production, include both CHATROOM_WEB_URL and CHATROOM_CONVEX_URL
-    const webUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-    return `CHATROOM_WEB_URL=${webUrl} \\\nCHATROOM_CONVEX_URL=${convexUrl} \\\nchatroom auth login`;
-  }, [isProductionUrl]);
+  const authLoginCommand = getAuthLoginCommand(
+    typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
+  );
 
   // Memoize joined count
   const joinedCount = useMemo(
@@ -222,7 +211,7 @@ export const SetupChecklist = memo(function SetupChecklist({
       )}
 
       {/* Auth Login Section - shown for non-production */}
-      {!isProductionUrl && (
+      {isLocalEnvironment() && (
         <div className="bg-chatroom-bg-surface border-2 border-chatroom-status-warning/30 mb-6">
           <div className="flex items-center gap-2 p-4 border-b border-chatroom-border">
             <Terminal size={16} className="text-chatroom-status-warning" />

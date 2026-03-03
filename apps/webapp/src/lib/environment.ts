@@ -29,3 +29,24 @@ export function isLocalEnvironment(): boolean {
 export function getAppTitle(baseTitle = 'Chatroom'): string {
   return isLocalEnvironment() ? `${baseTitle} (Local)` : baseTitle;
 }
+
+/** Returns the chatroom daemon start command with env vars for this environment. */
+export function getDaemonStartCommand(): string {
+  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!convexUrl || convexUrl === PRODUCTION_CONVEX_URL) {
+    return 'chatroom machine daemon start';
+  }
+  return `CHATROOM_CONVEX_URL=${convexUrl} chatroom machine daemon start`;
+}
+
+/**
+ * Returns the chatroom auth login command with env vars for this environment.
+ * @param webUrl - The web URL (window.location.origin). Pass explicitly to avoid SSR issues.
+ */
+export function getAuthLoginCommand(webUrl = 'http://localhost:3000'): string {
+  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!convexUrl || convexUrl === PRODUCTION_CONVEX_URL) {
+    return 'chatroom auth login';
+  }
+  return `CHATROOM_WEB_URL=${webUrl} \\\nCHATROOM_CONVEX_URL=${convexUrl} \\\nchatroom auth login`;
+}

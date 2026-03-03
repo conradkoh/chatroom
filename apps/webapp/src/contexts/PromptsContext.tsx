@@ -14,7 +14,6 @@
 
 import {
   generateAgentPrompt,
-  isProductionConvexUrl,
 } from '@workspace/backend/prompts/base/webapp';
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useMemo } from 'react';
@@ -25,12 +24,6 @@ interface PromptsContextValue {
    * Returns the generated prompt string (synchronous — always available).
    */
   getAgentPrompt: (role: string) => string | undefined;
-
-  /**
-   * Check if the current Convex URL is production.
-   * Used to determine if env var overrides are needed.
-   */
-  isProductionUrl: boolean | undefined;
 
   /**
    * Check if all prompts are loaded.
@@ -60,9 +53,6 @@ export function PromptsProvider({
 }: PromptsProviderProps) {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 
-  // Derive isProductionUrl synchronously from the env var
-  const isProductionUrl = useMemo(() => isProductionConvexUrl(convexUrl), [convexUrl]);
-
   // Generate all prompts synchronously — no API call needed
   const promptMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -86,10 +76,9 @@ export function PromptsProvider({
   const contextValue = useMemo<PromptsContextValue>(
     () => ({
       getAgentPrompt: (role: string) => promptMap.get(role.toLowerCase()),
-      isProductionUrl,
       isLoaded: true, // Always loaded — generation is synchronous
     }),
-    [promptMap, isProductionUrl]
+    [promptMap]
   );
 
   return <PromptsContext.Provider value={contextValue}>{children}</PromptsContext.Provider>;

@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { Settings, Users, Server, Check, AlertTriangle } from 'lucide-react';
-import React, { useState, useCallback, memo, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useCallback, memo, useEffect, useRef } from 'react';
 
 import { CopyButton } from './CopyButton';
 
@@ -16,7 +16,7 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
-import { usePrompts } from '@/contexts/PromptsContext';
+import { getDaemonStartCommand } from '@/lib/environment';
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -487,14 +487,7 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
   const machines = machinesResult?.machines;
 
   // Daemon start command
-  const { isProductionUrl } = usePrompts();
-  const daemonStartCommand = useMemo(() => {
-    if (isProductionUrl) {
-      return 'chatroom machine daemon start';
-    }
-    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-    return `CHATROOM_CONVEX_URL=${convexUrl} chatroom machine daemon start`;
-  }, [isProductionUrl]);
+  const daemonStartCommand = getDaemonStartCommand();
 
   return (
     <div className="space-y-6">

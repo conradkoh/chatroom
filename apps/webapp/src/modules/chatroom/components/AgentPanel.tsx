@@ -34,6 +34,7 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
+import { getDaemonStartCommand } from '@/lib/environment';
 import { usePrompts } from '@/contexts/PromptsContext';
 
 interface AgentPanelProps {
@@ -359,16 +360,8 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   chatroomId,
   onViewPrompt,
 }: UnifiedAgentListModalProps) {
-  const { isProductionUrl } = usePrompts();
-
   // Compute the full daemon start command with env var if needed
-  const daemonStartCommand = useMemo(() => {
-    if (isProductionUrl) {
-      return 'chatroom machine daemon start';
-    }
-    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-    return `CHATROOM_CONVEX_URL=${convexUrl} chatroom machine daemon start`;
-  }, [isProductionUrl]);
+  const daemonStartCommand = getDaemonStartCommand();
 
   // Fetch machines and agent configs for all agents in one go
   const machinesResult = useSessionQuery(api.machines.listMachines, {}) as

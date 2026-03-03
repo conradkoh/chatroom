@@ -2,7 +2,6 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { isProductionConvexUrl } from '@workspace/backend/prompts/base/webapp';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 
@@ -16,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { getDaemonStartCommand } from '@/lib/environment';
 
 interface AgentStartModalProps {
   chatroomId: string;
@@ -28,10 +28,7 @@ interface AgentStartModalProps {
  * Fetches its own data — requires only chatroomId, open, onOpenChange.
  */
 export function AgentStartModal({ chatroomId, open, onOpenChange }: AgentStartModalProps) {
-  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-  const daemonStartCommand = isProductionConvexUrl(convexUrl)
-    ? 'chatroom machine daemon start'
-    : `CHATROOM_CONVEX_URL=${convexUrl} chatroom machine daemon start`;
+  const daemonStartCommand = getDaemonStartCommand();
 
   // Fetch machines and configs
   const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
