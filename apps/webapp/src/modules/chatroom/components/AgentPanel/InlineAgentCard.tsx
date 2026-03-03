@@ -136,7 +136,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
         </div>
 
         {/* Tab bar — closer to content below */}
-        <div className="pl-[18px] flex gap-3 mb-1">
+        <div className="flex gap-3 mb-1">
           <button
             onClick={() => setActiveTab('remote')}
             className={`text-[11px] font-bold uppercase tracking-wide border-b-2 pb-0.5 transition-colors ${

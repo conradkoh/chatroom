@@ -966,28 +966,21 @@ interface CustomTabContentProps {
 }
 
 export const CustomTabContent = memo(function CustomTabContent({
-  role,
   prompt,
-  onViewPrompt,
 }: CustomTabContentProps) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
           Prompt
         </span>
         <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
       </div>
-      <button
-        className="w-full text-left text-[11px] text-chatroom-text-secondary font-mono whitespace-pre-wrap break-words bg-chatroom-bg-tertiary p-2.5 max-h-32 overflow-y-auto hover:text-chatroom-text-primary transition-colors"
-        onClick={(e) => {
-          e.stopPropagation();
-          onViewPrompt?.(role);
-        }}
-        title="Click to view full prompt"
+      <div
+        className="w-full text-left text-[11px] text-chatroom-text-secondary font-mono whitespace-pre-wrap break-words bg-chatroom-bg-tertiary p-2.5 max-h-32 overflow-y-auto"
       >
         {prompt.length > 200 ? prompt.substring(0, 200) + '...' : prompt}
-      </button>
+      </div>
     </div>
   );
 });
