@@ -21,13 +21,15 @@ interface AgentStartModalProps {
   chatroomId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Pre-select a specific role when the modal opens. */
+  initialRole?: string;
 }
 
 /**
  * Standalone modal for starting/stopping a remote agent in a chatroom.
  * Fetches its own data — requires only chatroomId, open, onOpenChange.
  */
-export function AgentStartModal({ chatroomId, open, onOpenChange }: AgentStartModalProps) {
+export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole }: AgentStartModalProps) {
   const daemonStartCommand = getDaemonStartCommand();
 
   // Fetch machines and configs
@@ -62,7 +64,7 @@ export function AgentStartModal({ chatroomId, open, onOpenChange }: AgentStartMo
     [agentConfigs]
   );
 
-  const [selectedRole, setSelectedRole] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string | null>(initialRole ?? null);
 
   // Auto-select when exactly one role
   useEffect(() => {

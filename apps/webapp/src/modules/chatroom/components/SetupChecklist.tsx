@@ -1,21 +1,18 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Rocket, Check, Terminal } from 'lucide-react';
-import React, { useMemo, useCallback, memo } from 'react';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { Rocket, Check, Play } from 'lucide-react';
+import React, { useMemo, useState, memo } from 'react';
+
+import { AgentStartModal } from './AgentStartModal';
+import { CopyButton } from './CopyButton';
+import type { MachineInfo } from '../types/machine';
 
 import {
-  useAgentControls,
-  RemoteTabContent,
-  AgentStatusBanner,
-} from './AgentConfigTabs';
-import { CopyButton } from './CopyButton';
-import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
-
-import { getDaemonStartCommand, getAuthLoginCommand, isLocalEnvironment } from '@/lib/environment';
-import { usePrompts } from '@/contexts/PromptsContext';
+  getDaemonStartCommand,
+  getAuthLoginCommand,
+} from '@/lib/environment';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -35,182 +32,136 @@ interface SetupChecklistProps {
   hideHeader?: boolean;
 }
 
-// ─── State machine ──────────────────────────────────────────────────
-
-type SetupState = 'no-machines' | 'offline-machines' | 'ready-to-start' | 'joined';
-
-function deriveSetupState({
-  isJoined,
-  connectedMachines,
-  allMachines,
-}: {
-  isJoined: boolean;
-  connectedMachines: MachineInfo[];
-  allMachines: MachineInfo[];
-}): SetupState {
-  if (isJoined) return 'joined';
-  if (connectedMachines.length > 0) return 'ready-to-start';
-  if (allMachines.length > 0) return 'offline-machines';
-  return 'no-machines';
+interface Prerequisites {
+  /** Machine has registered = CLI auth done */
+  authDone: boolean;
+  /** At least one connected machine has an available harness */
+  harnessDone: boolean;
+  /** At least one machine is connected to daemon */
+  daemonDone: boolean;
 }
 
-// ─── RunManuallySection ─────────────────────────────────────────────
+// ─── PrerequisiteRow ────────────────────────────────────────────────
 
-function RunManuallySection({
-  role,
-  onViewPrompt,
-}: {
-  role: string;
-  prompt: string;
-  onViewPrompt: (role: string) => void;
-}) {
+interface PrerequisiteRowProps {
+  done: boolean;
+  label: string;
+  command?: string;
+  doneDetail?: string;
+}
+
+function PrerequisiteRow({ done, label, command, doneDetail }: PrerequisiteRowProps) {
   return (
-    <button
-      onClick={() => onViewPrompt(role)}
-      className="text-xs text-chatroom-text-muted hover:text-chatroom-text-secondary underline underline-offset-2 transition-colors"
+    <div
+      className={`flex flex-col gap-2 p-4 border ${
+        done
+          ? 'border-chatroom-status-success/20 bg-chatroom-status-success/5'
+          : 'border-chatroom-border bg-chatroom-bg-surface'
+      }`}
     >
-      → Run manually instead
-    </button>
+      <div className="flex items-center gap-2">
+        <span
+          className={`w-4 h-4 flex-shrink-0 flex items-center justify-center ${
+            done ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'
+          }`}
+        >
+          {done ? (
+            <Check size={14} />
+          ) : (
+            <span className="w-1.5 h-1.5 bg-chatroom-status-warning rounded-full" />
+          )}
+        </span>
+        <span
+          className={`text-sm font-semibold ${
+            done ? 'text-chatroom-status-success' : 'text-chatroom-text-primary'
+          }`}
+        >
+          {label}
+        </span>
+      </div>
+      {done && doneDetail && (
+        <p className="ml-6 text-xs text-chatroom-text-muted">{doneDetail}</p>
+      )}
+      {!done && command && (
+        <div className="ml-6 flex items-start gap-2 p-3 bg-chatroom-bg-primary">
+          <pre className="font-mono text-xs text-chatroom-text-secondary flex-1 whitespace-pre-wrap">
+            {command}
+          </pre>
+          <CopyButton text={command} label="Copy" copiedLabel="Copied!" variant="compact" />
+        </div>
+      )}
+    </div>
   );
 }
 
-// ─── Setup Agent Card ───────────────────────────────────────────────
+// ─── AgentRow ───────────────────────────────────────────────────────
 
-interface SetupAgentCardProps {
+interface AgentRowProps {
   role: string;
-  index: number;
   isJoined: boolean;
-  prompt: string;
+  canStart: boolean;
   chatroomId: string;
-  connectedMachines: MachineInfo[];
-  allMachines: MachineInfo[];
-  agentConfigs: AgentConfig[];
-  isLoadingMachines: boolean;
-  daemonStartCommand: string;
-  sendCommand: SendCommandFn;
-  onViewPrompt: (role: string) => void;
 }
 
-const SetupAgentCard = memo(function SetupAgentCard({
-  role,
-  index,
-  isJoined,
-  prompt,
-  chatroomId,
-  connectedMachines,
-  allMachines,
-  agentConfigs,
-  isLoadingMachines,
-  daemonStartCommand,
-  sendCommand,
-  onViewPrompt,
-}: SetupAgentCardProps) {
-  // Always call unconditionally (rules of hooks)
-  const controls = useAgentControls({
-    role,
-    chatroomId,
-    connectedMachines,
-    agentConfigs,
-    sendCommand,
-  });
-
-  const state = deriveSetupState({ isJoined, connectedMachines, allMachines });
-
+function AgentRow({ role, isJoined, canStart, chatroomId }: AgentRowProps) {
+  const [modalOpen, setModalOpen] = useState(false);
   return (
-    <div
-      className={`bg-chatroom-bg-surface border-2 transition-all duration-100 ${
-        isJoined
-          ? 'border-chatroom-status-success/30 bg-chatroom-status-success/5'
-          : 'border-chatroom-border hover:border-chatroom-border-strong'
-      }`}
-    >
-      {/* Step Header */}
-      <div className="flex justify-between items-center p-4">
+    <>
+      <div
+        className={`flex items-center justify-between px-4 py-3 border ${
+          isJoined
+            ? 'border-chatroom-status-success/20 bg-chatroom-status-success/5'
+            : 'border-chatroom-border bg-chatroom-bg-surface'
+        }`}
+      >
         <div className="flex items-center gap-3">
           <span
-            className={`w-6 h-6 flex items-center justify-center text-xs font-bold ${
-              isJoined
-                ? 'bg-chatroom-status-success text-chatroom-bg-primary'
-                : 'bg-chatroom-bg-hover text-chatroom-text-muted'
+            className={`w-4 h-4 flex-shrink-0 flex items-center justify-center ${
+              isJoined ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'
             }`}
           >
-            {isJoined ? <Check size={14} /> : index + 1}
+            {isJoined ? (
+              <Check size={14} />
+            ) : (
+              <span className="w-1.5 h-1.5 bg-chatroom-status-warning rounded-full" />
+            )}
           </span>
           <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
             {role}
           </span>
         </div>
-        <span
-          className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-            isJoined
-              ? 'bg-chatroom-status-success/15 text-chatroom-status-success'
-              : 'bg-chatroom-status-warning/15 text-chatroom-status-warning'
-          }`}
-        >
-          {isJoined ? 'Ready' : 'Waiting'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+              isJoined
+                ? 'bg-chatroom-status-success/15 text-chatroom-status-success'
+                : 'bg-chatroom-status-warning/15 text-chatroom-status-warning'
+            }`}
+          >
+            {isJoined ? 'Ready' : 'Waiting'}
+          </span>
+          {!isJoined && canStart && (
+            <button
+              onClick={() => setModalOpen(true)}
+              className="flex items-center gap-1 px-3 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white transition-colors"
+            >
+              <Play size={10} />
+              Start
+            </button>
+          )}
+        </div>
       </div>
-
-      {/* Card Content — driven by state machine */}
-      {state === 'no-machines' && (
-        <div className="px-4 pb-4 space-y-3">
-          <p className="text-xs text-chatroom-text-muted">
-            Run this on the machine you want to use as an agent host:
-          </p>
-          <div className="flex items-start gap-2 p-3 bg-chatroom-bg-primary">
-            <pre className="font-mono text-xs text-chatroom-text-secondary flex-1 whitespace-pre-wrap">
-              {daemonStartCommand}
-            </pre>
-            <CopyButton text={daemonStartCommand} label="Copy" copiedLabel="Copied!" variant="compact" />
-          </div>
-          <p className="text-xs text-chatroom-text-muted">
-            The daemon connects your machine to this chatroom so agents can run on it.
-          </p>
-          <RunManuallySection role={role} prompt={prompt} onViewPrompt={onViewPrompt} />
-        </div>
+      {!isJoined && canStart && (
+        <AgentStartModal
+          chatroomId={chatroomId}
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          initialRole={role}
+        />
       )}
-
-      {state === 'offline-machines' && (
-        <div className="px-4 pb-4 space-y-3">
-          <div className="space-y-1">
-            {allMachines.map((m) => (
-              <div key={m.machineId} className="flex items-center gap-2 text-xs text-chatroom-text-muted">
-                <span className="w-1.5 h-1.5 bg-chatroom-text-muted opacity-40" />
-                <span className="font-mono">{m.hostname ?? m.machineId}</span>
-                <span className="text-chatroom-text-muted opacity-60">offline</span>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-chatroom-text-muted">
-            Run on one of your machines to reconnect:
-          </p>
-          <div className="flex items-start gap-2 p-3 bg-chatroom-bg-primary">
-            <pre className="font-mono text-xs text-chatroom-text-secondary flex-1 whitespace-pre-wrap">
-              {daemonStartCommand}
-            </pre>
-            <CopyButton text={daemonStartCommand} label="Copy" copiedLabel="Copied!" variant="compact" />
-          </div>
-          <RunManuallySection role={role} prompt={prompt} onViewPrompt={onViewPrompt} />
-        </div>
-      )}
-
-      {state === 'ready-to-start' && (
-        <div className="px-4 pb-4 space-y-3">
-          <AgentStatusBanner controls={controls} />
-          <RemoteTabContent
-            controls={controls}
-            connectedMachines={connectedMachines}
-            isLoadingMachines={isLoadingMachines}
-            daemonStartCommand={daemonStartCommand}
-          />
-          <RunManuallySection role={role} prompt={prompt} onViewPrompt={onViewPrompt} />
-        </div>
-      )}
-
-      {/* state === 'joined': no card body — collapsed green header only */}
-    </div>
+    </>
   );
-});
+}
 
 // ─── Main Component ─────────────────────────────────────────────────
 
@@ -223,50 +174,31 @@ export const SetupChecklist = memo(function SetupChecklist({
   onViewPrompt,
   hideHeader = false,
 }: SetupChecklistProps) {
-  const { getAgentPrompt } = usePrompts();
-
   // ── Machine data ──────────────────────────────────────────────────
   const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
     | { machines: MachineInfo[] }
     | undefined;
 
-  const configsResult = useSessionQuery(api.machines.getAgentConfigs, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as { configs: AgentConfig[] } | undefined;
+  const allMachines = useMemo(() => machinesResult?.machines ?? [], [machinesResult?.machines]);
 
-  const sendCommand = useSessionMutation(api.machines.sendCommand);
+  const connectedMachines = useMemo(
+    () => allMachines.filter((m) => m.daemonConnected),
+    [allMachines]
+  );
 
-  const allMachines = useMemo(() => {
-    return machinesResult?.machines ?? [];
-  }, [machinesResult?.machines]);
+  // ── Prerequisites ─────────────────────────────────────────────────
+  const prereqs = useMemo<Prerequisites>(() => {
+    const authDone = allMachines.length > 0;
+    const daemonDone = connectedMachines.length > 0;
+    const harnessDone = connectedMachines.some((m) => m.availableHarnesses.length > 0);
+    return { authDone, daemonDone, harnessDone };
+  }, [allMachines, connectedMachines]);
 
-  const connectedMachines = useMemo(() => {
-    return allMachines.filter((m) => m.daemonConnected);
-  }, [allMachines]);
-
-  const agentConfigs = useMemo(() => {
-    return configsResult?.configs || [];
-  }, [configsResult?.configs]);
-
-  const isLoadingMachines = machinesResult === undefined || configsResult === undefined;
-
-  const daemonStartCommand = getDaemonStartCommand();
-
-  // ── Participants & prompts ────────────────────────────────────────
-
+  // ── Participants ──────────────────────────────────────────────────
   const participantMap = useMemo(
     () => new Map(participants.map((p) => [p.role.toLowerCase(), p])),
     [participants]
   );
-
-  const generatePrompt = useCallback(
-    (role: string): string => {
-      return getAgentPrompt(role) || '';
-    },
-    [getAgentPrompt]
-  );
-
-  const authLoginCommand = getAuthLoginCommand(window.location.origin);
 
   const joinedCount = useMemo(
     () =>
@@ -276,6 +208,30 @@ export const SetupChecklist = memo(function SetupChecklist({
       }).length,
     [teamRoles, participantMap]
   );
+
+  const unjoinedRoles = useMemo(
+    () =>
+      teamRoles.filter((role) => {
+        const p = participantMap.get(role.toLowerCase());
+        return p == null || p.lastSeenAt == null;
+      }),
+    [teamRoles, participantMap]
+  );
+
+  // ── Commands ──────────────────────────────────────────────────────
+  const daemonStartCommand = getDaemonStartCommand();
+  const authLoginCommand = getAuthLoginCommand(window.location.origin);
+
+  // ── Harness detail ────────────────────────────────────────────────
+  const detectedHarnesses = useMemo(() => {
+    const all = connectedMachines.flatMap((m) => m.availableHarnesses);
+    return [...new Set(all)];
+  }, [connectedMachines]);
+
+  const harnessInstallCommand =
+    '# Install a supported harness:\nnpm install -g opencode-ai   # opencode\nnpm install -g @plandex/pi   # pi';
+
+  const allJoined = joinedCount === teamRoles.length && teamRoles.length > 0;
 
   return (
     <div className="max-w-2xl mx-auto p-6">
@@ -291,63 +247,89 @@ export const SetupChecklist = memo(function SetupChecklist({
         </div>
       )}
 
-      {/* Auth Login Section - shown for non-production */}
-      {isLocalEnvironment() && (
-        <div className="bg-chatroom-bg-surface border-2 border-chatroom-status-warning/30 mb-6">
-          <div className="flex items-center gap-2 p-4 border-b border-chatroom-border">
-            <Terminal size={16} className="text-chatroom-status-warning" />
-            <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
-              CLI Authentication
-            </span>
-            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-chatroom-status-warning/15 text-chatroom-status-warning">
-              Local Mode
-            </span>
+      {/* All-done success banner */}
+      {allJoined ? (
+        <div className="flex flex-col items-center justify-center gap-4 py-8">
+          <div className="w-12 h-12 bg-chatroom-status-success flex items-center justify-center">
+            <Check size={24} className="text-chatroom-bg-primary" />
           </div>
-          <div className="p-4">
-            <p className="text-xs text-chatroom-text-muted mb-3">
-              Authenticate agents with this local backend:
-            </p>
-            <div className="flex items-start gap-2 p-3 bg-chatroom-bg-primary">
-              <pre className="font-mono text-xs text-chatroom-text-secondary flex-1 whitespace-pre-wrap">
-                {authLoginCommand}
-              </pre>
-              <CopyButton
-                text={authLoginCommand}
-                label="Copy"
-                copiedLabel="Copied!"
-                variant="compact"
+          <h2 className="text-lg font-bold uppercase tracking-widest text-chatroom-text-primary">
+            All Agents Ready
+          </h2>
+          <p className="text-sm text-chatroom-text-muted">
+            {teamRoles.length} of {teamRoles.length} agents are online
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-6">
+          {/* Prerequisites section */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+              Prerequisites
+            </h3>
+            <div className="flex flex-col gap-2">
+              <PrerequisiteRow
+                done={prereqs.authDone}
+                label="Auth login"
+                command={authLoginCommand}
+                doneDetail="CLI is authenticated"
+              />
+              <PrerequisiteRow
+                done={prereqs.daemonDone}
+                label="Daemon connected"
+                command={daemonStartCommand}
+                doneDetail={`${connectedMachines.length} machine${connectedMachines.length !== 1 ? 's' : ''} connected`}
+              />
+              <PrerequisiteRow
+                done={prereqs.harnessDone}
+                label="Harness installed"
+                command={harnessInstallCommand}
+                doneDetail={`${detectedHarnesses.join(', ')} detected`}
               />
             </div>
           </div>
+
+          {/* Agents section */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+              Agents
+            </h3>
+            <div className="flex flex-col gap-2">
+              {teamRoles.map((role) => {
+                const participant = participantMap.get(role.toLowerCase());
+                const isJoined = participant != null && participant.lastSeenAt != null;
+                return (
+                  <AgentRow
+                    key={role}
+                    role={role}
+                    isJoined={isJoined}
+                    canStart={prereqs.daemonDone}
+                    chatroomId={chatroomId}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Or run manually section */}
+          {unjoinedRoles.length > 0 && (
+            <div className="pt-4 border-t border-chatroom-border">
+              <p className="text-xs text-chatroom-text-muted mb-2">Or run manually:</p>
+              <div className="flex flex-col gap-1">
+                {unjoinedRoles.map((role) => (
+                  <button
+                    key={role}
+                    onClick={() => onViewPrompt(role)}
+                    className="text-xs text-left text-chatroom-text-muted hover:text-chatroom-text-secondary underline underline-offset-2 transition-colors"
+                  >
+                    → View prompt for {role}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
-
-      {/* Steps */}
-      <div className="flex flex-col gap-4">
-        {teamRoles.map((role, index) => {
-          const participant = participantMap.get(role.toLowerCase());
-          const isJoined = participant != null && participant.lastSeenAt != null;
-          const prompt = generatePrompt(role);
-
-          return (
-            <SetupAgentCard
-              key={role}
-              role={role}
-              index={index}
-              isJoined={isJoined}
-              prompt={prompt}
-              chatroomId={chatroomId}
-              connectedMachines={connectedMachines}
-              allMachines={allMachines}
-              agentConfigs={agentConfigs}
-              isLoadingMachines={isLoadingMachines}
-              daemonStartCommand={daemonStartCommand}
-              sendCommand={sendCommand}
-              onViewPrompt={onViewPrompt}
-            />
-          );
-        })}
-      </div>
     </div>
   );
 });
