@@ -427,7 +427,7 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   );
 
   return (
-    <FixedModal isOpen={isOpen} onClose={onClose}>
+    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">
       <FixedModalContent>
         <FixedModalHeader onClose={onClose}>
           <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
