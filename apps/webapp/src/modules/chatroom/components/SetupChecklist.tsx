@@ -3,10 +3,14 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Rocket, Check, Lightbulb, Terminal } from 'lucide-react';
-import React, { useMemo, useCallback, memo, useState } from 'react';
+import { Rocket, Check, Terminal } from 'lucide-react';
+import React, { useMemo, useCallback, memo } from 'react';
 
-import { useAgentControls, AgentConfigTabs, AgentStatusBanner } from './AgentConfigTabs';
+import {
+  useAgentControls,
+  RemoteTabContent,
+  AgentStatusBanner,
+} from './AgentConfigTabs';
 import { CopyButton } from './CopyButton';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../types/machine';
 
@@ -31,8 +35,46 @@ interface SetupChecklistProps {
   hideHeader?: boolean;
 }
 
+// ─── State machine ──────────────────────────────────────────────────
+
+type SetupState = 'no-machines' | 'offline-machines' | 'ready-to-start' | 'joined';
+
+function deriveSetupState({
+  isJoined,
+  connectedMachines,
+  allMachines,
+}: {
+  isJoined: boolean;
+  connectedMachines: MachineInfo[];
+  allMachines: MachineInfo[];
+}): SetupState {
+  if (isJoined) return 'joined';
+  if (connectedMachines.length > 0) return 'ready-to-start';
+  if (allMachines.length > 0) return 'offline-machines';
+  return 'no-machines';
+}
+
+// ─── RunManuallySection ─────────────────────────────────────────────
+
+function RunManuallySection({
+  role,
+  onViewPrompt,
+}: {
+  role: string;
+  prompt: string;
+  onViewPrompt: (role: string) => void;
+}) {
+  return (
+    <button
+      onClick={() => onViewPrompt(role)}
+      className="text-xs text-chatroom-text-muted hover:text-chatroom-text-secondary underline underline-offset-2 transition-colors"
+    >
+      → Run manually instead
+    </button>
+  );
+}
+
 // ─── Setup Agent Card ───────────────────────────────────────────────
-// Per-role card shown in setup mode: step number + status badge + tabs.
 
 interface SetupAgentCardProps {
   role: string;
@@ -41,6 +83,7 @@ interface SetupAgentCardProps {
   prompt: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
+  allMachines: MachineInfo[];
   agentConfigs: AgentConfig[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
@@ -55,14 +98,14 @@ const SetupAgentCard = memo(function SetupAgentCard({
   prompt,
   chatroomId,
   connectedMachines,
+  allMachines,
   agentConfigs,
   isLoadingMachines,
   daemonStartCommand,
   sendCommand,
   onViewPrompt,
 }: SetupAgentCardProps) {
-  const [activeTab, setActiveTab] = useState<'remote' | 'custom'>('remote');
-
+  // Always call unconditionally (rules of hooks)
   const controls = useAgentControls({
     role,
     chatroomId,
@@ -70,6 +113,8 @@ const SetupAgentCard = memo(function SetupAgentCard({
     agentConfigs,
     sendCommand,
   });
+
+  const state = deriveSetupState({ isJoined, connectedMachines, allMachines });
 
   return (
     <div
@@ -106,23 +151,63 @@ const SetupAgentCard = memo(function SetupAgentCard({
         </span>
       </div>
 
-      {/* Card Content - tabs for pending steps, collapsed for joined */}
-      {!isJoined && (
+      {/* Card Content — driven by state machine */}
+      {state === 'no-machines' && (
+        <div className="px-4 pb-4 space-y-3">
+          <p className="text-xs text-chatroom-text-muted">
+            Run this on the machine you want to use as an agent host:
+          </p>
+          <div className="flex items-start gap-2 p-3 bg-chatroom-bg-primary">
+            <pre className="font-mono text-xs text-chatroom-text-secondary flex-1 whitespace-pre-wrap">
+              {daemonStartCommand}
+            </pre>
+            <CopyButton text={daemonStartCommand} label="Copy" copiedLabel="Copied!" variant="compact" />
+          </div>
+          <p className="text-xs text-chatroom-text-muted">
+            The daemon connects your machine to this chatroom so agents can run on it.
+          </p>
+          <RunManuallySection role={role} prompt={prompt} onViewPrompt={onViewPrompt} />
+        </div>
+      )}
+
+      {state === 'offline-machines' && (
+        <div className="px-4 pb-4 space-y-3">
+          <div className="space-y-1">
+            {allMachines.map((m) => (
+              <div key={m.machineId} className="flex items-center gap-2 text-xs text-chatroom-text-muted">
+                <span className="w-1.5 h-1.5 bg-chatroom-text-muted opacity-40" />
+                <span className="font-mono">{m.hostname ?? m.machineId}</span>
+                <span className="text-chatroom-text-muted opacity-60">offline</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-chatroom-text-muted">
+            Run on one of your machines to reconnect:
+          </p>
+          <div className="flex items-start gap-2 p-3 bg-chatroom-bg-primary">
+            <pre className="font-mono text-xs text-chatroom-text-secondary flex-1 whitespace-pre-wrap">
+              {daemonStartCommand}
+            </pre>
+            <CopyButton text={daemonStartCommand} label="Copy" copiedLabel="Copied!" variant="compact" />
+          </div>
+          <RunManuallySection role={role} prompt={prompt} onViewPrompt={onViewPrompt} />
+        </div>
+      )}
+
+      {state === 'ready-to-start' && (
         <div className="px-4 pb-4 space-y-3">
           <AgentStatusBanner controls={controls} />
-          <AgentConfigTabs
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
+          <RemoteTabContent
             controls={controls}
-            role={role}
-            prompt={prompt}
             connectedMachines={connectedMachines}
             isLoadingMachines={isLoadingMachines}
             daemonStartCommand={daemonStartCommand}
-            onViewPrompt={onViewPrompt}
           />
+          <RunManuallySection role={role} prompt={prompt} onViewPrompt={onViewPrompt} />
         </div>
       )}
+
+      {/* state === 'joined': no card body — collapsed green header only */}
     </div>
   );
 });
@@ -140,7 +225,7 @@ export const SetupChecklist = memo(function SetupChecklist({
 }: SetupChecklistProps) {
   const { getAgentPrompt } = usePrompts();
 
-  // ── Machine data (same pattern as UnifiedAgentListModal) ──────────
+  // ── Machine data ──────────────────────────────────────────────────
   const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
     | { machines: MachineInfo[] }
     | undefined;
@@ -151,10 +236,13 @@ export const SetupChecklist = memo(function SetupChecklist({
 
   const sendCommand = useSessionMutation(api.machines.sendCommand);
 
-  const connectedMachines = useMemo(() => {
-    if (!machinesResult?.machines) return [];
-    return machinesResult.machines.filter((m) => m.daemonConnected);
+  const allMachines = useMemo(() => {
+    return machinesResult?.machines ?? [];
   }, [machinesResult?.machines]);
+
+  const connectedMachines = useMemo(() => {
+    return allMachines.filter((m) => m.daemonConnected);
+  }, [allMachines]);
 
   const agentConfigs = useMemo(() => {
     return configsResult?.configs || [];
@@ -162,18 +250,15 @@ export const SetupChecklist = memo(function SetupChecklist({
 
   const isLoadingMachines = machinesResult === undefined || configsResult === undefined;
 
-  // Compute the full daemon start command with env var if needed
   const daemonStartCommand = getDaemonStartCommand();
 
   // ── Participants & prompts ────────────────────────────────────────
 
-  // Memoize participant map
   const participantMap = useMemo(
     () => new Map(participants.map((p) => [p.role.toLowerCase(), p])),
     [participants]
   );
 
-  // Memoize prompt generation - now using context
   const generatePrompt = useCallback(
     (role: string): string => {
       return getAgentPrompt(role) || '';
@@ -181,10 +266,8 @@ export const SetupChecklist = memo(function SetupChecklist({
     [getAgentPrompt]
   );
 
-  // Generate the auth login command with appropriate env vars
   const authLoginCommand = getAuthLoginCommand(window.location.origin);
 
-  // Memoize joined count
   const joinedCount = useMemo(
     () =>
       teamRoles.filter((role) => {
@@ -239,15 +322,6 @@ export const SetupChecklist = memo(function SetupChecklist({
         </div>
       )}
 
-      {/* Instructions */}
-      <div className="bg-chatroom-bg-tertiary border-l-2 border-chatroom-status-info p-4 mb-6">
-        <p className="text-sm text-chatroom-text-secondary">
-          Use the <strong>Remote</strong> tab to start an agent on a connected machine, or the{' '}
-          <strong>Custom</strong> tab to copy the prompt and paste it into your AI assistant
-          manually.
-        </p>
-      </div>
-
       {/* Steps */}
       <div className="flex flex-col gap-4">
         {teamRoles.map((role, index) => {
@@ -264,6 +338,7 @@ export const SetupChecklist = memo(function SetupChecklist({
               prompt={prompt}
               chatroomId={chatroomId}
               connectedMachines={connectedMachines}
+              allMachines={allMachines}
               agentConfigs={agentConfigs}
               isLoadingMachines={isLoadingMachines}
               daemonStartCommand={daemonStartCommand}
@@ -272,14 +347,6 @@ export const SetupChecklist = memo(function SetupChecklist({
             />
           );
         })}
-      </div>
-
-      {/* Footer */}
-      <div className="mt-6 pt-6 border-t-2 border-chatroom-border">
-        <p className="flex items-center gap-2 text-xs text-chatroom-text-muted">
-          <Lightbulb size={14} className="text-chatroom-status-warning" /> Tip: Use the Remote tab
-          to start agents directly, or copy the prompt from the Custom tab
-        </p>
       </div>
     </div>
   );
