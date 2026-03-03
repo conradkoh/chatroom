@@ -427,9 +427,9 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto p-0">
-        <DialogHeader className="px-4 pt-4 pb-0">
-          <DialogTitle className="text-xs font-bold uppercase tracking-widest">
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto p-0 rounded-none border-2 border-chatroom-border bg-chatroom-bg-surface">
+        <DialogHeader className="px-4 py-3 border-b-2 border-chatroom-border sticky top-0 bg-chatroom-bg-surface z-10">
+          <DialogTitle className="text-xs font-bold uppercase tracking-widest text-chatroom-text-primary">
             All Agents ({agents.length})
           </DialogTitle>
         </DialogHeader>
