@@ -7,7 +7,6 @@ import { useAgentControls, RemoteTabContent, CustomTabContent } from '../AgentCo
 import type { AgentPreference } from '../AgentConfigTabs';
 import { CopyButton } from '../CopyButton';
 import { AgentActionButtons } from './AgentActionButtons';
-import { AgentConfigSummary } from './AgentConfigSummary';
 import { AgentStatusRow } from './AgentStatusRow';
 import { getDaemonStartCommand } from '@/lib/environment';
 
@@ -123,69 +122,43 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   const statusLabel = online ? eventTypeToStatusLabel(latestEventType) : 'OFFLINE';
 
   return (
-    <div className="border-b-2 border-chatroom-border last:border-b-0">
-      {/* Header row: 3 columns */}
-      <div className="px-4 py-3 flex items-stretch gap-3">
-        {/* Column 1: Agent details (stretches) */}
-        <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-          <AgentStatusRow
-            role={role}
-            online={online}
-            statusLabel={statusLabel}
-            lastSeenAt={lastSeenAt}
-            isStuck={isStuck}
-          />
-          <div className="pl-[18px]">
-            <AgentConfigSummary config={teamConfig} connectedMachines={connectedMachines} />
-          </div>
+    <div className="border-b-2 border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3">
+      {/* Column 1: Agent details + tabs + tab content (stretches) */}
+      <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+        {/* Status row at top */}
+        <AgentStatusRow
+          role={role}
+          online={online}
+          statusLabel={statusLabel}
+          lastSeenAt={lastSeenAt}
+          isStuck={isStuck}
+        />
+
+        {/* Tab bar — inline, no separator */}
+        <div className="pl-[18px] flex gap-3">
+          <button
+            onClick={() => setActiveTab('remote')}
+            className={`text-[9px] font-bold uppercase tracking-widest border-b-2 pb-0.5 transition-colors ${
+              activeTab === 'remote'
+                ? 'border-chatroom-accent text-chatroom-text-primary'
+                : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
+            }`}
+          >
+            Remote
+          </button>
+          <button
+            onClick={() => setActiveTab('custom')}
+            className={`text-[9px] font-bold uppercase tracking-widest border-b-2 pb-0.5 transition-colors ${
+              activeTab === 'custom'
+                ? 'border-chatroom-accent text-chatroom-text-primary'
+                : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
+            }`}
+          >
+            Custom
+          </button>
         </div>
 
-        {/* Column 2: Copy button — full height, centered */}
-        <div className="flex items-center justify-center flex-shrink-0">
-          <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" variant="compact" />
-        </div>
-
-        {/* Column 3: Start/Stop button — full height, centered (only for remote agents) */}
-        {teamConfig?.type === 'remote' && (
-          <div className="flex items-center justify-center flex-shrink-0">
-            <AgentActionButtons
-              canStart={Boolean(controls.canStart)}
-              canStop={Boolean(controls.canStop)}
-              isStarting={controls.isStarting}
-              isStopping={controls.isStopping}
-              onStart={controls.handleStartAgent}
-              onStop={controls.handleStopAgent}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Tab bar */}
-      <div className="flex border-t border-chatroom-border">
-        <button
-          onClick={() => setActiveTab('remote')}
-          className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest border-b-2 transition-colors ${
-            activeTab === 'remote'
-              ? 'border-chatroom-accent text-chatroom-text-primary'
-              : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
-          }`}
-        >
-          Remote
-        </button>
-        <button
-          onClick={() => setActiveTab('custom')}
-          className={`px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest border-b-2 transition-colors ${
-            activeTab === 'custom'
-              ? 'border-chatroom-accent text-chatroom-text-primary'
-              : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
-          }`}
-        >
-          Custom
-        </button>
-      </div>
-
-      {/* Tab content */}
-      <div className="px-4 py-3">
+        {/* Tab content — inline, within same flex column */}
         {activeTab === 'remote' ? (
           <RemoteTabContent
             controls={controls}
@@ -198,6 +171,25 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           <CustomTabContent role={role} prompt={prompt} />
         )}
       </div>
+
+      {/* Column 2: Copy button — full height, centered */}
+      <div className="flex items-center justify-center flex-shrink-0">
+        <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" variant="compact" />
+      </div>
+
+      {/* Column 3: Start/Stop button — full height, centered (only for remote agents) */}
+      {teamConfig?.type === 'remote' && (
+        <div className="flex items-center justify-center flex-shrink-0">
+          <AgentActionButtons
+            canStart={Boolean(controls.canStart)}
+            canStop={Boolean(controls.canStop)}
+            isStarting={controls.isStarting}
+            isStopping={controls.isStopping}
+            onStart={controls.handleStartAgent}
+            onStop={controls.handleStopAgent}
+          />
+        </div>
+      )}
     </div>
   );
 });
