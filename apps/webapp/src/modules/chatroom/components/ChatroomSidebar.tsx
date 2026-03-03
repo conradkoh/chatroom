@@ -97,7 +97,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           <button
             onClick={handleStop}
             title="Stop agent"
-            className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-chatroom-text-muted hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+            className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
           >
             <Square size={8} fill="currentColor" />
           </button>
@@ -108,7 +108,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           <button
             onClick={handleStart}
             title="Start agent"
-            className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-chatroom-text-muted hover:text-green-500 hover:bg-green-500/10 rounded transition-colors"
+            className="w-5 h-5 flex items-center justify-center flex-shrink-0 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors"
           >
             <Play size={10} fill="currentColor" />
           </button>
