@@ -5,7 +5,6 @@ import React, { memo, useState } from 'react';
 import type { AgentHarness, MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import { useAgentControls, RemoteTabContent, CustomTabContent } from '../AgentConfigTabs';
 import type { AgentPreference } from '../AgentConfigTabs';
-import { CopyButton } from '../CopyButton';
 import { AgentActionButtons } from './AgentActionButtons';
 import { AgentStatusRow } from './AgentStatusRow';
 import { getDaemonStartCommand } from '@/lib/environment';
@@ -122,26 +121,25 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   const statusLabel = online ? eventTypeToStatusLabel(latestEventType) : 'OFFLINE';
 
   return (
-    <div className="border-b-2 border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3">
+    <div className="border-b border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3">
       {/* Column 1: Agent details + tabs + tab content (stretches) */}
-      <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-        {/* Status row at top */}
-        <AgentStatusRow
-          role={role}
-          online={online}
-          statusLabel={statusLabel}
-          lastSeenAt={lastSeenAt}
-          isStuck={isStuck}
-        />
+      <div className="flex flex-col min-w-0 flex-1">
+        {/* Status row at top — extra breathing room below */}
+        <div className="mb-2">
+          <AgentStatusRow
+            role={role}
+            online={online}
+            statusLabel={statusLabel}
+            lastSeenAt={lastSeenAt}
+            isStuck={isStuck}
+          />
+        </div>
 
-        {/* Hairline separator between identity and tab bar */}
-        {/* (removed) */}
-
-        {/* Tab bar — inline, no separator */}
-        <div className="pl-[18px] flex gap-3">
+        {/* Tab bar — closer to content below */}
+        <div className="pl-[18px] flex gap-3 mb-1">
           <button
             onClick={() => setActiveTab('remote')}
-            className={`text-[9px] font-bold uppercase tracking-widest border-b-2 pb-0.5 transition-colors ${
+            className={`text-[11px] font-bold uppercase tracking-wide border-b-2 pb-0.5 transition-colors ${
               activeTab === 'remote'
                 ? 'border-chatroom-accent text-chatroom-text-primary'
                 : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
@@ -151,7 +149,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           </button>
           <button
             onClick={() => setActiveTab('custom')}
-            className={`text-[9px] font-bold uppercase tracking-widest border-b-2 pb-0.5 transition-colors ${
+            className={`text-[11px] font-bold uppercase tracking-wide border-b-2 pb-0.5 transition-colors ${
               activeTab === 'custom'
                 ? 'border-chatroom-accent text-chatroom-text-primary'
                 : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
@@ -161,7 +159,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           </button>
         </div>
 
-        {/* Tab content — inline, within same flex column */}
+        {/* Tab content — sits directly after tab bar */}
         {activeTab === 'remote' ? (
           <RemoteTabContent
             controls={controls}
@@ -175,12 +173,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
         )}
       </div>
 
-      {/* Column 2: Copy button — anchored to top */}
-      <div className="flex items-start justify-center flex-shrink-0 pt-1">
-        <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" variant="compact" />
-      </div>
-
-      {/* Column 3: Start/Stop button — anchored to top (only for remote agents) */}
+      {/* Column 2: Start/Stop button — anchored to top (only for remote agents) */}
       {teamConfig?.type === 'remote' && (
         <div className="flex items-start justify-center flex-shrink-0 pt-1">
           <AgentActionButtons
