@@ -28,11 +28,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  FixedModal,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+  FixedModalBody,
+} from '@/components/ui/fixed-modal';
 import { getDaemonStartCommand } from '@/lib/environment';
 import { usePrompts } from '@/contexts/PromptsContext';
 
@@ -426,14 +427,13 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   );
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto p-0 rounded-none border-2 border-chatroom-border bg-chatroom-bg-surface">
-        <DialogHeader className="px-4 py-3 border-b-2 border-chatroom-border sticky top-0 bg-chatroom-bg-surface z-10">
-          <DialogTitle className="text-xs font-bold uppercase tracking-widest text-chatroom-text-primary">
-            All Agents ({agents.length})
-          </DialogTitle>
-        </DialogHeader>
-        {agents.map(({ role, online, lastSeenAt, latestEventType, isStuck }) => (
+    <FixedModal isOpen={isOpen} onClose={onClose}>
+      <FixedModalContent>
+        <FixedModalHeader onClose={onClose}>
+          <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
+        </FixedModalHeader>
+        <FixedModalBody>
+          {agents.map(({ role, online, lastSeenAt, latestEventType, isStuck }) => (
           <InlineAgentCard
             key={role}
             role={role}
@@ -454,8 +454,9 @@ const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
             onSavePreference={handleSavePreference}
           />
         ))}
-      </DialogContent>
-    </Dialog>
+        </FixedModalBody>
+      </FixedModalContent>
+    </FixedModal>
   );
 });
 
