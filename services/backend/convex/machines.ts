@@ -1095,3 +1095,53 @@ export const upsertMachineModelFilters = mutation({
     }
   },
 });
+
+/** Returns the remote agent running status for every chatroom owned by the authenticated user. */
+export const listRemoteAgentRunningStatus = query({
+  args: { ...SessionIdArg },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return [];
+
+    // Get all machines belonging to the user (keyed by machineId string)
+    const userMachines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.user._id))
+      .collect();
+    const userMachineIds = new Set(userMachines.map((m) => m.machineId));
+
+    // Get all chatrooms owned by the user
+    const userChatrooms = await ctx.db
+      .query('chatroom_rooms')
+      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.user._id))
+      .collect();
+
+    // For each chatroom, compute its remote agent status
+    const results = await Promise.all(
+      userChatrooms.map(async (room) => {
+        const configs = await ctx.db
+          .query('chatroom_machineAgentConfigs')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
+          .collect();
+
+        // Filter to configs that belong to the user's machines
+        const userConfigs = configs.filter((c) => userMachineIds.has(c.machineId));
+
+        const runningConfigs = userConfigs
+          .filter((c) => c.spawnedAgentPid != null)
+          .map((c) => ({ machineId: c.machineId, role: c.role }));
+
+        const remoteAgentStatus: 'running' | 'stopped' | 'none' =
+          userConfigs.length === 0 ? 'none' : runningConfigs.length > 0 ? 'running' : 'stopped';
+
+        return {
+          chatroomId: room._id as Id<'chatroom_rooms'>,
+          remoteAgentStatus,
+          runningConfigs,
+        };
+      })
+    );
+
+    return results;
+  },
+});
