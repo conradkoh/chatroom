@@ -160,17 +160,19 @@ export const InlineAgentCard = memo(function InlineAgentCard({
         </div>
 
         {/* Tab content — sits directly after tab bar */}
-        {activeTab === 'remote' ? (
-          <RemoteTabContent
-            controls={controls}
-            connectedMachines={connectedMachines}
-            isLoadingMachines={isLoadingMachines}
-            daemonStartCommand={daemonStartCommand}
-            teamConfigHarness={teamConfig?.agentHarness}
-          />
-        ) : (
-          <CustomTabContent role={role} prompt={prompt} />
-        )}
+        <div className="pt-2">
+          {activeTab === 'remote' ? (
+            <RemoteTabContent
+              controls={controls}
+              connectedMachines={connectedMachines}
+              isLoadingMachines={isLoadingMachines}
+              daemonStartCommand={daemonStartCommand}
+              teamConfigHarness={teamConfig?.agentHarness}
+            />
+          ) : (
+            <CustomTabContent role={role} prompt={prompt} />
+          )}
+        </div>
       </div>
 
       {/* Column 2: Start/Stop button — anchored to top (only for remote agents) */}
