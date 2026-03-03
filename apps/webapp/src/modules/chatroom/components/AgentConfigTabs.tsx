@@ -632,7 +632,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   );
 
   return (
-    <div className="bg-chatroom-bg-surface border border-chatroom-border px-2.5 py-2 space-y-2">
+    <div className="space-y-2">
       {isLoadingMachines ? (
         <div className="flex items-center justify-center py-1">
           <Loader2 size={14} className="animate-spin text-chatroom-text-muted" />

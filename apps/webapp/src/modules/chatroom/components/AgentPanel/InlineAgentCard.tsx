@@ -135,7 +135,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
         />
 
         {/* Hairline separator between identity and tab bar */}
-        <div className="border-b border-chatroom-border" />
+        {/* (removed) */}
 
         {/* Tab bar — inline, no separator */}
         <div className="pl-[18px] flex gap-3">
