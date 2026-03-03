@@ -968,19 +968,24 @@ interface CustomTabContentProps {
 export const CustomTabContent = memo(function CustomTabContent({
   prompt,
 }: CustomTabContentProps) {
+  const charCount = prompt.length;
+  const charLabel =
+    charCount > 1000
+      ? `~${Math.round(charCount / 100) * 100} chars`
+      : `${charCount} chars`;
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-          Prompt
-        </span>
-        <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
+    <div className="space-y-3">
+      {/* Descriptor */}
+      <div>
+        <p className="text-[12px] font-medium text-chatroom-text-secondary">
+          Agent prompt ready to copy
+        </p>
+        <p className="text-[10px] text-chatroom-text-muted mt-0.5">{charLabel}</p>
       </div>
-      <div
-        className="w-full text-left text-[11px] text-chatroom-text-secondary font-mono whitespace-pre-wrap break-words bg-chatroom-bg-tertiary p-2.5 max-h-32 overflow-y-auto"
-      >
-        {prompt.length > 200 ? prompt.substring(0, 200) + '...' : prompt}
-      </div>
+
+      {/* Copy action */}
+      <CopyButton text={prompt} label="Copy Prompt" copiedLabel="Copied!" />
     </div>
   );
 });
