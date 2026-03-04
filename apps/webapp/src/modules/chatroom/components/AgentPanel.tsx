@@ -124,7 +124,7 @@ export const AgentPanel = memo(function AgentPanel({
     const online_ = agentStatus?.online ?? false;
     const working_ = agentStatus?.isWorking ?? false;
     const isStuck = agentStatus?.isStuck ?? false;
-    const statusLabel = agentStatus?.statusLabel ?? 'ONLINE';
+    const statusLabel = agentStatus?.statusLabel ?? 'OFFLINE';
     const lastSeenAt = agentStatus?.lastSeenAt ?? null;
 
     const indicatorClass = online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';

@@ -97,7 +97,7 @@ export function useAgentStatuses(
         role,
         online,
         lastSeenAt,
-        statusLabel: eventTypeToStatusLabel(latestEventType),
+        statusLabel: online ? eventTypeToStatusLabel(latestEventType) : 'OFFLINE',
         isWorking,
         isStuck: participant?.isStuck === true,
         latestEventType,
