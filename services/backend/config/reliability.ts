@@ -65,3 +65,14 @@ export const AGENT_REQUEST_DEADLINE_MS = 120_000; // 2 minutes
  * daemon restart misses an expired requestStart.
  */
 export const ENSURE_AGENT_FALLBACK_DELAY_MS = 60_000; // 60 seconds
+
+// ─── Circuit Breaker ─────────────────────────────────────────────────────────
+
+/** Max exits allowed in CIRCUIT_WINDOW_MS before circuit trips. */
+export const CIRCUIT_BREAKER_MAX_EXITS = 3;
+
+/** Rolling window for counting exits. Circuit trips if agent exits ≥ MAX_EXITS in this window. */
+export const CIRCUIT_WINDOW_MS = 300_000; // 5 minutes
+
+/** Cool-down period after circuit trips (OPEN state) before allowing HALF-OPEN attempt. */
+export const CIRCUIT_COOLDOWN_MS = 60_000; // 1 minute

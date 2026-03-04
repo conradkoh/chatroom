@@ -53,6 +53,8 @@ function eventTypeToStatusLabel(eventType: string | null | undefined): string {
       return 'STOPPING';
     case 'agent.exited':
       return 'STOPPED';
+    case 'agent.circuitOpen':
+      return 'CIRCUIT OPEN';
     case 'task.acknowledged':
       return 'TASK RECEIVED';
     case 'task.activated':
