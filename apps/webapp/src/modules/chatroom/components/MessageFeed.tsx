@@ -1191,6 +1191,15 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     }
   }, [status, loadMore, displayMessages.length]);
 
+  // Auto-scroll to bottom when queue section appears or disappears (only if already at bottom)
+  // This ensures the last message stays visible when the queue section grows/shrinks
+  useEffect(() => {
+    if (isAtBottom) {
+      scrollToBottom();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayQueuedMessages.length]);
+
   // Handle scroll: load more when near top, track if at bottom
   const handleScroll = useCallback(() => {
     // Track if user is at bottom for auto-scroll behavior
@@ -1281,7 +1290,14 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
         </button>
       )}
       {/* Queued Messages - pinned just above status bar */}
-      {displayQueuedMessages.length > 0 && (
+      {/* Always rendered — animated to height 0 when empty, slides in when a message is queued */}
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          displayQueuedMessages.length > 0
+            ? 'max-h-[600px] opacity-100'
+            : 'max-h-0 opacity-0'
+        }`}
+      >
         <div className="border-t border-border">
           {/* Section header */}
           <div className="px-3 pt-2 pb-2">
@@ -1291,26 +1307,28 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
           </div>
           {/* Inset card — sharp corners, no rounded-md */}
           <div className="mx-3 mb-2 overflow-hidden border border-border shadow-sm">
-          {/* First queued message card */}
-          <QueuedMessageCard
-            key={displayQueuedMessages[0]._id}
-            message={displayQueuedMessages[0]}
-            onPromote={handleQueuedPromote}
-            onDelete={handleQueuedDelete}
-          />
-          {/* "+ N more" row — only shown when there are additional queued messages */}
-          {displayQueuedMessages.length > 1 && (
-            <button
-              onClick={() => setIsQueueModalOpen(true)}
-              className="w-full flex items-center justify-between px-3 py-1.5 bg-card border-t border-border text-[10px] text-orange-600 dark:text-orange-400 hover:bg-accent/50 transition-colors"
-            >
-              <span>+ {displayQueuedMessages.length - 1} more in queue</span>
-              <span className="font-bold uppercase tracking-wide">View all →</span>
-            </button>
-          )}
+            {/* First queued message card — conditionally rendered to avoid undefined message */}
+            {displayQueuedMessages.length > 0 && (
+              <QueuedMessageCard
+                key={displayQueuedMessages[0]._id}
+                message={displayQueuedMessages[0]}
+                onPromote={handleQueuedPromote}
+                onDelete={handleQueuedDelete}
+              />
+            )}
+            {/* "+ N more" row — only shown when there are additional queued messages */}
+            {displayQueuedMessages.length > 1 && (
+              <button
+                onClick={() => setIsQueueModalOpen(true)}
+                className="w-full flex items-center justify-between px-3 py-1.5 bg-card border-t border-border text-[10px] text-orange-600 dark:text-orange-400 hover:bg-accent/50 transition-colors"
+              >
+                <span>+ {displayQueuedMessages.length - 1} more in queue</span>
+                <span className="font-bold uppercase tracking-wide">View all →</span>
+              </button>
+            )}
           </div>
         </div>
-      )}
+      </div>
       {/* Queue list modal — shows all queued messages */}
       <FixedModal isOpen={isQueueModalOpen} onClose={() => setIsQueueModalOpen(false)} maxWidth="max-w-2xl">
         <FixedModalContent>
