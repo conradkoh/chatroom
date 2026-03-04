@@ -51,6 +51,7 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useSessionPaginatedQuery } from '@/lib/useSessionPaginatedQuery';
 
 // Stable reference for remarkPlugins — avoids re-allocation on every render
@@ -514,9 +515,9 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
   const [isPromoting, setIsPromoting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // Independent confirmation states for card button and modal button
-  const [isConfirmingCardDelete, setIsConfirmingCardDelete] = useState(false);
-  const [isConfirmingModalDelete, setIsConfirmingModalDelete] = useState(false);
+  // Popover open states for delete confirmation (card and modal are independent)
+  const [isCardDeletePopoverOpen, setIsCardDeletePopoverOpen] = useState(false);
+  const [isModalDeletePopoverOpen, setIsModalDeletePopoverOpen] = useState(false);
 
   const formattedTime = new Date(message._creationTime).toLocaleTimeString([], {
     hour: '2-digit',
@@ -533,24 +534,17 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
     }
   }, [message._id, onPromote, isPromoting, isDeleting]);
 
-  // Card delete: first click → confirm, second click → delete
-  const handleCardDeleteClick = useCallback(async () => {
+  // Card delete — called from card popover "Delete" button
+  const handleCardDelete = useCallback(async () => {
     if (isDeleting || isPromoting) return;
-    if (!isConfirmingCardDelete) {
-      setIsConfirmingCardDelete(true);
-      // Auto-cancel after 3 seconds if user doesn't confirm
-      setTimeout(() => setIsConfirmingCardDelete(false), 3000);
-      return;
-    }
-    // Second click = confirmed
-    setIsConfirmingCardDelete(false);
+    setIsCardDeletePopoverOpen(false);
     setIsDeleting(true);
     try {
       await onDelete(message._id);
     } finally {
       setIsDeleting(false);
     }
-  }, [message._id, onDelete, isDeleting, isPromoting, isConfirmingCardDelete]);
+  }, [message._id, onDelete, isDeleting, isPromoting]);
 
   const handleOpenModal = useCallback(() => {
     setIsModalOpen(true);
@@ -558,7 +552,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
 
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
-    setIsConfirmingModalDelete(false);
+    setIsModalDeletePopoverOpen(false);
   }, []);
 
   // Promote and close modal on success
@@ -573,17 +567,10 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
     }
   }, [message._id, onPromote, isPromoting, isDeleting]);
 
-  // Modal delete: first click → confirm, second click → delete and close
-  const handleModalDeleteClick = useCallback(async () => {
+  // Modal delete — called from modal popover "Delete" button
+  const handleModalDelete = useCallback(async () => {
     if (isDeleting || isPromoting) return;
-    if (!isConfirmingModalDelete) {
-      setIsConfirmingModalDelete(true);
-      // Auto-cancel after 3 seconds if user doesn't confirm
-      setTimeout(() => setIsConfirmingModalDelete(false), 3000);
-      return;
-    }
-    // Second click = confirmed
-    setIsConfirmingModalDelete(false);
+    setIsModalDeletePopoverOpen(false);
     setIsDeleting(true);
     try {
       await onDelete(message._id);
@@ -591,7 +578,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
     } finally {
       setIsDeleting(false);
     }
-  }, [message._id, onDelete, isDeleting, isPromoting, isConfirmingModalDelete]);
+  }, [message._id, onDelete, isDeleting, isPromoting]);
 
   return (
     <>
@@ -628,23 +615,44 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             )}
           </button>
 
-          {/* Delete button — icon only, with confirmation */}
-          <button
-            onClick={handleCardDeleteClick}
-            disabled={isDeleting || isPromoting}
-            className={`flex-shrink-0 flex items-center justify-center w-6 h-6 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
-              isConfirmingCardDelete
-                ? 'bg-red-500 text-white hover:bg-red-600'
-                : 'border border-border text-muted-foreground hover:bg-accent'
-            }`}
-            title={isConfirmingCardDelete ? 'Click again to confirm delete' : 'Delete queued message'}
-          >
-            {isDeleting ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <Trash2 size={12} />
-            )}
-          </button>
+          {/* Delete button — icon only, with popover confirmation */}
+          <Popover open={isCardDeletePopoverOpen} onOpenChange={setIsCardDeletePopoverOpen}>
+            <PopoverTrigger asChild>
+              <button
+                disabled={isDeleting || isPromoting}
+                className="flex-shrink-0 flex items-center justify-center w-6 h-6 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Delete queued message"
+              >
+                {isDeleting ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <Trash2 size={12} />
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
+              <div className="border-b-2 border-border px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-foreground">Delete Message</p>
+              </div>
+              <div className="px-3 py-2">
+                <p className="text-xs text-muted-foreground mb-3">This message will be permanently removed from the queue.</p>
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    onClick={() => setIsCardDeletePopoverOpen(false)}
+                    className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border border-border text-muted-foreground hover:bg-accent transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCardDelete}
+                    className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Row 2: right-aligned timestamp + elapsed time */}
@@ -702,24 +710,45 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 )}
                 Promote
               </button>
-              {/* Modal delete button with confirmation */}
-              <button
-                onClick={handleModalDeleteClick}
-                disabled={isDeleting || isPromoting}
-                className={`flex items-center gap-2 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium ${
-                  isConfirmingModalDelete
-                    ? 'bg-red-500 text-white hover:bg-red-600'
-                    : 'border border-border text-muted-foreground hover:bg-accent'
-                }`}
-                title={isConfirmingModalDelete ? 'Click again to confirm delete' : 'Delete queued message'}
-              >
-                {isDeleting ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Trash2 size={14} />
-                )}
-                {isConfirmingModalDelete ? 'Confirm Delete' : 'Delete'}
-              </button>
+              {/* Modal delete button with popover confirmation */}
+              <Popover open={isModalDeletePopoverOpen} onOpenChange={setIsModalDeletePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    disabled={isDeleting || isPromoting}
+                    className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                    title="Delete queued message"
+                  >
+                    {isDeleting ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={14} />
+                    )}
+                    Delete
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
+                  <div className="border-b-2 border-border px-3 py-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-foreground">Delete Message</p>
+                  </div>
+                  <div className="px-3 py-2">
+                    <p className="text-xs text-muted-foreground mb-3">This message will be permanently removed from the queue.</p>
+                    <div className="flex items-center gap-2 justify-end">
+                      <button
+                        onClick={() => setIsModalDeletePopoverOpen(false)}
+                        className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border border-border text-muted-foreground hover:bg-accent transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleModalDelete}
+                        className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </FixedModalContent>
