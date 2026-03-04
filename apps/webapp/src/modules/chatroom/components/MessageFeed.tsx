@@ -904,6 +904,15 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
           taskId: taskId as Id<'chatroom_tasks'>,
         });
       } catch (error) {
+        // Silently ignore errors where the task is no longer in a deletable state.
+        // This can happen if the task was auto-promoted and completed between
+        // the time the message was rendered and the user clicked Delete.
+        // The queued message will auto-disappear via the reactive listQueued query.
+        const msg = error instanceof Error ? error.message : String(error);
+        if (msg.includes('Cannot cancel task with status')) {
+          // Task already moved out of queue — no action needed
+          return;
+        }
         console.error('Failed to delete queued task:', error);
       }
     },
