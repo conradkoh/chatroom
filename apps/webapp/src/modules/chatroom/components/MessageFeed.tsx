@@ -548,17 +548,43 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
     setIsModalOpen(false);
   }, []);
 
+  // Promote and close modal on success
+  const handlePromoteAndClose = useCallback(async () => {
+    if (isPromoting || isDeleting) return;
+    setIsPromoting(true);
+    try {
+      await onPromote(message._id);
+      setIsModalOpen(false);
+    } finally {
+      setIsPromoting(false);
+    }
+  }, [message._id, onPromote, isPromoting, isDeleting]);
+
+  // Delete and close modal on success
+  const handleDeleteAndClose = useCallback(async () => {
+    if (isDeleting || isPromoting) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(message._id);
+      setIsModalOpen(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [message._id, onDelete, isDeleting, isPromoting]);
+
   return (
     <>
       <div className="px-3 py-2 bg-orange-500/5 border-b border-orange-500/15">
         {/* Row 1: truncated content | QUEUED badge | action buttons */}
         <div className="flex items-start gap-2">
-          {/* Message content — truncated 2 lines, clickable */}
+          {/* Message content — truncated 2 lines, compact markdown, clickable */}
           <button
             onClick={handleOpenModal}
-            className="flex-1 text-left text-sm text-foreground line-clamp-2 cursor-pointer hover:text-foreground/80 transition-colors"
+            className="flex-1 text-left text-sm line-clamp-2 cursor-pointer hover:opacity-80 transition-opacity"
           >
-            {message.content}
+            <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
+              {message.content}
+            </Markdown>
           </button>
 
           {/* QUEUED badge */}
@@ -624,6 +650,48 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
               </div>
             </div>
           </FixedModalBody>
+          {/* Mobile-friendly footer with action buttons */}
+          <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
+            {/* Left: QUEUED status + elapsed time */}
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold uppercase tracking-wide bg-orange-500/20 text-orange-600 dark:text-orange-400">
+                <Timer size={12} className="flex-shrink-0" />
+                Queued
+              </span>
+              <span className="text-xs text-orange-600/70 dark:text-orange-400/70 tabular-nums">
+                {elapsed}
+              </span>
+            </div>
+            {/* Right: action buttons (larger, thumb-friendly for mobile) */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePromoteAndClose}
+                disabled={isPromoting || isDeleting}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                title="Promote to active"
+              >
+                {isPromoting ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <ArrowUp size={14} />
+                )}
+                Promote
+              </button>
+              <button
+                onClick={handleDeleteAndClose}
+                disabled={isDeleting || isPromoting}
+                className="flex items-center gap-2 px-4 py-2 border border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                title="Delete queued message"
+              >
+                {isDeleting ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Trash2 size={14} />
+                )}
+                Delete
+              </button>
+            </div>
+          </div>
         </FixedModalContent>
       </FixedModal>
     </>
@@ -864,25 +932,45 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
 
-  // Dev-only mock queued message for previewing QueuedMessageCard without a real DB entry
-  const mockQueuedMessage: Message | null = useMemo(() => {
-    if (process.env.NODE_ENV !== 'development') return null;
-    return {
-      _id: 'mock-queued-preview' as string,
-      type: 'message',
-      senderRole: 'user',
-      targetRole: 'planner',
-      content:
-        'This is a **mock queued message** for preview purposes. It shows how a queued message card looks with some longer content that will be truncated to two lines when it exceeds the available width in the compact card layout.',
-      _creationTime: Date.now() - 90_000, // ~1m 30s ago
-      isQueued: true,
-    };
+  // Dev-only mock queued messages for previewing QueuedMessageCard without real DB entries
+  const mockQueuedMessages: Message[] = useMemo(() => {
+    if (process.env.NODE_ENV !== 'development') return [];
+    const base = Date.now();
+    return [
+      {
+        _id: 'mock-queued-1' as string,
+        type: 'message',
+        senderRole: 'user',
+        targetRole: 'planner',
+        content: `# Feature Request: Dark Mode\n\nWe need to add dark mode support across the entire application.\n\n- Update all components to use semantic color tokens\n- Add a theme toggle button in the settings panel\n- Persist the user's preference in localStorage\n- Ensure all modals and overlays also respect the theme`,
+        _creationTime: base - 90_000,
+        isQueued: true,
+      },
+      {
+        _id: 'mock-queued-2' as string,
+        type: 'message',
+        senderRole: 'user',
+        targetRole: 'planner',
+        content: `## Performance Optimization\n\nThe message feed is slow when there are many messages.\n\n1. Implement virtual scrolling for the message list\n2. Lazy-load images and attachments\n3. Memoize expensive computations in selectors\n4. Add pagination with cursor-based loading\n5. Profile and fix the top 3 render bottlenecks`,
+        _creationTime: base - 45_000,
+        isQueued: true,
+      },
+      {
+        _id: 'mock-queued-3' as string,
+        type: 'message',
+        senderRole: 'user',
+        targetRole: 'planner',
+        content: `Please fix the broken file upload feature.\n\n**Steps to reproduce:**\n1. Click the attachment button\n2. Select a file larger than 5MB\n3. Observe the spinner that never stops\n\n**Expected:** An error message after upload fails\n**Actual:** Infinite loading state with no feedback`,
+        _creationTime: base - 10_000,
+        isQueued: true,
+      },
+    ];
   }, []);
 
   const displayQueuedMessages = useMemo(() => {
     const real = queuedMessages ?? [];
-    return mockQueuedMessage ? [mockQueuedMessage, ...real] : real;
-  }, [queuedMessages, mockQueuedMessage]);
+    return [...mockQueuedMessages, ...real];
+  }, [queuedMessages, mockQueuedMessages]);
 
   // Mutations for queued message controls
   const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
@@ -944,7 +1032,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // Handle queued message Promote — calls promoteSpecificTask mutation
   const handleQueuedPromote = useCallback(
     async (queuedMessageId: string) => {
-      if (queuedMessageId === 'mock-queued-preview') return; // dev mock, no-op
+      if (['mock-queued-1', 'mock-queued-2', 'mock-queued-3'].includes(queuedMessageId)) return; // dev mock, no-op
       try {
         await promoteSpecificTask({
           queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
@@ -959,7 +1047,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // Handle queued message Delete — removes the queue record directly
   const handleQueuedDelete = useCallback(
     async (queuedMessageId: string) => {
-      if (queuedMessageId === 'mock-queued-preview') return; // dev mock, no-op
+      if (['mock-queued-1', 'mock-queued-2', 'mock-queued-3'].includes(queuedMessageId)) return; // dev mock, no-op
       try {
         await deleteQueuedMessage({
           queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
