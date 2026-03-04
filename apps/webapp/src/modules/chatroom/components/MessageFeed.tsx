@@ -987,45 +987,9 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
 
-  // Dev-only mock queued messages for previewing QueuedMessageCard without real DB entries
-  const mockQueuedMessages: Message[] = useMemo(() => {
-    if (process.env.NODE_ENV !== 'development') return [];
-    const base = Date.now();
-    return [
-      {
-        _id: 'mock-queued-1' as string,
-        type: 'message',
-        senderRole: 'user',
-        targetRole: 'planner',
-        content: `# Feature Request: Dark Mode\n\nWe need to add dark mode support across the entire application.\n\n- Update all components to use semantic color tokens\n- Add a theme toggle button in the settings panel\n- Persist the user's preference in localStorage\n- Ensure all modals and overlays also respect the theme`,
-        _creationTime: base - 90_000,
-        isQueued: true,
-      },
-      {
-        _id: 'mock-queued-2' as string,
-        type: 'message',
-        senderRole: 'user',
-        targetRole: 'planner',
-        content: `## Performance Optimization\n\nThe message feed is slow when there are many messages.\n\n1. Implement virtual scrolling for the message list\n2. Lazy-load images and attachments\n3. Memoize expensive computations in selectors\n4. Add pagination with cursor-based loading\n5. Profile and fix the top 3 render bottlenecks`,
-        _creationTime: base - 45_000,
-        isQueued: true,
-      },
-      {
-        _id: 'mock-queued-3' as string,
-        type: 'message',
-        senderRole: 'user',
-        targetRole: 'planner',
-        content: `Please fix the broken file upload feature.\n\n**Steps to reproduce:**\n1. Click the attachment button\n2. Select a file larger than 5MB\n3. Observe the spinner that never stops\n\n**Expected:** An error message after upload fails\n**Actual:** Infinite loading state with no feedback`,
-        _creationTime: base - 10_000,
-        isQueued: true,
-      },
-    ];
-  }, []);
-
   const displayQueuedMessages = useMemo(() => {
-    const real = queuedMessages ?? [];
-    return [...mockQueuedMessages, ...real];
-  }, [queuedMessages, mockQueuedMessages]);
+    return queuedMessages ?? [];
+  }, [queuedMessages]);
 
   // Mutations for queued message controls
   const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
@@ -1090,7 +1054,6 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // Handle queued message Promote — calls promoteSpecificTask mutation
   const handleQueuedPromote = useCallback(
     async (queuedMessageId: string) => {
-      if (['mock-queued-1', 'mock-queued-2', 'mock-queued-3'].includes(queuedMessageId)) return; // dev mock, no-op
       try {
         await promoteSpecificTask({
           queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
@@ -1105,7 +1068,6 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // Handle queued message Delete — removes the queue record directly
   const handleQueuedDelete = useCallback(
     async (queuedMessageId: string) => {
-      if (['mock-queued-1', 'mock-queued-2', 'mock-queued-3'].includes(queuedMessageId)) return; // dev mock, no-op
       try {
         await deleteQueuedMessage({
           queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
