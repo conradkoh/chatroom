@@ -379,8 +379,8 @@ export default defineSchema({
 
   /**
    * Staging table for queued user messages.
-   * Messages are created here when queued, then promoted to chatroom_messages
-   * when the task moves from 'queued' to 'pending' status.
+   * Messages are stored here when received while a task is active.
+   * On promotion, the message is copied to chatroom_messages and a task is created.
    * This ensures messages appear in chat history in task processing order.
    */
   chatroom_messageQueue: defineTable({
@@ -410,11 +410,11 @@ export default defineSchema({
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
     // Attached artifacts
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
-    // Back-reference to the task (set at creation, used for promotion)
-    taskId: v.id('chatroom_tasks'),
+    // Queue ordering (lower = earlier in queue, older message)
+    queuePosition: v.optional(v.number()),
   })
     .index('by_chatroom', ['chatroomId'])
-    .index('by_taskId', ['taskId']),
+    .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
 
   /**
    * Tasks in chatrooms for queue and backlog management.
@@ -422,8 +422,8 @@ export default defineSchema({
    * Only one task can be pending or in_progress at a time per chatroom.
    *
    * Task workflows are determined by origin:
-   * - backlog: backlog → queued → pending → in_progress → pending_user_review → completed/closed
-   * - chat: queued → pending → in_progress → completed
+   * - backlog: backlog → pending → in_progress → pending_user_review → completed/closed
+   * - chat: pending → in_progress → completed
    */
   chatroom_tasks: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -445,7 +445,6 @@ export default defineSchema({
     // Note: available statuses depend on origin (see workflows above)
     status: v.union(
       v.literal('backlog'), // Backlog origin: initial state, task is in backlog tab
-      v.literal('queued'), // Waiting in line (hidden from agent)
       v.literal('pending'), // Ready for agent to pick up
       v.literal('acknowledged'), // Agent claimed task via get-next-task, not yet started
       v.literal('in_progress'), // Agent actively working on it
@@ -460,10 +459,6 @@ export default defineSchema({
 
     // Link to source message (for auto-created tasks from user messages)
     sourceMessageId: v.optional(v.id('chatroom_messages')),
-
-    // Staging reference: set when message is queued (in chatroom_messageQueue)
-    // Cleared and replaced with sourceMessageId when task is promoted to pending
-    queuedMessageId: v.optional(v.id('chatroom_messageQueue')),
 
     // Backlog attachment tracking (bidirectional)
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Backlog tasks attached to this task

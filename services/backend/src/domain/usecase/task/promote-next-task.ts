@@ -1,10 +1,10 @@
 /**
  * promote-next-task usecase
  *
- * Promotes the oldest queued task to pending when all agents in the chatroom
- * are waiting for a task (in the get-next-task loop).
+ * Promotes the oldest queued message (from chatroom_messageQueue) to an active task
+ * when all agents in the chatroom are waiting (in the get-next-task loop).
  *
- * This usecase is the single source of truth for queue promotion logic.
+ * This usecase is the single source of truth for automatic queue promotion logic.
  * All callers — task completion, cancellation, force-completion, handoff,
  * and agent join — must delegate to this function instead of duplicating
  * the promotion logic inline.
@@ -20,9 +20,9 @@
  *
  * 1. Check if all agents in the chatroom are waiting via `deps.areAllAgentsWaiting`
  * 2. If not waiting → return `{ promoted: null, reason: 'agents_busy' }`
- * 3. Query the oldest queued task by `queuePosition` via `deps.getOldestQueuedTask`
- * 4. If no queued task → return `{ promoted: null, reason: 'no_queued_tasks' }`
- * 5. Transition it to `pending` via `deps.transitionTask`
+ * 3. Query the oldest queued message via `deps.getOldestQueuedMessage`
+ * 4. If no queued message → return `{ promoted: null, reason: 'no_queued_tasks' }`
+ * 5. Promote via `deps.promoteQueuedMessage`
  * 6. Return `{ promoted: taskId, reason: 'success' }`
  */
 
@@ -33,12 +33,11 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 // ============================================================================
 
 /**
- * Task shape required by promote-next-task.
- * Only the fields the usecase needs — no full Doc dependency.
+ * Queue record shape required by promote-next-task.
  */
-export interface QueuedTask {
-  _id: Id<'chatroom_tasks'>;
-  queuePosition: number;
+export interface QueuedMessage {
+  _id: Id<'chatroom_messageQueue'>;
+  queuePosition?: number;
 }
 
 /**
@@ -54,17 +53,18 @@ export interface PromoteNextTaskDeps {
   areAllAgentsWaiting: (chatroomId: Id<'chatroom_rooms'>) => Promise<boolean>;
 
   /**
-   * Returns all tasks in the chatroom with status 'queued',
-   * sorted by queuePosition ascending (oldest first).
-   * Returns an empty array if none exist.
+   * Returns the oldest queued message record for a chatroom.
+   * Returns null if none exist.
    */
-  getOldestQueuedTask: (chatroomId: Id<'chatroom_rooms'>) => Promise<QueuedTask | null>;
+  getOldestQueuedMessage: (chatroomId: Id<'chatroom_rooms'>) => Promise<QueuedMessage | null>;
 
   /**
-   * Transitions a task to pending using the 'promoteNextTask' trigger.
-   * Must throw if the transition is invalid.
+   * Promotes a queue record: creates message + task, deletes queue record.
+   * Returns { taskId } on success.
    */
-  transitionTaskToPending: (taskId: Id<'chatroom_tasks'>) => Promise<void>;
+  promoteQueuedMessage: (
+    queuedMessageId: Id<'chatroom_messageQueue'>
+  ) => Promise<{ taskId: Id<'chatroom_tasks'> } | null>;
 }
 
 // ============================================================================
@@ -80,7 +80,7 @@ export type PromoteNextTaskResult =
 // ============================================================================
 
 /**
- * Promotes the next queued task to pending if all agents are waiting.
+ * Promotes the next queued message to a pending task if all agents are waiting.
  *
  * Pure function — all side effects are injected via `deps`.
  *
@@ -98,14 +98,17 @@ export async function promoteNextTask(
     return { promoted: null, reason: 'agents_busy' };
   }
 
-  // 2. Find the oldest queued task
-  const nextTask = await deps.getOldestQueuedTask(chatroomId);
-  if (!nextTask) {
+  // 2. Find the oldest queued message
+  const nextMessage = await deps.getOldestQueuedMessage(chatroomId);
+  if (!nextMessage) {
     return { promoted: null, reason: 'no_queued_tasks' };
   }
 
-  // 3. Promote: queued → pending
-  await deps.transitionTaskToPending(nextTask._id);
+  // 3. Promote: queue record → message + task
+  const result = await deps.promoteQueuedMessage(nextMessage._id);
+  if (!result) {
+    return { promoted: null, reason: 'no_queued_tasks' };
+  }
 
-  return { promoted: nextTask._id, reason: 'success' };
+  return { promoted: result.taskId, reason: 'success' };
 }
