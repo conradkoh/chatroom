@@ -25,6 +25,8 @@ export interface CreateTaskArgs {
   forceStatus?: 'pending' | 'queued' | 'backlog';
   assignedTo?: string;
   sourceMessageId?: Id<'chatroom_messages'>;
+  // NEW: alternative to sourceMessageId for queued messages
+  queuedMessageId?: Id<'chatroom_messageQueue'>;
   attachedTaskIds?: Id<'chatroom_tasks'>[];
   queuePosition: number;
   origin?: 'chat' | 'backlog';
@@ -33,6 +35,34 @@ export interface CreateTaskArgs {
 export interface CreateTaskResult {
   taskId: Id<'chatroom_tasks'>;
   status: 'pending' | 'queued' | 'backlog';
+}
+
+/**
+ * Determines the task status (pending vs queued) without creating the task.
+ * Callers can use this to decide where to write the source message before creating the task.
+ */
+export async function determineTaskStatus(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  forceStatus?: 'pending' | 'queued' | 'backlog'
+): Promise<'pending' | 'queued' | 'backlog'> {
+  if (forceStatus) return forceStatus;
+
+  const activeTask = await ctx.db
+    .query('chatroom_tasks')
+    .withIndex('by_chatroom_status', (q) =>
+      q.eq('chatroomId', chatroomId).eq('status', 'pending')
+    )
+    .first();
+  const inProgressTask = !activeTask
+    ? await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'in_progress')
+        )
+        .first()
+    : null;
+  return activeTask || inProgressTask ? 'queued' : 'pending';
 }
 
 /**
@@ -45,28 +75,8 @@ export async function createTask(
 ): Promise<CreateTaskResult> {
   const now = Date.now();
 
-  // Determine status
-  let status: 'pending' | 'queued' | 'backlog';
-  if (args.forceStatus) {
-    status = args.forceStatus;
-  } else {
-    // Check if any task is pending or in_progress
-    const activeTask = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
-      )
-      .first();
-    const inProgressTask = !activeTask
-      ? await ctx.db
-          .query('chatroom_tasks')
-          .withIndex('by_chatroom_status', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-          )
-          .first()
-      : null;
-    status = activeTask || inProgressTask ? 'queued' : 'pending';
-  }
+  // Determine status using the extracted helper
+  const status = await determineTaskStatus(ctx, args.chatroomId, args.forceStatus);
 
   const taskId = await ctx.db.insert('chatroom_tasks', {
     chatroomId: args.chatroomId,
@@ -75,6 +85,7 @@ export async function createTask(
     status,
     origin: args.origin ?? 'chat',
     sourceMessageId: args.sourceMessageId,
+    queuedMessageId: args.queuedMessageId,
     createdAt: now,
     updatedAt: now,
     queuePosition: args.queuePosition,
