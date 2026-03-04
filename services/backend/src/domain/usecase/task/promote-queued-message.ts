@@ -47,6 +47,11 @@ export async function promoteQueuedMessage(
     }),
   });
 
+  // Note: acknowledgedAt is intentionally NOT set here.
+  // Context-building queries filter out user messages where acknowledgedAt is undefined,
+  // so the promoted message will only appear in agent context once the agent claims it
+  // (via claimTask → sets acknowledgedAt on the message).
+  // This is the correct behavior — the message should not count as context until it is being worked on.
   // Update task: set sourceMessageId, clear queuedMessageId
   await ctx.db.patch('chatroom_tasks', taskId, {
     sourceMessageId: messageId,

@@ -832,7 +832,9 @@ export const taskStarted = mutation({
           taskOriginMessageId: originMessage._id,
         });
       }
-      // For queued messages, skip the origin link (will be set at promotion time)
+      // For queued messages, skip the origin link.
+      // The promoted message will fall back to the heuristic scan (last 100 messages)
+      // in context-building queries to find the origin message.
     }
 
     // Generate a focused reminder for this role + classification
@@ -961,6 +963,7 @@ export const listQueued = query({
     const queuedMessages = await ctx.db
       .query('chatroom_messageQueue')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .order('asc') // Explicit ascending creation order (oldest first)
       .collect();
 
     // Enforce maximum limit to prevent unbounded queries
