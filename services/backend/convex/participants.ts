@@ -109,6 +109,21 @@ export const join = mutation({
       }
     }
 
+    // Reset circuit breaker when agent successfully registers (proves it's healthy)
+    const teamConfig = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+      )
+      .first();
+
+    if (teamConfig?.circuitState && teamConfig.circuitState !== 'closed') {
+      await ctx.db.patch(teamConfig._id, {
+        circuitState: 'closed',
+        circuitOpenedAt: undefined,
+      });
+    }
+
     // Emit agent.waiting event when agent enters the get-next-task loop
     if (args.action === 'get-next-task:started') {
       await ctx.db.insert('chatroom_eventStream', {

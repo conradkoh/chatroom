@@ -128,4 +128,48 @@ describe('startAgent use case — desiredState', () => {
     });
     expect(running?.desiredState).toBe('running');
   });
+
+  test('resets circuit breaker state when manually starting an agent', async () => {
+    const { sessionId } = await createTestSession('start-agent-3');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'start-machine-3';
+
+    await registerMachine(sessionId, machineId);
+
+    // Seed a team config with circuit breaker OPEN
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      const teamRoleKey = `chatroom_${chatroomId}#role_builder`;
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey,
+        chatroomId,
+        role: 'builder',
+        type: 'remote',
+        machineId,
+        agentHarness: 'opencode',
+        model: 'anthropic/claude-sonnet-4',
+        workingDir: '/tmp/test',
+        createdAt: now,
+        updatedAt: now,
+        desiredState: 'stopped',
+        circuitState: 'open', // Circuit tripped
+        circuitOpenedAt: now - 30_000, // 30s ago
+      });
+    });
+
+    // Manually start the agent (should reset circuit)
+    await startAgent(sessionId, machineId, chatroomId, 'builder');
+
+    // Verify circuit breaker was reset
+    const config = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+        .first();
+    });
+
+    expect(config?.circuitState).toBe('closed');
+    expect(config?.circuitOpenedAt).toBeUndefined();
+    expect(config?.desiredState).toBe('running');
+  });
 });

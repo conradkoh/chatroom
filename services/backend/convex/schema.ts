@@ -755,6 +755,12 @@ export default defineSchema({
 
     // Desired state for this agent (used by ensureAgentHandler to skip auto-restart)
     desiredState: v.optional(v.union(v.literal('running'), v.literal('stopped'))),
+
+    // Circuit breaker state
+    circuitState: v.optional(
+      v.union(v.literal('closed'), v.literal('open'), v.literal('half-open'))
+    ),
+    circuitOpenedAt: v.optional(v.number()),
   })
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])
@@ -797,6 +803,15 @@ export default defineSchema({
         stopSignal: v.optional(v.string()),
         exitCode: v.optional(v.number()),
         signal: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Agent circuit breaker tripped
+      v.object({
+        type: v.literal('agent.circuitOpen'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        reason: v.string(),
         timestamp: v.number(),
       }),
       // Task entered an active state needing an agent

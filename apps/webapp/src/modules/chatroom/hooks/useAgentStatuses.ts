@@ -8,7 +8,7 @@ import { useMemo } from 'react';
 import type { TeamLifecycle } from '../types/readiness';
 
 // Event types that indicate the agent is offline (not connected)
-const OFFLINE_EVENT_TYPES = new Set(['agent.exited', null, undefined]);
+const OFFLINE_EVENT_TYPES = new Set(['agent.exited', 'agent.circuitOpen', null, undefined]);
 
 // Idle event types — agent is online but not actively working
 const IDLE_EVENT_TYPES = new Set([
@@ -53,6 +53,8 @@ function eventTypeToStatusLabel(eventType: string | null | undefined): string {
       return 'STOPPING';
     case 'agent.exited':
       return 'STOPPED';
+    case 'agent.circuitOpen':
+      return 'CIRCUIT OPEN';
     case 'task.acknowledged':
       return 'TASK RECEIVED';
     case 'task.activated':
@@ -97,7 +99,13 @@ export function useAgentStatuses(
         role,
         online,
         lastSeenAt,
-        statusLabel: online ? eventTypeToStatusLabel(latestEventType) : 'OFFLINE',
+        // Use circuit open label even when offline so user knows why
+        statusLabel:
+          latestEventType === 'agent.circuitOpen'
+            ? 'CIRCUIT OPEN'
+            : online
+            ? eventTypeToStatusLabel(latestEventType)
+            : 'OFFLINE',
         isWorking,
         isStuck: participant?.isStuck === true,
         latestEventType,
