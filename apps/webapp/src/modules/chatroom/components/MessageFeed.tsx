@@ -84,6 +84,8 @@ interface Message {
     senderRole: string;
     _creationTime: number;
   };
+  // Queued message flag (from chatroom_messageQueue)
+  isQueued?: boolean;
 }
 
 interface AttachedTask {
@@ -600,10 +602,21 @@ const MessageItem = memo(function MessageItem({
       )}
       {/* Message Content */}
       {isUserMessage ? (
-        <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
-          <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
-            {message.content}
-          </Markdown>
+        <div>
+          {/* Queued message indicator */}
+          {message.isQueued && (
+            <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-chatroom-bg-tertiary/50 border-l-2 border-chatroom-status-warning">
+              <Clock size={12} className="text-chatroom-text-muted flex-shrink-0" />
+              <span className="text-[10px] text-chatroom-text-muted italic">
+                Message queued, waiting for previous tasks to complete...
+              </span>
+            </div>
+          )}
+          <div className={`${message.isQueued ? 'text-chatroom-text-muted' : 'text-chatroom-text-primary'} text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary`}>
+            <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+              {message.content}
+            </Markdown>
+          </div>
         </div>
       ) : (
         <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
@@ -690,6 +703,11 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     loadMore: (numItems: number) => void;
   };
 
+  // Fetch queued messages (from chatroom_messageQueue)
+  const queuedMessages = useSessionQuery(api.messages.listQueued, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+
   const feedRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
   const prevScrollHeightRef = useRef(0);
@@ -751,8 +769,15 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // Reverse to show oldest first (backend already filters out join/progress messages)
   const displayMessages = useMemo(() => {
     // Reverse because paginated query returns newest first, but we want oldest at top
-    return [...(results || [])].reverse();
-  }, [results]);
+    const regularMessages = [...(results || [])].reverse();
+    // Add queued messages (already in chronological order)
+    const queued = queuedMessages || [];
+    // Merge both lists and sort by creation time
+    const allMessages = [...regularMessages, ...queued].sort(
+      (a, b) => a._creationTime - b._creationTime
+    );
+    return allMessages;
+  }, [results, queuedMessages]);
 
   // Track if user is at bottom of scroll for auto-scroll behavior and floating button
   // Using state instead of ref so the floating button can react to changes

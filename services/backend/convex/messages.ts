@@ -947,6 +947,51 @@ export const list = query({
   },
 });
 
+/** Returns queued messages (from chatroom_messageQueue) for a chatroom. */
+export const listQueued = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access (chatroom not needed)
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const queuedMessages = await ctx.db
+      .query('chatroom_messageQueue')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    // Enforce maximum limit to prevent unbounded queries
+    const MAX_LIMIT = 1000;
+    const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
+
+    // Transform queue records to match message shape + add isQueued flag
+    const transformedMessages = queuedMessages.map((qMsg) => ({
+      _id: qMsg._id,
+      _creationTime: qMsg._creationTime,
+      chatroomId: qMsg.chatroomId,
+      senderRole: qMsg.senderRole,
+      targetRole: qMsg.targetRole,
+      content: qMsg.content,
+      type: qMsg.type,
+      taskId: qMsg.taskId,
+      classification: qMsg.classification,
+      featureTitle: qMsg.featureTitle,
+      featureDescription: qMsg.featureDescription,
+      featureTechSpecs: qMsg.featureTechSpecs,
+      attachedTaskIds: qMsg.attachedTaskIds,
+      attachedArtifactIds: qMsg.attachedArtifactIds,
+      // Add queue-specific flags
+      isQueued: true as const,
+      queuePosition: undefined as number | undefined, // Will be enriched from task if needed
+    }));
+
+    return transformedMessages.slice(-limit);
+  },
+});
+
 /** Returns messages in descending order with task status and attached task/artifact details, paginated. */
 export const listPaginated = query({
   args: {

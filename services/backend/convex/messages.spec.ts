@@ -228,3 +228,77 @@ describe('_sendMessageHandler — queued user message routing', () => {
     expect(queuedTask?.queuedMessageId).toBe(returnedId);
   });
 });
+
+describe('listQueued query', () => {
+  test('returns queued messages for a chatroom in creation order', async () => {
+    const { sessionId } = await createTestSession('list-queued-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Seed an active task to trigger queuing behavior
+    await seedActiveTask(chatroomId);
+
+    // Send two queued messages
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'first queued message',
+      type: 'message',
+    });
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'second queued message',
+      type: 'message',
+    });
+
+    // Fetch queued messages
+    const queuedMessages = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(queuedMessages.length).toBe(2);
+    expect(queuedMessages[0].content).toBe('first queued message');
+    expect(queuedMessages[1].content).toBe('second queued message');
+    expect(queuedMessages[0].isQueued).toBe(true);
+    expect(queuedMessages[1].isQueued).toBe(true);
+  });
+
+  test('returns empty array when no queued messages exist', async () => {
+    const { sessionId } = await createTestSession('list-queued-2');
+    const chatroomId = await createChatroom(sessionId);
+
+    // No queued messages - chatroom is empty
+    const queuedMessages = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(queuedMessages).toEqual([]);
+  });
+
+  test('does not return messages from chatroom_messages table', async () => {
+    const { sessionId } = await createTestSession('list-queued-3');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Send a regular message (no active tasks, so it goes to chatroom_messages)
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'regular message',
+      type: 'message',
+    });
+
+    // Fetch queued messages (should be empty)
+    const queuedMessages = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(queuedMessages).toEqual([]);
+  });
+});
