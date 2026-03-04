@@ -101,6 +101,10 @@ const BADGE_BASE =
   'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5';
 const ICON_SIZE = 10;
 
+// Shared message content classes - used in MessageContent and QueuedMessageCard modal
+const MESSAGE_CONTENT_CLASSES =
+  'text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary';
+
 // Message type badge styling - with icons for visual consistency
 const getMessageTypeBadge = (type: string) => {
   switch (type) {
@@ -460,12 +464,8 @@ const TaskProgressHistory = memo(function TaskProgressHistory({
   );
 });
 
-// ─── QueuedMessageFooter ──────────────────────────────────────────────────────
-// Renders a compact inline footer inside each queued message with:
-//   • Orange QUEUED badge
-//   • Elapsed time since message creation
-//   • Icon-only Promote button (ArrowUp)
-//   • Icon-only Delete button (Trash2)
+// ─── Queued Message Utilities ──────────────────────────────────────────────────
+// Helpers shared by QueuedMessageCard.
 
 /** Returns a human-readable elapsed time string that updates every second. */
 function useElapsedTime(creationTime: number): string {
@@ -493,20 +493,32 @@ function formatElapsed(creationTime: number): string {
   return `${hrs}h ${remainMins}m`;
 }
 
-interface QueuedMessageFooterProps {
+// ─── QueuedMessageCard ────────────────────────────────────────────────────────
+// Compact fixed-height card for each queued message.
+// Row 1: truncated content (2 lines, clickable) | QUEUED badge | [↑] [🗑]
+// Row 2: right-aligned timestamp + elapsed time
+// Clicking the content area opens a modal with the full message.
+
+interface QueuedMessageCardProps {
   message: Message;
   onPromote: (queuedMessageId: string) => Promise<void>;
   onDelete: (queuedMessageId: string) => Promise<void>;
 }
 
-const QueuedMessageFooter = memo(function QueuedMessageFooter({
+const QueuedMessageCard = memo(function QueuedMessageCard({
   message,
   onPromote,
   onDelete,
-}: QueuedMessageFooterProps) {
+}: QueuedMessageCardProps) {
   const elapsed = useElapsedTime(message._creationTime);
   const [isPromoting, setIsPromoting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const formattedTime = new Date(message._creationTime).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
   const handlePromote = useCallback(async () => {
     if (isPromoting || isDeleting) return;
@@ -528,51 +540,93 @@ const QueuedMessageFooter = memo(function QueuedMessageFooter({
     }
   }, [message._id, onDelete, isDeleting, isPromoting]);
 
+  const handleOpenModal = useCallback(() => {
+    setIsModalOpen(true);
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setIsModalOpen(false);
+  }, []);
+
   return (
-    <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-500/5 border-t border-orange-500/15">
-      {/* QUEUED badge */}
-      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-orange-500/20 text-orange-600 dark:text-orange-400">
-        <Timer size={10} className="flex-shrink-0" />
-        Queued
-      </span>
+    <>
+      <div className="px-3 py-2 bg-orange-500/5 border-b border-orange-500/15">
+        {/* Row 1: truncated content | QUEUED badge | action buttons */}
+        <div className="flex items-start gap-2">
+          {/* Message content — truncated 2 lines, clickable */}
+          <button
+            onClick={handleOpenModal}
+            className="flex-1 text-left text-sm text-foreground line-clamp-2 cursor-pointer hover:text-foreground/80 transition-colors"
+          >
+            {message.content}
+          </button>
 
-      {/* Elapsed time */}
-      <span className="flex items-center gap-1 text-[10px] text-orange-600/70 dark:text-orange-400/70 tabular-nums">
-        <Clock size={10} className="flex-shrink-0" />
-        {elapsed}
-      </span>
+          {/* QUEUED badge */}
+          <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-orange-500/20 text-orange-600 dark:text-orange-400">
+            <Timer size={10} className="flex-shrink-0" />
+            Queued
+          </span>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+          {/* Promote button — icon only */}
+          <button
+            onClick={handlePromote}
+            disabled={isPromoting || isDeleting}
+            className="flex-shrink-0 flex items-center justify-center w-6 h-6 bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Promote to active (bypass queue)"
+          >
+            {isPromoting ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <ArrowUp size={12} />
+            )}
+          </button>
 
-      {/* Promote button — icon only */}
-      <button
-        onClick={handlePromote}
-        disabled={isPromoting || isDeleting}
-        className="flex items-center justify-center w-6 h-6 bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        title="Promote to active (bypass queue)"
-      >
-        {isPromoting ? (
-          <Loader2 size={12} className="animate-spin" />
-        ) : (
-          <ArrowUp size={12} />
-        )}
-      </button>
+          {/* Delete button — icon only */}
+          <button
+            onClick={handleDelete}
+            disabled={isDeleting || isPromoting}
+            className="flex-shrink-0 flex items-center justify-center w-6 h-6 border border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Delete queued message"
+          >
+            {isDeleting ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Trash2 size={12} />
+            )}
+          </button>
+        </div>
 
-      {/* Delete button — icon only */}
-      <button
-        onClick={handleDelete}
-        disabled={isDeleting || isPromoting}
-        className="flex items-center justify-center w-6 h-6 border border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        title="Delete queued message"
-      >
-        {isDeleting ? (
-          <Loader2 size={12} className="animate-spin" />
-        ) : (
-          <Trash2 size={12} />
-        )}
-      </button>
-    </div>
+        {/* Row 2: right-aligned timestamp + elapsed time */}
+        <div className="flex justify-end gap-2 mt-0.5 text-[10px] text-muted-foreground tabular-nums">
+          <span>
+            {formattedTime} ({elapsed})
+          </span>
+        </div>
+      </div>
+
+      {/* Full message modal */}
+      <FixedModal isOpen={isModalOpen} onClose={handleCloseModal} maxWidth="max-w-2xl">
+        <FixedModalContent>
+          <FixedModalHeader onClose={handleCloseModal}>
+            <FixedModalTitle>
+              <span className="flex items-center gap-2">
+                <Timer size={14} className="text-orange-500" />
+                Queued Message
+              </span>
+            </FixedModalTitle>
+          </FixedModalHeader>
+          <FixedModalBody>
+            <div className="p-6">
+              <div className={MESSAGE_CONTENT_CLASSES}>
+                <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+                  {message.content}
+                </Markdown>
+              </div>
+            </div>
+          </FixedModalBody>
+        </FixedModalContent>
+      </FixedModal>
+    </>
   );
 });
 
@@ -645,8 +699,6 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
 });
 
 // Shared message content renderer with Markdown support
-const MESSAGE_CONTENT_CLASSES =
-  'text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary';
 
 const MessageContent = memo(function MessageContent({ content }: { content: string }) {
   return (
@@ -1096,19 +1148,12 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
       {queuedMessages && queuedMessages.length > 0 && (
         <div className="border-t-2 border-orange-500/30">
           {queuedMessages.map((message) => (
-            <div key={message._id} className="border-b border-chatroom-border last:border-b-0">
-              <MessageItem
-                message={message}
-                onFeatureClick={handleFeatureClick}
-                onAttachedTaskClick={handleAttachedTaskClick}
-              />
-              {/* Inline QUEUED footer: badge, elapsed time, icon-only Promote and Delete buttons */}
-              <QueuedMessageFooter
-                message={message}
-                onPromote={handleQueuedPromote}
-                onDelete={handleQueuedDelete}
-              />
-            </div>
+            <QueuedMessageCard
+              key={message._id}
+              message={message}
+              onPromote={handleQueuedPromote}
+              onDelete={handleQueuedDelete}
+            />
           ))}
         </div>
       )}
