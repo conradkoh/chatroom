@@ -2,7 +2,13 @@
 
 import { v } from 'convex/values';
 
-import { STUCK_TOKEN_THRESHOLD_MS, ENSURE_AGENT_FALLBACK_DELAY_MS } from '../config/reliability';
+import {
+  STUCK_TOKEN_THRESHOLD_MS,
+  ENSURE_AGENT_FALLBACK_DELAY_MS,
+  CIRCUIT_BREAKER_MAX_EXITS,
+  CIRCUIT_WINDOW_MS,
+  CIRCUIT_COOLDOWN_MS,
+} from '../config/reliability';
 import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { internalMutation, type MutationCtx } from './_generated/server';
@@ -41,6 +47,77 @@ async function isAgentStuck(
 
   // Token output is stale — agent is stuck
   return true;
+}
+
+type CircuitStatus = 'closed' | 'open';
+
+/**
+ * Check the circuit breaker for a given agent config.
+ * Returns 'closed' (allow restart) or 'open' (block restart).
+ *
+ * State transitions:
+ * - CLOSED → OPEN when exits ≥ MAX_EXITS in WINDOW
+ * - OPEN → HALF-OPEN when cool-down elapsed
+ * - HALF-OPEN → CLOSED when agent calls get-next-task (handled in participants.join)
+ */
+async function checkCircuitBreaker(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>,
+  config: {
+    _id: Id<'chatroom_teamAgentConfigs'>;
+    role: string;
+    machineId?: string;
+    circuitState?: string;
+    circuitOpenedAt?: number;
+  }
+): Promise<CircuitStatus> {
+  const now = Date.now();
+  const { circuitState, circuitOpenedAt } = config;
+
+  // 1. OPEN → check cool-down
+  if (circuitState === 'open') {
+    if (circuitOpenedAt && now - circuitOpenedAt >= CIRCUIT_COOLDOWN_MS) {
+      await ctx.db.patch(config._id, { circuitState: 'half-open' });
+      return 'closed';
+    }
+    return 'open';
+  }
+
+  // 2. HALF-OPEN → allow one attempt
+  if (circuitState === 'half-open') {
+    return 'closed';
+  }
+
+  // 3. CLOSED (or undefined) → count recent exits
+  const windowStart = now - CIRCUIT_WINDOW_MS;
+  const recentEvents = await ctx.db
+    .query('chatroom_eventStream')
+    .withIndex('by_chatroomId_role', (q) =>
+      q.eq('chatroomId', chatroomId).eq('role', config.role)
+    )
+    .order('desc')
+    .take(CIRCUIT_BREAKER_MAX_EXITS + 5);
+
+  const recentExits = recentEvents.filter(
+    (e) => e.type === 'agent.exited' && e.timestamp >= windowStart
+  );
+
+  if (recentExits.length >= CIRCUIT_BREAKER_MAX_EXITS) {
+    await ctx.db.patch(config._id, { circuitState: 'open', circuitOpenedAt: now });
+    if (config.machineId) {
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'agent.circuitOpen',
+        chatroomId,
+        role: config.role,
+        machineId: config.machineId,
+        reason: `${CIRCUIT_BREAKER_MAX_EXITS} exits in ${CIRCUIT_WINDOW_MS / 60_000} minutes`,
+        timestamp: now,
+      });
+    }
+    return 'open';
+  }
+
+  return 'closed';
 }
 
 // ─── Internal Mutation ───────────────────────────────────────────────────────
@@ -153,6 +230,12 @@ export const check = internalMutation({
         // Only restart agents that are explicitly desired to be running.
         // Absent desiredState (undefined) and 'stopped' both skip restart.
         continue;
+      }
+
+      // Circuit breaker — prevent infinite restart loops
+      const circuitStatus = await checkCircuitBreaker(ctx, chatroomId, config);
+      if (circuitStatus === 'open') {
+        continue; // skip restart for this agent
       }
 
       if (!rolesToRestart.has(config.role.toLowerCase())) {
