@@ -6,6 +6,7 @@ import { api } from '../../../../api.js';
 import type { Id } from '../../../../api.js';
 import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
 import { onAgentShutdown } from '../../../../events/lifecycle/on-agent-shutdown.js';
+import { resolveStopReason } from '../../../../infrastructure/machine/stop-reason.js';
 import type { CommandResult, DaemonContext, StartAgentCommand, StartAgentReason } from '../types.js';
 
 /**
@@ -182,12 +183,14 @@ export async function executeStartAgent(
   // Monitor for process exit — emit event so centralized listeners handle cleanup.
   spawnResult.onExit(({ code, signal }) => {
     const wasIntentional = ctx.deps.stops.consume(chatroomId, role);
+    const stopReason = resolveStopReason(code, signal, wasIntentional);
     ctx.events.emit('agent:exited', {
       chatroomId,
       role,
       pid,
       code,
       signal,
+      stopReason,
       intentional: wasIntentional,
     });
   });

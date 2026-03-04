@@ -67,6 +67,7 @@ describe('registerEventListeners', () => {
       pid: 1234,
       code: 1,
       signal: null,
+      stopReason: 'process_terminated_unexpectedly',
       intentional: false,
     });
 
@@ -100,6 +101,7 @@ describe('registerEventListeners', () => {
       pid: 1234,
       code: 0,
       signal: null,
+      stopReason: 'intentional_stop',
       intentional: true,
     });
 
@@ -127,6 +129,7 @@ describe('registerEventListeners', () => {
       pid: 1234,
       code: 0,
       signal: null,
+      stopReason: 'process_exited_with_success',
       intentional: false,
     });
 
@@ -150,6 +153,7 @@ describe('registerEventListeners', () => {
       pid: 1234,
       code: 1,
       signal: null,
+      stopReason: 'process_terminated_unexpectedly',
       intentional: false,
     });
 
@@ -183,6 +187,7 @@ describe('registerEventListeners', () => {
       pid: 9999,
       code: 0,        // ← natural exit code (not a crash)
       signal: null,
+      stopReason: 'process_exited_with_success',
       intentional: false,  // ← no prior stops.mark() — treated as unintentional
     });
 

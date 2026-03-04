@@ -2,6 +2,7 @@ import type { Id } from '../../../api.js';
 import { api } from '../../../api.js';
 import type { DaemonContext } from '../../../commands/machine/daemon-start/types.js';
 import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
+import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
 
 export interface AgentExitedPayload {
   chatroomId: Id<'chatroom_rooms'>;
@@ -9,6 +10,7 @@ export interface AgentExitedPayload {
   pid: number;
   code: number | null;
   signal: string | null;
+  stopReason: StopReason;
   intentional: boolean;
 }
 
@@ -21,8 +23,10 @@ export interface AgentExitedPayload {
  * 3. Untrack PID in all remote agent services
  */
 export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): void {
-  const { chatroomId, role, pid, code, signal, intentional } = payload;
+  const { chatroomId, role, pid, code, signal, stopReason, intentional } = payload;
   const ts = formatTimestamp();
+
+  console.log(`[${ts}] Agent stopped: ${stopReason} (${role})`);
 
   if (intentional) {
     console.log(

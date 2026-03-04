@@ -556,6 +556,124 @@ describe('handleStartAgent', () => {
         code: 0,
         signal: null,
         intentional: false,  // ← the key assertion
+        stopReason: 'process_exited_with_success',  // ← new assertion
+      })
+    );
+  });
+
+  it('emits stopReason=process_terminated_with_signal for SIGTERM exit', async () => {
+    let onExitCallback: ((info: {
+      code: number | null;
+      signal: string | null;
+      context: { machineId: string; chatroomId: string; role: string };
+    }) => void) | null = null;
+
+    const ctx = createMockContext({
+      spawnResult: {
+        pid: 5678,
+        onExit: (cb) => { onExitCallback = cb; },
+        onOutput: vi.fn(),
+      },
+    });
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    const listener = vi.fn();
+    ctx.events.on('agent:exited', listener);
+
+    await handleStartAgent(ctx, cmd);
+
+    // Trigger SIGTERM exit
+    onExitCallback!({
+      code: null,
+      signal: 'SIGTERM',
+      context: { machineId: 'test-machine-id', chatroomId: 'test-chatroom-123', role: 'builder' },
+    });
+
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: null,
+        signal: 'SIGTERM',
+        intentional: false,
+        stopReason: 'process_terminated_with_signal',
+      })
+    );
+  });
+
+  it('emits stopReason=process_terminated_with_signal for SIGKILL exit', async () => {
+    let onExitCallback: ((info: {
+      code: number | null;
+      signal: string | null;
+      context: { machineId: string; chatroomId: string; role: string };
+    }) => void) | null = null;
+
+    const ctx = createMockContext({
+      spawnResult: {
+        pid: 5678,
+        onExit: (cb) => { onExitCallback = cb; },
+        onOutput: vi.fn(),
+      },
+    });
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    const listener = vi.fn();
+    ctx.events.on('agent:exited', listener);
+
+    await handleStartAgent(ctx, cmd);
+
+    // Trigger SIGKILL exit
+    onExitCallback!({
+      code: null,
+      signal: 'SIGKILL',
+      context: { machineId: 'test-machine-id', chatroomId: 'test-chatroom-123', role: 'builder' },
+    });
+
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: null,
+        signal: 'SIGKILL',
+        intentional: false,
+        stopReason: 'process_terminated_with_signal',
+      })
+    );
+  });
+
+  it('emits stopReason=intentional_stop when process exits after explicit stop', async () => {
+    let onExitCallback: ((info: {
+      code: number | null;
+      signal: string | null;
+      context: { machineId: string; chatroomId: string; role: string };
+    }) => void) | null = null;
+
+    const ctx = createMockContext({
+      spawnResult: {
+        pid: 5678,
+        onExit: (cb) => { onExitCallback = cb; },
+        onOutput: vi.fn(),
+      },
+    });
+
+    // Mock the stops.consume to return true (simulating intentional stop)
+    (ctx.deps.stops.consume as ReturnType<typeof vi.fn>).mockReturnValueOnce(true);
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    const listener = vi.fn();
+    ctx.events.on('agent:exited', listener);
+
+    await handleStartAgent(ctx, cmd);
+
+    // Trigger exit (after intentional stop)
+    onExitCallback!({
+      code: 0,
+      signal: null,
+      context: { machineId: 'test-machine-id', chatroomId: 'test-chatroom-123', role: 'builder' },
+    });
+
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 0,
+        signal: null,
+        intentional: true,
+        stopReason: 'intentional_stop',
       })
     );
   });

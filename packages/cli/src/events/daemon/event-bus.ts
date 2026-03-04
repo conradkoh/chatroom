@@ -30,6 +30,7 @@ export interface DaemonEventMap {
   /**
    * Fired when an agent process exits (for any reason).
    * The `intentional` flag distinguishes user-requested stops from crashes.
+   * The `stopReason` provides granular classification of why the agent stopped.
    */
   'agent:exited': {
     chatroomId: Id<'chatroom_rooms'>;
@@ -37,6 +38,7 @@ export interface DaemonEventMap {
     pid: number;
     code: number | null;
     signal: string | null;
+    stopReason: 'intentional_stop' | 'process_exited_with_success' | 'process_terminated_with_signal' | 'process_terminated_unexpectedly';
     intentional: boolean;
   };
 

@@ -40,6 +40,7 @@ describe('DaemonEventBus', () => {
       pid: 1234,
       code: 0,
       signal: null,
+      stopReason: 'intentional_stop',
       intentional: true,
     });
 
