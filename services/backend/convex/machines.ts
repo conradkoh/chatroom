@@ -766,6 +766,8 @@ export const recordAgentExited = mutation({
     role: v.string(),
     pid: v.number(),
     intentional: v.boolean(),
+    stopReason: v.optional(v.string()),
+    stopSignal: v.optional(v.string()),
     exitCode: v.optional(v.number()),
     signal: v.optional(v.string()),
   },
@@ -785,6 +787,8 @@ export const recordAgentExited = mutation({
       machineId: args.machineId,
       pid: args.pid,
       intentional: args.intentional,
+      stopReason: args.stopReason,
+      stopSignal: args.stopSignal,
       exitCode: args.exitCode,
       signal: args.signal,
       timestamp: now,
@@ -821,6 +825,7 @@ export const recordAgentExited = mutation({
       chatroomId: args.chatroomId,
       role: args.role,
       intentional: args.intentional,
+      stopReason: args.stopReason,
     });
 
     return { success: true };

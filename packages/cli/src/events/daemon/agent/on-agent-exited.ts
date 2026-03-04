@@ -55,6 +55,8 @@ export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): 
       role,
       pid,
       intentional,
+      stopReason,
+      stopSignal: stopReason === 'process_terminated_with_signal' ? (signal ?? undefined) : undefined,
       exitCode: code ?? undefined,
       signal: signal ?? undefined,
     })

@@ -7,6 +7,7 @@ export interface OnAgentExitedArgs {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
   intentional: boolean;
+  stopReason?: string;
 }
 
 /**
@@ -18,10 +19,28 @@ export interface OnAgentExitedArgs {
  * the next scheduled timer interval.
  */
 export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): Promise<void> {
-  const { chatroomId, role, intentional } = args;
+  const { chatroomId, role, intentional, stopReason } = args;
 
-  if (intentional) {
-    return; // No crash recovery needed for intentional stops
+  // Determine if this exit warrants crash recovery
+  // stopReason takes precedence when available; fall back to intentional flag for backward compat
+  const shouldRestart = stopReason
+    ? stopReason === 'process_exited_with_success' || stopReason === 'process_terminated_unexpectedly'
+    : !intentional;
+
+  if (!shouldRestart) {
+    return;
+  }
+
+  // Belt-and-suspenders: check desiredState before scheduling restart
+  // This prevents restart if the user has explicitly stopped the agent
+  // (even if stopReason suggests restart is appropriate — e.g. Race 2)
+  const teamConfig = await ctx.db
+    .query('chatroom_teamAgentConfigs')
+    .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+    .first();
+
+  if (teamConfig?.desiredState === 'stopped') {
+    return; // User intent respected — no restart
   }
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);

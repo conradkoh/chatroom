@@ -793,6 +793,8 @@ export default defineSchema({
         machineId: v.string(),
         pid: v.number(),
         intentional: v.boolean(),
+        stopReason: v.optional(v.string()),
+        stopSignal: v.optional(v.string()),
         exitCode: v.optional(v.number()),
         signal: v.optional(v.string()),
         timestamp: v.number(),
