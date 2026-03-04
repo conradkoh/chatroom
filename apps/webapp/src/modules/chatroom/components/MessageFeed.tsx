@@ -1022,6 +1022,9 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // Message detail modal state (for TaskHeader tap and message content tap)
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
 
+  // Queue list modal state (shows all queued messages when "+ N more" row is clicked)
+  const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
+
   // Handle feature title click - open modal with details
   const handleFeatureClick = useCallback((message: Message) => {
     if (message.featureTitle) {
@@ -1287,16 +1290,43 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
       {/* Queued Messages - pinned just above status bar */}
       {displayQueuedMessages.length > 0 && (
         <div className="border-t-2 border-orange-500/30">
-          {displayQueuedMessages.map((message) => (
-            <QueuedMessageCard
-              key={message._id}
-              message={message}
-              onPromote={handleQueuedPromote}
-              onDelete={handleQueuedDelete}
-            />
-          ))}
+          {/* First queued message card */}
+          <QueuedMessageCard
+            key={displayQueuedMessages[0]._id}
+            message={displayQueuedMessages[0]}
+            onPromote={handleQueuedPromote}
+            onDelete={handleQueuedDelete}
+          />
+          {/* "+ N more" row — only shown when there are additional queued messages */}
+          {displayQueuedMessages.length > 1 && (
+            <button
+              onClick={() => setIsQueueModalOpen(true)}
+              className="w-full flex items-center justify-between px-3 py-1.5 bg-orange-500/5 border-t border-orange-500/15 text-[10px] text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 transition-colors"
+            >
+              <span>+ {displayQueuedMessages.length - 1} more in queue</span>
+              <span className="font-bold uppercase tracking-wide">View all →</span>
+            </button>
+          )}
         </div>
       )}
+      {/* Queue list modal — shows all queued messages */}
+      <FixedModal isOpen={isQueueModalOpen} onClose={() => setIsQueueModalOpen(false)} maxWidth="max-w-2xl">
+        <FixedModalContent>
+          <FixedModalHeader onClose={() => setIsQueueModalOpen(false)}>
+            <FixedModalTitle>Queue ({displayQueuedMessages.length})</FixedModalTitle>
+          </FixedModalHeader>
+          <FixedModalBody>
+            {displayQueuedMessages.map((message) => (
+              <QueuedMessageCard
+                key={message._id}
+                message={message}
+                onPromote={handleQueuedPromote}
+                onDelete={handleQueuedDelete}
+              />
+            ))}
+          </FixedModalBody>
+        </FixedModalContent>
+      </FixedModal>
       {/* Status bar - fixed at bottom with working indicator (left) + message count (right) */}
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
         {/* Left: Working indicator (compact) - empty div maintains layout when no active agents */}
