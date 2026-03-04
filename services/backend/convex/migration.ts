@@ -209,3 +209,46 @@ export const deleteOldFormatAgentPreferences = internalMutation({
     return { deleted, skipped, total: allPrefs.length };
   },
 });
+
+/**
+ * Migration: Delete pre-refactor chatroom_messageQueue documents with legacy `taskId` field.
+ *
+ * The chatroom_messageQueue schema was refactored to remove the `taskId` back-reference
+ * and replace it with `queuePosition` for ordering. Old documents from before the refactor
+ * still have `taskId` but lack `queuePosition`, making them impossible to promote properly.
+ *
+ * Since these documents cannot be properly promoted, the safest migration is to delete them.
+ * The user can re-send any messages that were in the queue.
+ *
+ * After this migration has run successfully in production:
+ *   1. In schema.ts — remove `taskId: v.optional(v.id('chatroom_tasks'))` from chatroom_messageQueue
+ *   2. Change `queuePosition: v.optional(v.number())` back to `queuePosition: v.number()`
+ *   3. Remove this migration (move description to "Previously executed" list above).
+ *
+ * Idempotent: documents without `taskId` are skipped.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.deleteLegacyMessageQueueDocuments
+ */
+export const deleteLegacyMessageQueueDocuments = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allQueuedMessages = await ctx.db.query('chatroom_messageQueue').collect();
+
+    let deleted = 0;
+    let skipped = 0;
+
+    for (const msg of allQueuedMessages) {
+      const raw = msg as Record<string, unknown>;
+      // Old format: has taskId (pre-refactor back-reference to chatroom_tasks)
+      if (raw.taskId !== undefined) {
+        await ctx.db.delete(msg._id);
+        deleted++;
+      } else {
+        skipped++;
+      }
+    }
+
+    return { deleted, skipped, total: allQueuedMessages.length };
+  },
+});

@@ -407,9 +407,7 @@ export default defineSchema({
     // Attached artifacts
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
     // Queue ordering (lower = earlier in queue, older message)
-    queuePosition: v.optional(v.number()),
-    // Legacy back-reference to task (removed from schema, kept for old documents)
-    taskId: v.optional(v.id('chatroom_tasks')),
+    queuePosition: v.number(),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),

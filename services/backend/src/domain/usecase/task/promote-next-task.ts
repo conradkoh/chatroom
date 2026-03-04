@@ -37,7 +37,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
  */
 export interface QueuedMessage {
   _id: Id<'chatroom_messageQueue'>;
-  queuePosition?: number;
+  queuePosition: number;
 }
 
 /**
