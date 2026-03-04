@@ -36,11 +36,6 @@ export async function promoteQueuedMessage(
     targetRole: queueRecord.targetRole,
     content: queueRecord.content,
     type: queueRecord.type,
-    // Copy classification if already set
-    ...(queueRecord.classification && { classification: queueRecord.classification }),
-    ...(queueRecord.featureTitle && { featureTitle: queueRecord.featureTitle }),
-    ...(queueRecord.featureDescription && { featureDescription: queueRecord.featureDescription }),
-    ...(queueRecord.featureTechSpecs && { featureTechSpecs: queueRecord.featureTechSpecs }),
     ...(queueRecord.attachedTaskIds?.length && { attachedTaskIds: queueRecord.attachedTaskIds }),
     ...(queueRecord.attachedArtifactIds?.length && {
       attachedArtifactIds: queueRecord.attachedArtifactIds,

@@ -394,14 +394,6 @@ export default defineSchema({
     content: v.string(),
     // Always 'message' — only user messages get staged
     type: v.literal('message'),
-    // Classification set by the agent when task-started is called
-    classification: v.optional(
-      v.union(v.literal('question'), v.literal('new_feature'), v.literal('follow_up'))
-    ),
-    // Feature metadata (set for new_feature classification)
-    featureTitle: v.optional(v.string()),
-    featureDescription: v.optional(v.string()),
-    featureTechSpecs: v.optional(v.string()),
     // Attached backlog tasks for context
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
     // Attached artifacts

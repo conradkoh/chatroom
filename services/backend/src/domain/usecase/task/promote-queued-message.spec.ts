@@ -170,37 +170,4 @@ describe('promoteQueuedMessage', () => {
 
     expect(result).toBeNull();
   });
-
-  test('copies classification to chatroom_messages if set on queue record', async () => {
-    const { sessionId } = await createTestSession('promote-msg-6');
-    const chatroomId = await createChatroom(sessionId);
-
-    const queuedMessageId = await t.run(async (ctx) => {
-      return await ctx.db.insert('chatroom_messageQueue', {
-        chatroomId,
-        senderRole: 'user',
-        targetRole: 'builder',
-        content: 'classified queued message',
-        type: 'message',
-        queuePosition: 1,
-        classification: 'question' as const,
-        featureTitle: 'Test Feature',
-        featureDescription: 'Test description',
-        featureTechSpecs: 'Test specs',
-      });
-    });
-
-    const result = await t.run(async (ctx) => {
-      return await promoteQueuedMessage(ctx, queuedMessageId);
-    });
-
-    const message = await t.run(async (ctx) => {
-      return await ctx.db.get('chatroom_messages', result!.messageId);
-    });
-
-    expect(message?.classification).toBe('question');
-    expect(message?.featureTitle).toBe('Test Feature');
-    expect(message?.featureDescription).toBe('Test description');
-    expect(message?.featureTechSpecs).toBe('Test specs');
-  });
 });

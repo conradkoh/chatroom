@@ -989,10 +989,6 @@ export const listQueued = query({
       content: qMsg.content,
       type: qMsg.type,
       taskId: undefined as undefined, // No task until promoted
-      classification: qMsg.classification,
-      featureTitle: qMsg.featureTitle,
-      featureDescription: qMsg.featureDescription,
-      featureTechSpecs: qMsg.featureTechSpecs,
       attachedTaskIds: qMsg.attachedTaskIds,
       attachedArtifactIds: qMsg.attachedArtifactIds,
       // Add queue-specific flags
@@ -1478,7 +1474,9 @@ export const inspectFeature = query({
     }
 
     // Verify it's a feature
-    if (message.classification !== 'new_feature' || !message.featureTitle) {
+    // Queued messages never have classification — only promoted chatroom_messages can be features
+    const regularMsg = message as Doc<'chatroom_messages'>;
+    if (regularMsg.classification !== 'new_feature' || !regularMsg.featureTitle) {
       throw new ConvexError({
         code: 'INVALID_MESSAGE',
         message: 'Message is not a feature',
@@ -1533,9 +1531,9 @@ export const inspectFeature = query({
     return {
       feature: {
         id: message._id,
-        title: message.featureTitle,
-        description: message.featureDescription,
-        techSpecs: message.featureTechSpecs,
+        title: regularMsg.featureTitle,
+        description: regularMsg.featureDescription,
+        techSpecs: regularMsg.featureTechSpecs,
         content: message.content,
         createdAt: message._creationTime,
       },
