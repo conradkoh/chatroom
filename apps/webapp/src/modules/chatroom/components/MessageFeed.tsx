@@ -532,6 +532,20 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
   );
 });
 
+// Shared message content renderer with Markdown support
+const MESSAGE_CONTENT_CLASSES =
+  'text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary';
+
+const MessageContent = memo(function MessageContent({ content }: { content: string }) {
+  return (
+    <div className={MESSAGE_CONTENT_CLASSES}>
+      <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+        {content}
+      </Markdown>
+    </div>
+  );
+});
+
 // Memoized message item to prevent re-renders of all messages when one changes
 const MessageItem = memo(function MessageItem({
   message,
@@ -601,30 +615,8 @@ const MessageItem = memo(function MessageItem({
         </button>
       )}
       {/* Message Content */}
-      {isUserMessage ? (
-        <div>
-          {/* Queued message indicator */}
-          {message.isQueued && (
-            <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-chatroom-bg-tertiary/50 border-l-2 border-chatroom-status-warning">
-              <Clock size={12} className="text-chatroom-text-muted flex-shrink-0" />
-              <span className="text-[10px] text-chatroom-text-muted italic">
-                Message queued, waiting for previous tasks to complete...
-              </span>
-            </div>
-          )}
-          <div className={`${message.isQueued ? 'text-chatroom-text-muted' : 'text-chatroom-text-primary'} text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary`}>
-            <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
-              {message.content}
-            </Markdown>
-          </div>
-        </div>
-      ) : (
-        <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary">
-          <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
-            {message.content}
-          </Markdown>
-        </div>
-      )}
+      {/* Message Content - unified renderer for all message types */}
+      <MessageContent content={message.content} />
       {/* Attached Backlog Tasks */}
       {message.attachedTasks && message.attachedTasks.length > 0 && (
         <div className="mt-3 pt-3 border-t border-chatroom-border">
