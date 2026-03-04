@@ -864,6 +864,26 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
 
+  // Dev-only mock queued message for previewing QueuedMessageCard without a real DB entry
+  const mockQueuedMessage: Message | null = useMemo(() => {
+    if (process.env.NODE_ENV !== 'development') return null;
+    return {
+      _id: 'mock-queued-preview' as string,
+      type: 'message',
+      senderRole: 'user',
+      targetRole: 'planner',
+      content:
+        'This is a **mock queued message** for preview purposes. It shows how a queued message card looks with some longer content that will be truncated to two lines when it exceeds the available width in the compact card layout.',
+      _creationTime: Date.now() - 90_000, // ~1m 30s ago
+      isQueued: true,
+    };
+  }, []);
+
+  const displayQueuedMessages = useMemo(() => {
+    const real = queuedMessages ?? [];
+    return mockQueuedMessage ? [mockQueuedMessage, ...real] : real;
+  }, [queuedMessages, mockQueuedMessage]);
+
   // Mutations for queued message controls
   const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
   const deleteQueuedMessage = useSessionMutation(api.messages.deleteQueuedMessage);
@@ -924,6 +944,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // Handle queued message Promote — calls promoteSpecificTask mutation
   const handleQueuedPromote = useCallback(
     async (queuedMessageId: string) => {
+      if (queuedMessageId === 'mock-queued-preview') return; // dev mock, no-op
       try {
         await promoteSpecificTask({
           queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
@@ -938,6 +959,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // Handle queued message Delete — removes the queue record directly
   const handleQueuedDelete = useCallback(
     async (queuedMessageId: string) => {
+      if (queuedMessageId === 'mock-queued-preview') return; // dev mock, no-op
       try {
         await deleteQueuedMessage({
           queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
@@ -1145,9 +1167,9 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
         </button>
       )}
       {/* Queued Messages - pinned just above status bar */}
-      {queuedMessages && queuedMessages.length > 0 && (
+      {displayQueuedMessages.length > 0 && (
         <div className="border-t-2 border-orange-500/30">
-          {queuedMessages.map((message) => (
+          {displayQueuedMessages.map((message) => (
             <QueuedMessageCard
               key={message._id}
               message={message}
