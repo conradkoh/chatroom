@@ -332,10 +332,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const teamName = useMemo(() => chatroom?.teamName || 'Team', [chatroom?.teamName]);
 
   // Derive participants list from lifecycle data
-  const participants = useMemo(
-    () => lifecycle?.participants ?? [],
-    [lifecycle?.participants]
-  );
+  const participants = useMemo(() => lifecycle?.participants ?? [], [lifecycle?.participants]);
 
   // Check if all team members have joined (memoized)
   const allMembersJoined = useMemo(
@@ -406,6 +403,20 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
     }
   }, [updateStatus, chatroomId, onBack]);
 
+  // Rename mutation (for setup modal)
+  const renameChatroom = useSessionMutation(api.chatrooms.rename);
+
+  // Rename handler for setup modal
+  const handleRenameChatroom = useCallback(
+    async (newName: string) => {
+      await renameChatroom({
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        name: newName.trim(),
+      });
+    },
+    [renameChatroom, chatroomId]
+  );
+
   // Show setup checklist only when the chatroom is brand new:
   // - No chat history (no user messages)
   // - Not all team members have joined yet
@@ -413,22 +424,19 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const isSetupMode = !allMembersJoined && !lifecycle?.hasHistory;
 
   // Status badge colors - using chatroom status variables for theme support
-  const getStatusBadgeClasses = useCallback(
-    (status: string, isSetup: boolean) => {
-      const base =
-        'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide inline-flex items-center border-2 border-transparent';
-      if (isSetup) return `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`;
-      switch (status) {
-        case 'active':
-          return `${base} bg-chatroom-status-success/15 text-chatroom-status-success`;
-        case 'completed':
-          return `${base} bg-chatroom-status-info/15 text-chatroom-status-info`;
-        default:
-          return `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`;
-      }
-    },
-    []
-  );
+  const getStatusBadgeClasses = useCallback((status: string, isSetup: boolean) => {
+    const base =
+      'px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide inline-flex items-center border-2 border-transparent';
+    if (isSetup) return `${base} bg-chatroom-status-warning/15 text-chatroom-status-warning`;
+    switch (status) {
+      case 'active':
+        return `${base} bg-chatroom-status-success/15 text-chatroom-status-success`;
+      case 'completed':
+        return `${base} bg-chatroom-status-info/15 text-chatroom-status-info`;
+      default:
+        return `${base} bg-chatroom-text-muted/15 text-chatroom-text-muted`;
+    }
+  }, []);
 
   // Derive display name
   const displayName = chatroom?.name || chatroom?.teamName || 'Chatroom';
@@ -603,11 +611,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   ]);
 
   // Wait for all required data and hydration before rendering to prevent flickering
-  if (
-    chatroom === undefined ||
-    lifecycle === undefined ||
-    isSmallScreen === undefined
-  ) {
+  if (chatroom === undefined || lifecycle === undefined || isSmallScreen === undefined) {
     return (
       <div className="chatroom-root flex items-center justify-center h-full bg-chatroom-bg-primary text-chatroom-text-muted">
         <div className="w-8 h-8 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
@@ -641,10 +645,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             <div className="flex flex-1 overflow-hidden relative">
               {/* Message Section */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <MessageFeed
-                  chatroomId={chatroomId}
-                  activeTask={activeTask}
-                />
+                <MessageFeed chatroomId={chatroomId} activeTask={activeTask} />
                 <SendForm chatroomId={chatroomId} />
               </div>
 
@@ -716,6 +717,8 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             teamEntryPoint={teamEntryPoint}
             participants={participants || []}
             onViewPrompt={handleViewPrompt}
+            chatroomName={displayName}
+            onRenameChatroom={handleRenameChatroom}
           />
         </>
       </PromptsProvider>

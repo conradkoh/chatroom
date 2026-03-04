@@ -9,10 +9,7 @@ import { AgentStartModal } from './AgentStartModal';
 import { CopyButton } from './CopyButton';
 import type { MachineInfo } from '../types/machine';
 
-import {
-  getDaemonStartCommand,
-  getAuthLoginCommand,
-} from '@/lib/environment';
+import { getDaemonStartCommand, getAuthLoginCommand } from '@/lib/environment';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -59,9 +56,7 @@ function PrerequisiteRow({ done, label, command, doneDetail }: PrerequisiteRowPr
           <Check size={14} />
         </span>
         <span className="text-xs font-medium text-chatroom-status-success">{label}</span>
-        {doneDetail && (
-          <span className="text-xs text-chatroom-text-muted">— {doneDetail}</span>
-        )}
+        {doneDetail && <span className="text-xs text-chatroom-text-muted">— {doneDetail}</span>}
       </div>
     );
   }
@@ -144,14 +139,13 @@ function AgentRow({ role, isJoined, canStart, chatroomId }: AgentRowProps) {
           )}
         </div>
       </div>
-      {!isJoined && canStart && (
-        <AgentStartModal
-          chatroomId={chatroomId}
-          open={modalOpen}
-          onOpenChange={setModalOpen}
-          initialRole={role}
-        />
-      )}
+      {/* Always mount modal so it's ready when opened */}
+      <AgentStartModal
+        chatroomId={chatroomId}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        initialRole={role}
+      />
     </>
   );
 }

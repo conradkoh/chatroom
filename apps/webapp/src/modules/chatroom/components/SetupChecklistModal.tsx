@@ -1,7 +1,7 @@
 'use client';
 
-import { X, Settings2 } from 'lucide-react';
-import React, { useCallback, memo, useEffect, useMemo } from 'react';
+import { X, Settings2, Check } from 'lucide-react';
+import React, { useCallback, memo, useEffect, useMemo, useState } from 'react';
 
 import { SetupChecklist } from './SetupChecklist';
 
@@ -19,6 +19,10 @@ interface SetupChecklistModalProps {
   teamEntryPoint?: string;
   participants: Participant[];
   onViewPrompt: (role: string) => void;
+  /** Current chatroom display name */
+  chatroomName: string;
+  /** Callback to rename the chatroom */
+  onRenameChatroom: (newName: string) => Promise<void>;
 }
 
 export const SetupChecklistModal = memo(function SetupChecklistModal({
@@ -30,7 +34,37 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
   teamEntryPoint,
   participants,
   onViewPrompt,
+  chatroomName,
+  onRenameChatroom,
 }: SetupChecklistModalProps) {
+  // Chatroom name editing state
+  const [editedName, setEditedName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Initialize editedName when modal opens or chatroomName changes
+  useEffect(() => {
+    if (isOpen) {
+      setEditedName(chatroomName);
+    }
+  }, [isOpen, chatroomName]);
+
+  // Save chatroom name
+  const handleSaveName = useCallback(async () => {
+    const trimmedName = editedName.trim();
+    if (!trimmedName || trimmedName === chatroomName || isSaving) return;
+
+    setIsSaving(true);
+    try {
+      await onRenameChatroom(trimmedName);
+    } catch (error) {
+      console.error('Failed to rename chatroom:', error);
+      // Revert on error
+      setEditedName(chatroomName);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [editedName, chatroomName, isSaving, onRenameChatroom]);
+
   // Lock body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -108,6 +142,38 @@ export const SetupChecklistModal = memo(function SetupChecklistModal({
             Connect your AI agents to start collaborating. You can dismiss this dialog and continue
             chatting - agents can be configured anytime from the sidebar.
           </p>
+        </div>
+
+        {/* Chatroom name input */}
+        <div className="px-4 py-3 border-b border-chatroom-border flex items-center gap-3 bg-chatroom-bg-primary">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted flex-shrink-0">
+            Chatroom Name
+          </span>
+          <div className="flex-1 flex items-center gap-2">
+            <input
+              type="text"
+              value={editedName}
+              onChange={(e) => setEditedName(e.target.value)}
+              onBlur={handleSaveName}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveName();
+              }}
+              placeholder="Enter chatroom name..."
+              className="flex-1 bg-chatroom-bg-tertiary border border-chatroom-border text-sm text-chatroom-text-primary px-2 py-1 focus:outline-none focus:border-chatroom-accent disabled:opacity-50"
+              disabled={isSaving}
+              maxLength={100}
+            />
+            {editedName.trim() !== chatroomName && editedName.trim() !== '' && (
+              <button
+                onClick={handleSaveName}
+                disabled={isSaving}
+                className="text-chatroom-status-success hover:text-chatroom-status-success/80 disabled:opacity-50 transition-colors"
+                title="Save name"
+              >
+                <Check size={16} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Scrollable content - SetupChecklist without its own header */}
