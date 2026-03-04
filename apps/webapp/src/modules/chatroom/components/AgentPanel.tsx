@@ -60,7 +60,10 @@ export const AgentPanel = memo(function AgentPanel({
   );
 
   // Use hook to get derived agent statuses (lifecycle + event stream)
-  const { agents: agentStatuses } = useAgentStatuses(chatroomId, rolesToShow);
+  const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(
+    chatroomId,
+    rolesToShow
+  );
 
 
   // Memoize prompt generation function
@@ -135,7 +138,7 @@ export const AgentPanel = memo(function AgentPanel({
           className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${working_ ? 'bg-chatroom-status-info/5' : ''} ${isStuck ? 'bg-chatroom-status-warning/5' : ''}`}
           role="button"
           tabIndex={0}
-          aria-label={`${role}: ${statusLabel}${isStuck ? ' (stuck)' : ''}. Click to view all agents.`}
+          aria-label={`${role}: ${isLoadingStatuses ? 'Loading...' : statusLabel}${isStuck ? ' (stuck)' : ''}. Click to view all agents.`}
           onClick={openAgentListModal}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -148,7 +151,7 @@ export const AgentPanel = memo(function AgentPanel({
           <div
             className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`}
             role="status"
-            aria-label={`Status: ${statusLabel}`}
+            aria-label={`Status: ${isLoadingStatuses ? 'Loading...' : statusLabel}`}
           />
           {/* Agent Info */}
           <div className="flex-1 min-w-0">
@@ -157,14 +160,16 @@ export const AgentPanel = memo(function AgentPanel({
             </div>
             <div
               className={`text-[10px] font-bold uppercase tracking-wide ${
-                working_
-                  ? 'text-chatroom-status-info animate-pulse'
-                  : online_
-                    ? 'text-chatroom-status-success'
-                    : 'text-chatroom-text-muted'
+                isLoadingStatuses
+                  ? 'text-chatroom-text-muted animate-pulse'
+                  : working_
+                    ? 'text-chatroom-status-info animate-pulse'
+                    : online_
+                      ? 'text-chatroom-status-success'
+                      : 'text-chatroom-text-muted'
               }`}
             >
-              {statusLabel}
+              {isLoadingStatuses ? '...' : statusLabel}
             </div>
             <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
               {formatLastSeen(lastSeenAt)}
