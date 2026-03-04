@@ -378,6 +378,45 @@ export default defineSchema({
     .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type']),
 
   /**
+   * Staging table for queued user messages.
+   * Messages are created here when queued, then promoted to chatroom_messages
+   * when the task moves from 'queued' to 'pending' status.
+   * This ensures messages appear in chat history in task processing order.
+   */
+  chatroom_messageQueue: defineTable({
+    // Which chatroom this queued message belongs to
+    chatroomId: v.id('chatroom_rooms'),
+    // Who sent this message (always 'user' for queued messages)
+    senderRole: v.string(),
+    // Routing target (the role that will process this message)
+    targetRole: v.optional(v.string()),
+    // Message content
+    content: v.string(),
+    // Always 'message' — only user messages get staged
+    type: v.literal('message'),
+    // Classification set by the agent when task-started is called
+    classification: v.optional(
+      v.union(
+        v.literal('question'),
+        v.literal('new_feature'),
+        v.literal('follow_up')
+      )
+    ),
+    // Feature metadata (set for new_feature classification)
+    featureTitle: v.optional(v.string()),
+    featureDescription: v.optional(v.string()),
+    featureTechSpecs: v.optional(v.string()),
+    // Attached backlog tasks for context
+    attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    // Attached artifacts
+    attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+    // Back-reference to the task (set at creation, used for promotion)
+    taskId: v.id('chatroom_tasks'),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_taskId', ['taskId']),
+
+  /**
    * Tasks in chatrooms for queue and backlog management.
    * Tracks task lifecycle from creation through completion.
    * Only one task can be pending or in_progress at a time per chatroom.
@@ -421,6 +460,10 @@ export default defineSchema({
 
     // Link to source message (for auto-created tasks from user messages)
     sourceMessageId: v.optional(v.id('chatroom_messages')),
+
+    // Staging reference: set when message is queued (in chatroom_messageQueue)
+    // Cleared and replaced with sourceMessageId when task is promoted to pending
+    queuedMessageId: v.optional(v.id('chatroom_messageQueue')),
 
     // Backlog attachment tracking (bidirectional)
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Backlog tasks attached to this task
