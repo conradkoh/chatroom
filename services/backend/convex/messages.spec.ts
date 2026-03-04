@@ -302,3 +302,195 @@ describe('listQueued query', () => {
     expect(queuedMessages).toEqual([]);
   });
 });
+
+describe('_handoffHandler — queued task promotion on handoff-to-user', () => {
+  test('when handing off to user and queued tasks exist, promotes first queued task to pending', async () => {
+    const { sessionId } = await createTestSession('handoff-promote-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Create an in_progress task for the builder (will be completed by handoff)
+    const activeTaskId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'task in progress',
+        status: 'in_progress',
+        origin: 'chat',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 0,
+        assignedTo: 'builder',
+      });
+    });
+
+    // Send a user message while the builder is working (should be queued)
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'queued message',
+      type: 'message',
+    });
+
+    // Verify the message was queued
+    const queuedBefore = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+    expect(queuedBefore.length).toBe(1);
+
+    // Mark the active task as having a sourceMessageId (simulate task-started)
+    await t.run(async (ctx) => {
+      const msg = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('content'), 'task in progress'))
+        .first();
+      if (msg) {
+        await ctx.db.patch(activeTaskId, { sourceMessageId: msg._id });
+      }
+    });
+
+    // Builder hands off to user (should complete the task + promote queued task)
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'work complete',
+      targetRole: 'user',
+    });
+
+    // Verify promotion happened
+    expect(result.success).toBe(true);
+    expect(result.promotedTaskId).toBeDefined();
+
+    // Verify the queued message is now promoted to chatroom_messages
+    const queuedAfter = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+    expect(queuedAfter.length).toBe(0);
+
+    // Verify the task status is now pending
+    const promotedTask = await t.run(async (ctx) => {
+      return await ctx.db.get(result.promotedTaskId!);
+    });
+    expect(promotedTask?.status).toBe('pending');
+  });
+
+  test('when handing off to user and no queued tasks, no promotion happens', async () => {
+    const { sessionId } = await createTestSession('handoff-promote-2');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Create an in_progress task for the builder (will be completed by handoff)
+    const activeTaskId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'task in progress',
+        status: 'in_progress',
+        origin: 'chat',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 0,
+        assignedTo: 'builder',
+      });
+    });
+
+    // Mark the active task as having a sourceMessageId (simulate task-started)
+    await t.run(async (ctx) => {
+      const msg = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('content'), 'task in progress'))
+        .first();
+      if (msg) {
+        await ctx.db.patch(activeTaskId, { sourceMessageId: msg._id });
+      }
+    });
+
+    // Builder hands off to user (no queued tasks to promote)
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'work complete',
+      targetRole: 'user',
+    });
+
+    // Verify no promotion happened
+    expect(result.success).toBe(true);
+    expect(result.promotedTaskId).toBeNull();
+  });
+
+  test('when handing off to agent (not user), queued tasks are NOT promoted', async () => {
+    const { sessionId } = await createTestSession('handoff-promote-3');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Create an in_progress task for the builder (will be completed by handoff)
+    const activeTaskId = await t.run(async (ctx) => {
+      const now = Date.now();
+      return await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'task in progress',
+        status: 'in_progress',
+        origin: 'chat',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 0,
+        assignedTo: 'builder',
+      });
+    });
+
+    // Send a user message while the builder is working (should be queued)
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'queued message',
+      type: 'message',
+    });
+
+    // Verify the message was queued
+    const queuedBefore = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+    expect(queuedBefore.length).toBe(1);
+
+    // Mark the active task as having a sourceMessageId (simulate task-started)
+    await t.run(async (ctx) => {
+      const msg = await ctx.db
+        .query('chatroom_messages')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) => q.eq(q.field('content'), 'task in progress'))
+        .first();
+      if (msg) {
+        await ctx.db.patch(activeTaskId, { sourceMessageId: msg._id });
+      }
+    });
+
+    // Builder hands off to reviewer (agent-to-agent handoff)
+    const result = await t.mutation(api.messages.handoff, {
+      sessionId,
+      chatroomId,
+      senderRole: 'builder',
+      content: 'ready for review',
+      targetRole: 'reviewer',
+    });
+
+    // Verify NO explicit promotion (queued task stays queued)
+    expect(result.success).toBe(true);
+    expect(result.promotedTaskId).toBeNull();
+
+    // Queued message still in queue
+    const queuedAfter = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+    expect(queuedAfter.length).toBe(1);
+  });
+});

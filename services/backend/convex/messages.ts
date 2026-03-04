@@ -19,6 +19,8 @@ import {
   determineTaskStatus,
 } from '../src/domain/usecase/task/create-task';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
+import { transitionTask as fsmTransitionTask } from './lib/taskStateMachine';
+import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 
 const config = getConfig();
@@ -436,6 +438,7 @@ async function _handoffHandler(
 
   // Step 3: Create task for target agent (if not user)
   let newTaskId: Id<'chatroom_tasks'> | null = null;
+  let promotedTaskId: Id<'chatroom_tasks'> | null = null;
   if (!isHandoffToUser) {
     // Get next queue position atomically (prevents race conditions)
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
@@ -508,8 +511,47 @@ async function _handoffHandler(
     }
   }
 
-  // Step 6: Queue promotion is now handled automatically by the transitionTask usecase
-  // whenever a task transitions to 'completed'. No inline promotion needed here.
+  // Step 6: Explicit queue promotion on handoff-to-user
+  // When handing off to user, we need to explicitly promote the next queued task
+  // because areAllAgentsWaiting() returns false at this point (the sender is still
+  // marked as "working"). We check: no active tasks remain → promote next queued task.
+  if (isHandoffToUser) {
+    // Check if there are any remaining active tasks
+    const activeTasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+      )
+      .first();
+
+    const inProgressRemaining = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+      )
+      .first();
+
+    if (!activeTasks && !inProgressRemaining) {
+      // No active tasks — find oldest queued task and promote it
+      const queuedTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
+        )
+        .collect();
+
+      if (queuedTasks.length > 0) {
+        queuedTasks.sort((a, b) => a.queuePosition - b.queuePosition);
+        const nextTask = queuedTasks[0];
+        if (nextTask) {
+          // Use fsmTransitionTask directly (bypass areAllAgentsWaiting check)
+          await fsmTransitionTask(ctx, nextTask._id, 'pending', 'promoteNextTask');
+          await promoteQueuedMessage(ctx, nextTask._id);
+          promotedTaskId = nextTask._id;
+        }
+      }
+    }
+  }
 
   return {
     success: true,
@@ -517,7 +559,7 @@ async function _handoffHandler(
     messageId,
     completedTaskIds,
     newTaskId,
-    promotedTaskId: null,
+    promotedTaskId,
   };
 }
 
