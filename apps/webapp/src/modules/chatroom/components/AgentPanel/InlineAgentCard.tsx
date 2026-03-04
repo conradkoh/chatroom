@@ -5,7 +5,6 @@ import React, { memo, useState } from 'react';
 import type { AgentHarness, MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import { useAgentControls, RemoteTabContent, CustomTabContent } from '../AgentConfigTabs';
 import type { AgentPreference } from '../AgentConfigTabs';
-import { AgentActionButtons } from './AgentActionButtons';
 import { AgentStatusRow } from './AgentStatusRow';
 import { getDaemonStartCommand } from '@/lib/environment';
 
@@ -174,20 +173,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           )}
         </div>
       </div>
-
-      {/* Column 2: Start/Stop button — anchored to top (only for remote agents) */}
-      {teamConfig?.type === 'remote' && (
-        <div className="flex items-start justify-center flex-shrink-0">
-          <AgentActionButtons
-            canStart={Boolean(controls.canStart)}
-            canStop={Boolean(controls.canStop)}
-            isStarting={controls.isStarting}
-            isStopping={controls.isStopping}
-            onStart={controls.handleStartAgent}
-            onStop={controls.handleStopAgent}
-          />
-        </div>
-      )}
     </div>
   );
 });
