@@ -154,6 +154,9 @@ export async function startAgent(
       workingDir,
       updatedAt: teamConfigNow,
       desiredState: 'running' as const,
+      // Reset circuit breaker — manual start is an explicit user intent to retry
+      circuitState: 'closed' as const,
+      circuitOpenedAt: undefined,
     };
 
     if (existingTeamConfig) {
