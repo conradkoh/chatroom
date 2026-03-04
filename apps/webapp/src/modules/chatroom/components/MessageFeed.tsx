@@ -264,6 +264,11 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
     return null;
   }
 
+  // Never render TaskHeader for queued messages
+  if (message.isQueued) {
+    return null;
+  }
+
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
 
@@ -760,19 +765,10 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
 
   // Reverse to show oldest first (backend already filters out join/progress messages)
   const displayMessages = useMemo(() => {
-    // Reverse because paginated query returns newest first, but we want oldest at top
+    // Reverse because paginated query returns newest first, we want oldest at top
     const regularMessages = [...(results || [])].reverse();
-    // Add queued messages (already in chronological order)
-    const queued = queuedMessages || [];
-    // Merge both lists and sort by creation time (with _id as stable tiebreaker)
-    const allMessages = [...regularMessages, ...queued].sort((a, b) => {
-      const timeDiff = a._creationTime - b._creationTime;
-      if (timeDiff !== 0) return timeDiff;
-      // Stable sort: use _id as tiebreaker when timestamps are equal
-      return a._id.localeCompare(b._id);
-    });
-    return allMessages;
-  }, [results, queuedMessages]);
+    return regularMessages; // Queued messages are shown separately (pinned at bottom)
+  }, [results]);
 
   // Track if user is at bottom of scroll for auto-scroll behavior and floating button
   // Using state instead of ref so the floating button can react to changes
@@ -951,6 +947,21 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
           <ChevronDown size={16} />
           <span className="text-xs font-medium">New messages</span>
         </button>
+      )}
+      {/* Queued Messages - pinned just above status bar */}
+      {queuedMessages && queuedMessages.length > 0 && (
+        <div className="border-t border-chatroom-border">
+          {queuedMessages.map((message) => (
+            <div key={message._id} className="border-b border-chatroom-border last:border-b-0">
+              {/* No TaskHeader for queued messages */}
+              <MessageItem
+                message={message}
+                onFeatureClick={handleFeatureClick}
+                onAttachedTaskClick={handleAttachedTaskClick}
+              />
+            </div>
+          ))}
+        </div>
       )}
       {/* Status bar - fixed at bottom with working indicator (left) + message count (right) */}
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
