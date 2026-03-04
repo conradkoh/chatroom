@@ -8,6 +8,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
  * After copying:
  * - task.sourceMessageId → new chatroom_messages ID
  * - task.queuedMessageId → cleared (set to undefined)
+ * - queue record is deleted (no longer needed)
  *
  * This is idempotent: if task.sourceMessageId is already set, it skips the copy.
  */
@@ -51,6 +52,9 @@ export async function promoteQueuedMessage(
     sourceMessageId: messageId,
     queuedMessageId: undefined,
   });
+
+  // Delete the queue record (no longer needed after promotion)
+  await ctx.db.delete('chatroom_messageQueue', task.queuedMessageId);
 
   return messageId;
 }

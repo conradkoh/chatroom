@@ -201,4 +201,28 @@ describe('promoteQueuedMessage', () => {
     expect(message?.featureDescription).toBe('Test description');
     expect(message?.featureTechSpecs).toBe('Test specs');
   });
+
+  test('deletes queue record after successful promotion', async () => {
+    const { sessionId } = await createTestSession('promote-msg-6');
+    const chatroomId = await createChatroom(sessionId);
+
+    const { taskId, queuedMessageId } = await createQueuedTaskWithQueuedMessage(chatroomId);
+
+    // Verify queue record exists before promotion
+    const queueRecordBefore = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_messageQueue', queuedMessageId);
+    });
+    expect(queueRecordBefore).toBeDefined();
+
+    // Promote the message
+    await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, taskId);
+    });
+
+    // Verify queue record is deleted after promotion
+    const queueRecordAfter = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_messageQueue', queuedMessageId);
+    });
+    expect(queueRecordAfter).toBeNull();
+  });
 });

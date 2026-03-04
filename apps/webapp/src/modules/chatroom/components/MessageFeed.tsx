@@ -772,10 +772,13 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     const regularMessages = [...(results || [])].reverse();
     // Add queued messages (already in chronological order)
     const queued = queuedMessages || [];
-    // Merge both lists and sort by creation time
-    const allMessages = [...regularMessages, ...queued].sort(
-      (a, b) => a._creationTime - b._creationTime
-    );
+    // Merge both lists and sort by creation time (with _id as stable tiebreaker)
+    const allMessages = [...regularMessages, ...queued].sort((a, b) => {
+      const timeDiff = a._creationTime - b._creationTime;
+      if (timeDiff !== 0) return timeDiff;
+      // Stable sort: use _id as tiebreaker when timestamps are equal
+      return a._id.localeCompare(b._id);
+    });
     return allMessages;
   }, [results, queuedMessages]);
 

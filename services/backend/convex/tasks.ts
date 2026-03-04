@@ -1044,9 +1044,6 @@ export const promoteNextTask = mutation({
     if (result.promoted) {
       // Copy queue record to messages for the promoted task
       await promoteQueuedMessage(ctx, result.promoted);
-      console.warn(
-        `[Queue Promotion] Promoted task ${result.promoted} to pending in chatroom ${args.chatroomId}.`
-      );
     }
 
     return result.promoted
