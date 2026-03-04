@@ -421,6 +421,74 @@ describe('ensureAgentHandler — circuit breaker', () => {
     expect(config?.circuitOpenedAt).toBeDefined();
   });
 
+  test('CLOSED with 3 intentional stops → does NOT trip circuit', async () => {
+    const { sessionId } = await createTestSession('cb-7');
+    const chatroomId = await createChatroom(sessionId);
+    const machineId = 'cb-machine-7';
+
+    await registerMachine(sessionId, machineId);
+
+    // Create config with no circuit state (defaults to CLOSED)
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey: `chatroom_${chatroomId}#role_builder`,
+        chatroomId,
+        role: 'builder',
+        type: 'remote',
+        machineId,
+        agentHarness: 'opencode',
+        model: 'anthropic/claude-sonnet-4',
+        workingDir: '/tmp/test',
+        createdAt: now,
+        updatedAt: now,
+        desiredState: 'running',
+        circuitState: undefined, // CLOSED by default
+      });
+
+      // Seed 3 agent.exited events with intentional_stop within the last 5 minutes
+      for (let i = 0; i < 3; i++) {
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'agent.exited',
+          chatroomId,
+          role: 'builder',
+          machineId,
+          pid: 12345 + i,
+          intentional: true,
+          stopReason: 'intentional_stop',
+          timestamp: now - (i * 60_000), // 0, 1, 2 minutes ago
+        });
+      }
+    });
+
+    const snapshot = Date.now() - 1;
+    const taskId = await seedPendingTask(chatroomId);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(taskId, { updatedAt: snapshot });
+    });
+
+    await t.mutation(internal.ensureAgentHandler.check, {
+      taskId,
+      chatroomId,
+      snapshotUpdatedAt: snapshot,
+    });
+
+    const startCount = await countStartCommands(chatroomId);
+    expect(startCount).toBe(1); // intentional stops don't trip circuit — restart allowed
+
+    // Verify circuit did NOT trip
+    const config = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .first();
+    });
+
+    expect(config?.circuitState).toBeUndefined(); // Still closed (undefined)
+  });
+
   test('participants.join resets half-open circuit to closed', async () => {
     const { sessionId } = await createTestSession('cb-6');
     const chatroomId = await createChatroom(sessionId);

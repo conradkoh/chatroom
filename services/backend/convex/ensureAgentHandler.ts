@@ -99,7 +99,10 @@ async function checkCircuitBreaker(
     .take(CIRCUIT_BREAKER_MAX_EXITS + 5);
 
   const recentExits = recentEvents.filter(
-    (e) => e.type === 'agent.exited' && e.timestamp >= windowStart
+    (e) =>
+      e.type === 'agent.exited' &&
+      e.timestamp >= windowStart &&
+      e.stopReason !== 'intentional_stop'
   );
 
   if (recentExits.length >= CIRCUIT_BREAKER_MAX_EXITS) {
