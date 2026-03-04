@@ -396,11 +396,7 @@ export default defineSchema({
     type: v.literal('message'),
     // Classification set by the agent when task-started is called
     classification: v.optional(
-      v.union(
-        v.literal('question'),
-        v.literal('new_feature'),
-        v.literal('follow_up')
-      )
+      v.union(v.literal('question'), v.literal('new_feature'), v.literal('follow_up'))
     ),
     // Feature metadata (set for new_feature classification)
     featureTitle: v.optional(v.string()),
@@ -412,6 +408,8 @@ export default defineSchema({
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
     // Queue ordering (lower = earlier in queue, older message)
     queuePosition: v.optional(v.number()),
+    // Legacy back-reference to task (removed from schema, kept for old documents)
+    taskId: v.optional(v.id('chatroom_tasks')),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
@@ -941,7 +939,7 @@ export default defineSchema({
         machineId: v.string(),
         pingEventId: v.id('chatroom_eventStream'),
         timestamp: v.number(),
-      }),
+      })
     )
   )
     .index('by_chatroom', ['chatroomId'])
