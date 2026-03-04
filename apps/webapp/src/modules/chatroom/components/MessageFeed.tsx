@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import {
   ChevronUp,
   ChevronDown,
@@ -21,6 +21,8 @@ import {
   RotateCcw,
   ArrowRight,
   Activity,
+  Play,
+  Trash2,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -469,6 +471,124 @@ const TaskProgressHistory = memo(function TaskProgressHistory({
   );
 });
 
+// ─── QueuedMessageHeader ──────────────────────────────────────────────────────
+// Renders a sticky header above each queued message with:
+//   • Orange QUEUED badge
+//   • Elapsed time since message creation
+//   • Promote button (moves this specific task to pending)
+//   • Delete button (cancels the task)
+
+/** Returns a human-readable elapsed time string that updates every second. */
+function useElapsedTime(creationTime: number): string {
+  const [elapsed, setElapsed] = useState(() => formatElapsed(creationTime));
+
+  useEffect(() => {
+    const update = () => setElapsed(formatElapsed(creationTime));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [creationTime]);
+
+  return elapsed;
+}
+
+function formatElapsed(creationTime: number): string {
+  const diffMs = Date.now() - creationTime;
+  const totalSecs = Math.floor(diffMs / 1000);
+  if (totalSecs < 60) return `${totalSecs}s`;
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  if (mins < 60) return `${mins}m ${secs}s`;
+  const hrs = Math.floor(mins / 60);
+  const remainMins = mins % 60;
+  return `${hrs}h ${remainMins}m`;
+}
+
+interface QueuedMessageHeaderProps {
+  message: Message;
+  onPromote: (taskId: string) => Promise<void>;
+  onDelete: (taskId: string) => Promise<void>;
+}
+
+const QueuedMessageHeader = memo(function QueuedMessageHeader({
+  message,
+  onPromote,
+  onDelete,
+}: QueuedMessageHeaderProps) {
+  const elapsed = useElapsedTime(message._creationTime);
+  const [isPromoting, setIsPromoting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handlePromote = useCallback(async () => {
+    if (!message.taskId || isPromoting || isDeleting) return;
+    setIsPromoting(true);
+    try {
+      await onPromote(message.taskId);
+    } finally {
+      setIsPromoting(false);
+    }
+  }, [message.taskId, onPromote, isPromoting, isDeleting]);
+
+  const handleDelete = useCallback(async () => {
+    if (!message.taskId || isDeleting || isPromoting) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(message.taskId);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [message.taskId, onDelete, isDeleting, isPromoting]);
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/10 border-b border-orange-500/20 dark:bg-orange-500/10">
+      {/* QUEUED badge */}
+      <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-orange-500/20 text-orange-600 dark:text-orange-400">
+        <Timer size={10} className="flex-shrink-0" />
+        Queued
+      </span>
+
+      {/* Elapsed time */}
+      <span className="flex items-center gap-1 text-[10px] text-orange-600/70 dark:text-orange-400/70 tabular-nums">
+        <Clock size={10} className="flex-shrink-0" />
+        {elapsed}
+      </span>
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Promote button */}
+      <button
+        onClick={handlePromote}
+        disabled={isPromoting || isDeleting || !message.taskId}
+        className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        title="Promote to active (bypass queue)"
+      >
+        {isPromoting ? (
+          <Loader2 size={10} className="flex-shrink-0 animate-spin" />
+        ) : (
+          <Play size={10} className="flex-shrink-0" />
+        )}
+        Promote
+      </button>
+
+      {/* Delete button */}
+      <button
+        onClick={handleDelete}
+        disabled={isDeleting || isPromoting || !message.taskId}
+        className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        title="Delete queued message"
+      >
+        {isDeleting ? (
+          <Loader2 size={10} className="flex-shrink-0 animate-spin" />
+        ) : (
+          <Trash2 size={10} className="flex-shrink-0" />
+        )}
+        Delete
+      </button>
+    </div>
+  );
+});
+
 interface MessageItemProps {
   message: Message;
   onFeatureClick?: (message: Message) => void;
@@ -705,6 +825,10 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
 
+  // Mutations for queued message controls
+  const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
+  const cancelTask = useSessionMutation(api.tasks.cancelTask);
+
   const feedRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
   const prevScrollHeightRef = useRef(0);
@@ -757,6 +881,34 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   const handleCloseMessageDetailModal = useCallback(() => {
     setSelectedMessage(null);
   }, []);
+
+  // Handle queued message Promote — calls promoteSpecificTask mutation
+  const handleQueuedPromote = useCallback(
+    async (taskId: string) => {
+      try {
+        await promoteSpecificTask({
+          taskId: taskId as Id<'chatroom_tasks'>,
+        });
+      } catch (error) {
+        console.error('Failed to promote queued task:', error);
+      }
+    },
+    [promoteSpecificTask]
+  );
+
+  // Handle queued message Delete — cancels the task
+  const handleQueuedDelete = useCallback(
+    async (taskId: string) => {
+      try {
+        await cancelTask({
+          taskId: taskId as Id<'chatroom_tasks'>,
+        });
+      } catch (error) {
+        console.error('Failed to delete queued task:', error);
+      }
+    },
+    [cancelTask]
+  );
 
   // Load more messages handler - stable reference for button onClick
   const handleLoadMore = useCallback(() => {
@@ -950,10 +1102,15 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
       )}
       {/* Queued Messages - pinned just above status bar */}
       {queuedMessages && queuedMessages.length > 0 && (
-        <div className="border-t border-chatroom-border">
+        <div className="border-t-2 border-orange-500/30">
           {queuedMessages.map((message) => (
             <div key={message._id} className="border-b border-chatroom-border last:border-b-0">
-              {/* No TaskHeader for queued messages */}
+              {/* QueuedMessageHeader: QUEUED badge, elapsed time, Promote and Delete buttons */}
+              <QueuedMessageHeader
+                message={message}
+                onPromote={handleQueuedPromote}
+                onDelete={handleQueuedDelete}
+              />
               <MessageItem
                 message={message}
                 onFeatureClick={handleFeatureClick}
