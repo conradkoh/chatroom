@@ -494,6 +494,44 @@ function formatElapsed(creationTime: number): string {
   return `${hrs}h ${remainMins}m`;
 }
 
+// ─── DeleteConfirmPopoverContent ──────────────────────────────────────────────
+// Shared popover body for delete confirmation dialogs.
+// Used by both the card icon-only button and the modal footer text button.
+
+interface DeleteConfirmPopoverContentProps {
+  onCancel: () => void;
+  onConfirmDelete: () => void;
+}
+
+function DeleteConfirmPopoverContent({ onCancel, onConfirmDelete }: DeleteConfirmPopoverContentProps) {
+  return (
+    <>
+      <div className="border-b-2 border-border px-3 py-2">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground">Delete Message</p>
+      </div>
+      <div className="px-3 py-2">
+        <p className="text-xs text-muted-foreground mb-3">
+          This message will be permanently removed from the queue.
+        </p>
+        <div className="flex items-center gap-2 justify-end">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border border-border text-muted-foreground hover:bg-accent transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirmDelete}
+            className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── QueuedMessageCard ────────────────────────────────────────────────────────
 // Compact fixed-height card for each queued message.
 // Row 1: truncated content (2 lines, clickable) | QUEUED badge | [↑] [🗑]
@@ -627,26 +665,10 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
-              <div className="border-b-2 border-border px-3 py-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-foreground">Delete Message</p>
-              </div>
-              <div className="px-3 py-2">
-                <p className="text-xs text-muted-foreground mb-3">This message will be permanently removed from the queue.</p>
-                <div className="flex items-center gap-2 justify-end">
-                  <button
-                    onClick={() => setIsCardDeletePopoverOpen(false)}
-                    className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border border-border text-muted-foreground hover:bg-accent transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCardDelete}
-                    className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-colors"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
+              <DeleteConfirmPopoverContent
+                onCancel={() => setIsCardDeletePopoverOpen(false)}
+                onConfirmDelete={handleCardDelete}
+              />
             </PopoverContent>
           </Popover>
         </div>
@@ -723,26 +745,10 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
-                  <div className="border-b-2 border-border px-3 py-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-foreground">Delete Message</p>
-                  </div>
-                  <div className="px-3 py-2">
-                    <p className="text-xs text-muted-foreground mb-3">This message will be permanently removed from the queue.</p>
-                    <div className="flex items-center gap-2 justify-end">
-                      <button
-                        onClick={() => setIsModalDeletePopoverOpen(false)}
-                        className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border border-border text-muted-foreground hover:bg-accent transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleModalDelete}
-                        className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
+                  <DeleteConfirmPopoverContent
+                    onCancel={() => setIsModalDeletePopoverOpen(false)}
+                    onConfirmDelete={handleModalDelete}
+                  />
                 </PopoverContent>
               </Popover>
             </div>

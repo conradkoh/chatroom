@@ -220,10 +220,12 @@ export const deleteOldFormatAgentPreferences = internalMutation({
  * Since these documents cannot be properly promoted, the safest migration is to delete them.
  * The user can re-send any messages that were in the queue.
  *
- * After this migration has run successfully in production:
- *   1. In schema.ts — remove `taskId: v.optional(v.id('chatroom_tasks'))` from chatroom_messageQueue
- *   2. Change `queuePosition: v.optional(v.number())` back to `queuePosition: v.number()`
- *   3. Remove this migration (move description to "Previously executed" list above).
+ * Schema cleanup already applied:
+ *   - taskId field has been removed from chatroom_messageQueue schema
+ *   - queuePosition is now required (v.number(), not optional)
+ *
+ * After running this migration in production, move its description to
+ * the "Previously executed migrations" list and delete the function.
  *
  * Idempotent: documents without `taskId` are skipped.
  *
