@@ -26,7 +26,7 @@ interface Message {
   _creationTime: number;
   classification?: 'question' | 'new_feature' | 'follow_up';
   taskId?: string;
-  taskStatus?: 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
+  taskStatus?: 'pending' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
   featureTitle?: string;
   featureDescription?: string;
   featureTechSpecs?: string;

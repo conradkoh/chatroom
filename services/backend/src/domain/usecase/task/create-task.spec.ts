@@ -1,5 +1,6 @@
 /**
  * Tests for create-task use case — verifies determineTaskStatus logic.
+ * determineTaskStatus returns 'pending' or 'queued' (to signal caller should enqueue).
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -32,7 +33,7 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 
 async function seedTask(
   chatroomId: Id<'chatroom_rooms'>,
-  status: 'pending' | 'in_progress' | 'queued' | 'completed'
+  status: 'pending' | 'in_progress' | 'completed'
 ) {
   return await t.run(async (ctx) => {
     const now = Date.now();
@@ -54,11 +55,10 @@ async function seedTask(
 // ---------------------------------------------------------------------------
 
 describe('determineTaskStatus', () => {
-  test('returns pending when no active or in_progress tasks exist', async () => {
+  test('returns pending when no active tasks exist', async () => {
     const { sessionId } = await createTestSession('det-status-1');
     const chatroomId = await createChatroom(sessionId);
 
-    // No tasks seeded — chatroom is empty
     const status = await t.run(async (ctx) => {
       return await determineTaskStatus(ctx, chatroomId);
     });
@@ -70,7 +70,6 @@ describe('determineTaskStatus', () => {
     const { sessionId } = await createTestSession('det-status-2');
     const chatroomId = await createChatroom(sessionId);
 
-    // Seed a pending task
     await seedTask(chatroomId, 'pending');
 
     const status = await t.run(async (ctx) => {
@@ -84,7 +83,6 @@ describe('determineTaskStatus', () => {
     const { sessionId } = await createTestSession('det-status-3');
     const chatroomId = await createChatroom(sessionId);
 
-    // Seed an in_progress task
     await seedTask(chatroomId, 'in_progress');
 
     const status = await t.run(async (ctx) => {
@@ -98,7 +96,6 @@ describe('determineTaskStatus', () => {
     const { sessionId } = await createTestSession('det-status-4');
     const chatroomId = await createChatroom(sessionId);
 
-    // Seed both pending and in_progress tasks
     await seedTask(chatroomId, 'pending');
     await seedTask(chatroomId, 'in_progress');
 
@@ -109,25 +106,10 @@ describe('determineTaskStatus', () => {
     expect(status).toBe('queued');
   });
 
-  test('returns forceStatus when provided', async () => {
+  test('returns pending when only completed tasks exist', async () => {
     const { sessionId } = await createTestSession('det-status-5');
     const chatroomId = await createChatroom(sessionId);
 
-    // Seed a pending task (would normally return 'queued')
-    await seedTask(chatroomId, 'pending');
-
-    const status = await t.run(async (ctx) => {
-      return await determineTaskStatus(ctx, chatroomId, 'backlog');
-    });
-
-    expect(status).toBe('backlog');
-  });
-
-  test('returns pending when only completed tasks exist', async () => {
-    const { sessionId } = await createTestSession('det-status-6');
-    const chatroomId = await createChatroom(sessionId);
-
-    // Seed only completed tasks (not active)
     await seedTask(chatroomId, 'completed');
     await seedTask(chatroomId, 'completed');
 

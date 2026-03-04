@@ -150,7 +150,7 @@ describe('transitionTask usecase — valid transitions', () => {
     expect(task?.completedAt).toBeDefined();
   });
 
-  test('queued → pending via promoteNextTask (clears stale fields)', async () => {
+  test('queued message → pending task via auto-promotion after task completes', async () => {
     const { sessionId } = await createTestSession('tt-valid-4');
     const chatroomId = await createChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
@@ -164,7 +164,7 @@ describe('transitionTask usecase — valid transitions', () => {
       type: 'message',
     });
 
-    // Second task goes to queued
+    // Second message goes to queue (no task created yet)
     await t.mutation(api.messages.sendMessage, {
       sessionId,
       chatroomId,
@@ -173,33 +173,39 @@ describe('transitionTask usecase — valid transitions', () => {
       type: 'message',
     });
 
-    let tasks = await t.query(api.tasks.listTasks, {
+    // Verify second message is in chatroom_messageQueue, not as a task
+    const queuedMessages = await t.query(api.messages.listQueued, {
       sessionId,
       chatroomId,
-      statusFilter: 'queued',
     });
-    expect(tasks.length).toBe(1);
-    const queuedTaskId = tasks[0]?._id as Id<'chatroom_tasks'>;
+    expect(queuedMessages.length).toBe(1);
+    expect(queuedMessages[0]?.content).toBe('Second task (queued)');
 
-    // Complete first task → auto-promotes second
+    // Complete first task → auto-promotes second message from queue
     await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
     await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
-    const completeResult = await t.mutation(api.tasks.completeTask, {
+    await t.mutation(api.tasks.completeTask, {
       sessionId,
       chatroomId,
       role: 'builder',
     });
-    // `promoted` field was removed — promotion now happens implicitly inside transitionTask usecase.
-    // Verify the queued task was actually promoted to pending instead.
-    void completeResult;
 
-    tasks = await t.query(api.tasks.listTasks, {
+    // Queue should now be empty (message was promoted)
+    const queuedAfter = await t.query(api.messages.listQueued, {
+      sessionId,
+      chatroomId,
+    });
+    expect(queuedAfter.length).toBe(0);
+
+    // A new pending task should have been created from the queued message
+    const pendingTasks = await t.query(api.tasks.listTasks, {
       sessionId,
       chatroomId,
       statusFilter: 'pending',
     });
-    const promotedTask = tasks.find((t) => t._id === queuedTaskId);
-    expect(promotedTask?.status).toBe('pending');
+    expect(pendingTasks.length).toBe(1);
+    expect(pendingTasks[0]?.content).toBe('Second task (queued)');
+    expect(pendingTasks[0]?.status).toBe('pending');
   });
 });
 

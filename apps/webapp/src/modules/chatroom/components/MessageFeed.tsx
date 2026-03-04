@@ -1316,7 +1316,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
       {displayQueuedMessages.length > 0 && (
         <div className="border-t border-border">
           {/* Section header */}
-          <div className="px-3 pt-2 pb-1">
+          <div className="px-3 pt-2 pb-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400">
               Queued
             </p>

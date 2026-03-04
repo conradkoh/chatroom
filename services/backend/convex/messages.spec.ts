@@ -80,10 +80,9 @@ describe('_sendMessageHandler — queued user message routing', () => {
     expect(task).toBeDefined();
     expect(task?.status).toBe('pending');
     expect(task?.sourceMessageId).toBe(messageId);
-    expect(task?.queuedMessageId).toBeUndefined();
   });
 
-  test('second user message (active task exists) → stored in chatroom_messageQueue, task.queuedMessageId set', async () => {
+  test('second user message (active task exists) → stored in chatroom_messageQueue, no task created yet', async () => {
     const { sessionId } = await createTestSession('msg-route-2');
     const chatroomId = await createChatroom(sessionId);
 
@@ -116,19 +115,16 @@ describe('_sendMessageHandler — queued user message routing', () => {
     const regularMessage = messagesInRegularTable.find((m) => m.content === 'second message');
     expect(regularMessage).toBeUndefined();
 
-    // Verify task was created with queuedMessageId
-    const task = await t.run(async (ctx) => {
-      const tasks = await ctx.db
+    // Verify NO task was created (tasks are created at promotion time now)
+    const tasks = await t.run(async (ctx) => {
+      return await ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
-      // Return the task that is not the seeded one (should be queued)
-      return tasks.find((t) => t.status === 'queued');
     });
-    expect(task).toBeDefined();
-    expect(task?.status).toBe('queued');
-    expect(task?.queuedMessageId).toBe(returnedId);
-    expect(task?.sourceMessageId).toBeUndefined();
+    // Only the seeded in_progress task should exist — no new task (tasks created at promotion time)
+    expect(tasks.length).toBe(1); // Just the seeded one
+    expect(tasks[0]?.status).toBe('in_progress');
   });
 
   test('second user message → chatroom_messages does NOT contain the queued message', async () => {
@@ -198,7 +194,7 @@ describe('_sendMessageHandler — queued user message routing', () => {
     expect(foundInQueue).toBeUndefined();
   });
 
-  test('queued user message → task.sourceMessageId is undefined, task.queuedMessageId is set', async () => {
+  test('queued user message → only queue record created, no task yet', async () => {
     const { sessionId } = await createTestSession('msg-route-5');
     const chatroomId = await createChatroom(sessionId);
 
@@ -214,18 +210,23 @@ describe('_sendMessageHandler — queued user message routing', () => {
       type: 'message',
     });
 
-    // Find the queued task
-    const queuedTask = await t.run(async (ctx) => {
-      const tasks = await ctx.db
+    // Verify queue record was created
+    const queueRecord = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_messageQueue', returnedId as Id<'chatroom_messageQueue'>);
+    });
+    expect(queueRecord).toBeDefined();
+    expect(queueRecord?.content).toBe('queued message');
+
+    // Verify NO new task was created (only the seeded one should exist)
+    const tasks = await t.run(async (ctx) => {
+      return await ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
-      return tasks.find((t) => t.status === 'queued');
     });
-
-    expect(queuedTask).toBeDefined();
-    expect(queuedTask?.sourceMessageId).toBeUndefined();
-    expect(queuedTask?.queuedMessageId).toBe(returnedId);
+    // Should only have the seeded in_progress task
+    expect(tasks.length).toBe(1);
+    expect(tasks[0]?.status).toBe('in_progress');
   });
 });
 

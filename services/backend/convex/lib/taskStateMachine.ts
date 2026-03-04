@@ -23,7 +23,6 @@ export type TaskStatus =
   | 'pending_user_review' // Agent done, awaiting user confirmation
 
   // Common
-  | 'queued' // Waiting in queue
   | 'closed'; // Cancelled
 
 export type Task = Doc<'chatroom_tasks'>;
@@ -166,13 +165,6 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   {
-    from: 'queued',
-    to: 'pending_user_review',
-    trigger: 'parentTaskAcknowledged',
-    setFields: {},
-  },
-
-  {
     from: 'pending',
     to: 'pending_user_review',
     trigger: 'parentTaskAcknowledged',
@@ -243,28 +235,8 @@ const TRANSITIONS: TransitionRule[] = [
     clearFields: ['acknowledgedAt', 'startedAt', 'assignedTo', 'completedAt', 'parentTaskIds'],
   },
 
-  {
-    from: 'pending_user_review',
-    to: 'queued',
-    trigger: 'sendBackForRework',
-    setFields: {},
-    clearFields: ['acknowledgedAt', 'startedAt', 'assignedTo', 'completedAt', 'parentTaskIds'],
-  },
-
   // ==========================================================================
-  // QUEUE PROMOTION: queued → pending
-  // ==========================================================================
-
-  {
-    from: 'queued',
-    to: 'pending',
-    trigger: 'promoteNextTask',
-    setFields: {},
-    clearFields: ['startedAt', 'assignedTo', 'acknowledgedAt'], // Defensive cleanup
-  },
-
-  // ==========================================================================
-  // BACKLOG TO QUEUE: backlog → pending/queued
+  // BACKLOG TO QUEUE: backlog → pending
   // ==========================================================================
 
   {
@@ -276,24 +248,8 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   {
-    from: 'backlog',
-    to: 'queued',
-    trigger: 'moveToQueue',
-    setFields: {},
-    clearFields: ['startedAt', 'assignedTo', 'completedAt', 'acknowledgedAt'],
-  },
-
-  {
     from: 'pending_user_review',
     to: 'pending',
-    trigger: 'moveToQueue',
-    setFields: {},
-    clearFields: ['completedAt'],
-  },
-
-  {
-    from: 'pending_user_review',
-    to: 'queued',
     trigger: 'moveToQueue',
     setFields: {},
     clearFields: ['completedAt'],
@@ -319,13 +275,6 @@ const TRANSITIONS: TransitionRule[] = [
 
   {
     from: 'in_progress',
-    to: 'closed',
-    trigger: 'cancelTask',
-    setFields: {},
-  },
-
-  {
-    from: 'queued',
     to: 'closed',
     trigger: 'cancelTask',
     setFields: {},
@@ -375,7 +324,7 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   // ==========================================================================
-  // FORCE COMPLETION: pending/acknowledged/in_progress/backlog/queued → completed
+  // FORCE COMPLETION: pending/acknowledged/in_progress/backlog → completed
   // ==========================================================================
 
   {
@@ -398,15 +347,6 @@ const TRANSITIONS: TransitionRule[] = [
 
   {
     from: 'in_progress',
-    to: 'completed',
-    trigger: 'completeTaskById',
-    setFields: {
-      completedAt: 'NOW',
-    },
-  },
-
-  {
-    from: 'queued',
     to: 'completed',
     trigger: 'completeTaskById',
     setFields: {

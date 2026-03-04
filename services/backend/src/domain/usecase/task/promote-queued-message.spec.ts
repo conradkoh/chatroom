@@ -1,6 +1,9 @@
 /**
  * Tests for promote-queued-message use case.
- * Verifies that queued messages are correctly promoted to chatroom_messages.
+ * Verifies that queued messages are correctly promoted:
+ * - message copied from chatroom_messageQueue to chatroom_messages
+ * - a new task created with status 'pending'
+ * - queue record deleted
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -31,41 +34,19 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
   });
 }
 
-async function createQueuedTaskWithQueuedMessage(
-  chatroomId: Id<'chatroom_rooms'>
-): Promise<{
-  taskId: Id<'chatroom_tasks'>;
-  queuedMessageId: Id<'chatroom_messageQueue'>;
-}> {
+async function createQueueRecord(
+  chatroomId: Id<'chatroom_rooms'>,
+  content = 'queued message content'
+): Promise<Id<'chatroom_messageQueue'>> {
   return await t.run(async (ctx) => {
-    const now = Date.now();
-
-    // Create the queued task first (without queuedMessageId)
-    const taskId = await ctx.db.insert('chatroom_tasks', {
-      chatroomId,
-      createdBy: 'user',
-      content: 'queued message content',
-      status: 'queued',
-      origin: 'chat',
-      createdAt: now,
-      updatedAt: now,
-      queuePosition: 0,
-    });
-
-    // Now create the queued message with the proper taskId
-    const queuedMessageId = await ctx.db.insert('chatroom_messageQueue', {
+    return await ctx.db.insert('chatroom_messageQueue', {
       chatroomId,
       senderRole: 'user',
       targetRole: 'builder',
-      content: 'queued message content',
+      content,
       type: 'message',
-      taskId,
+      queuePosition: 1,
     });
-
-    // Update the task with queuedMessageId
-    await ctx.db.patch('chatroom_tasks', taskId, { queuedMessageId });
-
-    return { taskId, queuedMessageId };
   });
 }
 
@@ -74,139 +55,78 @@ async function createQueuedTaskWithQueuedMessage(
 // ---------------------------------------------------------------------------
 
 describe('promoteQueuedMessage', () => {
-  test('copies queue record to chatroom_messages when task has queuedMessageId', async () => {
+  test('creates a chatroom_messages record from queue data', async () => {
     const { sessionId } = await createTestSession('promote-msg-1');
     const chatroomId = await createChatroom(sessionId);
 
-    // Create queued task with queued message
-    const { taskId } = await createQueuedTaskWithQueuedMessage(chatroomId);
+    const queuedMessageId = await createQueueRecord(chatroomId);
 
-    // Promote the message
-    const messageId = await t.run(async (ctx) => {
-      return await promoteQueuedMessage(ctx, taskId);
+    const result = await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, queuedMessageId);
     });
 
-    // Verify a chatroom_messages record was created
-    expect(messageId).toBeDefined();
-    expect(messageId).not.toBeNull();
+    expect(result).toBeDefined();
+    expect(result).not.toBeNull();
+    expect(result?.messageId).toBeDefined();
 
     const message = await t.run(async (ctx) => {
-      return await ctx.db.get('chatroom_messages', messageId as Id<'chatroom_messages'>);
+      return await ctx.db.get('chatroom_messages', result!.messageId);
     });
 
     expect(message).toBeDefined();
     expect(message?.content).toBe('queued message content');
     expect(message?.senderRole).toBe('user');
     expect(message?.targetRole).toBe('builder');
-    expect(message?.taskId).toBe(taskId);
   });
 
-  test('sets task.sourceMessageId to new message ID after promotion', async () => {
+  test('creates a new task with status pending', async () => {
     const { sessionId } = await createTestSession('promote-msg-2');
     const chatroomId = await createChatroom(sessionId);
 
-    const { taskId } = await createQueuedTaskWithQueuedMessage(chatroomId);
+    const queuedMessageId = await createQueueRecord(chatroomId);
 
-    // Promote the message
-    const messageId = await t.run(async (ctx) => {
-      return await promoteQueuedMessage(ctx, taskId);
+    const result = await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, queuedMessageId);
     });
 
-    // Verify task.sourceMessageId is set
+    expect(result?.taskId).toBeDefined();
+
     const task = await t.run(async (ctx) => {
-      return await ctx.db.get('chatroom_tasks', taskId);
+      return await ctx.db.get('chatroom_tasks', result!.taskId);
     });
 
-    expect(task?.sourceMessageId).toBe(messageId);
+    expect(task).toBeDefined();
+    expect(task?.status).toBe('pending');
+    expect(task?.content).toBe('queued message content');
+    expect(task?.origin).toBe('chat');
   });
 
-  test('clears task.queuedMessageId after promotion', async () => {
+  test('links message and task bidirectionally', async () => {
     const { sessionId } = await createTestSession('promote-msg-3');
     const chatroomId = await createChatroom(sessionId);
 
-    const { taskId } = await createQueuedTaskWithQueuedMessage(chatroomId);
+    const queuedMessageId = await createQueueRecord(chatroomId);
 
-    // Promote the message
-    await t.run(async (ctx) => {
-      return await promoteQueuedMessage(ctx, taskId);
+    const result = await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, queuedMessageId);
     });
 
-    // Verify task.queuedMessageId is cleared
-    const task = await t.run(async (ctx) => {
-      return await ctx.db.get('chatroom_tasks', taskId);
-    });
-
-    expect(task?.queuedMessageId).toBeUndefined();
-  });
-
-  test('is idempotent: if task already has sourceMessageId, skips copy', async () => {
-    const { sessionId } = await createTestSession('promote-msg-4');
-    const chatroomId = await createChatroom(sessionId);
-
-    const { taskId } = await createQueuedTaskWithQueuedMessage(chatroomId);
-
-    // First promotion
-    const firstMessageId = await t.run(async (ctx) => {
-      return await promoteQueuedMessage(ctx, taskId);
-    });
-
-    // Second promotion (should return same ID, not create new message)
-    const secondMessageId = await t.run(async (ctx) => {
-      return await promoteQueuedMessage(ctx, taskId);
-    });
-
-    expect(secondMessageId).toBe(firstMessageId);
-
-    // Verify only one message was created
-    const messages = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-
-    const messagesWithContent = messages.filter((m) => m.content === 'queued message content');
-    expect(messagesWithContent.length).toBe(1);
-  });
-
-  test('copies classification to chatroom_messages if set on queue record', async () => {
-    const { sessionId } = await createTestSession('promote-msg-5');
-    const chatroomId = await createChatroom(sessionId);
-
-    // Create queued task with classified queue message
-    const { taskId, queuedMessageId } = await createQueuedTaskWithQueuedMessage(chatroomId);
-
-    // Add classification to the queued message
-    await t.run(async (ctx) => {
-      await ctx.db.patch('chatroom_messageQueue', queuedMessageId, {
-        classification: 'question',
-        featureTitle: 'Test Feature',
-        featureDescription: 'Test description',
-        featureTechSpecs: 'Test specs',
-      });
-    });
-
-    // Promote the message
-    const messageId = await t.run(async (ctx) => {
-      return await promoteQueuedMessage(ctx, taskId);
-    });
-
-    // Verify classification was copied
     const message = await t.run(async (ctx) => {
-      return await ctx.db.get('chatroom_messages', messageId as Id<'chatroom_messages'>);
+      return await ctx.db.get('chatroom_messages', result!.messageId);
+    });
+    const task = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_tasks', result!.taskId);
     });
 
-    expect(message?.classification).toBe('question');
-    expect(message?.featureTitle).toBe('Test Feature');
-    expect(message?.featureDescription).toBe('Test description');
-    expect(message?.featureTechSpecs).toBe('Test specs');
+    expect(message?.taskId).toBe(result!.taskId);
+    expect(task?.sourceMessageId).toBe(result!.messageId);
   });
 
   test('deletes queue record after successful promotion', async () => {
-    const { sessionId } = await createTestSession('promote-msg-6');
+    const { sessionId } = await createTestSession('promote-msg-4');
     const chatroomId = await createChatroom(sessionId);
 
-    const { taskId, queuedMessageId } = await createQueuedTaskWithQueuedMessage(chatroomId);
+    const queuedMessageId = await createQueueRecord(chatroomId);
 
     // Verify queue record exists before promotion
     const queueRecordBefore = await t.run(async (ctx) => {
@@ -214,15 +134,73 @@ describe('promoteQueuedMessage', () => {
     });
     expect(queueRecordBefore).toBeDefined();
 
-    // Promote the message
+    // Promote
     await t.run(async (ctx) => {
-      return await promoteQueuedMessage(ctx, taskId);
+      return await promoteQueuedMessage(ctx, queuedMessageId);
     });
 
-    // Verify queue record is deleted after promotion
+    // Verify queue record is deleted
     const queueRecordAfter = await t.run(async (ctx) => {
       return await ctx.db.get('chatroom_messageQueue', queuedMessageId);
     });
     expect(queueRecordAfter).toBeNull();
+  });
+
+  test('returns null if queue record does not exist', async () => {
+    const { sessionId } = await createTestSession('promote-msg-5');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Create a queue record, then delete it so we have a valid-format ID that no longer exists
+    const deletedId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert('chatroom_messageQueue', {
+        chatroomId,
+        senderRole: 'user',
+        targetRole: 'builder',
+        content: 'temp',
+        type: 'message',
+        queuePosition: 0,
+      });
+      await ctx.db.delete('chatroom_messageQueue', id);
+      return id;
+    });
+
+    const result = await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, deletedId);
+    });
+
+    expect(result).toBeNull();
+  });
+
+  test('copies classification to chatroom_messages if set on queue record', async () => {
+    const { sessionId } = await createTestSession('promote-msg-6');
+    const chatroomId = await createChatroom(sessionId);
+
+    const queuedMessageId = await t.run(async (ctx) => {
+      return await ctx.db.insert('chatroom_messageQueue', {
+        chatroomId,
+        senderRole: 'user',
+        targetRole: 'builder',
+        content: 'classified queued message',
+        type: 'message',
+        queuePosition: 1,
+        classification: 'question' as const,
+        featureTitle: 'Test Feature',
+        featureDescription: 'Test description',
+        featureTechSpecs: 'Test specs',
+      });
+    });
+
+    const result = await t.run(async (ctx) => {
+      return await promoteQueuedMessage(ctx, queuedMessageId);
+    });
+
+    const message = await t.run(async (ctx) => {
+      return await ctx.db.get('chatroom_messages', result!.messageId);
+    });
+
+    expect(message?.classification).toBe('question');
+    expect(message?.featureTitle).toBe('Test Feature');
+    expect(message?.featureDescription).toBe('Test description');
+    expect(message?.featureTechSpecs).toBe('Test specs');
   });
 });

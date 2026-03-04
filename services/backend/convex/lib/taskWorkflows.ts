@@ -12,7 +12,6 @@ export type TaskOrigin = 'backlog' | 'chat';
  */
 export type TaskSection =
   | 'backlog' // Backlog tab
-  | 'queued' // Queue section
   | 'current' // Current/active task section
   | 'pending_review' // Pending user review section
   | 'archived'; // Archived/completed section
@@ -22,18 +21,16 @@ export const TASK_WORKFLOWS = {
   backlog: {
     initial: 'backlog' as const, // Starts in backlog tab
     transitions: {
-      backlog: ['queued'], // User moves backlog item to chat
-      queued: ['pending'], // Automatic: becomes next in line
+      backlog: ['pending'], // User moves backlog item to chat
       pending: ['in_progress'], // Automatic: agent task-started
       in_progress: ['pending_user_review'], // Agent completes
-      pending_user_review: ['completed', 'closed', 'queued'], // User decides or sends back for re-work
+      pending_user_review: ['completed', 'closed', 'pending'], // User decides or sends back for re-work
     },
     terminal: ['completed', 'closed'] as const,
   },
   chat: {
-    initial: 'queued' as const, // Starts in queue
+    initial: 'pending' as const, // Starts as pending (task created at promotion time)
     transitions: {
-      queued: ['pending'], // Automatic: becomes next in line
       pending: ['in_progress'], // Automatic: agent task-started
       in_progress: ['completed'], // Agent finishes
     },
@@ -70,11 +67,6 @@ export function getTaskSection(_origin: TaskOrigin | undefined, status: TaskStat
     return 'current';
   }
 
-  // Queued - shows in queued section
-  if (status === 'queued') {
-    return 'queued';
-  }
-
   // Fallback
   return 'archived';
 }
@@ -85,10 +77,6 @@ export function getTaskSection(_origin: TaskOrigin | undefined, status: TaskStat
 export function getNextStatuses(origin: TaskOrigin | undefined, status: TaskStatus): TaskStatus[] {
   if (!origin) {
     // Legacy task without origin - limited transitions
-    // Backlog items without origin can still be moved to queue
-    if (status === 'backlog') {
-      return ['queued'];
-    }
     return [];
   }
 

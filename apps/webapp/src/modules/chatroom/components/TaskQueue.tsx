@@ -38,7 +38,6 @@ type TaskStatus =
   | 'pending'
   | 'acknowledged'
   | 'in_progress'
-  | 'queued'
   | 'backlog'
   | 'backlog_acknowledged'
   | 'pending_user_review'
@@ -114,12 +113,6 @@ const getStatusBadge = (status: TaskStatus) => {
         label: 'In Progress',
         classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
       };
-    case 'queued':
-      return {
-        emoji: '🟡',
-        label: 'Queued',
-        classes: 'bg-chatroom-status-warning/15 text-chatroom-status-warning',
-      };
     case 'backlog':
       return {
         emoji: '⚪',
@@ -167,8 +160,6 @@ const CURRENT_TASKS_PREVIEW_LIMIT = 3;
 
 export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editedContent, setEditedContent] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
   const [isPendingReviewModalOpen, setIsPendingReviewModalOpen] = useState(false);
@@ -252,7 +243,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
           t.status === 'in_progress' ||
           t.status === 'backlog_acknowledged'
       ),
-      queued: tasks.filter((t) => t.status === 'queued'),
       backlog: backlogTasks,
     };
   }, [tasks]);
@@ -270,37 +260,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
     [createTask, chatroomId]
   );
 
-  const handleEditTask = useCallback(
-    async (taskId: string) => {
-      if (!editedContent.trim()) return;
-
-      try {
-        await updateTask({
-          taskId: taskId as Id<'chatroom_tasks'>,
-          content: editedContent.trim(),
-        });
-        setEditingTaskId(null);
-        setEditedContent('');
-      } catch (error) {
-        console.error('Failed to update task:', error);
-      }
-    },
-    [updateTask, editedContent]
-  );
-
-  const handleCancelTask = useCallback(
-    async (taskId: string) => {
-      try {
-        await cancelTask({
-          taskId: taskId as Id<'chatroom_tasks'>,
-        });
-      } catch (error) {
-        console.error('Failed to cancel task:', error);
-      }
-    },
-    [cancelTask]
-  );
-
   const handlePromoteNext = useCallback(async () => {
     try {
       await promoteNextTask({
@@ -310,16 +269,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
       console.error('Failed to promote next task:', error);
     }
   }, [promoteNextTask, chatroomId]);
-
-  const startEditing = useCallback((task: Task) => {
-    setEditingTaskId(task._id);
-    setEditedContent(task.content);
-  }, []);
-
-  const cancelEditing = useCallback(() => {
-    setEditingTaskId(null);
-    setEditedContent('');
-  }, []);
 
   // Modal handlers
   const handleOpenTaskDetail = useCallback((task: Task) => {
@@ -544,27 +493,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
           </div>
         )}
 
-        {/* Queued Tasks */}
-        {categorizedTasks.queued.length > 0 && (
-          <div className="border-b border-chatroom-border">
-            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary">
-              Queued ({categorizedTasks.queued.length})
-            </div>
-            {categorizedTasks.queued.map((task) => (
-              <TaskItem
-                key={task._id}
-                task={task}
-                isEditing={editingTaskId === task._id}
-                editedContent={editedContent}
-                onStartEdit={() => startEditing(task)}
-                onSaveEdit={() => handleEditTask(task._id)}
-                onCancelEdit={cancelEditing}
-                onEditContentChange={setEditedContent}
-                onDelete={() => handleCancelTask(task._id)}
-              />
-            ))}
-          </div>
-        )}
+        {/* Note: Queued messages are shown in MessageFeed (pinned above status bar), not here */}
 
         {/* Pending Review - Tasks completed by agents awaiting user confirmation */}
         {filteredPendingReviewTasks.length > 0 && (

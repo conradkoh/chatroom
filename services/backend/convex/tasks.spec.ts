@@ -1,5 +1,7 @@
 /**
  * Tests for task mutations — promoteSpecificTask
+ * Updated to work with new architecture: no tasks at queue time,
+ * promoteSpecificTask takes queuedMessageId.
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -29,39 +31,20 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
   });
 }
 
-async function createQueuedTask(
+/** Creates a queue record (no task — task is created at promotion time) */
+async function createQueueRecord(
   chatroomId: Id<'chatroom_rooms'>,
-  content: string = 'queued task'
-): Promise<Id<'chatroom_tasks'>> {
+  content: string = 'queued message'
+): Promise<Id<'chatroom_messageQueue'>> {
   return await t.run(async (ctx) => {
-    const now = Date.now();
-    
-    // Create task first (without queuedMessageId initially)
-    const taskId = await ctx.db.insert('chatroom_tasks', {
+    return await ctx.db.insert('chatroom_messageQueue', {
       chatroomId,
-      createdBy: 'user',
-      content,
-      status: 'queued',
-      origin: 'chat',
-      createdAt: now,
-      updatedAt: now,
-      queuePosition: 0,
-    });
-    
-    // Create queued message with taskId
-    const queuedMessageId = await ctx.db.insert('chatroom_messageQueue', {
-      chatroomId,
-      taskId,
       senderRole: 'user',
       targetRole: 'builder',
       content,
       type: 'message',
+      queuePosition: 1,
     });
-
-    // Update task with queuedMessageId reference
-    await ctx.db.patch(taskId, { queuedMessageId });
-
-    return taskId;
   });
 }
 
@@ -70,49 +53,47 @@ async function createQueuedTask(
 // ---------------------------------------------------------------------------
 
 describe('promoteSpecificTask', () => {
-  test('promotes a queued task to pending when no active tasks exist', async () => {
+  test('promotes a queued message to pending task when no active tasks exist', async () => {
     const { sessionId } = await createTestSession('promote-specific-1');
     const chatroomId = await createChatroom(sessionId);
 
-    // Create a queued task
-    const taskId = await createQueuedTask(chatroomId, 'test queued task');
-
-    // Verify it's queued
-    const taskBefore = await t.run(async (ctx) => ctx.db.get(taskId));
-    expect(taskBefore?.status).toBe('queued');
+    const queuedMessageId = await createQueueRecord(chatroomId, 'test queued task');
 
     // Promote it
     const result = await t.mutation(api.tasks.promoteSpecificTask, {
       sessionId,
-      taskId,
+      queuedMessageId,
     });
 
-    // Verify promotion succeeded
     expect(result.promoted).toBe(true);
     expect(result.reason).toBe('success');
 
-    // Verify task status changed
-    const taskAfter = await t.run(async (ctx) => ctx.db.get(taskId));
-    expect(taskAfter?.status).toBe('pending');
+    // Verify queue record was deleted
+    const queueRecord = await t.run(async (ctx) => ctx.db.get('chatroom_messageQueue', queuedMessageId));
+    expect(queueRecord).toBeNull();
 
     // Verify message was promoted to chatroom_messages
-    const queuedMessage = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_messageQueue')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .filter((q) => q.eq(q.field('taskId'), taskId))
-        .first();
-    });
-    expect(queuedMessage).toBeNull();
-
     const promotedMessage = await t.run(async (ctx) => {
       return await ctx.db
         .query('chatroom_messages')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .filter((q) => q.eq(q.field('taskId'), taskId))
         .first();
     });
     expect(promotedMessage).toBeDefined();
+    expect(promotedMessage?.content).toBe('test queued task');
+
+    // Verify a pending task was created
+    const task = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'pending')
+        )
+        .first();
+    });
+    expect(task).toBeDefined();
+    expect(task?.status).toBe('pending');
+    expect(task?.content).toBe('test queued task');
   });
 
   test('returns active_task_exists when a pending task already exists', async () => {
@@ -134,21 +115,20 @@ describe('promoteSpecificTask', () => {
       });
     });
 
-    // Create a queued task
-    const taskId = await createQueuedTask(chatroomId, 'queued task');
+    const queuedMessageId = await createQueueRecord(chatroomId, 'queued task');
 
-    // Try to promote — should fail
+    // Try to promote — should fail gracefully
     const result = await t.mutation(api.tasks.promoteSpecificTask, {
       sessionId,
-      taskId,
+      queuedMessageId,
     });
 
     expect(result.promoted).toBe(false);
     expect(result.reason).toBe('active_task_exists');
 
-    // Verify task is still queued
-    const task = await t.run(async (ctx) => ctx.db.get(taskId));
-    expect(task?.status).toBe('queued');
+    // Verify queue record is still there
+    const queueRecord = await t.run(async (ctx) => ctx.db.get('chatroom_messageQueue', queuedMessageId));
+    expect(queueRecord).toBeDefined();
   });
 
   test('returns active_task_exists when an in_progress task exists', async () => {
@@ -170,93 +150,78 @@ describe('promoteSpecificTask', () => {
       });
     });
 
-    // Create a queued task
-    const taskId = await createQueuedTask(chatroomId, 'queued task');
+    const queuedMessageId = await createQueueRecord(chatroomId, 'queued task');
 
-    // Try to promote — should fail
+    // Try to promote — should fail gracefully
     const result = await t.mutation(api.tasks.promoteSpecificTask, {
       sessionId,
-      taskId,
+      queuedMessageId,
     });
 
     expect(result.promoted).toBe(false);
     expect(result.reason).toBe('active_task_exists');
 
-    // Verify task is still queued
-    const task = await t.run(async (ctx) => ctx.db.get(taskId));
-    expect(task?.status).toBe('queued');
+    // Verify queue record still exists
+    const queueRecord = await t.run(async (ctx) => ctx.db.get('chatroom_messageQueue', queuedMessageId));
+    expect(queueRecord).toBeDefined();
   });
 
-  test('throws INVALID_TASK_STATUS if task is not queued', async () => {
+  test('throws QUEUED_MESSAGE_NOT_FOUND if queue record does not exist', async () => {
     const { sessionId } = await createTestSession('promote-specific-4');
     const chatroomId = await createChatroom(sessionId);
 
-    // Create a pending task (not queued)
-    const taskId = await t.run(async (ctx) => {
-      const now = Date.now();
-      return await ctx.db.insert('chatroom_tasks', {
+    // Create a queue record and immediately delete it to get a valid-format but nonexistent ID
+    const deletedId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert('chatroom_messageQueue', {
         chatroomId,
-        createdBy: 'user',
-        content: 'pending task',
-        status: 'pending',
-        origin: 'chat',
-        createdAt: now,
-        updatedAt: now,
+        senderRole: 'user',
+        targetRole: 'builder',
+        content: 'temp',
+        type: 'message',
         queuePosition: 0,
       });
+      await ctx.db.delete('chatroom_messageQueue', id);
+      return id;
     });
 
-    // Try to promote — should throw
     await expect(
       t.mutation(api.tasks.promoteSpecificTask, {
         sessionId,
-        taskId,
+        queuedMessageId: deletedId,
       })
-    ).rejects.toThrow(/must be in queued status/i);
+    ).rejects.toThrow(/QUEUED_MESSAGE_NOT_FOUND|not found/i);
   });
 
-  test('calls promoteQueuedMessage to move message from queue to messages', async () => {
+  test('creates task and message from queue record on success', async () => {
     const { sessionId } = await createTestSession('promote-specific-5');
     const chatroomId = await createChatroom(sessionId);
 
-    // Create a queued task with a queued message
-    const taskId = await createQueuedTask(chatroomId, 'test message content');
+    const queuedMessageId = await createQueueRecord(chatroomId, 'test message content');
 
-    // Verify queued message exists
-    const queuedBefore = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_messageQueue')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .filter((q) => q.eq(q.field('taskId'), taskId))
-        .first();
-    });
-    expect(queuedBefore).toBeDefined();
-    expect(queuedBefore?.content).toBe('test message content');
+    // Verify only queue record exists, no tasks yet
+    const tasksBefore = await t.run(async (ctx) =>
+      ctx.db.query('chatroom_tasks').withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId)).collect()
+    );
+    expect(tasksBefore.length).toBe(0);
 
-    // Promote the task
+    // Promote
     await t.mutation(api.tasks.promoteSpecificTask, {
       sessionId,
-      taskId,
+      queuedMessageId,
     });
 
-    // Verify queued message was moved to chatroom_messages
-    const queuedAfter = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_messageQueue')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .filter((q) => q.eq(q.field('taskId'), taskId))
-        .first();
-    });
-    expect(queuedAfter).toBeNull();
+    // Verify task and message were created
+    const tasksAfter = await t.run(async (ctx) =>
+      ctx.db.query('chatroom_tasks').withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId)).collect()
+    );
+    expect(tasksAfter.length).toBe(1);
+    expect(tasksAfter[0]?.status).toBe('pending');
+    expect(tasksAfter[0]?.content).toBe('test message content');
 
-    const promoted = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .filter((q) => q.eq(q.field('taskId'), taskId))
-        .first();
-    });
-    expect(promoted).toBeDefined();
-    expect(promoted?.content).toBe('test message content');
+    const messages = await t.run(async (ctx) =>
+      ctx.db.query('chatroom_messages').withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId)).collect()
+    );
+    expect(messages.length).toBe(1);
+    expect(messages[0]?.content).toBe('test message content');
   });
 });

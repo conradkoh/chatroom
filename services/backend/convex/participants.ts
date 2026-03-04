@@ -4,7 +4,6 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsWaiting, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
-import { transitionTask } from './lib/taskStateMachine';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
@@ -91,26 +90,17 @@ export const join = mutation({
         .collect();
 
       if (activeTasks.length === 0) {
-        const result = await promoteNextTask(args.chatroomId, {
+        await promoteNextTask(args.chatroomId, {
           areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
-          getOldestQueuedTask: async (chatroomId) => {
-            const tasks = await ctx.db
-              .query('chatroom_tasks')
-              .withIndex('by_chatroom_status', (q) =>
-                q.eq('chatroomId', chatroomId).eq('status', 'queued')
-              )
-              .collect();
-            if (tasks.length === 0) return null;
-            tasks.sort((a, b) => a.queuePosition - b.queuePosition);
-            return tasks[0] ?? null;
+          getOldestQueuedMessage: async (chatroomId) => {
+            return await ctx.db
+              .query('chatroom_messageQueue')
+              .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', chatroomId))
+              .order('asc')
+              .first();
           },
-          transitionTaskToPending: (nextTaskId) =>
-            transitionTask(ctx, nextTaskId, 'pending', 'promoteNextTask'),
+          promoteQueuedMessage: (queuedMessageId) => promoteQueuedMessage(ctx, queuedMessageId),
         });
-        // Copy queue record to messages for the promoted task
-        if (result.promoted) {
-          await promoteQueuedMessage(ctx, result.promoted);
-        }
       }
     }
 

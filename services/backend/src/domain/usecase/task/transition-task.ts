@@ -124,26 +124,17 @@ export async function transitionTask(
   if (PROMOTION_TRIGGER_STATUSES.has(newStatus)) {
     const task = await ctx.db.get('chatroom_tasks', taskId);
     if (task) {
-      const result = await promoteNextTask(task.chatroomId, {
+      await promoteNextTask(task.chatroomId, {
         areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
-        getOldestQueuedTask: async (chatroomId) => {
-          const tasks = await ctx.db
-            .query('chatroom_tasks')
-            .withIndex('by_chatroom_status', (q) =>
-              q.eq('chatroomId', chatroomId).eq('status', 'queued')
-            )
-            .collect();
-          if (tasks.length === 0) return null;
-          tasks.sort((a, b) => a.queuePosition - b.queuePosition);
-          return tasks[0] ?? null;
+        getOldestQueuedMessage: async (chatroomId) => {
+          return await ctx.db
+            .query('chatroom_messageQueue')
+            .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', chatroomId))
+            .order('asc')
+            .first();
         },
-        transitionTaskToPending: (nextTaskId) =>
-          fsmTransitionTask(ctx, nextTaskId, 'pending', 'promoteNextTask'),
+        promoteQueuedMessage: (queuedMessageId) => promoteQueuedMessage(ctx, queuedMessageId),
       });
-      // Copy queue record to messages for the promoted task
-      if (result.promoted) {
-        await promoteQueuedMessage(ctx, result.promoted);
-      }
     }
   }
 
