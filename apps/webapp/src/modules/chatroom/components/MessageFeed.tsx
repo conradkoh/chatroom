@@ -20,8 +20,8 @@ import {
   Sparkles,
   RotateCcw,
   ArrowRight,
+  ArrowUp,
   Activity,
-  Play,
   Trash2,
 } from 'lucide-react';
 import React, {
@@ -71,7 +71,7 @@ interface Message {
   _creationTime: number;
   classification?: 'question' | 'new_feature' | 'follow_up';
   taskId?: string;
-  taskStatus?: 'pending' | 'in_progress' | 'queued' | 'backlog' | 'completed' | 'cancelled';
+  taskStatus?: 'pending' | 'in_progress' | 'backlog' | 'completed' | 'cancelled';
   // Feature metadata (only for new_feature classification)
   featureTitle?: string;
   featureDescription?: string;
@@ -145,12 +145,6 @@ const getTaskStatusBadge = (status: Message['taskStatus']) => {
         label: 'in progress',
         icon: <Loader2 size={ICON_SIZE} className="flex-shrink-0 animate-spin" />,
       };
-    case 'queued':
-      return {
-        className: `${BADGE_BASE} bg-chatroom-status-warning/15 text-chatroom-status-warning`,
-        label: 'queued',
-        icon: <Timer size={ICON_SIZE} className="flex-shrink-0" />,
-      };
     case 'completed':
       return {
         className: `${BADGE_BASE} bg-chatroom-text-muted/15 text-chatroom-text-muted`,
@@ -215,11 +209,6 @@ function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; class
       return {
         label: status === 'pending' ? 'Pending' : 'Acknowledged',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'queued':
-      return {
-        label: 'Queued',
-        classes: 'bg-chatroom-status-warning/15 text-chatroom-status-warning',
       };
     case 'pending_user_review':
       return {
@@ -471,12 +460,12 @@ const TaskProgressHistory = memo(function TaskProgressHistory({
   );
 });
 
-// ─── QueuedMessageHeader ──────────────────────────────────────────────────────
-// Renders a sticky header above each queued message with:
+// ─── QueuedMessageFooter ──────────────────────────────────────────────────────
+// Renders a compact inline footer inside each queued message with:
 //   • Orange QUEUED badge
 //   • Elapsed time since message creation
-//   • Promote button (moves this specific task to pending)
-//   • Delete button (cancels the task)
+//   • Icon-only Promote button (ArrowUp)
+//   • Icon-only Delete button (Trash2)
 
 /** Returns a human-readable elapsed time string that updates every second. */
 function useElapsedTime(creationTime: number): string {
@@ -504,45 +493,45 @@ function formatElapsed(creationTime: number): string {
   return `${hrs}h ${remainMins}m`;
 }
 
-interface QueuedMessageHeaderProps {
+interface QueuedMessageFooterProps {
   message: Message;
-  onPromote: (taskId: string) => Promise<void>;
-  onDelete: (taskId: string) => Promise<void>;
+  onPromote: (queuedMessageId: string) => Promise<void>;
+  onDelete: (queuedMessageId: string) => Promise<void>;
 }
 
-const QueuedMessageHeader = memo(function QueuedMessageHeader({
+const QueuedMessageFooter = memo(function QueuedMessageFooter({
   message,
   onPromote,
   onDelete,
-}: QueuedMessageHeaderProps) {
+}: QueuedMessageFooterProps) {
   const elapsed = useElapsedTime(message._creationTime);
   const [isPromoting, setIsPromoting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handlePromote = useCallback(async () => {
-    if (!message.taskId || isPromoting || isDeleting) return;
+    if (isPromoting || isDeleting) return;
     setIsPromoting(true);
     try {
-      await onPromote(message.taskId);
+      await onPromote(message._id);
     } finally {
       setIsPromoting(false);
     }
-  }, [message.taskId, onPromote, isPromoting, isDeleting]);
+  }, [message._id, onPromote, isPromoting, isDeleting]);
 
   const handleDelete = useCallback(async () => {
-    if (!message.taskId || isDeleting || isPromoting) return;
+    if (isDeleting || isPromoting) return;
     setIsDeleting(true);
     try {
-      await onDelete(message.taskId);
+      await onDelete(message._id);
     } finally {
       setIsDeleting(false);
     }
-  }, [message.taskId, onDelete, isDeleting, isPromoting]);
+  }, [message._id, onDelete, isDeleting, isPromoting]);
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/10 border-b border-orange-500/20 dark:bg-orange-500/10">
+    <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-500/5 border-t border-orange-500/15">
       {/* QUEUED badge */}
-      <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-orange-500/20 text-orange-600 dark:text-orange-400">
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-orange-500/20 text-orange-600 dark:text-orange-400">
         <Timer size={10} className="flex-shrink-0" />
         Queued
       </span>
@@ -556,34 +545,32 @@ const QueuedMessageHeader = memo(function QueuedMessageHeader({
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Promote button */}
+      {/* Promote button — icon only */}
       <button
         onClick={handlePromote}
-        disabled={isPromoting || isDeleting || !message.taskId}
-        className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        disabled={isPromoting || isDeleting}
+        className="flex items-center justify-center w-6 h-6 bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         title="Promote to active (bypass queue)"
       >
         {isPromoting ? (
-          <Loader2 size={10} className="flex-shrink-0 animate-spin" />
+          <Loader2 size={12} className="animate-spin" />
         ) : (
-          <Play size={10} className="flex-shrink-0" />
+          <ArrowUp size={12} />
         )}
-        Promote
       </button>
 
-      {/* Delete button */}
+      {/* Delete button — icon only */}
       <button
         onClick={handleDelete}
-        disabled={isDeleting || isPromoting || !message.taskId}
-        className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        disabled={isDeleting || isPromoting}
+        className="flex items-center justify-center w-6 h-6 border border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         title="Delete queued message"
       >
         {isDeleting ? (
-          <Loader2 size={10} className="flex-shrink-0 animate-spin" />
+          <Loader2 size={12} className="animate-spin" />
         ) : (
-          <Trash2 size={10} className="flex-shrink-0" />
+          <Trash2 size={12} />
         )}
-        Delete
       </button>
     </div>
   );
@@ -827,7 +814,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
 
   // Mutations for queued message controls
   const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
-  const cancelTask = useSessionMutation(api.tasks.cancelTask);
+  const deleteQueuedMessage = useSessionMutation(api.messages.deleteQueuedMessage);
 
   const feedRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
@@ -884,39 +871,35 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
 
   // Handle queued message Promote — calls promoteSpecificTask mutation
   const handleQueuedPromote = useCallback(
-    async (taskId: string) => {
+    async (queuedMessageId: string) => {
       try {
         await promoteSpecificTask({
-          taskId: taskId as Id<'chatroom_tasks'>,
+          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
         });
       } catch (error) {
-        console.error('Failed to promote queued task:', error);
+        console.error('Failed to promote queued message:', error);
       }
     },
     [promoteSpecificTask]
   );
 
-  // Handle queued message Delete — cancels the task
+  // Handle queued message Delete — removes the queue record directly
   const handleQueuedDelete = useCallback(
-    async (taskId: string) => {
+    async (queuedMessageId: string) => {
       try {
-        await cancelTask({
-          taskId: taskId as Id<'chatroom_tasks'>,
+        await deleteQueuedMessage({
+          queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
         });
       } catch (error) {
-        // Silently ignore errors where the task is no longer in a deletable state.
-        // This can happen if the task was auto-promoted and completed between
-        // the time the message was rendered and the user clicked Delete.
-        // The queued message will auto-disappear via the reactive listQueued query.
+        // Silently ignore if the record no longer exists (already promoted or deleted)
         const msg = error instanceof Error ? error.message : String(error);
-        if (msg.includes('Cannot cancel task with status')) {
-          // Task already moved out of queue — no action needed
+        if (msg.includes('not found') || msg.includes('Already deleted')) {
           return;
         }
-        console.error('Failed to delete queued task:', error);
+        console.error('Failed to delete queued message:', error);
       }
     },
-    [cancelTask]
+    [deleteQueuedMessage]
   );
 
   // Load more messages handler - stable reference for button onClick
@@ -1114,16 +1097,16 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
         <div className="border-t-2 border-orange-500/30">
           {queuedMessages.map((message) => (
             <div key={message._id} className="border-b border-chatroom-border last:border-b-0">
-              {/* QueuedMessageHeader: QUEUED badge, elapsed time, Promote and Delete buttons */}
-              <QueuedMessageHeader
-                message={message}
-                onPromote={handleQueuedPromote}
-                onDelete={handleQueuedDelete}
-              />
               <MessageItem
                 message={message}
                 onFeatureClick={handleFeatureClick}
                 onAttachedTaskClick={handleAttachedTaskClick}
+              />
+              {/* Inline QUEUED footer: badge, elapsed time, icon-only Promote and Delete buttons */}
+              <QueuedMessageFooter
+                message={message}
+                onPromote={handleQueuedPromote}
+                onDelete={handleQueuedDelete}
               />
             </div>
           ))}
