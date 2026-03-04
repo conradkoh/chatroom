@@ -595,7 +595,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
 
   return (
     <>
-      <div className="px-3 py-2 bg-orange-500/5 border-b border-orange-500/15">
+      <div className="px-3 py-2 bg-card border-b border-border">
         {/* Row 1: truncated content | QUEUED badge | action buttons */}
         <div className="flex items-start gap-2">
           {/* Message content — truncated 2 lines, compact markdown, clickable */}
@@ -618,7 +618,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
           <button
             onClick={handlePromote}
             disabled={isPromoting || isDeleting}
-            className="flex-shrink-0 flex items-center justify-center w-6 h-6 bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex-shrink-0 flex items-center justify-center w-6 h-6 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Promote to active (bypass queue)"
           >
             {isPromoting ? (
@@ -635,7 +635,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             className={`flex-shrink-0 flex items-center justify-center w-6 h-6 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
               isConfirmingCardDelete
                 ? 'bg-red-500 text-white hover:bg-red-600'
-                : 'border border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20'
+                : 'border border-border text-muted-foreground hover:bg-accent'
             }`}
             title={isConfirmingCardDelete ? 'Click again to confirm delete' : 'Delete queued message'}
           >
@@ -661,7 +661,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
           <FixedModalHeader onClose={handleCloseModal}>
             <FixedModalTitle>
               <span className="flex items-center gap-2">
-                <Timer size={14} className="text-orange-500" />
+                <Timer size={14} className="text-muted-foreground" />
                 Queued Message
               </span>
             </FixedModalTitle>
@@ -683,7 +683,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 <Timer size={12} className="flex-shrink-0" />
                 Queued
               </span>
-              <span className="text-xs text-orange-600/70 dark:text-orange-400/70 tabular-nums">
+              <span className="text-xs text-muted-foreground tabular-nums">
                 {elapsed}
               </span>
             </div>
@@ -692,7 +692,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
               <button
                 onClick={handlePromoteAndClose}
                 disabled={isPromoting || isDeleting}
-                className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                 title="Promote to active"
               >
                 {isPromoting ? (
@@ -709,7 +709,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 className={`flex items-center gap-2 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium ${
                   isConfirmingModalDelete
                     ? 'bg-red-500 text-white hover:bg-red-600'
-                    : 'border border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20'
+                    : 'border border-border text-muted-foreground hover:bg-accent'
                 }`}
                 title={isConfirmingModalDelete ? 'Click again to confirm delete' : 'Delete queued message'}
               >
@@ -1289,7 +1289,8 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
       )}
       {/* Queued Messages - pinned just above status bar */}
       {displayQueuedMessages.length > 0 && (
-        <div className="border-t-2 border-orange-500/30">
+        <div className="border-t border-border">
+          <div className="mx-3 mt-2 mb-1 rounded-md overflow-hidden border border-border shadow-sm">
           {/* First queued message card */}
           <QueuedMessageCard
             key={displayQueuedMessages[0]._id}
@@ -1301,12 +1302,13 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
           {displayQueuedMessages.length > 1 && (
             <button
               onClick={() => setIsQueueModalOpen(true)}
-              className="w-full flex items-center justify-between px-3 py-1.5 bg-orange-500/5 border-t border-orange-500/15 text-[10px] text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 transition-colors"
+              className="w-full flex items-center justify-between px-3 py-1.5 bg-card border-t border-border text-[10px] text-orange-600 dark:text-orange-400 hover:bg-accent/50 transition-colors"
             >
               <span>+ {displayQueuedMessages.length - 1} more in queue</span>
               <span className="font-bold uppercase tracking-wide">View all →</span>
             </button>
           )}
+          </div>
         </div>
       )}
       {/* Queue list modal — shows all queued messages */}
