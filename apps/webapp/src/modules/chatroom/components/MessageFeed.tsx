@@ -1316,13 +1316,13 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
       {displayQueuedMessages.length > 0 && (
         <div className="border-t border-border">
           {/* Section header */}
-          <div className="px-3 pt-2 pb-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          <div className="px-3 pt-2 pb-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400">
               Queued
             </p>
           </div>
           {/* Inset card — sharp corners, no rounded-md */}
-          <div className="mx-3 mt-1 mb-1 overflow-hidden border border-border shadow-sm">
+          <div className="mx-3 mb-2 overflow-hidden border border-border shadow-sm">
           {/* First queued message card */}
           <QueuedMessageCard
             key={displayQueuedMessages[0]._id}
