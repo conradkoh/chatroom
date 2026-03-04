@@ -16,6 +16,7 @@ import {
 } from './auth/cliSessionAuth';
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
+import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { transitionTask } from '../src/domain/usecase/task/transition-task';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 
@@ -1041,6 +1042,8 @@ export const promoteNextTask = mutation({
     });
 
     if (result.promoted) {
+      // Copy queue record to messages for the promoted task
+      await promoteQueuedMessage(ctx, result.promoted);
       console.warn(
         `[Queue Promotion] Promoted task ${result.promoted} to pending in chatroom ${args.chatroomId}.`
       );

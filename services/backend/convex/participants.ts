@@ -6,6 +6,7 @@ import { areAllAgentsWaiting, requireChatroomAccess } from './auth/cliSessionAut
 import { getRolePriority } from './lib/hierarchy';
 import { transitionTask } from './lib/taskStateMachine';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
+import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 
@@ -90,7 +91,7 @@ export const join = mutation({
         .collect();
 
       if (activeTasks.length === 0) {
-        await promoteNextTask(args.chatroomId, {
+        const result = await promoteNextTask(args.chatroomId, {
           areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
           getOldestQueuedTask: async (chatroomId) => {
             const tasks = await ctx.db
@@ -106,6 +107,10 @@ export const join = mutation({
           transitionTaskToPending: (nextTaskId) =>
             transitionTask(ctx, nextTaskId, 'pending', 'promoteNextTask'),
         });
+        // Copy queue record to messages for the promoted task
+        if (result.promoted) {
+          await promoteQueuedMessage(ctx, result.promoted);
+        }
       }
     }
 

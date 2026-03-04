@@ -25,6 +25,7 @@
  */
 
 import { promoteNextTask } from './promote-next-task';
+import { promoteQueuedMessage } from './promote-queued-message';
 import { internal } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -123,7 +124,7 @@ export async function transitionTask(
   if (PROMOTION_TRIGGER_STATUSES.has(newStatus)) {
     const task = await ctx.db.get('chatroom_tasks', taskId);
     if (task) {
-      await promoteNextTask(task.chatroomId, {
+      const result = await promoteNextTask(task.chatroomId, {
         areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
         getOldestQueuedTask: async (chatroomId) => {
           const tasks = await ctx.db
@@ -139,6 +140,10 @@ export async function transitionTask(
         transitionTaskToPending: (nextTaskId) =>
           fsmTransitionTask(ctx, nextTaskId, 'pending', 'promoteNextTask'),
       });
+      // Copy queue record to messages for the promoted task
+      if (result.promoted) {
+        await promoteQueuedMessage(ctx, result.promoted);
+      }
     }
   }
 
