@@ -1052,6 +1052,67 @@ export const promoteNextTask = mutation({
   },
 });
 
+/**
+ * Promotes a specific queued task to pending.
+ * User-triggered, bypasses areAllAgentsWaiting check.
+ * Fails if there is already a pending or in_progress task.
+ */
+export const promoteSpecificTask = mutation({
+  args: {
+    ...SessionIdArg,
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task) {
+      throw new ConvexError({ code: 'TASK_NOT_FOUND', message: 'Task not found' });
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
+
+    if (task.status !== 'queued') {
+      throw new ConvexError({
+        code: 'INVALID_TASK_STATUS',
+        message: `Task must be in queued status to promote (current: ${task.status})`,
+      });
+    }
+
+    // Check for active tasks — cannot promote if another task is pending/in_progress
+    const [pendingTask, inProgressTask] = await Promise.all([
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', task.chatroomId).eq('status', 'pending')
+        )
+        .first(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', task.chatroomId).eq('status', 'in_progress')
+        )
+        .first(),
+    ]);
+
+    if (pendingTask || inProgressTask) {
+      return {
+        promoted: false,
+        reason: 'active_task_exists' as const,
+      };
+    }
+
+    // Promote: queued → pending (bypass areAllAgentsWaiting)
+    await transitionTask(ctx, args.taskId, 'pending', 'promoteNextTask');
+    // Move message from chatroom_messageQueue to chatroom_messages
+    await promoteQueuedMessage(ctx, args.taskId);
+
+    return {
+      promoted: true,
+      reason: 'success' as const,
+    };
+  },
+});
+
 /** Returns queue health status including active task presence, queued count, and promotion eligibility. */
 export const checkQueueHealth = query({
   args: {
