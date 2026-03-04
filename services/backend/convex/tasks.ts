@@ -394,7 +394,7 @@ export const completeTaskById = mutation({
       if (!args.force) {
         throw new Error(
           `Task is ${task.status}. Use --force to complete an active task. ` +
-            `This will mark it as completed and promote the next queued task.`
+            `This will mark it as completed and promote the next message from the queue.`
         );
       }
 
@@ -429,7 +429,7 @@ export const completeTaskById = mutation({
   },
 });
 
-/** Updates the content of a queued or backlog task. */
+/** Updates the content of a pending, acknowledged, or backlog task. */
 export const updateTask = mutation({
   args: {
     ...SessionIdArg,

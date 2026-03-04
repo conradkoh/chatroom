@@ -5,10 +5,8 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   Plus,
-  Pencil,
   Trash2,
   X,
-  Check,
   Play,
   ChevronRight,
   ClipboardCheck,
@@ -619,12 +617,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
 interface TaskItemProps {
   task: Task;
   isProtected?: boolean;
-  isEditing?: boolean;
-  editedContent?: string;
-  onStartEdit?: () => void;
-  onSaveEdit?: () => void;
-  onCancelEdit?: () => void;
-  onEditContentChange?: (content: string) => void;
   onDelete?: () => void;
   onClick?: () => void;
 }
@@ -632,56 +624,10 @@ interface TaskItemProps {
 function TaskItem({
   task,
   isProtected = false,
-  isEditing = false,
-  editedContent = '',
-  onStartEdit,
-  onSaveEdit,
-  onCancelEdit,
-  onEditContentChange,
   onDelete,
   onClick,
 }: TaskItemProps) {
   const badge = getStatusBadge(task.status);
-
-  if (isEditing) {
-    return (
-      <div className="p-3 border-b border-chatroom-border bg-chatroom-bg-hover">
-        <textarea
-          value={editedContent}
-          onChange={(e) => onEditContentChange?.(e.target.value)}
-          onKeyDown={(e) => {
-            // Cmd+Enter or Ctrl+Enter to save
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-              e.preventDefault();
-              if (editedContent.trim() && onSaveEdit) {
-                onSaveEdit();
-              }
-            }
-          }}
-          className="w-full bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary text-xs p-2 resize-none focus:outline-none focus:border-chatroom-accent"
-          rows={2}
-          autoFocus
-        />
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={onSaveEdit}
-            disabled={!editedContent.trim()}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Check size={12} />
-            Save
-          </button>
-          <button
-            onClick={onCancelEdit}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary"
-          >
-            <X size={12} />
-            Cancel
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   const isClickable = !!onClick;
 
@@ -724,18 +670,6 @@ function TaskItem({
       {/* Actions for editable tasks */}
       {!isProtected && (
         <div className="flex items-center gap-1">
-          {onStartEdit && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onStartEdit();
-              }}
-              className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
-              title="Edit"
-            >
-              <Pencil size={12} />
-            </button>
-          )}
           {onDelete && (
             <button
               onClick={(e) => {
