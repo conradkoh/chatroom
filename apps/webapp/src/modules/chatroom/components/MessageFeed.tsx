@@ -514,6 +514,9 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
   const [isPromoting, setIsPromoting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // Independent confirmation states for card button and modal button
+  const [isConfirmingCardDelete, setIsConfirmingCardDelete] = useState(false);
+  const [isConfirmingModalDelete, setIsConfirmingModalDelete] = useState(false);
 
   const formattedTime = new Date(message._creationTime).toLocaleTimeString([], {
     hour: '2-digit',
@@ -530,15 +533,24 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
     }
   }, [message._id, onPromote, isPromoting, isDeleting]);
 
-  const handleDelete = useCallback(async () => {
+  // Card delete: first click → confirm, second click → delete
+  const handleCardDeleteClick = useCallback(async () => {
     if (isDeleting || isPromoting) return;
+    if (!isConfirmingCardDelete) {
+      setIsConfirmingCardDelete(true);
+      // Auto-cancel after 3 seconds if user doesn't confirm
+      setTimeout(() => setIsConfirmingCardDelete(false), 3000);
+      return;
+    }
+    // Second click = confirmed
+    setIsConfirmingCardDelete(false);
     setIsDeleting(true);
     try {
       await onDelete(message._id);
     } finally {
       setIsDeleting(false);
     }
-  }, [message._id, onDelete, isDeleting, isPromoting]);
+  }, [message._id, onDelete, isDeleting, isPromoting, isConfirmingCardDelete]);
 
   const handleOpenModal = useCallback(() => {
     setIsModalOpen(true);
@@ -546,6 +558,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
 
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
+    setIsConfirmingModalDelete(false);
   }, []);
 
   // Promote and close modal on success
@@ -560,9 +573,17 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
     }
   }, [message._id, onPromote, isPromoting, isDeleting]);
 
-  // Delete and close modal on success
-  const handleDeleteAndClose = useCallback(async () => {
+  // Modal delete: first click → confirm, second click → delete and close
+  const handleModalDeleteClick = useCallback(async () => {
     if (isDeleting || isPromoting) return;
+    if (!isConfirmingModalDelete) {
+      setIsConfirmingModalDelete(true);
+      // Auto-cancel after 3 seconds if user doesn't confirm
+      setTimeout(() => setIsConfirmingModalDelete(false), 3000);
+      return;
+    }
+    // Second click = confirmed
+    setIsConfirmingModalDelete(false);
     setIsDeleting(true);
     try {
       await onDelete(message._id);
@@ -570,7 +591,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
     } finally {
       setIsDeleting(false);
     }
-  }, [message._id, onDelete, isDeleting, isPromoting]);
+  }, [message._id, onDelete, isDeleting, isPromoting, isConfirmingModalDelete]);
 
   return (
     <>
@@ -607,12 +628,16 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             )}
           </button>
 
-          {/* Delete button — icon only */}
+          {/* Delete button — icon only, with confirmation */}
           <button
-            onClick={handleDelete}
+            onClick={handleCardDeleteClick}
             disabled={isDeleting || isPromoting}
-            className="flex-shrink-0 flex items-center justify-center w-6 h-6 border border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            title="Delete queued message"
+            className={`flex-shrink-0 flex items-center justify-center w-6 h-6 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+              isConfirmingCardDelete
+                ? 'bg-red-500 text-white hover:bg-red-600'
+                : 'border border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20'
+            }`}
+            title={isConfirmingCardDelete ? 'Click again to confirm delete' : 'Delete queued message'}
           >
             {isDeleting ? (
               <Loader2 size={12} className="animate-spin" />
@@ -677,18 +702,23 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 )}
                 Promote
               </button>
+              {/* Modal delete button with confirmation */}
               <button
-                onClick={handleDeleteAndClose}
+                onClick={handleModalDeleteClick}
                 disabled={isDeleting || isPromoting}
-                className="flex items-center gap-2 px-4 py-2 border border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                title="Delete queued message"
+                className={`flex items-center gap-2 px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium ${
+                  isConfirmingModalDelete
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'border border-orange-500/40 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20'
+                }`}
+                title={isConfirmingModalDelete ? 'Click again to confirm delete' : 'Delete queued message'}
               >
                 {isDeleting ? (
                   <Loader2 size={14} className="animate-spin" />
                 ) : (
                   <Trash2 size={14} />
                 )}
-                Delete
+                {isConfirmingModalDelete ? 'Confirm Delete' : 'Delete'}
               </button>
             </div>
           </div>
