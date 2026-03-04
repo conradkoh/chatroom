@@ -595,11 +595,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             </Markdown>
           </button>
 
-          {/* QUEUED badge */}
-          <span className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-orange-500/20 text-orange-600 dark:text-orange-400">
-            <Timer size={10} className="flex-shrink-0" />
-            Queued
-          </span>
+          {/* QUEUED badge removed — section header above container communicates queue status */}
 
           {/* Promote button — icon only */}
           <button
@@ -1319,7 +1315,14 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
       {/* Queued Messages - pinned just above status bar */}
       {displayQueuedMessages.length > 0 && (
         <div className="border-t border-border">
-          <div className="mx-3 mt-2 mb-1 rounded-md overflow-hidden border border-border shadow-sm">
+          {/* Section header */}
+          <div className="px-3 pt-2 pb-0">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Queued
+            </p>
+          </div>
+          {/* Inset card — sharp corners, no rounded-md */}
+          <div className="mx-3 mt-1 mb-1 overflow-hidden border border-border shadow-sm">
           {/* First queued message card */}
           <QueuedMessageCard
             key={displayQueuedMessages[0]._id}
