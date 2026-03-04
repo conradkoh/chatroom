@@ -40,13 +40,14 @@ export interface CreateTaskResult {
 }
 
 /**
- * Determines if a new task should be pending or queued.
- * Returns 'pending' if no active task exists, 'queued' to signal caller should enqueue message.
+ * Returns true if the incoming user message should be staged in chatroom_messageQueue
+ * (because an active task is already running), or false if it should be sent directly
+ * to chatroom_messages with a new task created immediately.
  */
-export async function determineTaskStatus(
+export async function shouldEnqueueMessage(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
-): Promise<'pending' | 'queued'> {
+): Promise<boolean> {
   const activeTask = await ctx.db
     .query('chatroom_tasks')
     .withIndex('by_chatroom_status', (q) =>
@@ -61,7 +62,7 @@ export async function determineTaskStatus(
         )
         .first()
     : null;
-  return activeTask || inProgressTask ? 'queued' : 'pending';
+  return !!(activeTask || inProgressTask);
 }
 
 /**

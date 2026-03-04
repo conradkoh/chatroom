@@ -16,7 +16,7 @@ import { getCliEnvPrefix } from '../prompts/utils/index.js';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import {
   createTask as createTaskUsecase,
-  determineTaskStatus,
+  shouldEnqueueMessage,
 } from '../src/domain/usecase/task/create-task';
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
@@ -106,9 +106,9 @@ async function _sendMessageHandler(
   if (isUserMessage) {
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
     const assignedTo = getTeamEntryPoint(chatroom ?? {}) ?? undefined;
-    const taskStatus = await determineTaskStatus(ctx, args.chatroomId);
+    const enqueue = await shouldEnqueueMessage(ctx, args.chatroomId);
 
-    if (taskStatus === 'queued') {
+    if (enqueue) {
       // ─── Queued path: store in chatroom_messageQueue only — no task created yet ──
       // Tasks are created at promotion time (when the queued message is promoted to active).
       const queuedMessageId = await ctx.db.insert('chatroom_messageQueue', {

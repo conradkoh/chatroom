@@ -1,6 +1,7 @@
 /**
- * Tests for create-task use case — verifies determineTaskStatus logic.
- * determineTaskStatus returns 'pending' or 'queued' (to signal caller should enqueue).
+ * Tests for create-task use case — verifies shouldEnqueueMessage logic.
+ * shouldEnqueueMessage returns true if an active/in-progress task exists (message should be queued),
+ * or false if no active task exists (message can be sent directly).
  */
 
 import type { SessionId } from 'convex-helpers/server/sessions';
@@ -9,7 +10,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
-import { determineTaskStatus } from './create-task';
+import { shouldEnqueueMessage } from './create-task';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -54,69 +55,69 @@ async function seedTask(
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('determineTaskStatus', () => {
-  test('returns pending when no active tasks exist', async () => {
+describe('shouldEnqueueMessage', () => {
+  test('returns false when no active tasks exist', async () => {
     const { sessionId } = await createTestSession('det-status-1');
     const chatroomId = await createChatroom(sessionId);
 
-    const status = await t.run(async (ctx) => {
-      return await determineTaskStatus(ctx, chatroomId);
+    const enqueue = await t.run(async (ctx) => {
+      return await shouldEnqueueMessage(ctx, chatroomId);
     });
 
-    expect(status).toBe('pending');
+    expect(enqueue).toBe(false);
   });
 
-  test('returns queued when a pending task exists', async () => {
+  test('returns true when a pending task exists', async () => {
     const { sessionId } = await createTestSession('det-status-2');
     const chatroomId = await createChatroom(sessionId);
 
     await seedTask(chatroomId, 'pending');
 
-    const status = await t.run(async (ctx) => {
-      return await determineTaskStatus(ctx, chatroomId);
+    const enqueue = await t.run(async (ctx) => {
+      return await shouldEnqueueMessage(ctx, chatroomId);
     });
 
-    expect(status).toBe('queued');
+    expect(enqueue).toBe(true);
   });
 
-  test('returns queued when an in_progress task exists', async () => {
+  test('returns true when an in_progress task exists', async () => {
     const { sessionId } = await createTestSession('det-status-3');
     const chatroomId = await createChatroom(sessionId);
 
     await seedTask(chatroomId, 'in_progress');
 
-    const status = await t.run(async (ctx) => {
-      return await determineTaskStatus(ctx, chatroomId);
+    const enqueue = await t.run(async (ctx) => {
+      return await shouldEnqueueMessage(ctx, chatroomId);
     });
 
-    expect(status).toBe('queued');
+    expect(enqueue).toBe(true);
   });
 
-  test('returns queued when both pending and in_progress tasks exist', async () => {
+  test('returns true when both pending and in_progress tasks exist', async () => {
     const { sessionId } = await createTestSession('det-status-4');
     const chatroomId = await createChatroom(sessionId);
 
     await seedTask(chatroomId, 'pending');
     await seedTask(chatroomId, 'in_progress');
 
-    const status = await t.run(async (ctx) => {
-      return await determineTaskStatus(ctx, chatroomId);
+    const enqueue = await t.run(async (ctx) => {
+      return await shouldEnqueueMessage(ctx, chatroomId);
     });
 
-    expect(status).toBe('queued');
+    expect(enqueue).toBe(true);
   });
 
-  test('returns pending when only completed tasks exist', async () => {
+  test('returns false when only completed tasks exist', async () => {
     const { sessionId } = await createTestSession('det-status-5');
     const chatroomId = await createChatroom(sessionId);
 
     await seedTask(chatroomId, 'completed');
     await seedTask(chatroomId, 'completed');
 
-    const status = await t.run(async (ctx) => {
-      return await determineTaskStatus(ctx, chatroomId);
+    const enqueue = await t.run(async (ctx) => {
+      return await shouldEnqueueMessage(ctx, chatroomId);
     });
 
-    expect(status).toBe('pending');
+    expect(enqueue).toBe(false);
   });
 });
