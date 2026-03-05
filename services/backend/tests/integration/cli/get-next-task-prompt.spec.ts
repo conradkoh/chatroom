@@ -218,8 +218,6 @@ ${taskDeliveryPrompt.fullCliOutput}
           F --> C
       \`\`\`
 
-      _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
-
       ### Context Recovery (after compaction/summarization)
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:
@@ -1413,8 +1411,6 @@ ${taskDeliveryPrompt.fullCliOutput}
           F --> C
       \`\`\`
 
-      _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
-
       ### Context Recovery (after compaction/summarization)
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:
@@ -1864,8 +1860,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
           F --> C
       \`\`\`
 
-      _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
-
       ### Context Recovery (after compaction/summarization)
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:
@@ -2114,8 +2108,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
           E --> F[handoff]
           F --> C
       \`\`\`
-
-      _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
 
       ### Context Recovery (after compaction/summarization)
 

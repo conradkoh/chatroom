@@ -99,8 +99,6 @@ describe('Squad Team > Planner > System Prompt', () => {
           F --> C
       \`\`\`
 
-      _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
-
       ### Context Recovery (after compaction/summarization)
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:

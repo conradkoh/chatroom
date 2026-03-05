@@ -36,8 +36,6 @@ flowchart LR
     F --> C
 \`\`\`
 
-_If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
-
 ### Context Recovery (after compaction/summarization)
 
 ${getCompactionRecoveryNote({ cliEnvPrefix, chatroomId, role })}
