@@ -157,9 +157,10 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
     const completedChatrooms = chatrooms.filter((c) => c.chatStatus === 'completed');
 
     // Active chatrooms: agents present and engaged (working or active status)
-    const engagedChatrooms = chatrooms.filter(
-      (c) => c.chatStatus === 'working' || c.chatStatus === 'active'
-    );
+    // Sorted by _creationTime ASC (oldest first) — stable sort so chatrooms don't jump around
+    const engagedChatrooms = chatrooms
+      .filter((c) => c.chatStatus === 'working' || c.chatStatus === 'active')
+      .sort((a, b) => a._creationTime - b._creationTime);
 
     // Recent: Top 5 by lastActivityAt, excluding active and completed chatrooms
     const engagedIds = new Set(engagedChatrooms.map((c) => c._id));
@@ -169,7 +170,7 @@ export const ChatroomSidebar = memo(function ChatroomSidebar({
     const sortedByActivity = [...remainingChatrooms].sort((a, b) => {
       const aTime = a.lastActivityAt || a._creationTime;
       const bTime = b.lastActivityAt || b._creationTime;
-      return bTime - aTime;
+      return bTime - aTime || a._id.localeCompare(b._id); // stable tiebreaker
     });
     const recentChatrooms = sortedByActivity.slice(0, 5);
 
