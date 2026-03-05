@@ -74,7 +74,7 @@ export function ChatroomSwitcher() {
       contentProps={{ forceMount: true }}
     >
       <CommandInput placeholder="Search chatrooms..." />
-      <CommandList>
+      <CommandList className="h-[300px]">
         <CommandEmpty className="text-muted-foreground">No chatrooms found.</CommandEmpty>
         {chatrooms && chatrooms.length > 0 && (
           <CommandGroup heading="Chatrooms">
