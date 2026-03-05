@@ -12,7 +12,7 @@ import { GetNextTaskSession } from './session.js';
 import { api, type Id } from '../../api.js';
 import { getOtherSessionUrls, getSessionId } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
-import { type AgentHarness, ensureMachineRegistered } from '../../infrastructure/machine/index.js';
+import { ensureMachineRegistered } from '../../infrastructure/machine/index.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
 import { PiAgentService } from '../../infrastructure/services/remote-agents/pi/index.js';
 import { formatConnectivityError, isNetworkError } from '../../utils/error-formatting.js';
@@ -31,7 +31,6 @@ export { GetNextTaskSession as WaitForTaskSession } from './session.js';
 interface GetNextTaskOptions {
   role: string;
   silent?: boolean;
-  agentType?: AgentHarness;
 }
 
 // ─── Entry Point ────────────────────────────────────────────────────────────
@@ -142,19 +141,6 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
       availableHarnesses: machineInfo.availableHarnesses,
       harnessVersions: machineInfo.harnessVersions,
       availableModels,
-    });
-
-    // Always sync machine config (workingDir) with the backend, but only pass agentType
-    // if explicitly specified via --agent-type flag. Omitting agentType (undefined) signals
-    // the backend to preserve whatever agentType the user previously selected in the UI.
-    const workingDir = process.cwd();
-    await client.mutation(api.machines.updateAgentConfig, {
-      sessionId,
-      machineId: machineInfo.machineId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-      agentType: options.agentType, // undefined when --agent-type not provided; backend preserves existing
-      workingDir,
     });
   } catch (machineError) {
     if (!silent) {

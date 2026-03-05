@@ -1,10 +1,9 @@
 /**
  * get-next-task index Unit Tests
  *
- * Tests the agent harness preservation behavior in get-next-task.
- * Verifies that when --agent-type flag is NOT provided, the existing
- * agentType in chatroom_machineAgentConfigs is preserved (not overwritten
- * with the machine's first available harness).
+ * Tests that `get-next-task` does NOT call `updateAgentConfig`.
+ * Agent harness configuration is now owned exclusively by `startAgent`/daemon,
+ * not by the per-task `get-next-task` command.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,7 +34,6 @@ vi.mock('../../infrastructure/machine/index.js', () => ({
     machineId: 'machine_abc123',
     hostname: 'test-host',
     os: 'darwin',
-    // Machine has two harnesses — the BUG would default to 'opencode' (first)
     availableHarnesses: ['opencode', 'pi'],
     harnessVersions: { opencode: '1.0.0', pi: '2.0.0' },
   }),
@@ -64,7 +62,7 @@ vi.mock('./session.js', () => ({
 vi.mock('../../api.js', () => ({
   api: {
     machines: {
-      registerMachine: 'machines:registerMachine',
+      register: 'machines:register',
       updateAgentConfig: 'machines:updateAgentConfig',
       getTeamAgentConfigs: 'machines:getTeamAgentConfigs',
     },
@@ -86,17 +84,16 @@ vi.mock('../../api.js', () => ({
 // ---------------------------------------------------------------------------
 
 const TEST_CHATROOM_ID = 'jx750h696te75x67z5q6cbwkph7zvm2x';
-const TEST_MACHINE_ID = 'machine_abc123';
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('get-next-task — agent harness preservation', () => {
+describe('get-next-task — agent config ownership', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Set up successful query responses
+    // Happy-path query responses
     mockQuery.mockImplementation(async (queryFn: string) => {
       if (queryFn === 'chatrooms:get') {
         return {
@@ -107,7 +104,7 @@ describe('get-next-task — agent harness preservation', () => {
         };
       }
       if (queryFn === 'participants:getByRole') {
-        return { role: 'builder', chatroomId: TEST_CHATROOM_ID }; // already joined
+        return { role: 'builder', chatroomId: TEST_CHATROOM_ID };
       }
       if (queryFn === 'machines:getTeamAgentConfigs') {
         return [];
@@ -122,59 +119,27 @@ describe('get-next-task — agent harness preservation', () => {
     vi.restoreAllMocks();
   });
 
-  it('when --agent-type is NOT provided, updateAgentConfig should NOT receive a non-undefined agentType', async () => {
-    // This test reproduces the bug:
-    // BUG: code was `options.agentType ?? machineInfo.availableHarnesses[0]`
-    //   → would pass 'opencode' even when --agent-type was not specified
-    // FIX: only pass options.agentType, which is undefined when flag is absent
-    //   → backend preserves existing agentType
+  it('should NEVER call updateAgentConfig — agent config is owned by startAgent, not get-next-task', async () => {
+    // Agent harness configuration (agentType, workingDir) is now written exclusively
+    // by the startAgent/daemon flow. get-next-task only registers the machine presence
+    // (machines:register) and joins the participant — it does NOT touch agentType config.
 
     const { getNextTask } = await import('./index.js');
 
     await getNextTask(TEST_CHATROOM_ID, {
       role: 'builder',
       silent: true,
-      // agentType is intentionally absent — user did NOT pass --agent-type
     }).catch(() => {
-      // Errors from session startup are expected and don't affect this test
+      // Session errors are expected and irrelevant to this assertion
     });
 
-    // Find any calls to updateAgentConfig
-    const updateCalls = mockMutation.mock.calls.filter(
+    const updateAgentConfigCalls = mockMutation.mock.calls.filter(
       ([fn]) => fn === 'machines:updateAgentConfig'
     );
 
-    // If updateAgentConfig was called, agentType MUST be undefined
-    // (backend preserves the existing user-selected harness)
-    for (const [, args] of updateCalls) {
-      expect(
-        args.agentType,
-        `updateAgentConfig was called with agentType='${args.agentType}' but it should be undefined when --agent-type is not provided`
-      ).toBeUndefined();
-    }
-
-    // There should be exactly one updateAgentConfig call (to sync workingDir)
-    expect(updateCalls.length).toBe(1);
-  });
-
-  it('when --agent-type IS explicitly provided, updateAgentConfig receives that agentType', async () => {
-    const { getNextTask } = await import('./index.js');
-
-    await getNextTask(TEST_CHATROOM_ID, {
-      role: 'builder',
-      silent: true,
-      agentType: 'opencode', // explicitly specified by user
-    }).catch(() => {
-      // Errors from session startup are expected
-    });
-
-    const updateCalls = mockMutation.mock.calls.filter(
-      ([fn]) => fn === 'machines:updateAgentConfig'
-    );
-
-    expect(updateCalls.length).toBe(1);
-    const [, args] = updateCalls[0];
-    expect(args.agentType).toBe('opencode');
-    expect(args.machineId).toBe(TEST_MACHINE_ID);
+    expect(
+      updateAgentConfigCalls.length,
+      'updateAgentConfig must never be called from get-next-task'
+    ).toBe(0);
   });
 });
