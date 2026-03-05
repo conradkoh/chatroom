@@ -45,27 +45,16 @@ describe('Duo Team > Planner > Get Next Task', () => {
 
     expect(output).toBeDefined();
     expect(output).toContain('📋 TASK');
-    expect(output).toContain('📋 PROCESS');
     expect(output).toContain('📋 NEXT STEPS');
     // Entry point should have context creation step
     expect(output).toContain('Code changes expected?');
     // User message should trigger classification flow
     expect(output).toContain('Classify');
     expect(output).toContain('targets: builder, user');
-    // Phase Planning Loop should appear for planner receiving a user message
-    expect(output).toContain('**Phase Planning Loop:**');
-    expect(output).toContain('```mermaid');
-    expect(output).toContain('flowchart TD');
-    expect(output).toContain('[Classify and understand the task]');
-    expect(output).toContain('[Break task into phases]');
-    expect(output).toContain('[Delegate ONE phase to builder]');
-    expect(output).toContain("[Review builder's work]");
-    expect(output).toContain('[Deliver final result to user]');
     // Step 3 should be delegate to builder, not generic "hand off"
     expect(output).toContain('3. Delegate phase 1 to builder:');
     expect(output).toContain('--next-role=builder');
-    // Generic "Do the work → follow PROCESS above" step should NOT appear in next-steps for planner
-    // (planner gets Phase Planning Loop instead)
+    // "Do the work → follow PROCESS" step should NOT appear (PROCESS section removed)
     expect(output).not.toContain('Do the work → follow PROCESS above');
   });
 
@@ -86,7 +75,6 @@ describe('Duo Team > Planner > Get Next Task', () => {
 
     expect(output).toBeDefined();
     expect(output).toContain('📋 TASK');
-    expect(output).toContain('📋 PROCESS');
     expect(output).toContain('📋 NEXT STEPS');
     // Team handoff should show "handed off from" instead of classification
     expect(output).toContain('handed off from builder');

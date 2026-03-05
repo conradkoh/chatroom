@@ -418,47 +418,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       Add backlog section to get-next-task
       </task>
 
-      <process>
-      ============================================================
-      📋 PROCESS
-      ============================================================
-      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
-      <summary of current focus>
-      EOF\`
-      2. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=follow_up\`
-      3. (optional) Read context if needed → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\` _(skip if you already have full context)_
-      4. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10002;chatroom_rooms" --role="builder" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF\`
-      5. Do the work
-      6. Hand off (targets: reviewer, user) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role=<target> << 'EOF'
-      ---MESSAGE---
-      [Your message here]
-      EOF\`
-      7. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"\`
-
-      Reference commands:
-        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
-        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="10002;chatroom_rooms" --role="builder" --status=backlog\`
-        git log → \`git log --oneline -10\`
-      </process>
-
       <next-steps>
       ============================================================
       📋 NEXT STEPS
       ============================================================
-
-      \`\`\`mermaid
-      flowchart TD
-          A([Start]) --> B[Read user message]
-          B --> C{message type?}
-          C -->|question or follow_up| D[Classify with --origin-message-classification=type]
-          C -->|new_feature| E["Classify with --origin-message-classification=new_feature
-      requires --title, --description, --tech-specs"]
-          D --> F([Stop])
-          E --> F
-      \`\`\`
 
       Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=<type>\`
 
@@ -475,8 +438,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
-      3. Do the work → follow PROCESS above
-      4. Hand off when complete:
+      3. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -527,19 +489,8 @@ ${taskDeliveryPrompt.fullCliOutput}
     // ===== VERIFY FULL CLI OUTPUT FORMAT =====
     const fullOutput = taskDeliveryPrompt.fullCliOutput;
 
-    // Should have consolidated PROCESS section with inline guidance
-    expect(fullOutput).toContain('📋 PROCESS');
-    expect(fullOutput).toContain('Reference commands:');
-    expect(fullOutput).toContain('context read');
-    expect(fullOutput).toContain('messages');
-    expect(fullOutput).toContain('git log');
-    expect(fullOutput).toContain('backlog');
-    expect(fullOutput).toContain(`chatroom backlog list --chatroom-id="${chatroomId}"`);
-
-    // Should have handoff targets and get-next-task in PROCESS
+    // Should have consolidated NEXT STEPS section with inline guidance
     expect(fullOutput).toContain('Hand off');
-    expect(fullOutput).toContain('Resume');
-    expect(fullOutput).toContain('get-next-task');
     expect(fullOutput).toContain(chatroomId);
     expect(fullOutput).toContain('--role="builder"');
 
@@ -1655,37 +1606,13 @@ ${taskDeliveryPrompt.fullCliOutput}
       Classification: NEW_FEATURE
       </task>
 
-      <process>
-      ============================================================
-      📋 PROCESS
-      ============================================================
-      1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10130;chatroom_rooms" --role="reviewer" --task-id="10145;chatroom_tasks" --no-classify\`
-      2. (optional) Read context if needed → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10130;chatroom_rooms" --role="reviewer"\` _(skip if you already have full context)_
-      3. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10130;chatroom_rooms" --role="reviewer" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF\`
-      4. Do the work
-      5. Hand off (targets: builder, user) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10130;chatroom_rooms" --role="reviewer" --next-role=<target> << 'EOF'
-      ---MESSAGE---
-      [Your message here]
-      EOF\`
-      6. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10130;chatroom_rooms" --role="reviewer"\`
-
-      Reference commands:
-        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10130;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
-        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="10130;chatroom_rooms" --role="reviewer" --status=backlog\`
-        git log → \`git log --oneline -10\`
-      </process>
-
       <next-steps>
       ============================================================
       📋 NEXT STEPS
       ============================================================
 
       handed off from builder — start work immediately.
-      1. Do the work → follow PROCESS above
-      2. Hand off when complete:
+      1. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10130;chatroom_rooms" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -1734,16 +1661,8 @@ ${taskDeliveryPrompt.fullCliOutput}
     // ===== VERIFY FULL CLI OUTPUT FORMAT =====
     const fullOutput = taskDeliveryPrompt.fullCliOutput;
 
-    // Should have consolidated PROCESS section with inline guidance
-    expect(fullOutput).toContain('📋 PROCESS');
-    expect(fullOutput).toContain('Reference commands:');
-    expect(fullOutput).toContain('context read');
-    expect(fullOutput).toContain('messages');
-
-    // Should have handoff targets and get-next-task in PROCESS
+    // Should have handoff targets in NEXT STEPS
     expect(fullOutput).toContain('Hand off');
-    expect(fullOutput).toContain('Resume');
-    expect(fullOutput).toContain('get-next-task');
     expect(fullOutput).toContain(chatroomId);
     expect(fullOutput).toContain('--role="reviewer"');
 

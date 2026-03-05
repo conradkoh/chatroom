@@ -12,10 +12,8 @@
  * - Reminder footer
  */
 
-import { getNextTaskCommand } from './command';
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
 import { contextNewCommand } from '../context/new';
-import { reportProgressCommand } from '../report-progress/command';
 import { taskStartedCommand } from '../task-started/command';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -209,72 +207,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   lines.push('</task>');
 
-  // ── Process section ─────────────────────────────────────────────────────
-
-  lines.push('');
-  lines.push('<process>');
-  lines.push(SEP_EQUAL);
-  lines.push('📋 PROCESS');
-  lines.push(SEP_EQUAL);
-
-  let stepNum = 1;
-
-  if (isEntryPoint) {
-    lines.push(
-      `${stepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
-    );
-    stepNum++;
-  }
-
-  if (isUserMessage) {
-    lines.push(
-      `${stepNum}. Acknowledge → \`${taskStartedCommand({ chatroomId, role, taskId: task._id, classification: 'follow_up', cliEnvPrefix })}\``
-    );
-  } else {
-    lines.push(
-      `${stepNum}. Acknowledge → \`${cliEnvPrefix}chatroom task-started --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}" --no-classify\``
-    );
-  }
-  stepNum++;
-
-  lines.push(
-    `${stepNum}. (optional) Read context if needed → \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\` _(skip if you already have full context)_`
-  );
-  stepNum++;
-
-  lines.push(
-    `${stepNum}. Report progress at milestones → \`${reportProgressCommand({ chatroomId, role, cliEnvPrefix })}\``
-  );
-  stepNum++;
-
-  lines.push(`${stepNum}. Do the work`);
-  stepNum++;
-
-  if (availableHandoffTargets.length > 0) {
-    lines.push(
-      `${stepNum}. Hand off (targets: ${availableHandoffTargets.join(', ')}) → \`${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'\n---MESSAGE---\n[Your message here]\nEOF\``
-    );
-  } else {
-    lines.push(
-      `${stepNum}. Hand off → \`${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'\n---MESSAGE---\n[Your message here]\nEOF\``
-    );
-  }
-  stepNum++;
-
-  lines.push(`${stepNum}. Resume → \`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
-
-  lines.push('');
-  lines.push('Reference commands:');
-  lines.push(
-    `  messages → \`${cliEnvPrefix}chatroom messages list --chatroom-id="${chatroomId}" --role="${role}" --sender-role=user --limit=5 --full\``
-  );
-  lines.push(
-    `  backlog → \`${cliEnvPrefix}chatroom backlog list --chatroom-id="${chatroomId}" --role="${role}" --status=backlog\``
-  );
-  lines.push('  git log → `git log --oneline -10`');
-
-  lines.push('</process>');
-
   // ── Next Steps ──────────────────────────────────────────────────────────
 
   lines.push('');
@@ -297,17 +229,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     );
 
     lines.push('');
-    lines.push('```mermaid');
-    lines.push('flowchart TD');
-    lines.push('    A([Start]) --> B[Read user message]');
-    lines.push('    B --> C{message type?}');
-    lines.push('    C -->|question or follow_up| D[Classify with --origin-message-classification=type]');
-    lines.push('    C -->|new_feature| E["Classify with --origin-message-classification=new_feature\nrequires --title, --description, --tech-specs"]');
-    lines.push('    D --> F([Stop])');
-    lines.push('    E --> F');
-    lines.push('```');
-
-    lines.push('');
     lines.push(`Classify → \`${baseCmd}\``);
 
     // new_feature example
@@ -327,24 +248,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     );
 
     if (role === 'planner') {
-      // Planner role receiving a new user task — show phase-planning loop
-      lines.push('');
-      lines.push('**Phase Planning Loop:**');
-      lines.push('```mermaid');
-      lines.push('flowchart TD');
-      lines.push('    A([Start]) --> B[Classify and understand the task]');
-      lines.push('    B --> C[Break task into phases]');
-      lines.push('    C --> D[Delegate ONE phase to builder]');
-      lines.push("    D --> E[Builder completes phase]");
-      lines.push("    E --> F[Review builder's work]");
-      lines.push('    F --> G{phase accepted?}');
-      lines.push('    G -->|no| H[Send back with feedback]');
-      lines.push('    H --> D');
-      lines.push('    G -->|yes| I{more phases?}');
-      lines.push('    I -->|yes| D');
-      lines.push('    I -->|no| J[Deliver final result to user]');
-      lines.push('    J --> K([Stop])');
-      lines.push('```');
+      // Planner role receiving a new user task
       lines.push('');
       lines.push(
         `2. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
@@ -362,7 +266,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
       }
     } else {
-      // Non-coordinator role receiving a user message (entry-point implementer or non-entry-point)
+      // Non-coordinator role receiving a user message
       let nextStepNum = 2;
       if (isEntryPoint) {
         lines.push('');
@@ -371,8 +275,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         );
         nextStepNum++;
       }
-      lines.push(`${nextStepNum}. Do the work → follow PROCESS above`);
-      nextStepNum++;
       lines.push(`${nextStepNum}. Hand off when complete:`);
       lines.push('```');
       lines.push(
@@ -398,8 +300,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       nextStepNum++;
     }
 
-    lines.push(`${nextStepNum}. Do the work → follow PROCESS above`);
-    nextStepNum++;
     lines.push(`${nextStepNum}. Hand off when complete:`);
     lines.push('```');
     lines.push(

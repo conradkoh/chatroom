@@ -45,7 +45,6 @@ describe('Duo Team > Builder > Get Next Task', () => {
 
     expect(output).toBeDefined();
     expect(output).toContain('📋 TASK');
-    expect(output).toContain('📋 PROCESS');
     expect(output).toContain('📋 NEXT STEPS');
     // Non-entry point should NOT have context creation step
     expect(output).not.toContain('Code changes expected?');
