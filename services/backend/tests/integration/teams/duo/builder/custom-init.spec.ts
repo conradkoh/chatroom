@@ -24,12 +24,12 @@ describe('Duo Team > Builder > Custom Init Prompt', () => {
     });
 
     expect(prompt).toBeDefined();
-    expect(prompt).toContain('# Duo Team');
+    expect(prompt).toContain('# Duo');
     expect(prompt).toContain('## Your Role: BUILDER');
     expect(prompt).toContain('--type=custom');
-    expect(prompt).toContain('## Team Roles');
-    expect(prompt).toContain('planner, builder');
-    expect(prompt).toContain('## Next Steps');
+    expect(prompt).toContain('## Getting Started');
+    expect(prompt).toContain('Available targets:');
+    expect(prompt).toContain('### Commands');
     // Builder should NOT hand off to user
     expect(prompt).toContain('NEVER hand off directly');
   });

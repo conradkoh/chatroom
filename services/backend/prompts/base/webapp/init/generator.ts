@@ -6,12 +6,8 @@
  * This is kept for backward compatibility with UI components.
  */
 
-import { getRoleTemplate } from './templates';
-import { buildSelectorContext } from '../../../generator';
-import { getTeamContextSection } from '../../../sections/team-context';
-import { getContextGainingGuidance } from '../../shared/getting-started-content';
+import { composeSystemPrompt } from '../../../generator.js';
 import { getCliEnvPrefix } from '../utils/env';
-import { getTeamEntryPoint } from '../../../../src/domain/entities/team';
 
 export interface PromptContext {
   chatroomId: string;
@@ -25,76 +21,23 @@ export interface PromptContext {
 }
 
 /**
- * Generate a simplified agent initialization prompt for UI display
- * Note: This is a simplified version. The CLI fetches the full prompt from the backend.
+ * Generate a full agent initialization prompt for UI display.
+ * Delegates to composeSystemPrompt() to ensure custom agents receive
+ * the same complete prompt as remote agents (classification guide,
+ * role workflow, commands reference, etc.).
  */
 export function generateAgentPrompt(context: PromptContext): string {
   const { chatroomId, role, teamId, teamName, teamRoles, teamEntryPoint, convexUrl } = context;
-  const template = getRoleTemplate(role);
-
-  // Use shared getting started content
-  // convexUrl should be provided by webapp, but fallback to empty string for type safety
-  // Webapp prompts always use 'custom' type since users copy these prompts
-  // to paste into their own agents (which are custom/manually-started)
-  const gettingStarted = getContextGainingGuidance({
+  return composeSystemPrompt({
     chatroomId,
     role,
+    teamId,
+    teamName,
+    teamRoles,
+    teamEntryPoint,
     convexUrl: convexUrl ?? '',
     agentType: 'custom',
   });
-
-  // Build SelectorContext for team-aware sections
-  const selectorCtx = buildSelectorContext({
-    role,
-    teamRoles,
-    teamId,
-    teamName,
-    teamEntryPoint,
-    convexUrl: convexUrl ?? '',
-    chatroomId,
-  });
-
-  // Get team context (e.g., "Pair Team Context" or "Squad Team Context")
-  const teamContextSection = getTeamContextSection(selectorCtx);
-  const teamContext = teamContextSection.content.trim();
-
-  // Compute handoff options based on team structure
-  const otherRoles = teamRoles.filter((r) => r.toLowerCase() !== role.toLowerCase());
-  const entryPoint = getTeamEntryPoint({ teamEntryPoint, teamRoles }) ?? 'planner';
-  const canHandoffToUser =
-    selectorCtx.team === 'squad'
-      ? role.toLowerCase() === entryPoint.toLowerCase()
-      : true;
-  const handoffTargets = canHandoffToUser
-    ? [...new Set([...otherRoles, 'user'])]
-    : [...new Set(otherRoles)];
-
-  return `# ${teamName} Team
-
-## Your Role: ${template.title.toUpperCase()}
-
-${template.description}
-
-**Responsibilities:**
-${template.responsibilities.map((r) => `- ${r}`).join('\n')}
-
-${gettingStarted}
-${teamContext ? `\n${teamContext}\n` : ''}
-## Team Roles
-
-${teamRoles.join(', ')}
-
-## Handoff Options
-
-Available targets: ${handoffTargets.join(', ')}${!canHandoffToUser ? `\n\n> **Note:** In squad team, only the ${entryPoint} can hand off to the user.` : ''}
-
-## Next Steps
-
-1. Run the **register-agent** command above to register your agent type
-2. Copy the **context read** command to review conversation history
-3. Run **get-next-task** to receive your first task
-4. Follow the detailed instructions provided by the CLI
-`;
 }
 
 /**

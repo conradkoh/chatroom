@@ -24,12 +24,12 @@ describe('Duo Team > Planner > Custom Init Prompt', () => {
     });
 
     expect(prompt).toBeDefined();
-    expect(prompt).toContain('# Duo Team');
+    expect(prompt).toContain('# Duo');
     expect(prompt).toContain('## Your Role: PLANNER');
     expect(prompt).toContain('--type=custom');
-    expect(prompt).toContain('## Team Roles');
-    expect(prompt).toContain('planner, builder');
-    expect(prompt).toContain('## Next Steps');
+    expect(prompt).toContain('## Getting Started');
+    expect(prompt).toContain('Available targets:');
+    expect(prompt).toContain('### Commands');
     // Planner is the entry point and communicates with user
     expect(prompt).toContain('Only you can hand off to');
   });
