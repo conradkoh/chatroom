@@ -43,19 +43,14 @@ Two requirements:
 
 ⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
 
-\`\`\`
-@startuml
-start
-:Command terminated unexpectedly;
-if (Urgent pending work?) then (yes)
-  :Finish urgent work;
-  :Reconnect with get-next-task;
-else (no)
-  :Reconnect immediately;
-  note right: Team cannot reach you without it
-endif
-stop
-@enduml
+\`\`\`mermaid
+flowchart TD
+    A([Start]) --> B[Command terminated unexpectedly]
+    B --> C{Urgent pending work?}
+    C -->|yes| D[Finish urgent work]
+    D --> E[Reconnect with get-next-task]
+    C -->|no| E
+    E --> F([Stop])
 \`\`\`
 
 📋 BACKLOG TASKS

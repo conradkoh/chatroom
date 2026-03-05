@@ -295,18 +295,14 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     );
 
     lines.push('');
-    lines.push('```');
-    lines.push('@startuml');
-    lines.push('start');
-    lines.push(':Read user message;');
-    lines.push('if (message type?) then (question or follow_up)');
-    lines.push('  :Classify with --origin-message-classification=<type>;');
-    lines.push('else (new_feature)');
-    lines.push('  :Classify with --origin-message-classification=new_feature;');
-    lines.push('  note right: requires --title, --description, --tech-specs');
-    lines.push('endif');
-    lines.push('stop');
-    lines.push('@enduml');
+    lines.push('```mermaid');
+    lines.push('flowchart TD');
+    lines.push('    A([Start]) --> B[Read user message]');
+    lines.push('    B --> C{message type?}');
+    lines.push('    C -->|question or follow_up| D[Classify with --origin-message-classification=type]');
+    lines.push('    C -->|new_feature| E["Classify with --origin-message-classification=new_feature\nrequires --title, --description, --tech-specs"]');
+    lines.push('    D --> F([Stop])');
+    lines.push('    E --> F');
     lines.push('```');
 
     lines.push('');
@@ -332,24 +328,20 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       // Planner role receiving a new user task — show phase-planning loop
       lines.push('');
       lines.push('**Phase Planning Loop:**');
-      lines.push('```');
-      lines.push('@startuml');
-      lines.push('start');
-      lines.push(':Classify and understand the task;');
-      lines.push(':Break task into phases;');
-      lines.push('repeat');
-      lines.push('  :Delegate ONE phase to builder;');
-      lines.push('  :Builder completes phase;');
-      lines.push("  :Review builder's work;");
-      lines.push('  if (phase accepted?) then (yes)');
-      lines.push('  else (no)');
-      lines.push('    :Send back with feedback;');
-      lines.push('  endif');
-      lines.push('repeat while (more phases?) is (yes)');
-      lines.push('->no;');
-      lines.push(':Deliver final result to user;');
-      lines.push('stop');
-      lines.push('@enduml');
+      lines.push('```mermaid');
+      lines.push('flowchart TD');
+      lines.push('    A([Start]) --> B[Classify and understand the task]');
+      lines.push('    B --> C[Break task into phases]');
+      lines.push('    C --> D[Delegate ONE phase to builder]');
+      lines.push("    D --> E[Builder completes phase]");
+      lines.push("    E --> F[Review builder's work]");
+      lines.push('    F --> G{phase accepted?}');
+      lines.push('    G -->|no| H[Send back with feedback]');
+      lines.push('    H --> D');
+      lines.push('    G -->|yes| I{more phases?}');
+      lines.push('    I -->|yes| D');
+      lines.push('    I -->|no| J[Deliver final result to user]');
+      lines.push('    J --> K([Stop])');
       lines.push('```');
       lines.push('');
       lines.push(

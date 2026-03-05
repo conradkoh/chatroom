@@ -33,26 +33,22 @@ export function getWorkflowSection(config: TeamCompositionConfig): string {
 export function getFullTeamWorkflow(): string {
   return `**Current Workflow: Full Team (Planner + Builder + Reviewer)**
 
-\`\`\`
-@startuml
-start
-:Receive task from user;
-:Decompose into phases;
-repeat
-  :Delegate ONE phase to **builder**;
-  :Builder completes phase;
-  :Builder hands off to **reviewer**;
-  :Reviewer validates;
-  :Reviewer hands off to **planner**;
-  if (phase acceptable?) then (no)
-    :Hand back to **builder** with feedback;
-  else (yes)
-  endif
-repeat while (more phases?) is (yes)
-->no;
-:Deliver final result to **user**;
-stop
-@enduml
+\`\`\`mermaid
+flowchart TD
+    A([Start]) --> B[Receive task from user]
+    B --> C[Decompose into phases]
+    C --> D[Delegate ONE phase to builder]
+    D --> E[Builder completes phase]
+    E --> F[Builder hands off to reviewer]
+    F --> G[Reviewer validates]
+    G --> H[Reviewer hands off to planner]
+    H --> I{phase acceptable?}
+    I -->|no| J[Hand back to builder with feedback]
+    J --> D
+    I -->|yes| K{more phases?}
+    K -->|yes| D
+    K -->|no| L[Deliver final result to user]
+    L --> M([Stop])
 \`\`\``;
 }
 
@@ -62,25 +58,21 @@ stop
 export function getPlannerPlusBuilderWorkflow(): string {
   return `**Current Workflow: Planner + Builder (no reviewer)**
 
-\`\`\`
-@startuml
-start
-:Receive task from user;
-:Decompose into phases;
-repeat
-  :Delegate ONE phase to **builder**;
-  :Builder completes phase;
-  :Builder hands off to **planner**;
-  :Review work yourself (acting as reviewer);
-  if (phase acceptable?) then (no)
-    :Hand back to **builder** with feedback;
-  else (yes)
-  endif
-repeat while (more phases?) is (yes)
-->no;
-:Deliver final result to **user**;
-stop
-@enduml
+\`\`\`mermaid
+flowchart TD
+    A([Start]) --> B[Receive task from user]
+    B --> C[Decompose into phases]
+    C --> D[Delegate ONE phase to builder]
+    D --> E[Builder completes phase]
+    E --> F[Builder hands off to planner]
+    F --> G[Review work yourself acting as reviewer]
+    G --> H{phase acceptable?}
+    H -->|no| I[Hand back to builder with feedback]
+    I --> D
+    H -->|yes| J{more phases?}
+    J -->|yes| D
+    J -->|no| K[Deliver final result to user]
+    K --> L([Stop])
 \`\`\``;
 }
 
@@ -90,24 +82,20 @@ stop
 export function getPlannerPlusReviewerWorkflow(): string {
   return `**Current Workflow: Planner + Reviewer (no builder)**
 
-\`\`\`
-@startuml
-start
-:Receive task from user;
-:Decompose into phases;
-repeat
-  :Delegate ONE phase to **reviewer** (acts as builder);
-  :Reviewer completes phase;
-  :Reviewer hands off to **planner**;
-  if (phase acceptable?) then (no)
-    :Hand back to **reviewer** with feedback;
-  else (yes)
-  endif
-repeat while (more phases?) is (yes)
-->no;
-:Deliver final result to **user**;
-stop
-@enduml
+\`\`\`mermaid
+flowchart TD
+    A([Start]) --> B[Receive task from user]
+    B --> C[Decompose into phases]
+    C --> D[Delegate ONE phase to reviewer acts as builder]
+    D --> E[Reviewer completes phase]
+    E --> F[Reviewer hands off to planner]
+    F --> G{phase acceptable?}
+    G -->|no| H[Hand back to reviewer with feedback]
+    H --> D
+    G -->|yes| I{more phases?}
+    I -->|yes| D
+    I -->|no| J[Deliver final result to user]
+    J --> K([Stop])
 \`\`\``;
 }
 
