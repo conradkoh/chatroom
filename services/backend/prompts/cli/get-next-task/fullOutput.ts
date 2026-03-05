@@ -111,8 +111,9 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   if (currentContext) {
     lines.push('');
     lines.push('## Context');
-    lines.push('<context>');
-    lines.push(currentContext.content);
+    lines.push(
+      `(read if needed) → \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\``
+    );
 
     // Staleness warning: many messages since context was set
     if (currentContext.messagesSinceContext >= 10) {
@@ -140,15 +141,14 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push('   Entry point role will update when needed.');
       }
     }
-
-    lines.push('</context>');
   }
   // Fallback to origin message if no context (legacy behavior)
   else if (originMessage && originMessage.senderRole.toLowerCase() === 'user') {
     lines.push('');
-    lines.push('## User Message');
-    lines.push('<user-message>');
-    lines.push(originMessage.content);
+    lines.push('## Context');
+    lines.push(
+      `(read if needed) → \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\``
+    );
 
     // Staleness warning: many follow-ups
     if (followUpCountSinceOrigin >= 5) {
@@ -180,8 +180,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         }
       }
     }
-
-    lines.push('</user-message>');
   }
 
   // Task content

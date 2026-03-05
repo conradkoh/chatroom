@@ -59,10 +59,8 @@ describe('Pair Team > Reviewer > Get Next Task', () => {
       Origin Message ID: test-message-id
       From: user
 
-      ## User Message
-      <user-message>
-      Please review the dark mode changes
-      </user-message>
+      ## Context
+      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\`
 
       ## Task
       Review the dark mode implementation
@@ -130,10 +128,8 @@ describe('Pair Team > Reviewer > Get Next Task', () => {
       Origin Message ID: test-message-id
       From: builder
 
-      ## User Message
-      <user-message>
-      Please implement dark mode for the settings page
-      </user-message>
+      ## Context
+      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\`
 
       ## Task
       Review the dark mode implementation

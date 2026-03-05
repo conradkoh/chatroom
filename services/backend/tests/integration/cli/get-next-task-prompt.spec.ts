@@ -404,10 +404,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       Origin Message ID: 10006;chatroom_messages
       From: user
 
-      ## User Message
-      <user-message>
-      Can we add a backlog section to the available actions? Keep it concise and follow current format.
-      </user-message>
+      ## Context
+      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
 
       ## Task
       Can we add a backlog section to the available actions? Keep it concise and follow current format.
@@ -1588,10 +1586,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       Origin Message ID: 10144;chatroom_messages
       From: builder
 
-      ## User Message
-      <user-message>
-      Add dark mode toggle to the application
-      </user-message>
+      ## Context
+      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10130;chatroom_rooms" --role="reviewer"\`
 
       ## Task
       Implemented dark mode toggle. Please review.
