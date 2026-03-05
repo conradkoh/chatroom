@@ -1,0 +1,145 @@
+/**
+ * get-next-task index Unit Tests
+ *
+ * Tests that `get-next-task` does NOT call `updateAgentConfig`.
+ * Agent harness configuration is now owned exclusively by `startAgent`/daemon,
+ * not by the per-task `get-next-task` command.
+ */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// ---------------------------------------------------------------------------
+// Mock infrastructure modules
+// ---------------------------------------------------------------------------
+
+const mockMutation = vi.fn();
+const mockQuery = vi.fn();
+
+vi.mock('../../infrastructure/convex/client.js', () => ({
+  getConvexUrl: () => 'http://127.0.0.1:3210',
+  getConvexClient: vi.fn().mockResolvedValue({
+    mutation: mockMutation,
+    query: mockQuery,
+  }),
+  getConvexWsClient: vi.fn(),
+}));
+
+vi.mock('../../infrastructure/auth/storage.js', () => ({
+  getSessionId: vi.fn().mockReturnValue('test-session-id'),
+  getOtherSessionUrls: vi.fn().mockReturnValue([]),
+}));
+
+vi.mock('../../infrastructure/machine/index.js', () => ({
+  ensureMachineRegistered: vi.fn().mockReturnValue({
+    machineId: 'machine_abc123',
+    hostname: 'test-host',
+    os: 'darwin',
+    availableHarnesses: ['opencode', 'pi'],
+    harnessVersions: { opencode: '1.0.0', pi: '2.0.0' },
+  }),
+}));
+
+vi.mock('../../infrastructure/services/remote-agents/opencode/index.js', () => ({
+  OpenCodeAgentService: class {
+    isInstalled = vi.fn().mockReturnValue(false);
+    listModels = vi.fn().mockResolvedValue([]);
+  },
+}));
+
+vi.mock('../../infrastructure/services/remote-agents/pi/index.js', () => ({
+  PiAgentService: class {
+    isInstalled = vi.fn().mockReturnValue(false);
+    listModels = vi.fn().mockResolvedValue([]);
+  },
+}));
+
+vi.mock('./session.js', () => ({
+  GetNextTaskSession: class {
+    start = vi.fn().mockResolvedValue(undefined);
+  },
+}));
+
+vi.mock('../../api.js', () => ({
+  api: {
+    machines: {
+      register: 'machines:register',
+      updateAgentConfig: 'machines:updateAgentConfig',
+      getTeamAgentConfigs: 'machines:getTeamAgentConfigs',
+    },
+    chatrooms: {
+      get: 'chatrooms:get',
+    },
+    participants: {
+      join: 'participants:join',
+      getByRole: 'participants:getByRole',
+    },
+    messages: {
+      getTaskDeliveryPrompt: 'messages:getTaskDeliveryPrompt',
+    },
+  },
+}));
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const TEST_CHATROOM_ID = 'jx750h696te75x67z5q6cbwkph7zvm2x';
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('get-next-task — agent config ownership', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Happy-path query responses
+    mockQuery.mockImplementation(async (queryFn: string) => {
+      if (queryFn === 'chatrooms:get') {
+        return {
+          _id: TEST_CHATROOM_ID,
+          teamName: 'Test Team',
+          teamRoles: ['builder', 'reviewer'],
+          teamEntryPoint: 'builder',
+        };
+      }
+      if (queryFn === 'participants:getByRole') {
+        return { role: 'builder', chatroomId: TEST_CHATROOM_ID };
+      }
+      if (queryFn === 'machines:getTeamAgentConfigs') {
+        return [];
+      }
+      return undefined;
+    });
+
+    mockMutation.mockResolvedValue({ success: true });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should NEVER call updateAgentConfig — agent config is owned by startAgent, not get-next-task', async () => {
+    // Agent harness configuration (agentType, workingDir) is now written exclusively
+    // by the startAgent/daemon flow. get-next-task only registers the machine presence
+    // (machines:register) and joins the participant — it does NOT touch agentType config.
+
+    const { getNextTask } = await import('./index.js');
+
+    await getNextTask(TEST_CHATROOM_ID, {
+      role: 'builder',
+      silent: true,
+    }).catch(() => {
+      // Session errors are expected and irrelevant to this assertion
+    });
+
+    const updateAgentConfigCalls = mockMutation.mock.calls.filter(
+      ([fn]) => fn === 'machines:updateAgentConfig'
+    );
+
+    expect(
+      updateAgentConfigCalls.length,
+      'updateAgentConfig must never be called from get-next-task'
+    ).toBe(0);
+  });
+});

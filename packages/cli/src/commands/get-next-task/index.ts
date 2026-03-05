@@ -12,7 +12,7 @@ import { GetNextTaskSession } from './session.js';
 import { api, type Id } from '../../api.js';
 import { getOtherSessionUrls, getSessionId } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
-import { type AgentHarness, ensureMachineRegistered } from '../../infrastructure/machine/index.js';
+import { ensureMachineRegistered } from '../../infrastructure/machine/index.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
 import { PiAgentService } from '../../infrastructure/services/remote-agents/pi/index.js';
 import { formatConnectivityError, isNetworkError } from '../../utils/error-formatting.js';
@@ -31,7 +31,6 @@ export { GetNextTaskSession as WaitForTaskSession } from './session.js';
 interface GetNextTaskOptions {
   role: string;
   silent?: boolean;
-  agentType?: AgentHarness;
 }
 
 // ─── Entry Point ────────────────────────────────────────────────────────────
@@ -143,24 +142,6 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
       harnessVersions: machineInfo.harnessVersions,
       availableModels,
     });
-
-    // Determine agent type (from flag or default to first available harness)
-    const agentType: AgentHarness | undefined =
-      options.agentType ??
-      (machineInfo.availableHarnesses.length > 0 ? machineInfo.availableHarnesses[0] : undefined);
-
-    if (agentType) {
-      const workingDir = process.cwd();
-
-      await client.mutation(api.machines.updateAgentConfig, {
-        sessionId,
-        machineId: machineInfo.machineId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        agentType,
-        workingDir,
-      });
-    }
   } catch (machineError) {
     if (!silent) {
       console.warn(
