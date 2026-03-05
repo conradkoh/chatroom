@@ -54,7 +54,11 @@ describe('Squad Team > Planner > Get Next Task', () => {
     expect(output).toContain('targets: builder, reviewer, user');
 
     expect(output).toMatchInlineSnapshot(`
-      "<task>
+      "NOTE: If you are an agent that has undergone compaction or summarization, run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="planner"
+      to reload your full system and role prompt.
+
+      <task>
       ============================================================
       📋 TASK
       ============================================================
@@ -102,18 +106,15 @@ describe('Squad Team > Planner > Get Next Task', () => {
       📋 NEXT STEPS
       ============================================================
 
-      \`\`\`
-      @startuml
-      start
-      :Read user message;
-      if (message type?) then (question or follow_up)
-        :Classify with --origin-message-classification=<type>;
-      else (new_feature)
-        :Classify with --origin-message-classification=new_feature;
-        note right: requires --title, --description, --tech-specs
-      endif
-      stop
-      @enduml
+      \`\`\`mermaid
+      flowchart TD
+          A([Start]) --> B[Read user message]
+          B --> C{message type?}
+          C -->|question or follow_up| D[Classify with --origin-message-classification=type]
+          C -->|new_feature| E["Classify with --origin-message-classification=new_feature
+      requires --title, --description, --tech-specs"]
+          D --> F([Stop])
+          E --> F
       \`\`\`
 
       Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="planner" --task-id="test-task-id" --origin-message-classification=<type>\`
@@ -129,24 +130,20 @@ describe('Squad Team > Planner > Get Next Task', () => {
       EOF
 
       **Phase Planning Loop:**
-      \`\`\`
-      @startuml
-      start
-      :Classify and understand the task;
-      :Break task into phases;
-      repeat
-        :Delegate ONE phase to builder;
-        :Builder completes phase;
-        :Review builder's work;
-        if (phase accepted?) then (yes)
-        else (no)
-          :Send back with feedback;
-        endif
-      repeat while (more phases?) is (yes)
-      ->no;
-      :Deliver final result to user;
-      stop
-      @enduml
+      \`\`\`mermaid
+      flowchart TD
+          A([Start]) --> B[Classify and understand the task]
+          B --> C[Break task into phases]
+          C --> D[Delegate ONE phase to builder]
+          D --> E[Builder completes phase]
+          E --> F[Review builder's work]
+          F --> G{phase accepted?}
+          G -->|no| H[Send back with feedback]
+          H --> D
+          G -->|yes| I{more phases?}
+          I -->|yes| D
+          I -->|no| J[Deliver final result to user]
+          J --> K([Stop])
       \`\`\`
 
       2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="planner" --trigger-message-id="<userMessageId>" << 'EOF'
@@ -192,7 +189,11 @@ describe('Squad Team > Planner > Get Next Task', () => {
     expect(output).not.toContain('Classify →');
 
     expect(output).toMatchInlineSnapshot(`
-      "<task>
+      "NOTE: If you are an agent that has undergone compaction or summarization, run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="planner"
+      to reload your full system and role prompt.
+
+      <task>
       ============================================================
       📋 TASK
       ============================================================

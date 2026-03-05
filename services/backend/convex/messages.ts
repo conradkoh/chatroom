@@ -1804,24 +1804,6 @@ export const getTaskDeliveryPrompt = query({
 
     const availableHandoffRoles = canHandoffToUser ? [...availableRoles, 'user'] : availableRoles;
 
-    // Generate role-specific prompt
-    const availableMembers = waitingParticipants.map((p) => p.role);
-
-    const rolePromptText = generateRolePrompt({
-      chatroomId: args.chatroomId,
-      role: args.role,
-      teamId: chatroom.teamId,
-      teamName: chatroom.teamName || 'Team',
-      teamRoles: chatroom.teamRoles || [],
-      teamEntryPoint: chatroom.teamEntryPoint,
-      currentClassification,
-      availableHandoffRoles,
-      canHandoffToUser,
-      restrictionReason,
-      convexUrl: config.getConvexURLWithFallback(args.convexUrl),
-      availableMembers,
-    });
-
     // Get context window (reuse getContextWindow logic)
     // Fetch recent messages for context
     const contextRecentMessages = await ctx.db
@@ -1999,7 +1981,6 @@ export const getTaskDeliveryPrompt = query({
         followUpCountSinceOrigin,
       },
       rolePrompt: {
-        prompt: rolePromptText,
         currentClassification,
         availableHandoffRoles,
         restrictionReason,

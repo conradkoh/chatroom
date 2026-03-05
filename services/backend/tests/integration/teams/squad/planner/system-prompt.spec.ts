@@ -167,26 +167,22 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       **Current Workflow: Full Team (Planner + Builder + Reviewer)**
 
-      \`\`\`
-      @startuml
-      start
-      :Receive task from user;
-      :Decompose into phases;
-      repeat
-        :Delegate ONE phase to **builder**;
-        :Builder completes phase;
-        :Builder hands off to **reviewer**;
-        :Reviewer validates;
-        :Reviewer hands off to **planner**;
-        if (phase acceptable?) then (no)
-          :Hand back to **builder** with feedback;
-        else (yes)
-        endif
-      repeat while (more phases?) is (yes)
-      ->no;
-      :Deliver final result to **user**;
-      stop
-      @enduml
+      \`\`\`mermaid
+      flowchart TD
+          A([Start]) --> B[Receive task from user]
+          B --> C[Decompose into phases]
+          C --> D[Delegate ONE phase to builder]
+          D --> E[Builder completes phase]
+          E --> F[Builder hands off to reviewer]
+          F --> G[Reviewer validates]
+          G --> H[Reviewer hands off to planner]
+          H --> I{phase acceptable?}
+          I -->|no| J[Hand back to builder with feedback]
+          J --> D
+          I -->|yes| K{more phases?}
+          K -->|yes| D
+          K -->|no| L[Deliver final result to user]
+          L --> M([Stop])
       \`\`\`
 
       **Core Responsibilities:**

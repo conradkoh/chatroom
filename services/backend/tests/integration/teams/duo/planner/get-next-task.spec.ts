@@ -54,13 +54,13 @@ describe('Duo Team > Planner > Get Next Task', () => {
     expect(output).toContain('targets: builder, user');
     // Phase Planning Loop should appear for planner receiving a user message
     expect(output).toContain('**Phase Planning Loop:**');
-    expect(output).toContain('@startuml');
-    expect(output).toContain(':Classify and understand the task;');
-    expect(output).toContain(':Break task into phases;');
-    expect(output).toContain(':Delegate ONE phase to builder;');
-    expect(output).toContain(":Review builder's work;");
-    expect(output).toContain(':Deliver final result to user;');
-    expect(output).toContain('@enduml');
+    expect(output).toContain('```mermaid');
+    expect(output).toContain('flowchart TD');
+    expect(output).toContain('[Classify and understand the task]');
+    expect(output).toContain('[Break task into phases]');
+    expect(output).toContain('[Delegate ONE phase to builder]');
+    expect(output).toContain("[Review builder's work]");
+    expect(output).toContain('[Deliver final result to user]');
     // Step 3 should be delegate to builder, not generic "hand off"
     expect(output).toContain('3. Delegate phase 1 to builder:');
     expect(output).toContain('--next-role=builder');

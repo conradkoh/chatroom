@@ -176,24 +176,23 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
 
-      \`\`\`
-      @startuml
-      start
-      :Command terminated unexpectedly;
-      if (Urgent pending work?) then (yes)
-        :Finish urgent work;
-        :Reconnect with get-next-task;
-      else (no)
-        :Reconnect immediately;
-        note right: Team cannot reach you without it
-      endif
-      stop
-      @enduml
+      \`\`\`mermaid
+      flowchart TD
+          A([Start]) --> B[Command terminated unexpectedly]
+          B --> C{Urgent pending work?}
+          C -->|yes| D[Finish urgent work]
+          D --> E[Reconnect with get-next-task]
+          C -->|no| E
+          E --> F([Stop])
       \`\`\`
 
       📋 BACKLOG TASKS
         chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
         chatroom backlog --help
+
+      📋 CONTEXT RECOVERY (after compaction/summarization)
+        If your context was compacted, run: chatroom get-system-prompt --chatroom-id=<id> --role=<role>
+        to reload your full system and role prompt.
 
       ══════════════════════════════════════════════════
 
@@ -377,6 +376,10 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       [TIMESTAMP] 📨 Task received!
 
+      NOTE: If you are an agent that has undergone compaction or summarization, run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
+      to reload your full system and role prompt.
+
       <task>
       ============================================================
       📋 TASK
@@ -430,18 +433,15 @@ ${taskDeliveryPrompt.fullCliOutput}
       📋 NEXT STEPS
       ============================================================
 
-      \`\`\`
-      @startuml
-      start
-      :Read user message;
-      if (message type?) then (question or follow_up)
-        :Classify with --origin-message-classification=<type>;
-      else (new_feature)
-        :Classify with --origin-message-classification=new_feature;
-        note right: requires --title, --description, --tech-specs
-      endif
-      stop
-      @enduml
+      \`\`\`mermaid
+      flowchart TD
+          A([Start]) --> B[Read user message]
+          B --> C{message type?}
+          C -->|question or follow_up| D[Classify with --origin-message-classification=type]
+          C -->|new_feature| E["Classify with --origin-message-classification=new_feature
+      requires --title, --description, --tech-specs"]
+          D --> F([Stop])
+          E --> F
       \`\`\`
 
       Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=<type>\`
@@ -562,7 +562,6 @@ ${taskDeliveryPrompt.fullCliOutput}
 
     // Should have role prompt context
     expect(jsonContext.rolePrompt).toBeDefined();
-    expect(jsonContext.rolePrompt.prompt).toBeDefined();
     expect(jsonContext.rolePrompt.availableHandoffRoles).toContain('reviewer');
 
     // Should have chatroom metadata
@@ -1353,24 +1352,23 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
 
-      \`\`\`
-      @startuml
-      start
-      :Command terminated unexpectedly;
-      if (Urgent pending work?) then (yes)
-        :Finish urgent work;
-        :Reconnect with get-next-task;
-      else (no)
-        :Reconnect immediately;
-        note right: Team cannot reach you without it
-      endif
-      stop
-      @enduml
+      \`\`\`mermaid
+      flowchart TD
+          A([Start]) --> B[Command terminated unexpectedly]
+          B --> C{Urgent pending work?}
+          C -->|yes| D[Finish urgent work]
+          D --> E[Reconnect with get-next-task]
+          C -->|no| E
+          E --> F([Stop])
       \`\`\`
 
       📋 BACKLOG TASKS
         chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
         chatroom backlog --help
+
+      📋 CONTEXT RECOVERY (after compaction/summarization)
+        If your context was compacted, run: chatroom get-system-prompt --chatroom-id=<id> --role=<role>
+        to reload your full system and role prompt.
 
       ══════════════════════════════════════════════════
 
@@ -1594,6 +1592,10 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       [TIMESTAMP] 📨 Task received!
 
+      NOTE: If you are an agent that has undergone compaction or summarization, run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10130;chatroom_rooms" --role="reviewer"
+      to reload your full system and role prompt.
+
       <task>
       ============================================================
       📋 TASK
@@ -1735,7 +1737,6 @@ ${taskDeliveryPrompt.fullCliOutput}
 
     // Should have role prompt context
     expect(jsonContext.rolePrompt).toBeDefined();
-    expect(jsonContext.rolePrompt.prompt).toBeDefined();
     expect(jsonContext.rolePrompt.availableHandoffRoles).toContain('builder');
     expect(jsonContext.rolePrompt.availableHandoffRoles).toContain('user');
   });
