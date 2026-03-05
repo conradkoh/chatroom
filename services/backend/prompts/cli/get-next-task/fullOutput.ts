@@ -249,6 +249,11 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   stepNum++;
 
   lines.push(
+    `${stepNum}. (optional) Read context if needed → \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\` _(skip if you already have full context)_`
+  );
+  stepNum++;
+
+  lines.push(
     `${stepNum}. Report progress at milestones → \`${reportProgressCommand({ chatroomId, role, cliEnvPrefix })}\``
   );
   stepNum++;
@@ -271,9 +276,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   lines.push('');
   lines.push('Reference commands:');
-  lines.push(
-    `  context read → \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\``
-  );
   lines.push(
     `  messages → \`${cliEnvPrefix}chatroom messages list --chatroom-id="${chatroomId}" --role="${role}" --sender-role=user --limit=5 --full\``
   );
