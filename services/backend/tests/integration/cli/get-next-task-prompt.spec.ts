@@ -220,6 +220,12 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
 
+      ### Context Recovery (after compaction/summarization)
+
+      NOTE: If you are an agent that has undergone compaction or summarization, run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
+      to reload your full system and role prompt.
+
       ### Register Agent
       Register your agent type before starting work.
 
@@ -391,10 +397,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       -->
 
       [TIMESTAMP] 📨 Task received!
-
-      NOTE: If you are an agent that has undergone compaction or summarization, run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
-      to reload your full system and role prompt.
 
       <task>
       ============================================================
@@ -1412,6 +1414,12 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
 
+      ### Context Recovery (after compaction/summarization)
+
+      NOTE: If you are an agent that has undergone compaction or summarization, run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10130;chatroom_rooms" --role="reviewer"
+      to reload your full system and role prompt.
+
       ### Register Agent
       Register your agent type before starting work.
 
@@ -1623,10 +1631,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       -->
 
       [TIMESTAMP] 📨 Task received!
-
-      NOTE: If you are an agent that has undergone compaction or summarization, run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10130;chatroom_rooms" --role="reviewer"
-      to reload your full system and role prompt.
 
       <task>
       ============================================================
@@ -1859,6 +1863,12 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       \`\`\`
 
       _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
+
+      ### Context Recovery (after compaction/summarization)
+
+      NOTE: If you are an agent that has undergone compaction or summarization, run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10156;chatroom_rooms" --role="builder"
+      to reload your full system and role prompt.
 
       ### Register Agent
       Register your agent type before starting work.
@@ -2104,6 +2114,12 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       \`\`\`
 
       _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
+
+      ### Context Recovery (after compaction/summarization)
+
+      NOTE: If you are an agent that has undergone compaction or summarization, run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10161;chatroom_rooms" --role="reviewer"
+      to reload your full system and role prompt.
 
       ### Register Agent
       Register your agent type before starting work.

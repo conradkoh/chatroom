@@ -10,6 +10,7 @@
 
 import type { ContextGainingParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/index';
+import { getCompactionRecoveryNote } from '../../cli/get-next-task/reminder';
 
 /**
  * Get context-gaining guidance for agents joining a conversation.
@@ -36,6 +37,10 @@ flowchart LR
 \`\`\`
 
 _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
+
+### Context Recovery (after compaction/summarization)
+
+${getCompactionRecoveryNote({ cliEnvPrefix, chatroomId, role })}
 
 ### Register Agent
 Register your agent type before starting work.

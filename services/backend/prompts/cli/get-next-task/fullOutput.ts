@@ -13,7 +13,7 @@
  */
 
 import { getNextTaskCommand } from './command';
-import { getNextTaskReminder, getCompactionRecoveryNote } from './reminder';
+import { getNextTaskReminder } from './reminder';
 import { contextNewCommand } from '../context/new';
 import { reportProgressCommand } from '../report-progress/command';
 import { taskStartedCommand } from '../task-started/command';
@@ -96,11 +96,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   const SEP_EQUAL = '='.repeat(60);
 
   const isUserMessage = message && message.senderRole.toLowerCase() === 'user';
-
-  // ── Compaction recovery note ───────────────────────────────────────────────
-
-  lines.push(getCompactionRecoveryNote({ cliEnvPrefix, chatroomId, role }));
-  lines.push('');
 
   // ── Task section (IDs + context + content + backlog) ──────────────────────
 

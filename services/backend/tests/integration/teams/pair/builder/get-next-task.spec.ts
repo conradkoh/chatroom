@@ -54,11 +54,7 @@ describe('Pair Team > Builder > Get Next Task', () => {
     expect(output).toContain('targets: reviewer, user');
 
     expect(output).toMatchInlineSnapshot(`
-      "NOTE: If you are an agent that has undergone compaction or summarization, run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="builder"
-      to reload your full system and role prompt.
-
-      <task>
+      "<task>
       ============================================================
       📋 TASK
       ============================================================
@@ -170,11 +166,7 @@ describe('Pair Team > Builder > Get Next Task', () => {
     expect(output).not.toContain('Classify →');
 
     expect(output).toMatchInlineSnapshot(`
-      "NOTE: If you are an agent that has undergone compaction or summarization, run:
-        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="builder"
-      to reload your full system and role prompt.
-
-      <task>
+      "<task>
       ============================================================
       📋 TASK
       ============================================================

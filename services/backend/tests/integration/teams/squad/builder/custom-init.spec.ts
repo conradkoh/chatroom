@@ -62,6 +62,12 @@ describe('Squad Team > Builder > Custom Init Prompt', () => {
 
       _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
 
+      ### Context Recovery (after compaction/summarization)
+
+      NOTE: If you are an agent that has undergone compaction or summarization, run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-squad-chatroom" --role="builder"
+      to reload your full system and role prompt.
+
       ### Register Agent
       Register your agent type before starting work.
 
