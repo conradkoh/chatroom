@@ -71,13 +71,19 @@ export function ChatroomSwitcher() {
       onOpenChange={setOpen}
       title="Switch Chatroom"
       description="Search and navigate to a chatroom"
+      className="rounded-none border-2 border-border"
       contentProps={{ forceMount: true }}
     >
       <CommandInput placeholder="Search chatrooms..." />
       <CommandList className="h-[300px]">
-        <CommandEmpty className="text-muted-foreground">No chatrooms found.</CommandEmpty>
+        <CommandEmpty className="text-muted-foreground text-xs font-bold uppercase tracking-wider">
+          No chatrooms found.
+        </CommandEmpty>
         {chatrooms && chatrooms.length > 0 && (
-          <CommandGroup heading="Chatrooms">
+          <CommandGroup
+            heading="Chatrooms"
+            className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-[10px]"
+          >
             {chatrooms.map((chatroom) => (
               <CommandItem
                 key={chatroom._id}
