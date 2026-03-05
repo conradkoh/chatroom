@@ -13,7 +13,7 @@
  */
 
 import { getNextTaskCommand } from './command';
-import { getNextTaskReminder } from './reminder';
+import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
 import { contextNewCommand } from '../context/new';
 import { reportProgressCommand } from '../report-progress/command';
 import { taskStartedCommand } from '../task-started/command';
@@ -424,6 +424,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('');
   lines.push(SEP_EQUAL);
   lines.push(getNextTaskReminder());
+  lines.push(getCompactionRecoveryOneLiner({ cliEnvPrefix, chatroomId, role }));
   lines.push(SEP_EQUAL);
 
   return lines.join('\n');

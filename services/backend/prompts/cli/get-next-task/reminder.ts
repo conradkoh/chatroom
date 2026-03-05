@@ -69,7 +69,7 @@ export const getWaitForTaskGuidance = getNextTaskGuidance;
 
 /**
  * Get the compaction/summarization recovery note.
- * Shown at the top of every task delivery to help agents recover after context loss.
+ * Used in the system prompt's Getting Started section for durable agent recovery guidance.
  *
  * @param params - Contains real values for cliEnvPrefix, chatroomId, and role
  */
@@ -82,4 +82,20 @@ export function getCompactionRecoveryNote(params: {
   return `NOTE: If you are an agent that has undergone compaction or summarization, run:
   ${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"
 to reload your full system and role prompt.`;
+}
+
+/**
+ * Get a compact one-liner compaction recovery reminder for task delivery.
+ * Shown in the reminder footer of every task delivery as a quick nudge.
+ * The full version lives in the system prompt's Getting Started section.
+ *
+ * @param params - Contains real values for cliEnvPrefix, chatroomId, and role
+ */
+export function getCompactionRecoveryOneLiner(params: {
+  cliEnvPrefix: string;
+  chatroomId: string;
+  role: string;
+}): string {
+  const { cliEnvPrefix, chatroomId, role } = params;
+  return `Context compacted? Run \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\` to reload your role prompt.`;
 }
