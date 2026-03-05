@@ -71,6 +71,7 @@ export function ChatroomSwitcher() {
       onOpenChange={setOpen}
       title="Switch Chatroom"
       description="Search and navigate to a chatroom"
+      contentProps={{ forceMount: true }}
     >
       <CommandInput placeholder="Search chatrooms..." />
       <CommandList>
