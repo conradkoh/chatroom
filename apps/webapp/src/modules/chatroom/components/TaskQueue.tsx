@@ -221,17 +221,11 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   const categorizedTasks = useMemo(() => {
     if (!tasks) return { current: [], queued: [], backlog: [] };
 
-    // Filter backlog tasks and sort by priority descending, then createdAt descending
+    // Backlog items sorted by createdAt descending (newest first)
+    // Priority is displayed as metadata but does not affect sort order
     const backlogTasks = tasks
       .filter((t) => t.status === 'backlog')
-      .sort((a, b) => {
-        const aPriority = a.priority ?? -Infinity;
-        const bPriority = b.priority ?? -Infinity;
-        if (aPriority !== bPriority) {
-          return bPriority - aPriority; // Higher priority first
-        }
-        return b.createdAt - a.createdAt; // Newer first as tiebreaker
-      });
+      .sort((a, b) => b.createdAt - a.createdAt);
 
     return {
       current: tasks.filter(
