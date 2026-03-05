@@ -1,17 +1,13 @@
 /**
  * Webapp Prompts
  *
- * These prompts are used by the webapp for UI display purposes only.
- * They provide a simplified view of agent initialization for the dashboard.
- *
- * The CLI uses the full prompts from cli/ which are served by the backend.
+ * Prompts used by the webapp frontend (PromptsContext) and the CLI's
+ * get-system-prompt command. Generates the full agent system prompt via
+ * composeSystemPrompt() with agentType: 'custom' for custom agents.
  */
 
 export { generateAgentPrompt, generateShortPrompt } from './init/generator';
 export type { PromptContext } from './init/generator';
-
-export { getRoleTemplate, ROLE_TEMPLATES } from './init/templates';
-export type { RoleTemplate } from './init/templates';
 
 export { isProductionConvexUrl, getCliEnvPrefix } from './utils/env';
 
