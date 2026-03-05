@@ -186,7 +186,7 @@ export const updateAgentConfig = mutation({
     machineId: v.string(),
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
-    agentType: agentHarnessValidator,
+    agentType: v.optional(agentHarnessValidator),
     workingDir: v.string(),
     model: v.optional(v.string()),
   },
@@ -223,22 +223,29 @@ export const updateAgentConfig = mutation({
 
     // Preserve existing model if the new value is undefined (e.g. get-next-task doesn't pass model)
     const resolvedModel = args.model ?? existing?.model;
+    // Preserve existing agentType if not provided (e.g. get-next-task without --agent-type)
+    const resolvedAgentType = args.agentType ?? existing?.agentType;
 
     if (existing) {
-      // Update existing config
+      // Update existing config — only update agentType if it was provided
       await ctx.db.patch('chatroom_machineAgentConfigs', existing._id, {
-        agentType: args.agentType,
+        ...(resolvedAgentType ? { agentType: resolvedAgentType } : {}),
         workingDir: args.workingDir,
         model: resolvedModel,
         updatedAt: now,
       });
     } else {
+      if (!resolvedAgentType) {
+        // No existing config and no agentType provided — cannot create a complete record
+        // This shouldn't happen normally since daemon always provides agentType on first start
+        return { success: false };
+      }
       // Create new config
       await ctx.db.insert('chatroom_machineAgentConfigs', {
         machineId: args.machineId,
         chatroomId: args.chatroomId,
         role: args.role,
-        agentType: args.agentType,
+        agentType: resolvedAgentType,
         workingDir: args.workingDir,
         model: resolvedModel,
         updatedAt: now,

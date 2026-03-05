@@ -144,23 +144,18 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
       availableModels,
     });
 
-    // Determine agent type (from flag or default to first available harness)
-    const agentType: AgentHarness | undefined =
-      options.agentType ??
-      (machineInfo.availableHarnesses.length > 0 ? machineInfo.availableHarnesses[0] : undefined);
-
-    if (agentType) {
-      const workingDir = process.cwd();
-
-      await client.mutation(api.machines.updateAgentConfig, {
-        sessionId,
-        machineId: machineInfo.machineId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        agentType,
-        workingDir,
-      });
-    }
+    // Always sync machine config (workingDir) with the backend, but only pass agentType
+    // if explicitly specified via --agent-type flag. Omitting agentType (undefined) signals
+    // the backend to preserve whatever agentType the user previously selected in the UI.
+    const workingDir = process.cwd();
+    await client.mutation(api.machines.updateAgentConfig, {
+      sessionId,
+      machineId: machineInfo.machineId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+      agentType: options.agentType, // undefined when --agent-type not provided; backend preserves existing
+      workingDir,
+    });
   } catch (machineError) {
     if (!silent) {
       console.warn(
