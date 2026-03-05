@@ -148,7 +148,7 @@ export const check = internalMutation({
     // ── 2. Guard: task must still be in an active status ─────────────────
 
     if (!ACTIVE_TASK_STATUSES.has(task.status)) {
-      // Task has moved to a terminal/non-active status (completed, queued, etc.)
+      // Task has moved to a terminal/non-active status (completed, etc.)
       return;
     }
 
