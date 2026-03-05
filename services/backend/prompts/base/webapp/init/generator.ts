@@ -6,7 +6,7 @@
  * This is kept for backward compatibility with UI components.
  */
 
-import { composeSystemPrompt } from '../../../generator.js';
+import { composeSystemPrompt } from '../../../generator';
 import { getCliEnvPrefix } from '../utils/env';
 
 export interface PromptContext {

@@ -2,9 +2,7 @@
 
 import { v } from 'convex/values';
 
-import {
-  generateAgentPrompt,
-} from '../../prompts/base/webapp/init/generator.js';
+import { generateAgentPrompt } from '../../prompts/base/webapp/init/generator';
 import { query } from '../_generated/server';
 
 /** Returns the full agent initialization prompt for a role (used by the CLI get-system-prompt command). */
