@@ -45,7 +45,6 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
 
     expect(output).toBeDefined();
     expect(output).toContain('📋 TASK');
-    expect(output).toContain('📋 PROCESS');
     expect(output).toContain('📋 NEXT STEPS');
     // Non-entry point should NOT have context creation step
     expect(output).not.toContain('Code changes expected?');
@@ -60,56 +59,17 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       Origin Message ID: test-message-id
       From: user
 
-      ## User Message
-      <user-message>
-      Please review the dark mode changes
-      </user-message>
+      ## Context
+      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\`
 
       ## Task
       Review the dark mode implementation
       </task>
 
-      <process>
-      ============================================================
-      📋 PROCESS
-      ============================================================
-      1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id" --origin-message-classification=follow_up\`
-      2. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="reviewer" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF\`
-      3. Do the work
-      4. Hand off (targets: builder, planner) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
-      ---MESSAGE---
-      [Your message here]
-      EOF\`
-      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="reviewer"\`
-
-      Reference commands:
-        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\`
-        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="test-chatroom-id" --role="reviewer" --sender-role=user --limit=5 --full\`
-        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="test-chatroom-id" --role="reviewer" --status=backlog\`
-        git log → \`git log --oneline -10\`
-      </process>
-
       <next-steps>
       ============================================================
       📋 NEXT STEPS
       ============================================================
-
-      \`\`\`
-      @startuml
-      start
-      :Read user message;
-      if (message type?) then (question or follow_up)
-        :Classify with --origin-message-classification=<type>;
-      else (new_feature)
-        :Classify with --origin-message-classification=new_feature;
-        note right: requires --title, --description, --tech-specs
-      endif
-      stop
-      @enduml
-      \`\`\`
 
       Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id" --origin-message-classification=<type>\`
 
@@ -122,8 +82,7 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       ---TECH_SPECS---
       <tech-specs>
       EOF
-      2. Do the work → follow PROCESS above
-      3. Hand off when complete:
+      2. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -135,6 +94,7 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
 
       ============================================================
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\` for current task.
       ============================================================"
     `);
   });
@@ -168,10 +128,8 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       Origin Message ID: test-message-id
       From: builder
 
-      ## User Message
-      <user-message>
-      Please implement dark mode for the settings page
-      </user-message>
+      ## Context
+      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\`
 
       ## Task
       Review the dark mode implementation
@@ -179,37 +137,13 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       Classification: NEW_FEATURE
       </task>
 
-      <process>
-      ============================================================
-      📋 PROCESS
-      ============================================================
-      1. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id" --no-classify\`
-      2. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="reviewer" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF\`
-      3. Do the work
-      4. Hand off (targets: builder, planner) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
-      ---MESSAGE---
-      [Your message here]
-      EOF\`
-      5. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="reviewer"\`
-
-      Reference commands:
-        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\`
-        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="test-chatroom-id" --role="reviewer" --sender-role=user --limit=5 --full\`
-        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="test-chatroom-id" --role="reviewer" --status=backlog\`
-        git log → \`git log --oneline -10\`
-      </process>
-
       <next-steps>
       ============================================================
       📋 NEXT STEPS
       ============================================================
 
       handed off from builder — start work immediately.
-      1. Do the work → follow PROCESS above
-      2. Hand off when complete:
+      1. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -221,6 +155,7 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
 
       ============================================================
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\` for current task.
       ============================================================"
     `);
   });

@@ -45,7 +45,6 @@ describe('Pair Team > Builder > Get Next Task', () => {
 
     expect(output).toBeDefined();
     expect(output).toContain('📋 TASK');
-    expect(output).toContain('📋 PROCESS');
     expect(output).toContain('📋 NEXT STEPS');
     // Entry point should have context creation step
     expect(output).toContain('Code changes expected?');
@@ -62,59 +61,17 @@ describe('Pair Team > Builder > Get Next Task', () => {
       Origin Message ID: test-message-id
       From: user
 
-      ## User Message
-      <user-message>
-      Please implement dark mode for the settings page
-      </user-message>
+      ## Context
+      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="builder"\`
 
       ## Task
       Implement the feature as described
       </task>
 
-      <process>
-      ============================================================
-      📋 PROCESS
-      ============================================================
-      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
-      <summary of current focus>
-      EOF\`
-      2. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id" --origin-message-classification=follow_up\`
-      3. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="builder" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF\`
-      4. Do the work
-      5. Hand off (targets: reviewer, user) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role=<target> << 'EOF'
-      ---MESSAGE---
-      [Your message here]
-      EOF\`
-      6. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="builder"\`
-
-      Reference commands:
-        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="builder"\`
-        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="test-chatroom-id" --role="builder" --sender-role=user --limit=5 --full\`
-        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="test-chatroom-id" --role="builder" --status=backlog\`
-        git log → \`git log --oneline -10\`
-      </process>
-
       <next-steps>
       ============================================================
       📋 NEXT STEPS
       ============================================================
-
-      \`\`\`
-      @startuml
-      start
-      :Read user message;
-      if (message type?) then (question or follow_up)
-        :Classify with --origin-message-classification=<type>;
-      else (new_feature)
-        :Classify with --origin-message-classification=new_feature;
-        note right: requires --title, --description, --tech-specs
-      endif
-      stop
-      @enduml
-      \`\`\`
 
       Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id" --origin-message-classification=<type>\`
 
@@ -131,8 +88,7 @@ describe('Pair Team > Builder > Get Next Task', () => {
       2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
-      3. Do the work → follow PROCESS above
-      4. Hand off when complete:
+      3. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -144,6 +100,7 @@ describe('Pair Team > Builder > Get Next Task', () => {
 
       ============================================================
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="builder"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="builder"\` for current task.
       ============================================================"
     `);
   });
@@ -177,42 +134,14 @@ describe('Pair Team > Builder > Get Next Task', () => {
       Origin Message ID: test-message-id
       From: reviewer
 
-      ## User Message
-      <user-message>
-      Please implement dark mode for the settings page
-      </user-message>
+      ## Context
+      (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="builder"\`
 
       ## Task
       Implement the feature as described
 
       Classification: NEW_FEATURE
       </task>
-
-      <process>
-      ============================================================
-      📋 PROCESS
-      ============================================================
-      1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
-      <summary of current focus>
-      EOF\`
-      2. Acknowledge → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id" --no-classify\`
-      3. Report progress at milestones → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="builder" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF\`
-      4. Do the work
-      5. Hand off (targets: reviewer, user) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role=<target> << 'EOF'
-      ---MESSAGE---
-      [Your message here]
-      EOF\`
-      6. Resume → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="builder"\`
-
-      Reference commands:
-        context read → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="builder"\`
-        messages → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="test-chatroom-id" --role="builder" --sender-role=user --limit=5 --full\`
-        backlog → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="test-chatroom-id" --role="builder" --status=backlog\`
-        git log → \`git log --oneline -10\`
-      </process>
 
       <next-steps>
       ============================================================
@@ -223,8 +152,7 @@ describe('Pair Team > Builder > Get Next Task', () => {
       1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
-      2. Do the work → follow PROCESS above
-      3. Hand off when complete:
+      2. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -236,6 +164,7 @@ describe('Pair Team > Builder > Get Next Task', () => {
 
       ============================================================
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="builder"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="builder"\` for current task.
       ============================================================"
     `);
   });

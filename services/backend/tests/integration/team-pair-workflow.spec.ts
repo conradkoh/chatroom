@@ -245,7 +245,13 @@ Test technical specifications`,
         **Re-fetch your system prompt (after context reset):**
         \`\`\`
         chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
-        \`\`\`"
+        \`\`\`
+
+        **Reference commands:**
+        - Read current task context: \`chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
+        - List recent messages: \`chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
+        - List backlog: \`chatroom backlog list --chatroom-id="10002;chatroom_rooms" --role="builder" --status=backlog\`
+        - Git log: \`git log --oneline -10\`"
       `);
 
       // ========================================
@@ -494,7 +500,13 @@ Test technical specifications`,
         **Re-fetch your system prompt (after context reset):**
         \`\`\`
         chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="reviewer"
-        \`\`\`"
+        \`\`\`
+
+        **Reference commands:**
+        - Read current task context: \`chatroom context read --chatroom-id="10002;chatroom_rooms" --role="reviewer"\`
+        - List recent messages: \`chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
+        - List backlog: \`chatroom backlog list --chatroom-id="10002;chatroom_rooms" --role="reviewer" --status=backlog\`
+        - Git log: \`git log --oneline -10\`"
       `);
 
       // ========================================
@@ -738,7 +750,13 @@ Test technical specifications`,
         **Re-fetch your system prompt (after context reset):**
         \`\`\`
         chatroom get-system-prompt --chatroom-id="10045;chatroom_rooms" --role="builder"
-        \`\`\`"
+        \`\`\`
+
+        **Reference commands:**
+        - Read current task context: \`chatroom context read --chatroom-id="10045;chatroom_rooms" --role="builder"\`
+        - List recent messages: \`chatroom messages list --chatroom-id="10045;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
+        - List backlog: \`chatroom backlog list --chatroom-id="10045;chatroom_rooms" --role="builder" --status=backlog\`
+        - Git log: \`git log --oneline -10\`"
       `);
 
       // Builder hands off directly to user (should succeed)

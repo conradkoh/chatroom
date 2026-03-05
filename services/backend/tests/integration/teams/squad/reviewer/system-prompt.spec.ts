@@ -86,6 +86,28 @@ describe('Squad Team > Reviewer > System Prompt', () => {
 
       ## Getting Started
 
+      ### Workflow Loop
+
+      \`\`\`mermaid
+      flowchart LR
+          A([Start]) --> B[register-agent]
+          B --> C[get-next-task
+      waiting...]
+          C --> D[task-started
+      classify]
+          D --> E[Do Work]
+          E --> F[handoff]
+          F --> C
+      \`\`\`
+
+      ### Context Recovery (after compaction/summarization)
+
+      NOTE: If you are an agent that has undergone compaction or summarization, run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="reviewer"
+      to reload your full system and role prompt. Then run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="reviewer"
+      to see your current task context.
+
       ### Register Agent
       Register your agent type before starting work.
 
@@ -289,6 +311,12 @@ describe('Squad Team > Reviewer > System Prompt', () => {
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="reviewer"
       \`\`\`
+
+      **Reference commands:**
+      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="reviewer"\`
+      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
+      - List backlog: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="10002;chatroom_rooms" --role="reviewer" --status=backlog\`
+      - Git log: \`git log --oneline -10\`
 
       ### Next
 

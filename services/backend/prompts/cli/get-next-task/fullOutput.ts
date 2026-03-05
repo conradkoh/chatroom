@@ -12,10 +12,8 @@
  * - Reminder footer
  */
 
-import { getNextTaskCommand } from './command';
-import { getNextTaskReminder } from './reminder';
+import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
 import { contextNewCommand } from '../context/new';
-import { reportProgressCommand } from '../report-progress/command';
 import { taskStartedCommand } from '../task-started/command';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -113,8 +111,9 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   if (currentContext) {
     lines.push('');
     lines.push('## Context');
-    lines.push('<context>');
-    lines.push(currentContext.content);
+    lines.push(
+      `(read if needed) → \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\``
+    );
 
     // Staleness warning: many messages since context was set
     if (currentContext.messagesSinceContext >= 10) {
@@ -142,15 +141,14 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push('   Entry point role will update when needed.');
       }
     }
-
-    lines.push('</context>');
   }
   // Fallback to origin message if no context (legacy behavior)
   else if (originMessage && originMessage.senderRole.toLowerCase() === 'user') {
     lines.push('');
-    lines.push('## User Message');
-    lines.push('<user-message>');
-    lines.push(originMessage.content);
+    lines.push('## Context');
+    lines.push(
+      `(read if needed) → \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\``
+    );
 
     // Staleness warning: many follow-ups
     if (followUpCountSinceOrigin >= 5) {
@@ -182,8 +180,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         }
       }
     }
-
-    lines.push('</user-message>');
   }
 
   // Task content
@@ -209,70 +205,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   lines.push('</task>');
 
-  // ── Process section ─────────────────────────────────────────────────────
-
-  lines.push('');
-  lines.push('<process>');
-  lines.push(SEP_EQUAL);
-  lines.push('📋 PROCESS');
-  lines.push(SEP_EQUAL);
-
-  let stepNum = 1;
-
-  if (isEntryPoint) {
-    lines.push(
-      `${stepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
-    );
-    stepNum++;
-  }
-
-  if (isUserMessage) {
-    lines.push(
-      `${stepNum}. Acknowledge → \`${taskStartedCommand({ chatroomId, role, taskId: task._id, classification: 'follow_up', cliEnvPrefix })}\``
-    );
-  } else {
-    lines.push(
-      `${stepNum}. Acknowledge → \`${cliEnvPrefix}chatroom task-started --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}" --no-classify\``
-    );
-  }
-  stepNum++;
-
-  lines.push(
-    `${stepNum}. Report progress at milestones → \`${reportProgressCommand({ chatroomId, role, cliEnvPrefix })}\``
-  );
-  stepNum++;
-
-  lines.push(`${stepNum}. Do the work`);
-  stepNum++;
-
-  if (availableHandoffTargets.length > 0) {
-    lines.push(
-      `${stepNum}. Hand off (targets: ${availableHandoffTargets.join(', ')}) → \`${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'\n---MESSAGE---\n[Your message here]\nEOF\``
-    );
-  } else {
-    lines.push(
-      `${stepNum}. Hand off → \`${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'\n---MESSAGE---\n[Your message here]\nEOF\``
-    );
-  }
-  stepNum++;
-
-  lines.push(`${stepNum}. Resume → \`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
-
-  lines.push('');
-  lines.push('Reference commands:');
-  lines.push(
-    `  context read → \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\``
-  );
-  lines.push(
-    `  messages → \`${cliEnvPrefix}chatroom messages list --chatroom-id="${chatroomId}" --role="${role}" --sender-role=user --limit=5 --full\``
-  );
-  lines.push(
-    `  backlog → \`${cliEnvPrefix}chatroom backlog list --chatroom-id="${chatroomId}" --role="${role}" --status=backlog\``
-  );
-  lines.push('  git log → `git log --oneline -10`');
-
-  lines.push('</process>');
-
   // ── Next Steps ──────────────────────────────────────────────────────────
 
   lines.push('');
@@ -295,21 +227,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     );
 
     lines.push('');
-    lines.push('```');
-    lines.push('@startuml');
-    lines.push('start');
-    lines.push(':Read user message;');
-    lines.push('if (message type?) then (question or follow_up)');
-    lines.push('  :Classify with --origin-message-classification=<type>;');
-    lines.push('else (new_feature)');
-    lines.push('  :Classify with --origin-message-classification=new_feature;');
-    lines.push('  note right: requires --title, --description, --tech-specs');
-    lines.push('endif');
-    lines.push('stop');
-    lines.push('@enduml');
-    lines.push('```');
-
-    lines.push('');
     lines.push(`Classify → \`${baseCmd}\``);
 
     // new_feature example
@@ -329,28 +246,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     );
 
     if (role === 'planner') {
-      // Planner role receiving a new user task — show phase-planning loop
-      lines.push('');
-      lines.push('**Phase Planning Loop:**');
-      lines.push('```');
-      lines.push('@startuml');
-      lines.push('start');
-      lines.push(':Classify and understand the task;');
-      lines.push(':Break task into phases;');
-      lines.push('repeat');
-      lines.push('  :Delegate ONE phase to builder;');
-      lines.push('  :Builder completes phase;');
-      lines.push("  :Review builder's work;");
-      lines.push('  if (phase accepted?) then (yes)');
-      lines.push('  else (no)');
-      lines.push('    :Send back with feedback;');
-      lines.push('  endif');
-      lines.push('repeat while (more phases?) is (yes)');
-      lines.push('->no;');
-      lines.push(':Deliver final result to user;');
-      lines.push('stop');
-      lines.push('@enduml');
-      lines.push('```');
+      // Planner role receiving a new user task
       lines.push('');
       lines.push(
         `2. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
@@ -368,7 +264,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
       }
     } else {
-      // Non-coordinator role receiving a user message (entry-point implementer or non-entry-point)
+      // Non-coordinator role receiving a user message
       let nextStepNum = 2;
       if (isEntryPoint) {
         lines.push('');
@@ -377,8 +273,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         );
         nextStepNum++;
       }
-      lines.push(`${nextStepNum}. Do the work → follow PROCESS above`);
-      nextStepNum++;
       lines.push(`${nextStepNum}. Hand off when complete:`);
       lines.push('```');
       lines.push(
@@ -404,8 +298,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       nextStepNum++;
     }
 
-    lines.push(`${nextStepNum}. Do the work → follow PROCESS above`);
-    nextStepNum++;
     lines.push(`${nextStepNum}. Hand off when complete:`);
     lines.push('```');
     lines.push(
@@ -430,6 +322,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('');
   lines.push(SEP_EQUAL);
   lines.push(getNextTaskReminder());
+  lines.push(getCompactionRecoveryOneLiner({ cliEnvPrefix, chatroomId, role }));
   lines.push(SEP_EQUAL);
 
   return lines.join('\n');

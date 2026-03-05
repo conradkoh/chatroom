@@ -85,6 +85,28 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       ## Getting Started
 
+      ### Workflow Loop
+
+      \`\`\`mermaid
+      flowchart LR
+          A([Start]) --> B[register-agent]
+          B --> C[get-next-task
+      waiting...]
+          C --> D[task-started
+      classify]
+          D --> E[Do Work]
+          E --> F[handoff]
+          F --> C
+      \`\`\`
+
+      ### Context Recovery (after compaction/summarization)
+
+      NOTE: If you are an agent that has undergone compaction or summarization, run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="planner"
+      to reload your full system and role prompt. Then run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="planner"
+      to see your current task context.
+
       ### Register Agent
       Register your agent type before starting work.
 
@@ -167,26 +189,22 @@ describe('Squad Team > Planner > System Prompt', () => {
 
       **Current Workflow: Full Team (Planner + Builder + Reviewer)**
 
-      \`\`\`
-      @startuml
-      start
-      :Receive task from user;
-      :Decompose into phases;
-      repeat
-        :Delegate ONE phase to **builder**;
-        :Builder completes phase;
-        :Builder hands off to **reviewer**;
-        :Reviewer validates;
-        :Reviewer hands off to **planner**;
-        if (phase acceptable?) then (no)
-          :Hand back to **builder** with feedback;
-        else (yes)
-        endif
-      repeat while (more phases?) is (yes)
-      ->no;
-      :Deliver final result to **user**;
-      stop
-      @enduml
+      \`\`\`mermaid
+      flowchart TD
+          A([Start]) --> B[Receive task from user]
+          B --> C[Decompose into phases]
+          C --> D[Delegate ONE phase to builder]
+          D --> E[Builder completes phase]
+          E --> F[Builder hands off to reviewer]
+          F --> G[Reviewer validates]
+          G --> H[Reviewer hands off to planner]
+          H --> I{phase acceptable?}
+          I -->|no| J[Hand back to builder with feedback]
+          J --> D
+          I -->|yes| K{more phases?}
+          K -->|yes| D
+          K -->|no| L[Deliver final result to user]
+          L --> M([Stop])
       \`\`\`
 
       **Core Responsibilities:**
@@ -258,6 +276,12 @@ describe('Squad Team > Planner > System Prompt', () => {
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="planner"
       \`\`\`
+
+      **Reference commands:**
+      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="planner"\`
+      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="planner" --sender-role=user --limit=5 --full\`
+      - List backlog: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="10002;chatroom_rooms" --role="planner" --status=backlog\`
+      - Git log: \`git log --oneline -10\`
 
       ### Next
 

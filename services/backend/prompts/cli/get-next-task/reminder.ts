@@ -43,27 +43,61 @@ Two requirements:
 
 ⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
 
-\`\`\`
-@startuml
-start
-:Command terminated unexpectedly;
-if (Urgent pending work?) then (yes)
-  :Finish urgent work;
-  :Reconnect with get-next-task;
-else (no)
-  :Reconnect immediately;
-  note right: Team cannot reach you without it
-endif
-stop
-@enduml
+\`\`\`mermaid
+flowchart TD
+    A([Start]) --> B[Command terminated unexpectedly]
+    B --> C{Urgent pending work?}
+    C -->|yes| D[Finish urgent work]
+    D --> E[Reconnect with get-next-task]
+    C -->|no| E
+    E --> F([Stop])
 \`\`\`
 
 📋 BACKLOG TASKS
   chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
-  chatroom backlog --help`;
+  chatroom backlog --help
+
+📋 CONTEXT RECOVERY (after compaction/summarization)
+  If your context was compacted, run: chatroom get-system-prompt --chatroom-id=<id> --role=<role>
+  to reload your full system and role prompt.`;
 }
 
 /**
  * @deprecated Use getNextTaskGuidance instead.
  */
 export const getWaitForTaskGuidance = getNextTaskGuidance;
+
+/**
+ * Get the compaction/summarization recovery note.
+ * Used in the system prompt's Getting Started section for durable agent recovery guidance.
+ *
+ * @param params - Contains real values for cliEnvPrefix, chatroomId, and role
+ */
+export function getCompactionRecoveryNote(params: {
+  cliEnvPrefix: string;
+  chatroomId: string;
+  role: string;
+}): string {
+  const { cliEnvPrefix, chatroomId, role } = params;
+  return `NOTE: If you are an agent that has undergone compaction or summarization, run:
+  ${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"
+to reload your full system and role prompt. Then run:
+  ${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"
+to see your current task context.`;
+}
+
+/**
+ * Get a compact one-liner compaction recovery reminder for task delivery.
+ * Shown in the reminder footer of every task delivery as a quick nudge.
+ * The full version lives in the system prompt's Getting Started section.
+ *
+ * @param params - Contains real values for cliEnvPrefix, chatroomId, and role
+ */
+export function getCompactionRecoveryOneLiner(params: {
+  cliEnvPrefix: string;
+  chatroomId: string;
+  role: string;
+}): string {
+  const { cliEnvPrefix, chatroomId, role } = params;
+  return `Context compacted? Run \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\` to reload prompt, and \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\` for current task.`;
+}

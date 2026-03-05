@@ -10,6 +10,7 @@
 
 import type { ContextGainingParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/index';
+import { getCompactionRecoveryNote } from '../../cli/get-next-task/reminder';
 
 /**
  * Get context-gaining guidance for agents joining a conversation.
@@ -22,6 +23,22 @@ export function getContextGainingGuidance(params: ContextGainingParams): string 
   const typeValue = agentType && agentType !== 'unset' ? agentType : '<remote|custom>';
 
   return `## Getting Started
+
+### Workflow Loop
+
+\`\`\`mermaid
+flowchart LR
+    A([Start]) --> B[register-agent]
+    B --> C[get-next-task\nwaiting...]
+    C --> D[task-started\nclassify]
+    D --> E[Do Work]
+    E --> F[handoff]
+    F --> C
+\`\`\`
+
+### Context Recovery (after compaction/summarization)
+
+${getCompactionRecoveryNote({ cliEnvPrefix, chatroomId, role })}
 
 ### Register Agent
 Register your agent type before starting work.
