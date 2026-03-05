@@ -46,6 +46,22 @@ describe('Pair Team > Reviewer > Custom Init Prompt', () => {
 
       ## Getting Started
 
+      ### Workflow Loop
+
+      \`\`\`mermaid
+      flowchart LR
+          A([Start]) --> B[register-agent]
+          B --> C[get-next-task
+      waiting...]
+          C --> D[task-started
+      classify]
+          D --> E[Do Work]
+          E --> F[handoff]
+          F --> C
+      \`\`\`
+
+      _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
+
       ### Register Agent
       Register your agent type before starting work.
 

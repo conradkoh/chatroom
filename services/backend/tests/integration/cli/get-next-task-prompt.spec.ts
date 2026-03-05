@@ -204,6 +204,22 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ## Getting Started
 
+      ### Workflow Loop
+
+      \`\`\`mermaid
+      flowchart LR
+          A([Start]) --> B[register-agent]
+          B --> C[get-next-task
+      waiting...]
+          C --> D[task-started
+      classify]
+          D --> E[Do Work]
+          E --> F[handoff]
+          F --> C
+      \`\`\`
+
+      _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
+
       ### Register Agent
       Register your agent type before starting work.
 
@@ -1380,6 +1396,22 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ## Getting Started
 
+      ### Workflow Loop
+
+      \`\`\`mermaid
+      flowchart LR
+          A([Start]) --> B[register-agent]
+          B --> C[get-next-task
+      waiting...]
+          C --> D[task-started
+      classify]
+          D --> E[Do Work]
+          E --> F[handoff]
+          F --> C
+      \`\`\`
+
+      _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
+
       ### Register Agent
       Register your agent type before starting work.
 
@@ -1812,6 +1844,22 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       ## Getting Started
 
+      ### Workflow Loop
+
+      \`\`\`mermaid
+      flowchart LR
+          A([Start]) --> B[register-agent]
+          B --> C[get-next-task
+      waiting...]
+          C --> D[task-started
+      classify]
+          D --> E[Do Work]
+          E --> F[handoff]
+          F --> C
+      \`\`\`
+
+      _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
+
       ### Register Agent
       Register your agent type before starting work.
 
@@ -2040,6 +2088,22 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       You are the quality guardian responsible for reviewing and validating code changes.
 
       ## Getting Started
+
+      ### Workflow Loop
+
+      \`\`\`mermaid
+      flowchart LR
+          A([Start]) --> B[register-agent]
+          B --> C[get-next-task
+      waiting...]
+          C --> D[task-started
+      classify]
+          D --> E[Do Work]
+          E --> F[handoff]
+          F --> C
+      \`\`\`
+
+      _If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
 
       ### Register Agent
       Register your agent type before starting work.

@@ -23,6 +23,20 @@ export function getContextGainingGuidance(params: ContextGainingParams): string 
 
   return `## Getting Started
 
+### Workflow Loop
+
+\`\`\`mermaid
+flowchart LR
+    A([Start]) --> B[register-agent]
+    B --> C[get-next-task\nwaiting...]
+    C --> D[task-started\nclassify]
+    D --> E[Do Work]
+    E --> F[handoff]
+    F --> C
+\`\`\`
+
+_If context was lost (compaction), run \`get-system-prompt\` to reload your role prompt._
+
 ### Register Agent
 Register your agent type before starting work.
 
