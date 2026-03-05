@@ -63,7 +63,9 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-squad-chatroom" --role="planner"
-      to reload your full system and role prompt.
+      to reload your full system and role prompt. Then run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-squad-chatroom" --role="planner"
+      to see your current task context.
 
       ### Register Agent
       Register your agent type before starting work.

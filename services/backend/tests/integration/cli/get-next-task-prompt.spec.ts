@@ -222,7 +222,9 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
-      to reload your full system and role prompt.
+      to reload your full system and role prompt. Then run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"
+      to see your current task context.
 
       ### Register Agent
       Register your agent type before starting work.
@@ -383,6 +385,12 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
+      **Reference commands:**
+      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
+      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
+      - List backlog: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="10002;chatroom_rooms" --role="builder" --status=backlog\`
+      - Git log: \`git log --oneline -10\`
+
       ### Next
 
       Run:
@@ -448,7 +456,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ============================================================
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
-      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"\` to reload your system and role prompt.
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\` for current task.
       ============================================================
       "
     `);
@@ -1364,7 +1372,9 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10130;chatroom_rooms" --role="reviewer"
-      to reload your full system and role prompt.
+      to reload your full system and role prompt. Then run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10130;chatroom_rooms" --role="reviewer"
+      to see your current task context.
 
       ### Register Agent
       Register your agent type before starting work.
@@ -1565,6 +1575,12 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10130;chatroom_rooms" --role="reviewer"
       \`\`\`
 
+      **Reference commands:**
+      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10130;chatroom_rooms" --role="reviewer"\`
+      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10130;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
+      - List backlog: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="10130;chatroom_rooms" --role="reviewer" --status=backlog\`
+      - Git log: \`git log --oneline -10\`
+
       ### Next
 
       Run:
@@ -1620,7 +1636,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ============================================================
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
-      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10130;chatroom_rooms" --role="reviewer"\` to reload your system and role prompt.
+      Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10130;chatroom_rooms" --role="reviewer"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10130;chatroom_rooms" --role="reviewer"\` for current task.
       ============================================================
       "
     `);
@@ -1779,7 +1795,9 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10156;chatroom_rooms" --role="builder"
-      to reload your full system and role prompt.
+      to reload your full system and role prompt. Then run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10156;chatroom_rooms" --role="builder"
+      to see your current task context.
 
       ### Register Agent
       Register your agent type before starting work.
@@ -1940,6 +1958,12 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10156;chatroom_rooms" --role="builder"
       \`\`\`
 
+      **Reference commands:**
+      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10156;chatroom_rooms" --role="builder"\`
+      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10156;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
+      - List backlog: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="10156;chatroom_rooms" --role="builder" --status=backlog\`
+      - Git log: \`git log --oneline -10\`
+
       ### Next
 
       Run:
@@ -2028,7 +2052,9 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       NOTE: If you are an agent that has undergone compaction or summarization, run:
         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10161;chatroom_rooms" --role="reviewer"
-      to reload your full system and role prompt.
+      to reload your full system and role prompt. Then run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10161;chatroom_rooms" --role="reviewer"
+      to see your current task context.
 
       ### Register Agent
       Register your agent type before starting work.
@@ -2228,6 +2254,12 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10161;chatroom_rooms" --role="reviewer"
       \`\`\`
+
+      **Reference commands:**
+      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10161;chatroom_rooms" --role="reviewer"\`
+      - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10161;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
+      - List backlog: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="10161;chatroom_rooms" --role="reviewer" --status=backlog\`
+      - Git log: \`git log --oneline -10\`
 
       ### Next
 

@@ -81,7 +81,9 @@ export function getCompactionRecoveryNote(params: {
   const { cliEnvPrefix, chatroomId, role } = params;
   return `NOTE: If you are an agent that has undergone compaction or summarization, run:
   ${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"
-to reload your full system and role prompt.`;
+to reload your full system and role prompt. Then run:
+  ${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"
+to see your current task context.`;
 }
 
 /**
@@ -97,5 +99,5 @@ export function getCompactionRecoveryOneLiner(params: {
   role: string;
 }): string {
   const { cliEnvPrefix, chatroomId, role } = params;
-  return `Context compacted? Run \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\` to reload your system and role prompt.`;
+  return `Context compacted? Run \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\` to reload prompt, and \`${cliEnvPrefix}chatroom context read --chatroom-id="${chatroomId}" --role="${role}"\` for current task.`;
 }
