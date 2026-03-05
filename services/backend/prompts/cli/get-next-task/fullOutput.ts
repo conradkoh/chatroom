@@ -97,6 +97,17 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   const isUserMessage = message && message.senderRole.toLowerCase() === 'user';
 
+  // ── Compaction recovery note ───────────────────────────────────────────────
+
+  lines.push(
+    `NOTE: If you are an agent that has undergone compaction or summarization, run:`
+  );
+  lines.push(
+    `  ${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"`
+  );
+  lines.push(`to reload your full system and role prompt.`);
+  lines.push('');
+
   // ── Task section (IDs + context + content + backlog) ──────────────────────
 
   lines.push('<task>');

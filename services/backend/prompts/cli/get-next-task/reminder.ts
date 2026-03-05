@@ -55,7 +55,11 @@ flowchart TD
 
 📋 BACKLOG TASKS
   chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
-  chatroom backlog --help`;
+  chatroom backlog --help
+
+📋 CONTEXT RECOVERY (after compaction/summarization)
+  If your context was compacted, run: chatroom get-system-prompt --chatroom-id=<id> --role=<role>
+  to reload your full system and role prompt.`;
 }
 
 /**
