@@ -16,6 +16,7 @@ import {
 } from './auth/cliSessionAuth';
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
+import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { transitionTask } from '../src/domain/usecase/task/transition-task';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 
@@ -25,7 +26,7 @@ const MAX_ACTIVE_TASKS = 100;
 /** Maximum number of tasks to return in list queries. */
 const MAX_TASK_LIST_LIMIT = 100;
 
-/** Creates a new task in a chatroom (pending, queued, or backlog). */
+/** Creates a new task in a chatroom (pending or backlog). */
 export const createTask = mutation({
   args: {
     ...SessionIdArg,
@@ -57,17 +58,8 @@ export const createTask = mutation({
     // Get next queue position atomically (prevents race conditions)
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
-    // Determine status
-    let status: 'pending' | 'queued' | 'backlog';
-    if (args.isBacklog) {
-      status = 'backlog';
-    } else {
-      // Check if any task is pending or in_progress
-      const hasPendingOrInProgress = activeTasks.some(
-        (t) => t.status === 'pending' || t.status === 'in_progress'
-      );
-      status = hasPendingOrInProgress ? 'queued' : 'pending';
-    }
+    // Determine status: backlog or pending only (queued is no longer a task status)
+    const status: 'pending' | 'backlog' = args.isBacklog ? 'backlog' : 'pending';
 
     // Set origin field based on whether this is a backlog task
     const origin = args.isBacklog ? ('backlog' as const) : ('chat' as const);
@@ -335,7 +327,6 @@ export const cancelTask = mutation({
     const allowedStatuses = [
       'pending',
       'acknowledged',
-      'queued',
       'backlog',
       'backlog_acknowledged',
       'pending_user_review',
@@ -403,7 +394,7 @@ export const completeTaskById = mutation({
       if (!args.force) {
         throw new Error(
           `Task is ${task.status}. Use --force to complete an active task. ` +
-            `This will mark it as completed and promote the next queued task.`
+            `This will mark it as completed and promote the next message from the queue.`
         );
       }
 
@@ -425,10 +416,10 @@ export const completeTaskById = mutation({
       return { success: true, taskId: args.taskId, wasForced: true };
     }
 
-    // For backlog and queued tasks, complete normally (no promotion needed)
-    if (task.status !== 'backlog' && task.status !== 'queued') {
+    // For backlog tasks, complete normally (no promotion needed)
+    if (task.status !== 'backlog') {
       throw new Error(
-        `Cannot complete task with status: ${task.status}. Only backlog, queued, pending, in_progress, acknowledged, and backlog_acknowledged tasks can be completed.`
+        `Cannot complete task with status: ${task.status}. Only backlog, pending, in_progress, acknowledged, and backlog_acknowledged tasks can be completed.`
       );
     }
 
@@ -438,7 +429,7 @@ export const completeTaskById = mutation({
   },
 });
 
-/** Updates the content of a queued or backlog task. */
+/** Updates the content of a pending, acknowledged, or backlog task. */
 export const updateTask = mutation({
   args: {
     ...SessionIdArg,
@@ -454,9 +445,9 @@ export const updateTask = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Only allow editing of queued, backlog, pending, acknowledged, and backlog_acknowledged tasks
+    // Only allow editing of backlog, pending, acknowledged, and backlog_acknowledged tasks
     if (
-      !['queued', 'backlog', 'pending', 'acknowledged', 'backlog_acknowledged'].includes(
+      !['backlog', 'pending', 'acknowledged', 'backlog_acknowledged'].includes(
         task.status
       )
     ) {
@@ -502,20 +493,9 @@ export const moveToQueue = mutation({
       );
     }
 
-    // Check if there's a pending or in_progress task
-    const activeTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', task.chatroomId))
-      .filter((q) =>
-        q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
-      )
-      .collect();
-
-    // If no pending/in_progress, this becomes pending
-    // Otherwise, it goes to the queue
-    const newStatus: 'queued' | 'pending' = activeTasks.length > 0 ? 'queued' : 'pending';
-
     const now = Date.now();
+    // Tasks are always pending when moved to queue (queued status is deprecated)
+    const newStatus = 'pending' as const;
 
     // Use custom message if provided, otherwise use task content
     const messageContent = args.customMessage?.trim() || task.content;
@@ -728,18 +708,8 @@ export const sendBackForRework = mutation({
     }
 
     const now = Date.now();
-
-    // Check if there's a pending or in_progress task
-    const activeTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', task.chatroomId))
-      .filter((q) =>
-        q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
-      )
-      .collect();
-
-    // Determine new status: queued if active task exists, pending otherwise
-    const newStatus: 'queued' | 'pending' = activeTasks.length > 0 ? 'queued' : 'pending';
+    // Tasks are always pending when sent back for rework (queued status is deprecated)
+    const newStatus = 'pending' as const;
 
     // If feedback provided, create a message from user
     let messageId = null;
@@ -835,12 +805,11 @@ export const listTasks = query({
       v.union(
         v.literal('pending'),
         v.literal('in_progress'),
-        v.literal('queued'),
         v.literal('backlog'),
         v.literal('completed'),
         v.literal('closed'),
         v.literal('pending_user_review'),
-        v.literal('active'), // pending + acknowledged + in_progress + queued + backlog + backlog_acknowledged
+        v.literal('active'), // pending + acknowledged + in_progress + backlog + backlog_acknowledged
         v.literal('pending_review'), // pending_user_review status
         v.literal('archived') // completed + closed
       )
@@ -864,7 +833,6 @@ export const listTasks = query({
             t.status === 'pending' ||
             t.status === 'acknowledged' ||
             t.status === 'in_progress' ||
-            t.status === 'queued' ||
             t.status === 'backlog' ||
             t.status === 'backlog_acknowledged'
         );
@@ -928,7 +896,6 @@ export const listActiveTasks = query({
         t.status === 'pending' ||
         t.status === 'acknowledged' ||
         t.status === 'in_progress' ||
-        t.status === 'queued' ||
         t.status === 'backlog' ||
         t.status === 'backlog_acknowledged' ||
         t.status === 'pending_user_review'
@@ -1025,30 +992,71 @@ export const promoteNextTask = mutation({
     // Delegate to the promote-next-task usecase with deps wired from ctx
     const result = await promoteNextTaskUsecase(args.chatroomId, {
       areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
-      getOldestQueuedTask: async (chatroomId) => {
-        const tasks = await ctx.db
-          .query('chatroom_tasks')
-          .withIndex('by_chatroom_status', (q) =>
-            q.eq('chatroomId', chatroomId).eq('status', 'queued')
-          )
-          .collect();
-        if (tasks.length === 0) return null;
-        tasks.sort((a, b) => a.queuePosition - b.queuePosition);
-        return tasks[0] ?? null;
+      getOldestQueuedMessage: async (chatroomId) => {
+        return await ctx.db
+          .query('chatroom_messageQueue')
+          .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', chatroomId))
+          .order('asc')
+          .first();
       },
-      transitionTaskToPending: (taskId) =>
-        transitionTask(ctx, taskId, 'pending', 'promoteNextTask'),
+      promoteQueuedMessage: (queuedMessageId) => promoteQueuedMessage(ctx, queuedMessageId),
     });
-
-    if (result.promoted) {
-      console.warn(
-        `[Queue Promotion] Promoted task ${result.promoted} to pending in chatroom ${args.chatroomId}.`
-      );
-    }
 
     return result.promoted
       ? { promoted: true, reason: 'success', taskId: result.promoted }
       : { promoted: false, reason: result.reason, taskId: null };
+  },
+});
+
+/**
+ * Promotes a specific queued message to an active pending task.
+ * User-triggered, bypasses areAllAgentsWaiting check.
+ * Fails gracefully if there is already a pending or in_progress task.
+ */
+export const promoteSpecificTask = mutation({
+  args: {
+    ...SessionIdArg,
+    queuedMessageId: v.id('chatroom_messageQueue'),
+  },
+  handler: async (ctx, args) => {
+    const queueRecord = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
+    if (!queueRecord) {
+      throw new ConvexError({ code: 'QUEUED_MESSAGE_NOT_FOUND', message: 'Queued message not found' });
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, queueRecord.chatroomId);
+
+    // Check for active tasks — cannot promote if another task is pending/in_progress
+    const [pendingTask, inProgressTask] = await Promise.all([
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', queueRecord.chatroomId).eq('status', 'pending')
+        )
+        .first(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', queueRecord.chatroomId).eq('status', 'in_progress')
+        )
+        .first(),
+    ]);
+
+    if (pendingTask || inProgressTask) {
+      return {
+        promoted: false,
+        reason: 'active_task_exists' as const,
+      };
+    }
+
+    // Promote: queue record → message + task (bypass areAllAgentsWaiting)
+    await promoteQueuedMessage(ctx, args.queuedMessageId);
+
+    return {
+      promoted: true,
+      reason: 'success' as const,
+    };
   },
 });
 
@@ -1071,25 +1079,23 @@ export const checkQueueHealth = query({
       )
       .collect();
 
-    // Check for queued tasks
-    const queuedTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'queued')
-      )
+    // Check for queued messages (from chatroom_messageQueue, not tasks)
+    const queuedMessages = await ctx.db
+      .query('chatroom_messageQueue')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
     // Check if all agents are waiting for a task
     const allAgentsWaiting = await areAllAgentsWaiting(ctx, args.chatroomId);
 
     const hasActiveTask = activeTasks.length > 0;
-    const hasQueuedTasks = queuedTasks.length > 0;
-    // Promotion is possible only if no active tasks, there are queued tasks, AND all agents are waiting
+    const hasQueuedTasks = queuedMessages.length > 0;
+    // Promotion is possible only if no active tasks, there are queued messages, AND all agents are waiting
     const needsPromotion = !hasActiveTask && hasQueuedTasks && allAgentsWaiting;
 
     return {
       hasActiveTask,
-      queuedCount: queuedTasks.length,
+      queuedCount: queuedMessages.length,
       allAgentsReady: allAgentsWaiting,
       needsPromotion,
     };
@@ -1111,11 +1117,17 @@ export const getTaskCounts = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
+    // Queued messages are now in chatroom_messageQueue, not tasks
+    const queuedMessages = await ctx.db
+      .query('chatroom_messageQueue')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
     return {
       pending: tasks.filter((t) => t.status === 'pending').length,
       acknowledged: tasks.filter((t) => t.status === 'acknowledged').length,
       in_progress: tasks.filter((t) => t.status === 'in_progress').length,
-      queued: tasks.filter((t) => t.status === 'queued').length,
+      queued: queuedMessages.length, // Count from chatroom_messageQueue
       backlog: tasks.filter((t) => t.status === 'backlog').length,
       backlog_acknowledged: tasks.filter((t) => t.status === 'backlog_acknowledged').length,
       pending_user_review: tasks.filter((t) => t.status === 'pending_user_review').length,

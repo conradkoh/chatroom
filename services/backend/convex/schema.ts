@@ -378,13 +378,40 @@ export default defineSchema({
     .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type']),
 
   /**
+   * Staging table for queued user messages.
+   * Messages are stored here when received while a task is active.
+   * On promotion, the message is copied to chatroom_messages and a task is created.
+   * This ensures messages appear in chat history in task processing order.
+   */
+  chatroom_messageQueue: defineTable({
+    // Which chatroom this queued message belongs to
+    chatroomId: v.id('chatroom_rooms'),
+    // Who sent this message (always 'user' for queued messages)
+    senderRole: v.string(),
+    // Routing target (the role that will process this message)
+    targetRole: v.optional(v.string()),
+    // Message content
+    content: v.string(),
+    // Always 'message' — only user messages get staged
+    type: v.literal('message'),
+    // Attached backlog tasks for context
+    attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    // Attached artifacts
+    attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+    // Queue ordering (lower = earlier in queue, older message)
+    queuePosition: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
+
+  /**
    * Tasks in chatrooms for queue and backlog management.
    * Tracks task lifecycle from creation through completion.
    * Only one task can be pending or in_progress at a time per chatroom.
    *
    * Task workflows are determined by origin:
-   * - backlog: backlog → queued → pending → in_progress → pending_user_review → completed/closed
-   * - chat: queued → pending → in_progress → completed
+   * - backlog: backlog → pending → in_progress → pending_user_review → completed/closed
+   * - chat: pending → in_progress → completed
    */
   chatroom_tasks: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -406,7 +433,6 @@ export default defineSchema({
     // Note: available statuses depend on origin (see workflows above)
     status: v.union(
       v.literal('backlog'), // Backlog origin: initial state, task is in backlog tab
-      v.literal('queued'), // Waiting in line (hidden from agent)
       v.literal('pending'), // Ready for agent to pick up
       v.literal('acknowledged'), // Agent claimed task via get-next-task, not yet started
       v.literal('in_progress'), // Agent actively working on it
@@ -903,7 +929,7 @@ export default defineSchema({
         machineId: v.string(),
         pingEventId: v.id('chatroom_eventStream'),
         timestamp: v.number(),
-      }),
+      })
     )
   )
     .index('by_chatroom', ['chatroomId'])

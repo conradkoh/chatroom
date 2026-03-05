@@ -17,7 +17,6 @@ type TaskStatus =
   | 'pending'
   | 'acknowledged'
   | 'in_progress'
-  | 'queued'
   | 'backlog'
   | 'backlog_acknowledged'
   | 'completed'
@@ -129,7 +128,6 @@ export async function listBacklog(
     'pending',
     'acknowledged',
     'in_progress',
-    'queued',
     'backlog',
     'backlog_acknowledged',
     'completed',
@@ -179,7 +177,6 @@ export async function listBacklog(
             : (statusFilter as
                 | 'pending'
                 | 'in_progress'
-                | 'queued'
                 | 'backlog'
                 | 'completed'
                 | 'pending_user_review'
@@ -634,8 +631,6 @@ function getStatusEmoji(status: TaskStatus): string {
       return '📬';
     case 'in_progress':
       return '🔵';
-    case 'queued':
-      return '🟡';
     case 'backlog':
       return '⚪';
     case 'backlog_acknowledged':

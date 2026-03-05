@@ -5,10 +5,8 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   Plus,
-  Pencil,
   Trash2,
   X,
-  Check,
   Play,
   ChevronRight,
   ClipboardCheck,
@@ -38,7 +36,6 @@ type TaskStatus =
   | 'pending'
   | 'acknowledged'
   | 'in_progress'
-  | 'queued'
   | 'backlog'
   | 'backlog_acknowledged'
   | 'pending_user_review'
@@ -114,12 +111,6 @@ const getStatusBadge = (status: TaskStatus) => {
         label: 'In Progress',
         classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
       };
-    case 'queued':
-      return {
-        emoji: '🟡',
-        label: 'Queued',
-        classes: 'bg-chatroom-status-warning/15 text-chatroom-status-warning',
-      };
     case 'backlog':
       return {
         emoji: '⚪',
@@ -167,8 +158,6 @@ const CURRENT_TASKS_PREVIEW_LIMIT = 3;
 
 export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editedContent, setEditedContent] = useState('');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
   const [isPendingReviewModalOpen, setIsPendingReviewModalOpen] = useState(false);
@@ -252,7 +241,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
           t.status === 'in_progress' ||
           t.status === 'backlog_acknowledged'
       ),
-      queued: tasks.filter((t) => t.status === 'queued'),
       backlog: backlogTasks,
     };
   }, [tasks]);
@@ -270,37 +258,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
     [createTask, chatroomId]
   );
 
-  const handleEditTask = useCallback(
-    async (taskId: string) => {
-      if (!editedContent.trim()) return;
-
-      try {
-        await updateTask({
-          taskId: taskId as Id<'chatroom_tasks'>,
-          content: editedContent.trim(),
-        });
-        setEditingTaskId(null);
-        setEditedContent('');
-      } catch (error) {
-        console.error('Failed to update task:', error);
-      }
-    },
-    [updateTask, editedContent]
-  );
-
-  const handleCancelTask = useCallback(
-    async (taskId: string) => {
-      try {
-        await cancelTask({
-          taskId: taskId as Id<'chatroom_tasks'>,
-        });
-      } catch (error) {
-        console.error('Failed to cancel task:', error);
-      }
-    },
-    [cancelTask]
-  );
-
   const handlePromoteNext = useCallback(async () => {
     try {
       await promoteNextTask({
@@ -310,16 +267,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
       console.error('Failed to promote next task:', error);
     }
   }, [promoteNextTask, chatroomId]);
-
-  const startEditing = useCallback((task: Task) => {
-    setEditingTaskId(task._id);
-    setEditedContent(task.content);
-  }, []);
-
-  const cancelEditing = useCallback(() => {
-    setEditingTaskId(null);
-    setEditedContent('');
-  }, []);
 
   // Modal handlers
   const handleOpenTaskDetail = useCallback((task: Task) => {
@@ -544,27 +491,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
           </div>
         )}
 
-        {/* Queued Tasks */}
-        {categorizedTasks.queued.length > 0 && (
-          <div className="border-b border-chatroom-border">
-            <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary">
-              Queued ({categorizedTasks.queued.length})
-            </div>
-            {categorizedTasks.queued.map((task) => (
-              <TaskItem
-                key={task._id}
-                task={task}
-                isEditing={editingTaskId === task._id}
-                editedContent={editedContent}
-                onStartEdit={() => startEditing(task)}
-                onSaveEdit={() => handleEditTask(task._id)}
-                onCancelEdit={cancelEditing}
-                onEditContentChange={setEditedContent}
-                onDelete={() => handleCancelTask(task._id)}
-              />
-            ))}
-          </div>
-        )}
+        {/* Note: Queued messages are shown in MessageFeed (pinned above status bar), not here */}
 
         {/* Pending Review - Tasks completed by agents awaiting user confirmation */}
         {filteredPendingReviewTasks.length > 0 && (
@@ -690,12 +617,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
 interface TaskItemProps {
   task: Task;
   isProtected?: boolean;
-  isEditing?: boolean;
-  editedContent?: string;
-  onStartEdit?: () => void;
-  onSaveEdit?: () => void;
-  onCancelEdit?: () => void;
-  onEditContentChange?: (content: string) => void;
   onDelete?: () => void;
   onClick?: () => void;
 }
@@ -703,56 +624,10 @@ interface TaskItemProps {
 function TaskItem({
   task,
   isProtected = false,
-  isEditing = false,
-  editedContent = '',
-  onStartEdit,
-  onSaveEdit,
-  onCancelEdit,
-  onEditContentChange,
   onDelete,
   onClick,
 }: TaskItemProps) {
   const badge = getStatusBadge(task.status);
-
-  if (isEditing) {
-    return (
-      <div className="p-3 border-b border-chatroom-border bg-chatroom-bg-hover">
-        <textarea
-          value={editedContent}
-          onChange={(e) => onEditContentChange?.(e.target.value)}
-          onKeyDown={(e) => {
-            // Cmd+Enter or Ctrl+Enter to save
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-              e.preventDefault();
-              if (editedContent.trim() && onSaveEdit) {
-                onSaveEdit();
-              }
-            }
-          }}
-          className="w-full bg-chatroom-bg-primary border border-chatroom-border text-chatroom-text-primary text-xs p-2 resize-none focus:outline-none focus:border-chatroom-accent"
-          rows={2}
-          autoFocus
-        />
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={onSaveEdit}
-            disabled={!editedContent.trim()}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Check size={12} />
-            Save
-          </button>
-          <button
-            onClick={onCancelEdit}
-            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary"
-          >
-            <X size={12} />
-            Cancel
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   const isClickable = !!onClick;
 
@@ -795,18 +670,6 @@ function TaskItem({
       {/* Actions for editable tasks */}
       {!isProtected && (
         <div className="flex items-center gap-1">
-          {onStartEdit && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onStartEdit();
-              }}
-              className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
-              title="Edit"
-            >
-              <Pencil size={12} />
-            </button>
-          )}
           {onDelete && (
             <button
               onClick={(e) => {

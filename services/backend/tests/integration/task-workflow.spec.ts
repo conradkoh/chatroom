@@ -140,7 +140,7 @@ describe('Task Workflow - Backlog Origin', () => {
       });
 
       expect(moveResult.success).toBe(true);
-      expect(moveResult.newStatus).toBe('queued');
+      expect(moveResult.newStatus).toBe('pending');
     });
   });
 

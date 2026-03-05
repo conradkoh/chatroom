@@ -34,7 +34,6 @@ type TaskStatus =
   | 'pending'
   | 'acknowledged'
   | 'in_progress'
-  | 'queued'
   | 'backlog'
   | 'backlog_acknowledged'
   | 'pending_user_review'
@@ -97,12 +96,6 @@ const getStatusBadge = (status: TaskStatus) => {
         emoji: '🔵',
         label: 'In Progress',
         classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
-      };
-    case 'queued':
-      return {
-        emoji: '🟡',
-        label: 'Queued',
-        classes: 'bg-chatroom-status-warning/15 text-chatroom-status-warning',
       };
     case 'backlog':
       return {

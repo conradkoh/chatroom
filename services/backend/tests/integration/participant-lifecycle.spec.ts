@@ -79,19 +79,16 @@ describe('Participant Lifecycle', () => {
       // Join reviewer first (no lastSeenAction — not waiting)
       await joinParticipant(sessionId, chatroomId, 'reviewer');
 
-      // Create a queued task directly
-      let queuedTaskId: string | undefined;
+      // Create a queue record directly (no task — tasks are created at promotion time)
+      let queuedMessageId: string | undefined;
       await t.run(async (ctx) => {
-        const now = Date.now();
-        queuedTaskId = (await ctx.db.insert('chatroom_tasks', {
+        queuedMessageId = (await ctx.db.insert('chatroom_messageQueue', {
           chatroomId,
-          createdBy: 'user',
-          content: 'Queued task content',
-          status: 'queued',
-          origin: 'chat',
+          senderRole: 'user',
+          targetRole: 'builder',
+          content: 'Queued message content',
+          type: 'message',
           queuePosition: 1,
-          createdAt: now,
-          updatedAt: now,
         })) as unknown as string;
       });
 
@@ -99,11 +96,17 @@ describe('Participant Lifecycle', () => {
       // because reviewer does not have lastSeenAction = 'get-next-task:started'
       await joinParticipant(sessionId, chatroomId, 'builder');
 
-      // Verify the queued task was NOT promoted to pending
+      // Verify the queue record was NOT consumed (no task created)
       await t.run(async (ctx) => {
-        const task = await ctx.db.get('chatroom_tasks', queuedTaskId as any);
-        expect(task).not.toBeNull();
-        expect(task!.status).toBe('queued'); // Should still be queued, not promoted
+        const queueRecord = await ctx.db.get('chatroom_messageQueue', queuedMessageId as any);
+        expect(queueRecord).not.toBeNull(); // Should still be in queue, not promoted
+
+        // No pending task should have been created
+        const tasks = await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+          .collect();
+        expect(tasks.filter((t) => t.status === 'pending').length).toBe(0);
       });
     });
   });

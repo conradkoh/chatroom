@@ -25,6 +25,7 @@
  */
 
 import { promoteNextTask } from './promote-next-task';
+import { promoteQueuedMessage } from './promote-queued-message';
 import { internal } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
@@ -125,19 +126,14 @@ export async function transitionTask(
     if (task) {
       await promoteNextTask(task.chatroomId, {
         areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
-        getOldestQueuedTask: async (chatroomId) => {
-          const tasks = await ctx.db
-            .query('chatroom_tasks')
-            .withIndex('by_chatroom_status', (q) =>
-              q.eq('chatroomId', chatroomId).eq('status', 'queued')
-            )
-            .collect();
-          if (tasks.length === 0) return null;
-          tasks.sort((a, b) => a.queuePosition - b.queuePosition);
-          return tasks[0] ?? null;
+        getOldestQueuedMessage: async (chatroomId) => {
+          return await ctx.db
+            .query('chatroom_messageQueue')
+            .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', chatroomId))
+            .order('asc')
+            .first();
         },
-        transitionTaskToPending: (nextTaskId) =>
-          fsmTransitionTask(ctx, nextTaskId, 'pending', 'promoteNextTask'),
+        promoteQueuedMessage: (queuedMessageId) => promoteQueuedMessage(ctx, queuedMessageId),
       });
     }
   }

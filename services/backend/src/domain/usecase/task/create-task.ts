@@ -2,13 +2,17 @@
  * create-task usecase
  *
  * Single entry point for all task creation in a chatroom.
- * Encapsulates status determination (pending vs queued vs backlog)
+ * Encapsulates status determination (pending vs backlog)
  * and DB insertion.
  *
  * Callers:
- *   - messages.ts _sendMessageHandler (user message tasks)
+ *   - messages.ts _sendMessageHandler (user message tasks, only for pending)
  *   - messages.ts _handoffHandler (handoff tasks)
  *   - tasks.ts createTask mutation (direct task creation)
+ *   - promote-queued-message.ts (creates task at promotion time)
+ *
+ * Note: Queued messages (chatroom_messageQueue) no longer create tasks at send time.
+ * Tasks for queued messages are created at promotion time in promote-queued-message.ts.
  */
 
 import { internal } from '../../../../convex/_generated/api';
@@ -21,8 +25,8 @@ export interface CreateTaskArgs {
   chatroomId: Id<'chatroom_rooms'>;
   createdBy: string;
   content: string;
-  /** If provided, forces this status instead of auto-detecting pending vs queued */
-  forceStatus?: 'pending' | 'queued' | 'backlog';
+  /** If provided, forces this status instead of auto-detecting pending vs backlog */
+  forceStatus?: 'pending' | 'backlog';
   assignedTo?: string;
   sourceMessageId?: Id<'chatroom_messages'>;
   attachedTaskIds?: Id<'chatroom_tasks'>[];
@@ -32,7 +36,33 @@ export interface CreateTaskArgs {
 
 export interface CreateTaskResult {
   taskId: Id<'chatroom_tasks'>;
-  status: 'pending' | 'queued' | 'backlog';
+  status: 'pending' | 'backlog';
+}
+
+/**
+ * Returns true if the incoming user message should be staged in chatroom_messageQueue
+ * (because an active task is already running), or false if it should be sent directly
+ * to chatroom_messages with a new task created immediately.
+ */
+export async function shouldEnqueueMessage(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<boolean> {
+  const activeTask = await ctx.db
+    .query('chatroom_tasks')
+    .withIndex('by_chatroom_status', (q) =>
+      q.eq('chatroomId', chatroomId).eq('status', 'pending')
+    )
+    .first();
+  const inProgressTask = !activeTask
+    ? await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', chatroomId).eq('status', 'in_progress')
+        )
+        .first()
+    : null;
+  return !!(activeTask || inProgressTask);
 }
 
 /**
@@ -45,27 +75,15 @@ export async function createTask(
 ): Promise<CreateTaskResult> {
   const now = Date.now();
 
-  // Determine status
-  let status: 'pending' | 'queued' | 'backlog';
-  if (args.forceStatus) {
-    status = args.forceStatus;
+  // Determine status: pending or backlog (never queued — queue messages are separate)
+  let status: 'pending' | 'backlog';
+  if (args.forceStatus === 'backlog') {
+    status = 'backlog';
+  } else if (args.forceStatus === 'pending') {
+    status = 'pending';
   } else {
-    // Check if any task is pending or in_progress
-    const activeTask = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
-      )
-      .first();
-    const inProgressTask = !activeTask
-      ? await ctx.db
-          .query('chatroom_tasks')
-          .withIndex('by_chatroom_status', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-          )
-          .first()
-      : null;
-    status = activeTask || inProgressTask ? 'queued' : 'pending';
+    // Auto-detect: always pending for direct task creation (caller handles queuing via messageQueue)
+    status = 'pending';
   }
 
   const taskId = await ctx.db.insert('chatroom_tasks', {
