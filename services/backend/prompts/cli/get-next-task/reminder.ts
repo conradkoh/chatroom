@@ -97,5 +97,5 @@ export function getCompactionRecoveryOneLiner(params: {
   role: string;
 }): string {
   const { cliEnvPrefix, chatroomId, role } = params;
-  return `Context compacted? Run \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\` to reload your role prompt.`;
+  return `Context compacted? Run \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"\` to reload your system and role prompt.`;
 }
