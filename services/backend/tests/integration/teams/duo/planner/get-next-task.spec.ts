@@ -54,7 +54,6 @@ describe('Duo Team > Planner > Get Next Task', () => {
     // Step 3 should be delegate to builder, not generic "hand off"
     expect(output).toContain('3. Delegate phase 1 to builder:');
     expect(output).toContain('--next-role=builder');
-    // "Do the work → follow PROCESS" step should NOT appear (PROCESS section removed)
     expect(output).not.toContain('Do the work → follow PROCESS above');
   });
 
