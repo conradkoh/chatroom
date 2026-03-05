@@ -13,7 +13,7 @@
  */
 
 import { getNextTaskCommand } from './command';
-import { getNextTaskReminder } from './reminder';
+import { getNextTaskReminder, getCompactionRecoveryNote } from './reminder';
 import { contextNewCommand } from '../context/new';
 import { reportProgressCommand } from '../report-progress/command';
 import { taskStartedCommand } from '../task-started/command';
@@ -99,13 +99,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   // ── Compaction recovery note ───────────────────────────────────────────────
 
-  lines.push(
-    `NOTE: If you are an agent that has undergone compaction or summarization, run:`
-  );
-  lines.push(
-    `  ${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"`
-  );
-  lines.push(`to reload your full system and role prompt.`);
+  lines.push(getCompactionRecoveryNote({ cliEnvPrefix, chatroomId, role }));
   lines.push('');
 
   // ── Task section (IDs + context + content + backlog) ──────────────────────

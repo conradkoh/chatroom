@@ -66,3 +66,20 @@ flowchart TD
  * @deprecated Use getNextTaskGuidance instead.
  */
 export const getWaitForTaskGuidance = getNextTaskGuidance;
+
+/**
+ * Get the compaction/summarization recovery note.
+ * Shown at the top of every task delivery to help agents recover after context loss.
+ *
+ * @param params - Contains real values for cliEnvPrefix, chatroomId, and role
+ */
+export function getCompactionRecoveryNote(params: {
+  cliEnvPrefix: string;
+  chatroomId: string;
+  role: string;
+}): string {
+  const { cliEnvPrefix, chatroomId, role } = params;
+  return `NOTE: If you are an agent that has undergone compaction or summarization, run:
+  ${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${chatroomId}" --role="${role}"
+to reload your full system and role prompt.`;
+}
