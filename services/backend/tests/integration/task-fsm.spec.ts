@@ -486,14 +486,14 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       let task = tasks.find((t) => t._id === backlogTask.taskId);
       expect(task?.status).toBe('pending_user_review');
 
-      // Move to queue — there's an active pending task, so should go to queued
+      // Move to queue — now always becomes pending (queued status deprecated)
       const moveResult = await t.mutation(api.tasks.moveToQueue, {
         sessionId,
         taskId: backlogTask.taskId,
       });
 
       expect(moveResult.success).toBe(true);
-      expect(moveResult.newStatus).toBe('queued');
+      expect(moveResult.newStatus).toBe('pending');
 
       // Verify task transitioned correctly
       tasks = await t.query(api.tasks.listTasks, {
@@ -502,10 +502,10 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
         limit: 100,
       });
       task = tasks.find((t) => t._id === backlogTask.taskId);
-      expect(task?.status).toBe('queued');
+      expect(task?.status).toBe('pending');
     });
 
-    test('promoteNextTask uses FSM for queued → pending transition', async () => {
+    test('promoteNextTask promotes queued message to pending task', async () => {
       const { sessionId } = await createTestSession('test-fsm-promote-next');
       const chatroomId = await createPairTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
@@ -519,7 +519,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
         type: 'message',
       });
 
-      // Create second task (will be queued since first is pending)
+      // Create second message (will go to chatroom_messageQueue, no task yet)
       await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
@@ -528,36 +528,38 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
         type: 'message',
       });
 
-      // Verify second task is queued
-      let tasks = await t.query(api.tasks.listTasks, {
+      // Verify second message is in queue (not a task)
+      const queuedMessages = await t.query(api.messages.listQueued, {
         sessionId,
         chatroomId,
-        statusFilter: 'queued',
       });
-      expect(tasks.length).toBe(1);
-      const queuedTaskId = tasks[0]?._id;
+      expect(queuedMessages.length).toBe(1);
+      expect(queuedMessages[0]?.content).toBe('Second task');
 
-      // Complete first task (should auto-promote second)
+      // Complete first task (should auto-promote second message from queue)
       await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
       await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
-      const completeResult = await t.mutation(api.tasks.completeTask, {
+      await t.mutation(api.tasks.completeTask, {
         sessionId,
         chatroomId,
         role: 'builder',
       });
 
-      // `promoted` field was removed — promotion now happens implicitly inside transitionTask usecase.
-      // Verify the queued task was actually promoted to pending instead (checked below).
-      void completeResult;
+      // Queue should now be empty
+      const queuedAfter = await t.query(api.messages.listQueued, {
+        sessionId,
+        chatroomId,
+      });
+      expect(queuedAfter.length).toBe(0);
 
-      // Verify second task is now pending
-      tasks = await t.query(api.tasks.listTasks, {
+      // A new pending task should have been created from the queued message
+      const pendingTasks = await t.query(api.tasks.listTasks, {
         sessionId,
         chatroomId,
         statusFilter: 'pending',
       });
-      const promotedTask = tasks.find((t) => t._id === queuedTaskId);
-      expect(promotedTask?.status).toBe('pending');
+      expect(pendingTasks.length).toBe(1);
+      expect(pendingTasks[0]?.content).toBe('Second task');
     });
   });
 

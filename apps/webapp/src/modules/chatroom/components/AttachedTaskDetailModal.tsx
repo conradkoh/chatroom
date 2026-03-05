@@ -58,11 +58,6 @@ export function AttachedTaskDetailModal({ isOpen, task, onClose }: AttachedTaskD
           label: task.backlogStatus === 'pending' ? 'Pending' : 'Acknowledged',
           classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
         };
-      case 'queued':
-        return {
-          label: 'Queued',
-          classes: 'bg-chatroom-status-warning/15 text-chatroom-status-warning',
-        };
       case 'pending_user_review':
         return {
           label: 'Pending Review',

@@ -11,7 +11,6 @@ type TaskStatus =
   | 'pending'
   | 'acknowledged'
   | 'in_progress'
-  | 'queued'
   | 'backlog'
   | 'backlog_acknowledged'
   | 'pending_user_review'
@@ -68,11 +67,6 @@ const getStatusBadge = (status: TaskStatus) => {
       return {
         label: 'In Progress',
         classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
-      };
-    case 'queued':
-      return {
-        label: 'Queued',
-        classes: 'bg-chatroom-status-warning/15 text-chatroom-status-warning',
       };
     case 'backlog':
       return {
@@ -160,15 +154,12 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
   const groupedTasks = useMemo(() => {
     const groups: Record<string, Task[]> = {
       current: [],
-      queued: [],
       backlog: [],
     };
 
     for (const task of filteredTasks) {
       if (task.status === 'pending' || task.status === 'in_progress') {
         groups.current.push(task);
-      } else if (task.status === 'queued') {
-        groups.queued.push(task);
       } else if (task.status === 'backlog') {
         groups.backlog.push(task);
       }
@@ -245,15 +236,6 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
                   tasks={groupedTasks.current}
                   onTaskClick={onTaskClick}
                   isProtected
-                />
-              )}
-
-              {/* Queued Tasks */}
-              {groupedTasks.queued.length > 0 && (
-                <TaskGroup
-                  title={`Queued (${groupedTasks.queued.length})`}
-                  tasks={groupedTasks.queued}
-                  onTaskClick={onTaskClick}
                 />
               )}
 
