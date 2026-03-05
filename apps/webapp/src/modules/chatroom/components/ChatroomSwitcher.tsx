@@ -72,7 +72,12 @@ export function ChatroomSwitcher() {
       title="Switch Chatroom"
       description="Search and navigate to a chatroom"
       className="rounded-none border-2 border-border"
-      contentProps={{ forceMount: true }}
+      contentProps={{
+        forceMount: true,
+        // Make open instant by removing zoom-in scale animation and duration
+        // Close keeps the default fade-out/zoom-out for smooth dismiss
+        className: 'data-[state=open]:duration-0 data-[state=open]:zoom-in-100',
+      }}
     >
       <CommandInput placeholder="Search chatrooms..." />
       <CommandList className="h-[300px]">
