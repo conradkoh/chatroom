@@ -32,8 +32,8 @@ describe('Context Gaining Prompt', () => {
     // Should use Getting Started header (not Available Actions)
     expect(guidance).toContain('## Getting Started');
 
-    // Should have Read Context section
-    expect(guidance).toContain('### Read Context');
+    // Should have Context Recovery section (replaces old "Read Context" startup step)
+    expect(guidance).toContain('### Context Recovery (after compaction/summarization)');
 
     // Should have Get Next Task section
     expect(guidance).toContain('### Get Next Task');

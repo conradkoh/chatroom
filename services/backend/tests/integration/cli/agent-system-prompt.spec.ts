@@ -92,7 +92,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
     // Should have Getting Started section with CHATROOM_CONVEX_URL commands
     expect(rolePrompt).toContain('## Getting Started');
-    expect(rolePrompt).toContain('### Read Context');
+    expect(rolePrompt).toContain('### Context Recovery (after compaction/summarization)');
     expect(rolePrompt).toContain('### Get Next Task');
     expect(rolePrompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
@@ -151,13 +151,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10002;chatroom_rooms" --role="builder" --type=<remote|custom>
-      \`\`\`
-
-      ### Read Context
-      View the conversation history and pending tasks for your role.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
       ### Get Next Task
@@ -349,7 +342,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
     // Should have Getting Started section with CHATROOM_CONVEX_URL commands
     expect(rolePrompt).toContain('## Getting Started');
-    expect(rolePrompt).toContain('### Read Context');
+    expect(rolePrompt).toContain('### Context Recovery (after compaction/summarization)');
     expect(rolePrompt).toContain('### Get Next Task');
     expect(rolePrompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
@@ -408,13 +401,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10007;chatroom_rooms" --role="reviewer" --type=<remote|custom>
-      \`\`\`
-
-      ### Read Context
-      View the conversation history and pending tasks for your role.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10007;chatroom_rooms" --role="reviewer"
       \`\`\`
 
       ### Get Next Task

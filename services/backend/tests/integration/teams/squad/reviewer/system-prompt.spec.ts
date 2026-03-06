@@ -115,13 +115,6 @@ describe('Squad Team > Reviewer > System Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10002;chatroom_rooms" --role="reviewer" --type=<remote|custom>
       \`\`\`
 
-      ### Read Context
-      View the conversation history and pending tasks for your role.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="reviewer"
-      \`\`\`
-
       ### Get Next Task
       Listen for incoming tasks assigned to your role.
 

@@ -233,13 +233,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10002;chatroom_rooms" --role="builder" --type=<remote|custom>
       \`\`\`
 
-      ### Read Context
-      View the conversation history and pending tasks for your role.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"
-      \`\`\`
-
       ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
@@ -471,7 +464,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
     // Should have Getting Started section (not Available Actions)
     expect(initPrompt?.prompt).toContain('## Getting Started');
-    expect(initPrompt?.prompt).toContain('### Read Context');
+    expect(initPrompt?.prompt).toContain('### Context Recovery (after compaction/summarization)');
     expect(initPrompt?.prompt).toContain('### Get Next Task');
 
     // Should have classification section
@@ -970,13 +963,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="10048;chatroom_rooms" --role="reviewer" --type=<remote|custom>
       \`\`\`
 
-      ### Read Context
-      View the conversation history and pending tasks for your role.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10048;chatroom_rooms" --role="reviewer"
-      \`\`\`
-
       ### Get Next Task
       Listen for incoming tasks assigned to your role.
 
@@ -1237,7 +1223,7 @@ ${taskDeliveryPrompt.fullCliOutput}
 
     // Should have Getting Started section
     expect(initPrompt?.prompt).toContain('## Getting Started');
-    expect(initPrompt?.prompt).toContain('### Read Context');
+    expect(initPrompt?.prompt).toContain('### Context Recovery (after compaction/summarization)');
     expect(initPrompt?.prompt).toContain('### Get Next Task');
 
     // CRITICAL: Should have task-started instruction for reviewer (without classification)

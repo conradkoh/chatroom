@@ -68,13 +68,6 @@ describe('Squad Team > Builder > Custom Init Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom register-agent --chatroom-id="test-squad-chatroom" --role="builder" --type=custom
       \`\`\`
 
-      ### Read Context
-      View the conversation history and pending tasks for your role.
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-squad-chatroom" --role="builder"
-      \`\`\`
-
       ### Get Next Task
       Listen for incoming tasks assigned to your role.
 

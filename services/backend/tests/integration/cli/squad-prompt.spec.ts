@@ -89,7 +89,7 @@ describe('Squad Team - Planner Init Prompt', () => {
 
     // Should have Getting Started section with CHATROOM_CONVEX_URL commands
     expect(prompt).toContain('## Getting Started');
-    expect(prompt).toContain('### Read Context');
+    expect(prompt).toContain('### Context Recovery (after compaction/summarization)');
     expect(prompt).toContain('### Get Next Task');
     expect(prompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210');
 
