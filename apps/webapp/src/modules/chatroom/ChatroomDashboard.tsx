@@ -57,7 +57,7 @@ interface TeamDefinition {
 }
 
 const TEAMS_CONFIG: { defaultTeam: string; teams: Record<string, TeamDefinition> } = {
-  defaultTeam: 'pair',
+  defaultTeam: 'duo',
   teams: {
     pair: {
       name: 'Pair',
