@@ -37,6 +37,7 @@ import type * as prompts_webapp from "../prompts/webapp.js";
 import type * as serviceDesk from "../serviceDesk.js";
 import type * as system_auth_google from "../system/auth/google.js";
 import type * as tasks from "../tasks.js";
+import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
 
 import type {
   ApiFromModules,
@@ -74,6 +75,7 @@ declare const fullApi: ApiFromModules<{
   serviceDesk: typeof serviceDesk;
   "system/auth/google": typeof system_auth_google;
   tasks: typeof tasks;
+  "utils/teamRoleKey": typeof utils_teamRoleKey;
 }>;
 
 /**

@@ -7,6 +7,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
+import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
@@ -795,9 +796,7 @@ export const ackPing = mutation({
 // ============================================================================
 
 /** Builds a unique key scoped to a chatroom+role for use in chatroom_teamAgentConfigs. */
-function buildTeamRoleKey(chatroom: Doc<'chatroom_rooms'>, role: string): string {
-  return `chatroom_${chatroom._id}#role_${role.toLowerCase()}`;
-}
+// buildTeamRoleKey is imported from ./utils/teamRoleKey
 
 /** Upserts team agent configuration for a chatroom+role and emits an agent.registered event. */
 export const saveTeamAgentConfig = mutation({
@@ -824,7 +823,7 @@ export const saveTeamAgentConfig = mutation({
       throw new Error('Not authorized to modify team agent configs for this chatroom');
     }
 
-    const teamRoleKey = buildTeamRoleKey(chatroom, args.role);
+    const teamRoleKey = buildTeamRoleKey(chatroom._id, args.role);
 
     // Upsert by teamRoleKey
     const existing = await ctx.db
