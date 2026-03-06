@@ -339,16 +339,14 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
-      **Re-fetch your system prompt (after context reset):**
-      \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"
-      \`\`\`
-
       **Reference commands:**
-      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
       - List backlog: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="10002;chatroom_rooms" --role="builder" --status=backlog\`
       - Git log: \`git log --oneline -10\`
+
+      **Recovery commands** (only needed after compaction/restart):
+      - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10002;chatroom_rooms" --role="builder"\`
+      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
 
       ### Next
 
@@ -1069,16 +1067,14 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
 
-      **Re-fetch your system prompt (after context reset):**
-      \`\`\`
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10048;chatroom_rooms" --role="reviewer"
-      \`\`\`
-
       **Reference commands:**
-      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10048;chatroom_rooms" --role="reviewer"\`
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="10048;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
       - List backlog: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="10048;chatroom_rooms" --role="reviewer" --status=backlog\`
       - Git log: \`git log --oneline -10\`
+
+      **Recovery commands** (only needed after compaction/restart):
+      - Reload system prompt: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="10048;chatroom_rooms" --role="reviewer"\`
+      - Read current task context: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10048;chatroom_rooms" --role="reviewer"\`
 
       ### Next
 

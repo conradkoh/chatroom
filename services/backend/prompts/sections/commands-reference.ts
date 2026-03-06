@@ -71,16 +71,14 @@ ${waitCmd}
 
 ${getNextTaskReminder()}
 
-**Re-fetch your system prompt (after context reset):**
-\`\`\`
-${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${params.chatroomId}" --role="${params.role}"
-\`\`\`
-
 **Reference commands:**
-- Read current task context: \`${cliEnvPrefix}chatroom context read --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
 - List recent messages: \`${cliEnvPrefix}chatroom messages list --chatroom-id="${params.chatroomId}" --role="${params.role}" --sender-role=user --limit=5 --full\`
 - List backlog: \`${cliEnvPrefix}chatroom backlog list --chatroom-id="${params.chatroomId}" --role="${params.role}" --status=backlog\`
-- Git log: \`git log --oneline -10\``;
+- Git log: \`git log --oneline -10\`
+
+**Recovery commands** (only needed after compaction/restart):
+- Reload system prompt: \`${cliEnvPrefix}chatroom get-system-prompt --chatroom-id="${params.chatroomId}" --role="${params.role}"\`
+- Read current task context: \`${cliEnvPrefix}chatroom context read --chatroom-id="${params.chatroomId}" --role="${params.role}"\``;
 
   return createSection('commands-reference', 'knowledge', content);
 }
