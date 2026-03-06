@@ -1236,3 +1236,44 @@ export const getAgentRestartMetrics = query({
       .map(([hourBucket, byModel]) => ({ hourBucket, byModel }));
   },
 });
+
+/** Returns total agent restart counts for the last 1h and 24h,
+ *  scoped to a specific chatroom + role + machineId.
+ *  Used for the compact inline stats row shown per agent in the panel.
+ */
+export const getAgentRestartSummary = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    role: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return { count1h: 0, count24h: 0 };
+
+    const now = Date.now();
+    const since1h = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
+    const since24h = Math.floor((now - 24 * 3_600_000) / 3_600_000) * 3_600_000;
+
+    // Query rows for chatroom + role starting from 24h ago
+    const rows = await ctx.db
+      .query('chatroom_agentRestartMetrics')
+      .withIndex('by_chatroom_role_hour', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role).gte('hourBucket', since24h)
+      )
+      .filter((q) => q.eq(q.field('machineId'), args.machineId))
+      .collect();
+
+    let count1h = 0;
+    let count24h = 0;
+    for (const row of rows) {
+      count24h += row.count;
+      if (row.hourBucket >= since1h) {
+        count1h += row.count;
+      }
+    }
+
+    return { count1h, count24h };
+  },
+});
