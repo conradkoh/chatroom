@@ -8,7 +8,9 @@
 import { expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { startAgent } from '../../src/domain/usecase/agent/start-agent';
+import type { SessionId } from 'convex-helpers/server/sessions';
 import { t } from '../../test.setup';
 import {
   createPairTeamChatroom,
@@ -19,8 +21,8 @@ import {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function setupAgentAndSeedMetrics(opts: {
-  sessionId: string;
-  chatroomId: string;
+  sessionId: SessionId;
+  chatroomId: Id<'chatroom_rooms'>;
   machineId: string;
   role: string;
   model: string;

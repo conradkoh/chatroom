@@ -7,6 +7,7 @@ import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machin
 import type { Workspace } from '../../types/workspace';
 import type { AgentPreference } from '../AgentConfigTabs';
 import type { TeamAgentConfig } from './InlineAgentCard';
+import { AgentRestartChart } from './AgentRestartChart';
 import { InlineAgentCard } from './InlineAgentCard';
 
 interface AgentWithStatus {
@@ -105,6 +106,16 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
             </span>
           </div>
         </div>
+
+        {/* Agent restart metrics chart — only for workspaces with a real machine */}
+        {workspace.machineId && workspace.agentRoles.length > 0 && (
+          <AgentRestartChart
+            machineId={workspace.machineId}
+            workingDir={workspace.workingDir}
+            chatroomId={chatroomId}
+            roles={workspace.agentRoles}
+          />
+        )}
       </div>
 
       {/* "AGENTS" section label — pinned, does not scroll */}
