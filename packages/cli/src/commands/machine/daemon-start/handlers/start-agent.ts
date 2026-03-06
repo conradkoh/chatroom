@@ -100,7 +100,7 @@ export async function executeStartAgent(
       const isAlive = anyService ? anyService.isAlive(pid) : false;
       if (isAlive) {
         console.log(`   ⚠️  Existing agent detected (PID: ${pid}) — stopping before respawn`);
-        await onAgentShutdown(ctx, { chatroomId, role, pid });
+        await onAgentShutdown(ctx, { chatroomId, role, pid, stopReason: 'daemon_respawn_stop' });
         console.log(`   ✅ Existing agent stopped (PID: ${pid})`);
       }
     }
