@@ -1382,6 +1382,7 @@ export const cleanupStaleMachines = internalMutation({
 
       const timeSinceLastSeen = now - machine.lastSeenAt;
       if (timeSinceLastSeen > DAEMON_HEARTBEAT_TTL_MS) {
+        // 1. Mark daemon as disconnected
         await ctx.db.patch('chatroom_machines', machine._id, {
           daemonConnected: false,
         });
@@ -1389,6 +1390,35 @@ export const cleanupStaleMachines = internalMutation({
         console.warn(
           `[Daemon Cleanup] Machine "${machine.hostname}" (${machine.machineId}) daemon marked disconnected — last seen ${timeSinceLastSeen}ms ago`
         );
+
+        // 2. Clear spawnedAgent records for all agents on this machine
+        const agentConfigs = await ctx.db
+          .query('chatroom_machineAgentConfigs')
+          .withIndex('by_machine_chatroom_role', (q) => q.eq('machineId', machine.machineId))
+          .collect();
+
+        for (const config of agentConfigs) {
+          if (config.spawnedAgentPid != null) {
+            await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
+              spawnedAgentPid: undefined,
+              spawnedAt: undefined,
+              updatedAt: now,
+            });
+          }
+        }
+
+        // 3. Delete participant records for agents on this machine
+        for (const config of agentConfigs) {
+          const participant = await ctx.db
+            .query('chatroom_participants')
+            .withIndex('by_chatroom_and_role', (q) =>
+              q.eq('chatroomId', config.chatroomId).eq('role', config.role)
+            )
+            .unique();
+          if (participant) {
+            await ctx.db.delete('chatroom_participants', participant._id);
+          }
+        }
       }
     }
 
