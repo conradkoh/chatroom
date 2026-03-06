@@ -195,6 +195,24 @@ export async function executeStartAgent(
     });
   });
 
+  // When the agent completes a turn (agent_end), kill the process so the daemon's
+  // restart lifecycle fires a fresh agent for the next turn.
+  // We do NOT mark this as intentional — the SIGTERM kill will produce
+  // stopReason='process_terminated_with_signal', which triggers the backend to
+  // schedule ensureAgentHandler.check → agent.requestStart → fresh spawn.
+  if (spawnResult.onAgentEnd) {
+    spawnResult.onAgentEnd(() => {
+      // Kill the process group (negative pid = entire process group).
+      // Do NOT call stops.mark() — we want this to look like an unexpected exit
+      // so the daemon's restart logic fires via agent:exited → ensureAgentHandler.
+      try {
+        ctx.deps.processes.kill(-pid, 'SIGTERM');
+      } catch {
+        // Process may already be dead — ignore
+      }
+    });
+  }
+
   // Track lastSeenTokenAt — report to backend at most once per 30s,
   // and only when the timestamp has actually changed (avoid redundant writes).
   let lastReportedTokenAt = 0;

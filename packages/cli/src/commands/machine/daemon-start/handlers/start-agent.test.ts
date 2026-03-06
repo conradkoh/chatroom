@@ -62,6 +62,7 @@ function createMockContext(options?: {
       }) => void
     ) => void;
     onOutput: (cb: () => void) => void;
+    onAgentEnd?: (cb: () => void) => void;
   };
   spawnError?: Error;
   lifecycleState?: { state: string } | null;
@@ -676,5 +677,50 @@ describe('handleStartAgent', () => {
         stopReason: 'intentional_stop',
       })
     );
+  });
+
+  it('kills process with SIGTERM (no intentional mark) when onAgentEnd fires', async () => {
+    let agentEndCallback: (() => void) | null = null;
+
+    const ctx = createMockContext({
+      spawnResult: {
+        pid: 5678,
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: (cb) => {
+          agentEndCallback = cb;
+        },
+      },
+    });
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    await handleStartAgent(ctx, cmd);
+
+    expect(agentEndCallback).not.toBeNull();
+
+    // Simulate agent_end firing
+    agentEndCallback!();
+
+    // Should kill the process group (negative pid)
+    expect(ctx.deps.processes.kill).toHaveBeenCalledWith(-5678, 'SIGTERM');
+    // Must NOT mark as intentional — we want the restart lifecycle to fire
+    expect(ctx.deps.stops.mark).not.toHaveBeenCalled();
+  });
+
+  it('does not register onAgentEnd handler when spawnResult does not provide it', async () => {
+    const ctx = createMockContext({
+      spawnResult: {
+        pid: 5678,
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        // onAgentEnd intentionally omitted
+      },
+    });
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+
+    // Should not throw even though onAgentEnd is absent
+    await expect(handleStartAgent(ctx, cmd)).resolves.not.toThrow();
+    expect(ctx.deps.processes.kill).not.toHaveBeenCalled();
   });
 });

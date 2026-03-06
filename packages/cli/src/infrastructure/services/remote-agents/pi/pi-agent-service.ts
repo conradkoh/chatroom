@@ -218,6 +218,30 @@ export class PiAgentService extends BaseCLIAgentService {
         flushThinking();
         process.stdout.write(`${logPrefix} tool: ${name}]\n`);
       });
+
+      if (childProcess.stderr) {
+        childProcess.stderr.pipe(process.stderr, { end: false });
+        childProcess.stderr.on('data', () => {
+          entry.lastOutputAt = Date.now();
+          for (const cb of outputCallbacks) cb();
+        });
+      }
+
+      return {
+        pid,
+        onExit: (cb) => {
+          childProcess.on('exit', (code, signal) => {
+            this.deleteProcess(pid);
+            cb({ code, signal, context });
+          });
+        },
+        onOutput: (cb) => {
+          outputCallbacks.push(cb);
+        },
+        onAgentEnd: (cb) => {
+          reader.onAgentEnd(cb);
+        },
+      };
     }
 
     if (childProcess.stderr) {

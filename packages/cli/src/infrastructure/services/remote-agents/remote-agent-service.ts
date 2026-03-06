@@ -45,6 +45,11 @@ export interface SpawnResult {
     cb: (info: { code: number | null; signal: string | null; context: SpawnContext }) => void
   ) => void;
   onOutput: (cb: () => void) => void;
+  /**
+   * Optional: fires when the agent completes a turn (agent_end event).
+   * Not all agent runtimes support this — only implemented by PiAgentService.
+   */
+  onAgentEnd?: (cb: () => void) => void;
 }
 
 export interface ProcessInfo {
