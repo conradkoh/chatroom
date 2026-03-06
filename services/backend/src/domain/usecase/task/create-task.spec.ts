@@ -120,4 +120,30 @@ describe('shouldEnqueueMessage', () => {
 
     expect(enqueue).toBe(false);
   });
+
+  test('returns true when an acknowledged task exists', async () => {
+    const { sessionId } = await createTestSession('det-status-6');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Insert an acknowledged task directly (simulating agent having called get-next-task)
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert('chatroom_tasks', {
+        chatroomId,
+        createdBy: 'user',
+        content: 'test task',
+        status: 'acknowledged',
+        origin: 'chat',
+        createdAt: now,
+        updatedAt: now,
+        queuePosition: 0,
+      });
+    });
+
+    const enqueue = await t.run(async (ctx) => {
+      return await shouldEnqueueMessage(ctx, chatroomId);
+    });
+
+    expect(enqueue).toBe(true);
+  });
 });
