@@ -140,6 +140,14 @@ export class PiAgentService extends BaseCLIAgentService {
     // Register in process registry
     const entry = this.registerProcess(pid, context);
 
+    // Build a log prefix from spawn context for easier debugging.
+    // Format: [pi:role] or [pi:role@short-id] when chatroomId is available.
+    const roleTag = context.role ?? 'unknown';
+    const chatroomSuffix = context.chatroomId
+      ? `@${context.chatroomId.slice(-6)}`
+      : '';
+    const logPrefix = `[pi:${roleTag}${chatroomSuffix}`;
+
     // Output tracking callbacks (for external consumers) + internal timestamp update
     const outputCallbacks: (() => void)[] = [];
 
@@ -149,16 +157,17 @@ export class PiAgentService extends BaseCLIAgentService {
       const reader = new PiRpcReader(childProcess.stdout);
 
       // Buffer accumulated text/thinking so we can emit complete lines with
-      // a [pi text] / [pi thinking] prefix — PM2 captures output per-line,
-      // so raw streaming tokens without newlines don't appear as distinct log
-      // entries. We flush on natural newlines in the delta and on section boundaries.
+      // a [pi:role text] / [pi:role thinking] prefix — PM2 captures output
+      // per-line, so raw streaming tokens without newlines don't appear as
+      // distinct log entries. We flush on natural newlines in the delta and
+      // on section boundaries.
       let textBuffer = '';
       let thinkingBuffer = '';
 
       const flushText = () => {
         if (!textBuffer) return;
         for (const line of textBuffer.split('\n')) {
-          if (line) process.stdout.write(`[pi text] ${line}\n`);
+          if (line) process.stdout.write(`${logPrefix} text] ${line}\n`);
         }
         textBuffer = '';
       };
@@ -166,7 +175,7 @@ export class PiAgentService extends BaseCLIAgentService {
       const flushThinking = () => {
         if (!thinkingBuffer) return;
         for (const line of thinkingBuffer.split('\n')) {
-          if (line) process.stdout.write(`[pi thinking] ${line}\n`);
+          if (line) process.stdout.write(`${logPrefix} thinking] ${line}\n`);
         }
         thinkingBuffer = '';
       };
@@ -200,14 +209,14 @@ export class PiAgentService extends BaseCLIAgentService {
         // Flush any buffered text before the turn boundary marker
         flushText();
         flushThinking();
-        process.stdout.write('[pi agent_end]\n');
+        process.stdout.write(`${logPrefix} agent_end]\n`);
       });
 
       reader.onToolCall((name) => {
         // Flush buffered content before the tool marker
         flushText();
         flushThinking();
-        process.stdout.write(`[pi tool: ${name}]\n`);
+        process.stdout.write(`${logPrefix} tool: ${name}]\n`);
       });
     }
 
