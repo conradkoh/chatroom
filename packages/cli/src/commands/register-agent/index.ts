@@ -107,13 +107,12 @@ export async function registerAgent(
   }
 
   if (type === 'remote') {
-    // Remote type: register machine only.
+    // Remote type: register machine and emit agent.registered event.
     // NOTE: saveTeamAgentConfig is intentionally NOT called here.
     // The team agent config (harness, model, workingDir) is owned exclusively
-    // by start-agent (the UI "Start Agent" button). Calling saveTeamAgentConfig
-    // here would write stale/incomplete config before the user has configured
-    // the agent via the UI, violating the invariant that config is only set
-    // when the user explicitly starts the agent.
+    // by start-agent (the UI "Start Agent" button). Instead, we emit an
+    // agent.registered event directly via recordAgentRegistered so the
+    // frontend can immediately reflect the agent's online status.
     try {
       const machineInfo = ensureMachineRegistered();
 

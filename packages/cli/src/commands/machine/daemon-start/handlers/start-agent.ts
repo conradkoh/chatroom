@@ -220,7 +220,10 @@ export async function executeStartAgent(
   if (spawnResult.onAgentEnd) {
     spawnResult.onAgentEnd(() => {
       const ts = formatTimestamp();
-      console.log(`[${ts}] 🔄 Agent turn ended (${role}, PID: ${pid}) — stopping idle process for potential restart`);
+      console.log(
+        `[${ts}] 🔄 Agent turn ended (${role}, PID: ${pid})` +
+        ` — stopping idle process for potential restart`
+      );
       // Kill the process group without marking as intentional.
       // This produces stopReason='process_terminated_with_signal' which
       // triggers restart via ensureAgentHandler when desiredState='running'.

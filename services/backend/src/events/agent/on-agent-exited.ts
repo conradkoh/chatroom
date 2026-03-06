@@ -13,10 +13,14 @@ export interface OnAgentExitedArgs {
 /**
  * Handles the `agent.exited` event (backend side).
  *
- * When an agent exits unintentionally (crash), schedules an immediate
- * ensure-agent check for any active task assigned to that role — bypassing
- * the normal staleness guard so crash recovery fires without waiting for
- * the next scheduled timer interval.
+ * When an agent exits (crash, signal, or clean completion), schedules an
+ * immediate ensure-agent check for any active task assigned to that role —
+ * bypassing the normal staleness guard so crash recovery fires without
+ * waiting for the next scheduled timer interval.
+ *
+ * Intentional stops (user-initiated via UI) are excluded from restart.
+ * The `desiredState` guard provides a second layer of protection against
+ * unwanted restarts.
  */
 export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): Promise<void> {
   const { chatroomId, role, intentional, stopReason } = args;
