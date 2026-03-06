@@ -382,9 +382,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       </task>
 
       <next-steps>
-      ============================================================
-      📋 NEXT STEPS
-      ============================================================
 
       Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=<type>\`
 
@@ -1114,9 +1111,6 @@ ${taskDeliveryPrompt.fullCliOutput}
       </task>
 
       <next-steps>
-      ============================================================
-      📋 NEXT STEPS
-      ============================================================
 
       handed off from builder — start work immediately.
       1. Hand off when complete:

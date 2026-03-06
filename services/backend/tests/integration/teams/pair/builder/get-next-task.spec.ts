@@ -45,7 +45,7 @@ describe('Pair Team > Builder > Get Next Task', () => {
 
     expect(output).toBeDefined();
     expect(output).toContain('📋 TASK');
-    expect(output).toContain('📋 NEXT STEPS');
+    expect(output).toContain('<next-steps>');
     // Entry point should have context creation step
     expect(output).toContain('Code changes expected?');
     // User message should trigger classification flow
@@ -69,9 +69,6 @@ describe('Pair Team > Builder > Get Next Task', () => {
       </task>
 
       <next-steps>
-      ============================================================
-      📋 NEXT STEPS
-      ============================================================
 
       Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id" --origin-message-classification=<type>\`
 
@@ -143,9 +140,6 @@ describe('Pair Team > Builder > Get Next Task', () => {
       </task>
 
       <next-steps>
-      ============================================================
-      📋 NEXT STEPS
-      ============================================================
 
       handed off from reviewer — start work immediately.
       1. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'

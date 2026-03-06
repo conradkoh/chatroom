@@ -209,9 +209,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
 
   lines.push('');
   lines.push('<next-steps>');
-  lines.push(SEP_EQUAL);
-  lines.push('📋 NEXT STEPS');
-  lines.push(SEP_EQUAL);
 
   if (isUserMessage) {
     // Classification command with placeholder
