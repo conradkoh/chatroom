@@ -820,13 +820,40 @@ export const listTasks = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    let tasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+    let tasks;
 
-    // Filter by status
-    if (args.statusFilter) {
+    // Use by_chatroom_status index for single-status filters to avoid full table scans.
+    // Fall back to by_chatroom (full scan) for multi-status filters (active, archived)
+    // or when no filter is specified.
+    if (args.statusFilter === 'pending_review') {
+      // Index: by_chatroom_status — pending_review is an alias for pending_user_review
+      tasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending_user_review')
+        )
+        .collect();
+    } else if (
+      args.statusFilter &&
+      args.statusFilter !== 'active' &&
+      args.statusFilter !== 'archived'
+    ) {
+      // Other single concrete statuses (pending, in_progress, backlog, completed, closed…)
+      tasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          q.eq('chatroomId', args.chatroomId).eq('status', args.statusFilter as any)
+        )
+        .collect();
+    } else {
+      // Multi-status or no filter: full scan via by_chatroom
+      tasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .collect();
+
+      // Apply in-memory filter for multi-status cases
       if (args.statusFilter === 'active') {
         tasks = tasks.filter(
           (t) =>
@@ -836,14 +863,9 @@ export const listTasks = query({
             t.status === 'backlog' ||
             t.status === 'backlog_acknowledged'
         );
-      } else if (args.statusFilter === 'pending_review') {
-        // Pending review: tasks in pending_user_review status
-        tasks = tasks.filter((t) => t.status === 'pending_user_review');
       } else if (args.statusFilter === 'archived') {
         // Archived: completed or closed tasks
         tasks = tasks.filter((t) => t.status === 'completed' || t.status === 'closed');
-      } else {
-        tasks = tasks.filter((t) => t.status === args.statusFilter);
       }
     }
 
