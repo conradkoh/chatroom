@@ -477,22 +477,23 @@ async function _handoffHandler(
   // because areAllAgentsWaiting() returns false at this point (the sender is still
   // marked as "working"). We check: no active tasks remain → promote next queued task.
   if (isHandoffToUser) {
-    // Check if there are any remaining active tasks
-    const activeTasks = await ctx.db
+    // Check if there are any remaining active tasks (pending, acknowledged, or in_progress).
+    // 'acknowledged' must be included: a claimed task is actively being worked on.
+    // Promoting a queued message while an acknowledged task exists would create a
+    // race condition where two tasks compete for agent attention simultaneously.
+    const hasActiveTask = await ctx.db
       .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .filter((q) =>
+        q.or(
+          q.eq(q.field('status'), 'pending'),
+          q.eq(q.field('status'), 'acknowledged'),
+          q.eq(q.field('status'), 'in_progress')
+        )
       )
       .first();
 
-    const inProgressRemaining = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-      )
-      .first();
-
-    if (!activeTasks && !inProgressRemaining) {
+    if (!hasActiveTask) {
       // No active tasks — find oldest queued message and promote it
       const queuedMessages = await ctx.db
         .query('chatroom_messageQueue')
