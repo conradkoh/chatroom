@@ -940,4 +940,36 @@ export default defineSchema({
     .index('by_chatroomId_role', ['chatroomId', 'role'])
     .index('by_machineId_type', ['machineId', 'type'])
     .index('by_timestamp', ['timestamp']),
+
+  /**
+   * Pre-aggregated agent restart metrics.
+   * Incremented atomically each time an agent starts (via updateSpawnedAgent mutation).
+   * Used for efficient hourly-granularity restart tracking without scanning chatroom_eventStream.
+   *
+   * hourBucket: Unix timestamp of the start of the hour (UTC), e.g.:
+   *   new Date('2026-03-06T16:00:00Z').getTime() → 1741276800000
+   *   Formula: Math.floor(Date.now() / 3_600_000) * 3_600_000
+   */
+  chatroom_agentRestartMetrics: defineTable({
+    // Identity fields
+    machineId: v.string(),
+    role: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    workingDir: v.string(),
+    model: v.string(), // e.g. "github-copilot/claude-sonnet-4.5"
+
+    // Time bucket (start of the hour in ms UTC)
+    hourBucket: v.number(),
+
+    // Metric value (number of agent starts in this bucket)
+    count: v.number(),
+  })
+    // Query: machine + role across all chatrooms, time range (for "all chatrooms" view)
+    .index('by_machine_role_hour', ['machineId', 'role', 'hourBucket'])
+
+    // Query: chatroom + role, time range (for "this chatroom" breakdown)
+    .index('by_chatroom_role_hour', ['chatroomId', 'role', 'hourBucket'])
+
+    // Query: workspace (machineId+workingDir) + role, time range (for workspace breakdown)
+    .index('by_workspace_role_hour', ['machineId', 'workingDir', 'role', 'hourBucket']),
 });
