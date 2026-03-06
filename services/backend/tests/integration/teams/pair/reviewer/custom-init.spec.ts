@@ -99,27 +99,16 @@ describe('Pair Team > Reviewer > Custom Init Prompt', () => {
 
       **Typical Flow:**
 
-      \`\`\`
-      @startuml
-      start
-      :Receive handoff;
-      note right: from builder or other agent
-      :Run **task-started --no-classify**;
-      :Review code changes;
-      note right
-        git status, git diff
-        git log --oneline -10
-        git diff HEAD~N..HEAD
-      end note
-      if (meets requirements?) then (yes)
-        :Hand off to **user**;
-        note right: APPROVED ✅
-      else (no)
-        :Hand off to **builder**;
-        note right: specific feedback
-      endif
-      stop
-      @enduml
+      \`\`\`mermaid
+      flowchart TD
+          A([Start]) --> B[Receive handoff]
+          B -->|from builder or other agent| C[Run task-started]
+          C --> D[Review code changes]
+          D --> E{Meets requirements?}
+          E -->|yes| F[Hand off to user]
+          F --> G([APPROVED ✅])
+          E -->|no| H[Hand off to builder]
+          H --> I([Provide specific feedback])
       \`\`\`
 
       **Your Options After Review:**
