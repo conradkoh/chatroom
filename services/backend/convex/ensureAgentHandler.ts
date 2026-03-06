@@ -102,7 +102,8 @@ async function checkCircuitBreaker(
     (e) =>
       e.type === 'agent.exited' &&
       e.timestamp >= windowStart &&
-      e.stopReason !== 'intentional_stop'
+      e.stopReason !== 'intentional_stop' &&
+      e.stopReason !== 'daemon_respawn_stop'
   );
 
   if (recentExits.length >= CIRCUIT_BREAKER_MAX_EXITS) {
