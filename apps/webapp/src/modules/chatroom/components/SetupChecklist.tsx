@@ -89,9 +89,10 @@ interface AgentRowProps {
   isJoined: boolean;
   canStart: boolean;
   chatroomId: string;
+  knownRoles: string[];
 }
 
-function AgentRow({ role, isJoined, canStart, chatroomId }: AgentRowProps) {
+function AgentRow({ role, isJoined, canStart, chatroomId, knownRoles }: AgentRowProps) {
   const [modalOpen, setModalOpen] = useState(false);
   return (
     <>
@@ -145,6 +146,7 @@ function AgentRow({ role, isJoined, canStart, chatroomId }: AgentRowProps) {
         open={modalOpen}
         onOpenChange={setModalOpen}
         initialRole={role}
+        knownRoles={knownRoles}
       />
     </>
   );
@@ -292,6 +294,7 @@ export const SetupChecklist = memo(function SetupChecklist({
                     isJoined={isJoined}
                     canStart={prereqs.daemonDone}
                     chatroomId={chatroomId}
+                    knownRoles={teamRoles}
                   />
                 );
               })}
