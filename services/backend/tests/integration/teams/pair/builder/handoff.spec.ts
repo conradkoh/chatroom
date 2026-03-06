@@ -34,7 +34,8 @@ describe('Pair Team > Builder > Handoff Output', () => {
     expect(output).toMatchInlineSnapshot(`
       "✅ Task completed and handed off to reviewer
 
-      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="builder"\`"
+      Run now to receive your next task:
+      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="builder"\`"
     `);
   });
 
@@ -51,7 +52,8 @@ describe('Pair Team > Builder > Handoff Output', () => {
     expect(output).toMatchInlineSnapshot(`
       "✅ Task completed and handed off to user
 
-      ⏳ Next → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="builder"\`"
+      Run now to receive your next task:
+      \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-chatroom-id" --role="builder"\`"
     `);
   });
 });

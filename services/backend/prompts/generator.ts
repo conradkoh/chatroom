@@ -678,7 +678,8 @@ export function generateHandoffOutput(params: {
   const lines: string[] = [];
   lines.push(`✅ Task completed and handed off to ${nextRole}`);
   lines.push('');
-  lines.push(`⏳ Next → \`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
+  lines.push(`Run now to receive your next task:`);
+  lines.push(`\`${getNextTaskCommand({ chatroomId, role, cliEnvPrefix })}\``);
 
   return lines.join('\n');
 }
