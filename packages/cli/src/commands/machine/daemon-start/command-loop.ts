@@ -10,6 +10,7 @@ import {
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import {
   onRequestStartAgent,
@@ -48,6 +49,13 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
     }
   }
   if (!ctx.config) return;
+
+  // Re-detect available harnesses so any newly installed tools are reflected immediately.
+  // Also updates ctx.config in-place and saves to disk so the next daemon restart picks it up.
+  const freshConfig = ensureMachineRegistered();
+  ctx.config.availableHarnesses = freshConfig.availableHarnesses;
+  ctx.config.harnessVersions = freshConfig.harnessVersions;
+
   const totalCount = Object.values(models).flat().length;
 
   try {

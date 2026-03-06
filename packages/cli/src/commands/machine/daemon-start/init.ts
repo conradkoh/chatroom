@@ -10,7 +10,7 @@ import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
 import {
   clearAgentPid,
-  getMachineId,
+  ensureMachineRegistered,
   listAgentEntries,
   loadMachineConfig,
   persistAgentPid,
@@ -131,16 +131,6 @@ export async function initDaemon(): Promise<DaemonContext> {
     process.exit(1);
   }
 
-  // Get machine ID
-  const machineId = getMachineId();
-  if (!machineId) {
-    console.error(`❌ Machine not registered`);
-    console.error(`\nRun any chatroom command first to register this machine,`);
-    console.error(`for example: chatroom auth status`);
-    releaseLock();
-    process.exit(1);
-  }
-
   const client = await getConvexClient();
 
   // SessionId is validated above as non-null. Cast once at the boundary
@@ -157,8 +147,15 @@ export async function initDaemon(): Promise<DaemonContext> {
     process.exit(1);
   }
 
-  // Load and cache machine config (read once, reused by handlers)
-  const config = loadMachineConfig();
+  // Register machine (or refresh harness detection if already registered).
+  // ensureMachineRegistered() creates a new machine ID on first run and always
+  // re-detects available harnesses live — so `chatroom machine start` is fully
+  // self-contained: no prior `auth status` or `register-agent` step required.
+  ensureMachineRegistered();
+
+  // Load the full machine config (guaranteed non-null after ensureMachineRegistered())
+  const config = loadMachineConfig()!;
+  const { machineId } = config;
 
   // Instantiate remote agent services — one for each supported harness
   const openCodeService = new OpenCodeAgentService();
@@ -173,21 +170,19 @@ export async function initDaemon(): Promise<DaemonContext> {
 
   // Register/update machine info in backend (includes harnesses and models)
   // This ensures the web UI has current machine capabilities
-  if (config) {
-    try {
-      await client.mutation(api.machines.register, {
-        sessionId: typedSessionId,
-        machineId,
-        hostname: config.hostname,
-        os: config.os,
-        availableHarnesses: config.availableHarnesses,
-        harnessVersions: config.harnessVersions,
-        availableModels,
-      });
-    } catch (error) {
-      // Registration failure is non-critical — daemon can still work
-      console.warn(`⚠️  Machine registration update failed: ${(error as Error).message}`);
-    }
+  try {
+    await client.mutation(api.machines.register, {
+      sessionId: typedSessionId,
+      machineId,
+      hostname: config.hostname,
+      os: config.os,
+      availableHarnesses: config.availableHarnesses,
+      harnessVersions: config.harnessVersions,
+      availableModels,
+    });
+  } catch (error) {
+    // Registration failure is non-critical — daemon can still work
+    console.warn(`⚠️  Machine registration update failed: ${(error as Error).message}`);
   }
 
   // Update daemon status to connected
@@ -229,8 +224,8 @@ export async function initDaemon(): Promise<DaemonContext> {
   console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
   console.log(`   CLI version: ${getVersion()}`);
   console.log(`   Machine ID: ${machineId}`);
-  console.log(`   Hostname: ${config?.hostname ?? 'Unknown'}`);
-  console.log(`   Available harnesses: ${config?.availableHarnesses.join(', ') || 'none'}`);
+  console.log(`   Hostname: ${config.hostname}`);
+  console.log(`   Available harnesses: ${config.availableHarnesses.join(', ') || 'none'}`);
   console.log(
     `   Available models: ${Object.keys(availableModels).length > 0 ? `${Object.values(availableModels).flat().length} models across ${Object.keys(availableModels).join(', ')}` : 'none discovered'}`
   );
