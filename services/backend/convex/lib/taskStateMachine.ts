@@ -23,11 +23,7 @@ export type TaskStatus =
   | 'pending_user_review' // Agent done, awaiting user confirmation
 
   // Common
-  | 'closed' // Cancelled
-
-  // MIGRATION ONLY: removed in PR #23, kept temporarily for migrateQueuedTasks migration.
-  // Remove after running the migration in production.
-  | 'queued';
+  | 'closed'; // Cancelled
 
 export type Task = Doc<'chatroom_tasks'>;
 

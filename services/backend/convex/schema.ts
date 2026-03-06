@@ -439,10 +439,7 @@ export default defineSchema({
       v.literal('backlog_acknowledged'), // Backlog task attached to message, visible to agent
       v.literal('pending_user_review'), // Backlog only: agent done, user must confirm
       v.literal('completed'), // Finished successfully
-      v.literal('closed'), // Backlog only: user closed without completing
-      // MIGRATION ONLY: "queued" was removed in PR #23 but may still exist in the DB.
-      // Kept temporarily so deployment succeeds; remove after running migrateQueuedTasks.
-      v.literal('queued')
+      v.literal('closed') // Backlog only: user closed without completing
     ),
 
     // Assignment
