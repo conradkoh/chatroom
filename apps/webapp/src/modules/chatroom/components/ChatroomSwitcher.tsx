@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Star } from 'lucide-react';
 
+import { cn } from '@/lib/utils';
+
 import {
   CommandDialog,
   CommandEmpty,
@@ -71,12 +73,21 @@ export function ChatroomSwitcher() {
       onOpenChange={setOpen}
       title="Switch Chatroom"
       description="Search and navigate to a chatroom"
-      className="rounded-none border-2 border-border"
       contentProps={{
         forceMount: true,
-        // Make open instant by removing zoom-in scale animation and duration
-        // Close keeps the default fade-out/zoom-out for smooth dismiss
-        className: 'data-[state=open]:duration-0 data-[state=open]:zoom-in-100',
+        // Override ShadCN DialogContent defaults with industrial theme styles.
+        // Use ! (Tailwind important) to beat the baked-in rounded-lg, border, p-6, shadow-lg, gap-4.
+        // Hide the default X close button — cmd+k uses Escape key instead.
+        className: cn(
+          // Animation: open instantly (no zoom), close keeps default fade/zoom-out
+          'data-[state=open]:duration-0 data-[state=open]:zoom-in-100',
+          // Industrial theme: sharp corners, 2px theme border, no shadow, no padding/gap
+          '!rounded-none border-2 border-chatroom-border !shadow-none !p-0 !gap-0',
+          // Background
+          'bg-chatroom-bg-primary',
+          // Hide the close button — cmd+k uses Escape key instead.
+          '[&_[data-slot=dialog-close]]:hidden'
+        ),
       }}
     >
       <CommandInput placeholder="Search chatrooms..." />
