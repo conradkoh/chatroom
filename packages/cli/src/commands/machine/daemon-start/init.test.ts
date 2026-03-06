@@ -15,7 +15,7 @@ import { recoverAgentState } from './handlers/state-recovery.js';
 import { initDaemon, discoverModels } from './init.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
-import { getMachineId, loadMachineConfig } from '../../../infrastructure/machine/index.js';
+import { ensureMachineRegistered, loadMachineConfig } from '../../../infrastructure/machine/index.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { acquireLock, releaseLock } from '../pid.js';
 
@@ -42,7 +42,13 @@ vi.mock('../../../infrastructure/convex/client.js', () => ({
 }));
 
 vi.mock('../../../infrastructure/machine/index.js', () => ({
-  getMachineId: vi.fn().mockReturnValue('machine-abc'),
+  ensureMachineRegistered: vi.fn().mockReturnValue({
+    machineId: 'machine-abc',
+    hostname: 'test-host',
+    os: 'darwin',
+    availableHarnesses: ['opencode'],
+    harnessVersions: {},
+  }),
   loadMachineConfig: vi.fn().mockReturnValue({
     machineId: 'machine-abc',
     hostname: 'test-host',
@@ -55,8 +61,8 @@ vi.mock('../../../infrastructure/machine/index.js', () => ({
   clearAgentPid: vi.fn(),
   persistAgentPid: vi.fn(),
   listAgentEntries: vi.fn().mockReturnValue([]),
-      persistEventCursor: vi.fn(),
-      loadEventCursor: vi.fn().mockReturnValue(null),
+  persistEventCursor: vi.fn(),
+  loadEventCursor: vi.fn().mockReturnValue(null),
 }));
 
 vi.mock('../../../infrastructure/machine/intentional-stops.js', () => ({
@@ -124,7 +130,13 @@ beforeEach(() => {
     mutation: vi.fn().mockResolvedValue(undefined),
     query: vi.fn().mockResolvedValue({ valid: true, userId: 'user-1', userName: 'Test User' }),
   } as never);
-  vi.mocked(getMachineId).mockReturnValue('machine-abc');
+  vi.mocked(ensureMachineRegistered).mockReturnValue({
+    machineId: 'machine-abc',
+    hostname: 'test-host',
+    os: 'darwin',
+    availableHarnesses: ['opencode'],
+    harnessVersions: {},
+  } as never);
   vi.mocked(loadMachineConfig).mockReturnValue({
     machineId: 'machine-abc',
     hostname: 'test-host',
@@ -324,16 +336,6 @@ describe('initDaemon', () => {
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
-  it('exits when machine ID is missing', async () => {
-    vi.mocked(getMachineId).mockReturnValue(null as never);
-
-    await initDaemon();
-
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Machine not registered'));
-    expect(releaseLock).toHaveBeenCalled();
-    expect(exitSpy).toHaveBeenCalledWith(1);
-  });
-
   it('exits when updateDaemonStatus mutation fails (non-network)', async () => {
     const mockClient = await getMockClient();
     // First call succeeds (register), second call fails (updateDaemonStatus)
@@ -430,14 +432,13 @@ describe('initDaemon', () => {
     expect(allLogs).toContain('Continuing with fresh state');
   });
 
-  it('skips machine registration when config is null', async () => {
-    vi.mocked(loadMachineConfig).mockReturnValue(null as never);
+  it('always calls machines.register after ensureMachineRegistered', async () => {
     const mockClient = await getMockClient();
 
     await initDaemon();
 
-    // updateDaemonStatus is called but register should not be
-    // With null config, only 1 mutation call (updateDaemonStatus), not 2
-    expect(mockClient.mutation).toHaveBeenCalledTimes(1);
+    // In the new flow, machines.register is always called (no null-config guard)
+    // First mutation = machines.register, second = updateDaemonStatus
+    expect(mockClient.mutation).toHaveBeenCalledTimes(2);
   });
 });
