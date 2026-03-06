@@ -151,7 +151,7 @@ export function ModelFilterPanel({
                     className={cn(
                       'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 border transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
                       isProviderHidden
-                        ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-amber-400 hover:text-amber-400'
+                        ? 'border-chatroom-status-warning text-chatroom-status-warning hover:border-chatroom-status-warning/80 hover:text-chatroom-status-warning/80'
                         : 'border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:border-chatroom-border-strong'
                     )}
                   >
