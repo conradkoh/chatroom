@@ -231,8 +231,8 @@ function logStartup(ctx: DaemonContext, availableModels: Record<string, string[]
   console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
   console.log(`   CLI version: ${getVersion()}`);
   console.log(`   Machine ID: ${ctx.machineId}`);
-  console.log(`   Hostname: ${ctx.config.hostname}`);
-  console.log(`   Available harnesses: ${ctx.config.availableHarnesses.join(', ') || 'none'}`);
+  console.log(`   Hostname: ${ctx.config?.hostname ?? 'unknown'}`);
+  console.log(`   Available harnesses: ${ctx.config?.availableHarnesses.join(', ') || 'none'}`);
   console.log(
     `   Available models: ${Object.keys(availableModels).length > 0 ? `${Object.values(availableModels).flat().length} models across ${Object.keys(availableModels).join(', ')}` : 'none discovered'}`
   );
