@@ -8,11 +8,13 @@
  * Extracted into its own module for testability and reuse.
  */
 
+import type { StopReason } from './stop-reason.js';
+
 /**
- * Set of agent keys currently being intentionally stopped.
- * Keys are in the format "chatroomId:role" (role lowercased).
+ * Map from agentKey → pending stop reason.
+ * Key format: "chatroomId:role" (role lowercased).
  */
-const intentionalStops = new Set<string>();
+const pendingStops = new Map<string, StopReason>();
 
 /**
  * Build a unique key for an agent in a chatroom.
@@ -23,46 +25,50 @@ export function agentKey(chatroomId: string, role: string): string {
 }
 
 /**
- * Mark an agent as being intentionally stopped.
+ * Mark an agent as being stopped with the given reason.
  * Call this before sending SIGTERM so the onExit handler can check.
+ * Defaults to 'intentional_stop' (user-initiated stop).
  */
-export function markIntentionalStop(chatroomId: string, role: string): void {
-  intentionalStops.add(agentKey(chatroomId, role));
+export function markIntentionalStop(
+  chatroomId: string,
+  role: string,
+  reason: StopReason = 'intentional_stop'
+): void {
+  pendingStops.set(agentKey(chatroomId, role), reason);
 }
 
 /**
- * Check whether an agent exit was intentional.
- * If the key is found, it is removed (consumed) and returns true.
- * If not found, returns false (indicating a crash/unexpected exit).
+ * Consume the pending stop reason for an agent.
+ * Returns the reason if found and removes it, or null if not found (= unexpected exit).
  */
-export function consumeIntentionalStop(chatroomId: string, role: string): boolean {
+export function consumeIntentionalStop(chatroomId: string, role: string): StopReason | null {
   const key = agentKey(chatroomId, role);
-  if (intentionalStops.has(key)) {
-    intentionalStops.delete(key);
-    return true;
+  const reason = pendingStops.get(key) ?? null;
+  if (reason !== null) {
+    pendingStops.delete(key);
   }
-  return false;
+  return reason;
 }
 
 /**
- * Remove the intentional stop marker without consuming it as "handled".
+ * Remove the pending stop marker without consuming it as "handled".
  * Used to clean up when a stop command fails (e.g., ESRCH).
  */
 export function clearIntentionalStop(chatroomId: string, role: string): void {
-  intentionalStops.delete(agentKey(chatroomId, role));
+  pendingStops.delete(agentKey(chatroomId, role));
 }
 
 /**
- * Check if an agent is marked for intentional stop (without consuming).
+ * Check if an agent has a pending stop marker (without consuming).
  * Useful for testing/debugging.
  */
 export function isMarkedForIntentionalStop(chatroomId: string, role: string): boolean {
-  return intentionalStops.has(agentKey(chatroomId, role));
+  return pendingStops.has(agentKey(chatroomId, role));
 }
 
 /**
- * Reset all intentional stop tracking. Primarily for testing.
+ * Reset all pending stop tracking. Primarily for testing.
  */
 export function resetIntentionalStops(): void {
-  intentionalStops.clear();
+  pendingStops.clear();
 }
