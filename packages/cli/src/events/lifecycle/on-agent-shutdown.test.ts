@@ -76,7 +76,7 @@ vi.mock('../../infrastructure/machine/index.js', () => ({
 
 vi.mock('../../infrastructure/machine/intentional-stops.js', () => ({
   markIntentionalStop: vi.fn(),
-  consumeIntentionalStop: vi.fn(() => false),
+  consumeIntentionalStop: vi.fn(() => null),
   clearIntentionalStop: vi.fn(),
 }));
 
@@ -113,7 +113,7 @@ function createMockDeps(overrides?: Partial<DaemonDeps>): DaemonDeps {
     },
     stops: {
       mark: vi.fn(),
-      consume: vi.fn(() => false),
+      consume: vi.fn(() => null),
       clear: vi.fn(),
     },
     machine: {
@@ -210,8 +210,8 @@ describe('onAgentShutdown', () => {
 
     await onAgentShutdown(ctx, createOptions());
 
-    // stops.mark must be called with correct args
-    expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, ROLE);
+    // stops.mark must be called with correct args (including default reason)
+    expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, ROLE, 'intentional_stop');
 
     // stops.mark must appear before any kill call
     const markIndex = callOrder.indexOf('stops.mark');

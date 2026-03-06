@@ -28,9 +28,17 @@ export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): 
 
   console.log(`[${ts}] Agent stopped: ${stopReason} (${role})`);
 
-  if (intentional) {
+  const isDaemonRespawn = stopReason === 'daemon_respawn_stop';
+  const isIntentional = intentional && !isDaemonRespawn;
+
+  if (isIntentional) {
     console.log(
       `[${ts}] ℹ️  Agent process exited after intentional stop ` +
+        `(PID: ${pid}, role: ${role}, code: ${code}, signal: ${signal})`
+    );
+  } else if (isDaemonRespawn) {
+    console.log(
+      `[${ts}] 🔄  Agent process stopped for respawn ` +
         `(PID: ${pid}, role: ${role}, code: ${code}, signal: ${signal})`
     );
   } else {

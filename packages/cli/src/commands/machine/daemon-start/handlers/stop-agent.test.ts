@@ -68,7 +68,7 @@ vi.mock('../../../../infrastructure/machine/index.js', () => ({
 
 vi.mock('../../../../infrastructure/machine/intentional-stops.js', () => ({
   markIntentionalStop: vi.fn(),
-  consumeIntentionalStop: vi.fn(() => false),
+  consumeIntentionalStop: vi.fn(() => null),
   clearIntentionalStop: vi.fn(),
 }));
 
@@ -105,7 +105,7 @@ function createMockDeps(overrides?: Partial<DaemonDeps>): DaemonDeps {
     },
     stops: {
       mark: vi.fn(),
-      consume: vi.fn(() => false),
+      consume: vi.fn(() => null),
       clear: vi.fn(),
     },
     machine: {
@@ -195,7 +195,7 @@ describe('handleStopAgent', () => {
 
     expect(result.failed).toBe(false);
     // onAgentShutdown calls stops.mark internally
-    expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, 'builder');
+    expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, 'builder', 'intentional_stop');
   });
 
   it('clears local state via onAgentShutdown', async () => {

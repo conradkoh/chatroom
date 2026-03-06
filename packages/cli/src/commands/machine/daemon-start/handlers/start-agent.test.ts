@@ -129,7 +129,7 @@ function createMockContext(options?: {
     },
     stops: {
       mark: vi.fn(),
-      consume: vi.fn().mockReturnValue(false),
+      consume: vi.fn().mockReturnValue(null),
       clear: vi.fn(),
     },
     machine: {
@@ -407,6 +407,7 @@ describe('handleStartAgent', () => {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       pid: 9999,
+      stopReason: 'daemon_respawn_stop',
     });
   });
 
@@ -455,11 +456,13 @@ describe('handleStartAgent', () => {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       pid: 1111,
+      stopReason: 'daemon_respawn_stop',
     });
     expect(onAgentShutdownMock).toHaveBeenCalledWith(ctx, {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       pid: 2222,
+      stopReason: 'daemon_respawn_stop',
     });
   });
 
@@ -489,6 +492,7 @@ describe('handleStartAgent', () => {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       pid: 5555,
+      stopReason: 'daemon_respawn_stop',
     });
   });
 
@@ -517,6 +521,7 @@ describe('handleStartAgent', () => {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       pid: 7777,
+      stopReason: 'daemon_respawn_stop',
     });
   });
 
@@ -653,8 +658,8 @@ describe('handleStartAgent', () => {
       },
     });
 
-    // Mock the stops.consume to return true (simulating intentional stop)
-    (ctx.deps.stops.consume as ReturnType<typeof vi.fn>).mockReturnValueOnce(true);
+    // Mock the stops.consume to return 'intentional_stop' (simulating intentional stop)
+    (ctx.deps.stops.consume as ReturnType<typeof vi.fn>).mockReturnValueOnce('intentional_stop');
 
     const cmd = createCommand({ workingDir: '/tmp/test' });
     const listener = vi.fn();

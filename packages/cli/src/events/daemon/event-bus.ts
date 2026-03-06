@@ -38,7 +38,7 @@ export interface DaemonEventMap {
     pid: number;
     code: number | null;
     signal: string | null;
-    stopReason: 'intentional_stop' | 'process_exited_with_success' | 'process_terminated_with_signal' | 'process_terminated_unexpectedly';
+    stopReason: 'intentional_stop' | 'daemon_respawn_stop' | 'process_exited_with_success' | 'process_terminated_with_signal' | 'process_terminated_unexpectedly';
     intentional: boolean;
   };
 
