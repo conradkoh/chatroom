@@ -141,7 +141,8 @@ describe('registerAgent', () => {
     });
 
     it('calls machines.register mutation only and logs success (remote)', async () => {
-      // register-agent for remote type must ONLY call machines.register.
+      // register-agent for remote type calls machines.register AND
+      // machines.recordAgentRegistered (to emit agent.registered event).
       // saveTeamAgentConfig is intentionally NOT called — start-agent (the UI
       // "Start Agent" button) exclusively owns the team agent config for remote agents.
       const deps = createMockDeps();
@@ -149,8 +150,8 @@ describe('registerAgent', () => {
       await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'remote' }), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
-      // Only one mutation: machines.register (no saveTeamAgentConfig)
-      expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
+      // Two mutations: machines.register + machines.recordAgentRegistered
+      expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
 
       const output = getAllLogOutput();
       expect(output).toContain('Registered as remote agent');
@@ -165,20 +166,22 @@ describe('registerAgent', () => {
       // start-agent (the UI "Start Agent" button) exclusively owns the team
       // agent config. Any call here would write incomplete/premature config
       // (missing harness, model) before the user configures the agent via the UI.
+      // However, it DOES call recordAgentRegistered to emit the event.
       const deps = createMockDeps();
 
       await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'remote' }), deps);
 
       expect(exitSpy).not.toHaveBeenCalled();
 
-      // Only one mutation call: machines.register
+      // Two mutation calls: machines.register + machines.recordAgentRegistered
       const mutationCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
-      expect(mutationCalls).toHaveLength(1);
+      expect(mutationCalls).toHaveLength(2);
 
-      // That one call must be machines.register (not saveTeamAgentConfig)
-      const [endpoint] = mutationCalls[0] as [{ _name?: string } | string, unknown];
-      const endpointStr = typeof endpoint === 'string' ? endpoint : JSON.stringify(endpoint);
-      expect(endpointStr).not.toContain('saveTeamAgentConfig');
+      // Neither call should be saveTeamAgentConfig
+      for (const [endpoint] of mutationCalls as Array<[{ _name?: string } | string, unknown]>) {
+        const endpointStr = typeof endpoint === 'string' ? endpoint : JSON.stringify(endpoint);
+        expect(endpointStr).not.toContain('saveTeamAgentConfig');
+      }
     });
   });
 

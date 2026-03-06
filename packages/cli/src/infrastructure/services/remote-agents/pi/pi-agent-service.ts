@@ -142,6 +142,7 @@ export class PiAgentService extends BaseCLIAgentService {
 
     // Output tracking callbacks (for external consumers) + internal timestamp update
     const outputCallbacks: (() => void)[] = [];
+    const agentEndCallbacks: (() => void)[] = [];
 
     if (childProcess.stdout) {
       // Parse the RPC JSON event stream — fire output callbacks on every event
@@ -201,6 +202,8 @@ export class PiAgentService extends BaseCLIAgentService {
         flushText();
         flushThinking();
         process.stdout.write('[pi agent_end]\n');
+        // Notify external consumers (daemon) that the agent's turn has ended
+        for (const cb of agentEndCallbacks) cb();
       });
 
       reader.onToolCall((name) => {
@@ -229,6 +232,9 @@ export class PiAgentService extends BaseCLIAgentService {
       },
       onOutput: (cb) => {
         outputCallbacks.push(cb);
+      },
+      onAgentEnd: (cb) => {
+        agentEndCallbacks.push(cb);
       },
     };
   }

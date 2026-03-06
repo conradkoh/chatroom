@@ -8,6 +8,7 @@ import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
 import { onAgentShutdown } from '../../../../events/lifecycle/on-agent-shutdown.js';
 import { resolveStopReason } from '../../../../infrastructure/machine/stop-reason.js';
 import type { CommandResult, DaemonContext, StartAgentCommand, StartAgentReason } from '../types.js';
+import { formatTimestamp } from '../utils.js';
 
 /**
  * Execute the start-agent logic for a given set of explicit args.
@@ -211,6 +212,25 @@ export async function executeStartAgent(
         .catch(() => {}); // fire-and-forget — non-critical
     }
   });
+
+  // Handle agent turn completion (agent_end in RPC mode).
+  // When the agent finishes its turn, the process stays alive but idle.
+  // Stop the process WITHOUT marking as intentional so the normal exit → restart
+  // flow can respawn it if there are pending tasks and desiredState is 'running'.
+  if (spawnResult.onAgentEnd) {
+    spawnResult.onAgentEnd(() => {
+      const ts = formatTimestamp();
+      console.log(`[${ts}] 🔄 Agent turn ended (${role}, PID: ${pid}) — stopping idle process for potential restart`);
+      // Kill the process group without marking as intentional.
+      // This produces stopReason='process_terminated_with_signal' which
+      // triggers restart via ensureAgentHandler when desiredState='running'.
+      try {
+        ctx.deps.processes.kill(-pid, 'SIGTERM');
+      } catch {
+        // Process already dead — onExit will handle cleanup
+      }
+    });
+  }
 
   return { result: msg, failed: false };
 }

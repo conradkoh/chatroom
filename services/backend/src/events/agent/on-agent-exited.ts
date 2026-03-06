@@ -22,9 +22,12 @@ export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): 
   const { chatroomId, role, intentional, stopReason } = args;
 
   // Determine if this exit warrants crash recovery
-  // stopReason takes precedence when available; fall back to intentional flag for backward compat
+  // When stopReason is available, restart on clean exits and unexpected crashes.
+  // Also restart on signal-terminated processes — this covers the case where the
+  // daemon kills an idle agent after its turn ends (agent_end in RPC mode).
+  // The desiredState guard below prevents restart when the user explicitly stops.
   const shouldRestart = stopReason
-    ? stopReason === 'process_exited_with_success' || stopReason === 'process_terminated_unexpectedly'
+    ? stopReason !== 'intentional_stop'
     : !intentional;
 
   if (!shouldRestart) {

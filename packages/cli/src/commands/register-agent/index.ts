@@ -147,6 +147,19 @@ export async function registerAgent(
         availableModels,
       });
 
+      // Emit agent.registered event so the frontend shows this agent as online
+      try {
+        await d.backend.mutation(api.machines.recordAgentRegistered, {
+          sessionId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+          agentType: 'remote',
+          machineId: machineInfo.machineId,
+        });
+      } catch {
+        // Non-critical — agent will still show as online once get-next-task starts
+      }
+
       console.log(`✅ Registered as remote agent for role "${role}"`);
       console.log(`   Machine: ${machineInfo.hostname} (${machineInfo.machineId})`);
       console.log(`   Working directory: ${process.cwd()}`);
