@@ -148,12 +148,10 @@ export async function readContext(
         }
         if (message.taskContent) {
           const safeTaskContent = sanitizeForTerminal(message.taskContent);
-          console.log(
-            `      Content: ${safeTaskContent
-              .split('\n')
-              .map((l, i) => (i === 0 ? l : `      ${l}`))
-              .join('\n')}`
-          );
+          console.log(`      Content:`);
+          console.log(`      <task-content>`);
+          console.log(safeTaskContent.split('\n').map((l) => `      ${l}`).join('\n'));
+          console.log(`      </task-content>`);
         }
       }
 
@@ -164,26 +162,21 @@ export async function readContext(
           console.log(`      🔹 Task ID: ${task._id}`);
           console.log(`         Type: Task`);
           const contentLines = sanitizeForTerminal(task.content).split('\n');
-          // Show first line as preview
-          console.log(`         Content: ${contentLines[0]}`);
-          // Show remaining lines indented
-          if (contentLines.length > 1) {
-            for (let i = 1; i < contentLines.length; i++) {
-              console.log(`         ${contentLines[i]}`);
-            }
+          console.log(`         Content:`);
+          console.log(`         <task-content>`);
+          for (const line of contentLines) {
+            console.log(`         ${line}`);
           }
+          console.log(`         </task-content>`);
         }
       }
 
       // Show full message content
       console.log(`   Content:`);
+      console.log(`   <message-content>`);
       const safeMessageContent = sanitizeForTerminal(message.content);
-      console.log(
-        safeMessageContent
-          .split('\n')
-          .map((l) => `      ${l}`)
-          .join('\n')
-      );
+      console.log(safeMessageContent.split('\n').map((l) => `      ${l}`).join('\n'));
+      console.log(`   </message-content>`);
     }
 
     console.log('\n' + '═'.repeat(60));
