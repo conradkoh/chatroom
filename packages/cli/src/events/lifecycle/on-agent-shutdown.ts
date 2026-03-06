@@ -1,4 +1,5 @@
 import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
+import type { StopReason } from '../../infrastructure/machine/stop-reason.js';
 
 export interface OnAgentShutdownOptions {
   chatroomId: string;
@@ -6,6 +7,11 @@ export interface OnAgentShutdownOptions {
   pid: number;
   /** If true, skip the kill step (process already dead) */
   skipKill?: boolean;
+  /**
+   * The stop reason to record. Defaults to 'intentional_stop' (user-initiated).
+   * Pass 'daemon_respawn_stop' when the daemon is killing to spawn a fresh agent.
+   */
+  stopReason?: StopReason;
 }
 
 export interface OnAgentShutdownResult {
@@ -39,7 +45,7 @@ export async function onAgentShutdown(
   // the process exits before the mark, causing onExit to treat it as an unexpected crash.
   // Wrapped in try/catch: if marking fails we still want to proceed with the kill.
   try {
-    ctx.deps.stops.mark(chatroomId, role);
+    ctx.deps.stops.mark(chatroomId, role, options.stopReason ?? 'intentional_stop');
   } catch (e) {
     console.log(`   ⚠️  Failed to mark intentional stop for ${role}: ${(e as Error).message}`);
   }

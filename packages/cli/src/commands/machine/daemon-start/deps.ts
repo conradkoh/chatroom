@@ -18,6 +18,7 @@ import type {
   ProcessOps,
 } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
+import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
 
 // ─── Domain-Specific Interfaces ─────────────────────────────────────────────
 
@@ -26,10 +27,10 @@ import type { AgentHarness } from '../../../infrastructure/machine/types.js';
  * intentional stops from crashes.
  */
 export interface IntentionalStopOps {
-  /** Mark an agent as being intentionally stopped */
-  mark: (chatroomId: string, role: string) => void;
-  /** Check and consume an intentional stop marker. Returns true if was intentional. */
-  consume: (chatroomId: string, role: string) => boolean;
+  /** Mark an agent as being stopped with the given reason (default: intentional_stop) */
+  mark: (chatroomId: string, role: string, reason?: StopReason) => void;
+  /** Consume the pending stop reason. Returns reason if found, null if unexpected exit. */
+  consume: (chatroomId: string, role: string) => StopReason | null;
   /** Clear the marker without consuming (on failure cleanup) */
   clear: (chatroomId: string, role: string) => void;
 }
