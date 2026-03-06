@@ -76,10 +76,13 @@ export async function readContext(
     });
 
     if (context.messages.length === 0 && !context.currentContext) {
+      console.log(`<context role="${options.role}">`);
       console.log(`\n📭 No context available`);
+      console.log('</context>');
       return;
     }
 
+    console.log(`<context role="${options.role}">`);
     console.log(`\n📚 CONTEXT FOR ${options.role.toUpperCase()}`);
     console.log('═'.repeat(60));
 
@@ -184,6 +187,7 @@ export async function readContext(
     }
 
     console.log('\n' + '═'.repeat(60));
+    console.log('</context>');
   } catch (err) {
     console.error(
       `❌ Failed to read context: ${sanitizeUnknownForTerminal((err as Error).message)}`

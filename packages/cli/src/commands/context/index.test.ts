@@ -108,6 +108,8 @@ describe('readContext', () => {
       const output = getAllLogOutput();
       expect(output).toContain('CONTEXT FOR PLANNER');
       expect(output).toContain('Hello');
+      expect(output).toContain('<context role="planner">');
+      expect(output).toContain('</context>');
     });
 
     it('shows "To: <role>" when message has targetRole', async () => {
@@ -175,6 +177,8 @@ describe('readContext', () => {
       expect(exitSpy).not.toHaveBeenCalled();
       const output = getAllLogOutput();
       expect(output).toContain('No context available');
+      expect(output).toContain('<context role="builder">');
+      expect(output).toContain('</context>');
     });
   });
 
