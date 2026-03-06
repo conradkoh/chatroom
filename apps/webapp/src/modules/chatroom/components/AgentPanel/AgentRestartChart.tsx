@@ -9,11 +9,11 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recha
 // ─── Color palette for model bars ───────────────────────────────────────────
 
 const MODEL_COLORS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
+  'var(--chatroom-status-info)',      // blue — adapts per mode
+  'var(--chatroom-status-success)',   // green — adapts per mode
+  'var(--chatroom-status-warning)',   // amber — adapts per mode
+  'var(--chatroom-status-purple)',    // purple — adapts per mode
+  'var(--chatroom-status-error)',     // red — adapts per mode
 ];
 
 function getModelColor(index: number): string {
