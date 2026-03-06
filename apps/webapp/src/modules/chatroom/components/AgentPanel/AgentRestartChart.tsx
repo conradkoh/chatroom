@@ -4,7 +4,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 
 // ─── Color palette for model bars ───────────────────────────────────────────
 
@@ -105,7 +105,7 @@ export function AgentRestartChart({
             onClick={() => setScopeMode(mode)}
             className={`${TAB_BASE} ${scopeMode === mode ? TAB_ACTIVE : TAB_INACTIVE}`}
           >
-            {mode === 'workspace' ? 'WS' : mode === 'chatroom' ? 'CR' : 'ALL'}
+            {mode === 'workspace' ? 'Workspace' : mode === 'chatroom' ? 'Room' : 'Machine'}
           </button>
         ))}
 
@@ -179,7 +179,18 @@ export function AgentRestartChart({
                   stackId="a"
                   fill={getModelColor(idx)}
                   radius={idx === modelKeys.length - 1 ? [2, 2, 0, 0] : [0, 0, 0, 0]}
-                />
+                >
+                  <LabelList
+                    dataKey={model}
+                    position="inside"
+                    style={{
+                      fontSize: '8px',
+                      fontWeight: 'bold',
+                      fill: 'var(--chatroom-bg-primary)',
+                    }}
+                    formatter={(value: unknown) => (Number(value) > 0 ? String(value) : '')}
+                  />
+                </Bar>
               ))}
             </BarChart>
           </ResponsiveContainer>
