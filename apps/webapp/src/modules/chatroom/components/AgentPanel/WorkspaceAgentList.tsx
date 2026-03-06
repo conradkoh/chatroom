@@ -106,7 +106,7 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
           </div>
         </div>
 
-        {/* (Restart stats are now shown inline per agent card below) */}
+        {/* Restart stats are now shown per-agent in each InlineAgentCard row */}
       </div>
 
       {/* "AGENTS" section label — pinned, does not scroll */}
