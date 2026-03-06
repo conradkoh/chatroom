@@ -160,39 +160,11 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       🔗 STAYING CONNECTED TO YOUR TEAM
 
-      Your primary directive: Stay available to respond to user and team requests.
+      Your primary directive: Stay available to receive tasks from your team.
 
-      ⚠️  CRITICAL: Run get-next-task in the FOREGROUND
+      Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next task.
 
-      Two requirements:
-
-      1. **Shell foreground** - Never use \`&\`, \`nohup\`, or backgrounding
-         • Must run directly in your active terminal
-         • Backgrounded processes cannot receive tasks
-
-      2. **Blocking execution** - Wait for command completion
-         • Do not respond to user or perform other work while running
-         • Only proceed after the command exits (signal or task received)
-
-      ⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
-
-      \`\`\`mermaid
-      flowchart TD
-          A([Start]) --> B[Command terminated unexpectedly]
-          B --> C{Urgent pending work?}
-          C -->|yes| D[Finish urgent work]
-          D --> E[Reconnect with get-next-task]
-          C -->|no| E
-          E --> F([Stop])
-      \`\`\`
-
-      📋 BACKLOG TASKS
-        chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
-        chatroom backlog --help
-
-      📋 CONTEXT RECOVERY (after compaction/summarization)
-        If your context was compacted, run: chatroom get-system-prompt --chatroom-id=<id> --role=<role>
-        to reload your full system and role prompt.
+      If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.
 
       ══════════════════════════════════════════════════
 
@@ -890,39 +862,11 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       🔗 STAYING CONNECTED TO YOUR TEAM
 
-      Your primary directive: Stay available to respond to user and team requests.
+      Your primary directive: Stay available to receive tasks from your team.
 
-      ⚠️  CRITICAL: Run get-next-task in the FOREGROUND
+      Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next task.
 
-      Two requirements:
-
-      1. **Shell foreground** - Never use \`&\`, \`nohup\`, or backgrounding
-         • Must run directly in your active terminal
-         • Backgrounded processes cannot receive tasks
-
-      2. **Blocking execution** - Wait for command completion
-         • Do not respond to user or perform other work while running
-         • Only proceed after the command exits (signal or task received)
-
-      ⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
-
-      \`\`\`mermaid
-      flowchart TD
-          A([Start]) --> B[Command terminated unexpectedly]
-          B --> C{Urgent pending work?}
-          C -->|yes| D[Finish urgent work]
-          D --> E[Reconnect with get-next-task]
-          C -->|no| E
-          E --> F([Stop])
-      \`\`\`
-
-      📋 BACKLOG TASKS
-        chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
-        chatroom backlog --help
-
-      📋 CONTEXT RECOVERY (after compaction/summarization)
-        If your context was compacted, run: chatroom get-system-prompt --chatroom-id=<id> --role=<role>
-        to reload your full system and role prompt.
+      If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.
 
       ══════════════════════════════════════════════════
 
@@ -1285,13 +1229,17 @@ describe('Get-Next-Task Recent Improvements', () => {
     const guidance = getNextTaskGuidance();
     const reminder = getNextTaskReminder();
 
-    // Updated guidance should contain the new sections
+    // Updated guidance should contain key sections
     expect(guidance).toContain('STAYING CONNECTED TO YOUR TEAM');
-    expect(guidance).toContain('CRITICAL: Run get-next-task in the FOREGROUND');
-    expect(guidance).toContain('WHEN THE PROCESS IS TERMINATED OR TIMED OUT');
-    expect(guidance).toContain('BACKLOG TASKS');
+    expect(guidance).toContain('get-next-task');
+    expect(guidance).toContain('Stay available to receive tasks from your team');
 
-    // Should NOT contain the old timeout-specific language
+    // Should NOT contain shell-specific language that is misleading for coding agents
+    expect(guidance).not.toContain('FOREGROUND');
+    expect(guidance).not.toContain('nohup');
+    expect(guidance).not.toContain('backgrounding');
+    expect(guidance).not.toContain('active terminal');
+    expect(guidance).not.toContain('blocking execution');
     expect(guidance).not.toContain('HOW WAIT-FOR-TASK WORKS');
     expect(guidance).not.toContain('The command may timeout before a task arrives');
 

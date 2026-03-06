@@ -27,39 +27,11 @@ export const getWaitForTaskReminder = getNextTaskReminder;
 export function getNextTaskGuidance(): string {
   return `🔗 STAYING CONNECTED TO YOUR TEAM
 
-Your primary directive: Stay available to respond to user and team requests.
+Your primary directive: Stay available to receive tasks from your team.
 
-⚠️  CRITICAL: Run get-next-task in the FOREGROUND
+Run \`get-next-task\` after completing work and handing off. This is how your team sends you the next task.
 
-Two requirements:
-
-1. **Shell foreground** - Never use \`&\`, \`nohup\`, or backgrounding
-   • Must run directly in your active terminal
-   • Backgrounded processes cannot receive tasks
-
-2. **Blocking execution** - Wait for command completion
-   • Do not respond to user or perform other work while running
-   • Only proceed after the command exits (signal or task received)
-
-⚠️  WHEN THE PROCESS IS TERMINATED OR TIMED OUT
-
-\`\`\`mermaid
-flowchart TD
-    A([Start]) --> B[Command terminated unexpectedly]
-    B --> C{Urgent pending work?}
-    C -->|yes| D[Finish urgent work]
-    D --> E[Reconnect with get-next-task]
-    C -->|no| E
-    E --> F([Stop])
-\`\`\`
-
-📋 BACKLOG TASKS
-  chatroom backlog list --chatroom-id=<chatroomId> --role=<role> --status=backlog
-  chatroom backlog --help
-
-📋 CONTEXT RECOVERY (after compaction/summarization)
-  If your context was compacted, run: chatroom get-system-prompt --chatroom-id=<id> --role=<role>
-  to reload your full system and role prompt.`;
+If interrupted or restarted: finish any in-progress work, then run \`get-next-task\` to reconnect.`;
 }
 
 /**
