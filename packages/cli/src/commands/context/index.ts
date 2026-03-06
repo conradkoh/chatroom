@@ -122,18 +122,12 @@ export async function readContext(
     console.log('─'.repeat(60));
 
     for (const message of context.messages) {
-      const timestamp = new Date(message._creationTime).toLocaleString();
-      const classificationBadge = message.classification
-        ? ` [${message.classification.toUpperCase()}]`
-        : '';
-
-      console.log(`\n🔹 Message ID: ${message._id}`);
-      console.log(`   Time: ${timestamp}`);
-      console.log(`   From: ${message.senderRole}`);
-      if (message.targetRole) {
-        console.log(`   To: ${message.targetRole}`);
-      }
-      console.log(`   Type: ${message.type}${classificationBadge}`);
+      // Build the opening <message> tag with attributes
+      const toAttr = message.targetRole ? ` to="${message.targetRole}"` : '';
+      const classAttr = message.classification ? ` classification="${message.classification}"` : '';
+      console.log(
+        `<message id="${message._id}" from="${message.senderRole}"${toAttr} type="${message.type}"${classAttr}>`
+      );
 
       if (message.featureTitle) {
         console.log(`   Feature: ${sanitizeForTerminal(message.featureTitle)}`);
@@ -177,6 +171,7 @@ export async function readContext(
       const safeMessageContent = sanitizeForTerminal(message.content);
       console.log(safeMessageContent.split('\n').map((l) => `      ${l}`).join('\n'));
       console.log(`   </message-content>`);
+      console.log(`</message>`);
     }
 
     console.log('\n' + '═'.repeat(60));
