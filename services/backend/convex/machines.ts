@@ -1161,3 +1161,78 @@ export const listRemoteAgentRunningStatus = query({
     return results;
   },
 });
+
+/** Returns hourly agent restart counts grouped by model for the given machine/role and time range.
+ *
+ * Scope modes (mutually exclusive; checked in order):
+ *   1. chatroomId provided  → "this chatroom" scope
+ *   2. workingDir provided  → "workspace" scope (machineId + workingDir)
+ *   3. neither              → "machine-wide" scope (all chatrooms for machineId + role)
+ *
+ * Returns array sorted by hourBucket ascending. Each element:
+ *   { hourBucket: number, byModel: Record<string, number> }
+ *   where hourBucket is the UTC ms timestamp of the start of the hour.
+ */
+export const getAgentRestartMetrics = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    role: v.string(),
+    chatroomId: v.optional(v.id('chatroom_rooms')),
+    workingDir: v.optional(v.string()),
+    hoursBack: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return [];
+
+    const hoursBack = Math.min(args.hoursBack, 168); // cap at 7 days
+    const now = Date.now();
+    const sinceHour = Math.floor((now - hoursBack * 3_600_000) / 3_600_000) * 3_600_000;
+
+    let rows: Doc<'chatroom_agentRestartMetrics'>[];
+
+    if (args.chatroomId != null) {
+      // Scope: this chatroom
+      rows = await ctx.db
+        .query('chatroom_agentRestartMetrics')
+        .withIndex('by_chatroom_role_hour', (q) =>
+          q.eq('chatroomId', args.chatroomId!).eq('role', args.role).gte('hourBucket', sinceHour)
+        )
+        .filter((q) => q.eq(q.field('machineId'), args.machineId))
+        .collect();
+    } else if (args.workingDir != null) {
+      // Scope: workspace (machineId + workingDir)
+      rows = await ctx.db
+        .query('chatroom_agentRestartMetrics')
+        .withIndex('by_workspace_role_hour', (q) =>
+          q
+            .eq('machineId', args.machineId)
+            .eq('workingDir', args.workingDir!)
+            .eq('role', args.role)
+            .gte('hourBucket', sinceHour)
+        )
+        .collect();
+    } else {
+      // Scope: all chatrooms for this machine + role
+      rows = await ctx.db
+        .query('chatroom_agentRestartMetrics')
+        .withIndex('by_machine_role_hour', (q) =>
+          q.eq('machineId', args.machineId).eq('role', args.role).gte('hourBucket', sinceHour)
+        )
+        .collect();
+    }
+
+    // Group by hourBucket, then by model within each hour
+    const bucketMap = new Map<number, Record<string, number>>();
+    for (const row of rows) {
+      const existing = bucketMap.get(row.hourBucket) ?? {};
+      existing[row.model] = (existing[row.model] ?? 0) + row.count;
+      bucketMap.set(row.hourBucket, existing);
+    }
+
+    return Array.from(bucketMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([hourBucket, byModel]) => ({ hourBucket, byModel }));
+  },
+});
