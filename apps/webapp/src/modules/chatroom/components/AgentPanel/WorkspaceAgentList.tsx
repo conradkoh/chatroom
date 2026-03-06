@@ -109,12 +109,14 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
 
         {/* Agent restart metrics chart — only for workspaces with a real machine */}
         {workspace.machineId && workspace.agentRoles.length > 0 && (
-          <AgentRestartChart
-            machineId={workspace.machineId}
-            workingDir={workspace.workingDir}
-            chatroomId={chatroomId}
-            roles={workspace.agentRoles}
-          />
+          <div className="border-t border-chatroom-border pt-3 mt-1">
+            <AgentRestartChart
+              machineId={workspace.machineId}
+              workingDir={workspace.workingDir}
+              chatroomId={chatroomId}
+              roles={workspace.agentRoles}
+            />
+          </div>
         )}
       </div>
 
