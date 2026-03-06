@@ -10,7 +10,7 @@ import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
 import {
   clearAgentPid,
-  getMachineId,
+  ensureMachineRegistered,
   listAgentEntries,
   loadMachineConfig,
   persistAgentPid,
@@ -98,21 +98,16 @@ export function createDefaultDeps(): DaemonDeps {
   };
 }
 
-// ─── Initialization ─────────────────────────────────────────────────────────
+// ─── Private Helpers ────────────────────────────────────────────────────────
+
+import type { ConvexHttpClient } from 'convex/browser';
+import type { MachineConfig } from '../../../infrastructure/machine/types.js';
 
 /**
- * Initialize the daemon: validate auth, connect to Convex, recover state.
- * Returns the DaemonContext if successful, or exits the process on failure.
+ * Validate that the user is authenticated for the current Convex deployment.
+ * Returns the session ID if valid, or exits the process with an error.
  */
-export async function initDaemon(): Promise<DaemonContext> {
-  // Acquire lock (prevents multiple daemons)
-  if (!acquireLock()) {
-    process.exit(1);
-  }
-
-  const convexUrl = getConvexUrl();
-
-  // Verify authentication
+function validateAuthentication(convexUrl: string): string {
   const sessionId = getSessionId();
   if (!sessionId) {
     const otherUrls = getOtherSessionUrls();
@@ -130,70 +125,91 @@ export async function initDaemon(): Promise<DaemonContext> {
     releaseLock();
     process.exit(1);
   }
+  return sessionId;
+}
 
-  // Get machine ID
-  const machineId = getMachineId();
-  if (!machineId) {
-    console.error(`❌ Machine not registered`);
-    console.error(`\nRun any chatroom command first to register this machine,`);
-    console.error(`for example: chatroom auth status`);
-    releaseLock();
-    process.exit(1);
-  }
-
-  const client = await getConvexClient();
-
-  // SessionId is validated above as non-null. Cast once at the boundary
-  // between our storage format and Convex's branded type system.
-  const typedSessionId: SessionId = sessionId;
-
-  // Validate session with backend before proceeding
-  // This catches expired/revoked tokens early rather than failing mid-run on a mutation.
-  const validation = await client.query(api.cliAuth.validateSession, { sessionId: typedSessionId });
+/**
+ * Validate the session with the backend to catch expired/revoked tokens early.
+ * Exits the process if validation fails.
+ */
+async function validateSession(
+  client: ConvexHttpClient,
+  sessionId: SessionId,
+  convexUrl: string
+): Promise<void> {
+  const validation = await client.query(api.cliAuth.validateSession, { sessionId });
   if (!validation.valid) {
     console.error(`❌ Session invalid: ${validation.reason}`);
     console.error(`\nRun: chatroom auth login`);
     releaseLock();
     process.exit(1);
   }
+}
 
-  // Load and cache machine config (read once, reused by handlers)
-  const config = loadMachineConfig();
+/**
+ * Register machine (or refresh harness detection if already registered).
+ * Returns the full machine config (guaranteed non-null).
+ */
+function setupMachine(): MachineConfig {
+  // ensureMachineRegistered() creates a new machine ID on first run and always
+  // re-detects available harnesses live — so `chatroom machine start` is fully
+  // self-contained: no prior `auth status` or `register-agent` step required.
+  ensureMachineRegistered();
 
-  // Instantiate remote agent services — one for each supported harness
-  const openCodeService = new OpenCodeAgentService();
-  const piService = new PiAgentService();
-  const agentServices = new Map<AgentHarness, RemoteAgentService>([
-    ['opencode', openCodeService],
-    ['pi', piService],
-  ]);
+  // Load the full machine config (guaranteed non-null after ensureMachineRegistered())
+  const config = loadMachineConfig()!;
+  return config;
+}
+
+/**
+ * Register machine capabilities (harnesses and models) with the backend.
+ * Returns the discovered models for startup logging.
+ * Non-critical: warns on failure but does not exit.
+ */
+async function registerCapabilities(
+  client: ConvexHttpClient,
+  sessionId: SessionId,
+  config: MachineConfig,
+  agentServices: Map<AgentHarness, RemoteAgentService>
+): Promise<Record<string, string[]>> {
+  const { machineId } = config;
 
   // Discover available models from all installed harnesses (dynamic)
   const availableModels = await discoverModels(agentServices);
 
   // Register/update machine info in backend (includes harnesses and models)
   // This ensures the web UI has current machine capabilities
-  if (config) {
-    try {
-      await client.mutation(api.machines.register, {
-        sessionId: typedSessionId,
-        machineId,
-        hostname: config.hostname,
-        os: config.os,
-        availableHarnesses: config.availableHarnesses,
-        harnessVersions: config.harnessVersions,
-        availableModels,
-      });
-    } catch (error) {
-      // Registration failure is non-critical — daemon can still work
-      console.warn(`⚠️  Machine registration update failed: ${(error as Error).message}`);
-    }
+  try {
+    await client.mutation(api.machines.register, {
+      sessionId,
+      machineId,
+      hostname: config.hostname,
+      os: config.os,
+      availableHarnesses: config.availableHarnesses,
+      harnessVersions: config.harnessVersions,
+      availableModels,
+    });
+  } catch (error) {
+    // Registration failure is non-critical — daemon can still work
+    console.warn(`⚠️  Machine registration update failed: ${(error as Error).message}`);
   }
 
-  // Update daemon status to connected
+  return availableModels;
+}
+
+/**
+ * Connect the daemon to the backend by updating daemon status.
+ * Exits the process on failure.
+ */
+async function connectDaemon(
+  client: ConvexHttpClient,
+  sessionId: SessionId,
+  machineId: string,
+  convexUrl: string
+): Promise<void> {
   try {
     await client.mutation(api.machines.updateDaemonStatus, {
-      sessionId: typedSessionId,
+      sessionId,
       machineId,
       connected: true,
     });
@@ -206,6 +222,72 @@ export async function initDaemon(): Promise<DaemonContext> {
     releaseLock();
     process.exit(1);
   }
+}
+
+/**
+ * Log startup information including version, machine ID, and capabilities.
+ */
+function logStartup(ctx: DaemonContext, availableModels: Record<string, string[]>): void {
+  console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
+  console.log(`   CLI version: ${getVersion()}`);
+  console.log(`   Machine ID: ${ctx.machineId}`);
+  console.log(`   Hostname: ${ctx.config?.hostname ?? 'unknown'}`);
+  console.log(`   Available harnesses: ${ctx.config?.availableHarnesses.join(', ') || 'none'}`);
+  console.log(
+    `   Available models: ${Object.keys(availableModels).length > 0 ? `${Object.values(availableModels).flat().length} models across ${Object.keys(availableModels).join(', ')}` : 'none discovered'}`
+  );
+  console.log(`   PID: ${process.pid}`);
+}
+
+/**
+ * Recover agent state from previous daemon session.
+ * Non-critical: continues with fresh state on failure.
+ */
+async function recoverState(ctx: DaemonContext): Promise<void> {
+  console.log(`\n[${formatTimestamp()}] 🔄 Recovering agent state...`);
+  try {
+    await recoverAgentState(ctx);
+  } catch (e) {
+    console.log(`   ⚠️  Recovery failed: ${(e as Error).message}`);
+    console.log(`   Continuing with fresh state`);
+  }
+}
+
+// ─── Initialization ─────────────────────────────────────────────────────────
+
+/**
+ * Initialize the daemon: validate auth, connect to Convex, recover state.
+ * Returns the DaemonContext if successful, or exits the process on failure.
+ */
+export async function initDaemon(): Promise<DaemonContext> {
+  // Acquire lock (prevents multiple daemons)
+  if (!acquireLock()) {
+    process.exit(1);
+  }
+
+  const convexUrl = getConvexUrl();
+  const sessionId = validateAuthentication(convexUrl);
+  const client = await getConvexClient();
+
+  // SessionId is validated above as non-null. Cast once at the boundary
+  // between our storage format and Convex's branded type system.
+  const typedSessionId: SessionId = sessionId;
+
+  await validateSession(client, typedSessionId, convexUrl);
+
+  const config = setupMachine();
+  const { machineId } = config;
+
+  // Instantiate remote agent services — one for each supported harness
+  const openCodeService = new OpenCodeAgentService();
+  const piService = new PiAgentService();
+  const agentServices = new Map<AgentHarness, RemoteAgentService>([
+    ['opencode', openCodeService],
+    ['pi', piService],
+  ]);
+
+  const availableModels = await registerCapabilities(client, typedSessionId, config, agentServices);
+  await connectDaemon(client, typedSessionId, machineId, convexUrl);
 
   // Create default dependencies and bind the real Convex client
   const deps = createDefaultDeps();
@@ -223,27 +305,10 @@ export async function initDaemon(): Promise<DaemonContext> {
     agentServices,
   };
 
-  // Register centralized event listeners for agent lifecycle side-effects
   registerEventListeners(ctx);
 
-  console.log(`[${formatTimestamp()}] 🚀 Daemon started`);
-  console.log(`   CLI version: ${getVersion()}`);
-  console.log(`   Machine ID: ${machineId}`);
-  console.log(`   Hostname: ${config?.hostname ?? 'Unknown'}`);
-  console.log(`   Available harnesses: ${config?.availableHarnesses.join(', ') || 'none'}`);
-  console.log(
-    `   Available models: ${Object.keys(availableModels).length > 0 ? `${Object.values(availableModels).flat().length} models across ${Object.keys(availableModels).join(', ')}` : 'none discovered'}`
-  );
-  console.log(`   PID: ${process.pid}`);
-
-  // Recover agent state from previous daemon session
-  console.log(`\n[${formatTimestamp()}] 🔄 Recovering agent state...`);
-  try {
-    await recoverAgentState(ctx);
-  } catch (e) {
-    console.log(`   ⚠️  Recovery failed: ${(e as Error).message}`);
-    console.log(`   Continuing with fresh state`);
-  }
+  logStartup(ctx, availableModels);
+  await recoverState(ctx);
 
   return ctx;
 }

@@ -290,6 +290,36 @@ describe('PiAgentService', () => {
       expect(typeof result.onOutput).toBe('function');
     });
 
+    it('returns onAgentEnd in spawn result and wires through to reader', async () => {
+      const child = makeChildProcess(100);
+      const spawnFn = vi.fn().mockReturnValue(child);
+      const deps = createMockDeps({ spawn: spawnFn as any });
+      const service = new PiAgentService(deps);
+
+      const result = await service.spawn({
+        workingDir: '/tmp',
+        systemPrompt: 'system',
+        prompt: 'prompt',
+        context: { machineId: 'm', chatroomId: 'c', role: 'r' },
+      });
+
+      // onAgentEnd should be present (stdout was provided via makeChildProcess)
+      expect(typeof result.onAgentEnd).toBe('function');
+
+      // Register a callback and fire agent_end from the stream
+      const agentEndCb = vi.fn();
+      result.onAgentEnd!(agentEndCb);
+
+      // Push an agent_end event through the readable stream
+      child.stdout.push('{"type":"agent_end"}\n');
+      child.stdout.push(null); // end the stream
+
+      // Give readline time to process the line
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(agentEndCb).toHaveBeenCalledOnce();
+    });
+
     it('uses default trigger message when prompt is empty string', async () => {
       const child = makeChildProcess(55);
       const spawnFn = vi.fn().mockReturnValue(child);

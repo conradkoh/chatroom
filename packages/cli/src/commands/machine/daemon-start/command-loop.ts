@@ -10,6 +10,7 @@ import {
 import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import {
   onRequestStartAgent,
@@ -48,6 +49,13 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
     }
   }
   if (!ctx.config) return;
+
+  // Re-detect available harnesses so any newly installed tools are reflected immediately.
+  // Also updates ctx.config in-place and saves to disk so the next daemon restart picks it up.
+  const freshConfig = ensureMachineRegistered();
+  ctx.config.availableHarnesses = freshConfig.availableHarnesses;
+  ctx.config.harnessVersions = freshConfig.harnessVersions;
+
   const totalCount = Object.values(models).flat().length;
 
   try {
@@ -65,6 +73,61 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
     );
   } catch (error) {
     console.warn(`[${formatTimestamp()}] ⚠️  Model refresh failed: ${(error as Error).message}`);
+  }
+}
+
+// ─── Private Helpers ────────────────────────────────────────────────────────
+
+/**
+ * Evict dedup entries older than AGENT_REQUEST_DEADLINE_MS to bound memory growth.
+ */
+function evictStaleDedupEntries(
+  processedCommandIds: Map<string, number>,
+  processedPingIds: Map<string, number>
+): void {
+  const evictBefore = Date.now() - AGENT_REQUEST_DEADLINE_MS;
+  for (const [id, ts] of processedCommandIds) {
+    if (ts < evictBefore) processedCommandIds.delete(id);
+  }
+  for (const [id, ts] of processedPingIds) {
+    if (ts < evictBefore) processedPingIds.delete(id);
+  }
+}
+
+/**
+ * Dispatch a single command event to the appropriate handler.
+ * Handles deduplication and error boundaries per event.
+ */
+async function dispatchCommandEvent(
+  ctx: DaemonContext,
+  event: { _id: string; type: string; [key: string]: unknown },
+  processedCommandIds: Map<string, number>,
+  processedPingIds: Map<string, number>
+): Promise<void> {
+  const eventId = event._id.toString();
+
+  if (event.type === 'agent.requestStart') {
+    // Deadline-filtered — use processedCommandIds for session dedup
+    if (processedCommandIds.has(eventId)) return;
+    processedCommandIds.set(eventId, Date.now());
+    await onRequestStartAgent(ctx, event as unknown as AgentRequestStartEventPayload);
+  } else if (event.type === 'agent.requestStop') {
+    // Deadline-filtered — use processedCommandIds for session dedup
+    if (processedCommandIds.has(eventId)) return;
+    processedCommandIds.set(eventId, Date.now());
+    await onRequestStopAgent(ctx, event as unknown as AgentRequestStopEventPayload);
+  } else if (event.type === 'daemon.ping') {
+    // Session dedup — prevents re-ponging the same ping twice in one daemon run
+    if (processedPingIds.has(eventId)) return;
+    processedPingIds.set(eventId, Date.now());
+
+    // Respond to ping with a pong via mutation
+    handlePing();
+    await ctx.deps.backend.mutation(api.machines.ackPing, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      pingEventId: event._id as Id<'chatroom_eventStream'>,
+    });
   }
 }
 
@@ -143,44 +206,12 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     async (result: { events: Array<{ _id: string; type: string; [key: string]: unknown }> }) => {
       if (!result.events || result.events.length === 0) return;
 
-      // Evict dedup entries older than AGENT_REQUEST_DEADLINE_MS to bound memory growth
-      const evictBefore = Date.now() - AGENT_REQUEST_DEADLINE_MS;
-      for (const [id, ts] of processedCommandIds) {
-        if (ts < evictBefore) processedCommandIds.delete(id);
-      }
-      for (const [id, ts] of processedPingIds) {
-        if (ts < evictBefore) processedPingIds.delete(id);
-      }
+      evictStaleDedupEntries(processedCommandIds, processedPingIds);
 
       for (const event of result.events) {
-        const eventId = event._id.toString();
-
         try {
           console.log(`[${formatTimestamp()}] 📡 Stream command event: ${event.type}`);
-
-          if (event.type === 'agent.requestStart') {
-            // Deadline-filtered — use processedCommandIds for session dedup
-            if (processedCommandIds.has(eventId)) continue;
-            processedCommandIds.set(eventId, Date.now());
-            await onRequestStartAgent(ctx, event as unknown as AgentRequestStartEventPayload);
-          } else if (event.type === 'agent.requestStop') {
-            // Deadline-filtered — use processedCommandIds for session dedup
-            if (processedCommandIds.has(eventId)) continue;
-            processedCommandIds.set(eventId, Date.now());
-            await onRequestStopAgent(ctx, event as unknown as AgentRequestStopEventPayload);
-          } else if (event.type === 'daemon.ping') {
-            // Session dedup — prevents re-ponging the same ping twice in one daemon run
-            if (processedPingIds.has(eventId)) continue;
-            processedPingIds.set(eventId, Date.now());
-
-            // Respond to ping with a pong via mutation
-            handlePing();
-            await ctx.deps.backend.mutation(api.machines.ackPing, {
-              sessionId: ctx.sessionId,
-              machineId: ctx.machineId,
-              pingEventId: event._id as Id<'chatroom_eventStream'>,
-            });
-          }
+          await dispatchCommandEvent(ctx, event, processedCommandIds, processedPingIds);
         } catch (err) {
           console.error(
             `[${formatTimestamp()}] ❌ Stream command event failed: ${(err as Error).message}`

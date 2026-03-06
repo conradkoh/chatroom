@@ -759,6 +759,41 @@ export const recordAgentExited = mutation({
   },
 });
 
+/** Emits an agent.registered event to the event stream when an agent registers via the CLI. */
+export const recordAgentRegistered = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    agentType: v.union(v.literal('remote'), v.literal('custom')),
+    machineId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+
+    // Verify chatroom access
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom || chatroom.ownerId !== auth.user._id) {
+      throw new Error('Chatroom not found or access denied');
+    }
+
+    const now = Date.now();
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.registered',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      agentType: args.agentType,
+      machineId: args.machineId,
+      timestamp: now,
+    });
+
+    return { success: true };
+  },
+});
+
 /** Writes a daemon.pong event in response to a daemon.ping event. */
 export const ackPing = mutation({
   args: {
