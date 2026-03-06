@@ -100,20 +100,14 @@ describe('Squad Team > Builder > Custom Init Prompt', () => {
 
       **Typical Flow:**
 
-      \`\`\`
-      @startuml
-      start
-      :Receive task;
-      note right: from user or handoff from reviewer
-      :Implement changes;
-      :Commit work;
-      if (classification?) then (new_feature or code changes)
-        :Hand off to **reviewer**;
-      else (question)
-        :Hand off to **planner**;
-      endif
-      stop
-      @enduml
+      \`\`\`mermaid
+      flowchart TD
+          A([Start]) --> B[Receive task]
+          B -->|from user or reviewer| C[Implement changes]
+          C --> D[Commit work]
+          D --> E{Classification?}
+          E -->|new_feature or code changes| F[Hand off to **reviewer**]
+          E -->|question| G[Hand off to **planner**]
       \`\`\`
 
       **Handoff Rules:**

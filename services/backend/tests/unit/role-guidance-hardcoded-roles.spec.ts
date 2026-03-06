@@ -238,24 +238,18 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
       ## Builder Workflow
 
       You are responsible for implementing code changes based on requirements.
-      
+
 
       **Typical Flow:**
 
-      \`\`\`
-      @startuml
-      start
-      :Receive task;
-      note right: from planner handoff
-      :Implement changes;
-      :Commit work;
-      if (classification?) then (new_feature or code changes)
-        :Hand off to **planner**;
-      else (question)
-        :Hand off to **planner**;
-      endif
-      stop
-      @enduml
+      \`\`\`mermaid
+      flowchart TD
+          A([Start]) --> B[Receive task]
+          B -->|from planner| C[Implement changes]
+          C --> D[Commit work]
+          D --> E{Classification?}
+          E -->|new_feature or code changes| F[Hand off to **planner**]
+          E -->|question| G[Hand off to **planner**]
       \`\`\`
 
       **Handoff Rules:**

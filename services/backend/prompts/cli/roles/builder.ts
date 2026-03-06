@@ -35,20 +35,14 @@ ${classificationNote}
 
 **Typical Flow:**
 
-\`\`\`
-@startuml
-start
-:Receive task;
-${hasReviewer ? 'note right: from user or handoff from reviewer' : 'note right: from planner handoff'}
-:Implement changes;
-:Commit work;
-if (classification?) then (new_feature or code changes)
-  :Hand off to **${codeChangesTarget}**;
-else (question)
-  :Hand off to **${questionTarget}**;
-endif
-stop
-@enduml
+\`\`\`mermaid
+flowchart TD
+    A([Start]) --> B[Receive task]
+    ${hasReviewer ? 'B -->|from user or reviewer| C[Implement changes]' : 'B -->|from planner| C[Implement changes]'}
+    C --> D[Commit work]
+    D --> E{Classification?}
+    E -->|new_feature or code changes| F[Hand off to **${codeChangesTarget}**]
+    E -->|question| G[Hand off to **${questionTarget}**]
 \`\`\`
 
 **Handoff Rules:**
