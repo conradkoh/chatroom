@@ -254,3 +254,36 @@ export const deleteLegacyMessageQueueDocuments = internalMutation({
     return { deleted, skipped, total: allQueuedMessages.length };
   },
 });
+
+/**
+ * Migration: Update chatroom_tasks with legacy "queued" status to "pending".
+ *
+ * The "queued" status was removed from chatroom_tasks in PR #23 (message queue
+ * staging table refactor). Existing documents that still have status="queued"
+ * cause Convex schema validation to fail at deploy time.
+ *
+ * After running this migration in production, remove v.literal('queued') from
+ * chatroom_tasks.status in schema.ts and deploy again.
+ *
+ * Idempotent: safe to re-run (only patches documents with status="queued").
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.migrateQueuedTasks
+ */
+export const migrateQueuedTasks = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allTasks = await ctx.db.query('chatroom_tasks').collect();
+
+    let migrated = 0;
+    for (const task of allTasks) {
+      const raw = task as Record<string, unknown>;
+      if (raw.status === 'queued') {
+        await ctx.db.patch(task._id, { status: 'pending' });
+        migrated++;
+      }
+    }
+
+    return { migrated };
+  },
+});
