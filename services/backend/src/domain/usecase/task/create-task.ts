@@ -43,6 +43,13 @@ export interface CreateTaskResult {
  * Returns true if the incoming user message should be staged in chatroom_messageQueue
  * (because an active task is already running), or false if it should be sent directly
  * to chatroom_messages with a new task created immediately.
+ *
+ * A chatroom is considered "busy" when any task is in one of these states:
+ * - 'pending': task created but not yet claimed by an agent
+ * - 'acknowledged': agent called get-next-task (pending → acknowledged); task is being
+ *   processed — the agent will call task-started imminently. This state MUST be included
+ *   to prevent user messages from slipping through during the claim→start window.
+ * - 'in_progress': agent called task-started; actively working
  */
 export async function shouldEnqueueMessage(
   ctx: MutationCtx,
@@ -50,19 +57,16 @@ export async function shouldEnqueueMessage(
 ): Promise<boolean> {
   const activeTask = await ctx.db
     .query('chatroom_tasks')
-    .withIndex('by_chatroom_status', (q) =>
-      q.eq('chatroomId', chatroomId).eq('status', 'pending')
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+    .filter((q) =>
+      q.or(
+        q.eq(q.field('status'), 'pending'),
+        q.eq(q.field('status'), 'acknowledged'),
+        q.eq(q.field('status'), 'in_progress')
+      )
     )
     .first();
-  const inProgressTask = !activeTask
-    ? await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', chatroomId).eq('status', 'in_progress')
-        )
-        .first()
-    : null;
-  return !!(activeTask || inProgressTask);
+  return !!activeTask;
 }
 
 /**
