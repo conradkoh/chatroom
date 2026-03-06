@@ -31,6 +31,13 @@ interface AgentRestartChartProps {
   roles: string[];
 }
 
+// ─── Underline tab classes ────────────────────────────────────────────────────
+
+const TAB_BASE = 'text-[11px] font-bold uppercase tracking-wide pb-0.5 transition-colors';
+const TAB_ACTIVE = 'border-b-2 border-chatroom-accent text-chatroom-text-primary';
+const TAB_INACTIVE =
+  'border-b-2 border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary';
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function AgentRestartChart({
@@ -84,48 +91,40 @@ export function AgentRestartChart({
 
   return (
     <div className="mt-2 space-y-1.5">
-      {/* Header row: title + scope toggle */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-          Restarts (24h)
-        </span>
-
-        {/* Scope toggle */}
-        <div className="flex items-center gap-0.5 bg-chatroom-bg-surface rounded border border-chatroom-border overflow-hidden">
-          {(['workspace', 'chatroom', 'machine'] as const).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setScopeMode(mode)}
-              className={`px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide transition-colors ${
-                scopeMode === mode
-                  ? 'bg-chatroom-accent text-chatroom-accent-foreground'
-                  : 'text-chatroom-text-muted hover:text-chatroom-text-secondary'
-              }`}
-            >
-              {mode === 'workspace' ? 'WS' : mode === 'chatroom' ? 'CR' : 'ALL'}
-            </button>
-          ))}
-        </div>
+      {/* Section label */}
+      <div className="text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+        Restarts / 24h
       </div>
 
-      {/* Role selector (only when multiple roles) */}
-      {roles.length > 1 && (
-        <div className="flex items-center gap-1 flex-wrap">
-          {roles.map((role) => (
-            <button
-              key={role}
-              onClick={() => setSelectedRole(role)}
-              className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border transition-colors ${
-                selectedRole === role
-                  ? 'bg-chatroom-accent text-chatroom-accent-foreground border-chatroom-accent'
-                  : 'text-chatroom-text-muted border-chatroom-border hover:text-chatroom-text-secondary'
-              }`}
-            >
-              {role}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Unified tab row: scope tabs + optional role tabs */}
+      <div className="flex items-center gap-3">
+        {/* Scope tabs */}
+        {(['workspace', 'chatroom', 'machine'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setScopeMode(mode)}
+            className={`${TAB_BASE} ${scopeMode === mode ? TAB_ACTIVE : TAB_INACTIVE}`}
+          >
+            {mode === 'workspace' ? 'WS' : mode === 'chatroom' ? 'CR' : 'ALL'}
+          </button>
+        ))}
+
+        {/* Divider + role tabs (only when multiple roles) */}
+        {roles.length > 1 && (
+          <>
+            <span className="h-3 w-px bg-chatroom-border flex-shrink-0" />
+            {roles.map((role) => (
+              <button
+                key={role}
+                onClick={() => setSelectedRole(role)}
+                className={`${TAB_BASE} ${selectedRole === role ? TAB_ACTIVE : TAB_INACTIVE}`}
+              >
+                {role}
+              </button>
+            ))}
+          </>
+        )}
+      </div>
 
       {/* Chart area */}
       {isEmpty ? (
