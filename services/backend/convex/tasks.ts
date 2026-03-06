@@ -364,6 +364,16 @@ export const cancelTask = mutation({
     // but the transitionTask usecase now always attempts promotion on terminal states.)
     void wasPending; // acknowledged for clarity
 
+    // Cascade delete: if this task was created from a user message, delete that message too.
+    // When a task is cancelled, the source message it was created from is no longer
+    // relevant and should be cleaned up to keep the message list consistent.
+    if (task.sourceMessageId) {
+      const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
+      if (sourceMessage) {
+        await ctx.db.delete('chatroom_messages', task.sourceMessageId);
+      }
+    }
+
     return { success: true, status: 'closed' };
   },
 });
