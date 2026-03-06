@@ -680,6 +680,55 @@ export const updateSpawnedAgent = mutation({
       ...(args.model !== undefined ? { model: args.model } : {}),
     });
 
+    // Write agent.started event and increment restart metric when a new agent is spawning
+    if (args.pid != null) {
+      // 1. Write agent.started event to event stream
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'agent.started',
+        chatroomId: args.chatroomId,
+        role: args.role,
+        machineId: args.machineId,
+        agentHarness: config.agentType as 'opencode' | 'pi',
+        model: args.model ?? config.model ?? 'unknown',
+        workingDir: config.workingDir,
+        pid: args.pid,
+        timestamp: now,
+      });
+
+      // 2. Upsert restart metric for this hour bucket
+      const model = args.model ?? config.model ?? 'unknown';
+      const workingDir = config.workingDir;
+      const hourBucket = Math.floor(now / 3_600_000) * 3_600_000;
+
+      const existingMetric = await ctx.db
+        .query('chatroom_agentRestartMetrics')
+        .withIndex('by_machine_role_hour', (q) =>
+          q.eq('machineId', args.machineId).eq('role', args.role).eq('hourBucket', hourBucket)
+        )
+        .filter((q) =>
+          q.and(
+            q.eq(q.field('chatroomId'), args.chatroomId),
+            q.eq(q.field('model'), model),
+            q.eq(q.field('workingDir'), workingDir)
+          )
+        )
+        .first();
+
+      if (existingMetric) {
+        await ctx.db.patch(existingMetric._id, { count: existingMetric.count + 1 });
+      } else {
+        await ctx.db.insert('chatroom_agentRestartMetrics', {
+          machineId: args.machineId,
+          role: args.role,
+          chatroomId: args.chatroomId,
+          workingDir,
+          model,
+          hourBucket,
+          count: 1,
+        });
+      }
+    }
+
     return { success: true };
   },
 });

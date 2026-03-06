@@ -503,3 +503,212 @@ test('recordAgentExited with intentional=false but no active task does NOT sched
   expect(crashRecoveryCheck).toBeUndefined();
 });
 
+// ─── Test 10: updateSpawnedAgent writes agent.started event ──────────────────
+
+test('updateSpawnedAgent writes agent.started event to event stream', async () => {
+  // ===== SETUP =====
+  const { sessionId } = await createTestSession('test-es-started-1');
+  const chatroomId = await createPairTeamChatroom(sessionId);
+  const machineId = 'machine-es-started-1';
+  await registerMachineWithDaemon(sessionId, machineId);
+
+  // Ensure agent config exists
+  await t.run(async (ctx) => {
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+      .first();
+    const user = await ctx.db.query('users').first();
+    return startAgent(
+      ctx,
+      {
+        machineId,
+        chatroomId,
+        role: 'builder',
+        userId: user!._id,
+        model: 'test-model',
+        agentHarness: 'opencode',
+        workingDir: '/test/ws',
+        reason: 'test',
+      },
+      machine!
+    );
+  });
+
+  // Count events before
+  const before = await t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect()
+  );
+
+  // ===== ACTION =====
+  await t.mutation(api.machines.updateSpawnedAgent, {
+    sessionId,
+    machineId,
+    chatroomId,
+    role: 'builder',
+    pid: 42001,
+    model: 'test-model',
+  });
+
+  // ===== VERIFY =====
+  const after = await t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect()
+  );
+
+  const startedEvents = after.filter((e) => (e as { type?: string }).type === 'agent.started');
+  expect(startedEvents.length).toBeGreaterThanOrEqual(1);
+
+  const latestStarted = startedEvents[startedEvents.length - 1] as {
+    type: string;
+    pid: number;
+    role: string;
+    model: string;
+  };
+  expect(latestStarted.pid).toBe(42001);
+  expect(latestStarted.role).toBe('builder');
+  expect(latestStarted.model).toBe('test-model');
+  expect(after.length).toBeGreaterThan(before.length);
+});
+
+// ─── Test 11: updateSpawnedAgent upserts restart metric ──────────────────────
+
+test('updateSpawnedAgent upserts chatroom_agentRestartMetrics — increments on repeated starts', async () => {
+  // ===== SETUP =====
+  const { sessionId } = await createTestSession('test-metrics-1');
+  const chatroomId = await createPairTeamChatroom(sessionId);
+  const machineId = 'machine-metrics-1';
+  await registerMachineWithDaemon(sessionId, machineId);
+
+  await t.run(async (ctx) => {
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+      .first();
+    const user = await ctx.db.query('users').first();
+    return startAgent(
+      ctx,
+      {
+        machineId,
+        chatroomId,
+        role: 'builder',
+        userId: user!._id,
+        model: 'test-model',
+        agentHarness: 'opencode',
+        workingDir: '/test/ws',
+        reason: 'test',
+      },
+      machine!
+    );
+  });
+
+  // ===== ACTION: first start =====
+  await t.mutation(api.machines.updateSpawnedAgent, {
+    sessionId,
+    machineId,
+    chatroomId,
+    role: 'builder',
+    pid: 50001,
+    model: 'test-model',
+  });
+
+  // ===== VERIFY: count is 1 =====
+  const metricsAfterFirst = await t.run(async (ctx) =>
+    ctx.db.query('chatroom_agentRestartMetrics').collect()
+  );
+  const row1 = metricsAfterFirst.find(
+    (m) => (m as { machineId: string }).machineId === machineId
+  ) as { count: number } | undefined;
+  expect(row1).toBeDefined();
+  expect(row1!.count).toBe(1);
+
+  // ===== ACTION: second start (same hour bucket, same model) =====
+  await t.mutation(api.machines.updateSpawnedAgent, {
+    sessionId,
+    machineId,
+    chatroomId,
+    role: 'builder',
+    pid: 50002,
+    model: 'test-model',
+  });
+
+  // ===== VERIFY: count incremented to 2, still one row =====
+  const metricsAfterSecond = await t.run(async (ctx) =>
+    ctx.db.query('chatroom_agentRestartMetrics').collect()
+  );
+  const rowsForMachine = metricsAfterSecond.filter(
+    (m) => (m as { machineId: string }).machineId === machineId
+  );
+  expect(rowsForMachine.length).toBe(1);
+  expect((rowsForMachine[0] as { count: number }).count).toBe(2);
+});
+
+// ─── Test 12: clearing PID does not write agent.started or update metrics ─────
+
+test('updateSpawnedAgent with null pid does NOT write agent.started or update metrics', async () => {
+  // ===== SETUP =====
+  const { sessionId } = await createTestSession('test-metrics-2');
+  const chatroomId = await createPairTeamChatroom(sessionId);
+  const machineId = 'machine-metrics-2';
+  await registerMachineWithDaemon(sessionId, machineId);
+
+  await t.run(async (ctx) => {
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+      .first();
+    const user = await ctx.db.query('users').first();
+    return startAgent(
+      ctx,
+      {
+        machineId,
+        chatroomId,
+        role: 'builder',
+        userId: user!._id,
+        model: 'test-model',
+        agentHarness: 'opencode',
+        workingDir: '/test/ws',
+        reason: 'test',
+      },
+      machine!
+    );
+  });
+
+  const eventsBefore = await t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect()
+  );
+
+  // ===== ACTION: clear pid (agent exited) =====
+  await t.mutation(api.machines.updateSpawnedAgent, {
+    sessionId,
+    machineId,
+    chatroomId,
+    role: 'builder',
+    pid: undefined, // clear
+  });
+
+  // ===== VERIFY: no new agent.started events =====
+  const eventsAfter = await t.run(async (ctx) =>
+    ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect()
+  );
+  const startedEvents = eventsAfter.filter((e) => (e as { type?: string }).type === 'agent.started');
+  expect(startedEvents.length).toBe(0);
+  expect(eventsAfter.length).toBe(eventsBefore.length); // no new events
+
+  // ===== VERIFY: no metric rows =====
+  const metrics = await t.run(async (ctx) =>
+    ctx.db.query('chatroom_agentRestartMetrics').collect()
+  );
+  expect(metrics.filter((m) => (m as { machineId: string }).machineId === machineId).length).toBe(0);
+});
