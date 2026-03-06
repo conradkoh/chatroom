@@ -128,7 +128,7 @@ export function AgentRestartChart({
 
       {/* Chart area */}
       {isEmpty ? (
-        <div className="h-[100px] flex items-center justify-center">
+        <div className="h-[120px] flex items-center justify-center">
           <p className="text-[10px] text-chatroom-text-muted">No restart data in the last 24h</p>
         </div>
       ) : (
@@ -137,27 +137,40 @@ export function AgentRestartChart({
             <BarChart data={chartData} margin={{ top: 2, right: 4, left: -24, bottom: 0 }}>
               <XAxis
                 dataKey="hour"
-                tick={{ fontSize: 8, fill: 'var(--chatroom-text-muted, currentColor)' }}
+                tick={{ fontSize: 9, fill: 'var(--chatroom-text-muted)' }}
                 tickLine={false}
                 axisLine={false}
                 interval="preserveStartEnd"
               />
               <YAxis
                 allowDecimals={false}
-                tick={{ fontSize: 8, fill: 'var(--chatroom-text-muted, currentColor)' }}
+                tick={{ fontSize: 9, fill: 'var(--chatroom-text-muted)' }}
                 tickLine={false}
                 axisLine={false}
                 width={32}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: 'var(--background)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '4px',
+                  backgroundColor: 'var(--chatroom-bg-primary)',
+                  border: '1px solid var(--chatroom-border-strong)',
+                  borderRadius: '0px',
+                  fontSize: '10px',
+                  color: 'var(--chatroom-text-primary)',
+                  padding: '6px 8px',
+                }}
+                labelStyle={{
+                  fontWeight: 'bold',
+                  fontSize: '9px',
+                  textTransform: 'uppercase' as const,
+                  letterSpacing: '0.05em',
+                  color: 'var(--chatroom-text-muted)',
+                  marginBottom: '4px',
+                }}
+                itemStyle={{
+                  color: 'var(--chatroom-text-secondary)',
                   fontSize: '10px',
                 }}
-                labelStyle={{ fontWeight: 'bold', marginBottom: '2px' }}
-                cursor={{ fill: 'rgba(128,128,128,0.1)' }}
+                cursor={{ fill: 'var(--chatroom-bg-hover)', opacity: 0.4 }}
               />
               {modelKeys.map((model, idx) => (
                 <Bar
@@ -179,7 +192,7 @@ export function AgentRestartChart({
           {modelKeys.map((model, idx) => (
             <div key={model} className="flex items-center gap-1">
               <div
-                className="w-2 h-2 rounded-sm flex-shrink-0"
+                className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
                 style={{ backgroundColor: getModelColor(idx) }}
               />
               <span className="text-[9px] text-chatroom-text-muted truncate max-w-[120px]" title={model}>
