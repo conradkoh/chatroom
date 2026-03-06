@@ -80,7 +80,8 @@ describe('Squad Team > Planner > Task Started Reminder', () => {
 
       **Next steps:**
       1. Decompose the task into clear, actionable work items
-      2. Delegate implementation to builder:
+      2. Send \`report-progress\` as phases complete to keep the user informed
+      3. Delegate implementation to builder:
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role="builder" << 'EOF'
@@ -89,8 +90,8 @@ describe('Squad Team > Planner > Task Started Reminder', () => {
       EOF
       \`\`\`
 
-      3. Review completed work before delivering to user
-      4. Hand back for rework if requirements are not met
+      4. Review completed work before delivering to user
+      5. Hand back for rework if requirements are not met
 
       💡 You're working on:
       Task ID: test-task-id"
@@ -117,8 +118,9 @@ describe('Squad Team > Planner > Task Started Reminder', () => {
 
       **Next steps:**
       1. Review the follow-up request against previous work
-      2. Delegate to appropriate team member or handle yourself
-      3. Follow-up inherits the workflow rules from the original task:
+      2. Send \`report-progress\` to keep the user informed as work progresses
+      3. Delegate to appropriate team member or handle yourself
+      4. Follow-up inherits the workflow rules from the original task:
          - If original was a QUESTION → handle and hand off to user when done
          - If original was a NEW FEATURE → delegate, review, and deliver to user
 
