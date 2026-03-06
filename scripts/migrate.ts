@@ -76,6 +76,10 @@ const MIGRATIONS: Migration[] = [
     name: 'migration:deleteLegacyMessageQueueDocuments',
     addedAt: '2026-03-04T11:27:00.000Z',
   },
+  {
+    name: 'migration:migrateQueuedTasks',
+    addedAt: '2026-03-06T05:35:00.000Z',
+  },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
