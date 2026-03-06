@@ -27,6 +27,7 @@ type TextDeltaCallback = (delta: string) => void;
 type ThinkingDeltaCallback = (delta: string) => void;
 type AgentEndCallback = () => void;
 type ToolCallCallback = (name: string, args: unknown) => void;
+type ToolResultCallback = (name: string, result: unknown) => void;
 type AnyEventCallback = () => void;
 
 // ─── Implementation ───────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ export class PiRpcReader {
   private readonly thinkingDeltaCallbacks: ThinkingDeltaCallback[] = [];
   private readonly agentEndCallbacks: AgentEndCallback[] = [];
   private readonly toolCallCallbacks: ToolCallCallback[] = [];
+  private readonly toolResultCallbacks: ToolResultCallback[] = [];
   private readonly anyEventCallbacks: AnyEventCallback[] = [];
 
   constructor(stream: Readable) {
@@ -61,6 +63,11 @@ export class PiRpcReader {
   /** Fires when a tool call starts (tool_execution_start). */
   onToolCall(cb: ToolCallCallback): void {
     this.toolCallCallbacks.push(cb);
+  }
+
+  /** Fires when a tool call completes (tool_execution_end). */
+  onToolResult(cb: ToolResultCallback): void {
+    this.toolResultCallbacks.push(cb);
   }
 
   /** Fires for every successfully parsed event, regardless of type. */
@@ -115,6 +122,16 @@ export class PiRpcReader {
       const toolArgs = event['toolArgs'];
       if (typeof toolName === 'string') {
         for (const cb of this.toolCallCallbacks) cb(toolName, toolArgs);
+      }
+      return;
+    }
+
+    if (type === 'tool_execution_end') {
+      const toolName = event['toolName'];
+      // The result field may be 'toolResult', 'output', or similar — fall back to whole event
+      const toolResult = event['toolResult'] ?? event['output'] ?? event;
+      if (typeof toolName === 'string') {
+        for (const cb of this.toolResultCallbacks) cb(toolName, toolResult);
       }
       return;
     }

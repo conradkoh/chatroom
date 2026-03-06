@@ -166,6 +166,46 @@ describe('PiRpcReader', () => {
     });
   });
 
+  describe('onToolResult', () => {
+    it('fires with tool name and result on tool_execution_end', async () => {
+      const calls: { name: string; result: unknown }[] = [];
+      const reader = makeReader([
+        JSON.stringify({
+          type: 'tool_execution_end',
+          toolName: 'bash',
+          toolResult: 'file.txt\ndir/',
+        }),
+      ]);
+      reader.onToolResult((name, result) => calls.push({ name, result }));
+      await flush();
+      expect(calls).toEqual([{ name: 'bash', result: 'file.txt\ndir/' }]);
+    });
+
+    it('falls back to output field when toolResult is absent', async () => {
+      const calls: { name: string; result: unknown }[] = [];
+      const reader = makeReader([
+        JSON.stringify({
+          type: 'tool_execution_end',
+          toolName: 'bash',
+          output: 'hello world',
+        }),
+      ]);
+      reader.onToolResult((name, result) => calls.push({ name, result }));
+      await flush();
+      expect(calls).toEqual([{ name: 'bash', result: 'hello world' }]);
+    });
+
+    it('does not fire for tool_execution_start', async () => {
+      const calls: unknown[] = [];
+      const reader = makeReader([
+        JSON.stringify({ type: 'tool_execution_start', toolName: 'bash', toolArgs: {} }),
+      ]);
+      reader.onToolResult((...args) => calls.push(args));
+      await flush();
+      expect(calls).toEqual([]);
+    });
+  });
+
   describe('onAnyEvent', () => {
     it('fires for every parsed event regardless of type', async () => {
       let count = 0;

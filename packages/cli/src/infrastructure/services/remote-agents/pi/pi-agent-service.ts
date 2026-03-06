@@ -212,11 +212,17 @@ export class PiAgentService extends BaseCLIAgentService {
         process.stdout.write(`${logPrefix} agent_end]\n`);
       });
 
-      reader.onToolCall((name) => {
+      reader.onToolCall((name, args) => {
         // Flush buffered content before the tool marker
         flushText();
         flushThinking();
-        process.stdout.write(`${logPrefix} tool: ${name}]\n`);
+        const argsStr = args != null ? ` args: ${JSON.stringify(args)}` : '';
+        process.stdout.write(`${logPrefix} tool: ${name}${argsStr}]\n`);
+      });
+
+      reader.onToolResult((name, result) => {
+        const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+        process.stdout.write(`${logPrefix} tool_result: ${name} result: ${resultStr}]\n`);
       });
 
       if (childProcess.stderr) {
