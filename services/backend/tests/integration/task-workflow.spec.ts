@@ -501,11 +501,13 @@ describe('Task Workflow - Cancel Actions', () => {
     const allTasks = await t.query(api.tasks.listTasks, { sessionId, chatroomId });
     const task = allTasks.find((t: { sourceMessageId?: unknown }) => t.sourceMessageId === messageId);
     expect(task).toBeDefined();
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const foundTask = task!;
 
     // Cancel the task — should cascade delete the source message
     await t.mutation(api.tasks.cancelTask, {
       sessionId,
-      taskId: task._id,
+      taskId: foundTask._id,
     });
 
     // The source message should be gone
