@@ -48,7 +48,7 @@ type SettingsTab = 'setup' | 'team' | 'machine';
 
 // Available teams (matching CreateChatroomForm and CLI defaults)
 const TEAMS_CONFIG: TeamsConfig = {
-  defaultTeam: 'pair',
+  defaultTeam: 'duo',
   teams: {
     pair: {
       name: 'Pair',
@@ -145,13 +145,13 @@ const TeamConfigContent = memo(function TeamConfigContent({
   currentTeamId?: string;
   currentTeamRoles?: string[];
 }) {
-  const [selectedTeam, setSelectedTeam] = useState<string>(currentTeamId || 'pair');
+  const [selectedTeam, setSelectedTeam] = useState<string>(currentTeamId || 'duo');
   const [isSaving, setIsSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<'success' | 'error' | null>(null);
 
   const updateTeam = useSessionMutation(api.chatrooms.updateTeam);
 
-  const hasChanges = selectedTeam !== (currentTeamId || 'pair');
+  const hasChanges = selectedTeam !== (currentTeamId || 'duo');
   const selectedTeamData = TEAMS_CONFIG.teams[selectedTeam];
 
   const handleSave = useCallback(async () => {

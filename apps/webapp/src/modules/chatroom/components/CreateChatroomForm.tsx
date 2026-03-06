@@ -31,7 +31,7 @@ interface CreateChatroomFormProps {
 
 // Default teams configuration (matching the CLI defaults)
 const DEFAULT_TEAMS_CONFIG: TeamsConfig = {
-  defaultTeam: 'pair',
+  defaultTeam: 'duo',
   teams: {
     pair: {
       name: 'Pair',
