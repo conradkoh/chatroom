@@ -45,8 +45,6 @@ export interface SpawnResult {
     cb: (info: { code: number | null; signal: string | null; context: SpawnContext }) => void
   ) => void;
   onOutput: (cb: () => void) => void;
-  /** Fires when the agent completes a turn (agent_end event in RPC mode). Not all harnesses support this. */
-  onAgentEnd?: (cb: () => void) => void;
 }
 
 export interface ProcessInfo {
