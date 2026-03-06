@@ -216,4 +216,45 @@ describe('registerAgent', () => {
       expect(errOutput).toContain('Register failed');
     });
   });
+
+  describe('agent.registered event emission (remote)', () => {
+    it('calls recordAgentRegistered with correct args after machine registration', async () => {
+      const deps = createMockDeps();
+
+      await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'remote' }), deps);
+
+      expect(exitSpy).not.toHaveBeenCalled();
+
+      // Second mutation call should be recordAgentRegistered
+      const mutationCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
+      expect(mutationCalls).toHaveLength(2);
+
+      // Verify the second call args contain the expected fields
+      const [, secondCallArgs] = mutationCalls[1] as [unknown, Record<string, unknown>];
+      expect(secondCallArgs).toMatchObject({
+        sessionId: TEST_SESSION_ID,
+        chatroomId: TEST_CHATROOM_ID,
+        role: 'planner',
+        agentType: 'remote',
+        machineId: 'machine_123',
+      });
+    });
+
+    it('succeeds even when recordAgentRegistered mutation fails (non-critical)', async () => {
+      const deps = createMockDeps();
+      const mutationMock = deps.backend.mutation as ReturnType<typeof vi.fn>;
+
+      // First call (machines.register) succeeds, second call (recordAgentRegistered) fails
+      mutationMock
+        .mockResolvedValueOnce(undefined) // machines.register
+        .mockRejectedValueOnce(new Error('Event stream write failed')); // recordAgentRegistered
+
+      await registerAgent(TEST_CHATROOM_ID, defaultOptions({ type: 'remote' }), deps);
+
+      // Should still succeed — recordAgentRegistered failure is non-critical
+      expect(exitSpy).not.toHaveBeenCalled();
+      const output = getAllLogOutput();
+      expect(output).toContain('Registered as remote agent');
+    });
+  });
 });

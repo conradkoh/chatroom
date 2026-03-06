@@ -62,6 +62,7 @@ function createMockContext(options?: {
       }) => void
     ) => void;
     onOutput: (cb: () => void) => void;
+    onAgentEnd?: (cb: () => void) => void;
   };
   spawnError?: Error;
   lifecycleState?: { state: string } | null;
@@ -676,5 +677,80 @@ describe('handleStartAgent', () => {
         stopReason: 'intentional_stop',
       })
     );
+  });
+
+  // ── agent_end turn completion tests ──────────────────────────────────────
+
+  it('kills process group on agent_end (turn completion)', async () => {
+    let agentEndCallback: (() => void) | null = null;
+
+    const ctx = createMockContext({
+      spawnResult: {
+        pid: 5678,
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: (cb: () => void) => { agentEndCallback = cb; },
+      },
+    });
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    await handleStartAgent(ctx, cmd);
+
+    // Verify onAgentEnd callback was registered
+    expect(agentEndCallback).not.toBeNull();
+
+    // Trigger agent_end (simulates Pi RPC agent turn completion)
+    agentEndCallback!();
+
+    // Should kill the process group (negative PID) without marking as intentional
+    expect(ctx.deps.processes.kill).toHaveBeenCalledWith(-5678, 'SIGTERM');
+    // Should NOT mark as intentional stop — we want restart to trigger
+    expect(ctx.deps.stops.mark).not.toHaveBeenCalled();
+  });
+
+  it('does not throw when kill fails on agent_end (process already dead)', async () => {
+    let agentEndCallback: (() => void) | null = null;
+
+    const ctx = createMockContext({
+      spawnResult: {
+        pid: 5678,
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        onAgentEnd: (cb: () => void) => { agentEndCallback = cb; },
+      },
+    });
+
+    // Kill throws ESRCH (process already dead)
+    (ctx.deps.processes.kill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      const err = new Error('kill ESRCH') as NodeJS.ErrnoException;
+      err.code = 'ESRCH';
+      throw err;
+    });
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    await handleStartAgent(ctx, cmd);
+
+    // Should not throw — error is caught internally
+    expect(() => agentEndCallback!()).not.toThrow();
+  });
+
+  it('skips agent_end handler when spawnResult has no onAgentEnd', async () => {
+    // SpawnResult without onAgentEnd (e.g. opencode harness)
+    const ctx = createMockContext({
+      spawnResult: {
+        pid: 5678,
+        onExit: vi.fn(),
+        onOutput: vi.fn(),
+        // No onAgentEnd
+      },
+    });
+
+    const cmd = createCommand({ workingDir: '/tmp/test' });
+    const result = await handleStartAgent(ctx, cmd);
+
+    // Should succeed without errors
+    expect(result.failed).toBe(false);
+    // No kills should happen from agent_end handling
+    expect(ctx.deps.processes.kill).not.toHaveBeenCalled();
   });
 });
