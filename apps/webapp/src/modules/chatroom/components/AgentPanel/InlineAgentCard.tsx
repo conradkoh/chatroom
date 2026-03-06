@@ -2,10 +2,15 @@
 
 import React, { memo, useState } from 'react';
 
+import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+
 import type { AgentHarness, MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import { useAgentControls, RemoteTabContent, CustomTabContent } from '../AgentConfigTabs';
 import type { AgentPreference } from '../AgentConfigTabs';
 import { AgentStatusRow } from './AgentStatusRow';
+import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { getDaemonStartCommand } from '@/lib/environment';
 
 // Re-export helpers that are still imported from this file elsewhere
@@ -119,6 +124,21 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   const daemonStartCommand = getDaemonStartCommand();
   const statusLabel = online ? eventTypeToStatusLabel(latestEventType) : 'OFFLINE';
 
+  // Use teamConfig machineId if available — needed for restart stats query
+  const statsMachineId = teamConfig?.machineId ?? null;
+  const [statsOpen, setStatsOpen] = useState(false);
+
+  const restartSummary = useSessionQuery(
+    api.machines.getAgentRestartSummary,
+    statsMachineId
+      ? {
+          machineId: statsMachineId,
+          role,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        }
+      : 'skip'
+  );
+
   return (
     <div className="border-b border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3">
       {/* Column 1: Agent details + tabs + tab content (stretches) */}
@@ -172,6 +192,40 @@ export const InlineAgentCard = memo(function InlineAgentCard({
             <CustomTabContent role={role} prompt={prompt} />
           )}
         </div>
+
+        {/* Restart stats row — shown when machineId is known */}
+        {statsMachineId && restartSummary && (
+          <>
+            <div className="mt-2 pt-2 border-t border-chatroom-border flex items-center gap-2">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted flex-shrink-0">
+                Restarts
+              </span>
+              <span className="text-[10px] text-chatroom-text-secondary">
+                <span className="font-bold text-chatroom-text-primary">{restartSummary.count1h}</span>
+                <span className="text-chatroom-text-muted"> in 1h</span>
+                <span className="mx-1.5 text-chatroom-border-strong">·</span>
+                <span className="font-bold text-chatroom-text-primary">{restartSummary.count24h}</span>
+                <span className="text-chatroom-text-muted"> in 24h</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setStatsOpen(true)}
+                className="ml-auto text-[9px] font-bold uppercase tracking-widest text-chatroom-accent hover:text-chatroom-text-primary transition-colors flex-shrink-0"
+              >
+                View Stats →
+              </button>
+            </div>
+
+            <AgentRestartStatsModal
+              isOpen={statsOpen}
+              onClose={() => setStatsOpen(false)}
+              role={role}
+              machineId={statsMachineId}
+              workingDir={teamConfig?.workingDir ?? ''}
+              chatroomId={chatroomId}
+            />
+          </>
+        )}
       </div>
     </div>
   );
