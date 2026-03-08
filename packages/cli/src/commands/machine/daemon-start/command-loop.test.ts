@@ -140,7 +140,7 @@ describe('refreshModels', () => {
     expect(call.availableModels).not.toHaveProperty('pi');
   });
 
-  it('skips harness entry when listModels throws (non-critical error)', async () => {
+  it('stores empty array when listModels throws (non-critical error)', async () => {
     const ctx = createContextWithServices([
       { harness: 'opencode', isInstalled: true, models: new Error('opencode broke') },
       { harness: 'pi', isInstalled: true, models: ['github-copilot/gpt-4o'] },
@@ -149,9 +149,10 @@ describe('refreshModels', () => {
     await refreshModels(ctx);
 
     const call = vi.mocked(ctx.deps.backend.mutation).mock.calls[0][1] as any;
-    // opencode failed so it should be absent; pi succeeded
-    expect(call.availableModels).not.toHaveProperty('opencode');
-    expect(call.availableModels).toEqual({ pi: ['github-copilot/gpt-4o'] });
+    // opencode failed — discoverModels() stores [] to distinguish "installed but
+    // no models" from "not installed" (key absent)
+    expect(call.availableModels).toHaveProperty('opencode', []);
+    expect(call.availableModels).toEqual({ opencode: [], pi: ['github-copilot/gpt-4o'] });
   });
 
   it('does not call mutation when config is null', async () => {

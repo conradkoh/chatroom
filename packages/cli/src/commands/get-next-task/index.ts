@@ -1,8 +1,8 @@
 /**
  * Get Next Task Command — entry point.
  *
- * Handles all pre-flight validation (auth, chatroom access, machine registration,
- * participant join, init prompt) and then delegates to `GetNextTaskSession.start()`.
+ * Handles all pre-flight validation (auth, chatroom access, participant join,
+ * init prompt) and then delegates to `GetNextTaskSession.start()`.
  */
 
 import { getNextTaskGuidance } from '@workspace/backend/prompts/cli/index.js';
@@ -12,12 +12,7 @@ import { GetNextTaskSession } from './session.js';
 import { api, type Id } from '../../api.js';
 import { getOtherSessionUrls, getSessionId } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
-import { ensureMachineRegistered } from '../../infrastructure/machine/index.js';
-import { CursorAgentService } from '../../infrastructure/services/remote-agents/cursor/index.js';
-import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
-import { PiAgentService } from '../../infrastructure/services/remote-agents/pi/index.js';
 import { formatConnectivityError, isNetworkError } from '../../utils/error-formatting.js';
-import { sanitizeUnknownForTerminal } from '../../utils/terminal-safety.js';
 
 // ─── Re-exports ─────────────────────────────────────────────────────────────
 
@@ -39,8 +34,8 @@ interface GetNextTaskOptions {
 /**
  * Get next task from a chatroom.
  *
- * Handles all pre-flight validation (auth, chatroom access, machine registration,
- * participant join, init prompt) and then delegates to `GetNextTaskSession.start()`.
+ * Handles all pre-flight validation (auth, chatroom access, participant join,
+ * init prompt) and then delegates to `GetNextTaskSession.start()`.
  */
 export async function getNextTask(chatroomId: string, options: GetNextTaskOptions): Promise<void> {
   const client = await getConvexClient();
@@ -109,54 +104,6 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
   if (!chatroom) {
     console.error(`❌ Chatroom ${chatroomId} not found or access denied`);
     process.exit(1);
-  }
-
-  // Register machine and sync config to backend
-  try {
-    const machineInfo = ensureMachineRegistered();
-
-    // Discover available models from all installed harnesses (non-critical)
-    const availableModels: Record<string, string[]> = {};
-    try {
-      const opencodeService = new OpenCodeAgentService();
-      if (opencodeService.isInstalled()) {
-        availableModels['opencode'] = await opencodeService.listModels();
-      }
-    } catch {
-      /* non-critical */
-    }
-    try {
-      const piService = new PiAgentService();
-      if (piService.isInstalled()) {
-        availableModels['pi'] = await piService.listModels();
-      }
-    } catch {
-      /* non-critical */
-    }
-    try {
-      const cursorService = new CursorAgentService();
-      if (cursorService.isInstalled()) {
-        availableModels['cursor'] = await cursorService.listModels();
-      }
-    } catch {
-      /* non-critical */
-    }
-
-    await client.mutation(api.machines.register, {
-      sessionId,
-      machineId: machineInfo.machineId,
-      hostname: machineInfo.hostname,
-      os: machineInfo.os,
-      availableHarnesses: machineInfo.availableHarnesses,
-      harnessVersions: machineInfo.harnessVersions,
-      availableModels,
-    });
-  } catch (machineError) {
-    if (!silent) {
-      console.warn(
-        `⚠️  Machine registration failed: ${sanitizeUnknownForTerminal((machineError as Error).message)}`
-      );
-    }
   }
 
   // Generate a unique connection ID for this get-next-task session

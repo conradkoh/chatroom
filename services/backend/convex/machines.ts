@@ -176,6 +176,48 @@ export const register = mutation({
   },
 });
 
+/**
+ * Patch mutable capabilities on an already-registered machine.
+ * Used by the daemon's periodic refresh loop — only updates fields that
+ * can change at runtime (harnesses, models). Fails if the machine has
+ * not been registered via `register` first.
+ */
+export const refreshCapabilities = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    availableHarnesses: v.array(agentHarnessValidator),
+    harnessVersions: v.optional(v.record(v.string(), harnessVersionValidator)),
+    availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    const user = auth.user;
+
+    const existing = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    if (!existing) {
+      throw new Error('Machine not registered. Run `chatroom machine start` first.');
+    }
+    if (existing.userId !== user._id) {
+      throw new Error('Machine is registered to a different user');
+    }
+
+    await ctx.db.patch('chatroom_machines', existing._id, {
+      availableHarnesses: args.availableHarnesses,
+      harnessVersions: args.harnessVersions,
+      availableModels: args.availableModels,
+      lastSeenAt: Date.now(),
+    });
+  },
+});
+
 
 // ============================================================================
 // QUERIES
