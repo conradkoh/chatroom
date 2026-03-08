@@ -10,9 +10,10 @@ import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliS
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
 import { getCompletionStatus } from './lib/taskWorkflows';
-import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput.js';
-import { getConfig } from '../prompts/config/index.js';
-import { getCliEnvPrefix } from '../prompts/utils/index.js';
+import { buildTeamRoleKey } from './utils/teamRoleKey';
+import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
+import { getConfig } from '../prompts/config/index';
+import { getCliEnvPrefix } from '../prompts/utils/index';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import {
   createTask as createTaskUsecase,
@@ -1646,7 +1647,7 @@ export const getInitPrompt = query({
     const availableMembers = participants.map((p) => p.role);
 
     // Look up existing team agent config to include the agent type in the prompt
-    const teamRoleKey = `chatroom_${chatroom._id}#role_${args.role.toLowerCase()}`;
+    const teamRoleKey = buildTeamRoleKey(chatroom._id, args.role);
     const existingAgentConfig = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
