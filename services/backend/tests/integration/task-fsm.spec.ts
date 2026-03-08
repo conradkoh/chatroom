@@ -219,7 +219,7 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
       const allTasks = await t.query(api.tasks.listTasks, {
         sessionId, chatroomId, statusFilter: 'active',
       });
-      const taskId = allTasks.find((t: { status: string }) => t.status === 'acknowledged')?._id as Id<'chatroom_tasks'> | undefined;
+      const taskId = allTasks.find((t) => t.status === 'acknowledged')?._id;
       expect(taskId).toBeDefined();
       await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder', taskId });
 
@@ -242,7 +242,7 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
       const allTasks = await t.query(api.tasks.listTasks, {
         sessionId, chatroomId, statusFilter: 'active',
       });
-      const taskId = allTasks.find((t: { status: string }) => t.status === 'acknowledged')?._id as Id<'chatroom_tasks'> | undefined;
+      const taskId = allTasks.find((t) => t.status === 'acknowledged')?._id;
       expect(taskId).toBeDefined();
       await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder', taskId });
 
