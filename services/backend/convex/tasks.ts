@@ -193,6 +193,27 @@ export const startTask = mutation({
         throw new Error('Task does not belong to this chatroom');
       }
 
+      // IDEMPOTENCY: If task is already in_progress, accept it — this is a recovering agent
+      // picking up where a dead agent left off. The old agent's process is gone; we update
+      // assignedTo to reflect the new agent and emit task.inProgress for UI consistency.
+      if (acknowledgedTask.status === 'in_progress') {
+        const now = Date.now();
+        if (acknowledgedTask.assignedTo !== args.role) {
+          await ctx.db.patch('chatroom_tasks', acknowledgedTask._id, {
+            assignedTo: args.role,
+            updatedAt: now,
+          });
+        }
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'task.inProgress',
+          chatroomId: args.chatroomId,
+          role: args.role,
+          taskId: acknowledgedTask._id,
+          timestamp: now,
+        });
+        return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
+      }
+
       if (acknowledgedTask.status !== 'acknowledged') {
         throw new Error(
           `Task must be acknowledged to start (current status: ${acknowledgedTask.status})`
