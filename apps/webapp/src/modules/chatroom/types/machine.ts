@@ -89,11 +89,16 @@ export type SendCommandFn = (args: SendCommandArgs) => Promise<unknown>;
 
 // ─── Constants ──────────────────────────────────────────────────────
 
-export const HARNESS_DISPLAY_NAMES: Record<AgentHarness, string> = {
+export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
   opencode: 'OpenCode',
   pi: 'Pi',
   cursor: 'Cursor',
 };
+
+/** Get display name for a harness. Returns a title-cased fallback for unknown harnesses. */
+export function getHarnessDisplayName(harness: string): string {
+  return HARNESS_DISPLAY_NAMES[harness] ?? harness.charAt(0).toUpperCase() + harness.slice(1);
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────
 

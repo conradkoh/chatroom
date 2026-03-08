@@ -2,6 +2,7 @@
 
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
+import { agentHarnessValidator } from './schema';
 
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
@@ -101,8 +102,6 @@ async function getOwnedMachine(
   return machine;
 }
 
-// Agent harness type validator (shared across functions)
-const agentHarnessValidator = v.union(v.literal('opencode'), v.literal('pi'), v.literal('cursor'));
 
 // ============================================================================
 // MACHINE REGISTRATION
@@ -630,10 +629,7 @@ export const sendCommand = mutation({
         .first();
 
       const resolvedModel = args.payload.model ?? existingConfig?.model;
-      const resolvedHarness = (args.payload.agentHarness ?? existingConfig?.agentType) as
-        | 'opencode'
-        | 'pi'
-        | undefined;
+      const resolvedHarness = args.payload.agentHarness ?? existingConfig?.agentType;
       const resolvedWorkingDir = args.payload.workingDir ?? existingConfig?.workingDir;
 
       if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
@@ -731,7 +727,7 @@ export const updateSpawnedAgent = mutation({
         chatroomId: args.chatroomId,
         role: args.role,
         machineId: args.machineId,
-        agentHarness: config.agentType as 'opencode' | 'pi' | 'cursor',
+        agentHarness: config.agentType,
         model: args.model ?? config.model ?? 'unknown',
         workingDir: config.workingDir,
         pid: args.pid,
