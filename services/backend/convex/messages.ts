@@ -960,6 +960,33 @@ export const deleteQueuedMessage = mutation({
   },
 });
 
+/** Updates the content of a queued (pending) message before it is dispatched. */
+export const updateQueuedMessage = mutation({
+  args: {
+    ...SessionIdArg,
+    queuedMessageId: v.id('chatroom_messageQueue'),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const queueRecord = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
+    if (!queueRecord) {
+      throw new Error('Queued message not found');
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, queueRecord.chatroomId);
+
+    // Validate non-empty content
+    const trimmed = args.content.trim();
+    if (!trimmed) {
+      throw new Error('Message content cannot be empty');
+    }
+
+    await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, { content: trimmed });
+    return { success: true };
+  },
+});
+
 /** Returns queued messages (from chatroom_messageQueue) for a chatroom. */
 export const listQueued = query({
   args: {
