@@ -80,6 +80,10 @@ const MIGRATIONS: Migration[] = [
     name: 'migration:migrateQueuedTasks',
     addedAt: '2026-03-06T05:35:00.000Z',
   },
+  {
+    name: 'migration:migrateTeamRoleKeyAddTeamId',
+    addedAt: '2026-03-08T08:45:00.000Z',
+  },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
