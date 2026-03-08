@@ -873,8 +873,13 @@ export const listTasks = query({
       tasks = await ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom_status', (q) =>
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          q.eq('chatroomId', args.chatroomId).eq('status', args.statusFilter as any)
+          q.eq('chatroomId', args.chatroomId).eq(
+            'status',
+            // At this branch, statusFilter is a concrete DB status (not a virtual filter like
+            // 'active' or 'archived'). The cast is safe — TypeScript cannot infer the subtype
+            // relationship between the statusFilter union and the schema status union.
+            args.statusFilter as 'pending' | 'in_progress' | 'backlog' | 'completed' | 'closed' | 'pending_user_review'
+          )
         )
         .collect();
     } else {
