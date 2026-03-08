@@ -23,7 +23,7 @@
  */
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-export type AgentHarness = 'opencode' | 'pi';
+export type AgentHarness = 'opencode' | 'pi' | 'cursor';
 
 export interface HarnessVersionInfo {
   version: string;
@@ -92,6 +92,7 @@ export type SendCommandFn = (args: SendCommandArgs) => Promise<unknown>;
 export const HARNESS_DISPLAY_NAMES: Record<AgentHarness, string> = {
   opencode: 'OpenCode',
   pi: 'Pi',
+  cursor: 'Cursor',
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────
