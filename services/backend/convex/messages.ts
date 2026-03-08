@@ -1681,7 +1681,7 @@ export const getInitPrompt = query({
       ? await ctx.db
           .query('chatroom_teamAgentConfigs')
           .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-          .unique()
+          .first()
       : null;
 
     const promptInput = {

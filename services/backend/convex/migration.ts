@@ -315,6 +315,7 @@ export const migrateTeamRoleKeyAddTeamId = internalMutation({
     let skipped = 0;
     let migrated = 0;
     let deleted = 0;
+    let deduped = 0;
 
     for (const config of allConfigs) {
       // Skip records already in new format
@@ -333,14 +334,26 @@ export const migrateTeamRoleKeyAddTeamId = internalMutation({
         continue;
       }
 
-      // Build new key and patch
+      // Build new key and check for existing record to avoid duplicates
       const newKey = `chatroom_${config.chatroomId}#team_${chatroom.teamId.toLowerCase()}#role_${config.role.toLowerCase()}`;
+      const existingWithKey = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', newKey))
+        .first();
+
+      if (existingWithKey) {
+        // A record with this key already exists — delete this duplicate
+        await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+        deduped++;
+        continue;
+      }
+
       await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
         teamRoleKey: newKey,
       });
       migrated++;
     }
 
-    return { migrated, skipped, deleted };
+    return { migrated, skipped, deleted, deduped };
   },
 });
