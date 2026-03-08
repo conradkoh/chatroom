@@ -28,6 +28,8 @@ export type CursorAgentServiceDeps = CLIAgentServiceDeps;
 
 const CURSOR_COMMAND = 'agent';
 
+const CURSOR_MODELS: string[] = ['opus-4.6', 'sonnet-4.6'];
+
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class CursorAgentService extends BaseCLIAgentService {
@@ -44,7 +46,7 @@ export class CursorAgentService extends BaseCLIAgentService {
   }
 
   async listModels(): Promise<string[]> {
-    return [];
+    return CURSOR_MODELS;
   }
 
   async spawn(options: SpawnOptions): Promise<SpawnResult> {

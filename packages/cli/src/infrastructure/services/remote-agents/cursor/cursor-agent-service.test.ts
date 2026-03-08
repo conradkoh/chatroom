@@ -72,9 +72,11 @@ describe('CursorAgentService', () => {
   });
 
   describe('listModels', () => {
-    it('returns empty array (cursor does not support model listing)', async () => {
+    it('returns hardcoded cursor models with opus first (default)', async () => {
       const service = new CursorAgentService(createMockDeps());
-      expect(await service.listModels()).toEqual([]);
+      const models = await service.listModels();
+      expect(models).toEqual(['opus-4.6', 'sonnet-4.6']);
+      expect(models[0]).toBe('opus-4.6');
     });
   });
 
