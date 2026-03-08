@@ -787,11 +787,11 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
           className="w-full flex items-center gap-3 group cursor-pointer"
         >
           <div className="flex-1 h-px bg-chatroom-status-info/30" />
-          <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info bg-chatroom-status-info/10 border border-chatroom-status-info/30 group-hover:bg-chatroom-status-info/20 transition-colors">
+          <div className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-chatroom-status-info bg-chatroom-status-info/10 border border-chatroom-status-info/30 group-hover:bg-chatroom-status-info/20 transition-colors min-w-0 overflow-hidden">
             <Sparkles size={10} className="flex-shrink-0" />
-            <span>New Context</span>
-            <span className="text-chatroom-status-info/50">—</span>
-            <span className="normal-case font-medium tracking-normal max-w-[300px] truncate text-chatroom-text-secondary [&_*]:inline">
+            <span className="flex-shrink-0">New Context</span>
+            <span className="text-chatroom-status-info/50 flex-shrink-0">—</span>
+            <span className="normal-case font-medium tracking-normal flex-1 min-w-0 truncate text-chatroom-text-secondary [&_*]:inline">
               <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
                 {message.content}
               </Markdown>
@@ -1243,7 +1243,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
       {/* Scrollable message content - Task headers use CSS sticky to stay at top while scrolling */}
       {/* Note: px-2 for horizontal padding, no vertical padding so sticky headers flush to top */}
       <div
-        className="flex-1 overflow-y-auto overscroll-contain px-2 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
+        className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-2 min-h-0 scrollbar-thin scrollbar-track-chatroom-bg-primary scrollbar-thumb-chatroom-border"
         ref={feedRef}
         onScroll={handleScroll}
       >
