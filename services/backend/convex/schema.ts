@@ -633,7 +633,7 @@ export default defineSchema({
     // Preferred agent harness
     // DEPRECATED SHAPE: old documents (pre-migration) may be missing this field.
     // See migration.migrateAgentPreferencesToPerRole for cleanup.
-    agentHarness: v.optional(v.union(v.literal('opencode'), v.literal('pi'))),
+    agentHarness: v.optional(v.union(v.literal('opencode'), v.literal('pi'), v.literal('cursor'))),
     // Preferred AI model
     model: v.optional(v.string()),
     // Preferred working directory (absolute path on the machine)
@@ -674,7 +674,7 @@ export default defineSchema({
     // Operating system (darwin, linux, win32)
     os: v.string(),
     // Available agent harnesses on this machine
-    availableHarnesses: v.array(v.union(v.literal('opencode'), v.literal('pi'))),
+    availableHarnesses: v.array(v.union(v.literal('opencode'), v.literal('pi'), v.literal('cursor'))),
     // Detected harness versions (keyed by harness name, e.g. { opencode: { version: "1.2.3", major: 1 } })
     harnessVersions: v.optional(
       v.record(
@@ -717,7 +717,7 @@ export default defineSchema({
     // Role this config is for
     role: v.string(),
     // Agent harness used (must be in machine's availableHarnesses)
-    agentType: v.union(v.literal('opencode'), v.literal('pi')),
+    agentType: v.union(v.literal('opencode'), v.literal('pi'), v.literal('cursor')),
     // Working directory on the machine
     workingDir: v.string(),
     // AI model to use (e.g. "github-copilot/claude-sonnet-4.5")
@@ -741,7 +741,7 @@ export default defineSchema({
     // Machine these filters apply to
     machineId: v.string(),
     // Harness these filters apply to
-    agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+    agentHarness: v.union(v.literal('opencode'), v.literal('pi'), v.literal('cursor')),
     // Individual model IDs to hide (e.g. "github-copilot/claude-haiku-4.5")
     hiddenModels: v.array(v.string()),
     // Provider prefixes to hide all models for (e.g. "github-copilot")
@@ -774,7 +774,7 @@ export default defineSchema({
 
     // Remote agent config (only present when type === 'remote')
     machineId: v.optional(v.string()),
-    agentHarness: v.optional(v.union(v.literal('opencode'), v.literal('pi'))),
+    agentHarness: v.optional(v.union(v.literal('opencode'), v.literal('pi'), v.literal('cursor'))),
     model: v.optional(v.string()),
     workingDir: v.optional(v.string()),
 
@@ -814,7 +814,7 @@ export default defineSchema({
         chatroomId: v.id('chatroom_rooms'),
         role: v.string(),
         machineId: v.string(),
-        agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+        agentHarness: v.union(v.literal('opencode'), v.literal('pi'), v.literal('cursor')),
         model: v.string(),
         workingDir: v.string(),
         pid: v.number(),
@@ -870,7 +870,7 @@ export default defineSchema({
         chatroomId: v.id('chatroom_rooms'),
         machineId: v.string(),
         role: v.string(),
-        agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+        agentHarness: v.union(v.literal('opencode'), v.literal('pi'), v.literal('cursor')),
         model: v.string(),
         workingDir: v.string(),
         reason: v.string(),

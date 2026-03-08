@@ -11,12 +11,12 @@
  * (e.g. Cursor, OpenCode, Claude). This avoids confusion with the AI
  * concept of "tools" (read file, write file, web search, etc.).
  */
-export type AgentHarness = 'opencode' | 'pi';
+export type AgentHarness = 'opencode' | 'pi' | 'cursor';
 
 /**
  * All supported agent harnesses
  */
-export const AGENT_HARNESSES: AgentHarness[] = ['opencode', 'pi'];
+export const AGENT_HARNESSES: AgentHarness[] = ['opencode', 'pi', 'cursor'];
 
 /**
  * Command names for each agent harness (used for detection)
@@ -24,6 +24,7 @@ export const AGENT_HARNESSES: AgentHarness[] = ['opencode', 'pi'];
 export const AGENT_HARNESS_COMMANDS: Record<AgentHarness, string> = {
   opencode: 'opencode',
   pi: 'pi',
+  cursor: 'agent',
 };
 
 /**

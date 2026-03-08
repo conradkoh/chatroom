@@ -24,6 +24,7 @@ import {
 } from '../../../infrastructure/machine/intentional-stops.js';
 import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';
 import { PiAgentService } from '../../../infrastructure/services/remote-agents/pi/index.js';
+import { CursorAgentService } from '../../../infrastructure/services/remote-agents/cursor/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
@@ -281,9 +282,11 @@ export async function initDaemon(): Promise<DaemonContext> {
   // Instantiate remote agent services — one for each supported harness
   const openCodeService = new OpenCodeAgentService();
   const piService = new PiAgentService();
+  const cursorService = new CursorAgentService();
   const agentServices = new Map<AgentHarness, RemoteAgentService>([
     ['opencode', openCodeService],
     ['pi', piService],
+    ['cursor', cursorService],
   ]);
 
   const availableModels = await registerCapabilities(client, typedSessionId, config, agentServices);

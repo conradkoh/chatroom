@@ -102,7 +102,7 @@ async function getOwnedMachine(
 }
 
 // Agent harness type validator (shared across functions)
-const agentHarnessValidator = v.union(v.literal('opencode'), v.literal('pi'));
+const agentHarnessValidator = v.union(v.literal('opencode'), v.literal('pi'), v.literal('cursor'));
 
 // ============================================================================
 // MACHINE REGISTRATION
@@ -689,7 +689,7 @@ export const updateSpawnedAgent = mutation({
         chatroomId: args.chatroomId,
         role: args.role,
         machineId: args.machineId,
-        agentHarness: config.agentType as 'opencode' | 'pi',
+        agentHarness: config.agentType as 'opencode' | 'pi' | 'cursor',
         model: args.model ?? config.model ?? 'unknown',
         workingDir: config.workingDir,
         pid: args.pid,
@@ -1065,7 +1065,7 @@ export const getMachineModelFilters = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+    agentHarness: agentHarnessValidator,
   },
   handler: async (ctx, args) => {
     const filter = await ctx.db
@@ -1083,7 +1083,7 @@ export const upsertMachineModelFilters = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+    agentHarness: agentHarnessValidator,
     hiddenModels: v.array(v.string()),
     hiddenProviders: v.array(v.string()),
   },

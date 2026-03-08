@@ -8,6 +8,7 @@ import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
 import { onAgentShutdown } from '../../../../events/lifecycle/on-agent-shutdown.js';
 import { resolveStopReason } from '../../../../infrastructure/machine/stop-reason.js';
 import type { StopReason } from '../../../../infrastructure/machine/stop-reason.js';
+import type { AgentHarness } from '../../../../infrastructure/machine/types.js';
 import type { CommandResult, DaemonContext, StartAgentCommand, StartAgentReason } from '../types.js';
 
 /**
@@ -22,7 +23,7 @@ export async function executeStartAgent(
   args: {
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
-    agentHarness: 'opencode' | 'pi';
+    agentHarness: AgentHarness;
     model?: string;
     workingDir?: string;
     reason: StartAgentReason;
