@@ -7,7 +7,6 @@
 
 // Types
 export type { AgentHarness, HarnessVersionInfo } from './types.js';
-export { AGENT_HARNESS_COMMANDS } from './types.js';
 
 // Storage (static machine config)
 export {

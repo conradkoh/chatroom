@@ -16,3 +16,4 @@ export {
   getHarnessIds,
   getInstalledHarnesses,
 } from './registry.js';
+export { initHarnessRegistry } from './init-registry.js';

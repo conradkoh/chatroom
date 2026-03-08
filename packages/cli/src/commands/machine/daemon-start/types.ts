@@ -125,5 +125,5 @@ export interface DaemonContext {
   config: MachineConfig | null;
   deps: DaemonDeps;
   events: DaemonEventBus;
-  agentServices: Map<AgentHarness, RemoteAgentService>;
+  agentServices: Map<string, RemoteAgentService>;
 }

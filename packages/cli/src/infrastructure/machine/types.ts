@@ -14,20 +14,6 @@
 export type AgentHarness = 'opencode' | 'pi' | 'cursor';
 
 /**
- * All supported agent harnesses
- */
-export const AGENT_HARNESSES: AgentHarness[] = ['opencode', 'pi', 'cursor'];
-
-/**
- * Command names for each agent harness (used for detection)
- */
-export const AGENT_HARNESS_COMMANDS: Record<AgentHarness, string> = {
-  opencode: 'opencode',
-  pi: 'pi',
-  cursor: 'agent',
-};
-
-/**
  * Detected harness version info
  */
 export interface HarnessVersionInfo {
