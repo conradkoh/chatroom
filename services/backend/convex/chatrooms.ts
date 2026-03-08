@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import { AGENT_REQUEST_DEADLINE_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
 
@@ -236,6 +237,36 @@ export const updateTeam = mutation({
       teamRoles: args.teamRoles,
       teamEntryPoint: args.teamEntryPoint,
     });
+
+    // Stop all running agents and delete stale configs.
+    // When the team structure changes, the old teamRoleKey format no longer matches
+    // (it includes teamId), so old configs would be orphaned. Deleting them prevents
+    // stale configs from being used and ensures agents restart fresh under the new team.
+    const existingConfigs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    const now = Date.now();
+
+    for (const config of existingConfigs) {
+      // Dispatch stop-agent event for any running remote agents
+      if (config.machineId && config.desiredState === 'running') {
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'agent.requestStop',
+          chatroomId: args.chatroomId,
+          machineId: config.machineId,
+          role: config.role,
+          reason: 'team-switch',
+          deadline: now + AGENT_REQUEST_DEADLINE_MS,
+          timestamp: now,
+        });
+      }
+
+      // Delete the stale config — new configs will be created fresh when agents
+      // are restarted under the new team structure
+      await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+    }
   },
 });
 

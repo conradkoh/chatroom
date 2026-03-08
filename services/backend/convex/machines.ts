@@ -1,6 +1,6 @@
 /** Convex functions for machine registration, agent config, and remote command dispatch. */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import type { Doc, Id } from './_generated/dataModel';
@@ -907,7 +907,10 @@ export const saveTeamAgentConfig = mutation({
       throw new Error('Not authorized to modify team agent configs for this chatroom');
     }
 
-    const teamRoleKey = buildTeamRoleKey(chatroom._id, args.role);
+    if (!chatroom.teamId) {
+      throw new ConvexError('Chatroom has no teamId — cannot build agent config key');
+    }
+    const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
 
     // Upsert by teamRoleKey
     const existing = await ctx.db

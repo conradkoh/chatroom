@@ -17,7 +17,7 @@ import {
   createTestSession,
   registerMachineWithDaemon,
 } from '../helpers/integration';
-
+import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 // ---------------------------------------------------------------------------
 // Helper: find an ensure-agent scheduled function for a chatroom
 // ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ test('recordAgentExited with desiredState=stopped does NOT schedule ensure-agent
   await t.run(async (ctx) => {
     const now = Date.now();
     await ctx.db.insert('chatroom_teamAgentConfigs', {
-      teamRoleKey: `chatroom_${chatroomId}#role_builder`,
+      teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
       chatroomId,
       role: 'builder',
       type: 'remote',
