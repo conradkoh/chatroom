@@ -42,6 +42,16 @@ async function listAvailableModelsDefault(): Promise<Record<string, string[]>> {
   } catch {
     /* non-critical */
   }
+  try {
+    const { CursorAgentService } =
+      await import('../../infrastructure/services/remote-agents/cursor/index.js');
+    const cursorService = new CursorAgentService();
+    if (cursorService.isInstalled()) {
+      results['cursor'] = await cursorService.listModels();
+    }
+  } catch {
+    /* non-critical */
+  }
   return results;
 }
 

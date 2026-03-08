@@ -13,6 +13,7 @@ import { api, type Id } from '../../api.js';
 import { getOtherSessionUrls, getSessionId } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { ensureMachineRegistered } from '../../infrastructure/machine/index.js';
+import { CursorAgentService } from '../../infrastructure/services/remote-agents/cursor/index.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
 import { PiAgentService } from '../../infrastructure/services/remote-agents/pi/index.js';
 import { formatConnectivityError, isNetworkError } from '../../utils/error-formatting.js';
@@ -128,6 +129,14 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
       const piService = new PiAgentService();
       if (piService.isInstalled()) {
         availableModels['pi'] = await piService.listModels();
+      }
+    } catch {
+      /* non-critical */
+    }
+    try {
+      const cursorService = new CursorAgentService();
+      if (cursorService.isInstalled()) {
+        availableModels['cursor'] = await cursorService.listModels();
       }
     } catch {
       /* non-critical */

@@ -12,6 +12,7 @@ import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 import { ensureMachineRegistered } from '../../infrastructure/machine/index.js';
+import { CursorAgentService } from '../../infrastructure/services/remote-agents/cursor/index.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
 import { PiAgentService } from '../../infrastructure/services/remote-agents/pi/index.js';
 
@@ -130,6 +131,14 @@ export async function registerAgent(
         const piService = new PiAgentService();
         if (piService.isInstalled()) {
           availableModels['pi'] = await piService.listModels();
+        }
+      } catch {
+        /* non-critical */
+      }
+      try {
+        const cursorService = new CursorAgentService();
+        if (cursorService.isInstalled()) {
+          availableModels['cursor'] = await cursorService.listModels();
         }
       } catch {
         /* non-critical */
