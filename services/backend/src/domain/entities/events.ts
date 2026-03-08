@@ -6,13 +6,14 @@
  */
 
 import type { Id } from '../../../convex/_generated/dataModel';
+import type { AgentHarness } from './agent.js';
 
 export type AgentStartedEvent = {
   type: 'agent.started';
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
   machineId: string;
-  agentHarness: 'opencode' | 'pi';
+  agentHarness: AgentHarness;
   model: string;
   workingDir: string;
   pid: number;
@@ -55,7 +56,7 @@ export type AgentRequestStartEvent = {
   chatroomId: Id<'chatroom_rooms'>;
   machineId: string;
   role: string;
-  agentHarness: 'opencode' | 'pi';
+  agentHarness: AgentHarness;
   model: string;
   workingDir: string;
   reason: string;

@@ -57,7 +57,7 @@ export interface StartAgentCommand {
   payload: {
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
-    agentHarness: 'opencode' | 'pi';
+    agentHarness: AgentHarness;
     model?: string;
     workingDir?: string;
   };

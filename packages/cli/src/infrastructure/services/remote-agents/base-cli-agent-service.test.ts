@@ -12,6 +12,8 @@ import type { SpawnOptions, SpawnResult } from './remote-agent-service.js';
  * Exposes the protected helpers as public methods for direct testing.
  */
 class TestAgentService extends BaseCLIAgentService {
+  readonly id = 'test';
+  readonly displayName = 'Test';
   readonly command: string;
 
   constructor(command: string, deps?: Partial<CLIAgentServiceDeps>) {

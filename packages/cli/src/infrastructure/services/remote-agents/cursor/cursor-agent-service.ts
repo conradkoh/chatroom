@@ -33,6 +33,10 @@ const CURSOR_MODELS: string[] = ['opus-4.6', 'sonnet-4.6'];
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class CursorAgentService extends BaseCLIAgentService {
+  readonly id = 'cursor';
+  readonly displayName = 'Cursor';
+  readonly command = CURSOR_COMMAND;
+
   constructor(deps?: Partial<CLIAgentServiceDeps>) {
     super(deps);
   }

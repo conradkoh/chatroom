@@ -25,6 +25,10 @@ const OPENCODE_COMMAND = 'opencode';
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class OpenCodeAgentService extends BaseCLIAgentService {
+  readonly id = 'opencode';
+  readonly displayName = 'OpenCode';
+  readonly command = OPENCODE_COMMAND;
+
   constructor(deps?: Partial<CLIAgentServiceDeps>) {
     super(deps);
   }

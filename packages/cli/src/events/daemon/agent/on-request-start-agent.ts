@@ -6,6 +6,7 @@
 
 import type { Id } from '../../../api.js';
 import type {
+  AgentHarness,
   DaemonContext,
   StartAgentReason,
 } from '../../../commands/machine/daemon-start/types.js';
@@ -14,7 +15,7 @@ import { executeStartAgent } from '../../../commands/machine/daemon-start/handle
 export interface AgentRequestStartEventPayload {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
-  agentHarness: 'opencode' | 'pi';
+  agentHarness: AgentHarness;
   model: string;
   workingDir: string;
   reason: string;

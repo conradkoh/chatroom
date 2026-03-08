@@ -47,6 +47,10 @@ const DEFAULT_TRIGGER_PROMPT =
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class PiAgentService extends BaseCLIAgentService {
+  readonly id = 'pi';
+  readonly displayName = 'Pi';
+  readonly command = PI_COMMAND;
+
   constructor(deps?: Partial<CLIAgentServiceDeps>) {
     super(deps);
   }
