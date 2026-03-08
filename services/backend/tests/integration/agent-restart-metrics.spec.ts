@@ -85,11 +85,13 @@ test('getAgentRestartMetrics machine-wide scope returns hourly restart counts', 
     startCount: 3,
   });
 
+  const now = Date.now();
   const result = await t.query(api.machines.getAgentRestartMetrics, {
     sessionId,
     machineId,
     role: 'builder',
-    hoursBack: 24,
+    startTime: now - 24 * 3_600_000,
+    endTime: now,
   });
 
   // Should have exactly 1 hour bucket (all starts happened in the same hour)
@@ -152,13 +154,15 @@ test('getAgentRestartMetrics chatroomId scope returns only that chatroom\'s data
     });
   }
 
+  const now = Date.now();
   // Query scoped to chatroom 1
   const result = await t.query(api.machines.getAgentRestartMetrics, {
     sessionId,
     machineId,
     role: 'builder',
     chatroomId,
-    hoursBack: 24,
+    startTime: now - 24 * 3_600_000,
+    endTime: now,
   });
 
   expect(result.length).toBe(1);
@@ -170,7 +174,8 @@ test('getAgentRestartMetrics chatroomId scope returns only that chatroom\'s data
     machineId,
     role: 'builder',
     chatroomId: chatroomId2,
-    hoursBack: 24,
+    startTime: now - 24 * 3_600_000,
+    endTime: now,
   });
 
   expect(result2.length).toBe(1);
@@ -195,13 +200,15 @@ test('getAgentRestartMetrics workingDir scope filters to that workspace', async 
     startCount: 4,
   });
 
+  const now = Date.now();
   // Query with correct workingDir
   const result = await t.query(api.machines.getAgentRestartMetrics, {
     sessionId,
     machineId,
     role: 'builder',
     workingDir: '/workspace/projectA',
-    hoursBack: 24,
+    startTime: now - 24 * 3_600_000,
+    endTime: now,
   });
 
   expect(result.length).toBe(1);
@@ -213,7 +220,8 @@ test('getAgentRestartMetrics workingDir scope filters to that workspace', async 
     machineId,
     role: 'builder',
     workingDir: '/workspace/projectB',
-    hoursBack: 24,
+    startTime: now - 24 * 3_600_000,
+    endTime: now,
   });
 
   expect(resultOther.length).toBe(0);
@@ -274,11 +282,13 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
     });
   }
 
+  const now = Date.now();
   const result = await t.query(api.machines.getAgentRestartMetrics, {
     sessionId,
     machineId,
     role: 'builder',
-    hoursBack: 24,
+    startTime: now - 24 * 3_600_000,
+    endTime: now,
   });
 
   expect(result.length).toBe(1);
@@ -286,19 +296,21 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
   expect(result[0].byModel['model-beta']).toBe(3);
 });
 
-// ─── Test 5: hoursBack cap at 168 ────────────────────────────────────────────
+// ─── Test 5: range cap at 720 hours (30 days) ────────────────────────────────
 
-test('getAgentRestartMetrics caps hoursBack at 168 and returns empty when no data', async () => {
+test('getAgentRestartMetrics caps range at 720h and returns empty when no data', async () => {
   const { sessionId } = await createTestSession('metrics-q-cap-1');
   const machineId = 'machine-cap-1';
   await registerMachineWithDaemon(sessionId, machineId);
 
-  // No data seeded
+  const now = Date.now();
+  // No data seeded; range exceeds 720h — should be capped
   const result = await t.query(api.machines.getAgentRestartMetrics, {
     sessionId,
     machineId,
     role: 'builder',
-    hoursBack: 9999, // should be capped at 168
+    startTime: now - 9999 * 3_600_000,
+    endTime: now,
   });
 
   // No metric rows = empty array
