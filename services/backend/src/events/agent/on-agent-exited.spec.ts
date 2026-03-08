@@ -21,6 +21,7 @@ import { describe, expect, test } from 'vitest';
 import type { SessionId } from 'convex-helpers/server/sessions';
 import type { Id } from '../../../convex/_generated/dataModel';
 import { t } from '../../../test.setup';
+import { buildTeamRoleKey } from '../../../convex/utils/teamRoleKey';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -78,7 +79,7 @@ async function registerMachineAndConfig(
   await t.run(async (ctx) => {
     const now = Date.now();
     await ctx.db.insert('chatroom_teamAgentConfigs', {
-      teamRoleKey: `chatroom_${chatroomId}#role_builder`,
+      teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
       chatroomId,
       role: 'builder',
       type: 'remote',

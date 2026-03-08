@@ -347,9 +347,9 @@ describe('startAgent — teamRoleKey collision regression', () => {
     // Key must contain the actual chatroom._id value
     expect(key).toContain(chatroomId);
 
-    // Key must NOT contain the static teamId string "pair" as the discriminator
-    // (it may appear elsewhere in the string, but the primary identifier is _id)
+    // Key must start with 'chatroom_' and include both teamId and role
     expect(key).toMatch(/^chatroom_/);
+    expect(key).toContain('#team_pair');
     expect(key).toContain('#role_builder');
   });
 });
@@ -358,10 +358,10 @@ describe('startAgent — teamRoleKey collision regression', () => {
 
 describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
   test('agentType reflects registered config when queried via getInitPrompt', async () => {
-    // Regression test for the missed location in commit 8a79c7ee:
-    // messages.ts was still building teamRoleKey as `team_${teamId}#role_...`
-    // instead of `chatroom_${chatroom._id}#role_...`, causing getInitPrompt
-    // to always return agentType='unset' when teamId != chatroom._id.
+    // Regression test: messages.ts must build the teamRoleKey using the correct
+    // format: `chatroom_<chatroom._id>#team_<teamId>#role_<role>`.
+    // If messages.ts uses a different format than startAgent, getInitPrompt would
+    // fail to find the config and return agentType='unset'.
 
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-init-prompt-agenttype-1');
@@ -399,12 +399,8 @@ describe('getInitPrompt — agentType lookup uses chatroom._id', () => {
     });
 
     // ===== VERIFY =====
-    // getInitPrompt must look up the config by the correct key
-    // (`chatroom_${chatroom._id}#role_builder`) and return agentType='remote'.
-    // Before the fix, the key was `team_pair#role_builder` which would not
-    // match the stored config (keyed by chatroom._id), so agentType would be
-    // 'unset' and the prompt would show `--type=<remote|custom>` instead of
-    // `--type=remote`.
+    // getInitPrompt must look up the config by the same key used in startAgent
+    // (`chatroom_${chatroom._id}#team_${teamId}#role_builder`) and return agentType='remote'.
     const initPrompt = await t.query(api.messages.getInitPrompt, {
       sessionId,
       chatroomId,

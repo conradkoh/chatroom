@@ -287,3 +287,60 @@ export const migrateQueuedTasks = internalMutation({
     return { migrated };
   },
 });
+
+/**
+ * Migration: Add teamId to teamRoleKey in chatroom_teamAgentConfigs.
+ *
+ * Old format: chatroom_<chatroomId>#role_<role>
+ * New format: chatroom_<chatroomId>#team_<teamId>#role_<role>
+ *
+ * Including teamId in the key ensures that agent configs are scoped to a specific
+ * team structure. When a chatroom switches teams, the new teamRoleKey format prevents
+ * stale configs from being reused under a different team's role semantics.
+ *
+ * Behavior:
+ *   - Records already in new format (containing '#team_') are skipped (idempotent)
+ *   - Records whose chatroom no longer exists → deleted (orphaned)
+ *   - Records whose chatroom has no teamId → deleted (invalid; teamId is required at creation)
+ *   - All other records → patched with the new teamRoleKey
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.migrateTeamRoleKeyAddTeamId
+ */
+export const migrateTeamRoleKeyAddTeamId = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allConfigs = await ctx.db.query('chatroom_teamAgentConfigs').collect();
+
+    let skipped = 0;
+    let migrated = 0;
+    let deleted = 0;
+
+    for (const config of allConfigs) {
+      // Skip records already in new format
+      if (config.teamRoleKey.includes('#team_')) {
+        skipped++;
+        continue;
+      }
+
+      // Look up the chatroom to get teamId
+      const chatroom = await ctx.db.get(config.chatroomId);
+
+      if (!chatroom || !chatroom.teamId) {
+        // Orphaned or invalid record — delete it
+        await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+        deleted++;
+        continue;
+      }
+
+      // Build new key and patch
+      const newKey = `chatroom_${config.chatroomId}#team_${chatroom.teamId.toLowerCase()}#role_${config.role.toLowerCase()}`;
+      await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
+        teamRoleKey: newKey,
+      });
+      migrated++;
+    }
+
+    return { migrated, skipped, deleted };
+  },
+});

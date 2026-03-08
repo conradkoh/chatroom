@@ -119,7 +119,7 @@ describe('getAgentConfig', () => {
 
     // Directly clear the model on the team config (saveTeamAgentConfig preserves existing model)
     await t.run(async (ctx) => {
-      const teamRoleKey = buildTeamRoleKey(chatroomId, 'builder');
+      const teamRoleKey = buildTeamRoleKey(chatroomId, 'pair', 'builder');
       const teamConfig = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))

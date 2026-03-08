@@ -1674,11 +1674,15 @@ export const getInitPrompt = query({
     const availableMembers = participants.map((p) => p.role);
 
     // Look up existing team agent config to include the agent type in the prompt
-    const teamRoleKey = buildTeamRoleKey(chatroom._id, args.role);
-    const existingAgentConfig = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-      .unique();
+    const teamRoleKey = chatroom.teamId
+      ? buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role)
+      : null;
+    const existingAgentConfig = teamRoleKey
+      ? await ctx.db
+          .query('chatroom_teamAgentConfigs')
+          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+          .unique()
+      : null;
 
     const promptInput = {
       chatroomId: args.chatroomId,

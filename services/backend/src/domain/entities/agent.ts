@@ -58,9 +58,10 @@ export type StartAgentReason = 'user-start' | 'user-restart' | 'ensure-agent-ret
  *
  * - `user-stop`: User explicitly stopped the agent via UI or CLI
  * - `dedup-stop`: Agent stopped automatically to deduplicate roles (another agent took over)
+ * - `team-switch`: Agent stopped because the chatroom's team structure was changed (no auto-restart)
  * - `test`: Used in integration and unit tests only
  */
-export type StopAgentReason = 'user-stop' | 'dedup-stop' | 'test';
+export type StopAgentReason = 'user-stop' | 'dedup-stop' | 'team-switch' | 'test';
 
 /**
  * Where the agent's AI model was resolved from in the config hierarchy.
