@@ -177,7 +177,7 @@ export const removeIdleParticipants = internalMutation({
  * After this migration has run successfully in production:
  *   1. In schema.ts — restore agentHarness, role, and createdAt to required fields:
  *        role: v.string(),
- *        agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+ *        agentHarness: agentHarnessValidator,
  *        createdAt: v.number(),
  *      (remove the DEPRECATED SHAPE comments and v.optional wrappers)
  *   2. Remove this migration (move description to "Previously executed" list above).
