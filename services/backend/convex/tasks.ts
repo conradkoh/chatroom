@@ -193,6 +193,27 @@ export const startTask = mutation({
         throw new Error('Task does not belong to this chatroom');
       }
 
+      // IDEMPOTENCY: If task is already in_progress, accept it — this is a recovering agent
+      // picking up where a dead agent left off. The old agent's process is gone; we update
+      // assignedTo to reflect the new agent and emit task.inProgress for UI consistency.
+      if (acknowledgedTask.status === 'in_progress') {
+        const now = Date.now();
+        if (acknowledgedTask.assignedTo !== args.role) {
+          await ctx.db.patch('chatroom_tasks', acknowledgedTask._id, {
+            assignedTo: args.role,
+            updatedAt: now,
+          });
+        }
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'task.inProgress',
+          chatroomId: args.chatroomId,
+          role: args.role,
+          taskId: acknowledgedTask._id,
+          timestamp: now,
+        });
+        return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
+      }
+
       if (acknowledgedTask.status !== 'acknowledged') {
         throw new Error(
           `Task must be acknowledged to start (current status: ${acknowledgedTask.status})`
@@ -363,6 +384,16 @@ export const cancelTask = mutation({
     // (The wasPending/wasInProgress check was previously used to guard promotion,
     // but the transitionTask usecase now always attempts promotion on terminal states.)
     void wasPending; // acknowledged for clarity
+
+    // Cascade delete: if this task was created from a user message, delete that message too.
+    // When a task is cancelled, the source message it was created from is no longer
+    // relevant and should be cleaned up to keep the message list consistent.
+    if (task.sourceMessageId) {
+      const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
+      if (sourceMessage) {
+        await ctx.db.delete('chatroom_messages', task.sourceMessageId);
+      }
+    }
 
     return { success: true, status: 'closed' };
   },
@@ -820,13 +851,45 @@ export const listTasks = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    let tasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+    let tasks;
 
-    // Filter by status
-    if (args.statusFilter) {
+    // Use by_chatroom_status index for single-status filters to avoid full table scans.
+    // Fall back to by_chatroom (full scan) for multi-status filters (active, archived)
+    // or when no filter is specified.
+    if (args.statusFilter === 'pending_review') {
+      // Index: by_chatroom_status — pending_review is an alias for pending_user_review
+      tasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending_user_review')
+        )
+        .collect();
+    } else if (
+      args.statusFilter &&
+      args.statusFilter !== 'active' &&
+      args.statusFilter !== 'archived'
+    ) {
+      // Other single concrete statuses (pending, in_progress, backlog, completed, closed…)
+      tasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq(
+            'status',
+            // At this branch, statusFilter is a concrete DB status (not a virtual filter like
+            // 'active' or 'archived'). The cast is safe — TypeScript cannot infer the subtype
+            // relationship between the statusFilter union and the schema status union.
+            args.statusFilter as 'pending' | 'in_progress' | 'backlog' | 'completed' | 'closed' | 'pending_user_review'
+          )
+        )
+        .collect();
+    } else {
+      // Multi-status or no filter: full scan via by_chatroom
+      tasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .collect();
+
+      // Apply in-memory filter for multi-status cases
       if (args.statusFilter === 'active') {
         tasks = tasks.filter(
           (t) =>
@@ -836,14 +899,9 @@ export const listTasks = query({
             t.status === 'backlog' ||
             t.status === 'backlog_acknowledged'
         );
-      } else if (args.statusFilter === 'pending_review') {
-        // Pending review: tasks in pending_user_review status
-        tasks = tasks.filter((t) => t.status === 'pending_user_review');
       } else if (args.statusFilter === 'archived') {
         // Archived: completed or closed tasks
         tasks = tasks.filter((t) => t.status === 'completed' || t.status === 'closed');
-      } else {
-        tasks = tasks.filter((t) => t.status === args.statusFilter);
       }
     }
 
@@ -1382,6 +1440,7 @@ export const cleanupStaleMachines = internalMutation({
 
       const timeSinceLastSeen = now - machine.lastSeenAt;
       if (timeSinceLastSeen > DAEMON_HEARTBEAT_TTL_MS) {
+        // 1. Mark daemon as disconnected
         await ctx.db.patch('chatroom_machines', machine._id, {
           daemonConnected: false,
         });
@@ -1389,6 +1448,35 @@ export const cleanupStaleMachines = internalMutation({
         console.warn(
           `[Daemon Cleanup] Machine "${machine.hostname}" (${machine.machineId}) daemon marked disconnected — last seen ${timeSinceLastSeen}ms ago`
         );
+
+        // 2. Clear spawnedAgent records for all agents on this machine
+        const agentConfigs = await ctx.db
+          .query('chatroom_machineAgentConfigs')
+          .withIndex('by_machine_chatroom_role', (q) => q.eq('machineId', machine.machineId))
+          .collect();
+
+        for (const config of agentConfigs) {
+          if (config.spawnedAgentPid != null) {
+            await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
+              spawnedAgentPid: undefined,
+              spawnedAt: undefined,
+              updatedAt: now,
+            });
+          }
+        }
+
+        // 3. Delete participant records for agents on this machine
+        for (const config of agentConfigs) {
+          const participant = await ctx.db
+            .query('chatroom_participants')
+            .withIndex('by_chatroom_and_role', (q) =>
+              q.eq('chatroomId', config.chatroomId).eq('role', config.role)
+            )
+            .unique();
+          if (participant) {
+            await ctx.db.delete('chatroom_participants', participant._id);
+          }
+        }
       }
     }
 

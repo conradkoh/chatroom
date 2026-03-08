@@ -13,7 +13,7 @@ import { describe, expect, test } from 'vitest';
 import { DAEMON_HEARTBEAT_TTL_MS } from '../../config/reliability';
 import { api, internal } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import { createTestSession, registerMachineWithDaemon } from '../helpers/integration';
+import { createTestSession, joinParticipant, registerMachineWithDaemon } from '../helpers/integration';
 
 describe('Daemon Heartbeat', () => {
   test('daemonHeartbeat mutation updates lastSeenAt', async () => {
@@ -159,5 +159,91 @@ describe('Daemon Heartbeat', () => {
       return machine!.daemonConnected;
     });
     expect(afterCleanup).toBe(true);
+  });
+
+  test('stale daemon cleanup removes participant records and clears agent PIDs', async () => {
+    const { sessionId } = await createTestSession('test-hb-stale-cleanup');
+    const machineId = 'machine-hb-stale-cleanup';
+
+    // Register machine with daemon connected
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    // Create a chatroom and set up an agent config with a PID and participant record
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamId: 'pair',
+      teamName: 'Pair Team',
+      teamRoles: ['builder', 'reviewer'],
+      teamEntryPoint: 'builder',
+    });
+
+    // Insert machine agent config with a spawned PID
+    await t.run(async (ctx) => {
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      await ctx.db.insert('chatroom_machineAgentConfigs', {
+        machineId,
+        chatroomId,
+        role: 'builder',
+        agentType: 'opencode',
+        workingDir: '/test',
+        spawnedAgentPid: 99999,
+        spawnedAt: Date.now() - 60_000,
+        updatedAt: Date.now(),
+      });
+      return machine;
+    });
+
+    // Insert a participant record for the agent (simulating online state)
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    // Manually set lastSeenAt to be older than TTL (simulate stale daemon)
+    await t.run(async (ctx) => {
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      await ctx.db.patch(machine!._id, {
+        lastSeenAt: Date.now() - DAEMON_HEARTBEAT_TTL_MS - 10_000,
+      });
+    });
+
+    // Run cleanup
+    await t.mutation(internal.tasks.cleanupStaleMachines, {});
+
+    // Verify: daemonConnected is now false
+    const daemonConnected = await t.run(async (ctx) => {
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      return machine!.daemonConnected;
+    });
+    expect(daemonConnected).toBe(false);
+
+    // Verify: participant record is deleted (agent appears offline)
+    const participant = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+    });
+    expect(participant).toBeNull();
+
+    // Verify: spawnedAgentPid is cleared
+    const agentConfig = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_machineAgentConfigs')
+        .withIndex('by_machine_chatroom_role', (q) =>
+          q.eq('machineId', machineId).eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .first();
+    });
+    expect(agentConfig?.spawnedAgentPid).toBeUndefined();
+    expect(agentConfig?.spawnedAt).toBeUndefined();
   });
 });

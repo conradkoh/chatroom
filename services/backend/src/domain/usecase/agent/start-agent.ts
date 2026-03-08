@@ -20,6 +20,7 @@ import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness, AgentType, StartAgentReason } from '../../entities/agent';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -62,19 +63,6 @@ export interface StartAgentResult {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/**
- * Build a unique teamRoleKey from a chatroom and role.
- * Format: chatroom_<chatroomId>#role_<roleLowerCase>
- *
- * IMPORTANT: We use chatroom._id (always unique per chatroom) — NOT chatroom.teamId.
- * chatroom.teamId is a static team type string like "duo" or "pair", which is shared
- * across all chatrooms of the same type. Using it as the key would cause configs from
- * different chatrooms to collide and overwrite each other.
- */
-function buildTeamRoleKey(chatroom: Doc<'chatroom_rooms'>, role: string): string {
-  return `chatroom_${chatroom._id}#role_${role.toLowerCase()}`;
-}
 
 // ─── Use Case ────────────────────────────────────────────────────────────────
 
@@ -136,7 +124,10 @@ export async function startAgent(
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   if (chatroom) {
-    const teamRoleKey = buildTeamRoleKey(chatroom, role);
+    if (!chatroom.teamId) {
+      throw new Error(`Chatroom ${chatroomId} has no teamId — cannot build agent config key`);
+    }
+    const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
     const existingTeamConfig = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))

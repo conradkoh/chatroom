@@ -10,6 +10,7 @@ import { describe, expect, test } from 'vitest';
 import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { t } from '../test.setup';
+import { buildTeamRoleKey } from './utils/teamRoleKey';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -52,7 +53,7 @@ async function seedTeamAgentConfig(
   return await t.run(async (ctx) => {
     const now = Date.now();
     await ctx.db.insert('chatroom_teamAgentConfigs', {
-      teamRoleKey: `chatroom_${chatroomId}#role_builder`,
+      teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
       chatroomId,
       role: 'builder',
       type: 'remote',
@@ -191,7 +192,7 @@ describe('ensureAgentHandler — circuit breaker', () => {
     await t.run(async (ctx) => {
       const now = Date.now();
       await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: `chatroom_${chatroomId}#role_builder`,
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
         chatroomId,
         role: 'builder',
         type: 'remote',
@@ -234,7 +235,7 @@ describe('ensureAgentHandler — circuit breaker', () => {
     await t.run(async (ctx) => {
       const now = Date.now();
       await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: `chatroom_${chatroomId}#role_builder`,
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
         chatroomId,
         role: 'builder',
         type: 'remote',
@@ -277,7 +278,7 @@ describe('ensureAgentHandler — circuit breaker', () => {
     await t.run(async (ctx) => {
       const now = Date.now();
       await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: `chatroom_${chatroomId}#role_builder`,
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
         chatroomId,
         role: 'builder',
         type: 'remote',
@@ -319,7 +320,7 @@ describe('ensureAgentHandler — circuit breaker', () => {
     await t.run(async (ctx) => {
       const now = Date.now();
       await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: `chatroom_${chatroomId}#role_builder`,
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
         chatroomId,
         role: 'builder',
         type: 'remote',
@@ -363,7 +364,7 @@ describe('ensureAgentHandler — circuit breaker', () => {
     await t.run(async (ctx) => {
       const now = Date.now();
       await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: `chatroom_${chatroomId}#role_builder`,
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
         chatroomId,
         role: 'builder',
         type: 'remote',
@@ -432,7 +433,7 @@ describe('ensureAgentHandler — circuit breaker', () => {
     await t.run(async (ctx) => {
       const now = Date.now();
       await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: `chatroom_${chatroomId}#role_builder`,
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
         chatroomId,
         role: 'builder',
         type: 'remote',
@@ -500,7 +501,7 @@ describe('ensureAgentHandler — circuit breaker', () => {
     await t.run(async (ctx) => {
       const now = Date.now();
       await ctx.db.insert('chatroom_teamAgentConfigs', {
-        teamRoleKey: `chatroom_${chatroomId}#role_builder`,
+        teamRoleKey: buildTeamRoleKey(chatroomId, 'pair', 'builder'),
         chatroomId,
         role: 'builder',
         type: 'remote',

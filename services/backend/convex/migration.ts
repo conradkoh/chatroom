@@ -287,3 +287,84 @@ export const migrateQueuedTasks = internalMutation({
     return { migrated };
   },
 });
+
+/**
+ * Migration: Add teamId to teamRoleKey in chatroom_teamAgentConfigs.
+ *
+ * Old format: chatroom_<chatroomId>#role_<role>
+ * New format: chatroom_<chatroomId>#team_<teamId>#role_<role>
+ *
+ * Including teamId in the key ensures that agent configs are scoped to a specific
+ * team structure. When a chatroom switches teams, the new teamRoleKey format prevents
+ * stale configs from being reused under a different team's role semantics.
+ *
+ * Behavior:
+ *   - Records already in new format (containing '#team_') are skipped (idempotent)
+ *   - Records whose chatroom no longer exists → deleted (orphaned)
+ *   - Records whose chatroom has no teamId → deleted (invalid; teamId is required at creation)
+ *   - All other records → patched with the new teamRoleKey
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.migrateTeamRoleKeyAddTeamId
+ */
+export const migrateTeamRoleKeyAddTeamId = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allConfigs = await ctx.db.query('chatroom_teamAgentConfigs').collect();
+
+    let skipped = 0;
+    let migrated = 0;
+    let deleted = 0;
+    let deduped = 0;
+    const seenKeys = new Set<string>();
+
+    for (const config of allConfigs) {
+      if (config.teamRoleKey.includes('#team_')) {
+        // Already in new format — check for duplicates among migrated records
+        if (seenKeys.has(config.teamRoleKey)) {
+          await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+          deduped++;
+        } else {
+          seenKeys.add(config.teamRoleKey);
+          skipped++;
+        }
+        continue;
+      }
+
+      const chatroom = await ctx.db.get(config.chatroomId);
+
+      if (!chatroom || !chatroom.teamId) {
+        await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+        deleted++;
+        continue;
+      }
+
+      const newKey = `chatroom_${config.chatroomId}#team_${chatroom.teamId.toLowerCase()}#role_${config.role.toLowerCase()}`;
+
+      if (seenKeys.has(newKey)) {
+        await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+        deduped++;
+        continue;
+      }
+
+      const existingWithKey = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', newKey))
+        .first();
+
+      if (existingWithKey) {
+        await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+        deduped++;
+        continue;
+      }
+
+      await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
+        teamRoleKey: newKey,
+      });
+      seenKeys.add(newKey);
+      migrated++;
+    }
+
+    return { migrated, skipped, deleted, deduped };
+  },
+});

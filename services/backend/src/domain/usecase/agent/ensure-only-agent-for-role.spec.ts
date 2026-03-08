@@ -12,6 +12,7 @@ import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { ensureOnlyAgentForRole } from './ensure-only-agent-for-role';
 import { t } from '../../../../test.setup';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -43,7 +44,7 @@ async function insertTeamConfig(
   const now = Date.now();
   await t.run(async (ctx) => {
     await ctx.db.insert('chatroom_teamAgentConfigs', {
-      teamRoleKey: keyOverride ?? `chatroom_${chatroomId}#role_${role}_${machineId}`,
+      teamRoleKey: keyOverride ?? buildTeamRoleKey(chatroomId, 'pair', `${role}_${machineId}`),
       chatroomId,
       role,
       type,

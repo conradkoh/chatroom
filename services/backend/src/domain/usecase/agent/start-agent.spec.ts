@@ -8,6 +8,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -139,7 +140,7 @@ describe('startAgent use case — desiredState', () => {
     // Seed a team config with circuit breaker OPEN
     await t.run(async (ctx) => {
       const now = Date.now();
-      const teamRoleKey = `chatroom_${chatroomId}#role_builder`;
+      const teamRoleKey = buildTeamRoleKey(chatroomId, 'pair', 'builder');
       await ctx.db.insert('chatroom_teamAgentConfigs', {
         teamRoleKey,
         chatroomId,

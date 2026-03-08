@@ -17,6 +17,7 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
+import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
@@ -118,7 +119,7 @@ describe('getAgentConfig', () => {
 
     // Directly clear the model on the team config (saveTeamAgentConfig preserves existing model)
     await t.run(async (ctx) => {
-      const teamRoleKey = `chatroom_${chatroomId}#role_builder`;
+      const teamRoleKey = buildTeamRoleKey(chatroomId, 'pair', 'builder');
       const teamConfig = await ctx.db
         .query('chatroom_teamAgentConfigs')
         .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))

@@ -18,6 +18,7 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness, AgentType, ModelSource } from '../../entities/agent';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -112,11 +113,12 @@ export async function getAgentConfig(
     return { found: false };
   }
 
-  // IMPORTANT: Use chatroom._id (always unique per chatroom) — NOT chatroom.teamId.
-  // chatroom.teamId is a static team type string like "duo" or "pair", shared across
-  // all chatrooms of the same type. Using it as the key would cause configs from
-  // different chatrooms to collide and overwrite each other.
-  const teamRoleKey = `chatroom_${chatroom._id}#role_${role.toLowerCase()}`;
+  if (!chatroom.teamId) {
+    // Chatroom has no teamId — cannot build a valid config key
+    return { found: false };
+  }
+
+  const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
 
   // ── Step 2: Look up team config (primary source) ─────────────────────
 
