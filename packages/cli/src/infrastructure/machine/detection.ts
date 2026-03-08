@@ -21,6 +21,7 @@ import {
 const HARNESS_VERSION_COMMANDS: Partial<Record<AgentHarness, string>> = {
   opencode: 'opencode --version',
   pi: 'pi --version',
+  cursor: 'agent --version',
 };
 
 /**
