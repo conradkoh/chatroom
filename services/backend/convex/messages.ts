@@ -10,9 +10,10 @@ import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliS
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
 import { getCompletionStatus } from './lib/taskWorkflows';
-import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput.js';
-import { getConfig } from '../prompts/config/index.js';
-import { getCliEnvPrefix } from '../prompts/utils/index.js';
+import { buildTeamRoleKey } from './utils/teamRoleKey';
+import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
+import { getConfig } from '../prompts/config/index';
+import { getCliEnvPrefix } from '../prompts/utils/index';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import {
   createTask as createTaskUsecase,
@@ -959,6 +960,33 @@ export const deleteQueuedMessage = mutation({
   },
 });
 
+/** Updates the content of a queued (pending) message before it is dispatched. */
+export const updateQueuedMessage = mutation({
+  args: {
+    ...SessionIdArg,
+    queuedMessageId: v.id('chatroom_messageQueue'),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const queueRecord = await ctx.db.get('chatroom_messageQueue', args.queuedMessageId);
+    if (!queueRecord) {
+      throw new Error('Queued message not found');
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, queueRecord.chatroomId);
+
+    // Validate non-empty content
+    const trimmed = args.content.trim();
+    if (!trimmed) {
+      throw new Error('Message content cannot be empty');
+    }
+
+    await ctx.db.patch('chatroom_messageQueue', args.queuedMessageId, { content: trimmed });
+    return { success: true };
+  },
+});
+
 /** Returns queued messages (from chatroom_messageQueue) for a chatroom. */
 export const listQueued = query({
   args: {
@@ -1646,7 +1674,7 @@ export const getInitPrompt = query({
     const availableMembers = participants.map((p) => p.role);
 
     // Look up existing team agent config to include the agent type in the prompt
-    const teamRoleKey = `chatroom_${chatroom._id}#role_${args.role.toLowerCase()}`;
+    const teamRoleKey = buildTeamRoleKey(chatroom._id, args.role);
     const existingAgentConfig = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))

@@ -474,6 +474,47 @@ describe('Task Workflow - Cancel Actions', () => {
     expect(cancelResult.success).toBe(true);
     expect(cancelResult.status).toBe('closed');
   });
+
+  test('cancelTask deletes source message when task has sourceMessageId', async () => {
+    const { sessionId } = await createTestSession('test-cancel-cascade-message');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Send a user message to a fresh chatroom (no existing tasks).
+    // This goes directly to chatroom_messages and auto-creates a task
+    // with sourceMessageId = the new message's ID.
+    const messageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      content: 'User message to be cascaded on cancel',
+      senderRole: 'user',
+      type: 'message',
+    });
+    expect(messageId).toBeDefined();
+
+    // Verify the message is in chatroom_messages
+    const messagesBefore = await t.query(api.messages.list, { sessionId, chatroomId });
+    const sourceMsg = messagesBefore.find((m: { _id: unknown }) => m._id === messageId);
+    expect(sourceMsg).toBeDefined();
+
+    // Find the auto-created task with this sourceMessageId
+    const allTasks = await t.query(api.tasks.listTasks, { sessionId, chatroomId });
+    const task = allTasks.find((t: { sourceMessageId?: unknown }) => t.sourceMessageId === messageId);
+    expect(task).toBeDefined();
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const foundTask = task!;
+
+    // Cancel the task — should cascade delete the source message
+    await t.mutation(api.tasks.cancelTask, {
+      sessionId,
+      taskId: foundTask._id,
+    });
+
+    // The source message should be gone
+    const messagesAfter = await t.query(api.messages.list, { sessionId, chatroomId });
+    const sourceMsgAfter = messagesAfter.find((m: { _id: unknown }) => m._id === messageId);
+    expect(sourceMsgAfter).toBeUndefined();
+  });
 });
 
 describe('Task Counts', () => {

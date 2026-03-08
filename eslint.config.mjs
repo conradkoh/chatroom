@@ -144,6 +144,12 @@ export default [
       'no-var': 'error',
       eqeqeq: ['error', 'always', { null: 'ignore' }],
 
+      // Prevent hardcoded .js extensions in local imports (relative paths starting with . or ..)
+      // Use extensionless imports instead.
+      // NOTE: This rule is intentionally scoped — see backend-specific config below.
+      // CLI files REQUIRE .js extensions for Node.js ESM compatibility.
+      'no-restricted-imports': 'off',
+
       // ============================================
       // JSDoc rules (enforces cleanup guideline Step 1)
       // Note: These are warnings to encourage documentation without blocking development
@@ -294,6 +300,27 @@ export default [
     files: ['**/packages/cli/**/*.{ts,tsx}'],
     rules: {
       'no-console': 'off',
+    },
+  },
+
+  // Backend (Convex) — enforce extensionless local imports
+  // Convex functions use TypeScript compilation and don't need .js extensions.
+  // CLI files explicitly need .js for Node.js ESM — that's handled separately.
+  {
+    files: ['services/backend/convex/**/*.{ts,tsx}', 'services/backend/src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['./*.js', '../*.js', '**/*.js'],
+              message:
+                'Do not use .js extensions in import paths. Use extensionless imports.',
+            },
+          ],
+        },
+      ],
     },
   },
 ];

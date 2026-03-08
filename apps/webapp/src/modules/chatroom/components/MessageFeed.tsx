@@ -23,6 +23,8 @@ import {
   ArrowUp,
   Activity,
   Trash2,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -542,12 +544,14 @@ interface QueuedMessageCardProps {
   message: Message;
   onPromote: (queuedMessageId: string) => Promise<void>;
   onDelete: (queuedMessageId: string) => Promise<void>;
+  onEdit: (queuedMessageId: string, newContent: string) => Promise<void>;
 }
 
 const QueuedMessageCard = memo(function QueuedMessageCard({
   message,
   onPromote,
   onDelete,
+  onEdit,
 }: QueuedMessageCardProps) {
   const elapsed = useElapsedTime(message._creationTime);
   const [isPromoting, setIsPromoting] = useState(false);
@@ -556,6 +560,11 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
   // Popover open states for delete confirmation (card and modal are independent)
   const [isCardDeletePopoverOpen, setIsCardDeletePopoverOpen] = useState(false);
   const [isModalDeletePopoverOpen, setIsModalDeletePopoverOpen] = useState(false);
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const formattedTime = new Date(message._creationTime).toLocaleTimeString([], {
     hour: '2-digit',
@@ -617,6 +626,32 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
       setIsDeleting(false);
     }
   }, [message._id, onDelete, isDeleting, isPromoting]);
+
+  // Edit handlers
+  const handleStartEdit = useCallback(() => {
+    setEditContent(message.content);
+    setEditError(null);
+    setIsEditing(true);
+  }, [message.content]);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    setEditError(null);
+    try {
+      await onEdit(message._id, editContent);
+      setIsEditing(false);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [message._id, editContent, onEdit, isSaving]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setEditError(null);
+  }, []);
 
   return (
     <>
@@ -693,13 +728,27 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             </FixedModalTitle>
           </FixedModalHeader>
           <FixedModalBody>
-            <div className="p-6">
-              <div className={MESSAGE_CONTENT_CLASSES}>
-                <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
-                  {message.content}
-                </Markdown>
+            {isEditing ? (
+              <div className="p-6 flex flex-col gap-3">
+                <textarea
+                  className="w-full min-h-[120px] p-3 text-sm bg-background border border-border resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  autoFocus
+                />
+                {editError && (
+                  <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>
+                )}
               </div>
-            </div>
+            ) : (
+              <div className="p-6">
+                <div className={MESSAGE_CONTENT_CLASSES}>
+                  <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
+                    {message.content}
+                  </Markdown>
+                </div>
+              </div>
+            )}
           </FixedModalBody>
           {/* Mobile-friendly footer with action buttons */}
           <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface">
@@ -714,6 +763,25 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
               </span>
             </div>
             {/* Right: action buttons (larger, thumb-friendly for mobile) */}
+            {isEditing ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={isSaving || !editContent.trim()}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                >
+                  {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  Save
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                  className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
             <div className="flex items-center gap-2">
               <button
                 onClick={handlePromoteAndClose}
@@ -751,7 +819,18 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                   />
                 </PopoverContent>
               </Popover>
+              {/* Edit button */}
+              <button
+                onClick={handleStartEdit}
+                disabled={isPromoting || isDeleting}
+                className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                title="Edit queued message"
+              >
+                <Pencil size={14} />
+                Edit
+              </button>
             </div>
+            )}
           </div>
         </FixedModalContent>
       </FixedModal>
@@ -1000,6 +1079,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // Mutations for queued message controls
   const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
   const deleteQueuedMessage = useSessionMutation(api.messages.deleteQueuedMessage);
+  const updateQueuedMessage = useSessionMutation(api.messages.updateQueuedMessage);
 
   const feedRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
@@ -1088,6 +1168,16 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
       }
     },
     [deleteQueuedMessage]
+  );
+
+  const handleQueuedEdit = useCallback(
+    async (queuedMessageId: string, newContent: string) => {
+      await updateQueuedMessage({
+        queuedMessageId: queuedMessageId as Id<'chatroom_messageQueue'>,
+        content: newContent,
+      });
+    },
+    [updateQueuedMessage]
   );
 
   // Load more messages handler - stable reference for button onClick
@@ -1314,6 +1404,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
                 message={displayQueuedMessages[0]}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
+                onEdit={handleQueuedEdit}
               />
             )}
             {/* "+ N more" row — only shown when there are additional queued messages */}
@@ -1342,6 +1433,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
                 message={message}
                 onPromote={handleQueuedPromote}
                 onDelete={handleQueuedDelete}
+                onEdit={handleQueuedEdit}
               />
             ))}
           </FixedModalBody>

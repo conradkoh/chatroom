@@ -23,13 +23,15 @@ interface AgentStartModalProps {
   onOpenChange: (open: boolean) => void;
   /** Pre-select a specific role when the modal opens. */
   initialRole?: string;
+  /** Team roles to show in the role picker when no agent config exists yet. */
+  knownRoles?: string[];
 }
 
 /**
  * Standalone modal for starting/stopping a remote agent in a chatroom.
  * Fetches its own data — requires only chatroomId, open, onOpenChange.
  */
-export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole }: AgentStartModalProps) {
+export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, knownRoles }: AgentStartModalProps) {
   const daemonStartCommand = getDaemonStartCommand();
 
   // Fetch machines and configs
@@ -59,10 +61,11 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole }:
   const isLoadingMachines = machinesResult === undefined || configsResult === undefined;
 
   // Role selection
-  const availableRoles = useMemo<string[]>(
-    () => [...new Set(agentConfigs.map((c) => c.role))],
-    [agentConfigs]
-  );
+  const availableRoles = useMemo<string[]>(() => {
+    const fromConfigs = agentConfigs.map((c) => c.role);
+    const fromKnown = knownRoles ?? [];
+    return [...new Set([...fromConfigs, ...fromKnown])];
+  }, [agentConfigs, knownRoles]);
 
   const [selectedRole, setSelectedRole] = useState<string | null>(initialRole ?? null);
 
@@ -141,10 +144,6 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole }:
           <div className="flex items-center justify-center py-8">
             <div className="w-5 h-5 border-2 border-border border-t-foreground rounded-full animate-spin" />
           </div>
-        ) : agentConfigs.length === 0 ? (
-          <p className="text-muted-foreground text-sm py-4">
-            No remote agent configured for this chatroom.
-          </p>
         ) : !selectedRole ? (
           <p className="text-muted-foreground text-sm py-4">Select a role to configure.</p>
         ) : (
