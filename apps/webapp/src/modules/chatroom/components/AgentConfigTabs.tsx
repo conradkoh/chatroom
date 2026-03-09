@@ -27,7 +27,7 @@ import type {
   AgentConfig,
   SendCommandFn,
 } from '../types/machine';
-import { HARNESS_DISPLAY_NAMES, getModelDisplayLabel } from '../types/machine';
+import { getHarnessDisplayName, getModelDisplayLabel } from '../types/machine';
 
 import {
   Command,
@@ -51,7 +51,6 @@ export interface AgentConfigTabsProps {
   isLoadingMachines: boolean;
   daemonStartCommand: string;
   sendCommand: SendCommandFn;
-  onViewPrompt?: (role: string) => void;
 }
 
 /** User's saved preference for a single role's remote agent config. */
@@ -61,6 +60,10 @@ export interface AgentPreference {
   agentHarness: AgentHarness;
   model?: string;
   workingDir?: string;
+}
+
+function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): string {
+  return `${getHarnessDisplayName(harness)}${version ? ` v${version.version}` : ''}`;
 }
 
 // ─── Hook: useAgentControls ─────────────────────────────────────────
@@ -463,12 +466,9 @@ export function useAgentControls({
 
   return {
     selectedMachineId,
-    setSelectedMachineId,
     selectedHarness,
-    setSelectedHarness,
     selectedModel,
     workingDir,
-    setWorkingDir,
     isStarting,
     isStopping,
     error,
@@ -723,10 +723,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               {isAgentRunning ? (
                 <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
                   {displayHarness
-                    ? (() => {
-                        const ver = displayHarnessVersionsForMachine[displayHarness];
-                        return `${HARNESS_DISPLAY_NAMES[displayHarness]}${ver ? ` v${ver.version}` : ''}`;
-                      })()
+                    ? formatHarnessLabel(displayHarness, displayHarnessVersionsForMachine[displayHarness])
                     : 'Harness...'}
                 </div>
               ) : (
@@ -743,10 +740,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                     >
                       <span className="truncate">
                         {displayHarness
-                          ? (() => {
-                              const ver = displayHarnessVersionsForMachine[displayHarness];
-                              return `${HARNESS_DISPLAY_NAMES[displayHarness]}${ver ? ` v${ver.version}` : ''}`;
-                            })()
+                          ? formatHarnessLabel(displayHarness, displayHarnessVersionsForMachine[displayHarness])
                           : 'Harness...'}
                       </span>
                       <ChevronDown size={10} className="ml-1 flex-shrink-0 text-chatroom-text-muted" />
@@ -760,8 +754,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       <CommandList>
                         <CommandGroup>
                           {availableHarnessesForMachine.map((harness) => {
-                            const ver = harnessVersionsForMachine[harness];
-                            const label = `${HARNESS_DISPLAY_NAMES[harness]}${ver ? ` v${ver.version}` : ''}`;
+                            const label = formatHarnessLabel(harness, harnessVersionsForMachine[harness]);
                             return (
                               <CommandItem
                                 key={harness}
@@ -989,7 +982,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 interface CustomTabContentProps {
   role: string;
   prompt: string;
-  onViewPrompt?: (role: string) => void;
 }
 
 export const CustomTabContent = memo(function CustomTabContent({
@@ -1084,7 +1076,6 @@ interface AgentConfigTabsComponentProps {
   connectedMachines: MachineInfo[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
-  onViewPrompt?: (role: string) => void;
   /** Harness from team config — passed through to RemoteTabContent for display when agent is running */
   teamConfigHarness?: AgentHarness;
 }
@@ -1098,7 +1089,6 @@ export const AgentConfigTabs = memo(function AgentConfigTabs({
   connectedMachines,
   isLoadingMachines,
   daemonStartCommand,
-  onViewPrompt,
   teamConfigHarness,
 }: AgentConfigTabsComponentProps) {
   return (
@@ -1144,7 +1134,7 @@ export const AgentConfigTabs = memo(function AgentConfigTabs({
         />
       )}
       {activeTab === 'custom' && (
-        <CustomTabContent role={role} prompt={prompt} onViewPrompt={onViewPrompt} />
+        <CustomTabContent role={role} prompt={prompt} />
       )}
     </>
   );

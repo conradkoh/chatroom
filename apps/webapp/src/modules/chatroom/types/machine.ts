@@ -7,7 +7,7 @@
  * AgentHarness and HarnessVersionInfo are canonical in the backend domain layer.
  *
  * "Harness" refers to the AI development environment / tool runner
- * (e.g. Cursor, OpenCode, Claude). This avoids confusion with the AI
+ * (e.g. Cursor, OpenCode, Pi). This avoids confusion with the AI
  * concept of "tools" (read file, write file, web search, etc.).
  */
 
@@ -136,13 +136,4 @@ export function getModelDisplayLabel(modelId: string): string {
   const { provider, model } = parseModelId(modelId);
   if (!provider) return model;
   return `${provider} / ${model}`;
-}
-
-/**
- * Get only the short model name (without provider), uppercase.
- * e.g. "CLAUDE SONNET 4.5" or "GPT 4O"
- */
-export function getModelShortName(modelId: string): string {
-  const { model } = parseModelId(modelId);
-  return model;
 }
