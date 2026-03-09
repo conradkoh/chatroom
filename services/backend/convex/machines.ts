@@ -1150,26 +1150,6 @@ export const saveAgentPreference = mutation({
   },
 });
 
-/** Returns the user's preferred agent configurations for all roles in a chatroom. */
-export const getAgentPreferences = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return [];
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom || chatroom.ownerId !== auth.user._id) return [];
-
-    return await ctx.db
-      .query('chatroom_agentPreferences')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .filter((q) => q.eq(q.field('userId'), auth.user._id))
-      .collect();
-  },
-});
-
 /** Returns the model visibility filters for a machine+harness combination, or null if unconfigured. */
 export const getMachineModelFilters = query({
   args: {
