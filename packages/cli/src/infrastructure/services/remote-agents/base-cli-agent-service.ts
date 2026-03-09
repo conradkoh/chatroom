@@ -179,7 +179,11 @@ export abstract class BaseCLIAgentService implements RemoteAgentService {
     this.processes.delete(pid);
   }
 
-  // ─── Abstract methods (subclasses must implement) ─────────────────────────
+  // ─── Abstract properties & methods (subclasses must implement) ──────────────
+
+  abstract readonly id: string;
+  abstract readonly displayName: string;
+  abstract readonly command: string;
 
   abstract isInstalled(): boolean;
   abstract getVersion(): VersionInfo | null;

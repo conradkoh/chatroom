@@ -447,7 +447,7 @@ describe('ensureAgentHandler — circuit breaker', () => {
         circuitState: undefined, // CLOSED by default
       });
 
-      // Seed 3 agent.exited events with intentional_stop within the last 5 minutes
+      // Seed 3 agent.exited events with user.stop within the last 5 minutes
       for (let i = 0; i < 3; i++) {
         await ctx.db.insert('chatroom_eventStream', {
           type: 'agent.exited',
@@ -456,7 +456,7 @@ describe('ensureAgentHandler — circuit breaker', () => {
           machineId,
           pid: 12345 + i,
           intentional: true,
-          stopReason: 'intentional_stop',
+          stopReason: 'user.stop',
           timestamp: now - (i * 60_000), // 0, 1, 2 minutes ago
         });
       }

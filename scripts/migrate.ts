@@ -84,6 +84,10 @@ const MIGRATIONS: Migration[] = [
     name: 'migration:migrateTeamRoleKeyAddTeamId',
     addedAt: '2026-03-08T08:45:00.000Z',
   },
+  {
+    name: 'migration:migrateStopReasonToActorPrefixed',
+    addedAt: '2026-03-09T00:00:00.000Z',
+  },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

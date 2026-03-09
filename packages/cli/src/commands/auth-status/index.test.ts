@@ -23,7 +23,6 @@ const TEST_AUTH_DATA = {
 function createMockDeps(overrides?: Partial<AuthStatusDeps>): AuthStatusDeps {
   return {
     backend: {
-      mutation: vi.fn().mockResolvedValue(undefined),
       query: vi.fn().mockResolvedValue({ valid: true, userName: 'Test User' }),
     },
     session: {
@@ -32,14 +31,15 @@ function createMockDeps(overrides?: Partial<AuthStatusDeps>): AuthStatusDeps {
       isAuthenticated: vi.fn().mockReturnValue(true),
     },
     getVersion: vi.fn().mockReturnValue('1.0.0'),
-    ensureMachineRegistered: vi.fn().mockReturnValue({
+    loadMachineConfig: vi.fn().mockReturnValue({
       machineId: 'machine-123',
       hostname: 'test-host',
       os: 'darwin',
-      availableHarnesses: ['opencode'],
+      availableHarnesses: ['opencode'] as const,
       harnessVersions: {},
+      registeredAt: '2024-01-01T00:00:00.000Z',
+      lastSyncedAt: '2024-01-01T00:00:00.000Z',
     }),
-    listAvailableModels: vi.fn().mockResolvedValue({}),
     ...overrides,
   };
 }
@@ -94,9 +94,8 @@ describe('authStatus', () => {
       expect(getAllLogOutput()).toContain('AUTHENTICATION STATUS');
       expect(getAllLogOutput()).toContain('Session is valid');
       expect(getAllLogOutput()).toContain('Test User');
-      expect(getAllLogOutput()).toContain('Machine registered');
+      expect(getAllLogOutput()).toContain('Machine: test-host');
       expect(deps.backend.query).toHaveBeenCalled();
-      expect(deps.backend.mutation).toHaveBeenCalled();
     });
   });
 
@@ -104,7 +103,6 @@ describe('authStatus', () => {
     it('handles invalid session gracefully', async () => {
       const deps = createMockDeps({
         backend: {
-          mutation: vi.fn().mockResolvedValue(undefined),
           query: vi.fn().mockResolvedValue({ valid: false, reason: 'Session expired' }),
         },
       });
@@ -114,13 +112,11 @@ describe('authStatus', () => {
       expect(getAllLogOutput()).toContain('Session is invalid');
       expect(getAllLogOutput()).toContain('Session expired');
       expect(getAllLogOutput()).toContain('chatroom auth login');
-      expect(deps.backend.mutation).not.toHaveBeenCalled();
     });
 
     it('handles validation query failure gracefully', async () => {
       const deps = createMockDeps({
         backend: {
-          mutation: vi.fn(),
           query: vi.fn().mockRejectedValue(new Error('Network error')),
         },
       });
@@ -131,18 +127,16 @@ describe('authStatus', () => {
       expect(getAllLogOutput()).toContain('Network error');
     });
 
-    it('handles machine registration failure gracefully', async () => {
+    it('shows machine not registered when no local config exists', async () => {
       const deps = createMockDeps({
-        ensureMachineRegistered: vi.fn().mockImplementation(() => {
-          throw new Error('Machine config error');
-        }),
+        loadMachineConfig: vi.fn().mockReturnValue(null),
       });
 
       await authStatus(deps);
 
       expect(getAllLogOutput()).toContain('Session is valid');
-      expect(getAllLogOutput()).toContain('Machine registration skipped');
-      expect(getAllLogOutput()).toContain('Machine config error');
+      expect(getAllLogOutput()).toContain('Machine: not registered');
+      expect(getAllLogOutput()).toContain('chatroom machine start');
     });
   });
 });

@@ -28,7 +28,7 @@ export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): 
 
   console.log(`[${ts}] Agent stopped: ${stopReason} (${role})`);
 
-  const isDaemonRespawn = stopReason === 'daemon_respawn_stop';
+  const isDaemonRespawn = stopReason === 'daemon.respawn';
   const isIntentional = intentional && !isDaemonRespawn;
 
   if (isIntentional) {
@@ -64,7 +64,7 @@ export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): 
       pid,
       intentional,
       stopReason,
-      stopSignal: stopReason === 'process_terminated_with_signal' ? (signal ?? undefined) : undefined,
+      stopSignal: stopReason === 'agent_process.signal' ? (signal ?? undefined) : undefined,
       exitCode: code ?? undefined,
       signal: signal ?? undefined,
     })

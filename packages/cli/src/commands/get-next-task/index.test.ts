@@ -29,30 +29,6 @@ vi.mock('../../infrastructure/auth/storage.js', () => ({
   getOtherSessionUrls: vi.fn().mockReturnValue([]),
 }));
 
-vi.mock('../../infrastructure/machine/index.js', () => ({
-  ensureMachineRegistered: vi.fn().mockReturnValue({
-    machineId: 'machine_abc123',
-    hostname: 'test-host',
-    os: 'darwin',
-    availableHarnesses: ['opencode', 'pi'],
-    harnessVersions: { opencode: '1.0.0', pi: '2.0.0' },
-  }),
-}));
-
-vi.mock('../../infrastructure/services/remote-agents/opencode/index.js', () => ({
-  OpenCodeAgentService: class {
-    isInstalled = vi.fn().mockReturnValue(false);
-    listModels = vi.fn().mockResolvedValue([]);
-  },
-}));
-
-vi.mock('../../infrastructure/services/remote-agents/pi/index.js', () => ({
-  PiAgentService: class {
-    isInstalled = vi.fn().mockReturnValue(false);
-    listModels = vi.fn().mockResolvedValue([]);
-  },
-}));
-
 vi.mock('./session.js', () => ({
   GetNextTaskSession: class {
     start = vi.fn().mockResolvedValue(undefined);
@@ -75,6 +51,7 @@ vi.mock('../../api.js', () => ({
     },
     messages: {
       getTaskDeliveryPrompt: 'messages:getTaskDeliveryPrompt',
+      getInitPrompt: 'messages:getInitPrompt',
     },
   },
 }));
@@ -117,6 +94,32 @@ describe('get-next-task — agent config ownership', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('prints foreground warning after connecting when not silent', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    mockQuery.mockImplementation(async (queryFn: string) => {
+      if (queryFn === 'chatrooms:get') {
+        return { _id: TEST_CHATROOM_ID, teamName: 'Test', teamRoles: ['builder'], teamEntryPoint: 'builder' };
+      }
+      if (queryFn === 'machines:getTeamAgentConfigs') return [];
+      if (queryFn === 'messages:getInitPrompt') {
+        return { prompt: 'init prompt text', hasSystemPromptControl: true };
+      }
+      return undefined;
+    });
+
+    const { getNextTask } = await import('./index.js');
+
+    await getNextTask(TEST_CHATROOM_ID, { role: 'builder' }).catch(() => {});
+
+    const allOutput = consoleSpy.mock.calls.map((c) => c.join(' ')).join('\n');
+    expect(allOutput).toContain('FOREGROUND');
+    expect(allOutput).toContain('background');
+    expect(allOutput).toContain('terminate and restart');
+
+    consoleSpy.mockRestore();
   });
 
   it('should NEVER call updateAgentConfig — agent config is owned by startAgent, not get-next-task', async () => {

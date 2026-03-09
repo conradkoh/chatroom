@@ -57,7 +57,7 @@ export interface StartAgentCommand {
   payload: {
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
-    agentHarness: 'opencode' | 'pi';
+    agentHarness: AgentHarness;
     model?: string;
     workingDir?: string;
   };
@@ -78,24 +78,6 @@ export interface StopAgentCommand {
     chatroomId: Id<'chatroom_rooms'>;
     role: string;
   };
-}
-
-/**
- * Ping the daemon to check connectivity.
- * @deprecated Replaced by daemon.ping event stream events (Phase C).
- */
-export interface PingCommand {
-  type: 'ping';
-  payload: Record<string, never>;
-}
-
-/**
- * Query daemon status (hostname, OS, available harnesses).
- * @deprecated Replaced by daemon.ping event stream events (Phase C).
- */
-export interface StatusCommand {
-  type: 'status';
-  payload: Record<string, never>;
 }
 
 /**
@@ -125,5 +107,5 @@ export interface DaemonContext {
   config: MachineConfig | null;
   deps: DaemonDeps;
   events: DaemonEventBus;
-  agentServices: Map<AgentHarness, RemoteAgentService>;
+  agentServices: Map<string, RemoteAgentService>;
 }

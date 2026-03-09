@@ -4,31 +4,17 @@
  * Shared types and constants for machine identity and agent management.
  * Used by AgentPanel.tsx and AgentConfigTabs.tsx.
  *
- * These mirror the canonical definitions in packages/cli/src/infrastructure/machine/types.ts
- * but are maintained separately since the CLI is a Node package and can't be imported
- * directly by the Next.js frontend.
+ * AgentHarness and HarnessVersionInfo are canonical in the backend domain layer.
  *
  * "Harness" refers to the AI development environment / tool runner
- * (e.g. Cursor, OpenCode, Claude). This avoids confusion with the AI
+ * (e.g. Cursor, OpenCode, Pi). This avoids confusion with the AI
  * concept of "tools" (read file, write file, web search, etc.).
  */
 
-// ─── Types ──────────────────────────────────────────────────────────
-
-// ─── Send Command (discriminated union) ─────────────────────────────
-
-/**
- * Discriminated union for machine command arguments.
- * Each command type carries only the payload it needs.
- */
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { AgentHarness, HarnessVersionInfo } from '@workspace/backend/src/domain/entities/agent';
 
-export type AgentHarness = 'opencode' | 'pi';
-
-export interface HarnessVersionInfo {
-  version: string;
-  major: number;
-}
+export type { AgentHarness, HarnessVersionInfo };
 
 export interface MachineInfo {
   machineId: string;
@@ -89,10 +75,16 @@ export type SendCommandFn = (args: SendCommandArgs) => Promise<unknown>;
 
 // ─── Constants ──────────────────────────────────────────────────────
 
-export const HARNESS_DISPLAY_NAMES: Record<AgentHarness, string> = {
+export const HARNESS_DISPLAY_NAMES: Record<string, string> = {
   opencode: 'OpenCode',
   pi: 'Pi',
+  cursor: 'Cursor',
 };
+
+/** Get display name for a harness. Returns a title-cased fallback for unknown harnesses. */
+export function getHarnessDisplayName(harness: string): string {
+  return HARNESS_DISPLAY_NAMES[harness] ?? harness.charAt(0).toUpperCase() + harness.slice(1);
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -144,13 +136,4 @@ export function getModelDisplayLabel(modelId: string): string {
   const { provider, model } = parseModelId(modelId);
   if (!provider) return model;
   return `${provider} / ${model}`;
-}
-
-/**
- * Get only the short model name (without provider), uppercase.
- * e.g. "CLAUDE SONNET 4.5" or "GPT 4O"
- */
-export function getModelShortName(modelId: string): string {
-  const { model } = parseModelId(modelId);
-  return model;
 }

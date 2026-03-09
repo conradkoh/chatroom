@@ -12,6 +12,7 @@ import type { Id } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
+import { discoverModels } from './init.js';
 import {
   onRequestStartAgent,
   type AgentRequestStartEventPayload,
@@ -35,23 +36,11 @@ const MODEL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
  * Called periodically to keep the model list fresh.
  */
 export async function refreshModels(ctx: DaemonContext): Promise<void> {
-  // Collect models from all installed services, keyed by harness.
-  // Only query services that are actually installed — mirrors discoverModels() in init.ts.
-  // Uninstalled services are excluded entirely so they don't overwrite a previously
-  // discovered model list with an empty entry.
-  const models: Record<string, string[]> = {};
-  for (const [harness, service] of ctx.agentServices) {
-    if (!service.isInstalled()) continue;
-    try {
-      models[harness] = await service.listModels();
-    } catch {
-      // Non-critical — skip failed service
-    }
-  }
   if (!ctx.config) return;
 
+  const models = await discoverModels(ctx.agentServices);
+
   // Re-detect available harnesses so any newly installed tools are reflected immediately.
-  // Also updates ctx.config in-place and saves to disk so the next daemon restart picks it up.
   const freshConfig = ensureMachineRegistered();
   ctx.config.availableHarnesses = freshConfig.availableHarnesses;
   ctx.config.harnessVersions = freshConfig.harnessVersions;
@@ -59,11 +48,9 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
   const totalCount = Object.values(models).flat().length;
 
   try {
-    await ctx.deps.backend.mutation(api.machines.register, {
+    await ctx.deps.backend.mutation(api.machines.refreshCapabilities, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
-      hostname: ctx.config.hostname,
-      os: ctx.config.os,
       availableHarnesses: ctx.config.availableHarnesses,
       harnessVersions: ctx.config.harnessVersions,
       availableModels: models,

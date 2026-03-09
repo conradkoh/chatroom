@@ -96,7 +96,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
       Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="planner"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="planner"\` for current task.
       ============================================================"
     `);
@@ -159,7 +159,7 @@ describe('Squad Team > Planner > Get Next Task', () => {
       </next-steps>
 
       ============================================================
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
       Context compacted? Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-system-prompt --chatroom-id="test-chatroom-id" --role="planner"\` to reload prompt, and \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="planner"\` for current task.
       ============================================================"
     `);

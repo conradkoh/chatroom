@@ -12,6 +12,8 @@ import type { SpawnOptions, SpawnResult } from './remote-agent-service.js';
  * Exposes the protected helpers as public methods for direct testing.
  */
 class TestAgentService extends BaseCLIAgentService {
+  readonly id = 'test';
+  readonly displayName = 'Test';
   readonly command: string;
 
   constructor(command: string, deps?: Partial<CLIAgentServiceDeps>) {
@@ -190,7 +192,6 @@ describe('BaseCLIAgentService', () => {
       // Override the timeout/poll constants would require module mocking;
       // instead we verify SIGKILL is called when kill(pid,0) never throws.
       // We mock with a finite number of "alive" responses then let it SIGKILL.
-      let callCount = 0;
       const kill = vi.fn().mockImplementation((pid: number, signal: number | string) => {
         if (signal === 'SIGTERM') return; // first call – succeed
         if (signal === 0) {

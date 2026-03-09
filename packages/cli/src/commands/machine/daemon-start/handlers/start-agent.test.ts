@@ -407,7 +407,7 @@ describe('handleStartAgent', () => {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       pid: 9999,
-      stopReason: 'daemon_respawn_stop',
+      stopReason: 'daemon.respawn',
     });
   });
 
@@ -456,13 +456,13 @@ describe('handleStartAgent', () => {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       pid: 1111,
-      stopReason: 'daemon_respawn_stop',
+      stopReason: 'daemon.respawn',
     });
     expect(onAgentShutdownMock).toHaveBeenCalledWith(ctx, {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       pid: 2222,
-      stopReason: 'daemon_respawn_stop',
+      stopReason: 'daemon.respawn',
     });
   });
 
@@ -492,7 +492,7 @@ describe('handleStartAgent', () => {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       pid: 5555,
-      stopReason: 'daemon_respawn_stop',
+      stopReason: 'daemon.respawn',
     });
   });
 
@@ -521,7 +521,7 @@ describe('handleStartAgent', () => {
       chatroomId: 'test-chatroom-123',
       role: 'builder',
       pid: 7777,
-      stopReason: 'daemon_respawn_stop',
+      stopReason: 'daemon.respawn',
     });
   });
 
@@ -562,12 +562,12 @@ describe('handleStartAgent', () => {
         code: 0,
         signal: null,
         intentional: false,  // ← the key assertion
-        stopReason: 'process_exited_with_success',  // ← new assertion
+        stopReason: 'agent_process.exited_clean',  // ← new assertion
       })
     );
   });
 
-  it('emits stopReason=process_terminated_with_signal for SIGTERM exit', async () => {
+  it('emits stopReason=agent_process.signal for SIGTERM exit', async () => {
     let onExitCallback: ((info: {
       code: number | null;
       signal: string | null;
@@ -600,12 +600,12 @@ describe('handleStartAgent', () => {
         code: null,
         signal: 'SIGTERM',
         intentional: false,
-        stopReason: 'process_terminated_with_signal',
+        stopReason: 'agent_process.signal',
       })
     );
   });
 
-  it('emits stopReason=process_terminated_with_signal for SIGKILL exit', async () => {
+  it('emits stopReason=agent_process.signal for SIGKILL exit', async () => {
     let onExitCallback: ((info: {
       code: number | null;
       signal: string | null;
@@ -638,12 +638,12 @@ describe('handleStartAgent', () => {
         code: null,
         signal: 'SIGKILL',
         intentional: false,
-        stopReason: 'process_terminated_with_signal',
+        stopReason: 'agent_process.signal',
       })
     );
   });
 
-  it('emits stopReason=intentional_stop when process exits after explicit stop', async () => {
+  it('emits stopReason=user.stop when process exits after explicit stop', async () => {
     let onExitCallback: ((info: {
       code: number | null;
       signal: string | null;
@@ -658,8 +658,8 @@ describe('handleStartAgent', () => {
       },
     });
 
-    // Mock the stops.consume to return 'intentional_stop' (simulating intentional stop)
-    (ctx.deps.stops.consume as ReturnType<typeof vi.fn>).mockReturnValueOnce('intentional_stop');
+    // Mock the stops.consume to return 'user.stop' (simulating intentional stop)
+    (ctx.deps.stops.consume as ReturnType<typeof vi.fn>).mockReturnValueOnce('user.stop');
 
     const cmd = createCommand({ workingDir: '/tmp/test' });
     const listener = vi.fn();
@@ -679,7 +679,7 @@ describe('handleStartAgent', () => {
         code: 0,
         signal: null,
         intentional: true,
-        stopReason: 'intentional_stop',
+        stopReason: 'user.stop',
       })
     );
   });

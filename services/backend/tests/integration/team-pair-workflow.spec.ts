@@ -234,7 +234,7 @@ Test technical specifications`,
         chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
         \`\`\`
 
-        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
 
         **Reference commands:**
         - List recent messages: \`chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
@@ -476,7 +476,7 @@ Test technical specifications`,
         chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="reviewer"
         \`\`\`
 
-        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
 
         **Reference commands:**
         - List recent messages: \`chatroom messages list --chatroom-id="10002;chatroom_rooms" --role="reviewer" --sender-role=user --limit=5 --full\`
@@ -718,7 +718,7 @@ Test technical specifications`,
         chatroom get-next-task --chatroom-id="10045;chatroom_rooms" --role="builder"
         \`\`\`
 
-        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+        Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
 
         **Reference commands:**
         - List recent messages: \`chatroom messages list --chatroom-id="10045;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`

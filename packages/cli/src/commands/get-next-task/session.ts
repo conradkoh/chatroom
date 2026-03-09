@@ -448,9 +448,3 @@ export class GetNextTaskSession {
     process.on('SIGHUP', () => handleSignal('SIGHUP'));
   }
 }
-
-/** @deprecated Use GetNextTaskSession instead */
-export const WaitForTaskSession = GetNextTaskSession;
-
-/** @deprecated Use GetNextTaskResponse instead */
-export type WaitForTaskResponse = GetNextTaskResponse;

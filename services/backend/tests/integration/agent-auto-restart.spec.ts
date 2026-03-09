@@ -34,10 +34,10 @@ async function findEnsureAgentCheck(chatroomId: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Test A: stopReason=process_terminated_unexpectedly → schedules ensure-agent
+// Test A: stopReason=agent_process.crashed → schedules ensure-agent
 // ---------------------------------------------------------------------------
 
-test('recordAgentExited with stopReason=process_terminated_unexpectedly schedules ensure-agent', async () => {
+test('recordAgentExited with stopReason=agent_process.crashed schedules ensure-agent', async () => {
   // SETUP
   const { sessionId } = await createTestSession('test-ar-a');
   const chatroomId = await createPairTeamChatroom(sessionId);
@@ -61,19 +61,19 @@ test('recordAgentExited with stopReason=process_terminated_unexpectedly schedule
     role: 'builder',
     pid: 12345,
     intentional: true,
-    stopReason: 'process_terminated_unexpectedly',
+    stopReason: 'agent_process.crashed',
   });
 
   // VERIFY — ensure-agent IS scheduled (stopReason overrides intentional flag)
   const ensureCheck = await findEnsureAgentCheck(chatroomId);
-  expect(ensureCheck, 'ensure-agent should be scheduled when stopReason=process_terminated_unexpectedly').toBeDefined();
+  expect(ensureCheck, 'ensure-agent should be scheduled when stopReason=agent_process.crashed').toBeDefined();
 });
 
 // ---------------------------------------------------------------------------
-// Test B: stopReason=process_exited_with_success → schedules ensure-agent
+// Test B: stopReason=agent_process.exited_clean → schedules ensure-agent
 // ---------------------------------------------------------------------------
 
-test('recordAgentExited with stopReason=process_exited_with_success schedules ensure-agent', async () => {
+test('recordAgentExited with stopReason=agent_process.exited_clean schedules ensure-agent', async () => {
   // SETUP
   const { sessionId } = await createTestSession('test-ar-b');
   const chatroomId = await createPairTeamChatroom(sessionId);
@@ -97,19 +97,19 @@ test('recordAgentExited with stopReason=process_exited_with_success schedules en
     role: 'builder',
     pid: 12346,
     intentional: false,
-    stopReason: 'process_exited_with_success',
+    stopReason: 'agent_process.exited_clean',
   });
 
   // VERIFY — ensure-agent IS scheduled
   const ensureCheck = await findEnsureAgentCheck(chatroomId);
-  expect(ensureCheck, 'ensure-agent should be scheduled when stopReason=process_exited_with_success').toBeDefined();
+  expect(ensureCheck, 'ensure-agent should be scheduled when stopReason=agent_process.exited_clean').toBeDefined();
 });
 
 // ---------------------------------------------------------------------------
 // Test C: desiredState=stopped → does NOT schedule ensure-agent even if stopReason says restart
 // ---------------------------------------------------------------------------
 
-test('recordAgentExited with desiredState=stopped does NOT schedule ensure-agent even when stopReason=process_terminated_unexpectedly', async () => {
+test('recordAgentExited with desiredState=stopped does NOT schedule ensure-agent even when stopReason=agent_process.crashed', async () => {
   // SETUP
   const { sessionId } = await createTestSession('test-ar-c');
   const chatroomId = await createPairTeamChatroom(sessionId);
@@ -147,7 +147,7 @@ test('recordAgentExited with desiredState=stopped does NOT schedule ensure-agent
     role: 'builder',
     pid: 12347,
     intentional: false,
-    stopReason: 'process_terminated_unexpectedly',
+    stopReason: 'agent_process.crashed',
   });
 
   // VERIFY — NO ensure-agent scheduled (user intent respected)

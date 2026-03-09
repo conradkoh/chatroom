@@ -22,10 +22,11 @@ import {
   consumeIntentionalStop,
   clearIntentionalStop,
 } from '../../../infrastructure/machine/intentional-stops.js';
-import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';
-import { PiAgentService } from '../../../infrastructure/services/remote-agents/pi/index.js';
+import {
+  initHarnessRegistry,
+  getAllHarnesses,
+} from '../../../infrastructure/services/remote-agents/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
-import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
@@ -170,7 +171,7 @@ async function registerCapabilities(
   client: ConvexHttpClient,
   sessionId: SessionId,
   config: MachineConfig,
-  agentServices: Map<AgentHarness, RemoteAgentService>
+  agentServices: Map<string, RemoteAgentService>
 ): Promise<Record<string, string[]>> {
   const { machineId } = config;
 
@@ -278,13 +279,11 @@ export async function initDaemon(): Promise<DaemonContext> {
   const config = setupMachine();
   const { machineId } = config;
 
-  // Instantiate remote agent services — one for each supported harness
-  const openCodeService = new OpenCodeAgentService();
-  const piService = new PiAgentService();
-  const agentServices = new Map<AgentHarness, RemoteAgentService>([
-    ['opencode', openCodeService],
-    ['pi', piService],
-  ]);
+  // Populate harness registry and build service map from it
+  initHarnessRegistry();
+  const agentServices = new Map<string, RemoteAgentService>(
+    getAllHarnesses().map((s) => [s.id, s])
+  );
 
   const availableModels = await registerCapabilities(client, typedSessionId, config, agentServices);
   await connectDaemon(client, typedSessionId, machineId, convexUrl);
