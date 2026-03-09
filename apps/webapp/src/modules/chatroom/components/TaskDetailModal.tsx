@@ -500,7 +500,7 @@ export function TaskDetailModal({
                 <div className="flex-1" />
 
                 {/* Secondary Actions - In dropdown menu */}
-                <DropdownMenu>
+                <DropdownMenu modal={false}>
                   <DropdownMenuTrigger asChild>
                     <button
                       disabled={isLoading}
