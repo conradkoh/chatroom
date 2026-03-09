@@ -272,6 +272,79 @@ export const getMachineAgentConfigs = query({
   },
 });
 
+/** Returns all four data sources for the agent panel in a single atomic read:
+ *  machines, machine agent configs, team agent configs, and user preferences. */
+export const getAgentPanel = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      return { machines: [], machineConfigs: [], teamConfigs: [], preferences: [] };
+    }
+    const user = auth.user;
+    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!chatroom || chatroom.ownerId !== user._id) {
+      return { machines: [], machineConfigs: [], teamConfigs: [], preferences: [] };
+    }
+
+    const userMachines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', user._id))
+      .collect();
+    const machines = userMachines.map((m) => ({
+      machineId: m.machineId,
+      hostname: m.hostname,
+      os: m.os,
+      availableHarnesses: m.availableHarnesses,
+      harnessVersions: m.harnessVersions ?? {},
+      availableModels: m.availableModels ?? {},
+      daemonConnected: m.daemonConnected,
+      lastSeenAt: m.lastSeenAt,
+    }));
+
+    const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
+    const allConfigs = await ctx.db
+      .query('chatroom_machineAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+    const machineConfigs = allConfigs
+      .filter((c) => userMachineMap.has(c.machineId))
+      .map((config) => {
+        const machine = userMachineMap.get(config.machineId);
+        return {
+          machineId: config.machineId,
+          hostname: machine?.hostname ?? 'Unknown',
+          role: config.role,
+          agentType: config.agentType,
+          workingDir: config.workingDir,
+          model: config.model,
+          daemonConnected: machine?.daemonConnected ?? false,
+          availableHarnesses: machine?.availableHarnesses ?? [],
+          updatedAt: config.updatedAt,
+          spawnedAgentPid: config.spawnedAgentPid,
+          spawnedAt: config.spawnedAt,
+        };
+      });
+
+    const teamConfigs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    const preferences = await ctx.db
+      .query('chatroom_agentPreferences')
+      .withIndex('by_userId_chatroom_role', (q) =>
+        q.eq('userId', user._id).eq('chatroomId', args.chatroomId)
+      )
+      .collect();
+
+    return { machines, machineConfigs, teamConfigs, preferences };
+  },
+});
+
 /** Returns pending agent.requestStart, agent.requestStop, and daemon.ping events for a machine. */
 export const getCommandEvents = query({
   args: {
