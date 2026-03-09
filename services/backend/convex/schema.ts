@@ -713,33 +713,6 @@ export default defineSchema({
     .index('by_userId', ['userId']),
 
   /**
-   * Agent configurations per machine, chatroom, and role.
-   * Stores context needed to restart agents remotely.
-   */
-  chatroom_machineAgentConfigs: defineTable({
-    // Reference to machine (machineId string, not Convex ID)
-    machineId: v.string(),
-    // Chatroom this config is for
-    chatroomId: v.id('chatroom_rooms'),
-    // Role this config is for
-    role: v.string(),
-    // Agent harness used (must be in machine's availableHarnesses)
-    agentType: agentHarnessValidator,
-    // Working directory on the machine
-    workingDir: v.string(),
-    // AI model to use (e.g. "github-copilot/claude-sonnet-4.5")
-    model: v.optional(v.string()),
-    // Last updated timestamp
-    updatedAt: v.number(),
-    // PID of spawned agent (for stop functionality), null if not running
-    spawnedAgentPid: v.optional(v.number()),
-    // When the agent was spawned (for tracking)
-    spawnedAt: v.optional(v.number()),
-  })
-    .index('by_machine_chatroom_role', ['machineId', 'chatroomId', 'role'])
-    .index('by_chatroom', ['chatroomId']),
-
-  /**
    * Model visibility filters for a machine's harness.
    * Machine-level — shared across all users and chatrooms.
    * Hidden models appear greyed-out in the UI but are still visible.

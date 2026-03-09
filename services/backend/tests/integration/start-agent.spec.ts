@@ -3,7 +3,7 @@
  *
  * Tests the `startAgent` use case which takes pre-resolved config values
  * (model, agentHarness, workingDir are all required), persists them to
- * machine + team configs, and dispatches a start-agent command.
+ * team configs, and dispatches a start-agent command.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -21,7 +21,7 @@ import {
 // ─── Config persistence ──────────────────────────────────────────────────────
 
 describe('startAgent — config persistence', () => {
-  test('creates machine and team configs on first start', async () => {
+  test('creates team config on first start', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-sa-persist-1');
     const chatroomId = await createPairTeamChatroom(sessionId);
@@ -57,20 +57,6 @@ describe('startAgent — config persistence', () => {
     expect(result.model).toBe('claude-sonnet-4');
     expect(result.workingDir).toBe('/test/workspace');
 
-    // Verify machine agent config was created
-    const machineConfig = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_machineAgentConfigs')
-        .withIndex('by_machine_chatroom_role', (q) =>
-          q.eq('machineId', machineId).eq('chatroomId', chatroomId).eq('role', 'builder')
-        )
-        .first();
-    });
-    expect(machineConfig).toBeDefined();
-    expect(machineConfig!.model).toBe('claude-sonnet-4');
-    expect(machineConfig!.agentType).toBe('opencode');
-    expect(machineConfig!.workingDir).toBe('/test/workspace');
-
     // Verify team agent config was created
     const teamConfig = await t.run(async (ctx) => {
       return ctx.db.query('chatroom_teamAgentConfigs').collect();
@@ -84,7 +70,7 @@ describe('startAgent — config persistence', () => {
     expect(relevantTeamConfig!.machineId).toBe(machineId);
   });
 
-  test('updates existing machine and team configs on subsequent start', async () => {
+  test('updates existing team config on subsequent start', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-sa-persist-2');
     const chatroomId = await createPairTeamChatroom(sessionId);
@@ -143,18 +129,6 @@ describe('startAgent — config persistence', () => {
     // ===== VERIFY =====
     expect(result.model).toBe('new-model');
     expect(result.workingDir).toBe('/new/path');
-
-    // Verify machine config was updated
-    const machineConfig = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_machineAgentConfigs')
-        .withIndex('by_machine_chatroom_role', (q) =>
-          q.eq('machineId', machineId).eq('chatroomId', chatroomId).eq('role', 'builder')
-        )
-        .first();
-    });
-    expect(machineConfig!.model).toBe('new-model');
-    expect(machineConfig!.workingDir).toBe('/new/path');
 
     // Verify team config was updated (not duplicated)
     const teamConfigs = await t.run(async (ctx) => {

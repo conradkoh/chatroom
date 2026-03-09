@@ -5,6 +5,7 @@
  * by a user. Used by the chatroom listing sidebar to show running/stopped
  * indicators without leaking machine-level details.
  *
+ * Reads from chatroom_teamAgentConfigs (no machine ownership filtering).
  * Replaces `listRemoteAgentRunningStatus` which exposed raw machineId+role
  * tuples to the frontend.
  */
@@ -37,13 +38,6 @@ export async function listChatroomAgentOverview(
   ctx: QueryCtx,
   input: ListChatroomAgentOverviewInput
 ): Promise<ChatroomAgentOverview[]> {
-  // Get user's machines for ownership filtering
-  const userMachines = await ctx.db
-    .query('chatroom_machines')
-    .withIndex('by_userId', (q) => q.eq('userId', input.userId))
-    .collect();
-  const userMachineIds = new Set(userMachines.map((m) => m.machineId));
-
   // Get all chatrooms owned by the user
   const userChatrooms = await ctx.db
     .query('chatroom_rooms')
@@ -53,21 +47,19 @@ export async function listChatroomAgentOverview(
   const results = await Promise.all(
     userChatrooms.map(async (room) => {
       const configs = await ctx.db
-        .query('chatroom_machineAgentConfigs')
+        .query('chatroom_teamAgentConfigs')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
         .collect();
 
-      const userConfigs = configs.filter((c) => userMachineIds.has(c.machineId));
-
-      const runningConfigs = userConfigs.filter((c) => c.spawnedAgentPid != null);
+      const runningConfigs = configs.filter((c) => c.spawnedAgentPid != null);
 
       const agentStatus: ChatroomAgentOverview['agentStatus'] =
-        userConfigs.length === 0 ? 'none' : runningConfigs.length > 0 ? 'running' : 'stopped';
+        configs.length === 0 ? 'none' : runningConfigs.length > 0 ? 'running' : 'stopped';
 
       const runningRoles = runningConfigs.map((c) => c.role);
       const runningAgents = runningConfigs.map((c) => ({
         role: c.role,
-        machineId: c.machineId,
+        machineId: c.machineId ?? '',
       }));
 
       return {

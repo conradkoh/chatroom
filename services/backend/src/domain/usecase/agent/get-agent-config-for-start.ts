@@ -2,8 +2,8 @@
  * Use Case: Get Agent Config for Start
  *
  * Returns the data needed to populate the "Start Agent" form for a specific
- * role. Resolves defaults from the preference → teamConfig → machineConfig
- * fallback chain so the frontend doesn't need to merge data sources.
+ * role. Resolves defaults from the preference → teamConfig fallback chain
+ * so the frontend doesn't need to merge data sources.
  *
  * machineId is intentionally exposed here because the user needs to select
  * which machine to start on — but it's scoped to this start-agent context,
@@ -71,7 +71,6 @@ export async function getAgentConfigForStart(
   // Resolve defaults using the priority chain:
   // 1. Agent preference (user's last-used config for this role)
   // 2. Team config (authoritative team-level config)
-  // 3. Machine config (machine-level runtime config)
 
   const roleLower = input.role.toLowerCase();
 
@@ -113,26 +112,6 @@ export async function getAgentConfigForStart(
         agentHarness: teamConfig.agentHarness as AgentHarness | undefined,
         model: teamConfig.model,
         workingDir: teamConfig.workingDir,
-      },
-    };
-  }
-
-  // 3. Check machine config (any machine config for this chatroom+role)
-  const machineConfig = await ctx.db
-    .query('chatroom_machineAgentConfigs')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', input.chatroomId))
-    .filter((q) => q.eq(q.field('role'), input.role))
-    .first();
-
-  if (machineConfig) {
-    return {
-      role: input.role,
-      connectedMachines,
-      defaults: {
-        machineId: machineConfig.machineId,
-        agentHarness: machineConfig.agentType as AgentHarness | undefined,
-        model: machineConfig.model,
-        workingDir: machineConfig.workingDir,
       },
     };
   }

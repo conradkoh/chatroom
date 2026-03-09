@@ -1,15 +1,9 @@
 /**
  * Use Case: Get Agent Config
  *
- * Single source of truth for resolving a consolidated agent configuration
- * from the two underlying stores:
- *
- *   1. chatroom_teamAgentConfigs  — team-level settings (type, machineId, harness, model, workingDir)
- *   2. chatroom_machineAgentConfigs — per-machine settings (model, workingDir, PID tracking)
- *
- * The resolved config merges both sources with a clear hierarchy:
- *   - Team config is the primary source (user's confirmed selection)
- *   - Machine config provides fallback values (e.g. model)
+ * Single source of truth for resolving agent configuration from
+ * chatroom_teamAgentConfigs. All settings (type, machineId, harness, model,
+ * workingDir, spawnedAgentPid, spawnedAt) are read from this table only.
  *
  * Accepts a Convex MutationCtx or QueryCtx as first parameter so it can
  * be called from any handler without coupling to a specific Convex wrapper.
@@ -31,7 +25,7 @@ export interface GetAgentConfigInput {
 }
 
 /**
- * The consolidated agent configuration, merging team and machine configs.
+ * The resolved agent configuration from chatroom_teamAgentConfigs.
  *
  * This is the single source of truth — all callers should use this type
  * rather than reading the raw tables directly.
@@ -55,24 +49,22 @@ export interface ResolvedAgentConfig {
   /** Working directory on the machine. */
   workingDir: string | undefined;
 
-  // ── Resolved model (config hierarchy) ────────────────────────────────
+  // ── Resolved model ───────────────────────────────────────────────────
 
   /**
-   * The resolved model, applying the config hierarchy:
-   *   1. teamConfig.model  (user's team-level selection — highest priority)
-   *   2. machineConfig.model (machine-specific per chatroom+role)
-   *   3. undefined (daemon will use its default)
+   * The resolved model from team config. If undefined, the daemon will use
+   * its default.
    */
   model: string | undefined;
 
   /** Where the model was resolved from, for debugging. */
   modelSource: ModelSource;
 
-  // ── Runtime state (from machine config) ──────────────────────────────
+  // ── Runtime state ────────────────────────────────────────────────────
 
-  /** PID of the currently spawned agent (from machine config). */
+  /** PID of the currently spawned agent. */
   spawnedAgentPid: number | undefined;
-  /** When the agent was last spawned (from machine config). */
+  /** When the agent was last spawned. */
   spawnedAt: number | undefined;
 
   // ── Derived flags ───────────────────────────────────────────────────
@@ -91,10 +83,9 @@ export type GetAgentConfigResult = { found: true; config: ResolvedAgentConfig } 
 // ─── Use Case ────────────────────────────────────────────────────────────────
 
 /**
- * Resolve the consolidated agent configuration for a chatroom + role.
+ * Resolve the agent configuration for a chatroom + role.
  *
- * Reads from both `chatroom_teamAgentConfigs` and `chatroom_machineAgentConfigs`,
- * merges them using the config hierarchy, and returns a single resolved config.
+ * Reads from chatroom_teamAgentConfigs only and returns the resolved config.
  *
  * @param ctx - Convex query or mutation context (provides db access)
  * @param input - The lookup parameters
@@ -120,7 +111,7 @@ export async function getAgentConfig(
 
   const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
 
-  // ── Step 2: Look up team config (primary source) ─────────────────────
+  // ── Step 2: Look up team config ─────────────────────────────────────
 
   const teamConfig = await ctx.db
     .query('chatroom_teamAgentConfigs')
@@ -131,53 +122,14 @@ export async function getAgentConfig(
     return { found: false };
   }
 
-  // ── Step 3: Look up machine config (fallback source) ─────────────────
+  // ── Step 3: Resolve model ────────────────────────────────────────────
 
-  let machineConfig: {
-    model?: string;
-    workingDir?: string;
-    spawnedAgentPid?: number;
-    spawnedAt?: number;
-  } | null = null;
+  const model = teamConfig.model;
+  const modelSource: ResolvedAgentConfig['modelSource'] = teamConfig.model
+    ? 'team_config'
+    : 'none';
 
-  if (teamConfig.machineId) {
-    const rawMachineConfig = await ctx.db
-      .query('chatroom_machineAgentConfigs')
-      .withIndex('by_machine_chatroom_role', (q) =>
-        q
-          .eq('machineId', teamConfig.machineId!)
-          .eq('chatroomId', chatroomId)
-          .eq('role', role.toLowerCase())
-      )
-      .first();
-
-    if (rawMachineConfig) {
-      machineConfig = {
-        model: rawMachineConfig.model,
-        workingDir: rawMachineConfig.workingDir,
-        spawnedAgentPid: rawMachineConfig.spawnedAgentPid,
-        spawnedAt: rawMachineConfig.spawnedAt,
-      };
-    }
-  }
-
-  // ── Step 4: Resolve model using config hierarchy ─────────────────────
-
-  let model: string | undefined;
-  let modelSource: ResolvedAgentConfig['modelSource'];
-
-  if (teamConfig.model) {
-    model = teamConfig.model;
-    modelSource = 'team_config';
-  } else if (machineConfig?.model) {
-    model = machineConfig.model;
-    modelSource = 'machine_config';
-  } else {
-    model = undefined;
-    modelSource = 'none';
-  }
-
-  // ── Step 5: Build the resolved config ────────────────────────────────
+  // ── Step 4: Build the resolved config ────────────────────────────────
 
   const resolvedConfig: ResolvedAgentConfig = {
     chatroomId,
@@ -185,11 +137,11 @@ export async function getAgentConfig(
     type: teamConfig.type,
     machineId: teamConfig.machineId,
     agentHarness: teamConfig.agentHarness,
-    workingDir: teamConfig.workingDir ?? machineConfig?.workingDir,
+    workingDir: teamConfig.workingDir,
     model,
     modelSource,
-    spawnedAgentPid: machineConfig?.spawnedAgentPid,
-    spawnedAt: machineConfig?.spawnedAt,
+    spawnedAgentPid: teamConfig.spawnedAgentPid,
+    spawnedAt: teamConfig.spawnedAt,
     hasSystemPromptControl: teamConfig.type === 'remote',
   };
 

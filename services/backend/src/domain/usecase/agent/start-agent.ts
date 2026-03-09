@@ -2,10 +2,9 @@
  * Use Case: Start Agent
  *
  * Encapsulates the complete logic for starting an agent on a machine:
- *   1. Machine agent config upsert (create or update)
- *   2. Machine harness availability check
- *   3. Team agent config upsert (for auto-restart awareness)
- *   4. Command record dispatch
+ *   1. Machine harness availability check
+ *   2. Team agent config upsert (for auto-restart awareness)
+ *   3. Command record dispatch
  *
  * All required config values (model, agentHarness, workingDir) must be
  * resolved by the caller before invoking this use case. This ensures the
@@ -86,41 +85,13 @@ export async function startAgent(
 ): Promise<StartAgentResult> {
   const { machineId, chatroomId, role, model, agentHarness, workingDir, reason } = input;
 
-  // ── Step 1: Upsert machine agent config ───────────────────────────────
-
-  const existingConfig = await ctx.db
-    .query('chatroom_machineAgentConfigs')
-    .withIndex('by_machine_chatroom_role', (q) =>
-      q.eq('machineId', machineId).eq('chatroomId', chatroomId).eq('role', role)
-    )
-    .first();
-
-  if (existingConfig) {
-    await ctx.db.patch('chatroom_machineAgentConfigs', existingConfig._id, {
-      agentType: agentHarness,
-      workingDir,
-      model,
-      updatedAt: Date.now(),
-    });
-  } else {
-    await ctx.db.insert('chatroom_machineAgentConfigs', {
-      machineId,
-      chatroomId,
-      role,
-      agentType: agentHarness,
-      workingDir,
-      model,
-      updatedAt: Date.now(),
-    });
-  }
-
-  // ── Step 2: Verify harness is available on the machine ────────────────
+  // ── Step 1: Verify harness is available on the machine ────────────────
 
   if (!machine.availableHarnesses.includes(agentHarness)) {
     throw new Error(`Agent harness '${agentHarness}' is not available on this machine`);
   }
 
-  // ── Step 3: Upsert team agent config ──────────────────────────────────
+  // ── Step 2: Upsert team agent config ──────────────────────────────────
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   if (chatroom) {
@@ -160,11 +131,9 @@ export async function startAgent(
     }
   }
 
-  // ── Step 4: Dispatch start-agent command via event stream ────────────
+  // ── Step 3: Write agent.requestStart event to stream ──────────────────
 
   const now = Date.now();
-
-  // ── Step 5: Write agent.requestStart event to stream ──────────────────
 
   await ctx.db.insert('chatroom_eventStream', {
     type: 'agent.requestStart',

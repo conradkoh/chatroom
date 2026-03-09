@@ -1449,32 +1449,18 @@ export const cleanupStaleMachines = internalMutation({
         );
 
         // 2. Clear spawnedAgent records for all agents on this machine
-        const agentConfigs = await ctx.db
-          .query('chatroom_machineAgentConfigs')
-          .withIndex('by_machine_chatroom_role', (q) => q.eq('machineId', machine.machineId))
+        const allTeamConfigs = await ctx.db
+          .query('chatroom_teamAgentConfigs')
           .collect();
+        const agentConfigs = allTeamConfigs.filter((c) => c.machineId === machine.machineId);
 
         for (const config of agentConfigs) {
           if (config.spawnedAgentPid != null) {
-            await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
+            await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
               spawnedAgentPid: undefined,
               spawnedAt: undefined,
               updatedAt: now,
             });
-
-            // Dual-write: also clear from teamAgentConfigs
-            const teamConfig = await ctx.db
-              .query('chatroom_teamAgentConfigs')
-              .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', config.chatroomId).eq('role', config.role))
-              .filter((q) => q.eq(q.field('machineId'), config.machineId))
-              .first();
-            if (teamConfig) {
-              await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
-                spawnedAgentPid: undefined,
-                spawnedAt: undefined,
-                updatedAt: now,
-              });
-            }
           }
         }
 
