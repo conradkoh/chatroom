@@ -74,7 +74,7 @@ export async function executeStartAgent(
   // Both are killed to ensure no ghost processes survive.
   // Fail-open: if the backend query errors, skip the pre-kill and proceed with spawn.
   try {
-    const existingConfigs = await ctx.deps.backend.query(api.machines.getAgentConfigs, {
+    const existingConfigs = await ctx.deps.backend.query(api.machines.getMachineAgentConfigs, {
       sessionId: ctx.sessionId,
       chatroomId,
     });

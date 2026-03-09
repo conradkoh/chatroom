@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
-
 import { CopyButton } from './CopyButton';
 import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
 import { ModelFilterPanel } from './ModelFilterPanel';
@@ -203,7 +202,11 @@ export function useAgentControls({
   // Update the ref if it's still unset and teamConfigHarness arrives before initialization.
   // Safe to do in render: runs only before initialization, is a one-way undefined→defined
   // transition, and setting a ref does not trigger re-renders.
-  if (!isInitialized && initialTeamConfigHarnessRef.current === undefined && teamConfigHarness !== undefined) {
+  if (
+    !isInitialized &&
+    initialTeamConfigHarnessRef.current === undefined &&
+    teamConfigHarness !== undefined
+  ) {
     initialTeamConfigHarnessRef.current = teamConfigHarness;
   }
 
@@ -240,7 +243,13 @@ export function useAgentControls({
 
     const pref = initialPreferenceRef.current;
     const machine = deriveInitialMachine(connectedMachines, roleConfigs, runningAgentConfig, pref);
-    const harness = deriveInitialHarness(machine, connectedMachines, roleConfigs, pref, initialTeamConfigHarnessRef.current);
+    const harness = deriveInitialHarness(
+      machine,
+      connectedMachines,
+      roleConfigs,
+      pref,
+      initialTeamConfigHarnessRef.current
+    );
     const wd = deriveInitialWorkingDir(machine, roleConfigs, pref);
 
     setSelectedMachineId(machine);
@@ -512,10 +521,9 @@ function isModelHidden(
   if (providerHidden) {
     // Provider is hidden; hiddenModels contains exceptions (models to UN-hide)
     return !hasExplicitOverride;
-  } 
-    // Provider is visible; hiddenModels contains models to hide
-    return hasExplicitOverride;
-  
+  }
+  // Provider is visible; hiddenModels contains models to hide
+  return hasExplicitOverride;
 }
 
 // ─── Component: RemoteTabContent ────────────────────────────────────
@@ -527,8 +535,6 @@ interface RemoteTabContentProps {
   connectedMachines: MachineInfo[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
-  /** Harness from team config — shown as the running harness when agent is active */
-  teamConfigHarness?: AgentHarness;
 }
 
 export const RemoteTabContent = memo(function RemoteTabContent({
@@ -536,7 +542,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
   connectedMachines,
   isLoadingMachines,
   daemonStartCommand,
-  teamConfigHarness,
 }: RemoteTabContentProps) {
   const {
     selectedMachineId,
@@ -564,14 +569,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
     handleWorkingDirChange,
   } = controls;
 
-  // When an agent is running, display the live config values — never internal form state.
-  // Internal state is preserved so it's ready again when the agent stops.
-  // For harness: prefer teamConfigHarness (the user's current intended config) over
-  // runningAgentConfig.agentType (which may be stale from a previous start).
+  // When an agent is running, display values come exclusively from runningAgentConfig.
+  // Internal form state is preserved so it's ready again when the agent stops.
   const displayMachineId = isAgentRunning ? runningAgentConfig!.machineId : selectedMachineId;
-  const displayHarness = isAgentRunning
-    ? (teamConfigHarness ?? runningAgentConfig!.agentType)
-    : selectedHarness;
+  const displayHarness = isAgentRunning ? runningAgentConfig!.agentType : selectedHarness;
   const displayModel = isAgentRunning ? (runningAgentConfig!.model ?? null) : selectedModel;
   const displayWorkingDir = isAgentRunning ? (runningAgentConfig!.workingDir ?? '') : workingDir;
 
@@ -668,8 +669,8 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               {isAgentRunning ? (
                 <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
                   {displayMachineId
-                    ? (connectedMachines.find((m) => m.machineId === displayMachineId)
-                        ?.hostname ?? displayMachineId)
+                    ? (connectedMachines.find((m) => m.machineId === displayMachineId)?.hostname ??
+                      displayMachineId)
                     : 'Machine...'}
                 </div>
               ) : (
@@ -686,7 +687,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                               ?.hostname ?? displayMachineId)
                           : 'Machine...'}
                       </span>
-                      <ChevronDown size={10} className="ml-1 flex-shrink-0 text-chatroom-text-muted" />
+                      <ChevronDown
+                        size={10}
+                        className="ml-1 flex-shrink-0 text-chatroom-text-muted"
+                      />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent
@@ -723,7 +727,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               {isAgentRunning ? (
                 <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
                   {displayHarness
-                    ? formatHarnessLabel(displayHarness, displayHarnessVersionsForMachine[displayHarness])
+                    ? formatHarnessLabel(
+                        displayHarness,
+                        displayHarnessVersionsForMachine[displayHarness]
+                      )
                     : 'Harness...'}
                 </div>
               ) : (
@@ -731,19 +738,23 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                   <PopoverTrigger asChild>
                     <button
                       disabled={
-                        isBusy ||
-                        !displayMachineId ||
-                        availableHarnessesForMachine.length === 0
+                        isBusy || !displayMachineId || availableHarnessesForMachine.length === 0
                       }
                       className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
                       title="Select Harness"
                     >
                       <span className="truncate">
                         {displayHarness
-                          ? formatHarnessLabel(displayHarness, displayHarnessVersionsForMachine[displayHarness])
+                          ? formatHarnessLabel(
+                              displayHarness,
+                              displayHarnessVersionsForMachine[displayHarness]
+                            )
                           : 'Harness...'}
                       </span>
-                      <ChevronDown size={10} className="ml-1 flex-shrink-0 text-chatroom-text-muted" />
+                      <ChevronDown
+                        size={10}
+                        className="ml-1 flex-shrink-0 text-chatroom-text-muted"
+                      />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent
@@ -754,7 +765,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                       <CommandList>
                         <CommandGroup>
                           {availableHarnessesForMachine.map((harness) => {
-                            const label = formatHarnessLabel(harness, harnessVersionsForMachine[harness]);
+                            const label = formatHarnessLabel(
+                              harness,
+                              harnessVersionsForMachine[harness]
+                            );
                             return (
                               <CommandItem
                                 key={harness}
@@ -817,14 +831,23 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                 ) : (
                   <>
                     <div className="flex-1 min-w-0">
-                      <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen} modal={false}>
+                      <Popover
+                        open={modelPopoverOpen}
+                        onOpenChange={setModelPopoverOpen}
+                        modal={false}
+                      >
                         <PopoverTrigger asChild>
                           <button
                             disabled={isBusy || !displayHarness}
                             className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
                             title="Select Model"
                           >
-                            <span className={cn('truncate', isSelectedModelHidden && 'text-chatroom-status-warning')}>
+                            <span
+                              className={cn(
+                                'truncate',
+                                isSelectedModelHidden && 'text-chatroom-status-warning'
+                              )}
+                            >
                               {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
                             </span>
                             <div className="flex items-center gap-1 flex-shrink-0">
@@ -870,7 +893,9 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                                   >
                                     <span className="truncate">{getModelDisplayLabel(model)}</span>
                                     {displayModel === model && (
-                                      <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
+                                      <span className="ml-2 flex-shrink-0 text-chatroom-accent">
+                                        ✓
+                                      </span>
                                     )}
                                   </CommandItem>
                                 ))}
@@ -1076,8 +1101,6 @@ interface AgentConfigTabsComponentProps {
   connectedMachines: MachineInfo[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
-  /** Harness from team config — passed through to RemoteTabContent for display when agent is running */
-  teamConfigHarness?: AgentHarness;
 }
 
 export const AgentConfigTabs = memo(function AgentConfigTabs({
@@ -1089,7 +1112,6 @@ export const AgentConfigTabs = memo(function AgentConfigTabs({
   connectedMachines,
   isLoadingMachines,
   daemonStartCommand,
-  teamConfigHarness,
 }: AgentConfigTabsComponentProps) {
   return (
     <>
@@ -1130,12 +1152,9 @@ export const AgentConfigTabs = memo(function AgentConfigTabs({
           connectedMachines={connectedMachines}
           isLoadingMachines={isLoadingMachines}
           daemonStartCommand={daemonStartCommand}
-          teamConfigHarness={teamConfigHarness}
         />
       )}
-      {activeTab === 'custom' && (
-        <CustomTabContent role={role} prompt={prompt} />
-      )}
+      {activeTab === 'custom' && <CustomTabContent role={role} prompt={prompt} />}
     </>
   );
 });

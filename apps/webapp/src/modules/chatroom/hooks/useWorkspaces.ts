@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import type { TeamAgentConfig } from '../components/AgentPanel/InlineAgentCard';
+import type { TeamAgentConfig } from './useAgentPanelData';
 import type { MachineInfo } from '../types/machine';
 import type { Workspace, WorkspaceGroup } from '../types/workspace';
 

@@ -1,13 +1,10 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 
 import { useAgentControls, RemoteTabContent } from './AgentConfigTabs';
 import type { AgentPreference } from './AgentConfigTabs';
-import type { MachineInfo, AgentConfig } from '../types/machine';
+import { useAgentPanelData } from '../hooks/useAgentPanelData';
 
 import {
   Dialog,
@@ -34,38 +31,21 @@ interface AgentStartModalProps {
 export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, knownRoles }: AgentStartModalProps) {
   const daemonStartCommand = getDaemonStartCommand();
 
-  // Fetch machines and configs
-  const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
-    | { machines: MachineInfo[] }
-    | undefined;
-
-  const configsResult = useSessionQuery(api.machines.getAgentConfigs, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as { configs: AgentConfig[] } | undefined;
-
-  const agentPreferencesResult = useSessionQuery(api.machines.getAgentPreferences, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-  }) as AgentPreference[] | undefined;
-
-  const saveAgentPreference = useSessionMutation(api.machines.saveAgentPreference);
-  const sendCommand = useSessionMutation(api.machines.sendCommand);
-
-  const connectedMachines = useMemo<MachineInfo[]>(() => {
-    return machinesResult?.machines.filter((m) => m.daemonConnected) ?? [];
-  }, [machinesResult?.machines]);
-
-  const agentConfigs = useMemo<AgentConfig[]>(() => {
-    return configsResult?.configs ?? [];
-  }, [configsResult?.configs]);
-
-  const isLoadingMachines = machinesResult === undefined || configsResult === undefined;
+  const {
+    connectedMachines,
+    machineConfigs,
+    agentPreferenceMap,
+    isLoading,
+    sendCommand,
+    savePreference,
+  } = useAgentPanelData(chatroomId);
 
   // Role selection
   const availableRoles = useMemo<string[]>(() => {
-    const fromConfigs = agentConfigs.map((c) => c.role);
+    const fromConfigs = machineConfigs.map((c) => c.role);
     const fromKnown = knownRoles ?? [];
     return [...new Set([...fromConfigs, ...fromKnown])];
-  }, [agentConfigs, knownRoles]);
+  }, [machineConfigs, knownRoles]);
 
   const [selectedRole, setSelectedRole] = useState<string | null>(initialRole ?? null);
 
@@ -77,27 +57,18 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
   }, [availableRoles]);
 
   const agentPreference = useMemo<AgentPreference | undefined>(
-    () =>
-      agentPreferencesResult?.find(
-        (p) => p.role.toLowerCase() === (selectedRole ?? '').toLowerCase()
-      ),
-    [agentPreferencesResult, selectedRole]
+    () => {
+      if (!selectedRole) return undefined;
+      return agentPreferenceMap.get(selectedRole.toLowerCase());
+    },
+    [agentPreferenceMap, selectedRole]
   );
 
   const handleSavePreference = useCallback(
     (pref: AgentPreference) => {
-      saveAgentPreference({
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role: pref.role,
-        machineId: pref.machineId,
-        agentHarness: pref.agentHarness,
-        model: pref.model,
-        workingDir: pref.workingDir,
-      }).catch((err) => {
-        console.error('[AgentStartModal] Failed to save agent preference:', err);
-      });
+      savePreference(pref);
     },
-    [saveAgentPreference, chatroomId]
+    [savePreference]
   );
 
   // useAgentControls MUST be called unconditionally (rules of hooks)
@@ -105,7 +76,7 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
     role: selectedRole ?? '',
     chatroomId,
     connectedMachines,
-    agentConfigs,
+    agentConfigs: machineConfigs,
     sendCommand,
     agentPreference,
     onSavePreference: handleSavePreference,
@@ -140,7 +111,7 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
         )}
 
         {/* Content */}
-        {isLoadingMachines ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <div className="w-5 h-5 border-2 border-border border-t-foreground rounded-full animate-spin" />
           </div>
@@ -150,7 +121,7 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
           <RemoteTabContent
             controls={controls}
             connectedMachines={connectedMachines}
-            isLoadingMachines={isLoadingMachines}
+            isLoadingMachines={isLoading}
             daemonStartCommand={daemonStartCommand}
           />
         )}

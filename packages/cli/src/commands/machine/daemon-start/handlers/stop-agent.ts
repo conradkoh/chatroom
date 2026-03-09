@@ -5,7 +5,7 @@
  * ensuring consistent process-group kills and state cleanup.
  *
  * PIDs are collected from two sources before stopping:
- *   1. Backend (authoritative DB record via getAgentConfigs)
+ *   1. Backend (authoritative DB record via getMachineAgentConfigs)
  *   2. Local daemon state (may diverge if updateSpawnedAgent mutation failed)
  * All unique live PIDs are killed to prevent ghost processes.
  */
@@ -44,7 +44,7 @@ export async function executeStopAgent(
       spawnedAgentPid?: number;
       agentType?: string;
     }[];
-  } = await ctx.deps.backend.query(api.machines.getAgentConfigs, {
+  } = await ctx.deps.backend.query(api.machines.getMachineAgentConfigs, {
     sessionId: ctx.sessionId,
     chatroomId,
   });
