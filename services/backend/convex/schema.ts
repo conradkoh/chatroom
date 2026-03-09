@@ -776,7 +776,7 @@ export default defineSchema({
   })
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])
-    .index('by_chatroom_role', ['chatroomId', 'role'])
+    .index('by_chatroom_role', ['chatroomId', 'role', 'machineId'])
     .index('by_machineId', ['machineId']),
 
   // ============================================================================

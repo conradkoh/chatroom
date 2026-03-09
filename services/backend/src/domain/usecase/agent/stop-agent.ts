@@ -69,8 +69,7 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
   // Mark the agent config as desired-stopped so ensureAgentHandler won't auto-restart it.
   const teamConfig = await ctx.db
     .query('chatroom_teamAgentConfigs')
-    .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
-    .filter((q) => q.eq(q.field('machineId'), machineId))
+    .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role).eq('machineId', machineId))
     .first();
 
   if (teamConfig) {
