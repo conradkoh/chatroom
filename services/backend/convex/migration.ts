@@ -142,27 +142,6 @@ export const stripParticipantStaleFields = internalMutation({
 });
 
 /**
- * Migration: Remove idle participants (no-op — status field removed).
- *
- * The `status` field and 'idle' state were removed as part of the
- * lastSeenAt-based lifecycle refactor. This migration is now a no-op.
- * Kept for historical reference; safe to remove.
- *
- * Idempotent: always a no-op.
- */
-export const removeIdleParticipants = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const allParticipants = await ctx.db.query('chatroom_participants').collect();
-
-    return {
-      total: allParticipants.length,
-      deletedIdle: 0,
-    };
-  },
-});
-
-/**
  * Migration: Delete old-format chatroom_agentPreferences documents.
  *
  * The chatroom_agentPreferences table was redesigned from a per-chatroom format
