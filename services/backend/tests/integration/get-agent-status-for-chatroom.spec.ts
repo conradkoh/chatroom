@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
-import { getAgentStatusForChatroom } from '../../src/domain/usecase/agent/get-agent-status-for-chatroom';
+import { getAgentStatusForChatroom } from '../../src/domain/usecase/chatroom/get-agent-statuses';
 import { t } from '../../test.setup';
 import {
   createPairTeamChatroom,

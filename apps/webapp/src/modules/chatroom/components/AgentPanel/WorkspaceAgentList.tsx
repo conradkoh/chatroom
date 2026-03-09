@@ -3,7 +3,7 @@
 import { FolderOpen } from 'lucide-react';
 import { memo } from 'react';
 
-import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/agent/get-agent-status-for-chatroom';
+import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import type { Workspace } from '../../types/workspace';
 import type { AgentPreference } from '../AgentConfigTabs';

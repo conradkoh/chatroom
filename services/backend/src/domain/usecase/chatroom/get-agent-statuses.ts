@@ -12,7 +12,7 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness, AgentType } from '../../entities/agent';
-import { getTeamRolesFromChatroom } from '../chatroom/get-team-roles';
+import { getTeamRolesFromChatroom } from './get-team-roles';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

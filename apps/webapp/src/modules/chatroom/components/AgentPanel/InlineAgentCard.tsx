@@ -4,7 +4,7 @@ import React, { memo, useState, useMemo } from 'react';
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/agent/get-agent-status-for-chatroom';
+import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
