@@ -27,7 +27,7 @@ import type {
   AgentConfig,
   SendCommandFn,
 } from '../types/machine';
-import { HARNESS_DISPLAY_NAMES, getModelDisplayLabel } from '../types/machine';
+import { getHarnessDisplayName, getModelDisplayLabel } from '../types/machine';
 
 import {
   Command,
@@ -51,7 +51,6 @@ export interface AgentConfigTabsProps {
   isLoadingMachines: boolean;
   daemonStartCommand: string;
   sendCommand: SendCommandFn;
-  onViewPrompt?: (role: string) => void;
 }
 
 /** User's saved preference for a single role's remote agent config. */
@@ -61,6 +60,10 @@ export interface AgentPreference {
   agentHarness: AgentHarness;
   model?: string;
   workingDir?: string;
+}
+
+function formatHarnessLabel(harness: string, version?: HarnessVersionInfo): string {
+  return `${getHarnessDisplayName(harness)}${version ? ` v${version.version}` : ''}`;
 }
 
 // ─── Hook: useAgentControls ─────────────────────────────────────────
@@ -463,12 +466,9 @@ export function useAgentControls({
 
   return {
     selectedMachineId,
-    setSelectedMachineId,
     selectedHarness,
-    setSelectedHarness,
     selectedModel,
     workingDir,
-    setWorkingDir,
     isStarting,
     isStopping,
     error,
@@ -665,107 +665,119 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           {/* Row 1: Machine + Harness */}
           <div className="flex items-center gap-2">
             <div className="flex-1 min-w-0">
-              <Popover open={machinePopoverOpen} onOpenChange={setMachinePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    disabled={isBusy || isAgentRunning}
-                    className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
-                    title="Select Machine"
+              {isAgentRunning ? (
+                <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
+                  {displayMachineId
+                    ? (connectedMachines.find((m) => m.machineId === displayMachineId)
+                        ?.hostname ?? displayMachineId)
+                    : 'Machine...'}
+                </div>
+              ) : (
+                <Popover open={machinePopoverOpen} onOpenChange={setMachinePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      disabled={isBusy}
+                      className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+                      title="Select Machine"
+                    >
+                      <span className="truncate">
+                        {displayMachineId
+                          ? (connectedMachines.find((m) => m.machineId === displayMachineId)
+                              ?.hostname ?? displayMachineId)
+                          : 'Machine...'}
+                      </span>
+                      <ChevronDown size={10} className="ml-1 flex-shrink-0 text-chatroom-text-muted" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 rounded-none"
+                    style={{ width: 'var(--radix-popover-trigger-width)' }}
                   >
-                    <span className="truncate">
-                      {displayMachineId
-                        ? (connectedMachines.find((m) => m.machineId === displayMachineId)
-                            ?.hostname ?? displayMachineId)
-                        : 'Machine...'}
-                    </span>
-                    <ChevronDown size={10} className="ml-1 flex-shrink-0 text-chatroom-text-muted" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 rounded-none"
-                  style={{ width: 'var(--radix-popover-trigger-width)' }}
-                >
-                  <Command className="bg-chatroom-bg-tertiary rounded-none">
-                    <CommandList>
-                      <CommandGroup>
-                        {connectedMachines.map((machine) => (
-                          <CommandItem
-                            key={machine.machineId}
-                            value={machine.hostname}
-                            onSelect={() => {
-                              handleMachineChange(machine.machineId);
-                              setMachinePopoverOpen(false);
-                            }}
-                            className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
-                          >
-                            <span className="truncate">{machine.hostname}</span>
-                            {displayMachineId === machine.machineId && (
-                              <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
-                            )}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="flex-1 min-w-0">
-              <Popover open={harnessPopoverOpen} onOpenChange={setHarnessPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    disabled={
-                      isBusy ||
-                      isAgentRunning ||
-                      !displayMachineId ||
-                      availableHarnessesForMachine.length === 0
-                    }
-                    className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
-                    title="Select Harness"
-                  >
-                    <span className="truncate">
-                      {displayHarness
-                        ? (() => {
-                            const ver = displayHarnessVersionsForMachine[displayHarness];
-                            return `${HARNESS_DISPLAY_NAMES[displayHarness]}${ver ? ` v${ver.version}` : ''}`;
-                          })()
-                        : 'Harness...'}
-                    </span>
-                    <ChevronDown size={10} className="ml-1 flex-shrink-0 text-chatroom-text-muted" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 rounded-none"
-                  style={{ width: 'var(--radix-popover-trigger-width)' }}
-                >
-                  <Command className="bg-chatroom-bg-tertiary rounded-none">
-                    <CommandList>
-                      <CommandGroup>
-                        {availableHarnessesForMachine.map((harness) => {
-                          const ver = harnessVersionsForMachine[harness];
-                          const label = `${HARNESS_DISPLAY_NAMES[harness]}${ver ? ` v${ver.version}` : ''}`;
-                          return (
+                    <Command className="bg-chatroom-bg-tertiary rounded-none">
+                      <CommandList>
+                        <CommandGroup>
+                          {connectedMachines.map((machine) => (
                             <CommandItem
-                              key={harness}
-                              value={label}
+                              key={machine.machineId}
+                              value={machine.hostname}
                               onSelect={() => {
-                                handleHarnessChange(harness);
-                                setHarnessPopoverOpen(false);
+                                handleMachineChange(machine.machineId);
+                                setMachinePopoverOpen(false);
                               }}
                               className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
                             >
-                              <span className="truncate">{label}</span>
-                              {displayHarness === harness && (
+                              <span className="truncate">{machine.hostname}</span>
+                              {displayMachineId === machine.machineId && (
                                 <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
                               )}
                             </CommandItem>
-                          );
-                        })}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              {isAgentRunning ? (
+                <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
+                  {displayHarness
+                    ? formatHarnessLabel(displayHarness, displayHarnessVersionsForMachine[displayHarness])
+                    : 'Harness...'}
+                </div>
+              ) : (
+                <Popover open={harnessPopoverOpen} onOpenChange={setHarnessPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      disabled={
+                        isBusy ||
+                        !displayMachineId ||
+                        availableHarnessesForMachine.length === 0
+                      }
+                      className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+                      title="Select Harness"
+                    >
+                      <span className="truncate">
+                        {displayHarness
+                          ? formatHarnessLabel(displayHarness, displayHarnessVersionsForMachine[displayHarness])
+                          : 'Harness...'}
+                      </span>
+                      <ChevronDown size={10} className="ml-1 flex-shrink-0 text-chatroom-text-muted" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 rounded-none"
+                    style={{ width: 'var(--radix-popover-trigger-width)' }}
+                  >
+                    <Command className="bg-chatroom-bg-tertiary rounded-none">
+                      <CommandList>
+                        <CommandGroup>
+                          {availableHarnessesForMachine.map((harness) => {
+                            const label = formatHarnessLabel(harness, harnessVersionsForMachine[harness]);
+                            return (
+                              <CommandItem
+                                key={harness}
+                                value={label}
+                                onSelect={() => {
+                                  handleHarnessChange(harness);
+                                  setHarnessPopoverOpen(false);
+                                }}
+                                className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
+                              >
+                                <span className="truncate">{label}</span>
+                                {displayHarness === harness && (
+                                  <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
+                                )}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
           </div>
 
@@ -796,94 +808,100 @@ export const RemoteTabContent = memo(function RemoteTabContent({
           <div className="flex items-center gap-2">
             {hasModels ? (
               <div className="flex items-center gap-1 flex-1 min-w-0">
-                {/* Model Combobox */}
-                <div className="flex-1 min-w-0">
-                  <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <button
-                        disabled={isBusy || isAgentRunning || !displayHarness}
-                        className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
-                        title="Select Model"
-                      >
-                        <span className={cn('truncate', isSelectedModelHidden && 'text-chatroom-status-warning')}>
-                          {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
-                        </span>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {/* Warning: selected model is filtered out */}
-                          {isSelectedModelHidden && (
-                            <AlertCircle
-                              size={10}
-                              className="text-chatroom-status-warning flex-shrink-0"
-                              aria-label="Selected model is hidden by filter — choose a new model"
-                            />
-                          )}
-                          {/* Active filter indicator */}
-                          {machineModelFilter &&
-                            (machineModelFilter.hiddenModels.length > 0 ||
-                              machineModelFilter.hiddenProviders.length > 0) && (
-                              <div
-                                className="w-1.5 h-1.5 bg-chatroom-accent"
-                                title="Some models are hidden"
-                              />
-                            )}
-                          <ChevronDown size={10} className="text-chatroom-text-muted" />
-                        </div>
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 w-[420px] rounded-none">
-                      <Command className="bg-chatroom-bg-tertiary rounded-none">
-                        <CommandInput
-                          placeholder="Search..."
-                          className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-tertiary border-b border-chatroom-border focus:ring-0 focus:outline-none h-8"
-                        />
-                        <CommandList className="max-h-60 overflow-y-auto">
-                          <CommandEmpty className="text-[10px] text-chatroom-text-muted uppercase tracking-wider py-2 text-center">
-                            No models found.
-                          </CommandEmpty>
-                          <CommandGroup>
-                            {visibleModels.map((model) => (
-                              <CommandItem
-                                key={model}
-                                value={getModelDisplayLabel(model)}
-                                onSelect={() => {
-                                  handleModelChange(model);
-                                  setModelPopoverOpen(false);
-                                }}
-                                className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
-                              >
-                                <span className="truncate">{getModelDisplayLabel(model)}</span>
-                                {displayModel === model && (
-                                  <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
+                {isAgentRunning ? (
+                  <div className="flex-1 min-w-0">
+                    <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
+                      {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen} modal={false}>
+                        <PopoverTrigger asChild>
+                          <button
+                            disabled={isBusy || !displayHarness}
+                            className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 h-auto hover:border-chatroom-border-strong focus:outline-none focus:border-chatroom-accent disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+                            title="Select Model"
+                          >
+                            <span className={cn('truncate', isSelectedModelHidden && 'text-chatroom-status-warning')}>
+                              {displayModel ? getModelDisplayLabel(displayModel) : 'Model...'}
+                            </span>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {isSelectedModelHidden && (
+                                <AlertCircle
+                                  size={10}
+                                  className="text-chatroom-status-warning flex-shrink-0"
+                                  aria-label="Selected model is hidden by filter — choose a new model"
+                                />
+                              )}
+                              {machineModelFilter &&
+                                (machineModelFilter.hiddenModels.length > 0 ||
+                                  machineModelFilter.hiddenProviders.length > 0) && (
+                                  <div
+                                    className="w-1.5 h-1.5 bg-chatroom-accent"
+                                    title="Some models are hidden"
+                                  />
                                 )}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                              <ChevronDown size={10} className="text-chatroom-text-muted" />
+                            </div>
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="bg-chatroom-bg-tertiary border border-chatroom-border p-0 w-[420px] rounded-none">
+                          <Command className="bg-chatroom-bg-tertiary rounded-none">
+                            <CommandInput
+                              placeholder="Search..."
+                              className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-tertiary border-b border-chatroom-border focus:ring-0 focus:outline-none h-8"
+                            />
+                            <CommandList className="max-h-60 overflow-y-auto">
+                              <CommandEmpty className="text-[10px] text-chatroom-text-muted uppercase tracking-wider py-2 text-center">
+                                No models found.
+                              </CommandEmpty>
+                              <CommandGroup>
+                                {visibleModels.map((model) => (
+                                  <CommandItem
+                                    key={model}
+                                    value={getModelDisplayLabel(model)}
+                                    onSelect={() => {
+                                      handleModelChange(model);
+                                      setModelPopoverOpen(false);
+                                    }}
+                                    className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
+                                  >
+                                    <span className="truncate">{getModelDisplayLabel(model)}</span>
+                                    {displayModel === model && (
+                                      <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
+                                    )}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
 
-                {/* Filter Icon */}
-                {displayMachineId && displayHarness && (
-                  <ModelFilterPanel
-                    open={filterPanelOpen}
-                    onOpenChange={setFilterPanelOpen}
-                    trigger={
-                      <button
-                        type="button"
-                        disabled={isBusy || isAgentRunning}
-                        className="w-7 h-7 flex items-center justify-center bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-muted hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                        title="Filter models"
-                      >
-                        <SlidersHorizontal size={10} />
-                      </button>
-                    }
-                    availableModels={availableModelsForHarness}
-                    filter={machineModelFilter}
-                    onFilterChange={handleFilterChange}
-                    disabled={isBusy || isAgentRunning}
-                  />
+                    {displayMachineId && displayHarness && (
+                      <ModelFilterPanel
+                        open={filterPanelOpen}
+                        onOpenChange={setFilterPanelOpen}
+                        trigger={
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            className="w-7 h-7 flex items-center justify-center bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-muted hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                            title="Filter models"
+                          >
+                            <SlidersHorizontal size={10} />
+                          </button>
+                        }
+                        availableModels={availableModelsForHarness}
+                        filter={machineModelFilter}
+                        onFilterChange={handleFilterChange}
+                        disabled={isBusy}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             ) : (
@@ -964,7 +982,6 @@ export const RemoteTabContent = memo(function RemoteTabContent({
 interface CustomTabContentProps {
   role: string;
   prompt: string;
-  onViewPrompt?: (role: string) => void;
 }
 
 export const CustomTabContent = memo(function CustomTabContent({
@@ -1059,7 +1076,6 @@ interface AgentConfigTabsComponentProps {
   connectedMachines: MachineInfo[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
-  onViewPrompt?: (role: string) => void;
   /** Harness from team config — passed through to RemoteTabContent for display when agent is running */
   teamConfigHarness?: AgentHarness;
 }
@@ -1073,7 +1089,6 @@ export const AgentConfigTabs = memo(function AgentConfigTabs({
   connectedMachines,
   isLoadingMachines,
   daemonStartCommand,
-  onViewPrompt,
   teamConfigHarness,
 }: AgentConfigTabsComponentProps) {
   return (
@@ -1119,7 +1134,7 @@ export const AgentConfigTabs = memo(function AgentConfigTabs({
         />
       )}
       {activeTab === 'custom' && (
-        <CustomTabContent role={role} prompt={prompt} onViewPrompt={onViewPrompt} />
+        <CustomTabContent role={role} prompt={prompt} />
       )}
     </>
   );

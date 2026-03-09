@@ -80,15 +80,6 @@ vi.mock('../../infrastructure/machine/intentional-stops.js', () => ({
   clearIntentionalStop: vi.fn(),
 }));
 
-vi.mock('../../../../utils/error-formatting.js', () => ({
-  isNetworkError: vi.fn(() => false),
-  formatConnectivityError: vi.fn(),
-}));
-
-vi.mock('../../../../version.js', () => ({
-  getVersion: vi.fn(() => '1.0.0'),
-}));
-
 // ---------------------------------------------------------------------------
 // Import function under test (after mocks are set up)
 // ---------------------------------------------------------------------------
@@ -211,7 +202,7 @@ describe('onAgentShutdown', () => {
     await onAgentShutdown(ctx, createOptions());
 
     // stops.mark must be called with correct args (including default reason)
-    expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, ROLE, 'intentional_stop');
+    expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, ROLE, 'user.stop');
 
     // stops.mark must appear before any kill call
     const markIndex = callOrder.indexOf('stops.mark');

@@ -200,7 +200,7 @@ describe('Pair Team > Builder > Custom Init Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="test-pair-chatroom" --role="builder"
       \`\`\`
 
-      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you
+      Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
 
       **Reference commands:**
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="test-pair-chatroom" --role="builder" --sender-role=user --limit=5 --full\`

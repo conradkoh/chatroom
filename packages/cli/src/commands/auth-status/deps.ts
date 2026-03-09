@@ -1,11 +1,18 @@
 /**
  * Auth-Status Deps — dependency interfaces for the auth-status command.
  *
- * Uses BackendOps and session storage for auth status display and validation.
+ * Uses backend queries and session storage for auth status display and validation.
  */
 
-import type { BackendOps } from '../../infrastructure/deps/index.js';
-import type { MachineRegistrationInfo } from '../../infrastructure/machine/types.js';
+import type { MachineConfig } from '../../infrastructure/machine/types.js';
+
+/**
+ * Backend operations for auth-status (query-only — no mutations needed).
+ */
+export interface AuthStatusBackendOps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  query: (endpoint: any, args: any) => Promise<any>;
+}
 
 /**
  * Session storage operations for auth-status (load, path, check).
@@ -20,10 +27,9 @@ export interface AuthStatusSessionOps {
  * All external dependencies for the auth-status command.
  */
 export interface AuthStatusDeps {
-  backend: BackendOps;
+  backend: AuthStatusBackendOps;
   session: AuthStatusSessionOps;
   getVersion: () => string;
-  ensureMachineRegistered: () => MachineRegistrationInfo;
-  /** Discover available models from harnesses (optional, non-critical) */
-  listAvailableModels: () => Promise<Record<string, string[]>>;
+  /** Read local machine config (no backend sync) */
+  loadMachineConfig: () => MachineConfig | null;
 }

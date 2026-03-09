@@ -10,7 +10,7 @@
  * 4. Case-insensitive role matching
  * 5. Multiple agents tracked independently
  * 6. Daemon shutdown: multiple agents marked at once
- * 7. daemon_respawn_stop reason is stored and returned correctly
+ * 7. daemon.respawn reason is stored and returned correctly
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -51,14 +51,14 @@ describe('agentKey', () => {
 // ---------------------------------------------------------------------------
 
 describe('intentional stop flow', () => {
-  it('marks and consumes an intentional stop — returns intentional_stop reason', () => {
+  it('marks and consumes an intentional stop — returns user.stop reason', () => {
     markIntentionalStop('chatroom1', 'builder');
 
     // Should be marked
     expect(isMarkedForIntentionalStop('chatroom1', 'builder')).toBe(true);
 
-    // Consuming should return 'intentional_stop' (and remove the marker)
-    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('intentional_stop');
+    // Consuming should return 'user.stop' (and remove the marker)
+    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('user.stop');
 
     // After consuming, the marker is gone
     expect(isMarkedForIntentionalStop('chatroom1', 'builder')).toBe(false);
@@ -72,29 +72,29 @@ describe('intentional stop flow', () => {
   it('consuming is idempotent — second consume returns null', () => {
     markIntentionalStop('chatroom1', 'reviewer');
 
-    expect(consumeIntentionalStop('chatroom1', 'reviewer')).toBe('intentional_stop');
+    expect(consumeIntentionalStop('chatroom1', 'reviewer')).toBe('user.stop');
     expect(consumeIntentionalStop('chatroom1', 'reviewer')).toBeNull();
   });
 
-  it('marks and consumes a daemon_respawn_stop — returns daemon_respawn_stop reason', () => {
-    markIntentionalStop('chatroom1', 'builder', 'daemon_respawn_stop');
+  it('marks and consumes a daemon.respawn — returns daemon.respawn reason', () => {
+    markIntentionalStop('chatroom1', 'builder', 'daemon.respawn');
 
     expect(isMarkedForIntentionalStop('chatroom1', 'builder')).toBe(true);
-    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('daemon_respawn_stop');
+    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('daemon.respawn');
     expect(isMarkedForIntentionalStop('chatroom1', 'builder')).toBe(false);
   });
 
-  it('default reason is intentional_stop when not specified', () => {
+  it('default reason is user.stop when not specified', () => {
     markIntentionalStop('chatroom1', 'planner');
-    expect(consumeIntentionalStop('chatroom1', 'planner')).toBe('intentional_stop');
+    expect(consumeIntentionalStop('chatroom1', 'planner')).toBe('user.stop');
   });
 
-  it('daemon_respawn_stop and intentional_stop can coexist for different roles', () => {
-    markIntentionalStop('chatroom1', 'builder', 'daemon_respawn_stop');
-    markIntentionalStop('chatroom1', 'reviewer', 'intentional_stop');
+  it('daemon.respawn and user.stop can coexist for different roles', () => {
+    markIntentionalStop('chatroom1', 'builder', 'daemon.respawn');
+    markIntentionalStop('chatroom1', 'reviewer', 'user.stop');
 
-    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('daemon_respawn_stop');
-    expect(consumeIntentionalStop('chatroom1', 'reviewer')).toBe('intentional_stop');
+    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('daemon.respawn');
+    expect(consumeIntentionalStop('chatroom1', 'reviewer')).toBe('user.stop');
   });
 });
 
@@ -127,7 +127,7 @@ describe('clearIntentionalStop', () => {
 describe('case-insensitive role matching', () => {
   it('matches regardless of role case in mark vs consume', () => {
     markIntentionalStop('chatroom1', 'Builder');
-    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('intentional_stop');
+    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('user.stop');
   });
 
   it('matches regardless of role case in mark vs isMarked', () => {
@@ -150,7 +150,7 @@ describe('multiple agents', () => {
     expect(isMarkedForIntentionalStop('chatroom2', 'reviewer')).toBe(true);
 
     // Consuming one doesn't affect the other
-    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('intentional_stop');
+    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('user.stop');
     expect(isMarkedForIntentionalStop('chatroom2', 'reviewer')).toBe(true);
   });
 
@@ -158,16 +158,16 @@ describe('multiple agents', () => {
     markIntentionalStop('chatroom1', 'builder');
     markIntentionalStop('chatroom1', 'reviewer');
 
-    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('intentional_stop');
-    expect(consumeIntentionalStop('chatroom1', 'reviewer')).toBe('intentional_stop');
+    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('user.stop');
+    expect(consumeIntentionalStop('chatroom1', 'reviewer')).toBe('user.stop');
   });
 
   it('same role different chatrooms are independent', () => {
     markIntentionalStop('chatroom1', 'builder');
     markIntentionalStop('chatroom2', 'builder');
 
-    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('intentional_stop');
-    expect(consumeIntentionalStop('chatroom2', 'builder')).toBe('intentional_stop');
+    expect(consumeIntentionalStop('chatroom1', 'builder')).toBe('user.stop');
+    expect(consumeIntentionalStop('chatroom2', 'builder')).toBe('user.stop');
   });
 });
 
@@ -195,7 +195,7 @@ describe('daemon shutdown scenario', () => {
 
     // Consuming each should return the reason once
     for (const agent of agents) {
-      expect(consumeIntentionalStop(agent.chatroomId, agent.role)).toBe('intentional_stop');
+      expect(consumeIntentionalStop(agent.chatroomId, agent.role)).toBe('user.stop');
     }
 
     // All consumed

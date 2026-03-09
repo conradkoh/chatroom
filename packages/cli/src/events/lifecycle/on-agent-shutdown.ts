@@ -8,8 +8,8 @@ export interface OnAgentShutdownOptions {
   /** If true, skip the kill step (process already dead) */
   skipKill?: boolean;
   /**
-   * The stop reason to record. Defaults to 'intentional_stop' (user-initiated).
-   * Pass 'daemon_respawn_stop' when the daemon is killing to spawn a fresh agent.
+   * The stop reason to record. Defaults to 'user.stop' (user-initiated).
+   * Pass 'daemon.respawn' when the daemon is killing to spawn a fresh agent.
    */
   stopReason?: StopReason;
 }
@@ -45,7 +45,7 @@ export async function onAgentShutdown(
   // the process exits before the mark, causing onExit to treat it as an unexpected crash.
   // Wrapped in try/catch: if marking fails we still want to proceed with the kill.
   try {
-    ctx.deps.stops.mark(chatroomId, role, options.stopReason ?? 'intentional_stop');
+    ctx.deps.stops.mark(chatroomId, role, options.stopReason ?? 'user.stop');
   } catch (e) {
     console.log(`   ⚠️  Failed to mark intentional stop for ${role}: ${(e as Error).message}`);
   }

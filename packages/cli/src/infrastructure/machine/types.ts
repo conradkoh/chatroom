@@ -2,39 +2,12 @@
  * Machine Identity Types
  *
  * Type definitions for machine configuration and agent management.
+ * AgentHarness and HarnessVersionInfo are canonical in the backend domain layer.
  */
 
-/**
- * Supported AI agent harnesses that can be spawned.
- *
- * "Harness" refers to the AI development environment / tool runner
- * (e.g. Cursor, OpenCode, Claude). This avoids confusion with the AI
- * concept of "tools" (read file, write file, web search, etc.).
- */
-export type AgentHarness = 'opencode' | 'pi';
+import type { AgentHarness, HarnessVersionInfo } from '@workspace/backend/src/domain/entities/agent';
 
-/**
- * All supported agent harnesses
- */
-export const AGENT_HARNESSES: AgentHarness[] = ['opencode', 'pi'];
-
-/**
- * Command names for each agent harness (used for detection)
- */
-export const AGENT_HARNESS_COMMANDS: Record<AgentHarness, string> = {
-  opencode: 'opencode',
-  pi: 'pi',
-};
-
-/**
- * Detected harness version info
- */
-export interface HarnessVersionInfo {
-  /** Full version string (e.g. "1.2.3") */
-  version: string;
-  /** Major version number for compatibility gating */
-  major: number;
-}
+export type { AgentHarness, HarnessVersionInfo };
 
 /**
  * Per-endpoint machine entry in the versioned config file.

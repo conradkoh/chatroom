@@ -11,7 +11,7 @@
  * 2. The agent.exited event is written correctly
  *
  * The core restart condition logic is:
- * - intentional_stop → NO restart
+ * - user.stop → NO restart
  * - Any other stopReason → restart (guarded by desiredState)
  * - No stopReason → falls back to !intentional flag
  */
@@ -150,21 +150,21 @@ async function countAgentExitedEvents(chatroomId: Id<'chatroom_rooms'>) {
 // ---------------------------------------------------------------------------
 
 describe('onAgentExited via recordAgentExited — stopReason handling', () => {
-  test('records agent.exited event for intentional_stop', async () => {
+  test('records agent.exited event for user.stop', async () => {
     const { sessionId } = await createTestSession('oae-1');
     const chatroomId = await createChatroom(sessionId);
     await registerMachineAndConfig(sessionId, 'oae-m1', chatroomId, 'running');
 
     await callRecordAgentExited(sessionId, 'oae-m1', chatroomId, {
       intentional: true,
-      stopReason: 'intentional_stop',
+      stopReason: 'user.stop',
     });
 
     const exitEvents = await countAgentExitedEvents(chatroomId);
     expect(exitEvents).toBe(1); // Event recorded but no restart scheduled
   });
 
-  test('records agent.exited event for process_exited_with_success', async () => {
+  test('records agent.exited event for agent_process.exited_clean', async () => {
     const { sessionId } = await createTestSession('oae-2');
     const chatroomId = await createChatroom(sessionId);
     await registerMachineAndConfig(sessionId, 'oae-m2', chatroomId, 'running');
@@ -172,31 +172,31 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
 
     await callRecordAgentExited(sessionId, 'oae-m2', chatroomId, {
       intentional: false,
-      stopReason: 'process_exited_with_success',
+      stopReason: 'agent_process.exited_clean',
     });
 
     const exitEvents = await countAgentExitedEvents(chatroomId);
     expect(exitEvents).toBe(1); // Event recorded, restart scheduled (can't verify schedule in test)
   });
 
-  test('records agent.exited event for process_terminated_with_signal', async () => {
+  test('records agent.exited event for agent_process.signal', async () => {
     // Key test: agent_end → SIGTERM flow produces this stopReason
     const { sessionId } = await createTestSession('oae-3');
     const chatroomId = await createChatroom(sessionId);
     await registerMachineAndConfig(sessionId, 'oae-m3', chatroomId, 'running');
     await seedPendingTask(chatroomId);
 
-    // This should NOT throw — process_terminated_with_signal is now restartable
+    // This should NOT throw — agent_process.signal is now restartable
     await callRecordAgentExited(sessionId, 'oae-m3', chatroomId, {
       intentional: false,
-      stopReason: 'process_terminated_with_signal',
+      stopReason: 'agent_process.signal',
     });
 
     const exitEvents = await countAgentExitedEvents(chatroomId);
     expect(exitEvents).toBe(1);
   });
 
-  test('records agent.exited event for process_terminated_unexpectedly', async () => {
+  test('records agent.exited event for agent_process.crashed', async () => {
     const { sessionId } = await createTestSession('oae-4');
     const chatroomId = await createChatroom(sessionId);
     await registerMachineAndConfig(sessionId, 'oae-m4', chatroomId, 'running');
@@ -204,7 +204,7 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
 
     await callRecordAgentExited(sessionId, 'oae-m4', chatroomId, {
       intentional: false,
-      stopReason: 'process_terminated_unexpectedly',
+      stopReason: 'agent_process.crashed',
     });
 
     const exitEvents = await countAgentExitedEvents(chatroomId);
@@ -220,7 +220,7 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
     // Should complete without error — desiredState guard prevents restart
     await callRecordAgentExited(sessionId, 'oae-m5', chatroomId, {
       intentional: false,
-      stopReason: 'process_terminated_with_signal',
+      stopReason: 'agent_process.signal',
     });
 
     const exitEvents = await countAgentExitedEvents(chatroomId);
@@ -234,7 +234,7 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
 
     await callRecordAgentExited(sessionId, 'oae-m6', chatroomId, {
       intentional: true,
-      stopReason: 'intentional_stop',
+      stopReason: 'user.stop',
     });
 
     // Verify the PID was cleared in machine agent config

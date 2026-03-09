@@ -11,9 +11,7 @@ import { api } from '../../api.js';
 import type { Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
-import { ensureMachineRegistered } from '../../infrastructure/machine/index.js';
-import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
-import { PiAgentService } from '../../infrastructure/services/remote-agents/pi/index.js';
+import { getMachineId, loadMachineConfig } from '../../infrastructure/machine/index.js';
 
 // ─── Re-exports for testing ────────────────────────────────────────────────
 
@@ -107,65 +105,35 @@ export async function registerAgent(
   }
 
   if (type === 'remote') {
-    // Remote type: register machine and emit agent.registered event.
+    // Remote type: emit agent.registered event so the frontend shows the agent as online.
     // NOTE: saveTeamAgentConfig is intentionally NOT called here.
     // The team agent config (harness, model, workingDir) is owned exclusively
-    // by start-agent (the UI "Start Agent" button). Instead, we emit an
-    // agent.registered event directly via recordAgentRegistered so the
-    // frontend can immediately reflect the agent's online status.
-    try {
-      const machineInfo = ensureMachineRegistered();
-
-      // Discover available models from all installed harnesses (non-critical)
-      const availableModels: Record<string, string[]> = {};
-      try {
-        const opencodeService = new OpenCodeAgentService();
-        if (opencodeService.isInstalled()) {
-          availableModels['opencode'] = await opencodeService.listModels();
-        }
-      } catch {
-        /* non-critical */
-      }
-      try {
-        const piService = new PiAgentService();
-        if (piService.isInstalled()) {
-          availableModels['pi'] = await piService.listModels();
-        }
-      } catch {
-        /* non-critical */
-      }
-
-      // Register/update machine in backend (machine identity + capabilities only)
-      await d.backend.mutation(api.machines.register, {
-        sessionId,
-        machineId: machineInfo.machineId,
-        hostname: machineInfo.hostname,
-        os: machineInfo.os,
-        availableHarnesses: machineInfo.availableHarnesses,
-        harnessVersions: machineInfo.harnessVersions,
-        availableModels,
-      });
-
-      // Emit agent.registered event so the frontend shows this agent as online
-      try {
-        await d.backend.mutation(api.machines.recordAgentRegistered, {
-          sessionId,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-          role,
-          agentType: 'remote',
-          machineId: machineInfo.machineId,
-        });
-      } catch {
-        // Non-critical — agent will still show as online once get-next-task starts
-      }
-
-      console.log(`✅ Registered as remote agent for role "${role}"`);
-      console.log(`   Machine: ${machineInfo.hostname} (${machineInfo.machineId})`);
-      console.log(`   Working directory: ${process.cwd()}`);
-    } catch (error) {
-      console.error(`❌ Registration failed: ${(error as Error).message}`);
+    // by start-agent (the UI "Start Agent" button).
+    //
+    // Machine registration + model discovery is owned by the daemon (`machine start`).
+    // We only read the machineId from local config here.
+    const machineId = getMachineId();
+    if (!machineId) {
+      console.error(`❌ Machine not registered. Run \`chatroom machine start\` first.`);
       process.exit(1);
     }
+    const config = loadMachineConfig();
+
+    try {
+      await d.backend.mutation(api.machines.recordAgentRegistered, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        role,
+        agentType: 'remote',
+        machineId,
+      });
+    } catch {
+      // Non-critical — agent will still show as online once get-next-task starts
+    }
+
+    console.log(`✅ Registered as remote agent for role "${role}"`);
+    console.log(`   Machine: ${config?.hostname ?? 'unknown'} (${machineId})`);
+    console.log(`   Working directory: ${process.cwd()}`);
   } else {
     // Custom type: register without machine details
     try {

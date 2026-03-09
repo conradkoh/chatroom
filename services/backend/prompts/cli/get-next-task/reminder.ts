@@ -12,7 +12,7 @@
  * Format: Single line, positive framing, clear consequence
  */
 export function getNextTaskReminder(): string {
-  return 'Message availability is critical: Use `get-next-task` in the foreground to stay connected, otherwise your team cannot reach you';
+  return 'Message availability is critical: Use `get-next-task` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.';
 }
 
 /**

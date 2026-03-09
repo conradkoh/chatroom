@@ -27,12 +27,12 @@ export function agentKey(chatroomId: string, role: string): string {
 /**
  * Mark an agent as being stopped with the given reason.
  * Call this before sending SIGTERM so the onExit handler can check.
- * Defaults to 'intentional_stop' (user-initiated stop).
+ * Defaults to 'user.stop' (user-initiated stop).
  */
 export function markIntentionalStop(
   chatroomId: string,
   role: string,
-  reason: StopReason = 'intentional_stop'
+  reason: StopReason = 'user.stop'
 ): void {
   pendingStops.set(agentKey(chatroomId, role), reason);
 }

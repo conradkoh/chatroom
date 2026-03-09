@@ -2,6 +2,7 @@
 
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
+import { agentHarnessValidator } from './schema';
 
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
@@ -101,8 +102,6 @@ async function getOwnedMachine(
   return machine;
 }
 
-// Agent harness type validator (shared across functions)
-const agentHarnessValidator = v.union(v.literal('opencode'), v.literal('pi'));
 
 // ============================================================================
 // MACHINE REGISTRATION
@@ -173,6 +172,48 @@ export const register = mutation({
     });
 
     return { machineId: args.machineId, isNew: true };
+  },
+});
+
+/**
+ * Patch mutable capabilities on an already-registered machine.
+ * Used by the daemon's periodic refresh loop — only updates fields that
+ * can change at runtime (harnesses, models). Fails if the machine has
+ * not been registered via `register` first.
+ */
+export const refreshCapabilities = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    availableHarnesses: v.array(agentHarnessValidator),
+    harnessVersions: v.optional(v.record(v.string(), harnessVersionValidator)),
+    availableModels: v.optional(v.record(v.string(), v.array(v.string()))),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    const user = auth.user;
+
+    const existing = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+
+    if (!existing) {
+      throw new Error('Machine not registered. Run `chatroom machine start` first.');
+    }
+    if (existing.userId !== user._id) {
+      throw new Error('Machine is registered to a different user');
+    }
+
+    await ctx.db.patch('chatroom_machines', existing._id, {
+      availableHarnesses: args.availableHarnesses,
+      harnessVersions: args.harnessVersions,
+      availableModels: args.availableModels,
+      lastSeenAt: Date.now(),
+    });
   },
 });
 
@@ -588,10 +629,7 @@ export const sendCommand = mutation({
         .first();
 
       const resolvedModel = args.payload.model ?? existingConfig?.model;
-      const resolvedHarness = (args.payload.agentHarness ?? existingConfig?.agentType) as
-        | 'opencode'
-        | 'pi'
-        | undefined;
+      const resolvedHarness = args.payload.agentHarness ?? existingConfig?.agentType;
       const resolvedWorkingDir = args.payload.workingDir ?? existingConfig?.workingDir;
 
       if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
@@ -689,7 +727,7 @@ export const updateSpawnedAgent = mutation({
         chatroomId: args.chatroomId,
         role: args.role,
         machineId: args.machineId,
-        agentHarness: config.agentType as 'opencode' | 'pi',
+        agentHarness: config.agentType,
         model: args.model ?? config.model ?? 'unknown',
         workingDir: config.workingDir,
         pid: args.pid,
@@ -1065,7 +1103,7 @@ export const getMachineModelFilters = query({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+    agentHarness: agentHarnessValidator,
   },
   handler: async (ctx, args) => {
     const filter = await ctx.db
@@ -1083,7 +1121,7 @@ export const upsertMachineModelFilters = mutation({
   args: {
     ...SessionIdArg,
     machineId: v.string(),
-    agentHarness: v.union(v.literal('opencode'), v.literal('pi')),
+    agentHarness: agentHarnessValidator,
     hiddenModels: v.array(v.string()),
     hiddenProviders: v.array(v.string()),
   },

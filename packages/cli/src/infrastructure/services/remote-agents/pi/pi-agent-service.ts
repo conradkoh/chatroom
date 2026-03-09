@@ -26,8 +26,6 @@ import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { PiRpcReader } from './pi-rpc-reader.js';
 
-// ─── Re-export deps type under the legacy name for backwards compatibility ────
-
 export type PiAgentServiceDeps = CLIAgentServiceDeps;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -47,6 +45,10 @@ const DEFAULT_TRIGGER_PROMPT =
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class PiAgentService extends BaseCLIAgentService {
+  readonly id = 'pi';
+  readonly displayName = 'Pi';
+  readonly command = PI_COMMAND;
+
   constructor(deps?: Partial<CLIAgentServiceDeps>) {
     super(deps);
   }
