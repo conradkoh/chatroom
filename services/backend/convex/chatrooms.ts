@@ -250,7 +250,6 @@ export const updateTeam = mutation({
     const now = Date.now();
 
     for (const config of existingConfigs) {
-      // Dispatch stop-agent event for any running remote agents
       if (config.machineId && config.desiredState === 'running') {
         await ctx.db.insert('chatroom_eventStream', {
           type: 'agent.requestStop',
@@ -263,9 +262,34 @@ export const updateTeam = mutation({
         });
       }
 
-      // Delete the stale config — new configs will be created fresh when agents
-      // are restarted under the new team structure
       await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+    }
+
+    // Purge machine agent configs for roles that no longer exist in the new team.
+    // These are machine-level runtime records that would otherwise be orphaned.
+    const newRolesLower = new Set(args.teamRoles.map((r) => r.toLowerCase()));
+
+    const machineConfigs = await ctx.db
+      .query('chatroom_machineAgentConfigs')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    for (const mc of machineConfigs) {
+      if (!newRolesLower.has(mc.role.toLowerCase())) {
+        await ctx.db.delete('chatroom_machineAgentConfigs', mc._id);
+      }
+    }
+
+    // Purge agent preferences for roles that no longer exist in the new team.
+    const agentPrefs = await ctx.db
+      .query('chatroom_agentPreferences')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    for (const pref of agentPrefs) {
+      if (pref.role && !newRolesLower.has(pref.role.toLowerCase())) {
+        await ctx.db.delete('chatroom_agentPreferences', pref._id);
+      }
     }
   },
 });
