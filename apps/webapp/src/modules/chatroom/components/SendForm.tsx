@@ -41,10 +41,14 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
   // ── Draft persistence ─────────────────────────────────────────────────────
   const draftKey = `chatroom-draft:${chatroomId}`;
 
-  // Restore draft on mount (once per chatroomId)
+  // Restore draft on mount (once per chatroomId) and auto-focus the textarea
   useEffect(() => {
     const saved = localStorage.getItem(draftKey);
     if (saved) setMessage(saved);
+    // Auto-focus when switching chatrooms (non-touch devices only)
+    if (!isTouchDevice) {
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatroomId]);
 
