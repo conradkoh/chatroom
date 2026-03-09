@@ -74,13 +74,21 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
 
   return (
     <>
-      <button
-        className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-all duration-100 border-b border-chatroom-border ${
+      <div
+        role="button"
+        tabIndex={0}
+        className={`w-full cursor-pointer text-left px-3 py-2 flex items-center gap-2 transition-all duration-100 border-b border-chatroom-border ${
           isActive
             ? 'bg-chatroom-bg-hover border-l-2 border-l-chatroom-accent'
             : 'border-l-2 border-l-transparent hover:bg-chatroom-bg-hover hover:border-l-chatroom-border'
         }`}
         onClick={() => onSelect(chatroom._id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelect(chatroom._id);
+          }
+        }}
       >
         {/* Status indicator - square per theme guidelines */}
         <span className={getStatusIndicatorClasses(chatroom.chatStatus)} />
@@ -121,7 +129,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
             <Play size={10} fill="currentColor" />
           </button>
         )}
-      </button>
+      </div>
 
       {startModalOpen && (
         <AgentStartModal
