@@ -4,31 +4,17 @@
  * Shared types and constants for machine identity and agent management.
  * Used by AgentPanel.tsx and AgentConfigTabs.tsx.
  *
- * These mirror the canonical definitions in packages/cli/src/infrastructure/machine/types.ts
- * but are maintained separately since the CLI is a Node package and can't be imported
- * directly by the Next.js frontend.
+ * AgentHarness and HarnessVersionInfo are canonical in the backend domain layer.
  *
  * "Harness" refers to the AI development environment / tool runner
  * (e.g. Cursor, OpenCode, Claude). This avoids confusion with the AI
  * concept of "tools" (read file, write file, web search, etc.).
  */
 
-// ─── Types ──────────────────────────────────────────────────────────
-
-// ─── Send Command (discriminated union) ─────────────────────────────
-
-/**
- * Discriminated union for machine command arguments.
- * Each command type carries only the payload it needs.
- */
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { AgentHarness, HarnessVersionInfo } from '@workspace/backend/src/domain/entities/agent';
 
-export type AgentHarness = 'opencode' | 'pi' | 'cursor';
-
-export interface HarnessVersionInfo {
-  version: string;
-  major: number;
-}
+export type { AgentHarness, HarnessVersionInfo };
 
 export interface MachineInfo {
   machineId: string;
