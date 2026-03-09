@@ -451,7 +451,7 @@ export const getLatestAgentEventsForChatroom = query({
     const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
     if (!chatroom) return {};
 
-    // Fetch latest event for each role in parallel
+    // Fetch latest event + team config for each role in parallel
     const results = await Promise.all(
       args.roles.map(async (role) => {
         const event = await ctx.db
@@ -461,15 +461,35 @@ export const getLatestAgentEventsForChatroom = query({
           )
           .order('desc')
           .first();
-        return { role, event: event ?? null };
+        const teamConfig = await ctx.db
+          .query('chatroom_teamAgentConfigs')
+          .withIndex('by_chatroom_role', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('role', role)
+          )
+          .first();
+        return { role, event: event ?? null, desiredState: teamConfig?.desiredState ?? null };
       })
     );
 
+    // Terminal event types that definitively reflect agent state (not overridden by desiredState)
+    const TERMINAL_EVENT_TYPES = new Set(['agent.exited', 'agent.circuitOpen']);
+
     // Build role → latestEventType map (omit roles with no events)
     const eventMap: Record<string, string> = {};
-    for (const { role, event } of results) {
+    for (const { role, event, desiredState } of results) {
       if (event !== null) {
-        eventMap[role] = event.type;
+        const eventType = event.type;
+        // If the agent config says it should be stopped, but the latest event is not a terminal
+        // event (e.g. still showing 'agent.waiting' because the stop hasn't propagated yet),
+        // return 'agent.requestStop' to show "STOPPING" in the UI instead of "WAITING".
+        if (
+          desiredState === 'stopped' &&
+          !TERMINAL_EVENT_TYPES.has(eventType)
+        ) {
+          eventMap[role] = 'agent.requestStop';
+        } else {
+          eventMap[role] = eventType;
+        }
       }
     }
 
