@@ -17,12 +17,3 @@ export function getAllHarnesses(): RemoteAgentService[] {
   return [...registry.values()];
 }
 
-/** Get all harness IDs (string array). */
-export function getHarnessIds(): string[] {
-  return [...registry.keys()];
-}
-
-/** Get only installed harness services. */
-export function getInstalledHarnesses(): RemoteAgentService[] {
-  return getAllHarnesses().filter((s) => s.isInstalled());
-}

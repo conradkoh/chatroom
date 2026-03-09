@@ -56,11 +56,3 @@ export function detectAvailableHarnesses(): AgentHarness[] {
     .filter((s) => s.isInstalled())
     .map((s) => s.id as AgentHarness);
 }
-
-/**
- * Check if a specific agent harness is available
- */
-export function isHarnessAvailable(harness: AgentHarness): boolean {
-  initHarnessRegistry();
-  return getHarness(harness)?.isInstalled() ?? false;
-}
