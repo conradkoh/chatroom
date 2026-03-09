@@ -1303,6 +1303,42 @@ export const getAgentRestartSummary = query({
   },
 });
 
+/** Returns restart summary for an agent role within a chatroom, aggregated across all machines. */
+export const getAgentRestartSummaryByRole = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return { count1h: 0, count24h: 0 };
+
+    const now = Date.now();
+    const since1h = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
+    const since24h = Math.floor((now - 24 * 3_600_000) / 3_600_000) * 3_600_000;
+
+    // Query rows for chatroom + role starting from 24h ago (all machines)
+    const rows = await ctx.db
+      .query('chatroom_agentRestartMetrics')
+      .withIndex('by_chatroom_role_hour', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role).gte('hourBucket', since24h)
+      )
+      .collect();
+
+    let count1h = 0;
+    let count24h = 0;
+    for (const row of rows) {
+      count24h += row.count;
+      if (row.hourBucket >= since1h) {
+        count1h += row.count;
+      }
+    }
+
+    return { count1h, count24h };
+  },
+});
+
 // ============================================================================
 // NEW QUERIES — Phase 3 (use-case wrappers)
 // ============================================================================
