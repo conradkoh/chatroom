@@ -13,6 +13,9 @@ import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/sta
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { onAgentExited as onAgentExitedEvent } from '../src/events/agent/on-agent-exited';
+import { getAgentStatusForChatroom } from '../src/domain/usecase/agent/get-agent-status-for-chatroom';
+import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
+import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -312,8 +315,11 @@ export const getMachineAgentConfigs = query({
   },
 });
 
-/** Returns all four data sources for the agent panel in a single atomic read:
- *  machines, machine agent configs, team agent configs, and user preferences. */
+/**
+ * Returns all four data sources for the agent panel in a single atomic read:
+ * machines, machine agent configs, team agent configs, and user preferences.
+ * @deprecated Use `getAgentStatus` for status view and `getAgentStartConfig` for start form defaults.
+ */
 export const getAgentPanel = query({
   args: {
     ...SessionIdArg,
@@ -1204,7 +1210,10 @@ export const upsertMachineModelFilters = mutation({
   },
 });
 
-/** Returns the remote agent running status for every chatroom owned by the authenticated user. */
+/**
+ * Returns the remote agent running status for every chatroom owned by the authenticated user.
+ * @deprecated Use `listAgentOverview` instead, which returns the same data without exposing machineIds.
+ */
 export const listRemoteAgentRunningStatus = query({
   args: { ...SessionIdArg },
   handler: async (ctx, args) => {
@@ -1372,5 +1381,60 @@ export const getAgentRestartSummary = query({
     }
 
     return { count1h, count24h };
+  },
+});
+
+// ============================================================================
+// NEW QUERIES — Phase 3 (use-case wrappers)
+// ============================================================================
+
+/** Returns a role-centric view of agent status for a chatroom, merging team + machine configs. */
+export const getAgentStatus = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return null;
+
+    return getAgentStatusForChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      userId: auth.user._id,
+    });
+  },
+});
+
+/** Returns the data needed to populate the "Start Agent" form for a specific role. */
+export const getAgentStartConfig = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return null;
+
+    return getAgentConfigForStart(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      userId: auth.user._id,
+    });
+  },
+});
+
+/** Returns a per-chatroom summary of agent status for all chatrooms owned by the user. */
+export const listAgentOverview = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return [];
+
+    return listChatroomAgentOverview(ctx, {
+      userId: auth.user._id,
+    });
   },
 });
