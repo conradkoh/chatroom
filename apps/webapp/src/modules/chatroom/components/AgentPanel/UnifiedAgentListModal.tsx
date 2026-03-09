@@ -20,7 +20,6 @@ export interface AgentWithStatus {
   online: boolean;
   lastSeenAt?: number | null;
   latestEventType?: string | null;
-  isStuck?: boolean;
 }
 
 interface UnifiedAgentListModalProps {
