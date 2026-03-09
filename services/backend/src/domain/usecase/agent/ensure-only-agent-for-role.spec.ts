@@ -187,7 +187,7 @@ describe('ensureOnlyAgentForRole', () => {
     if (evt.type === 'agent.requestStop') {
       expect(evt.machineId).toBe('machine-f');
       expect(evt.role).toBe('builder');
-      expect(evt.reason).toBe('dedup-stop');
+      expect(evt.reason).toBe('platform.dedup');
       expect(evt.deadline).toBeGreaterThan(before);
       expect(typeof evt.timestamp).toBe('number');
     }

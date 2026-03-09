@@ -2,6 +2,10 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 
+import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+
 import { useAgentControls, RemoteTabContent } from './AgentConfigTabs';
 import type { AgentPreference } from './AgentConfigTabs';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
@@ -32,20 +36,21 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
   const daemonStartCommand = getDaemonStartCommand();
 
   const {
+    teamRoles,
     connectedMachines,
     machineConfigs,
-    agentPreferenceMap,
     isLoading,
     sendCommand,
     savePreference,
   } = useAgentPanelData(chatroomId);
 
-  // Role selection
+  // Role selection — use teamRoles from getAgentStatus, with fallback to machineConfigs + knownRoles
   const availableRoles = useMemo<string[]>(() => {
+    const fromTeam = teamRoles;
     const fromConfigs = machineConfigs.map((c) => c.role);
     const fromKnown = knownRoles ?? [];
-    return [...new Set([...fromConfigs, ...fromKnown])];
-  }, [machineConfigs, knownRoles]);
+    return [...new Set([...fromTeam, ...fromConfigs, ...fromKnown])];
+  }, [teamRoles, machineConfigs, knownRoles]);
 
   const [selectedRole, setSelectedRole] = useState<string | null>(initialRole ?? null);
 
@@ -56,13 +61,30 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
     }
   }, [availableRoles]);
 
-  const agentPreference = useMemo<AgentPreference | undefined>(
-    () => {
-      if (!selectedRole) return undefined;
-      return agentPreferenceMap.get(selectedRole.toLowerCase());
-    },
-    [agentPreferenceMap, selectedRole]
+  // Use getAgentStartConfig for form defaults
+  const startConfig = useSessionQuery(
+    api.machines.getAgentStartConfig,
+    selectedRole
+      ? {
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role: selectedRole,
+        }
+      : 'skip'
   );
+
+  // Build agent preference from server-computed defaults
+  const agentPreference = useMemo<AgentPreference | undefined>(() => {
+    if (!startConfig?.defaults || !selectedRole) return undefined;
+    const d = startConfig.defaults;
+    if (!d.machineId || !d.agentHarness) return undefined;
+    return {
+      role: selectedRole,
+      machineId: d.machineId,
+      agentHarness: d.agentHarness as AgentPreference['agentHarness'],
+      model: d.model,
+      workingDir: d.workingDir,
+    };
+  }, [startConfig, selectedRole]);
 
   const handleSavePreference = useCallback(
     (pref: AgentPreference) => {

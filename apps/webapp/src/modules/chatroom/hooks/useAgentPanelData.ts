@@ -1,23 +1,22 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type {
+  AgentRoleView,
+  WorkspaceView,
+} from '@workspace/backend/src/domain/usecase/agent/get-agent-status-for-chatroom';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useMemo, useCallback } from 'react';
-import type { MachineInfo, AgentConfig, AgentHarness } from '../types/machine';
+import type { MachineInfo, AgentConfig } from '../types/machine';
 import type { AgentPreference } from '../components/AgentConfigTabs';
 
-export interface TeamAgentConfig {
-  role: string;
-  type: 'remote' | 'custom';
-  machineId?: string;
-  agentHarness?: AgentHarness;
-  model?: string;
-  workingDir?: string;
-}
+export type { AgentRoleView, WorkspaceView };
 
 export interface AgentPanelData {
+  agents: AgentRoleView[];
+  teamRoles: string[];
+  workspaces: WorkspaceView[];
   connectedMachines: MachineInfo[];
   machineConfigs: AgentConfig[];
-  teamConfigMap: Map<string, TeamAgentConfig>;
   agentPreferenceMap: Map<string, AgentPreference>;
   isLoading: boolean;
   sendCommand: ReturnType<typeof useSessionMutation>;
@@ -25,38 +24,52 @@ export interface AgentPanelData {
 }
 
 export function useAgentPanelData(chatroomId: string): AgentPanelData {
-  const panelResult = useSessionQuery(api.machines.getAgentPanel, {
+  const statusResult = useSessionQuery(api.machines.getAgentStatus, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+  });
+
+  const machineResult = useSessionQuery(api.machines.listMachines);
+
+  const machineConfigResult = useSessionQuery(api.machines.getMachineAgentConfigs, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
 
   const sendCommand = useSessionMutation(api.machines.sendCommand);
   const saveAgentPreference = useSessionMutation(api.machines.saveAgentPreference);
 
+  const agents = useMemo<AgentRoleView[]>(
+    () => statusResult?.agents ?? [],
+    [statusResult?.agents]
+  );
+
+  const teamRoles = useMemo<string[]>(
+    () => statusResult?.teamRoles ?? [],
+    [statusResult?.teamRoles]
+  );
+
+  const workspaces = useMemo<WorkspaceView[]>(
+    () => statusResult?.workspaces ?? [],
+    [statusResult?.workspaces]
+  );
+
   const connectedMachines = useMemo<MachineInfo[]>(
-    () => ((panelResult?.machines ?? []) as MachineInfo[]).filter((m) => m.daemonConnected),
-    [panelResult?.machines]
+    () => ((machineResult?.machines ?? []) as MachineInfo[]).filter((m) => m.daemonConnected),
+    [machineResult?.machines]
   );
 
   const machineConfigs = useMemo<AgentConfig[]>(
-    () => (panelResult?.machineConfigs ?? []) as AgentConfig[],
-    [panelResult?.machineConfigs]
+    () => (machineConfigResult?.configs ?? []) as AgentConfig[],
+    [machineConfigResult?.configs]
   );
 
-  const teamConfigMap = useMemo(() => {
-    if (!panelResult?.teamConfigs) return new Map<string, TeamAgentConfig>();
-    return new Map(
-      (panelResult.teamConfigs as TeamAgentConfig[]).map((c) => [c.role.toLowerCase(), c])
-    );
-  }, [panelResult?.teamConfigs]);
-
   const agentPreferenceMap = useMemo(() => {
-    if (!panelResult?.preferences) return new Map<string, AgentPreference>();
-    return new Map(
-      (panelResult.preferences as AgentPreference[]).map((p) => [p.role.toLowerCase(), p])
-    );
-  }, [panelResult?.preferences]);
+    return new Map<string, AgentPreference>();
+  }, []);
 
-  const isLoading = panelResult === undefined;
+  const isLoading =
+    statusResult === undefined ||
+    machineResult === undefined ||
+    machineConfigResult === undefined;
 
   const savePreference = useCallback(
     (pref: AgentPreference) => {
@@ -75,9 +88,11 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
   );
 
   return {
+    agents,
+    teamRoles,
+    workspaces,
     connectedMachines,
     machineConfigs,
-    teamConfigMap,
     agentPreferenceMap,
     isLoading,
     sendCommand,

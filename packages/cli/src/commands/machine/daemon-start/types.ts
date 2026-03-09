@@ -20,26 +20,23 @@ export type SessionId = any;
 
 export type { MachineConfig, AgentHarness };
 
-// ─── Command Reason Types ─────────────────────────────────────────────────────
+// ─── Agent Reason Types ───────────────────────────────────────────────────────
+// Mirror of services/backend/src/domain/entities/agent.ts (source of truth).
 
 /**
- * Human-readable reasons for dispatching a start-agent command.
- *
- * - `user-start`: User explicitly started the agent via UI or CLI
- * - `user-restart`: User explicitly restarted the agent via UI or CLI
- * - `ensure-agent-retry`: Auto-restart triggered by the ensure-agent scheduled check
- * - `test`: Used in integration and unit tests only
+ * Why an agent was started. Uses actor-prefixed dot notation.
  */
-export type StartAgentReason = 'user-start' | 'user-restart' | 'ensure-agent-retry' | 'test';
+export type StartAgentReason = 'user.start' | 'user.restart' | 'platform.ensure_agent' | 'test';
 
 /**
- * Human-readable reasons for dispatching a stop-agent command.
- *
- * - `user-stop`: User explicitly stopped the agent via UI or CLI
- * - `dedup-stop`: Agent stopped automatically to deduplicate roles (another agent took over)
- * - `test`: Used in integration and unit tests only
+ * Why an agent was stopped. Uses actor-prefixed dot notation.
  */
-export type StopAgentReason = 'user-stop' | 'dedup-stop' | 'test';
+export type StopAgentReason =
+  | 'user.stop'
+  | 'platform.dedup'
+  | 'platform.team_switch'
+  | 'daemon.respawn'
+  | 'test';
 
 // ─── Command Types ──────────────────────────────────────────────────────────
 

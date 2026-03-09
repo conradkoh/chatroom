@@ -3,10 +3,10 @@
 import { FolderOpen } from 'lucide-react';
 import { memo } from 'react';
 
+import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/agent/get-agent-status-for-chatroom';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import type { Workspace } from '../../types/workspace';
 import type { AgentPreference } from '../AgentConfigTabs';
-import type { TeamAgentConfig } from './InlineAgentCard';
 import { InlineAgentCard } from './InlineAgentCard';
 
 interface AgentWithStatus {
@@ -26,7 +26,7 @@ interface WorkspaceAgentListProps {
   isLoadingMachines: boolean;
   agentConfigs: AgentConfig[];
   sendCommand: SendCommandFn;
-  teamConfigMap: Map<string, TeamAgentConfig>;
+  agentRoleViewMap: Map<string, AgentRoleView>;
   agentPreferenceMap: Map<string, AgentPreference>;
   onSavePreference: (pref: AgentPreference) => void;
 }
@@ -41,7 +41,7 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
   isLoadingMachines,
   agentConfigs,
   sendCommand,
-  teamConfigMap,
+  agentRoleViewMap,
   agentPreferenceMap,
   onSavePreference,
 }: WorkspaceAgentListProps) {
@@ -105,8 +105,6 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
             </span>
           </div>
         </div>
-
-        {/* Restart stats are now shown per-agent in each InlineAgentCard row */}
       </div>
 
       {/* "AGENTS" section label — pinned, does not scroll */}
@@ -141,7 +139,7 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
               isLoadingMachines={isLoadingMachines}
               agentConfigs={agentConfigs}
               sendCommand={sendCommand}
-              teamConfig={teamConfigMap.get(role.toLowerCase())}
+              agentRoleView={agentRoleViewMap.get(role.toLowerCase())}
               agentPreference={agentPreferenceMap.get(role.toLowerCase())}
               onSavePreference={onSavePreference}
             />
