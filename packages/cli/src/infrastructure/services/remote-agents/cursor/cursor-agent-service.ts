@@ -20,8 +20,6 @@ import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { CursorStreamReader } from './cursor-stream-reader.js';
 
-// ─── Re-export deps type under the legacy name for backwards compatibility ────
-
 export type CursorAgentServiceDeps = CLIAgentServiceDeps;
 
 // ─── Constants ────────────────────────────────────────────────────────────────

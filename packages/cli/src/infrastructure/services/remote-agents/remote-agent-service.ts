@@ -47,7 +47,7 @@ export interface SpawnResult {
   onOutput: (cb: () => void) => void;
   /**
    * Optional: fires when the agent completes a turn (agent_end event).
-   * Not all agent runtimes support this — only implemented by PiAgentService.
+   * Not all agent runtimes support this — implemented by PiAgentService and CursorAgentService.
    */
   onAgentEnd?: (cb: () => void) => void;
 }

@@ -379,7 +379,7 @@ export const migrateTeamRoleKeyAddTeamId = internalMutation({
  *   - 'process_terminated_with_signal' → 'agent_process.signal'
  *   - 'process_terminated_unexpectedly' → 'agent_process.crashed'
  *
- * This migration patches all chatroom_agent_lifecycle_events documents where
+ * This migration patches all chatroom_eventStream documents where
  * type === 'agent.exited' and stopReason uses an old-format value.
  *
  * Idempotent: documents already using new-format values are skipped on re-run.

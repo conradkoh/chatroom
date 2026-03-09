@@ -26,8 +26,6 @@ import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 import { PiRpcReader } from './pi-rpc-reader.js';
 
-// ─── Re-export deps type under the legacy name for backwards compatibility ────
-
 export type PiAgentServiceDeps = CLIAgentServiceDeps;
 
 // ─── Constants ────────────────────────────────────────────────────────────────

@@ -14,8 +14,6 @@ import { type ChildProcess } from 'node:child_process';
 import { BaseCLIAgentService, type CLIAgentServiceDeps } from '../base-cli-agent-service.js';
 import type { SpawnOptions, SpawnResult } from '../remote-agent-service.js';
 
-// ─── Re-export deps type under the legacy name for backwards compatibility ────
-
 export type OpenCodeAgentServiceDeps = CLIAgentServiceDeps;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
