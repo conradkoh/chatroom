@@ -797,6 +797,9 @@ export default defineSchema({
       v.union(v.literal('closed'), v.literal('open'), v.literal('half-open'))
     ),
     circuitOpenedAt: v.optional(v.number()),
+
+    spawnedAgentPid: v.optional(v.number()),
+    spawnedAt: v.optional(v.number()),
   })
     .index('by_teamRoleKey', ['teamRoleKey'])
     .index('by_chatroom', ['chatroomId'])
