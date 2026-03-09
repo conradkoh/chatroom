@@ -14,10 +14,17 @@ import type { QueryCtx } from '../../../../convex/_generated/server';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+export interface RunningAgentInfo {
+  role: string;
+  machineId: string;
+}
+
 export interface ChatroomAgentOverview {
   chatroomId: Id<'chatroom_rooms'>;
   agentStatus: 'running' | 'stopped' | 'none';
   runningRoles: string[];
+  /** Includes machineId for operational commands (start/stop). */
+  runningAgents: RunningAgentInfo[];
 }
 
 export interface ListChatroomAgentOverviewInput {
@@ -58,11 +65,16 @@ export async function listChatroomAgentOverview(
         userConfigs.length === 0 ? 'none' : runningConfigs.length > 0 ? 'running' : 'stopped';
 
       const runningRoles = runningConfigs.map((c) => c.role);
+      const runningAgents = runningConfigs.map((c) => ({
+        role: c.role,
+        machineId: c.machineId,
+      }));
 
       return {
         chatroomId: room._id,
         agentStatus,
         runningRoles,
+        runningAgents,
       };
     })
   );

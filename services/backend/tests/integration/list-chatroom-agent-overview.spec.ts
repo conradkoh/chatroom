@@ -118,6 +118,6 @@ describe('listChatroomAgentOverview — no machine details leaked', () => {
     expect(entry).toBeDefined();
     // Verify the shape only has the expected keys
     const keys = Object.keys(entry!).sort();
-    expect(keys).toEqual(['agentStatus', 'chatroomId', 'runningRoles']);
+    expect(keys).toEqual(['agentStatus', 'chatroomId', 'runningAgents', 'runningRoles']);
   });
 });
