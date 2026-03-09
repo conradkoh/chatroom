@@ -96,7 +96,7 @@ test('getAgentRestartMetrics machine-wide scope returns hourly restart counts', 
 
   // Should have exactly 1 hour bucket (all starts happened in the same hour)
   expect(result.length).toBe(1);
-  expect(result[0].byModel['test-model-a']).toBe(3);
+  expect(result[0].byHarnessModel['opencode/test-model-a']).toBe(3);
 });
 
 // ─── Test 2: per-chatroom scope filters correctly ─────────────────────────────
@@ -166,7 +166,7 @@ test('getAgentRestartMetrics chatroomId scope returns only that chatroom\'s data
   });
 
   expect(result.length).toBe(1);
-  expect(result[0].byModel['model-x']).toBe(2); // only chatroom 1's data
+  expect(result[0].byHarnessModel['opencode/model-x']).toBe(2); // only chatroom 1's data
 
   // Query scoped to chatroom 2 — should have 5
   const result2 = await t.query(api.machines.getAgentRestartMetrics, {
@@ -179,7 +179,7 @@ test('getAgentRestartMetrics chatroomId scope returns only that chatroom\'s data
   });
 
   expect(result2.length).toBe(1);
-  expect(result2[0].byModel['model-x']).toBe(5);
+  expect(result2[0].byHarnessModel['opencode/model-x']).toBe(5);
 });
 
 // ─── Test 3: workspace scope (workingDir) filters correctly ───────────────────
@@ -212,7 +212,7 @@ test('getAgentRestartMetrics workingDir scope filters to that workspace', async 
   });
 
   expect(result.length).toBe(1);
-  expect(result[0].byModel['model-ws']).toBe(4);
+  expect(result[0].byHarnessModel['opencode/model-ws']).toBe(4);
 
   // Query with different workingDir — should return empty
   const resultOther = await t.query(api.machines.getAgentRestartMetrics, {
@@ -227,7 +227,7 @@ test('getAgentRestartMetrics workingDir scope filters to that workspace', async 
   expect(resultOther.length).toBe(0);
 });
 
-// ─── Test 4: multiple models in same hour create separate byModel entries ─────
+// ─── Test 4: multiple models in same hour create separate byHarnessModel entries
 
 test('getAgentRestartMetrics groups multiple models within the same hour', async () => {
   const { sessionId } = await createTestSession('metrics-q-multimodel-1');
@@ -292,8 +292,8 @@ test('getAgentRestartMetrics groups multiple models within the same hour', async
   });
 
   expect(result.length).toBe(1);
-  expect(result[0].byModel['model-alpha']).toBe(2);
-  expect(result[0].byModel['model-beta']).toBe(3);
+  expect(result[0].byHarnessModel['opencode/model-alpha']).toBe(2);
+  expect(result[0].byHarnessModel['opencode/model-beta']).toBe(3);
 });
 
 // ─── Test 5: range cap at 720 hours (30 days) ────────────────────────────────
