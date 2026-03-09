@@ -975,11 +975,7 @@ const MessageItem = memo(function MessageItem({
   const isUserMessage = message.senderRole.toLowerCase() === 'user';
 
   return (
-    <div className="group/msg px-4 py-3 border-b-2 border-chatroom-border last:border-b-0 bg-transparent relative">
-      {/* Hover copy button — appears top-right on hover */}
-      <div className="absolute top-2 right-2 opacity-0 group-hover/msg:opacity-100 transition-opacity z-10">
-        <CopyMarkdownButton content={message.content} />
-      </div>
+    <div className="group/msg px-4 py-3 border-b-2 border-chatroom-border last:border-b-0 bg-transparent">
       {/* Message Header - only show for non-user messages (user message info is in TaskHeader) */}
       {!isUserMessage && (
         <div className="flex justify-between items-center mb-2 pb-1.5 border-b transition-colors border-chatroom-border">
@@ -1063,15 +1059,19 @@ const MessageItem = memo(function MessageItem({
       {message.attachedArtifacts && message.attachedArtifacts.length > 0 && (
         <AttachedArtifacts artifacts={message.attachedArtifacts} />
       )}
-      {/* Message Footer - only show timestamp for non-user messages (user message status/time in TaskHeader) */}
-      {!isUserMessage && (
-        <div className="flex justify-end items-center mt-2 pt-1.5">
-          {/* Right: Timestamp */}
+      {/* Message Footer */}
+      <div className="flex justify-between items-center mt-2 pt-1.5">
+        {/* Left: Copy button — appears on hover */}
+        <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity">
+          <CopyMarkdownButton content={message.content} />
+        </div>
+        {/* Right: Timestamp (non-user messages only; user message status/time is in TaskHeader) */}
+        {!isUserMessage && (
           <span className="text-[10px] font-mono font-bold tabular-nums text-chatroom-text-muted">
             {formatTime(message._creationTime)}
           </span>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 });
