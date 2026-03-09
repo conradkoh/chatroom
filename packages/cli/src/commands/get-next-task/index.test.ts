@@ -75,6 +75,7 @@ vi.mock('../../api.js', () => ({
     },
     messages: {
       getTaskDeliveryPrompt: 'messages:getTaskDeliveryPrompt',
+      getInitPrompt: 'messages:getInitPrompt',
     },
   },
 }));
@@ -117,6 +118,32 @@ describe('get-next-task — agent config ownership', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('prints foreground warning after connecting when not silent', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    mockQuery.mockImplementation(async (queryFn: string) => {
+      if (queryFn === 'chatrooms:get') {
+        return { _id: TEST_CHATROOM_ID, teamName: 'Test', teamRoles: ['builder'], teamEntryPoint: 'builder' };
+      }
+      if (queryFn === 'machines:getTeamAgentConfigs') return [];
+      if (queryFn === 'messages:getInitPrompt') {
+        return { prompt: 'init prompt text', hasSystemPromptControl: true };
+      }
+      return undefined;
+    });
+
+    const { getNextTask } = await import('./index.js');
+
+    await getNextTask(TEST_CHATROOM_ID, { role: 'builder' }).catch(() => {});
+
+    const allOutput = consoleSpy.mock.calls.map((c) => c.join(' ')).join('\n');
+    expect(allOutput).toContain('FOREGROUND');
+    expect(allOutput).toContain('background');
+    expect(allOutput).toContain('terminate and restart');
+
+    consoleSpy.mockRestore();
   });
 
   it('should NEVER call updateAgentConfig — agent config is owned by startAgent, not get-next-task', async () => {

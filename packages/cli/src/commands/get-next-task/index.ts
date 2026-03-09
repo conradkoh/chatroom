@@ -153,6 +153,9 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
     if (initPromptResult?.prompt) {
       const connectedTime = new Date().toISOString().replace('T', ' ').substring(0, 19);
       console.log(`[${connectedTime}] ✅ Connected. Waiting for task...\n`);
+      console.log(
+        `⚠️ IMPORTANT: This command must stay in the FOREGROUND. If moved to background, terminate and restart it — background processes cannot deliver tasks.\n`
+      );
 
       if (!initPromptResult.hasSystemPromptControl) {
         console.log('<!-- REFERENCE: Agent Initialization');
