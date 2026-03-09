@@ -851,7 +851,7 @@ export const taskStarted = mutation({
         message?._id?.toString(),
         args.taskId.toString(),
         args.convexUrl,
-        chatroom.teamRoles || []
+        getTeamRolesFromChatroom(chatroom).teamRoles
       );
     } catch (error) {
       console.error('Error generating task started reminder:', error);
