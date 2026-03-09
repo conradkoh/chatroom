@@ -159,7 +159,7 @@ agent.requestStart events:
 
 ## Phase 4: Frontend — Migrate Hooks and Components
 
-**Status**: Not started
+**Status**: Done
 **Goal**: Switch frontend from raw table record consumption to the new backend-computed views.
 
 ### Migration map
@@ -189,7 +189,7 @@ agent.requestStart events:
 
 ## Phase 5: Cleanup — Remove Dead Code
 
-**Status**: Not started
+**Status**: Done
 **Goal**: Remove deprecated queries and unused types after frontend migration is verified.
 
 ### Removals
@@ -212,8 +212,8 @@ agent.requestStart events:
 Phase 1   ✅ Done (PR #55) — Backend use cases + updateTeam refactor
 Phase 2   ✅ Done          — Unify start/stop reason types
 Phase 3   ✅ Done          — Wire new Convex queries
-Phase 4      Pending       — Frontend migration
-Phase 5      Pending       — Dead code cleanup
+Phase 4   ✅ Done          — Frontend migration
+Phase 5   ✅ Done          — Dead code cleanup
 ```
 
 ---
