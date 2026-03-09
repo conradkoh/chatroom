@@ -112,7 +112,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   const daemonStartCommand = getDaemonStartCommand();
   const statusLabel = online ? eventTypeToStatusLabel(latestEventType) : 'OFFLINE';
 
-  // Resolve machineId from agentConfigs for restart stats query
+  // Resolve machineId from agentConfigs for restart stats query (used for machine-specific stats modal)
   const statsMachineId = useMemo(() => {
     const config = agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase());
     return config?.machineId ?? null;
@@ -120,16 +120,12 @@ export const InlineAgentCard = memo(function InlineAgentCard({
 
   const [statsOpen, setStatsOpen] = useState(false);
 
-  const restartSummary = useSessionQuery(
-    api.machines.getAgentRestartSummary,
-    statsMachineId
-      ? {
-          machineId: statsMachineId,
-          role,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        }
-      : 'skip'
-  );
+  // Always fetch restart stats by chatroom+role (aggregated across all machines) so the
+  // metrics section is always visible regardless of whether a machine config exists.
+  const restartSummary = useSessionQuery(api.machines.getAgentRestartSummaryByRole, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    role,
+  });
 
   return (
     <div className="border-b border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3">
@@ -183,8 +179,8 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           )}
         </div>
 
-        {/* Restart stats row — shown when machineId is known */}
-        {statsMachineId && restartSummary && (
+        {/* Restart stats row — always shown when data is loaded */}
+        {restartSummary && (
           <>
             <div className="mt-2 pt-2 border-t border-chatroom-border flex items-center gap-2">
               <span className="text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted flex-shrink-0">
@@ -197,23 +193,27 @@ export const InlineAgentCard = memo(function InlineAgentCard({
                 <span className="font-bold text-chatroom-text-primary">{restartSummary.count24h}</span>
                 <span className="text-chatroom-text-muted"> in 24h</span>
               </span>
-              <button
-                type="button"
-                onClick={() => setStatsOpen(true)}
-                className="ml-auto text-[9px] font-bold uppercase tracking-widest text-chatroom-accent hover:text-chatroom-text-primary transition-colors flex-shrink-0"
-              >
-                View Stats →
-              </button>
+              {statsMachineId && (
+                <button
+                  type="button"
+                  onClick={() => setStatsOpen(true)}
+                  className="ml-auto text-[9px] font-bold uppercase tracking-widest text-chatroom-accent hover:text-chatroom-text-primary transition-colors flex-shrink-0"
+                >
+                  View Stats →
+                </button>
+              )}
             </div>
 
-            <AgentRestartStatsModal
-              isOpen={statsOpen}
-              onClose={() => setStatsOpen(false)}
-              role={role}
-              machineId={statsMachineId}
-              workingDir={agentRoleView?.workingDir ?? ''}
-              chatroomId={chatroomId}
-            />
+            {statsMachineId && (
+              <AgentRestartStatsModal
+                isOpen={statsOpen}
+                onClose={() => setStatsOpen(false)}
+                role={role}
+                machineId={statsMachineId}
+                workingDir={agentRoleView?.workingDir ?? ''}
+                chatroomId={chatroomId}
+              />
+            )}
           </>
         )}
       </div>
