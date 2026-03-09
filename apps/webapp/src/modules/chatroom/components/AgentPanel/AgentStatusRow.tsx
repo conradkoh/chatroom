@@ -29,16 +29,16 @@ export const AgentStatusRow = memo(function AgentStatusRow({
   const statusColorClass = online ? 'text-chatroom-status-success' : 'text-chatroom-text-muted';
 
   return (
-    <div className="flex items-center gap-2 min-w-0">
+    <div className="flex items-center gap-2 min-w-0 overflow-hidden">
       <div className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`} />
-      <span className="text-base font-bold uppercase tracking-wider text-chatroom-text-primary">
+      <span className="text-base font-bold uppercase tracking-wider text-chatroom-text-primary truncate flex-shrink-0">
         {role}
       </span>
-      <span className={`text-[10px] font-bold uppercase tracking-wide ${statusColorClass}`}>
+      <span className={`text-[10px] font-bold uppercase tracking-wide flex-shrink-0 ${statusColorClass}`}>
         {statusLabel}
       </span>
-      <span className="text-[10px] font-bold text-chatroom-text-muted">·</span>
-      <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+      <span className="text-[10px] font-bold text-chatroom-text-muted flex-shrink-0">·</span>
+      <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted truncate">
         {formatLastSeen(lastSeenAt)}
       </span>
     </div>
