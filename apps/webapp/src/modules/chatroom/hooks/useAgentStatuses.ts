@@ -25,7 +25,6 @@ export interface AgentStatus {
   lastSeenAt: number | null;
   statusLabel: string;
   isWorking: boolean;
-  isStuck: boolean;
   latestEventType: string | null;
 }
 
@@ -107,7 +106,6 @@ export function useAgentStatuses(
             ? eventTypeToStatusLabel(latestEventType)
             : 'OFFLINE',
         isWorking,
-        isStuck: participant?.isStuck === true,
         latestEventType,
       };
     });

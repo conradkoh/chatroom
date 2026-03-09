@@ -14,7 +14,6 @@ interface AgentWithStatus {
   online: boolean;
   lastSeenAt?: number | null;
   latestEventType?: string | null;
-  isStuck?: boolean;
 }
 
 interface WorkspaceAgentListProps {
@@ -125,14 +124,13 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
-          {workspaceAgents.map(({ role, online, lastSeenAt, latestEventType, isStuck }) => (
+          {workspaceAgents.map(({ role, online, lastSeenAt, latestEventType }) => (
             <InlineAgentCard
               key={role}
               role={role}
               online={online}
               lastSeenAt={lastSeenAt}
               latestEventType={latestEventType}
-              isStuck={isStuck}
               prompt={generatePrompt(role)}
               chatroomId={chatroomId}
               connectedMachines={connectedMachines}

@@ -17,7 +17,6 @@ export interface ParticipantInfo {
   agentType?: 'remote' | 'custom';
   lastSeenAt?: number | null;
   lastSeenAction?: string | null;
-  isStuck?: boolean;
 }
 
 /**
