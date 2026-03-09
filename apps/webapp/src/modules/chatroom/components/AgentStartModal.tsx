@@ -39,7 +39,7 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
     | { machines: MachineInfo[] }
     | undefined;
 
-  const configsResult = useSessionQuery(api.machines.getAgentConfigs, {
+  const configsResult = useSessionQuery(api.machines.getMachineAgentConfigs, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as { configs: AgentConfig[] } | undefined;
 

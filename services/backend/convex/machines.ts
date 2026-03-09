@@ -216,8 +216,8 @@ export const listMachines = query({
   },
 });
 
-/** Returns agent configs for a chatroom, enriched with machine details. */
-export const getAgentConfigs = query({
+/** Returns machine-level agent configs for a chatroom, enriched with machine details. */
+export const getMachineAgentConfigs = query({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),

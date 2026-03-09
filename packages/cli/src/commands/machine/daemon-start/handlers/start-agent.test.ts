@@ -98,7 +98,7 @@ function createMockContext(options?: {
   const agentConfigsValue = options?.agentConfigs ?? [];
 
   // Distinguish queries by args shape:
-  // - getAgentConfigs: has chatroomId, no convexUrl
+  // - getMachineAgentConfigs: has chatroomId, no convexUrl
   // - getInitPrompt:   has convexUrl
   // - legacy lifecycle queries: no chatroomId, no convexUrl (return null / lifecycleValue)
   const queryMock = vi.fn().mockImplementation((_fnRef: unknown, args: Record<string, unknown>) => {
@@ -106,7 +106,7 @@ function createMockContext(options?: {
       return Promise.resolve(initPromptValue);
     }
     if (args?.chatroomId) {
-      // getAgentConfigs call
+      // getMachineAgentConfigs call
       if (options?.lifecycleError) {
         return Promise.reject(new Error('Network error'));
       }

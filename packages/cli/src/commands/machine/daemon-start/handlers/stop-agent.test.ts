@@ -30,7 +30,7 @@ vi.mock('../../../../api.js', () => ({
   api: {
     machines: {
       updateSpawnedAgent: 'machines.updateSpawnedAgent',
-      getAgentConfigs: 'machines.getAgentConfigs',
+      getMachineAgentConfigs: 'machines.getMachineAgentConfigs',
       register: 'machines.register',
       daemonHeartbeat: 'machines.daemonHeartbeat',
       updateDaemonStatus: 'machines.updateDaemonStatus',

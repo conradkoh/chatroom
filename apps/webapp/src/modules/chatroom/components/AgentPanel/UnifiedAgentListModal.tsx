@@ -53,7 +53,7 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     | { machines: MachineInfo[] }
     | undefined;
 
-  const configsResult = useSessionQuery(api.machines.getAgentConfigs, {
+  const configsResult = useSessionQuery(api.machines.getMachineAgentConfigs, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as { configs: AgentConfig[] } | undefined;
 
