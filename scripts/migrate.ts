@@ -88,6 +88,10 @@ const MIGRATIONS: Migration[] = [
     name: 'migration:migrateStopReasonToActorPrefixed',
     addedAt: '2026-03-09T00:00:00.000Z',
   },
+  {
+    name: 'migration:migrateEventReasonsToActorPrefixed',
+    addedAt: '2026-03-09T08:12:35.000Z',
+  },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
