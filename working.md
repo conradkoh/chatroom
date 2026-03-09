@@ -139,7 +139,7 @@ agent.requestStart events:
 
 ## Phase 3: Backend — Wire New Queries (Replace Frontend-Facing API)
 
-**Status**: Not started
+**Status**: Done
 **Goal**: Expose Phase 1 use cases as Convex queries/mutations, creating the new API surface.
 
 ### New Convex queries to add
@@ -211,7 +211,7 @@ agent.requestStart events:
 ```
 Phase 1   ✅ Done (PR #55) — Backend use cases + updateTeam refactor
 Phase 2   ✅ Done          — Unify start/stop reason types
-Phase 3      Pending       — Wire new Convex queries
+Phase 3   ✅ Done          — Wire new Convex queries
 Phase 4      Pending       — Frontend migration
 Phase 5      Pending       — Dead code cleanup
 ```
