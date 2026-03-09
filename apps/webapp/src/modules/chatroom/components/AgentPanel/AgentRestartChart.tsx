@@ -123,22 +123,22 @@ export function AgentRestartChart({
     const modelSet = new Set<string>();
     const dayMap = new Map<string, { ts: number; byModel: Record<string, number> }>();
 
-    for (const { hourBucket, byModel } of data) {
+    for (const { hourBucket, byHarnessModel } of data) {
       const d = new Date(hourBucket);
       const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
-      for (const key of Object.keys(byModel)) {
+      for (const key of Object.keys(byHarnessModel)) {
         modelSet.add(key);
       }
 
       const existing = dayMap.get(dayKey);
       if (existing) {
-        for (const [model, count] of Object.entries(byModel)) {
-          existing.byModel[model] = (existing.byModel[model] ?? 0) + count;
+        for (const [key, count] of Object.entries(byHarnessModel)) {
+          existing.byModel[key] = (existing.byModel[key] ?? 0) + count;
         }
       } else {
         const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        dayMap.set(dayKey, { ts: startOfDay, byModel: { ...byModel } });
+        dayMap.set(dayKey, { ts: startOfDay, byModel: { ...byHarnessModel } });
       }
     }
 
@@ -305,8 +305,8 @@ export function AgentRestartChart({
                 className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
                 style={{ backgroundColor: getModelColor(idx) }}
               />
-              <span className="text-[9px] text-chatroom-text-muted truncate max-w-[120px]" title={model}>
-                {model.split('/').pop() ?? model}
+              <span className="text-[9px] text-chatroom-text-muted truncate max-w-[160px]" title={model}>
+                {model}
               </span>
             </div>
           ))}

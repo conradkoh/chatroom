@@ -738,6 +738,7 @@ export const updateSpawnedAgent = mutation({
 
       // 2. Upsert restart metric for this hour bucket
       const model = args.model ?? config.model ?? 'unknown';
+      const agentType = config.agentType ?? 'unknown';
       const workingDir = config.workingDir;
       const hourBucket = Math.floor(now / 3_600_000) * 3_600_000;
 
@@ -750,7 +751,8 @@ export const updateSpawnedAgent = mutation({
           q.and(
             q.eq(q.field('chatroomId'), args.chatroomId),
             q.eq(q.field('model'), model),
-            q.eq(q.field('workingDir'), workingDir)
+            q.eq(q.field('workingDir'), workingDir),
+            q.eq(q.field('agentType'), agentType)
           )
         )
         .first();
@@ -764,7 +766,7 @@ export const updateSpawnedAgent = mutation({
           chatroomId: args.chatroomId,
           workingDir,
           model,
-          agentType: config.agentType,
+          agentType,
           hourBucket,
           count: 1,
         });
@@ -1135,7 +1137,53 @@ export const upsertMachineModelFilters = mutation({
   },
 });
 
-/** Returns hourly agent restart counts grouped by model for the given machine/role and time range.
+/** Returns the remote agent running status for every chatroom owned by the authenticated user. */
+export const listRemoteAgentRunningStatus = query({
+  args: { ...SessionIdArg },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return [];
+
+    const userMachines = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_userId', (q) => q.eq('userId', auth.user._id))
+      .collect();
+    const userMachineIds = new Set(userMachines.map((m) => m.machineId));
+
+    const userChatrooms = await ctx.db
+      .query('chatroom_rooms')
+      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.user._id))
+      .collect();
+
+    const results = await Promise.all(
+      userChatrooms.map(async (room) => {
+        const configs = await ctx.db
+          .query('chatroom_machineAgentConfigs')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
+          .collect();
+
+        const userConfigs = configs.filter((c) => userMachineIds.has(c.machineId));
+
+        const runningConfigs = userConfigs
+          .filter((c) => c.spawnedAgentPid != null)
+          .map((c) => ({ machineId: c.machineId, role: c.role }));
+
+        const remoteAgentStatus: 'running' | 'stopped' | 'none' =
+          userConfigs.length === 0 ? 'none' : runningConfigs.length > 0 ? 'running' : 'stopped';
+
+        return {
+          chatroomId: room._id as Id<'chatroom_rooms'>,
+          remoteAgentStatus,
+          runningConfigs,
+        };
+      })
+    );
+
+    return results;
+  },
+});
+
+/** Returns hourly agent restart counts grouped by harness+model for the given machine/role and time range.
  *
  * Scope modes (mutually exclusive; checked in order):
  *   1. chatroomId provided  → "this chatroom" scope
@@ -1143,8 +1191,9 @@ export const upsertMachineModelFilters = mutation({
  *   3. neither              → "machine-wide" scope (all chatrooms for machineId + role)
  *
  * Returns array sorted by hourBucket ascending. Each element:
- *   { hourBucket: number, byModel: Record<string, number> }
+ *   { hourBucket: number, byHarnessModel: Record<string, number> }
  *   where hourBucket is the UTC ms timestamp of the start of the hour.
+ *   Keys are formatted as "agentType/model" (e.g. "pi/claude-sonnet").
  */
 export const getAgentRestartMetrics = query({
   args: {
@@ -1205,13 +1254,14 @@ export const getAgentRestartMetrics = query({
     const bucketMap = new Map<number, Record<string, number>>();
     for (const row of rows) {
       const existing = bucketMap.get(row.hourBucket) ?? {};
-      existing[row.model] = (existing[row.model] ?? 0) + row.count;
+      const key = `${row.agentType ?? 'unknown'}/${row.model}`;
+      existing[key] = (existing[key] ?? 0) + row.count;
       bucketMap.set(row.hourBucket, existing);
     }
 
     return Array.from(bucketMap.entries())
       .sort(([a], [b]) => a - b)
-      .map(([hourBucket, byModel]) => ({ hourBucket, byModel }));
+      .map(([hourBucket, byHarnessModel]) => ({ hourBucket, byHarnessModel }));
   },
 });
 
