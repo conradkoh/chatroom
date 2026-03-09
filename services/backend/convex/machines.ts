@@ -176,7 +176,6 @@ export const register = mutation({
   },
 });
 
-
 // ============================================================================
 // QUERIES
 // ============================================================================
@@ -1279,10 +1278,7 @@ export const getAgentRestartMetrics = query({
           q.eq('chatroomId', args.chatroomId!).eq('role', args.role).gte('hourBucket', startHour)
         )
         .filter((q) =>
-          q.and(
-            q.eq(q.field('machineId'), args.machineId),
-            q.lte(q.field('hourBucket'), endHour)
-          )
+          q.and(q.eq(q.field('machineId'), args.machineId), q.lte(q.field('hourBucket'), endHour))
         )
         .collect();
     } else if (args.workingDir != null) {
