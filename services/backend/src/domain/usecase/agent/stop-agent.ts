@@ -70,6 +70,7 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
   const teamConfig = await ctx.db
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+    .filter((q) => q.eq(q.field('machineId'), machineId))
     .first();
 
   if (teamConfig) {
