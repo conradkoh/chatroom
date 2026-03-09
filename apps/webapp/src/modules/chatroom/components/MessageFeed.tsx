@@ -25,6 +25,7 @@ import {
   Trash2,
   Pencil,
   Check,
+  Copy,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -838,6 +839,36 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
   );
 });
 
+/** Small copy-to-clipboard button with brief check-mark feedback. */
+const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(content).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    },
+    [content]
+  );
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center justify-center w-6 h-6 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
+      title="Copy as markdown"
+    >
+      {copied ? (
+        <Check size={12} className="text-chatroom-status-success" />
+      ) : (
+        <Copy size={12} />
+      )}
+    </button>
+  );
+});
+
 interface MessageItemProps {
   message: Message;
   onFeatureClick?: (message: Message) => void;
@@ -944,7 +975,11 @@ const MessageItem = memo(function MessageItem({
   const isUserMessage = message.senderRole.toLowerCase() === 'user';
 
   return (
-    <div className="px-4 py-3 border-b-2 border-chatroom-border last:border-b-0 bg-transparent">
+    <div className="group/msg px-4 py-3 border-b-2 border-chatroom-border last:border-b-0 bg-transparent relative">
+      {/* Hover copy button — appears top-right on hover */}
+      <div className="absolute top-2 right-2 opacity-0 group-hover/msg:opacity-100 transition-opacity z-10">
+        <CopyMarkdownButton content={message.content} />
+      </div>
       {/* Message Header - only show for non-user messages (user message info is in TaskHeader) */}
       {!isUserMessage && (
         <div className="flex justify-between items-center mb-2 pb-1.5 border-b transition-colors border-chatroom-border">
