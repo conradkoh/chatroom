@@ -120,7 +120,7 @@ function _renderUserDropdownMenu(
   const isSystemAdmin = authState.user.accessLevel === 'system_admin';
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"

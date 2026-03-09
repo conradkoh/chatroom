@@ -478,7 +478,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
         right: (
           <div className="flex gap-2 md:gap-3 items-center">
             {chatroom.teamName && (
-              <DropdownMenu>
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <button className="bg-chatroom-bg-tertiary border-2 border-transparent px-2 md:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-secondary hidden sm:flex items-center gap-1.5 cursor-pointer transition-all duration-100 hover:border-chatroom-border hover:text-chatroom-text-primary focus:outline-none">
                     Team: {chatroom.teamName}
