@@ -75,7 +75,7 @@ export async function updateTeam(
         chatroomId,
         machineId: config.machineId,
         role: config.role,
-        reason: 'team-switch',
+        reason: 'platform.team_switch',
         deadline: now + AGENT_REQUEST_DEADLINE_MS,
         timestamp: now,
       });
@@ -115,7 +115,7 @@ export async function updateTeam(
           chatroomId,
           machineId: mc.machineId,
           role: mc.role,
-          reason: 'team-switch',
+          reason: 'platform.team_switch',
           deadline: now + AGENT_REQUEST_DEADLINE_MS,
           timestamp: now,
         });

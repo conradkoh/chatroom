@@ -60,7 +60,7 @@ export async function ensureOnlyAgentForRole(
       chatroomId,
       machineId: config.machineId as string,
       role,
-      reason: 'dedup-stop',
+      reason: 'platform.dedup',
       deadline: now + AGENT_REQUEST_DEADLINE_MS,
       timestamp: now,
     });

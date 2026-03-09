@@ -184,7 +184,7 @@ describe('updateTeam — stop events', () => {
     });
 
     const teamSwitchStops = stopEvents.filter((e) =>
-      'reason' in e && e.reason === 'team-switch'
+      'reason' in e && e.reason === 'platform.team_switch'
     );
     // Both planner and builder had desiredState=running from setupRemoteAgentConfig
     expect(teamSwitchStops.length).toBeGreaterThanOrEqual(2);
@@ -227,7 +227,7 @@ describe('updateTeam — stop events', () => {
     });
 
     const reviewerStops = stopEvents.filter(
-      (e) => 'role' in e && e.role === 'reviewer' && 'reason' in e && e.reason === 'team-switch'
+      (e) => 'role' in e && e.role === 'reviewer' && 'reason' in e && e.reason === 'platform.team_switch'
     );
     expect(reviewerStops.length).toBeGreaterThanOrEqual(1);
   });

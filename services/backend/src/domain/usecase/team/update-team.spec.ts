@@ -180,7 +180,7 @@ describe('updateTeam use case', () => {
     });
 
     const reviewerStops = stopEvents.filter(
-      (e) => 'role' in e && e.role === 'reviewer' && 'reason' in e && e.reason === 'team-switch'
+      (e) => 'role' in e && e.role === 'reviewer' && 'reason' in e && e.reason === 'platform.team_switch'
     );
     expect(reviewerStops.length).toBeGreaterThanOrEqual(1);
   });

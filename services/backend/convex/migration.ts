@@ -402,3 +402,71 @@ export const migrateStopReasonToActorPrefixed = internalMutation({
     return { migrated, skipped, total: allEvents.length };
   },
 });
+
+/**
+ * Migration: Unify agent start/stop event reason values to actor-prefixed dot notation.
+ *
+ * Converts persisted event stream reasons from kebab-case to dot notation:
+ *
+ * agent.requestStop events:
+ *   'user-stop'          → 'user.stop'
+ *   'dedup-stop'         → 'platform.dedup'
+ *   'team-switch'        → 'platform.team_switch'
+ *
+ * agent.requestStart events:
+ *   'user-start'         → 'user.start'
+ *   'user-restart'       → 'user.restart'
+ *   'ensure-agent-retry' → 'platform.ensure_agent'
+ *
+ * Idempotent: documents already using new-format values are skipped on re-run.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.migrateEventReasonsToActorPrefixed
+ */
+export const migrateEventReasonsToActorPrefixed = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const STOP_REASON_MAP: Record<string, string> = {
+      'user-stop': 'user.stop',
+      'dedup-stop': 'platform.dedup',
+      'team-switch': 'platform.team_switch',
+    };
+
+    const START_REASON_MAP: Record<string, string> = {
+      'user-start': 'user.start',
+      'user-restart': 'user.restart',
+      'ensure-agent-retry': 'platform.ensure_agent',
+    };
+
+    const allEvents = await ctx.db.query('chatroom_eventStream').collect();
+
+    let migrated = 0;
+    let skipped = 0;
+
+    for (const event of allEvents) {
+      const raw = event as Record<string, unknown>;
+
+      if (raw.type === 'agent.requestStop') {
+        const oldReason = raw.reason as string | undefined;
+        if (oldReason && oldReason in STOP_REASON_MAP) {
+          await ctx.db.patch(event._id, { reason: STOP_REASON_MAP[oldReason] } as never);
+          migrated++;
+          continue;
+        }
+      }
+
+      if (raw.type === 'agent.requestStart') {
+        const oldReason = raw.reason as string | undefined;
+        if (oldReason && oldReason in START_REASON_MAP) {
+          await ctx.db.patch(event._id, { reason: START_REASON_MAP[oldReason] } as never);
+          migrated++;
+          continue;
+        }
+      }
+
+      skipped++;
+    }
+
+    return { migrated, skipped, total: allEvents.length };
+  },
+});

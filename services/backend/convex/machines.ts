@@ -721,7 +721,7 @@ export const sendCommand = mutation({
           model: resolvedModel,
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
-          reason: 'user-start',
+          reason: 'user.start',
         },
         machine
       );
@@ -735,7 +735,7 @@ export const sendCommand = mutation({
         chatroomId: args.payload.chatroomId,
         role: args.payload.role,
         userId: user._id,
-        reason: 'user-stop',
+        reason: 'user.stop',
       });
       return {};
     }

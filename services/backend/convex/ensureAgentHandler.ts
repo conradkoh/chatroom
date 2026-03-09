@@ -103,7 +103,8 @@ async function checkCircuitBreaker(
       e.type === 'agent.exited' &&
       e.timestamp >= windowStart &&
       e.stopReason !== 'user.stop' &&
-      e.stopReason !== 'daemon.respawn'
+      e.stopReason !== 'daemon.respawn' &&
+      e.stopReason !== 'platform.team_switch'
   );
 
   if (recentExits.length >= CIRCUIT_BREAKER_MAX_EXITS) {
@@ -269,7 +270,7 @@ export const check = internalMutation({
           agentHarness: config.agentHarness,
           model: config.model,
           workingDir: config.workingDir,
-          reason: 'ensure-agent-retry',
+          reason: 'platform.ensure_agent',
           deadline: now + ENSURE_AGENT_FALLBACK_DELAY_MS * 2,
           timestamp: now,
         });

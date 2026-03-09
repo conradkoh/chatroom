@@ -195,7 +195,7 @@ describe('handleStopAgent', () => {
 
     expect(result.failed).toBe(false);
     // onAgentShutdown calls stops.mark internally
-    expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, 'builder', 'user.stop');
+    expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, 'builder', 'test');
   });
 
   it('clears local state via onAgentShutdown', async () => {
