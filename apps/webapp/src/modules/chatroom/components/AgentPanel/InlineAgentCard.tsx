@@ -6,7 +6,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 
-import type { AgentHarness, MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
+import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import { useAgentControls, RemoteTabContent, CustomTabContent } from '../AgentConfigTabs';
 import type { AgentPreference } from '../AgentConfigTabs';
 import { AgentStatusRow } from './AgentStatusRow';
@@ -56,16 +56,9 @@ export function resolveMachineHostname(
   return machine?.hostname;
 }
 
-// ─── Team agent config shape matching the backend response ───────────────────
-
-export interface TeamAgentConfig {
-  role: string;
-  type: 'remote' | 'custom';
-  machineId?: string;
-  agentHarness?: AgentHarness;
-  model?: string;
-  workingDir?: string;
-}
+// Re-export TeamAgentConfig from the consolidated hook for backwards compatibility
+import type { TeamAgentConfig } from '../../hooks/useAgentPanelData';
+export type { TeamAgentConfig } from '../../hooks/useAgentPanelData';
 
 // ─── InlineAgentCard ─────────────────────────────────────────────────────────
 
@@ -186,7 +179,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
               connectedMachines={connectedMachines}
               isLoadingMachines={isLoadingMachines}
               daemonStartCommand={daemonStartCommand}
-              teamConfigHarness={teamConfig?.agentHarness}
             />
           ) : (
             <CustomTabContent role={role} prompt={prompt} />
