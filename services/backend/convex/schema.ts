@@ -964,7 +964,7 @@ export default defineSchema({
     chatroomId: v.id('chatroom_rooms'),
     workingDir: v.string(),
     model: v.string(), // e.g. "github-copilot/claude-sonnet-4.5"
-    agentType: v.optional(v.string()), // e.g. "cursor", "claude-code", "copilot"
+    agentType: v.optional(v.string()), // e.g. "pi", "cursor", "opencode" — optional for backward compat
 
     // Time bucket (start of the hour in ms UTC)
     hourBucket: v.number(),
