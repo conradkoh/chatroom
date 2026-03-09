@@ -145,6 +145,31 @@ describe('handoff', () => {
       expect(errOutput).toContain('Cannot hand off to user');
       expect(errOutput).toContain('builder');
     });
+
+    it('exits with code 1 and lists available targets for INVALID_TARGET_ROLE', async () => {
+      const deps = createMockDeps();
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: false,
+        error: {
+          code: 'INVALID_TARGET_ROLE',
+          message:
+            'Cannot hand off to "reviewer": this role is not part of the current team. Available targets: user, planner, builder.',
+          suggestedTargets: ['user', 'planner', 'builder'],
+        },
+      });
+
+      await handoff(TEST_CHATROOM_ID, defaultOptions({ nextRole: 'reviewer' }), deps);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+
+      const errOutput = getAllErrorOutput();
+      expect(errOutput).toContain('Cannot hand off to "reviewer"');
+      expect(errOutput).toContain('Available handoff targets for this team');
+      expect(errOutput).toContain('• user');
+      expect(errOutput).toContain('• planner');
+      expect(errOutput).toContain('• builder');
+      expect(errOutput).toContain('Check your team\'s workflow');
+    });
   });
 
   describe('mutation failure', () => {

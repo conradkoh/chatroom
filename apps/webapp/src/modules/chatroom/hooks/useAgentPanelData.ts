@@ -3,7 +3,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type {
   AgentRoleView,
   WorkspaceView,
-} from '@workspace/backend/src/domain/usecase/agent/get-agent-status-for-chatroom';
+} from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useMemo, useCallback } from 'react';
 import type { MachineInfo, AgentConfig } from '../types/machine';

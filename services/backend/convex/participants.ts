@@ -8,6 +8,7 @@ import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
+import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 
 /** Upserts a chatroom participant record, emits agent.waiting if entering get-next-task loop, and auto-promotes queued tasks for the entry point role. */
 export const join = mutation({
@@ -27,12 +28,12 @@ export const join = mutation({
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Validate role is in team configuration
-    if (chatroom.teamRoles && chatroom.teamRoles.length > 0) {
+    const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
+    if (teamRoles.length > 0) {
       const normalizedRole = args.role.toLowerCase();
-      const normalizedTeamRoles = chatroom.teamRoles.map((r) => r.toLowerCase());
       if (!normalizedTeamRoles.includes(normalizedRole)) {
         throw new Error(
-          `Invalid role: "${args.role}" is not in team configuration. Allowed roles: ${chatroom.teamRoles.join(', ')}`
+          `Invalid role: "${args.role}" is not in team configuration. Allowed roles: ${teamRoles.join(', ')}`
         );
       }
     }

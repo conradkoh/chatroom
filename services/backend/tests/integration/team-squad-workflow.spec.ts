@@ -819,6 +819,53 @@ Standard implementation`,
       expect(handoff.messageId).toBeDefined();
       expect(handoff.newTaskId).toBeDefined();
     });
+
+    test('handoff to non-existent role returns INVALID_TARGET_ROLE error', async () => {
+      const { sessionId } = await createTestSession('test-squad-invalid-target-role');
+      const chatroomId = await createSquadTeamChatroom(sessionId);
+      await joinParticipants(sessionId, chatroomId, ['planner', 'builder', 'reviewer']);
+
+      // User sends a message to trigger a planner task
+      await t.mutation(api.messages.sendMessage, {
+        sessionId,
+        chatroomId,
+        senderRole: 'user',
+        content: 'Build something',
+        type: 'message',
+      });
+
+      await t.mutation(api.tasks.claimTask, {
+        sessionId,
+        chatroomId,
+        role: 'planner',
+      });
+
+      await t.mutation(api.tasks.startTask, {
+        sessionId,
+        chatroomId,
+        role: 'planner',
+      });
+
+      // Planner tries to hand off to a non-existent role (e.g. "orchestrator")
+      const failedHandoff = await t.mutation(api.messages.handoff, {
+        sessionId,
+        chatroomId,
+        senderRole: 'planner',
+        content: 'Delegating to orchestrator',
+        targetRole: 'orchestrator',
+      });
+
+      expect(failedHandoff.success).toBe(false);
+      expect(failedHandoff.error).toBeDefined();
+      expect(failedHandoff.error?.code).toBe('INVALID_TARGET_ROLE');
+      expect(failedHandoff.error?.message).toContain('orchestrator');
+      expect(failedHandoff.error?.message).toContain('not part of the current team');
+      // suggestedTargets should include all valid targets (user + team roles)
+      expect(failedHandoff.error?.suggestedTargets).toContain('user');
+      expect(failedHandoff.error?.suggestedTargets).toContain('planner');
+      expect(failedHandoff.error?.suggestedTargets).toContain('builder');
+      expect(failedHandoff.error?.suggestedTargets).toContain('reviewer');
+    });
   });
 
   // =========================================================================

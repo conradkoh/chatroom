@@ -22,6 +22,7 @@ import {
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
+import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 
 const config = getConfig();
 
@@ -81,8 +82,7 @@ async function _sendMessageHandler(
   const normalizedSenderRole = args.senderRole.toLowerCase();
   if (normalizedSenderRole !== 'user') {
     // Check if senderRole is in teamRoles
-    const teamRoles = chatroom.teamRoles || [];
-    const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
+    const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
     if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
       throw new ConvexError({
         code: 'INVALID_ROLE',
@@ -277,8 +277,7 @@ async function _handoffHandler(
 
   // Validate senderRole
   const normalizedSenderRole = args.senderRole.toLowerCase();
-  const teamRoles = chatroom.teamRoles || [];
-  const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
+  const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
   if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
     return {
       success: false,
@@ -295,6 +294,24 @@ async function _handoffHandler(
 
   const normalizedTargetRole = args.targetRole.toLowerCase();
   const isHandoffToUser = normalizedTargetRole === 'user';
+
+  // Validate targetRole is a known team member (or user)
+  if (!isHandoffToUser) {
+    if (!normalizedTeamRoles.includes(normalizedTargetRole)) {
+      return {
+        success: false,
+        error: {
+          code: 'INVALID_TARGET_ROLE',
+          message: `Cannot hand off to "${args.targetRole}": this role is not part of the current team. Available targets: ${['user', ...teamRoles].join(', ')}.`,
+          suggestedTargets: ['user', ...teamRoles],
+        },
+        messageId: null,
+        completedTaskIds: [],
+        newTaskId: null,
+        promotedTaskId: null,
+      };
+    }
+  }
 
   // Validate handoff to user is allowed based on classification
   if (isHandoffToUser) {
@@ -583,8 +600,7 @@ export const reportProgress = mutation({
 
     // Validate senderRole to prevent impersonation
     const normalizedSenderRole = args.senderRole.toLowerCase();
-    const teamRoles = chatroom.teamRoles || [];
-    const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
+    const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
     if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
       throw new ConvexError({
         code: 'INVALID_ROLE',
@@ -835,7 +851,7 @@ export const taskStarted = mutation({
         message?._id?.toString(),
         args.taskId.toString(),
         args.convexUrl,
-        chatroom.teamRoles || []
+        getTeamRolesFromChatroom(chatroom).teamRoles
       );
     } catch (error) {
       console.error('Error generating task started reminder:', error);

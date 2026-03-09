@@ -12,6 +12,7 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness, AgentType } from '../../entities/agent';
+import { getTeamRolesFromChatroom } from './get-team-roles';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ export async function getAgentStatusForChatroom(
     return null;
   }
 
-  const teamRoles = chatroom.teamRoles ?? [];
+  const { teamRoles } = getTeamRolesFromChatroom(chatroom);
 
   // Fetch team agent configs for this chatroom
   const teamConfigs = await ctx.db
