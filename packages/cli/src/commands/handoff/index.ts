@@ -159,7 +159,15 @@ export async function handoff(
     const convexUrl = d.session.getConvexUrl();
     const cliEnvPrefix = getCliEnvPrefix(convexUrl);
     console.error(`\n❌ ERROR: ${result.error.message}`);
-    if (result.error.suggestedTarget) {
+
+    // For invalid target role, show available targets and workflow
+    if (result.error.code === 'INVALID_TARGET_ROLE' && result.error.suggestedTargets) {
+      console.error(`\n📋 Available handoff targets for this team:`);
+      for (const target of result.error.suggestedTargets) {
+        console.error(`   • ${target}`);
+      }
+      console.error(`\n💡 Check your team's workflow in the system prompt for valid handoff paths.`);
+    } else if (result.error.suggestedTarget) {
       console.error(`\n💡 Try this instead:`);
       console.error('```');
       console.error(

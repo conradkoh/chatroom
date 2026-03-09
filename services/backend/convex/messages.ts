@@ -296,6 +296,24 @@ async function _handoffHandler(
   const normalizedTargetRole = args.targetRole.toLowerCase();
   const isHandoffToUser = normalizedTargetRole === 'user';
 
+  // Validate targetRole is a known team member (or user)
+  if (!isHandoffToUser) {
+    if (!normalizedTeamRoles.includes(normalizedTargetRole)) {
+      return {
+        success: false,
+        error: {
+          code: 'INVALID_TARGET_ROLE',
+          message: `Cannot hand off to "${args.targetRole}": this role is not part of the current team. Available targets: ${['user', ...teamRoles].join(', ')}.`,
+          suggestedTargets: ['user', ...teamRoles],
+        },
+        messageId: null,
+        completedTaskIds: [],
+        newTaskId: null,
+        promotedTaskId: null,
+      };
+    }
+  }
+
   // Validate handoff to user is allowed based on classification
   if (isHandoffToUser) {
     // Get the most recent classified user message to determine restrictions (optimized)
