@@ -278,3 +278,57 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
     expect(eventsAfter - eventsBefore).toBe(0);
   });
 });
+
+// ─── Handoff target role validation ──────────────────────────────────────────
+
+describe('Handoff target role validation', () => {
+  test('handoff to non-existent role returns INVALID_TARGET_ROLE error', async () => {
+    const { sessionId } = await createTestSession('test-invalid-target-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+
+    const result = await t.mutation(api.messages.sendHandoff, {
+      sessionId,
+      chatroomId,
+      content: 'Handing off to reviewer',
+      senderRole: 'planner',
+      targetRole: 'reviewer',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+    expect(result.error?.code).toBe('INVALID_TARGET_ROLE');
+    expect(result.error?.message).toContain('Cannot hand off to "reviewer"');
+    expect(result.error?.message).toContain('not part of the current team');
+    expect(result.error?.suggestedTargets).toEqual(['user', 'planner', 'builder']);
+  });
+
+  test('handoff to valid team role succeeds', async () => {
+    const { sessionId } = await createTestSession('test-valid-target-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+
+    const result = await t.mutation(api.messages.sendHandoff, {
+      sessionId,
+      chatroomId,
+      content: 'Implement this feature',
+      senderRole: 'planner',
+      targetRole: 'builder',
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  test('handoff to user is always valid (even in duo team)', async () => {
+    const { sessionId } = await createTestSession('test-user-target-1');
+    const chatroomId = await createDuoTeamChatroom(sessionId);
+
+    const result = await t.mutation(api.messages.sendHandoff, {
+      sessionId,
+      chatroomId,
+      content: 'Done with the task',
+      senderRole: 'planner',
+      targetRole: 'user',
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
