@@ -1461,6 +1461,20 @@ export const cleanupStaleMachines = internalMutation({
               spawnedAt: undefined,
               updatedAt: now,
             });
+
+            // Dual-write: also clear from teamAgentConfigs
+            const teamConfig = await ctx.db
+              .query('chatroom_teamAgentConfigs')
+              .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', config.chatroomId).eq('role', config.role))
+              .filter((q) => q.eq(q.field('machineId'), config.machineId))
+              .first();
+            if (teamConfig) {
+              await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
+                spawnedAgentPid: undefined,
+                spawnedAt: undefined,
+                updatedAt: now,
+              });
+            }
           }
         }
 

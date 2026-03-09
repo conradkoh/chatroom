@@ -539,6 +539,20 @@ export const daemonShutdown = mutation({
           spawnedAt: undefined,
           updatedAt: now,
         });
+
+        // Dual-write: also clear from teamAgentConfigs
+        const teamConfig = await ctx.db
+          .query('chatroom_teamAgentConfigs')
+          .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', config.chatroomId).eq('role', config.role))
+          .filter((q) => q.eq(q.field('machineId'), config.machineId))
+          .first();
+        if (teamConfig) {
+          await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
+            spawnedAgentPid: undefined,
+            spawnedAt: undefined,
+            updatedAt: now,
+          });
+        }
       }
     }
 
@@ -721,6 +735,20 @@ export const updateSpawnedAgent = mutation({
       ...(args.model !== undefined ? { model: args.model } : {}),
     });
 
+    // Dual-write: also update teamAgentConfigs
+    const teamConfig = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId).eq('role', args.role))
+      .filter((q) => q.eq(q.field('machineId'), args.machineId))
+      .first();
+    if (teamConfig) {
+      await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
+        spawnedAgentPid: args.pid,
+        spawnedAt: args.pid ? now : undefined,
+        updatedAt: now,
+      });
+    }
+
     // Write agent.started event and increment restart metric when a new agent is spawning
     if (args.pid != null) {
       // 1. Write agent.started event to event stream
@@ -823,6 +851,20 @@ export const recordAgentExited = mutation({
       .first();
     if (config) {
       await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
+        spawnedAgentPid: undefined,
+        spawnedAt: undefined,
+        updatedAt: now,
+      });
+    }
+
+    // Dual-write: also clear from teamAgentConfigs
+    const teamConfig = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', args.chatroomId).eq('role', args.role))
+      .filter((q) => q.eq(q.field('machineId'), args.machineId))
+      .first();
+    if (teamConfig) {
+      await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
         spawnedAgentPid: undefined,
         spawnedAt: undefined,
         updatedAt: now,
