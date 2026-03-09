@@ -1325,6 +1325,20 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayQueuedMessages.length]);
 
+  // Keep scroll pinned to bottom when the feed container resizes (e.g. multi-line
+  // input growing/shrinking changes the available height for the message area)
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      if (isAtBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   // Handle scroll: load more when near top, track if at bottom
   const handleScroll = useCallback(() => {
     // Track if user is at bottom for auto-scroll behavior
