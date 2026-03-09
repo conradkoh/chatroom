@@ -2,11 +2,9 @@
  * Use Case: Get Agent Status for Chatroom
  *
  * Returns a role-centric view of agent status for a chatroom, suitable for
- * the UI. Merges data from teamAgentConfigs and machineAgentConfigs on the
- * backend so the frontend never needs to see raw table records.
- *
- * This replaces the pattern of returning raw machineConfigs + teamConfigs
- * to the frontend and letting it piece together the view.
+ * the UI. Reads from teamAgentConfigs (the authoritative source for model,
+ * workingDir, spawnedAgentPid, spawnedAt) so the frontend never needs to see
+ * raw table records.
  */
 
 import type { Id } from '../../../../convex/_generated/dataModel';
@@ -68,13 +66,6 @@ export async function getAgentStatusForChatroom(
 
   const teamConfigByRole = new Map(teamConfigs.map((c) => [c.role.toLowerCase(), c]));
 
-  // Fetch machine agent configs for this chatroom
-  const machineConfigs = await ctx.db
-    .query('chatroom_machineAgentConfigs')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', input.chatroomId))
-    .collect();
-
-  // Build a map for quick lookup: role → machineAgentConfig
   // Only include configs for the user's machines
   const userMachines = await ctx.db
     .query('chatroom_machines')
@@ -82,17 +73,10 @@ export async function getAgentStatusForChatroom(
     .collect();
   const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
-  const machineConfigByRole = new Map(
-    machineConfigs
-      .filter((mc) => userMachineMap.has(mc.machineId))
-      .map((mc) => [mc.role.toLowerCase(), mc])
-  );
-
   // Build the agent role views
   const agents: AgentRoleView[] = teamRoles.map((role) => {
     const roleLower = role.toLowerCase();
     const teamConfig = teamConfigByRole.get(roleLower);
-    const machineConfig = machineConfigByRole.get(roleLower);
 
     if (!teamConfig) {
       return {
@@ -112,15 +96,14 @@ export async function getAgentStatusForChatroom(
     if (teamConfig.circuitState === 'open') {
       state = 'circuit_open';
     } else if (teamConfig.desiredState === 'running') {
-      if (machineConfig?.spawnedAgentPid != null) {
+      if (teamConfig.spawnedAgentPid != null) {
         state = 'running';
       } else {
         state = 'starting';
       }
     }
 
-    // Resolve model: team config > machine config
-    const model = teamConfig.model ?? machineConfig?.model;
+    const model = teamConfig.model;
 
     return {
       role,
@@ -129,8 +112,8 @@ export async function getAgentStatusForChatroom(
       machineName: machine?.hostname,
       agentHarness: teamConfig.agentHarness as AgentHarness | undefined,
       model,
-      workingDir: teamConfig.workingDir ?? machineConfig?.workingDir,
-      spawnedAt: machineConfig?.spawnedAt,
+      workingDir: teamConfig.workingDir,
+      spawnedAt: teamConfig.spawnedAt,
     };
   });
 

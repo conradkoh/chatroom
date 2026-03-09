@@ -115,10 +115,9 @@ export type StartAgentReason = AgentStartReason;
 export type StopAgentReason = AgentStopReason;
 
 /**
- * Where the agent's AI model was resolved from in the config hierarchy.
+ * Where the agent's AI model was resolved from.
  *
- * - `team_config`: From the team-level agent configuration (highest priority)
- * - `machine_config`: From the per-machine agent configuration (fallback)
- * - `none`: No model configured at any level
+ * - `team_config`: From the team-level agent configuration
+ * - `none`: No model configured
  */
-export type ModelSource = 'team_config' | 'machine_config' | 'none';
+export type ModelSource = 'team_config' | 'none';

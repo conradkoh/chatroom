@@ -14,6 +14,7 @@ import { DAEMON_HEARTBEAT_TTL_MS } from '../../config/reliability';
 import { api, internal } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
 import { createTestSession, joinParticipant, registerMachineWithDaemon } from '../helpers/integration';
+import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 
 describe('Daemon Heartbeat', () => {
   test('daemonHeartbeat mutation updates lastSeenAt', async () => {
@@ -177,23 +178,22 @@ describe('Daemon Heartbeat', () => {
       teamEntryPoint: 'builder',
     });
 
-    // Insert machine agent config with a spawned PID
+    // Insert team agent config with a spawned PID
     await t.run(async (ctx) => {
-      const machine = await ctx.db
-        .query('chatroom_machines')
-        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
-        .first();
-      await ctx.db.insert('chatroom_machineAgentConfigs', {
+      const teamRoleKey = buildTeamRoleKey(chatroomId, 'pair', 'builder');
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey,
         machineId,
         chatroomId,
         role: 'builder',
-        agentType: 'opencode',
+        type: 'remote',
+        agentHarness: 'opencode',
         workingDir: '/test',
         spawnedAgentPid: 99999,
         spawnedAt: Date.now() - 60_000,
+        createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-      return machine;
     });
 
     // Insert a participant record for the agent (simulating online state)
@@ -237,9 +237,9 @@ describe('Daemon Heartbeat', () => {
     // Verify: spawnedAgentPid is cleared
     const agentConfig = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_machineAgentConfigs')
-        .withIndex('by_machine_chatroom_role', (q) =>
-          q.eq('machineId', machineId).eq('chatroomId', chatroomId).eq('role', 'builder')
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
         )
         .first();
     });

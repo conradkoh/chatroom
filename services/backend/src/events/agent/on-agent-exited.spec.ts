@@ -60,22 +60,6 @@ async function registerMachineAndConfig(
     availableHarnesses: ['opencode'],
   });
 
-  // Create machine agent config (required for recordAgentExited to find config)
-  await t.run(async (ctx) => {
-    const now = Date.now();
-    await ctx.db.insert('chatroom_machineAgentConfigs', {
-      machineId,
-      chatroomId,
-      role: 'builder',
-      agentType: 'opencode',
-      workingDir: '/tmp/test',
-      updatedAt: now,
-      spawnedAgentPid: 1234,
-      spawnedAt: now,
-    });
-  });
-
-  // Create team agent config (for desiredState check)
   await t.run(async (ctx) => {
     const now = Date.now();
     await ctx.db.insert('chatroom_teamAgentConfigs', {
@@ -90,6 +74,8 @@ async function registerMachineAndConfig(
       createdAt: now,
       updatedAt: now,
       desiredState,
+      spawnedAgentPid: 1234,
+      spawnedAt: now,
     });
   });
 }
@@ -237,13 +223,13 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
       stopReason: 'user.stop',
     });
 
-    // Verify the PID was cleared in machine agent config
     const config = await t.run(async (ctx) => {
       return await ctx.db
-        .query('chatroom_machineAgentConfigs')
-        .withIndex('by_machine_chatroom_role', (q) =>
-          q.eq('machineId', 'oae-m6').eq('chatroomId', chatroomId).eq('role', 'builder')
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
         )
+        .filter((q) => q.eq(q.field('machineId'), 'oae-m6'))
         .first();
     });
 

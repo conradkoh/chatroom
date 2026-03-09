@@ -2,8 +2,7 @@
  * Get Agent Config — Integration Tests
  *
  * Tests the `getAgentConfig` use case which is the single source of truth
- * for resolving consolidated agent configuration from both
- * chatroom_teamAgentConfigs and chatroom_machineAgentConfigs.
+ * for resolving agent configuration from chatroom_teamAgentConfigs.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -96,14 +95,14 @@ describe('getAgentConfig', () => {
     }
   });
 
-  test('falls back to machine config model when team config has no model', async () => {
+  test("returns modelSource 'none' when team config model is cleared", async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-gac-4');
     const chatroomId = await createPairTeamChatroom(sessionId);
     const machineId = 'machine-gac-4';
     await registerMachineWithDaemon(sessionId, machineId);
 
-    // Start agent with model — saves to both configs
+    // Start agent with model — saves to team config
     await t.mutation(api.machines.sendCommand, {
       sessionId,
       machineId,
@@ -117,7 +116,7 @@ describe('getAgentConfig', () => {
       },
     });
 
-    // Directly clear the model on the team config (saveTeamAgentConfig preserves existing model)
+    // Directly clear the model on the team config
     await t.run(async (ctx) => {
       const teamRoleKey = buildTeamRoleKey(chatroomId, 'pair', 'builder');
       const teamConfig = await ctx.db
@@ -139,8 +138,8 @@ describe('getAgentConfig', () => {
     // ===== VERIFY =====
     expect(result.found).toBe(true);
     if (result.found) {
-      expect(result.config.model).toBe('claude-opus-4');
-      expect(result.config.modelSource).toBe('machine_config');
+      expect(result.config.model).toBeUndefined();
+      expect(result.config.modelSource).toBe('none');
     }
   });
 
@@ -206,7 +205,7 @@ describe('getAgentConfig', () => {
     }
   });
 
-  test('includes spawnedAgentPid from machine config', async () => {
+  test('includes spawnedAgentPid from team config', async () => {
     // ===== SETUP =====
     const { sessionId } = await createTestSession('test-gac-7');
     const chatroomId = await createPairTeamChatroom(sessionId);

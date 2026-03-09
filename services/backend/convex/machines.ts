@@ -286,21 +286,20 @@ export const getMachineAgentConfigs = query({
     const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
 
     const allConfigs = await ctx.db
-      .query('chatroom_machineAgentConfigs')
+      .query('chatroom_teamAgentConfigs')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
     // Filter to only configs for machines the user owns
-    const userConfigs = allConfigs.filter((c) => userMachineMap.has(c.machineId));
+    const userConfigs = allConfigs.filter((c) => c.machineId && userMachineMap.has(c.machineId));
 
-    // Enrich configs with machine details (already fetched)
     const configsWithMachine = userConfigs.map((config) => {
-      const machine = userMachineMap.get(config.machineId);
+      const machine = userMachineMap.get(config.machineId!);
       return {
-        machineId: config.machineId,
+        machineId: config.machineId!,
         hostname: machine?.hostname ?? 'Unknown',
         role: config.role,
-        agentType: config.agentType,
+        agentType: config.agentHarness,
         workingDir: config.workingDir,
         model: config.model,
         daemonConnected: machine?.daemonConnected ?? false,
@@ -526,15 +525,15 @@ export const daemonShutdown = mutation({
     });
 
     // 2. Clear all spawnedAgent records for this machine
-    const agentConfigs = await ctx.db
-      .query('chatroom_machineAgentConfigs')
-      .withIndex('by_machine_chatroom_role', (q) => q.eq('machineId', args.machineId))
+    const machineConfigs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .collect();
 
     const now = Date.now();
-    for (const config of agentConfigs) {
+    for (const config of machineConfigs) {
       if (config.spawnedAgentPid != null) {
-        await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
+        await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
           spawnedAgentPid: undefined,
           spawnedAt: undefined,
           updatedAt: now,
@@ -543,7 +542,7 @@ export const daemonShutdown = mutation({
     }
 
     // 3. Delete participant records for agents on this machine
-    for (const config of agentConfigs) {
+    for (const config of machineConfigs) {
       const participant = await ctx.db
         .query('chatroom_participants')
         .withIndex('by_chatroom_and_role', (q) =>
@@ -555,7 +554,7 @@ export const daemonShutdown = mutation({
       }
     }
 
-    return { clearedAgents: agentConfigs.length };
+    return { clearedAgents: machineConfigs.length };
   },
 });
 
@@ -621,17 +620,14 @@ export const sendCommand = mutation({
     if (args.type === 'start-agent' && args.payload?.chatroomId && args.payload?.role) {
       // Read existing config for fallback values when payload is incomplete
       const existingConfig = await ctx.db
-        .query('chatroom_machineAgentConfigs')
-        .withIndex('by_machine_chatroom_role', (q) =>
-          q
-            .eq('machineId', args.machineId)
-            .eq('chatroomId', args.payload!.chatroomId!)
-            .eq('role', args.payload!.role!)
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_chatroom_role', (q) =>
+          q.eq('chatroomId', args.payload!.chatroomId!).eq('role', args.payload!.role!)
         )
         .first();
 
       const resolvedModel = args.payload.model ?? existingConfig?.model;
-      const resolvedHarness = args.payload.agentHarness ?? existingConfig?.agentType;
+      const resolvedHarness = args.payload.agentHarness ?? existingConfig?.agentHarness;
       const resolvedWorkingDir = args.payload.workingDir ?? existingConfig?.workingDir;
 
       if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
@@ -701,9 +697,9 @@ export const updateSpawnedAgent = mutation({
 
     // Find the agent config
     const config = await ctx.db
-      .query('chatroom_machineAgentConfigs')
-      .withIndex('by_machine_chatroom_role', (q) =>
-        q.eq('machineId', args.machineId).eq('chatroomId', args.chatroomId).eq('role', args.role)
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role).eq('machineId', args.machineId)
       )
       .first();
 
@@ -713,8 +709,7 @@ export const updateSpawnedAgent = mutation({
 
     const now = Date.now();
 
-    // Update the spawned agent info (and model if provided)
-    await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
+    await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
       spawnedAgentPid: args.pid,
       spawnedAt: args.pid ? now : undefined,
       updatedAt: now,
@@ -724,22 +719,24 @@ export const updateSpawnedAgent = mutation({
     // Write agent.started event and increment restart metric when a new agent is spawning
     if (args.pid != null) {
       // 1. Write agent.started event to event stream
+      const harness = config.agentHarness ?? 'opencode';
+      const configWorkingDir = config.workingDir ?? '/unknown';
       await ctx.db.insert('chatroom_eventStream', {
         type: 'agent.started',
         chatroomId: args.chatroomId,
         role: args.role,
         machineId: args.machineId,
-        agentHarness: config.agentType,
+        agentHarness: harness,
         model: args.model ?? config.model ?? 'unknown',
-        workingDir: config.workingDir,
+        workingDir: configWorkingDir,
         pid: args.pid,
         timestamp: now,
       });
 
       // 2. Upsert restart metric for this hour bucket
       const model = args.model ?? config.model ?? 'unknown';
-      const agentType = config.agentType ?? 'unknown';
-      const workingDir = config.workingDir;
+      const agentType = harness as string;
+      const workingDir = configWorkingDir;
       const hourBucket = Math.floor(now / 3_600_000) * 3_600_000;
 
       const existingMetric = await ctx.db
@@ -814,15 +811,15 @@ export const recordAgentExited = mutation({
       timestamp: now,
     });
 
-    // 3. Clear spawnedAgentPid from machine agent config
+    // 3. Clear spawnedAgentPid from team agent config
     const config = await ctx.db
-      .query('chatroom_machineAgentConfigs')
-      .withIndex('by_machine_chatroom_role', (q) =>
-        q.eq('machineId', args.machineId).eq('chatroomId', args.chatroomId).eq('role', args.role)
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom_role', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role).eq('machineId', args.machineId)
       )
       .first();
     if (config) {
-      await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
+      await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
         spawnedAgentPid: undefined,
         spawnedAt: undefined,
         updatedAt: now,
@@ -1158,15 +1155,15 @@ export const listRemoteAgentRunningStatus = query({
     const results = await Promise.all(
       userChatrooms.map(async (room) => {
         const configs = await ctx.db
-          .query('chatroom_machineAgentConfigs')
+          .query('chatroom_teamAgentConfigs')
           .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
           .collect();
 
-        const userConfigs = configs.filter((c) => userMachineIds.has(c.machineId));
+        const userConfigs = configs.filter((c) => c.machineId && userMachineIds.has(c.machineId));
 
         const runningConfigs = userConfigs
           .filter((c) => c.spawnedAgentPid != null)
-          .map((c) => ({ machineId: c.machineId, role: c.role }));
+          .map((c) => ({ machineId: c.machineId!, role: c.role }));
 
         const remoteAgentStatus: 'running' | 'stopped' | 'none' =
           userConfigs.length === 0 ? 'none' : runningConfigs.length > 0 ? 'running' : 'stopped';

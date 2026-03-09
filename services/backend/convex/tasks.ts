@@ -1450,13 +1450,13 @@ export const cleanupStaleMachines = internalMutation({
 
         // 2. Clear spawnedAgent records for all agents on this machine
         const agentConfigs = await ctx.db
-          .query('chatroom_machineAgentConfigs')
-          .withIndex('by_machine_chatroom_role', (q) => q.eq('machineId', machine.machineId))
+          .query('chatroom_teamAgentConfigs')
+          .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
           .collect();
 
         for (const config of agentConfigs) {
           if (config.spawnedAgentPid != null) {
-            await ctx.db.patch('chatroom_machineAgentConfigs', config._id, {
+            await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
               spawnedAgentPid: undefined,
               spawnedAt: undefined,
               updatedAt: now,

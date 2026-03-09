@@ -373,9 +373,9 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
   // Also verify that the PID was cleared on the agent config
   const agentConfig = await t.run(async (ctx) => {
     return ctx.db
-      .query('chatroom_machineAgentConfigs')
-      .withIndex('by_machine_chatroom_role', (q) =>
-        q.eq('machineId', machineId).eq('chatroomId', chatroomId).eq('role', 'builder')
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_chatroom_role', (q) =>
+        q.eq('chatroomId', chatroomId).eq('role', 'builder')
       )
       .first();
   });
