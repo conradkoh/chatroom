@@ -351,29 +351,50 @@ Task ID: ${taskId}`;
           nextRole: delegateTarget,
           cliEnvPrefix,
         });
+        const progressCmd = reportProgressCommand({
+          chatroomId,
+          role: 'planner',
+          cliEnvPrefix,
+        });
         return `✅ Task acknowledged as NEW FEATURE.
 
 **Next steps:**
 1. Decompose the task into clear, actionable work items
-2. Send \`report-progress\` as phases complete to keep the user informed
+2. **Report progress to the user** before delegating — so they know work has started:
+
+\`\`\`bash
+${progressCmd}
+\`\`\`
+
 3. Delegate implementation to ${delegateTarget}:
 
 \`\`\`bash
 ${handoffToTeamCmd}
 \`\`\`
 
-4. Review completed work before delivering to user
-5. Hand back for rework if requirements are not met
+4. When work returns, send another \`report-progress\` update before reviewing
+5. Review completed work before delivering to user
+6. Hand back for rework if requirements are not met
 
 💡 You're working on:
 Task ID: ${taskId}`;
       }
       case 'follow_up': {
+        const progressCmdFollowUp = reportProgressCommand({
+          chatroomId,
+          role: 'planner',
+          cliEnvPrefix,
+        });
         return `✅ Task acknowledged as FOLLOW UP.
 
 **Next steps:**
 1. Review the follow-up request against previous work
-2. Send \`report-progress\` to keep the user informed as work progresses
+2. **Report progress to the user** so they know you're handling it:
+
+\`\`\`bash
+${progressCmdFollowUp}
+\`\`\`
+
 3. Delegate to appropriate team member or handle yourself
 4. Follow-up inherits the workflow rules from the original task:
    - If original was a QUESTION → handle and hand off to user when done
