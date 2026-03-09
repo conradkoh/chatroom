@@ -764,6 +764,7 @@ export const updateSpawnedAgent = mutation({
           chatroomId: args.chatroomId,
           workingDir,
           model,
+          agentType: config.agentType,
           hourBucket,
           count: 1,
         });
