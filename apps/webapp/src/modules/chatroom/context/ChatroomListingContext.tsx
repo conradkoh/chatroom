@@ -29,6 +29,7 @@ export interface ChatroomWithStatus {
   isFavorite: boolean;
   hasUnread: boolean;
   remoteAgentStatus: 'running' | 'stopped' | 'none';
+  runningRoles: string[];
   runningAgentConfigs: Array<{ machineId: string; role: string }>;
 }
 
@@ -50,7 +51,7 @@ const ChatroomListingContext = createContext<ChatroomListingContextValue | null>
  * 2. `listParticipantPresence`       — agent presence; re-fires on heartbeats (30s)
  * 3. `listFavoriteIds`               — favorited chatroom IDs
  * 4. `listUnreadStatus`              — per-chatroom unread indicator
- * 5. `listRemoteAgentRunningStatus`  — remote agent running state per chatroom
+ * 5. `listAgentOverview`             — remote agent running state per chatroom
  *
  * Splitting into five subscriptions means a participant heartbeat (every 30s)
  * only re-runs `listParticipantPresence`, not the entire bundle.
@@ -69,7 +70,7 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
   const unreadStatus = useSessionQuery(api.chatrooms.listUnreadStatus);
 
   // 5. Remote agent running status — re-fires when any machine spawnedAgentPid changes
-  const remoteAgentStatusData = useSessionQuery(api.machines.listRemoteAgentRunningStatus);
+  const remoteAgentStatusData = useSessionQuery(api.machines.listAgentOverview);
 
   // Tick every 30s to keep time-based `chatStatus` fresh without DB writes
   const tick = usePresenceTick();
@@ -130,8 +131,9 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
         chatStatus,
         isFavorite: favoriteSet.has(chatroom._id),
         hasUnread: unreadMap.get(chatroom._id) ?? false,
-        remoteAgentStatus: (remoteAgentStatusMap.get(chatroom._id)?.remoteAgentStatus ?? 'none') as 'running' | 'stopped' | 'none',
-        runningAgentConfigs: remoteAgentStatusMap.get(chatroom._id)?.runningConfigs ?? [],
+        remoteAgentStatus: (remoteAgentStatusMap.get(chatroom._id)?.agentStatus ?? 'none') as 'running' | 'stopped' | 'none',
+        runningRoles: remoteAgentStatusMap.get(chatroom._id)?.runningRoles ?? [],
+        runningAgentConfigs: remoteAgentStatusMap.get(chatroom._id)?.runningAgents ?? [],
       } as ChatroomWithStatus;
     });
   }, [baseChatrooms, presenceData, favoriteIds, unreadStatus, remoteAgentStatusData, tick]);

@@ -13,7 +13,7 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { StopAgentReason } from '../../entities/agent';
+import type { AgentStopReason } from '../../entities/agent';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -31,9 +31,9 @@ export interface StopAgentInput {
   /**
    * Human-readable reason for this stop command.
    * Stored in the command record and logged by the daemon to aid tracing.
-   * Examples: 'user-stop', 'dedup-stop'
+   * Examples: 'user.stop', 'platform.dedup'
    */
-  reason: StopAgentReason;
+  reason: AgentStopReason;
 }
 
 /** Result of a stop-agent operation. */

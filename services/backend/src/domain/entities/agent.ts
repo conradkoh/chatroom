@@ -51,27 +51,68 @@ export type MachineCommandType = 'start-agent' | 'stop-agent' | 'ping' | 'status
  */
 export type MachineCommandStatus = 'pending' | 'completed' | 'failed';
 
-// ─── Command Reason Types ─────────────────────────────────────────────────────
+// ─── Agent Reason Types ───────────────────────────────────────────────────────
+//
+// Single source of truth for all agent start/stop reasons.
+// Uses actor-prefixed dot notation: <actor>.<action>
+//
+// Actors:
+//   user      — human-initiated via UI or CLI
+//   platform  — server-side automation (ensure-agent, dedup, team switch)
+//   daemon    — machine daemon lifecycle (respawn)
 
 /**
- * Human-readable reasons for dispatching a start-agent command.
+ * Why an agent was started. Used in `agent.requestStart` events.
  *
- * - `user-start`: User explicitly started the agent via UI or CLI
- * - `user-restart`: User explicitly restarted the agent via UI or CLI
- * - `ensure-agent-retry`: Auto-restart triggered by the ensure-agent scheduled check
+ * - `user.start`: User explicitly started the agent via UI or CLI
+ * - `user.restart`: User explicitly restarted the agent via UI or CLI
+ * - `platform.ensure_agent`: Auto-restart triggered by the ensure-agent scheduled check
  * - `test`: Used in integration and unit tests only
  */
-export type StartAgentReason = 'user-start' | 'user-restart' | 'ensure-agent-retry' | 'test';
+export const AGENT_START_REASONS = [
+  'user.start',
+  'user.restart',
+  'platform.ensure_agent',
+  'test',
+] as const;
+export type AgentStartReason = (typeof AGENT_START_REASONS)[number];
 
 /**
- * Human-readable reasons for dispatching a stop-agent command.
+ * Why an agent was stopped. Used in `agent.requestStop` events and
+ * `agent.exited` stopReason field. Same type flows from request through
+ * to exit — the daemon passes through the reason it received.
  *
- * - `user-stop`: User explicitly stopped the agent via UI or CLI
- * - `dedup-stop`: Agent stopped automatically to deduplicate roles (another agent took over)
- * - `team-switch`: Agent stopped because the chatroom's team structure was changed (no auto-restart)
+ * - `user.stop`: User explicitly stopped the agent via UI or CLI
+ * - `platform.dedup`: Agent stopped to deduplicate roles (another agent took over)
+ * - `platform.team_switch`: Agent stopped because the chatroom's team was changed (no auto-restart)
+ * - `daemon.respawn`: Daemon killed agent to spawn a fresh instance
  * - `test`: Used in integration and unit tests only
  */
-export type StopAgentReason = 'user-stop' | 'dedup-stop' | 'team-switch' | 'test';
+export const AGENT_STOP_REASONS = [
+  'user.stop',
+  'platform.dedup',
+  'platform.team_switch',
+  'daemon.respawn',
+  'test',
+] as const;
+export type AgentStopReason = (typeof AGENT_STOP_REASONS)[number];
+
+// Convex validator exports for use in schema.ts
+import { v } from 'convex/values';
+
+export const agentStartReasonValidator = v.union(
+  ...AGENT_START_REASONS.map((r) => v.literal(r))
+);
+
+export const agentStopReasonValidator = v.union(
+  ...AGENT_STOP_REASONS.map((r) => v.literal(r))
+);
+
+// ─── Deprecated aliases (remove after full migration) ─────────────────────────
+/** @deprecated Use AgentStartReason instead */
+export type StartAgentReason = AgentStartReason;
+/** @deprecated Use AgentStopReason instead */
+export type StopAgentReason = AgentStopReason;
 
 /**
  * Where the agent's AI model was resolved from in the config hierarchy.

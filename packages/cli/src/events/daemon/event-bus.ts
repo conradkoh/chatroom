@@ -38,7 +38,7 @@ export interface DaemonEventMap {
     pid: number;
     code: number | null;
     signal: string | null;
-    stopReason: 'user.stop' | 'daemon.respawn' | 'agent_process.exited_clean' | 'agent_process.signal' | 'agent_process.crashed';
+    stopReason: 'user.stop' | 'platform.dedup' | 'platform.team_switch' | 'daemon.respawn' | 'agent_process.exited_clean' | 'agent_process.signal' | 'agent_process.crashed' | 'test';
     intentional: boolean;
   };
 

@@ -1,9 +1,10 @@
 'use client';
 
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useMemo } from 'react';
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/agent/get-agent-status-for-chatroom';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
@@ -56,10 +57,6 @@ export function resolveMachineHostname(
   return machine?.hostname;
 }
 
-// Re-export TeamAgentConfig from the consolidated hook for backwards compatibility
-import type { TeamAgentConfig } from '../../hooks/useAgentPanelData';
-export type { TeamAgentConfig } from '../../hooks/useAgentPanelData';
-
 // ─── InlineAgentCard ─────────────────────────────────────────────────────────
 
 export interface InlineAgentCardProps {
@@ -74,7 +71,7 @@ export interface InlineAgentCardProps {
   isLoadingMachines: boolean;
   agentConfigs: AgentConfig[];
   sendCommand: SendCommandFn;
-  teamConfig?: TeamAgentConfig;
+  agentRoleView?: AgentRoleView;
   /** User's saved preference for this role's remote agent config */
   agentPreference?: AgentPreference;
   /** Called when user starts an agent — persists preference to backend */
@@ -94,12 +91,12 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   isLoadingMachines,
   agentConfigs,
   sendCommand,
-  teamConfig,
+  agentRoleView,
   agentPreference,
   onSavePreference,
 }: InlineAgentCardProps) {
   const [activeTab, setActiveTab] = useState<'remote' | 'custom'>(
-    teamConfig?.type === 'custom' ? 'custom' : 'remote'
+    agentRoleView?.type === 'custom' ? 'custom' : 'remote'
   );
 
   const controls = useAgentControls({
@@ -108,8 +105,8 @@ export const InlineAgentCard = memo(function InlineAgentCard({
     connectedMachines,
     agentConfigs,
     sendCommand,
-    teamConfigModel: teamConfig?.model,
-    teamConfigHarness: teamConfig?.agentHarness,
+    teamConfigModel: agentRoleView?.model,
+    teamConfigHarness: agentRoleView?.agentHarness,
     agentPreference,
     onSavePreference,
   });
@@ -117,8 +114,12 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   const daemonStartCommand = getDaemonStartCommand();
   const statusLabel = online ? eventTypeToStatusLabel(latestEventType) : 'OFFLINE';
 
-  // Use teamConfig machineId if available — needed for restart stats query
-  const statsMachineId = teamConfig?.machineId ?? null;
+  // Resolve machineId from agentConfigs for restart stats query
+  const statsMachineId = useMemo(() => {
+    const config = agentConfigs.find((c) => c.role.toLowerCase() === role.toLowerCase());
+    return config?.machineId ?? null;
+  }, [agentConfigs, role]);
+
   const [statsOpen, setStatsOpen] = useState(false);
 
   const restartSummary = useSessionQuery(
@@ -213,7 +214,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
               onClose={() => setStatsOpen(false)}
               role={role}
               machineId={statsMachineId}
-              workingDir={teamConfig?.workingDir ?? ''}
+              workingDir={agentRoleView?.workingDir ?? ''}
               chatroomId={chatroomId}
             />
           </>

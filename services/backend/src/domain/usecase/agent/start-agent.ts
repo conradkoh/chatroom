@@ -18,7 +18,7 @@
 
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { AgentHarness, AgentType, StartAgentReason } from '../../entities/agent';
+import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 
@@ -47,9 +47,9 @@ export interface StartAgentInput {
   /**
    * Human-readable reason for this start command.
    * Stored in the command record and logged by the daemon to aid tracing.
-   * Examples: 'user-start', 'user-restart', 'ensure-agent-retry'
+   * Examples: 'user.start', 'user.restart', 'platform.ensure_agent'
    */
-  reason: StartAgentReason;
+  reason: AgentStartReason;
 }
 
 /** Successful result of a start-agent operation. */

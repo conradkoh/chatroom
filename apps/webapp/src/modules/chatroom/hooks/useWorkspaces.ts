@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 
-import type { TeamAgentConfig } from './useAgentPanelData';
-import type { MachineInfo } from '../types/machine';
+import type { WorkspaceView } from '@workspace/backend/src/domain/usecase/agent/get-agent-status-for-chatroom';
 import type { Workspace, WorkspaceGroup } from '../types/workspace';
 
 /** Minimal agent shape required for workspace derivation. */
@@ -11,9 +10,8 @@ interface AgentWithRole {
 
 interface UseWorkspacesParams {
   agents: AgentWithRole[];
-  /** keyed by role.toLowerCase() */
-  teamConfigMap: Map<string, TeamAgentConfig>;
-  connectedMachines: MachineInfo[];
+  /** Backend-computed workspace views from getAgentStatus. */
+  backendWorkspaces: WorkspaceView[];
 }
 
 interface UseWorkspacesResult {
@@ -23,15 +21,11 @@ interface UseWorkspacesResult {
   allWorkspaces: Workspace[];
 }
 
-/** Derives workspace groups and a flat workspace list from agents and their team configs. */
+/** Derives workspace groups and a flat workspace list from backend workspace views and agents. */
 export function useWorkspaces(params: UseWorkspacesParams): UseWorkspacesResult {
-  const { agents, teamConfigMap, connectedMachines } = params;
+  const { agents, backendWorkspaces } = params;
 
   return useMemo(() => {
-    // Build hostname lookup from connectedMachines
-    const hostnameMap = new Map(connectedMachines.map((m) => [m.machineId, m.hostname]));
-
-    // Accumulate workspace entries
     const workspaceMap = new Map<string, Workspace>();
     const unassignedWorkspace: Workspace = {
       id: '__unassigned__',
@@ -41,48 +35,44 @@ export function useWorkspaces(params: UseWorkspacesParams): UseWorkspacesResult 
       agentRoles: [],
     };
 
-    for (const agent of agents) {
-      const config = teamConfigMap.get(agent.role.toLowerCase());
-
-      if (!config?.machineId || !config?.workingDir) {
-        // Agent has no machine or workingDir → Unassigned
-        unassignedWorkspace.agentRoles.push(agent.role);
-        continue;
-      }
-
-      const wsId = `${config.machineId}::${config.workingDir}`;
-      if (!workspaceMap.has(wsId)) {
-        workspaceMap.set(wsId, {
-          id: wsId,
-          machineId: config.machineId,
-          hostname: hostnameMap.get(config.machineId) ?? config.machineId.slice(0, 8),
-          workingDir: config.workingDir,
-          agentRoles: [],
-        });
-      }
-      workspaceMap.get(wsId)!.agentRoles.push(agent.role);
+    // Build workspaces from backend data
+    for (const bw of backendWorkspaces) {
+      const wsId = `${bw.hostname}::${bw.workingDir}`;
+      workspaceMap.set(wsId, {
+        id: wsId,
+        machineId: null,
+        hostname: bw.hostname,
+        workingDir: bw.workingDir,
+        agentRoles: [...bw.agentRoles],
+      });
     }
 
-    // Build workspace list (exclude unassigned for grouping)
+    // Find agents not in any backend workspace → add to Unassigned
+    const assignedRoles = new Set(backendWorkspaces.flatMap((w) => w.agentRoles));
+    for (const agent of agents) {
+      if (!assignedRoles.has(agent.role)) {
+        unassignedWorkspace.agentRoles.push(agent.role);
+      }
+    }
+
     const assignedWorkspaces = Array.from(workspaceMap.values());
 
-    // Group assigned workspaces by machineId
-    const machineGroupMap = new Map<string, WorkspaceGroup>();
+    // Group assigned workspaces by hostname
+    const hostnameGroupMap = new Map<string, WorkspaceGroup>();
     for (const ws of assignedWorkspaces) {
-      const machineId = ws.machineId!;
-      if (!machineGroupMap.has(machineId)) {
-        machineGroupMap.set(machineId, {
-          machineId,
+      const key = ws.hostname;
+      if (!hostnameGroupMap.has(key)) {
+        hostnameGroupMap.set(key, {
+          machineId: ws.machineId,
           hostname: ws.hostname,
           workspaces: [],
         });
       }
-      machineGroupMap.get(machineId)!.workspaces.push(ws);
+      hostnameGroupMap.get(key)!.workspaces.push(ws);
     }
 
-    const workspaceGroups: WorkspaceGroup[] = Array.from(machineGroupMap.values());
+    const workspaceGroups: WorkspaceGroup[] = Array.from(hostnameGroupMap.values());
 
-    // Append "Unassigned" group at the end, only if there are unassigned agents
     if (unassignedWorkspace.agentRoles.length > 0) {
       workspaceGroups.push({
         machineId: null,
@@ -97,5 +87,5 @@ export function useWorkspaces(params: UseWorkspacesParams): UseWorkspacesResult 
     ];
 
     return { workspaceGroups, allWorkspaces };
-  }, [agents, teamConfigMap, connectedMachines]);
+  }, [agents, backendWorkspaces]);
 }

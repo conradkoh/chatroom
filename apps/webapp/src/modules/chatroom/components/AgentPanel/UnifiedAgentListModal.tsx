@@ -43,20 +43,19 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
 
   const {
+    agents: agentRoleViews,
+    workspaces: backendWorkspaces,
     connectedMachines,
     machineConfigs,
-    teamConfigMap,
     agentPreferenceMap,
     isLoading,
     sendCommand,
     savePreference,
   } = useAgentPanelData(chatroomId);
 
-  // Derive workspace structure from agents + teamConfigMap + connectedMachines
   const { workspaceGroups, allWorkspaces } = useWorkspaces({
     agents,
-    teamConfigMap,
-    connectedMachines,
+    backendWorkspaces,
   });
 
   // Auto-select first workspace whenever workspaces load or current selection is stale
@@ -81,6 +80,12 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     [allWorkspaces, selectedWorkspaceId]
   );
 
+  // Build a map from role → AgentRoleView for passing to WorkspaceAgentList
+  const agentRoleViewMap = useMemo(
+    () => new Map(agentRoleViews.map((a) => [a.role.toLowerCase(), a])),
+    [agentRoleViews]
+  );
+
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">
       <FixedModalContent>
@@ -102,7 +107,7 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
             isLoadingMachines={isLoading}
             agentConfigs={machineConfigs}
             sendCommand={sendCommand}
-            teamConfigMap={teamConfigMap}
+            agentRoleViewMap={agentRoleViewMap}
             agentPreferenceMap={agentPreferenceMap}
             onSavePreference={savePreference}
           />

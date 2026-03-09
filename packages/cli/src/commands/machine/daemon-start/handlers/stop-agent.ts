@@ -13,6 +13,7 @@
 import { api } from '../../../../api.js';
 import type { Id } from '../../../../api.js';
 import { onAgentShutdown } from '../../../../events/lifecycle/on-agent-shutdown.js';
+import type { StopReason } from '../../../../infrastructure/machine/stop-reason.js';
 import type { CommandResult, DaemonContext, StopAgentCommand, StopAgentReason } from '../types.js';
 import { clearAgentPidEverywhere } from './shared.js';
 
@@ -31,10 +32,12 @@ export async function executeStopAgent(
     reason: StopAgentReason;
   }
 ): Promise<CommandResult> {
-  const { chatroomId, role } = args;
+  const { chatroomId, role, reason } = args;
+  const stopReason: StopReason = reason as StopReason;
   console.log(`   ↪ stop-agent command received`);
   console.log(`      Chatroom: ${chatroomId}`);
   console.log(`      Role: ${role}`);
+  console.log(`      Reason: ${reason}`);
 
   // Query the backend for the current PID (source 1: authoritative DB record)
   const configsResult: {
@@ -103,6 +106,7 @@ export async function executeStopAgent(
         chatroomId,
         role,
         pid,
+        stopReason,
       });
 
       const msg = shutdownResult.killed

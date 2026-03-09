@@ -13,6 +13,9 @@ import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/sta
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { onAgentExited as onAgentExitedEvent } from '../src/events/agent/on-agent-exited';
+import { getAgentStatusForChatroom } from '../src/domain/usecase/agent/get-agent-status-for-chatroom';
+import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
+import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -309,79 +312,6 @@ export const getMachineAgentConfigs = query({
     });
 
     return { configs: configsWithMachine };
-  },
-});
-
-/** Returns all four data sources for the agent panel in a single atomic read:
- *  machines, machine agent configs, team agent configs, and user preferences. */
-export const getAgentPanel = query({
-  args: {
-    ...SessionIdArg,
-    chatroomId: v.id('chatroom_rooms'),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
-      return { machines: [], machineConfigs: [], teamConfigs: [], preferences: [] };
-    }
-    const user = auth.user;
-    const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    if (!chatroom || chatroom.ownerId !== user._id) {
-      return { machines: [], machineConfigs: [], teamConfigs: [], preferences: [] };
-    }
-
-    const userMachines = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_userId', (q) => q.eq('userId', user._id))
-      .collect();
-    const machines = userMachines.map((m) => ({
-      machineId: m.machineId,
-      hostname: m.hostname,
-      os: m.os,
-      availableHarnesses: m.availableHarnesses,
-      harnessVersions: m.harnessVersions ?? {},
-      availableModels: m.availableModels ?? {},
-      daemonConnected: m.daemonConnected,
-      lastSeenAt: m.lastSeenAt,
-    }));
-
-    const userMachineMap = new Map(userMachines.map((m) => [m.machineId, m]));
-    const allConfigs = await ctx.db
-      .query('chatroom_machineAgentConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-    const machineConfigs = allConfigs
-      .filter((c) => userMachineMap.has(c.machineId))
-      .map((config) => {
-        const machine = userMachineMap.get(config.machineId);
-        return {
-          machineId: config.machineId,
-          hostname: machine?.hostname ?? 'Unknown',
-          role: config.role,
-          agentType: config.agentType,
-          workingDir: config.workingDir,
-          model: config.model,
-          daemonConnected: machine?.daemonConnected ?? false,
-          availableHarnesses: machine?.availableHarnesses ?? [],
-          updatedAt: config.updatedAt,
-          spawnedAgentPid: config.spawnedAgentPid,
-          spawnedAt: config.spawnedAt,
-        };
-      });
-
-    const teamConfigs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const preferences = await ctx.db
-      .query('chatroom_agentPreferences')
-      .withIndex('by_userId_chatroom_role', (q) =>
-        q.eq('userId', user._id).eq('chatroomId', args.chatroomId)
-      )
-      .collect();
-
-    return { machines, machineConfigs, teamConfigs, preferences };
   },
 });
 
@@ -721,7 +651,7 @@ export const sendCommand = mutation({
           model: resolvedModel,
           agentHarness: resolvedHarness,
           workingDir: resolvedWorkingDir,
-          reason: 'user-start',
+          reason: 'user.start',
         },
         machine
       );
@@ -735,7 +665,7 @@ export const sendCommand = mutation({
         chatroomId: args.payload.chatroomId,
         role: args.payload.role,
         userId: user._id,
-        reason: 'user-stop',
+        reason: 'user.stop',
       });
       return {};
     }
@@ -834,6 +764,7 @@ export const updateSpawnedAgent = mutation({
           chatroomId: args.chatroomId,
           workingDir,
           model,
+          agentType: config.agentType,
           hourBucket,
           count: 1,
         });
@@ -1204,56 +1135,6 @@ export const upsertMachineModelFilters = mutation({
   },
 });
 
-/** Returns the remote agent running status for every chatroom owned by the authenticated user. */
-export const listRemoteAgentRunningStatus = query({
-  args: { ...SessionIdArg },
-  handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) return [];
-
-    // Get all machines belonging to the user (keyed by machineId string)
-    const userMachines = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_userId', (q) => q.eq('userId', auth.user._id))
-      .collect();
-    const userMachineIds = new Set(userMachines.map((m) => m.machineId));
-
-    // Get all chatrooms owned by the user
-    const userChatrooms = await ctx.db
-      .query('chatroom_rooms')
-      .withIndex('by_ownerId', (q) => q.eq('ownerId', auth.user._id))
-      .collect();
-
-    // For each chatroom, compute its remote agent status
-    const results = await Promise.all(
-      userChatrooms.map(async (room) => {
-        const configs = await ctx.db
-          .query('chatroom_machineAgentConfigs')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', room._id))
-          .collect();
-
-        // Filter to configs that belong to the user's machines
-        const userConfigs = configs.filter((c) => userMachineIds.has(c.machineId));
-
-        const runningConfigs = userConfigs
-          .filter((c) => c.spawnedAgentPid != null)
-          .map((c) => ({ machineId: c.machineId, role: c.role }));
-
-        const remoteAgentStatus: 'running' | 'stopped' | 'none' =
-          userConfigs.length === 0 ? 'none' : runningConfigs.length > 0 ? 'running' : 'stopped';
-
-        return {
-          chatroomId: room._id as Id<'chatroom_rooms'>,
-          remoteAgentStatus,
-          runningConfigs,
-        };
-      })
-    );
-
-    return results;
-  },
-});
-
 /** Returns hourly agent restart counts grouped by model for the given machine/role and time range.
  *
  * Scope modes (mutually exclusive; checked in order):
@@ -1372,5 +1253,60 @@ export const getAgentRestartSummary = query({
     }
 
     return { count1h, count24h };
+  },
+});
+
+// ============================================================================
+// NEW QUERIES — Phase 3 (use-case wrappers)
+// ============================================================================
+
+/** Returns a role-centric view of agent status for a chatroom, merging team + machine configs. */
+export const getAgentStatus = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return null;
+
+    return getAgentStatusForChatroom(ctx, {
+      chatroomId: args.chatroomId,
+      userId: auth.user._id,
+    });
+  },
+});
+
+/** Returns the data needed to populate the "Start Agent" form for a specific role. */
+export const getAgentStartConfig = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return null;
+
+    return getAgentConfigForStart(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      userId: auth.user._id,
+    });
+  },
+});
+
+/** Returns a per-chatroom summary of agent status for all chatrooms owned by the user. */
+export const listAgentOverview = query({
+  args: {
+    ...SessionIdArg,
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return [];
+
+    return listChatroomAgentOverview(ctx, {
+      userId: auth.user._id,
+    });
   },
 });
