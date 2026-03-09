@@ -22,6 +22,7 @@ import {
 import { transitionTask, type TaskStatus } from '../src/domain/usecase/task/transition-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
+import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 
 const config = getConfig();
 
@@ -81,8 +82,7 @@ async function _sendMessageHandler(
   const normalizedSenderRole = args.senderRole.toLowerCase();
   if (normalizedSenderRole !== 'user') {
     // Check if senderRole is in teamRoles
-    const teamRoles = chatroom.teamRoles || [];
-    const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
+    const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
     if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
       throw new ConvexError({
         code: 'INVALID_ROLE',
@@ -277,8 +277,7 @@ async function _handoffHandler(
 
   // Validate senderRole
   const normalizedSenderRole = args.senderRole.toLowerCase();
-  const teamRoles = chatroom.teamRoles || [];
-  const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
+  const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
   if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
     return {
       success: false,
@@ -601,8 +600,7 @@ export const reportProgress = mutation({
 
     // Validate senderRole to prevent impersonation
     const normalizedSenderRole = args.senderRole.toLowerCase();
-    const teamRoles = chatroom.teamRoles || [];
-    const normalizedTeamRoles = teamRoles.map((r) => r.toLowerCase());
+    const { teamRoles, normalizedTeamRoles } = getTeamRolesFromChatroom(chatroom);
     if (!normalizedTeamRoles.includes(normalizedSenderRole)) {
       throw new ConvexError({
         code: 'INVALID_ROLE',
