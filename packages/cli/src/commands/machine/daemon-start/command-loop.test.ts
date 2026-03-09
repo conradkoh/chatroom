@@ -17,8 +17,6 @@ import type { DaemonDeps } from './deps.js';
 import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import type { DaemonContext, AgentHarness } from './types.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
-import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';
-import { PiAgentService } from '../../../infrastructure/services/remote-agents/pi/index.js';
 
 // ---------------------------------------------------------------------------
 // Mocks

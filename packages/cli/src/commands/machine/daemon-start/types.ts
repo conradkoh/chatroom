@@ -81,24 +81,6 @@ export interface StopAgentCommand {
 }
 
 /**
- * Ping the daemon to check connectivity.
- * @deprecated Replaced by daemon.ping event stream events (Phase C).
- */
-export interface PingCommand {
-  type: 'ping';
-  payload: Record<string, never>;
-}
-
-/**
- * Query daemon status (hostname, OS, available harnesses).
- * @deprecated Replaced by daemon.ping event stream events (Phase C).
- */
-export interface StatusCommand {
-  type: 'status';
-  payload: Record<string, never>;
-}
-
-/**
  * Discriminated union of all machine commands.
  * The `type` field determines which payload shape is available,
  * enabling TypeScript to narrow types in switch/case branches.

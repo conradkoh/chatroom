@@ -16,11 +16,8 @@ import { formatConnectivityError, isNetworkError } from '../../utils/error-forma
 
 // ─── Re-exports ─────────────────────────────────────────────────────────────
 
-export type { SessionParams, GetNextTaskResponse, WaitForTaskResponse } from './session.js';
+export type { SessionParams, GetNextTaskResponse } from './session.js';
 export { GetNextTaskSession } from './session.js';
-
-/** @deprecated Use GetNextTaskSession instead */
-export { GetNextTaskSession as WaitForTaskSession } from './session.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

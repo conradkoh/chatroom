@@ -29,30 +29,6 @@ vi.mock('../../infrastructure/auth/storage.js', () => ({
   getOtherSessionUrls: vi.fn().mockReturnValue([]),
 }));
 
-vi.mock('../../infrastructure/machine/index.js', () => ({
-  ensureMachineRegistered: vi.fn().mockReturnValue({
-    machineId: 'machine_abc123',
-    hostname: 'test-host',
-    os: 'darwin',
-    availableHarnesses: ['opencode', 'pi'],
-    harnessVersions: { opencode: '1.0.0', pi: '2.0.0' },
-  }),
-}));
-
-vi.mock('../../infrastructure/services/remote-agents/opencode/index.js', () => ({
-  OpenCodeAgentService: class {
-    isInstalled = vi.fn().mockReturnValue(false);
-    listModels = vi.fn().mockResolvedValue([]);
-  },
-}));
-
-vi.mock('../../infrastructure/services/remote-agents/pi/index.js', () => ({
-  PiAgentService: class {
-    isInstalled = vi.fn().mockReturnValue(false);
-    listModels = vi.fn().mockResolvedValue([]);
-  },
-}));
-
 vi.mock('./session.js', () => ({
   GetNextTaskSession: class {
     start = vi.fn().mockResolvedValue(undefined);

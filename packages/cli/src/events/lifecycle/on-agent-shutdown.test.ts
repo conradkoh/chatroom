@@ -80,15 +80,6 @@ vi.mock('../../infrastructure/machine/intentional-stops.js', () => ({
   clearIntentionalStop: vi.fn(),
 }));
 
-vi.mock('../../../../utils/error-formatting.js', () => ({
-  isNetworkError: vi.fn(() => false),
-  formatConnectivityError: vi.fn(),
-}));
-
-vi.mock('../../../../version.js', () => ({
-  getVersion: vi.fn(() => '1.0.0'),
-}));
-
 // ---------------------------------------------------------------------------
 // Import function under test (after mocks are set up)
 // ---------------------------------------------------------------------------
