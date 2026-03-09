@@ -64,7 +64,6 @@ export interface InlineAgentCardProps {
   online: boolean;
   lastSeenAt?: number | null;
   latestEventType?: string | null;
-  isStuck?: boolean;
   prompt: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
@@ -84,7 +83,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   online,
   lastSeenAt,
   latestEventType,
-  isStuck,
   prompt,
   chatroomId,
   connectedMachines,
@@ -144,7 +142,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
             online={online}
             statusLabel={statusLabel}
             lastSeenAt={lastSeenAt}
-            isStuck={isStuck}
           />
         </div>
 

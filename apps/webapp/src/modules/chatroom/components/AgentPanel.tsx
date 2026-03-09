@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronRight, AlertTriangle, MoreHorizontal, Settings } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, Settings } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo } from 'react';
 
 import type { TeamLifecycle } from '../types/readiness';
@@ -76,12 +76,11 @@ export const AgentPanel = memo(function AgentPanel({
 
   // Build unified list of all agents with their presence (for UnifiedAgentListModal)
   const allAgentsWithStatus = useMemo(() => {
-    return agentStatuses.map(({ role, online, lastSeenAt, latestEventType, isStuck }) => ({
+    return agentStatuses.map(({ role, online, lastSeenAt, latestEventType }) => ({
       role,
       online,
       lastSeenAt,
       latestEventType,
-      isStuck,
     }));
   }, [agentStatuses]);
 
@@ -126,7 +125,6 @@ export const AgentPanel = memo(function AgentPanel({
     const agentStatus = agentStatuses.find((a) => a.role === role);
     const online_ = agentStatus?.online ?? false;
     const working_ = agentStatus?.isWorking ?? false;
-    const isStuck = agentStatus?.isStuck ?? false;
     const statusLabel = agentStatus?.statusLabel ?? 'OFFLINE';
     const lastSeenAt = agentStatus?.lastSeenAt ?? null;
 
@@ -135,10 +133,10 @@ export const AgentPanel = memo(function AgentPanel({
     return (
       <div key={role} className="border-b border-chatroom-border last:border-b-0">
         <div
-          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${working_ ? 'bg-chatroom-status-info/5' : ''} ${isStuck ? 'bg-chatroom-status-warning/5' : ''}`}
+          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${working_ ? 'bg-chatroom-status-info/5' : ''}`}
           role="button"
           tabIndex={0}
-          aria-label={`${role}: ${isLoadingStatuses ? 'Loading...' : statusLabel}${isStuck ? ' (stuck)' : ''}. Click to view all agents.`}
+          aria-label={`${role}: ${isLoadingStatuses ? 'Loading...' : statusLabel}. Click to view all agents.`}
           onClick={openAgentListModal}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -175,14 +173,6 @@ export const AgentPanel = memo(function AgentPanel({
               {formatLastSeen(lastSeenAt)}
             </div>
           </div>
-          {/* Stuck warning badge */}
-          {isStuck && (
-            <AlertTriangle
-              size={12}
-              className="text-chatroom-status-warning flex-shrink-0"
-              aria-label="Agent may be stuck"
-            />
-          )}
           {/* View Indicator */}
           <div className="text-chatroom-text-muted">
             <ChevronRight size={14} />

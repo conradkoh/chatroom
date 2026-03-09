@@ -1,6 +1,5 @@
 'use client';
 
-import { AlertTriangle } from 'lucide-react';
 import { memo } from 'react';
 
 interface AgentStatusRowProps {
@@ -8,7 +7,6 @@ interface AgentStatusRowProps {
   online: boolean;
   statusLabel: string;
   lastSeenAt?: number | null;
-  isStuck?: boolean;
 }
 
 /** Formats a lastSeenAt unix-ms timestamp into a human-readable "X ago" string. */
@@ -26,7 +24,6 @@ export const AgentStatusRow = memo(function AgentStatusRow({
   online,
   statusLabel,
   lastSeenAt,
-  isStuck,
 }: AgentStatusRowProps) {
   const indicatorClass = online ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
   const statusColorClass = online ? 'text-chatroom-status-success' : 'text-chatroom-text-muted';
@@ -40,12 +37,6 @@ export const AgentStatusRow = memo(function AgentStatusRow({
       <span className={`text-[10px] font-bold uppercase tracking-wide ${statusColorClass}`}>
         {statusLabel}
       </span>
-      {isStuck && (
-        <span className="flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wide text-chatroom-status-warning">
-          <AlertTriangle size={10} />
-          STUCK
-        </span>
-      )}
       <span className="text-[10px] font-bold text-chatroom-text-muted">·</span>
       <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
         {formatLastSeen(lastSeenAt)}
