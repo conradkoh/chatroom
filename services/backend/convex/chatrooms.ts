@@ -1,9 +1,9 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { AGENT_REQUEST_DEADLINE_MS } from '../config/reliability';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
+import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 
 /** Creates a new chatroom with the given team configuration. */
 export const create = mutation({
@@ -216,81 +216,25 @@ export const updateTeam = mutation({
     teamEntryPoint: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Structural validation: team must have at least one role
     if (args.teamRoles.length === 0) {
       throw new ConvexError('Team must have at least one role');
     }
 
-    // If entry point is specified, it must be one of the team roles
     if (args.teamEntryPoint && !args.teamRoles.includes(args.teamEntryPoint)) {
       throw new ConvexError(
         `Entry point '${args.teamEntryPoint}' must be one of the team roles: ${args.teamRoles.join(', ')}`
       );
     }
 
-    await ctx.db.patch('chatroom_rooms', args.chatroomId, {
+    await updateTeamUseCase(ctx, {
+      chatroomId: args.chatroomId,
       teamId: args.teamId,
       teamName: args.teamName,
       teamRoles: args.teamRoles,
       teamEntryPoint: args.teamEntryPoint,
     });
-
-    // Stop all running agents and delete stale configs.
-    // When the team structure changes, the old teamRoleKey format no longer matches
-    // (it includes teamId), so old configs would be orphaned. Deleting them prevents
-    // stale configs from being used and ensures agents restart fresh under the new team.
-    const existingConfigs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    const now = Date.now();
-
-    for (const config of existingConfigs) {
-      if (config.machineId && config.desiredState === 'running') {
-        await ctx.db.insert('chatroom_eventStream', {
-          type: 'agent.requestStop',
-          chatroomId: args.chatroomId,
-          machineId: config.machineId,
-          role: config.role,
-          reason: 'team-switch',
-          deadline: now + AGENT_REQUEST_DEADLINE_MS,
-          timestamp: now,
-        });
-      }
-
-      await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
-    }
-
-    // Purge machine agent configs for roles that no longer exist in the new team.
-    // These are machine-level runtime records that would otherwise be orphaned.
-    const newRolesLower = new Set(args.teamRoles.map((r) => r.toLowerCase()));
-
-    const machineConfigs = await ctx.db
-      .query('chatroom_machineAgentConfigs')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    for (const mc of machineConfigs) {
-      if (!newRolesLower.has(mc.role.toLowerCase())) {
-        await ctx.db.delete('chatroom_machineAgentConfigs', mc._id);
-      }
-    }
-
-    // Purge agent preferences for roles that no longer exist in the new team.
-    const agentPrefs = await ctx.db
-      .query('chatroom_agentPreferences')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    for (const pref of agentPrefs) {
-      if (pref.role && !newRolesLower.has(pref.role.toLowerCase())) {
-        await ctx.db.delete('chatroom_agentPreferences', pref._id);
-      }
-    }
   },
 });
 

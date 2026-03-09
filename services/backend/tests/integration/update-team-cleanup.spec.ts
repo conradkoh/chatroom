@@ -1,9 +1,12 @@
 /**
- * Update Team Cleanup — Integration Tests
+ * Update Team — Integration Tests
  *
- * Verifies that switching teams purges stale records from all three
- * agent config tables: teamAgentConfigs, machineAgentConfigs, and
- * agentPreferences. Only records for roles not in the new team are deleted.
+ * Verifies the team switch lifecycle:
+ * 1. Team agent configs are deleted (platform-owned, recreated on restart)
+ * 2. Stop events are dispatched for running agents
+ * 3. Machine agent configs are NOT deleted (machine daemon is the single writer)
+ * 4. Agent preferences are NOT deleted (UI hints, preserved for future use)
+ * 5. Stop events cover both teamConfig-tracked and machineConfig-tracked agents
  */
 
 import { describe, expect, test } from 'vitest';
@@ -44,21 +47,50 @@ async function savePref(
   });
 }
 
-// ─── machineAgentConfigs cleanup ──────────────────────────────────────────────
+// ─── teamAgentConfigs lifecycle ───────────────────────────────────────────────
 
-describe('updateTeam — machineAgentConfigs cleanup', () => {
-  test('deletes machineAgentConfigs for roles removed from team', async () => {
-    const { sessionId } = await createTestSession('test-utc-mac-1');
-    const machineId = 'machine-utc-mac-1';
+describe('updateTeam — teamAgentConfigs', () => {
+  test('deletes all teamAgentConfigs on team switch', async () => {
+    const { sessionId } = await createTestSession('test-ut-tac-1');
+    const machineId = 'machine-ut-tac-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createSquadChatroom(sessionId);
 
-    // Start agents for all 3 squad roles → creates machineAgentConfigs
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+
+    await t.mutation(api.chatrooms.updateTeam, {
+      sessionId: sessionId as any,
+      chatroomId,
+      teamId: 'duo',
+      teamName: 'Duo Team',
+      teamRoles: ['planner', 'builder'],
+      teamEntryPoint: 'planner',
+    });
+
+    const teamConfigs = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    expect(teamConfigs).toHaveLength(0);
+  });
+});
+
+// ─── machineAgentConfigs preserved ────────────────────────────────────────────
+
+describe('updateTeam — machineAgentConfigs preserved', () => {
+  test('does NOT delete machineAgentConfigs (machine daemon is single writer)', async () => {
+    const { sessionId } = await createTestSession('test-ut-mac-1');
+    const machineId = 'machine-ut-mac-1';
+    await registerMachineWithDaemon(sessionId as any, machineId);
+    const chatroomId = await createSquadChatroom(sessionId);
+
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'reviewer');
 
-    // Verify all 3 machineAgentConfigs exist
     const beforeConfigs = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_machineAgentConfigs')
@@ -67,7 +99,7 @@ describe('updateTeam — machineAgentConfigs cleanup', () => {
     });
     expect(beforeConfigs).toHaveLength(3);
 
-    // Switch from squad to duo (removes "reviewer")
+    // Switch from squad to duo
     await t.mutation(api.chatrooms.updateTeam, {
       sessionId: sessionId as any,
       chatroomId,
@@ -77,71 +109,30 @@ describe('updateTeam — machineAgentConfigs cleanup', () => {
       teamEntryPoint: 'planner',
     });
 
-    // Verify: reviewer machineAgentConfig deleted, planner+builder preserved
+    // machineAgentConfigs should all be preserved
     const afterConfigs = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_machineAgentConfigs')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
-    expect(afterConfigs).toHaveLength(2);
-    const afterRoles = afterConfigs.map((c) => c.role).sort();
-    expect(afterRoles).toEqual(['builder', 'planner']);
-  });
-
-  test('preserves machineAgentConfigs when team roles stay the same', async () => {
-    const { sessionId } = await createTestSession('test-utc-mac-2');
-    const machineId = 'machine-utc-mac-2';
-    await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createSquadChatroom(sessionId);
-
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
-
-    // Switch team but keep same roles
-    await t.mutation(api.chatrooms.updateTeam, {
-      sessionId: sessionId as any,
-      chatroomId,
-      teamId: 'squad-v2',
-      teamName: 'Squad V2',
-      teamRoles: ['planner', 'builder', 'reviewer'],
-      teamEntryPoint: 'planner',
-    });
-
-    const afterConfigs = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_machineAgentConfigs')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-    // planner + builder should be preserved (reviewer was never created)
-    expect(afterConfigs).toHaveLength(2);
+    expect(afterConfigs).toHaveLength(3);
   });
 });
 
-// ─── agentPreferences cleanup ─────────────────────────────────────────────────
+// ─── agentPreferences preserved ───────────────────────────────────────────────
 
-describe('updateTeam — agentPreferences cleanup', () => {
-  test('deletes agentPreferences for roles removed from team', async () => {
-    const { sessionId } = await createTestSession('test-utc-pref-1');
-    const machineId = 'machine-utc-pref-1';
+describe('updateTeam — agentPreferences preserved', () => {
+  test('does NOT delete agentPreferences (UI hints, preserved for future use)', async () => {
+    const { sessionId } = await createTestSession('test-ut-pref-1');
+    const machineId = 'machine-ut-pref-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createSquadChatroom(sessionId);
 
-    // Save preferences for all 3 roles
     await savePref(sessionId, chatroomId, 'planner', machineId);
     await savePref(sessionId, chatroomId, 'builder', machineId);
     await savePref(sessionId, chatroomId, 'reviewer', machineId);
 
-    const beforePrefs = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_agentPreferences')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-    expect(beforePrefs).toHaveLength(3);
-
-    // Switch to duo — removes "reviewer"
     await t.mutation(api.chatrooms.updateTeam, {
       sessionId: sessionId as any,
       chatroomId,
@@ -157,21 +148,22 @@ describe('updateTeam — agentPreferences cleanup', () => {
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
-    expect(afterPrefs).toHaveLength(2);
-    const afterRoles = afterPrefs.map((p) => p.role).sort();
-    expect(afterRoles).toEqual(['builder', 'planner']);
+    expect(afterPrefs).toHaveLength(3);
   });
+});
 
-  test('preserves agentPreferences for roles that remain in team', async () => {
-    const { sessionId } = await createTestSession('test-utc-pref-2');
-    const machineId = 'machine-utc-pref-2';
+// ─── Stop events dispatched ──────────────────────────────────────────────────
+
+describe('updateTeam — stop events', () => {
+  test('dispatches stop events for running agents from teamAgentConfigs', async () => {
+    const { sessionId } = await createTestSession('test-ut-stop-1');
+    const machineId = 'machine-ut-stop-1';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createSquadChatroom(sessionId);
 
-    await savePref(sessionId, chatroomId, 'planner', machineId);
-    await savePref(sessionId, chatroomId, 'builder', machineId);
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
+    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
 
-    // Switch to duo — planner + builder persist
     await t.mutation(api.chatrooms.updateTeam, {
       sessionId: sessionId as any,
       chatroomId,
@@ -181,34 +173,40 @@ describe('updateTeam — agentPreferences cleanup', () => {
       teamEntryPoint: 'planner',
     });
 
-    const afterPrefs = await t.run(async (ctx) => {
+    // Check stop events were dispatched
+    const stopEvents = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_agentPreferences')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom_type', (q) =>
+          q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStop')
+        )
         .collect();
     });
-    expect(afterPrefs).toHaveLength(2);
+
+    const teamSwitchStops = stopEvents.filter((e) =>
+      'reason' in e && e.reason === 'team-switch'
+    );
+    // Both planner and builder had desiredState=running from setupRemoteAgentConfig
+    expect(teamSwitchStops.length).toBeGreaterThanOrEqual(2);
   });
-});
 
-// ─── Combined cleanup ─────────────────────────────────────────────────────────
-
-describe('updateTeam — combined cleanup on team switch', () => {
-  test('purges all stale data when switching from squad to duo', async () => {
-    const { sessionId } = await createTestSession('test-utc-combo-1');
-    const machineId = 'machine-utc-combo-1';
+  test('dispatches stop events for machineConfig agents with PIDs on stale roles', async () => {
+    const { sessionId } = await createTestSession('test-ut-stop-2');
+    const machineId = 'machine-ut-stop-2';
     await registerMachineWithDaemon(sessionId as any, machineId);
     const chatroomId = await createSquadChatroom(sessionId);
 
-    // Set up configs and prefs for all 3 roles
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'planner');
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
+    // Start reviewer and simulate it has a running PID
     await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'reviewer');
-    await savePref(sessionId, chatroomId, 'planner', machineId);
-    await savePref(sessionId, chatroomId, 'builder', machineId);
-    await savePref(sessionId, chatroomId, 'reviewer', machineId);
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId: sessionId as any,
+      machineId,
+      chatroomId,
+      role: 'reviewer',
+      pid: 54321,
+    });
 
-    // Switch to duo
+    // Now switch to duo (removes reviewer)
     await t.mutation(api.chatrooms.updateTeam, {
       sessionId: sessionId as any,
       chatroomId,
@@ -218,33 +216,46 @@ describe('updateTeam — combined cleanup on team switch', () => {
       teamEntryPoint: 'planner',
     });
 
-    // teamAgentConfigs — all deleted (fresh start under new team)
-    const teamConfigs = await t.run(async (ctx) => {
+    // Check that a stop event was dispatched for the reviewer
+    const stopEvents = await t.run(async (ctx) => {
       return ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom_type', (q) =>
+          q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStop')
+        )
         .collect();
     });
-    expect(teamConfigs).toHaveLength(0);
 
-    // machineAgentConfigs — reviewer deleted, planner+builder preserved
-    const machineConfigs = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_machineAgentConfigs')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-    expect(machineConfigs).toHaveLength(2);
-    expect(machineConfigs.map((c) => c.role).sort()).toEqual(['builder', 'planner']);
+    const reviewerStops = stopEvents.filter(
+      (e) => 'role' in e && e.role === 'reviewer' && 'reason' in e && e.reason === 'team-switch'
+    );
+    expect(reviewerStops.length).toBeGreaterThanOrEqual(1);
+  });
+});
 
-    // agentPreferences — reviewer deleted, planner+builder preserved
-    const prefs = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_agentPreferences')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
+// ─── Chatroom team fields updated ─────────────────────────────────────────────
+
+describe('updateTeam — chatroom fields', () => {
+  test('updates teamId, teamName, teamRoles, teamEntryPoint', async () => {
+    const { sessionId } = await createTestSession('test-ut-fields-1');
+    const chatroomId = await createSquadChatroom(sessionId);
+
+    await t.mutation(api.chatrooms.updateTeam, {
+      sessionId: sessionId as any,
+      chatroomId,
+      teamId: 'duo',
+      teamName: 'Duo Team',
+      teamRoles: ['planner', 'builder'],
+      teamEntryPoint: 'planner',
     });
-    expect(prefs).toHaveLength(2);
-    expect(prefs.map((p) => p.role).sort()).toEqual(['builder', 'planner']);
+
+    const room = await t.run(async (ctx) => {
+      return ctx.db.get('chatroom_rooms', chatroomId);
+    });
+
+    expect(room!.teamId).toBe('duo');
+    expect(room!.teamName).toBe('Duo Team');
+    expect(room!.teamRoles).toEqual(['planner', 'builder']);
+    expect(room!.teamEntryPoint).toBe('planner');
   });
 });
