@@ -824,7 +824,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                 ) : (
                   <>
                     <div className="flex-1 min-w-0">
-                      <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen}>
+                      <Popover open={modelPopoverOpen} onOpenChange={setModelPopoverOpen} modal={false}>
                         <PopoverTrigger asChild>
                           <button
                             disabled={isBusy || !displayHarness}
