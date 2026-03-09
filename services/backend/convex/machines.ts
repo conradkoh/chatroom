@@ -525,11 +525,10 @@ export const daemonShutdown = mutation({
     });
 
     // 2. Clear all spawnedAgent records for this machine
-    const allTeamConfigs = await ctx.db
+    const machineConfigs = await ctx.db
       .query('chatroom_teamAgentConfigs')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .collect();
-
-    const machineConfigs = allTeamConfigs.filter((c) => c.machineId === args.machineId);
 
     const now = Date.now();
     for (const config of machineConfigs) {
