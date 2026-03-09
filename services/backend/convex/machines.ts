@@ -699,9 +699,8 @@ export const updateSpawnedAgent = mutation({
     const config = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_chatroom_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role).eq('machineId', args.machineId)
       )
-      .filter((q) => q.eq(q.field('machineId'), args.machineId))
       .first();
 
     if (!config) {
@@ -816,9 +815,8 @@ export const recordAgentExited = mutation({
     const config = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_chatroom_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
+        q.eq('chatroomId', args.chatroomId).eq('role', args.role).eq('machineId', args.machineId)
       )
-      .filter((q) => q.eq(q.field('machineId'), args.machineId))
       .first();
     if (config) {
       await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
