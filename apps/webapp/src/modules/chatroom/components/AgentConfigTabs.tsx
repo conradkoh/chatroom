@@ -1101,9 +1101,6 @@ interface AgentConfigTabsComponentProps {
   connectedMachines: MachineInfo[];
   isLoadingMachines: boolean;
   daemonStartCommand: string;
-  onViewPrompt?: (role: string) => void;
-  /** Harness from team config — passed through to RemoteTabContent for display when agent is running */
-  teamConfigHarness?: AgentHarness;
 }
 
 export const AgentConfigTabs = memo(function AgentConfigTabs({
@@ -1115,8 +1112,6 @@ export const AgentConfigTabs = memo(function AgentConfigTabs({
   connectedMachines,
   isLoadingMachines,
   daemonStartCommand,
-  onViewPrompt,
-  teamConfigHarness,
 }: AgentConfigTabsComponentProps) {
   return (
     <>
