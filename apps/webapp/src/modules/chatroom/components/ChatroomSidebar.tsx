@@ -2,7 +2,7 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation } from 'convex-helpers/react/sessions';
+import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import { ChevronDown, MessageSquare, Play, Square, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React, { memo, useCallback, useMemo, useState } from 'react';
@@ -40,6 +40,14 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const displayName = getChatroomDisplayName(chatroom);
   const [startModalOpen, setStartModalOpen] = useState(false);
   const sendCommand = useSessionMutation(api.machines.sendCommand);
+
+  const teamAgentConfigs = useSessionQuery(api.machines.getTeamAgentConfigs, {
+    chatroomId: chatroom._id as Id<'chatroom_rooms'>,
+  });
+  const teamRoles = useMemo(
+    () => (teamAgentConfigs ?? []).map((c) => c.role),
+    [teamAgentConfigs]
+  );
 
   const handleStop = useCallback(
     async (e: React.MouseEvent) => {
@@ -120,6 +128,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           chatroomId={chatroom._id}
           open={startModalOpen}
           onOpenChange={setStartModalOpen}
+          knownRoles={teamRoles}
         />
       )}
     </>

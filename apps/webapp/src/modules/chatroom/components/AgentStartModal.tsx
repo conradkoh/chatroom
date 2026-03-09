@@ -44,13 +44,12 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
     savePreference,
   } = useAgentPanelData(chatroomId);
 
-  // Role selection — use teamRoles from getAgentStatus, with fallback to machineConfigs + knownRoles
+  // Role selection — prioritize explicit knownRoles, then teamRoles, then machineConfigs
   const availableRoles = useMemo<string[]>(() => {
-    const fromTeam = teamRoles;
-    const fromConfigs = machineConfigs.map((c) => c.role);
-    const fromKnown = knownRoles ?? [];
-    return [...new Set([...fromTeam, ...fromConfigs, ...fromKnown])];
-  }, [teamRoles, machineConfigs, knownRoles]);
+    if (knownRoles && knownRoles.length > 0) return knownRoles;
+    if (teamRoles.length > 0) return teamRoles;
+    return machineConfigs.map((c) => c.role);
+  }, [knownRoles, teamRoles, machineConfigs]);
 
   const [selectedRole, setSelectedRole] = useState<string | null>(initialRole ?? null);
 
