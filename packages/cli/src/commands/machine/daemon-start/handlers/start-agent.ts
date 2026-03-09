@@ -101,7 +101,7 @@ export async function executeStartAgent(
       const isAlive = anyService ? anyService.isAlive(pid) : false;
       if (isAlive) {
         console.log(`   ⚠️  Existing agent detected (PID: ${pid}) — stopping before respawn`);
-        await onAgentShutdown(ctx, { chatroomId, role, pid, stopReason: 'daemon_respawn_stop' });
+        await onAgentShutdown(ctx, { chatroomId, role, pid, stopReason: 'daemon.respawn' });
         console.log(`   ✅ Existing agent stopped (PID: ${pid})`);
       }
     }
@@ -185,7 +185,7 @@ export async function executeStartAgent(
   // Monitor for process exit — emit event so centralized listeners handle cleanup.
   spawnResult.onExit(({ code, signal }) => {
     const pendingReason = ctx.deps.stops.consume(chatroomId, role);
-    // If the daemon marked a specific reason (intentional_stop or daemon_respawn_stop),
+    // If the daemon marked a specific reason (user.stop or daemon.respawn),
     // use it directly. Otherwise, derive from exit code/signal as before.
     const stopReason: StopReason = pendingReason ?? resolveStopReason(code, signal, false);
     ctx.events.emit('agent:exited', {
@@ -202,7 +202,7 @@ export async function executeStartAgent(
   // When the agent completes a turn (agent_end), kill the process so the daemon's
   // restart lifecycle fires a fresh agent for the next turn.
   // We do NOT mark this as intentional — the SIGTERM kill will produce
-  // stopReason='process_terminated_with_signal', which triggers the backend to
+  // stopReason='agent_process.signal', which triggers the backend to
   // schedule ensureAgentHandler.check → agent.requestStart → fresh spawn.
   if (spawnResult.onAgentEnd) {
     spawnResult.onAgentEnd(() => {

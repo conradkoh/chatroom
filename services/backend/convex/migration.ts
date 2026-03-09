@@ -368,3 +368,58 @@ export const migrateTeamRoleKeyAddTeamId = internalMutation({
     return { migrated, skipped, deleted, deduped };
   },
 });
+
+/**
+ * Migration: Rename stopReason values to actor-prefixed convention.
+ *
+ * The StopReason type was renamed from underscore_case to actor.prefixed format:
+ *   - 'intentional_stop'               → 'user.stop'
+ *   - 'daemon_respawn_stop'            → 'daemon.respawn'
+ *   - 'process_exited_with_success'    → 'agent_process.exited_clean'
+ *   - 'process_terminated_with_signal' → 'agent_process.signal'
+ *   - 'process_terminated_unexpectedly' → 'agent_process.crashed'
+ *
+ * This migration patches all chatroom_agent_lifecycle_events documents where
+ * type === 'agent.exited' and stopReason uses an old-format value.
+ *
+ * Idempotent: documents already using new-format values are skipped on re-run.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.migrateStopReasonToActorPrefixed
+ */
+export const migrateStopReasonToActorPrefixed = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const RENAME_MAP: Record<string, string> = {
+      intentional_stop: 'user.stop',
+      daemon_respawn_stop: 'daemon.respawn',
+      process_exited_with_success: 'agent_process.exited_clean',
+      process_terminated_with_signal: 'agent_process.signal',
+      process_terminated_unexpectedly: 'agent_process.crashed',
+    };
+
+    const allEvents = await ctx.db.query('chatroom_eventStream').collect();
+
+    let migrated = 0;
+    let skipped = 0;
+
+    for (const event of allEvents) {
+      const raw = event as Record<string, unknown>;
+      if (raw.type !== 'agent.exited') {
+        skipped++;
+        continue;
+      }
+
+      const oldReason = raw.stopReason as string | undefined;
+      if (!oldReason || !(oldReason in RENAME_MAP)) {
+        skipped++;
+        continue;
+      }
+
+      await ctx.db.patch(event._id, { stopReason: RENAME_MAP[oldReason] });
+      migrated++;
+    }
+
+    return { migrated, skipped, total: allEvents.length };
+  },
+});

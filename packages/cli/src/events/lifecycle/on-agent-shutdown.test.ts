@@ -211,7 +211,7 @@ describe('onAgentShutdown', () => {
     await onAgentShutdown(ctx, createOptions());
 
     // stops.mark must be called with correct args (including default reason)
-    expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, ROLE, 'intentional_stop');
+    expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, ROLE, 'user.stop');
 
     // stops.mark must appear before any kill call
     const markIndex = callOrder.indexOf('stops.mark');

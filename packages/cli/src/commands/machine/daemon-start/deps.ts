@@ -27,7 +27,7 @@ import type { StopReason } from '../../../infrastructure/machine/stop-reason.js'
  * intentional stops from crashes.
  */
 export interface IntentionalStopOps {
-  /** Mark an agent as being stopped with the given reason (default: intentional_stop) */
+  /** Mark an agent as being stopped with the given reason (default: user.stop) */
   mark: (chatroomId: string, role: string, reason?: StopReason) => void;
   /** Consume the pending stop reason. Returns reason if found, null if unexpected exit. */
   consume: (chatroomId: string, role: string) => StopReason | null;

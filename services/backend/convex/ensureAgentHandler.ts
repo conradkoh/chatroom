@@ -102,8 +102,8 @@ async function checkCircuitBreaker(
     (e) =>
       e.type === 'agent.exited' &&
       e.timestamp >= windowStart &&
-      e.stopReason !== 'intentional_stop' &&
-      e.stopReason !== 'daemon_respawn_stop' &&
+      e.stopReason !== 'user.stop' &&
+      e.stopReason !== 'daemon.respawn' &&
       e.stopReason !== 'team-switch'
   );
 

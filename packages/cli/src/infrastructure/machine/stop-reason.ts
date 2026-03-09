@@ -7,11 +7,11 @@
 
 /** Why an agent process stopped. */
 export type StopReason =
-  | 'intentional_stop'               // User explicitly stopped via UI
-  | 'daemon_respawn_stop'            // Daemon killed to spawn fresh agent (ensure-agent-retry) — NOT user-initiated
-  | 'process_exited_with_success'    // Exit code 0 without prior stop request (unexpected clean exit)
-  | 'process_terminated_with_signal' // Killed by external signal (SIGTERM, SIGKILL, etc.)
-  | 'process_terminated_unexpectedly'; // Non-zero exit code, unknown cause
+  | 'user.stop'                    // User explicitly stopped via UI
+  | 'daemon.respawn'               // Daemon killed to spawn fresh agent (ensure-agent-retry) — NOT user-initiated
+  | 'agent_process.exited_clean'   // Exit code 0 without prior stop request (unexpected clean exit)
+  | 'agent_process.signal'         // Killed by external signal (SIGTERM, SIGKILL, etc.)
+  | 'agent_process.crashed';       // Non-zero exit code, unknown cause
 
 /**
  * Resolves how an agent process stopped.
@@ -27,8 +27,8 @@ export function resolveStopReason(
   signal: string | null,
   wasIntentional: boolean
 ): StopReason {
-  if (wasIntentional) return 'intentional_stop';
-  if (signal !== null) return 'process_terminated_with_signal';
-  if (code === 0) return 'process_exited_with_success';
-  return 'process_terminated_unexpectedly';
+  if (wasIntentional) return 'user.stop';
+  if (signal !== null) return 'agent_process.signal';
+  if (code === 0) return 'agent_process.exited_clean';
+  return 'agent_process.crashed';
 }
