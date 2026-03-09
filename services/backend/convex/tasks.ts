@@ -629,10 +629,9 @@ export const markBacklogForReview = mutation({
       throw new Error('Task is not a backlog item');
     }
 
-    // Only allowed for tasks in 'backlog' status
-    if (task.status !== 'backlog') {
+    if (task.status !== 'backlog' && task.status !== 'backlog_acknowledged') {
       throw new Error(
-        `Cannot mark task for review with status: ${task.status}. Task must be in 'backlog' status.`
+        `Cannot mark task for review with status: ${task.status}. Task must be in 'backlog' or 'backlog_acknowledged' status.`
       );
     }
 

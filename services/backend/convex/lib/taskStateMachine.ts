@@ -217,11 +217,18 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   // ==========================================================================
-  // MARK FOR REVIEW: backlog → pending_user_review (agent marks task ready)
+  // MARK FOR REVIEW: backlog/backlog_acknowledged → pending_user_review
   // ==========================================================================
 
   {
     from: 'backlog',
+    to: 'pending_user_review',
+    trigger: 'markForReview',
+    setFields: {},
+  },
+
+  {
+    from: 'backlog_acknowledged',
     to: 'pending_user_review',
     trigger: 'markForReview',
     setFields: {},
