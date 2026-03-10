@@ -1,13 +1,12 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { Rocket, Check, Play } from 'lucide-react';
-import React, { useMemo, useState, memo } from 'react';
+import { Rocket, Check } from 'lucide-react';
+import React, { useMemo, memo } from 'react';
 
-import { AgentStartModal } from './AgentStartModal';
+import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
 import { CopyButton } from './CopyButton';
-import type { MachineInfo } from '../types/machine';
+import { useAgentPanelData } from '../hooks/useAgentPanelData';
+import { useAgentStatuses } from '../hooks/useAgentStatuses';
 
 import { getDaemonStartCommand, getAuthLoginCommand } from '@/lib/environment';
 
@@ -82,76 +81,6 @@ function PrerequisiteRow({ done, label, command, doneDetail }: PrerequisiteRowPr
   );
 }
 
-// ─── AgentRow ───────────────────────────────────────────────────────
-
-interface AgentRowProps {
-  role: string;
-  isJoined: boolean;
-  canStart: boolean;
-  chatroomId: string;
-  knownRoles: string[];
-}
-
-function AgentRow({ role, isJoined, canStart, chatroomId, knownRoles }: AgentRowProps) {
-  const [modalOpen, setModalOpen] = useState(false);
-  return (
-    <>
-      <div
-        className={`flex items-center justify-between px-4 py-3 border ${
-          isJoined
-            ? 'border-chatroom-status-success/20 bg-chatroom-status-success/5'
-            : 'border-chatroom-border bg-chatroom-bg-surface'
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <span
-            className={`w-4 h-4 flex-shrink-0 flex items-center justify-center ${
-              isJoined ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'
-            }`}
-          >
-            {isJoined ? (
-              <Check size={14} />
-            ) : (
-              <span className="w-1.5 h-1.5 bg-chatroom-status-warning rounded-full" />
-            )}
-          </span>
-          <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
-            {role}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span
-            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-              isJoined
-                ? 'bg-chatroom-status-success/15 text-chatroom-status-success'
-                : 'bg-chatroom-status-warning/15 text-chatroom-status-warning'
-            }`}
-          >
-            {isJoined ? 'Ready' : 'Waiting'}
-          </span>
-          {!isJoined && canStart && (
-            <button
-              onClick={() => setModalOpen(true)}
-              className="flex items-center gap-1 px-3 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white transition-colors"
-            >
-              <Play size={10} />
-              Start
-            </button>
-          )}
-        </div>
-      </div>
-      {/* Always mount modal so it's ready when opened */}
-      <AgentStartModal
-        chatroomId={chatroomId}
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        initialRole={role}
-        knownRoles={knownRoles}
-      />
-    </>
-  );
-}
-
 // ─── Main Component ─────────────────────────────────────────────────
 
 export const SetupChecklist = memo(function SetupChecklist({
@@ -163,25 +92,40 @@ export const SetupChecklist = memo(function SetupChecklist({
   onViewPrompt,
   hideHeader = false,
 }: SetupChecklistProps) {
-  // ── Machine data ──────────────────────────────────────────────────
-  const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
-    | { machines: MachineInfo[] }
-    | undefined;
+  // ── Panel data (machines, configs, send command) ───────────────────
+  const {
+    agents: agentRoleViews,
+    connectedMachines,
+    machineConfigs,
+    agentPreferenceMap,
+    isLoading,
+    sendCommand,
+    savePreference,
+  } = useAgentPanelData(chatroomId);
 
-  const allMachines = useMemo(() => machinesResult?.machines ?? [], [machinesResult?.machines]);
+  // ── Agent statuses (event stream) ─────────────────────────────────
+  const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(chatroomId, teamRoles);
 
-  const connectedMachines = useMemo(
-    () => allMachines.filter((m) => m.daemonConnected),
-    [allMachines]
+  // Combined loading flag — wait for both machine data and agent statuses before rendering
+  const isAllLoading = isLoading || isLoadingStatuses;
+  const agentStatusMap = useMemo(
+    () => new Map(agentStatuses.map((a) => [a.role.toLowerCase(), a])),
+    [agentStatuses]
+  );
+
+  // Build a role → AgentRoleView map for InlineAgentCard
+  const agentRoleViewMap = useMemo(
+    () => new Map(agentRoleViews.map((a) => [a.role.toLowerCase(), a])),
+    [agentRoleViews]
   );
 
   // ── Prerequisites ─────────────────────────────────────────────────
   const prereqs = useMemo<Prerequisites>(() => {
-    const authDone = allMachines.length > 0;
+    const authDone = connectedMachines.length > 0; // any connected machine = auth done
     const daemonDone = connectedMachines.length > 0;
     const harnessDone = connectedMachines.some((m) => m.availableHarnesses.length > 0);
     return { authDone, daemonDone, harnessDone };
-  }, [allMachines, connectedMachines]);
+  }, [connectedMachines]);
 
   // ── Participants ──────────────────────────────────────────────────
   const participantMap = useMemo(
@@ -221,6 +165,61 @@ export const SetupChecklist = memo(function SetupChecklist({
     '# Install a supported harness:\nnpm install -g opencode-ai   # opencode\nnpm install -g @plandex/pi   # pi';
 
   const allJoined = joinedCount === teamRoles.length && teamRoles.length > 0;
+
+  // ── Loading guard ─────────────────────────────────────────────────
+  // Show skeleton rows while machine data is loading to prevent the
+  // prerequisites flashing as "not done" before data arrives.
+  if (isAllLoading) {
+    return (
+      <div className="max-w-2xl mx-auto p-6">
+        {!hideHeader && (
+          <div className="mb-6 pb-6 border-b-2 border-chatroom-border">
+            <h2 className="flex items-center gap-2 text-lg font-bold uppercase tracking-widest text-chatroom-text-primary mb-2">
+              <Rocket size={20} /> Setup Your Team
+            </h2>
+            <p className="text-sm text-chatroom-text-muted">
+              {joinedCount} of {teamRoles.length} agents ready
+            </p>
+          </div>
+        )}
+        <div className="flex flex-col gap-6">
+          {/* Prerequisites skeleton */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+              Prerequisites
+            </h3>
+            <div className="flex flex-col gap-2">
+              {['Auth login', 'Daemon connected', 'Harness installed'].map((label) => (
+                <div key={label} className="flex items-center gap-2 px-2 py-1.5">
+                  <div className="w-4 h-4 flex-shrink-0 bg-chatroom-border animate-pulse" />
+                  <span className="text-xs font-medium text-chatroom-text-muted">{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Agents skeleton */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+              Agents
+            </h3>
+            <div className="flex flex-col border border-chatroom-border">
+              {teamRoles.map((role) => (
+                <div
+                  key={role}
+                  className="flex items-center gap-2 px-4 py-3 border-b border-chatroom-border last:border-b-0"
+                >
+                  <div className="w-2 h-2 flex-shrink-0 bg-chatroom-border animate-pulse rounded-full" />
+                  <span className="text-xs font-medium text-chatroom-text-muted uppercase tracking-wide">
+                    {role}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto p-6">
@@ -278,23 +277,33 @@ export const SetupChecklist = memo(function SetupChecklist({
             </div>
           </div>
 
-          {/* Agents section */}
+          {/* Agents section — uses InlineAgentCard for parity with All Agents panel */}
           <div>
             <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
               Agents
             </h3>
-            <div className="flex flex-col gap-2">
+            {/* InlineAgentCard uses border-b / last:border-b-0 internally; wrap in a container border */}
+            <div className="border border-chatroom-border">
               {teamRoles.map((role) => {
-                const participant = participantMap.get(role.toLowerCase());
-                const isJoined = participant != null && participant.lastSeenAt != null;
+                const agentStatus = agentStatusMap.get(role.toLowerCase());
+                const agentRoleView = agentRoleViewMap.get(role.toLowerCase());
                 return (
-                  <AgentRow
+                  <InlineAgentCard
                     key={role}
                     role={role}
-                    isJoined={isJoined}
-                    canStart={prereqs.daemonDone}
+                    online={agentStatus?.online ?? false}
+                    lastSeenAt={agentStatus?.lastSeenAt ?? null}
+                    latestEventType={agentStatus?.latestEventType ?? null}
+                    statusVariant={agentStatus?.statusVariant}
+                    prompt=""
                     chatroomId={chatroomId}
-                    knownRoles={teamRoles}
+                    connectedMachines={connectedMachines}
+                    isLoadingMachines={isLoading}
+                    agentConfigs={machineConfigs}
+                    sendCommand={sendCommand}
+                    agentRoleView={agentRoleView}
+                    agentPreference={agentPreferenceMap.get(role.toLowerCase())}
+                    onSavePreference={savePreference}
                   />
                 );
               })}

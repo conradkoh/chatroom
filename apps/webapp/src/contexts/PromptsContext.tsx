@@ -32,7 +32,7 @@ interface PromptsContextValue {
   isLoaded: boolean;
 }
 
-const PromptsContext = createContext<PromptsContextValue | null>(null);
+export const PromptsContext = createContext<PromptsContextValue | null>(null);
 
 interface PromptsProviderProps {
   children: ReactNode;

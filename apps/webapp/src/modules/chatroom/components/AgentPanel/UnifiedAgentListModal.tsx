@@ -1,12 +1,14 @@
 'use client';
 
-import { memo, useState, useEffect, useMemo } from 'react';
+import { memo, useState, useEffect, useMemo, useCallback, useContext } from 'react';
 
 import { WorkspaceAgentList } from './WorkspaceAgentList';
 import { WorkspaceSidebar } from './WorkspaceSidebar';
 import { useWorkspaces } from '../../hooks/useWorkspaces';
 import { useAgentPanelData } from '../../hooks/useAgentPanelData';
+import { useAgentStatuses } from '../../hooks/useAgentStatuses';
 import type { StatusVariant } from '../../utils/agentStatusLabel';
+import { PromptsContext } from '@/contexts/PromptsContext';
 
 import {
   FixedModal,
@@ -28,24 +30,22 @@ export interface AgentWithStatus {
 interface UnifiedAgentListModalProps {
   isOpen: boolean;
   onClose: () => void;
-  agents: AgentWithStatus[];
-  generatePrompt: (role: string) => string;
   chatroomId: string;
-  onViewPrompt?: (role: string) => void;
 }
 
-/** All Agents modal with workspace sidebar + filtered agent list. */
+/** All Agents modal with workspace sidebar + filtered agent list.
+ *  Self-sufficient: fetches agents and prompt data internally.
+ *  Works correctly when rendered outside PromptsProvider (prompt defaults to ''). */
 export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   isOpen,
   onClose,
-  agents,
-  generatePrompt,
   chatroomId,
 }: UnifiedAgentListModalProps) {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
 
   const {
     agents: agentRoleViews,
+    teamRoles,
     workspaces: backendWorkspaces,
     connectedMachines,
     machineConfigs,
@@ -54,6 +54,30 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     sendCommand,
     savePreference,
   } = useAgentPanelData(chatroomId);
+
+  // Fetch live agent statuses from event stream
+  const { agents: agentStatusList } = useAgentStatuses(chatroomId, teamRoles);
+
+  // Build the agents list from live statuses
+  const agents = useMemo(
+    (): AgentWithStatus[] =>
+      agentStatusList.map(({ role, online, lastSeenAt, latestEventType, statusVariant }) => ({
+        role,
+        online,
+        lastSeenAt,
+        latestEventType,
+        statusVariant,
+      })),
+    [agentStatusList]
+  );
+
+  // Safe prompt generation — works inside and outside PromptsProvider.
+  // useContext does not throw when context is null.
+  const promptsContext = useContext(PromptsContext);
+  const generatePrompt = useCallback(
+    (role: string): string => promptsContext?.getAgentPrompt(role) ?? '',
+    [promptsContext]
+  );
 
   const { workspaceGroups, allWorkspaces } = useWorkspaces({
     agents,

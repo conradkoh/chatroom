@@ -8,6 +8,7 @@ import { usePresenceTick } from '../hooks/usePresenceTick';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
+import { formatLastSeen } from './AgentPanel/AgentStatusRow';
 
 import {
   DropdownMenu,
@@ -15,26 +16,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { usePrompts } from '@/contexts/PromptsContext';
 
 interface AgentPanelProps {
   chatroomId: string;
   teamRoles?: string[];
   lifecycle: TeamLifecycle | null | undefined;
-  onViewPrompt?: (role: string) => void;
   /** Called when user clicks Configure in the menu */
   onConfigure?: () => void;
-}
-
-// ─── Presence Utilities ──────────────────────────────────────────────────────
-
-/** Pure helper — formats a lastSeenAt unix-ms timestamp into a human-readable "X ago" string. */
-function formatLastSeen(lastSeenAt: number | null | undefined): string {
-  if (lastSeenAt == null) return 'never';
-  const diff = Math.floor((Date.now() - lastSeenAt) / 1000);
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  return `${Math.floor(diff / 3600)}h ago`;
 }
 
 // ─── AgentSidebarRow ─────────────────────────────────────────────────────────
@@ -143,7 +131,6 @@ export const AgentPanel = memo(function AgentPanel({
   chatroomId,
   teamRoles = [],
   lifecycle,
-  onViewPrompt,
   onConfigure,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
@@ -151,8 +138,6 @@ export const AgentPanel = memo(function AgentPanel({
   // Tick every 30s so presence checks (isOnline, formatLastSeen) stay current
   // without needing a DB write to trigger a Convex query re-run.
   usePresenceTick();
-
-  const { getAgentPrompt } = usePrompts();
 
   // Determine which roles to show (memoized)
   const rolesToShow = useMemo(
@@ -165,25 +150,6 @@ export const AgentPanel = memo(function AgentPanel({
     chatroomId,
     rolesToShow
   );
-
-  // Memoize prompt generation function
-  const generatePrompt = useCallback(
-    (role: string): string => {
-      return getAgentPrompt(role) || '';
-    },
-    [getAgentPrompt]
-  );
-
-  // Build unified list of all agents with their presence (for UnifiedAgentListModal)
-  const allAgentsWithStatus = useMemo(() => {
-    return agentStatuses.map(({ role, online, lastSeenAt, latestEventType, statusVariant }) => ({
-      role,
-      online,
-      lastSeenAt,
-      latestEventType,
-      statusVariant,
-    }));
-  }, [agentStatuses]);
 
   // Open unified agent list modal
   const openAgentListModal = useCallback(() => {
@@ -249,7 +215,7 @@ export const AgentPanel = memo(function AgentPanel({
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
         {/* Each AgentSidebarRow is a proper component with key at the map level */}
-        {allAgentsWithStatus.map(({ role }) => (
+        {agentStatuses.map(({ role }) => (
           <AgentSidebarRow
             key={role}
             role={role}
@@ -264,10 +230,7 @@ export const AgentPanel = memo(function AgentPanel({
       <UnifiedAgentListModal
         isOpen={isAgentListModalOpen}
         onClose={closeAgentListModal}
-        agents={allAgentsWithStatus}
-        generatePrompt={generatePrompt}
         chatroomId={chatroomId}
-        onViewPrompt={onViewPrompt}
       />
     </div>
   );

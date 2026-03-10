@@ -2,12 +2,12 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { ChevronDown, MessageSquare, Play, Square, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React, { memo, useCallback, useMemo, useState } from 'react';
 
-import { AgentStartModal } from './AgentStartModal';
+import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
@@ -40,14 +40,6 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const displayName = getChatroomDisplayName(chatroom);
   const [startModalOpen, setStartModalOpen] = useState(false);
   const sendCommand = useSessionMutation(api.machines.sendCommand);
-
-  const teamAgentConfigs = useSessionQuery(api.machines.getTeamAgentConfigs, {
-    chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-  });
-  const teamRoles = useMemo(
-    () => (teamAgentConfigs ?? []).map((c) => c.role),
-    [teamAgentConfigs]
-  );
 
   const handleStop = useCallback(
     async (e: React.MouseEvent) => {
@@ -132,11 +124,10 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
       </div>
 
       {startModalOpen && (
-        <AgentStartModal
+        <UnifiedAgentListModal
+          isOpen={startModalOpen}
+          onClose={() => setStartModalOpen(false)}
           chatroomId={chatroom._id}
-          open={startModalOpen}
-          onOpenChange={setStartModalOpen}
-          knownRoles={teamRoles}
         />
       )}
     </>
