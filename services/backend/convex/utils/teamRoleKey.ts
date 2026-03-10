@@ -1,4 +1,5 @@
 import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 /**
  * Builds a unique key scoped to a chatroom+team+role for use in chatroom_teamAgentConfigs.
@@ -18,4 +19,21 @@ export function buildTeamRoleKey(
   role: string
 ): string {
   return `chatroom_${chatroomId}#team_${teamId.toLowerCase()}#role_${role.toLowerCase()}`;
+}
+
+/**
+ * Deletes all existing chatroom_teamAgentConfigs rows with the given teamRoleKey.
+ * Call this before inserting a new row to enforce uniqueness at write time.
+ */
+export async function deleteStaleTeamAgentConfigs(
+  ctx: MutationCtx,
+  teamRoleKey: string
+): Promise<void> {
+  const stale = await ctx.db
+    .query('chatroom_teamAgentConfigs')
+    .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+    .collect();
+  for (const row of stale) {
+    await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
+  }
 }
