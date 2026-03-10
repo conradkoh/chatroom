@@ -16,7 +16,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { usePrompts } from '@/contexts/PromptsContext';
 
 interface AgentPanelProps {
   chatroomId: string;
@@ -142,8 +141,6 @@ export const AgentPanel = memo(function AgentPanel({
   // without needing a DB write to trigger a Convex query re-run.
   usePresenceTick();
 
-  const { getAgentPrompt } = usePrompts();
-
   // Determine which roles to show (memoized)
   const rolesToShow = useMemo(
     () => (teamRoles.length > 0 ? teamRoles : lifecycle?.expectedRoles || []),
@@ -155,25 +152,6 @@ export const AgentPanel = memo(function AgentPanel({
     chatroomId,
     rolesToShow
   );
-
-  // Memoize prompt generation function
-  const generatePrompt = useCallback(
-    (role: string): string => {
-      return getAgentPrompt(role) || '';
-    },
-    [getAgentPrompt]
-  );
-
-  // Build unified list of all agents with their presence (for UnifiedAgentListModal)
-  const allAgentsWithStatus = useMemo(() => {
-    return agentStatuses.map(({ role, online, lastSeenAt, latestEventType, statusVariant }) => ({
-      role,
-      online,
-      lastSeenAt,
-      latestEventType,
-      statusVariant,
-    }));
-  }, [agentStatuses]);
 
   // Open unified agent list modal
   const openAgentListModal = useCallback(() => {
@@ -239,7 +217,7 @@ export const AgentPanel = memo(function AgentPanel({
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
         {/* Each AgentSidebarRow is a proper component with key at the map level */}
-        {allAgentsWithStatus.map(({ role }) => (
+        {agentStatuses.map(({ role }) => (
           <AgentSidebarRow
             key={role}
             role={role}
@@ -254,8 +232,6 @@ export const AgentPanel = memo(function AgentPanel({
       <UnifiedAgentListModal
         isOpen={isAgentListModalOpen}
         onClose={closeAgentListModal}
-        agents={allAgentsWithStatus}
-        generatePrompt={generatePrompt}
         chatroomId={chatroomId}
         onViewPrompt={onViewPrompt}
       />
