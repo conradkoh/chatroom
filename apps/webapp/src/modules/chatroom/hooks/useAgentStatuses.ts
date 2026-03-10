@@ -6,15 +6,15 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useMemo } from 'react';
 
 import type { TeamLifecycle } from '../types/readiness';
-import { resolveStatusLabel } from '../utils/agentStatusLabel';
+import { resolveAgentStatus, type StatusVariant } from '../utils/agentStatusLabel';
 
 // ─── Offline event types ────────────────────────────────────────────────────
 // Agent is considered offline when their latest event is one of these.
-// null/undefined means the agent has never registered (IDLE state).
+// null/undefined means the agent has never registered.
 const OFFLINE_EVENT_TYPES = new Set(['agent.exited', 'agent.circuitOpen', null, undefined]);
 
 // ─── Not-working event types ─────────────────────────────────────────────────
-// Agent is online but NOT actively processing a task (idle/stopped/never-started).
+// Agent is online but NOT actively processing a task.
 // Used to compute isWorking: if the latest event is in this set, isWorking = false.
 const NOT_WORKING_EVENT_TYPES = new Set([
   'agent.waiting',
@@ -24,11 +24,18 @@ const NOT_WORKING_EVENT_TYPES = new Set([
   undefined,
 ]);
 
+/** Response shape from getLatestAgentEventsForChatroom. */
+interface AgentEventEntry {
+  eventType: string;
+  desiredState: string | null;
+}
+
 export interface AgentStatus {
   role: string;
   online: boolean;
   lastSeenAt: number | null;
   statusLabel: string;
+  statusVariant: StatusVariant;
   isWorking: boolean;
   latestEventType: string | null;
 }
@@ -54,7 +61,7 @@ export function useAgentStatuses(
   const latestEventsByRole = useSessionQuery(api.machines.getLatestAgentEventsForChatroom, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     roles,
-  }) as Record<string, string> | undefined;
+  }) as Record<string, AgentEventEntry> | undefined;
 
   const participantMap = useMemo(() => {
     if (!lifecycle?.participants) return new Map<string, NonNullable<typeof lifecycle>['participants'][number]>();
@@ -65,15 +72,23 @@ export function useAgentStatuses(
     return roles.map((role) => {
       const participant = participantMap.get(role.toLowerCase());
       const lastSeenAt = participant?.lastSeenAt ?? null;
-      const latestEventType = latestEventsByRole?.[role.toLowerCase()] ?? null;
+      const entry = latestEventsByRole?.[role.toLowerCase()] ?? null;
+      const latestEventType = entry?.eventType ?? null;
+      const desiredState = entry?.desiredState ?? null;
       // Agent is online if their latest event is NOT agent.exited, agent.circuitOpen, or null
       const online = !OFFLINE_EVENT_TYPES.has(latestEventType as string);
       const isWorking = online && !NOT_WORKING_EVENT_TYPES.has(latestEventType as string);
+      const { label: statusLabel, variant: statusVariant } = resolveAgentStatus(
+        latestEventType,
+        desiredState,
+        online
+      );
       return {
         role,
         online,
         lastSeenAt,
-        statusLabel: resolveStatusLabel(latestEventType, online),
+        statusLabel,
+        statusVariant,
         isWorking,
         latestEventType,
       };

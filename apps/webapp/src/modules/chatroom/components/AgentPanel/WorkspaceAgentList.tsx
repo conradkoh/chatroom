@@ -7,6 +7,7 @@ import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatro
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import type { Workspace } from '../../types/workspace';
 import type { AgentPreference } from '../AgentConfigTabs';
+import type { StatusVariant } from '../../utils/agentStatusLabel';
 import { InlineAgentCard } from './InlineAgentCard';
 
 interface AgentWithStatus {
@@ -14,6 +15,8 @@ interface AgentWithStatus {
   online: boolean;
   lastSeenAt?: number | null;
   latestEventType?: string | null;
+  desiredState?: string | null;
+  statusVariant?: StatusVariant;
 }
 
 interface WorkspaceAgentListProps {
@@ -124,13 +127,15 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
-          {workspaceAgents.map(({ role, online, lastSeenAt, latestEventType }) => (
+          {workspaceAgents.map(({ role, online, lastSeenAt, latestEventType, desiredState, statusVariant }) => (
             <InlineAgentCard
               key={role}
               role={role}
               online={online}
               lastSeenAt={lastSeenAt}
               latestEventType={latestEventType}
+              desiredState={desiredState}
+              statusVariant={statusVariant}
               prompt={generatePrompt(role)}
               chatroomId={chatroomId}
               connectedMachines={connectedMachines}

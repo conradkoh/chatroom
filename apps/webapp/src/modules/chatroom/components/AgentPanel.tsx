@@ -76,11 +76,12 @@ export const AgentPanel = memo(function AgentPanel({
 
   // Build unified list of all agents with their presence (for UnifiedAgentListModal)
   const allAgentsWithStatus = useMemo(() => {
-    return agentStatuses.map(({ role, online, lastSeenAt, latestEventType }) => ({
+    return agentStatuses.map(({ role, online, lastSeenAt, latestEventType, statusVariant }) => ({
       role,
       online,
       lastSeenAt,
       latestEventType,
+      statusVariant,
     }));
   }, [agentStatuses]);
 
@@ -125,10 +126,37 @@ export const AgentPanel = memo(function AgentPanel({
     const agentStatus = agentStatuses.find((a) => a.role === role);
     const online_ = agentStatus?.online ?? false;
     const working_ = agentStatus?.isWorking ?? false;
-    const statusLabel = agentStatus?.statusLabel ?? 'IDLE';
+    const statusLabel = agentStatus?.statusLabel ?? 'OFFLINE';
     const lastSeenAt = agentStatus?.lastSeenAt ?? null;
+    const statusVariant = agentStatus?.statusVariant;
 
-    const indicatorClass = online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
+    // Map statusVariant to indicator dot color
+    const indicatorClass = (() => {
+      switch (statusVariant) {
+        case 'offline': return 'bg-chatroom-text-muted';
+        case 'error': return 'bg-red-500 dark:bg-red-400';
+        case 'transitioning': return 'bg-yellow-500 dark:bg-yellow-400';
+        case 'ready': return 'bg-chatroom-status-success';
+        case 'working': return 'bg-chatroom-status-info animate-pulse';
+        default: return online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
+      }
+    })();
+
+    // Map statusVariant to label text color
+    const labelColorClass = (() => {
+      switch (statusVariant) {
+        case 'offline': return 'text-chatroom-text-muted';
+        case 'error': return 'text-red-600 dark:text-red-400';
+        case 'transitioning': return 'text-yellow-600 dark:text-yellow-400';
+        case 'ready': return 'text-chatroom-status-success';
+        case 'working': return 'text-chatroom-status-info animate-pulse';
+        default: return working_
+          ? 'text-chatroom-status-info animate-pulse'
+          : online_
+            ? 'text-chatroom-status-success'
+            : 'text-chatroom-text-muted';
+      }
+    })();
 
     return (
       <div key={role} className="border-b border-chatroom-border last:border-b-0">
@@ -160,11 +188,7 @@ export const AgentPanel = memo(function AgentPanel({
               className={`text-[10px] font-bold uppercase tracking-wide ${
                 isLoadingStatuses
                   ? 'text-chatroom-text-muted animate-pulse'
-                  : working_
-                    ? 'text-chatroom-status-info animate-pulse'
-                    : online_
-                      ? 'text-chatroom-status-success'
-                      : 'text-chatroom-text-muted'
+                  : labelColorClass
               }`}
             >
               {isLoadingStatuses ? '...' : statusLabel}

@@ -13,7 +13,7 @@ import type { AgentPreference } from '../AgentConfigTabs';
 import { AgentStatusRow } from './AgentStatusRow';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { getDaemonStartCommand } from '@/lib/environment';
-import { resolveStatusLabel } from '../../utils/agentStatusLabel';
+import { resolveAgentStatus, type StatusVariant } from '../../utils/agentStatusLabel';
 
 // Re-export helpers that are still imported from this file elsewhere
 export { formatLastSeen } from './AgentStatusRow';
@@ -39,6 +39,10 @@ export interface InlineAgentCardProps {
   online: boolean;
   lastSeenAt?: number | null;
   latestEventType?: string | null;
+  /** Desired lifecycle state from teamAgentConfigs (e.g. 'running' | 'stopped'). */
+  desiredState?: string | null;
+  /** Pre-resolved status variant; if provided, skips local resolveAgentStatus call. */
+  statusVariant?: StatusVariant;
   prompt: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
@@ -58,6 +62,8 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   online,
   lastSeenAt,
   latestEventType,
+  desiredState,
+  statusVariant: statusVariantProp,
   prompt,
   chatroomId,
   connectedMachines,
@@ -85,7 +91,15 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   });
 
   const daemonStartCommand = getDaemonStartCommand();
-  const statusLabel = resolveStatusLabel(latestEventType ?? null, online);
+
+  // Resolve status label and variant using the shared utility.
+  // If a pre-resolved statusVariant is passed in, use it; otherwise compute locally.
+  const { label: statusLabel, variant: statusVariant } = resolveAgentStatus(
+    latestEventType ?? null,
+    desiredState ?? null,
+    online
+  );
+  const resolvedVariant = statusVariantProp ?? statusVariant;
 
   // Resolve machineId from agentConfigs for restart stats query (used for machine-specific stats modal)
   const statsMachineId = useMemo(() => {
@@ -112,6 +126,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
             role={role}
             online={online}
             statusLabel={statusLabel}
+            statusVariant={resolvedVariant}
             lastSeenAt={lastSeenAt}
           />
         </div>

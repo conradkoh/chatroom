@@ -1,97 +1,130 @@
 /**
  * Agent status label utilities — shared between useAgentStatuses.ts and InlineAgentCard.tsx.
  *
- * Full agent lifecycle (event type → label):
+ * Final approved label matrix:
  *
- *   null/undefined    → IDLE         (never started; no events on record)
- *   agent.registered  → REGISTERED   (register-agent ran; hasn't started get-next-task yet)
- *   agent.waiting     → WAITING      (get-next-task subscription active; truly ready for tasks)
- *   agent.requestStart→ STARTING     (daemon/UI requested agent start)
- *   agent.started     → RUNNING      (agent process confirmed running)
- *   agent.requestStop → STOPPING     (stop requested; waiting for agent to exit)
- *   agent.exited      → STOPPED      (agent exited cleanly; shown offline)
- *   agent.circuitOpen → ERROR        (circuit breaker open; too many crash/restart cycles)
- *   task.acknowledged → TASK RECEIVED(agent claimed a task via get-next-task)
- *   task.inProgress   → WORKING      (agent called task-started; actively processing)
- *   task.completed    → COMPLETED    (task finished; agent about to return to WAITING)
+ *   Event Type         | desiredState    | Label           | Color
+ *   -------------------|-----------------|-----------------|--------
+ *   null (no events)   | any             | OFFLINE         | Grey
+ *   agent.registered   | any             | REGISTERED      | Yellow
+ *   agent.waiting      | running/undef   | WAITING         | Green
+ *   agent.waiting      | stopped         | STOPPING        | Yellow
+ *   agent.requestStart | any             | STARTING        | Yellow
+ *   agent.started      | any             | STARTING        | Yellow (merged)
+ *   agent.requestStop  | stopped         | STOPPING        | Yellow
+ *   task.acknowledged  | any             | TASK RECEIVED   | Green
+ *   task.inProgress    | any             | WORKING         | Blue (pulse)
+ *   task.completed     | any             | WORKING         | Blue (pulse)
+ *   agent.exited       | stopped         | OFFLINE         | Grey
+ *   agent.exited       | running/undef   | OFFLINE (ERROR) | Red
+ *   agent.circuitOpen  | any             | OFFLINE (ERROR) | Red
  */
+
+/** Semantic status variant used to select indicator color in the UI. */
+export type StatusVariant =
+  | 'offline'     // Grey — not started or cleanly stopped
+  | 'error'       // Red — crash or circuit breaker
+  | 'transitioning' // Yellow — starting, stopping, registered
+  | 'ready'       // Green — waiting or task received
+  | 'working';    // Blue pulse — actively processing
 
 /**
- * Maps a chatroom_eventStream event type to a human-readable status label.
- * Used in both the hook and the card component — do NOT duplicate this function.
+ * Resolved status: the label string plus the semantic color variant.
+ * Components use the variant to render the correct indicator color.
  */
-export function eventTypeToStatusLabel(eventType: string | null | undefined): string {
-  switch (eventType) {
-    // ── Agent has never registered — not started ────────────────────────────
-    case null:
-    case undefined:
-      return 'IDLE';
-
-    // ── Agent lifecycle events ──────────────────────────────────────────────
-    case 'agent.registered':
-      // Agent registered (register-agent ran) but hasn't started get-next-task yet.
-      // Distinguishable from WAITING: the subscription loop isn't active yet.
-      return 'REGISTERED';
-    case 'agent.waiting':
-      // Subscription is active; agent is truly listening for incoming tasks.
-      return 'WAITING';
-    case 'agent.requestStart':
-      return 'STARTING';
-    case 'agent.started':
-      return 'RUNNING';
-    case 'agent.requestStop':
-      // Stop was requested; agent is still alive but shutting down.
-      return 'STOPPING';
-    case 'agent.exited':
-      // Agent exited cleanly. Shown with offline indicator.
-      return 'STOPPED';
-    case 'agent.circuitOpen':
-      // Circuit breaker opened: too many crash/restart cycles.
-      return 'ERROR';
-
-    // ── Task lifecycle events ───────────────────────────────────────────────
-    case 'task.acknowledged':
-      // Agent claimed the task (pending → acknowledged). Work is imminent.
-      return 'TASK RECEIVED';
-    case 'task.activated':
-      return 'ACTIVE';
-    case 'task.inProgress':
-      // Agent called task-started and is actively processing.
-      return 'WORKING';
-    case 'task.completed':
-      // Task finished. Agent will return to WAITING momentarily.
-      return 'COMPLETED';
-
-    default:
-      return 'ONLINE';
-  }
+export interface ResolvedAgentStatus {
+  label: string;
+  variant: StatusVariant;
 }
 
 /**
- * Derives a user-facing status label from event type and online state.
+ * Resolves the agent's user-facing status label and color variant.
  *
- * Offline rules (shown with grey indicator):
- *   - null/undefined (never registered) → "IDLE"    ← distinct from "STOPPED"
- *   - agent.exited                       → "STOPPED" ← clean exit
- *   - agent.circuitOpen                  → "ERROR"   ← circuit breaker tripped
+ * @param eventType    Latest event type from `chatroom_eventStream` (null if no events)
+ * @param desiredState From `chatroom_teamAgentConfigs.desiredState` (null if not set)
+ * @param online       Whether the agent is considered online (derived from OFFLINE_EVENT_TYPES)
+ */
+export function resolveAgentStatus(
+  eventType: string | null | undefined,
+  desiredState: string | null | undefined,
+  _online: boolean
+): ResolvedAgentStatus {
+  // ── No events — agent has never been seen ──────────────────────────────────
+  if (eventType === null || eventType === undefined) {
+    return { label: 'OFFLINE', variant: 'offline' };
+  }
+
+  // ── Offline events — agent exited or circuit open ─────────────────────────
+  if (eventType === 'agent.exited') {
+    // Intentional stop (desiredState === 'stopped') → grey OFFLINE
+    // Crash (desiredState === 'running' or undefined) → red OFFLINE (ERROR)
+    const isIntentional = desiredState === 'stopped';
+    return isIntentional
+      ? { label: 'OFFLINE', variant: 'offline' }
+      : { label: 'OFFLINE (ERROR)', variant: 'error' };
+  }
+
+  if (eventType === 'agent.circuitOpen') {
+    return { label: 'OFFLINE (ERROR)', variant: 'error' };
+  }
+
+  // ── Online events ──────────────────────────────────────────────────────────
+
+  if (eventType === 'agent.registered') {
+    return { label: 'REGISTERED', variant: 'transitioning' };
+  }
+
+  if (eventType === 'agent.waiting') {
+    // If stop was requested but the agent hasn't exited yet, show STOPPING
+    if (desiredState === 'stopped') {
+      return { label: 'STOPPING', variant: 'transitioning' };
+    }
+    return { label: 'WAITING', variant: 'ready' };
+  }
+
+  if (eventType === 'agent.requestStart' || eventType === 'agent.started') {
+    // Merge both into STARTING — both mean "coming online soon"
+    return { label: 'STARTING', variant: 'transitioning' };
+  }
+
+  if (eventType === 'agent.requestStop') {
+    return { label: 'STOPPING', variant: 'transitioning' };
+  }
+
+  if (eventType === 'task.acknowledged') {
+    return { label: 'TASK RECEIVED', variant: 'ready' };
+  }
+
+  if (eventType === 'task.inProgress' || eventType === 'task.completed') {
+    // Both show WORKING: completed is momentary before returning to WAITING
+    return { label: 'WORKING', variant: 'working' };
+  }
+
+  if (eventType === 'task.activated') {
+    return { label: 'TASK RECEIVED', variant: 'ready' };
+  }
+
+  // ── Fallback ───────────────────────────────────────────────────────────────
+  return { label: 'ONLINE', variant: 'ready' };
+}
+
+// ─── Backward-compat helpers (used by consumers that import these) ──────────
+
+/**
+ * @deprecated Use resolveAgentStatus() instead.
+ * Maps event type to a label string only (ignores desiredState).
+ */
+export function eventTypeToStatusLabel(eventType: string | null | undefined): string {
+  return resolveAgentStatus(eventType, null, eventType !== null && eventType !== undefined && eventType !== 'agent.exited' && eventType !== 'agent.circuitOpen').label;
+}
+
+/**
+ * @deprecated Use resolveAgentStatus() instead.
+ * Derives status label considering online/offline state.
  */
 export function resolveStatusLabel(
   latestEventType: string | null,
   online: boolean
 ): string {
-  if (!online) {
-    // Offline state — distinguish between never-started, stopped, and error
-    if (latestEventType === null || latestEventType === undefined) {
-      return 'IDLE'; // Never registered — not started
-    }
-    if (latestEventType === 'agent.exited') {
-      return 'STOPPED'; // Clean exit
-    }
-    if (latestEventType === 'agent.circuitOpen') {
-      return 'ERROR'; // Circuit breaker tripped
-    }
-    return 'OFFLINE'; // Fallback for other offline states
-  }
-
-  return eventTypeToStatusLabel(latestEventType);
+  return resolveAgentStatus(latestEventType, null, online).label;
 }
