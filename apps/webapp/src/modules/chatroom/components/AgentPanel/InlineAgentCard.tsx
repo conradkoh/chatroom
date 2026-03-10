@@ -19,9 +19,28 @@ export { formatLastSeen } from './AgentStatusRow';
 
 // ─── Helper functions ────────────────────────────────────────────────────────
 
-/** Maps a chatroom_eventStream event type to a human-readable status label. */
+/**
+ * Maps a chatroom_eventStream event type to a human-readable status label.
+ * This mirrors the logic in useAgentStatuses.ts — keep them in sync.
+ *
+ * Full agent lifecycle:
+ *   null/undefined   → IDLE        (never started)
+ *   agent.registered → REGISTERED  (registered but not yet waiting)
+ *   agent.waiting    → WAITING     (subscription active; ready to receive tasks)
+ *   agent.requestStart→ STARTING
+ *   agent.started    → RUNNING
+ *   agent.requestStop→ STOPPING
+ *   agent.exited     → STOPPED     (offline)
+ *   agent.circuitOpen→ ERROR       (circuit breaker open)
+ *   task.acknowledged→ TASK RECEIVED
+ *   task.inProgress  → WORKING
+ *   task.completed   → COMPLETED
+ */
 export function eventTypeToStatusLabel(eventType: string | null | undefined): string {
   switch (eventType) {
+    case null:
+    case undefined:
+      return 'IDLE';
     case 'agent.registered':
       return 'REGISTERED';
     case 'agent.waiting':
@@ -34,12 +53,14 @@ export function eventTypeToStatusLabel(eventType: string | null | undefined): st
       return 'STOPPING';
     case 'agent.exited':
       return 'STOPPED';
+    case 'agent.circuitOpen':
+      return 'ERROR';
     case 'task.acknowledged':
       return 'TASK RECEIVED';
     case 'task.activated':
       return 'ACTIVE';
     case 'task.inProgress':
-      return 'IN PROGRESS';
+      return 'WORKING';
     case 'task.completed':
       return 'COMPLETED';
     default:
@@ -110,7 +131,13 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   });
 
   const daemonStartCommand = getDaemonStartCommand();
-  const statusLabel = online ? eventTypeToStatusLabel(latestEventType) : 'OFFLINE';
+  const statusLabel = online ? eventTypeToStatusLabel(latestEventType) : (
+    // Offline state — distinguish between never-started, stopped, and error
+    latestEventType === null || latestEventType === undefined ? 'IDLE' :
+    latestEventType === 'agent.exited' ? 'STOPPED' :
+    latestEventType === 'agent.circuitOpen' ? 'ERROR' :
+    'OFFLINE'
+  );
 
   // Resolve machineId from agentConfigs for restart stats query (used for machine-specific stats modal)
   const statsMachineId = useMemo(() => {

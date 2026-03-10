@@ -333,8 +333,17 @@ describe('GetNextTaskSession', () => {
       expect(output).toContain('Acknowledged task output');
 
       // For acknowledged tasks, claimTask and claimMessage should NOT be called.
-      // No mutation calls expected — task is already acknowledged, no claiming needed.
-      expect(params.client.mutation).toHaveBeenCalledTimes(0);
+      // The only mutation call should be the participants.join in subscribe() to signal
+      // that the agent is now truly waiting (sent after the subscription is established).
+      const mutationCalls = params.client.mutation.mock.calls;
+      const claimTaskCalls = mutationCalls.filter((call: any[]) =>
+        JSON.stringify(call[0]).includes('claimTask')
+      );
+      const claimMessageCalls = mutationCalls.filter((call: any[]) =>
+        JSON.stringify(call[0]).includes('claimMessage')
+      );
+      expect(claimTaskCalls).toHaveLength(0);
+      expect(claimMessageCalls).toHaveLength(0);
     });
 
     it('does not process duplicate tasks', async () => {

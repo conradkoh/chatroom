@@ -121,12 +121,17 @@ export async function getNextTask(chatroomId: string, options: GetNextTaskOption
     // Non-critical — continue without agent type
   }
 
-  // Join the chatroom, recording the start action for lastSeenAction-based liveness
+  // Register presence in the chatroom before starting the subscription.
+  // NOTE: action is intentionally NOT set to 'get-next-task:started' here.
+  // The 'get-next-task:started' action (which emits agent.waiting and marks the agent
+  // as "waiting" for queue-promotion purposes) is sent AFTER the WebSocket subscription
+  // is established in GetNextTaskSession.subscribe(). This ensures tasks are only
+  // acknowledged after the agent is truly ready to receive them.
   await client.mutation(api.participants.join, {
     sessionId,
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     role,
-    action: 'get-next-task:started',
+    action: 'get-next-task:connecting',
     connectionId,
     agentType: participantAgentType,
   });
