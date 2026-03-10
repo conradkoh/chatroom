@@ -163,6 +163,61 @@ export const SetupChecklist = memo(function SetupChecklist({
 
   const allJoined = joinedCount === teamRoles.length && teamRoles.length > 0;
 
+  // ── Loading guard ─────────────────────────────────────────────────
+  // Show skeleton rows while machine data is loading to prevent the
+  // prerequisites flashing as "not done" before data arrives.
+  if (isLoading) {
+    return (
+      <div className="max-w-2xl mx-auto p-6">
+        {!hideHeader && (
+          <div className="mb-6 pb-6 border-b-2 border-chatroom-border">
+            <h2 className="flex items-center gap-2 text-lg font-bold uppercase tracking-widest text-chatroom-text-primary mb-2">
+              <Rocket size={20} /> Setup Your Team
+            </h2>
+            <p className="text-sm text-chatroom-text-muted">
+              {joinedCount} of {teamRoles.length} agents ready
+            </p>
+          </div>
+        )}
+        <div className="flex flex-col gap-6">
+          {/* Prerequisites skeleton */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+              Prerequisites
+            </h3>
+            <div className="flex flex-col gap-2">
+              {['Auth login', 'Daemon connected', 'Harness installed'].map((label) => (
+                <div key={label} className="flex items-center gap-2 px-2 py-1.5">
+                  <div className="w-4 h-4 flex-shrink-0 bg-chatroom-border animate-pulse" />
+                  <span className="text-xs font-medium text-chatroom-text-muted">{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Agents skeleton */}
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
+              Agents
+            </h3>
+            <div className="flex flex-col border border-chatroom-border">
+              {teamRoles.map((role) => (
+                <div
+                  key={role}
+                  className="flex items-center gap-2 px-4 py-3 border-b border-chatroom-border last:border-b-0"
+                >
+                  <div className="w-2 h-2 flex-shrink-0 bg-chatroom-border animate-pulse rounded-full" />
+                  <span className="text-xs font-medium text-chatroom-text-muted uppercase tracking-wide">
+                    {role}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto p-6">
       {/* Header - hidden when used in modal */}
