@@ -226,8 +226,8 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
     const config = await t.run(async (ctx) => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
         )
         .filter((q) => q.eq(q.field('machineId'), 'oae-m6'))
         .first();

@@ -42,10 +42,11 @@ export async function ensureOnlyAgentForRole(
 ): Promise<void> {
   const { chatroomId, role, excludeMachineId } = input;
 
-  const configs = await ctx.db
+  const allConfigs = await ctx.db
     .query('chatroom_teamAgentConfigs')
-    .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
+    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
     .collect();
+  const configs = allConfigs.filter((c) => c.role.toLowerCase() === role.toLowerCase());
 
   const conflicting = configs.filter(
     (config) =>
