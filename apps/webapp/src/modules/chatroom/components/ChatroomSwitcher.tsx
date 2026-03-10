@@ -103,7 +103,7 @@ export function ChatroomSwitcher() {
           <Command>
             <CommandInput placeholder="Search chatrooms..." />
             <CommandList className="h-[300px]">
-              <CommandEmpty className="py-6 text-muted-foreground text-xs font-bold uppercase tracking-wider">
+              <CommandEmpty className="text-muted-foreground text-xs font-bold uppercase tracking-wider">
                 No chatrooms found.
               </CommandEmpty>
               {chatrooms && chatrooms.length > 0 && (

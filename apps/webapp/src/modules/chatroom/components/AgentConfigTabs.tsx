@@ -877,7 +877,7 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                               className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary bg-chatroom-bg-tertiary border-b border-chatroom-border focus:ring-0 focus:outline-none h-8"
                             />
                             <CommandList className="max-h-60 overflow-y-auto">
-                              <CommandEmpty className="text-[10px] text-chatroom-text-muted uppercase tracking-wider py-2 text-center">
+                              <CommandEmpty className="text-[10px] text-chatroom-text-muted uppercase tracking-wider py-2">
                                 No models found.
                               </CommandEmpty>
                               <CommandGroup>
