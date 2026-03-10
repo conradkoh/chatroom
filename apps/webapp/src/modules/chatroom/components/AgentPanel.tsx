@@ -8,6 +8,7 @@ import { usePresenceTick } from '../hooks/usePresenceTick';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
+import { formatLastSeen } from './AgentPanel/AgentStatusRow';
 
 import {
   DropdownMenu,
@@ -24,17 +25,6 @@ interface AgentPanelProps {
   onViewPrompt?: (role: string) => void;
   /** Called when user clicks Configure in the menu */
   onConfigure?: () => void;
-}
-
-// ─── Presence Utilities ──────────────────────────────────────────────────────
-
-/** Pure helper — formats a lastSeenAt unix-ms timestamp into a human-readable "X ago" string. */
-function formatLastSeen(lastSeenAt: number | null | undefined): string {
-  if (lastSeenAt == null) return 'never';
-  const diff = Math.floor((Date.now() - lastSeenAt) / 1000);
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  return `${Math.floor(diff / 3600)}h ago`;
 }
 
 // ─── AgentSidebarRow ─────────────────────────────────────────────────────────
