@@ -124,6 +124,13 @@ export async function startAgent(
     if (existingTeamConfig) {
       await ctx.db.patch('chatroom_teamAgentConfigs', existingTeamConfig._id, teamConfig);
     } else {
+      const stale = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+        .collect();
+      for (const row of stale) {
+        await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
+      }
       await ctx.db.insert('chatroom_teamAgentConfigs', {
         ...teamConfig,
         createdAt: teamConfigNow,
