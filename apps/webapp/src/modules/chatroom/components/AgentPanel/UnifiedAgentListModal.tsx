@@ -31,7 +31,6 @@ interface UnifiedAgentListModalProps {
   isOpen: boolean;
   onClose: () => void;
   chatroomId: string;
-  onViewPrompt?: (role: string) => void;
 }
 
 /** All Agents modal with workspace sidebar + filtered agent list.

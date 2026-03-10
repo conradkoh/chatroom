@@ -21,7 +21,6 @@ interface AgentPanelProps {
   chatroomId: string;
   teamRoles?: string[];
   lifecycle: TeamLifecycle | null | undefined;
-  onViewPrompt?: (role: string) => void;
   /** Called when user clicks Configure in the menu */
   onConfigure?: () => void;
 }
@@ -132,7 +131,6 @@ export const AgentPanel = memo(function AgentPanel({
   chatroomId,
   teamRoles = [],
   lifecycle,
-  onViewPrompt,
   onConfigure,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
@@ -233,7 +231,6 @@ export const AgentPanel = memo(function AgentPanel({
         isOpen={isAgentListModalOpen}
         onClose={closeAgentListModal}
         chatroomId={chatroomId}
-        onViewPrompt={onViewPrompt}
       />
     </div>
   );

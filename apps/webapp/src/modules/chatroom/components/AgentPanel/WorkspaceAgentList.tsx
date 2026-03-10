@@ -7,17 +7,8 @@ import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatro
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import type { Workspace } from '../../types/workspace';
 import type { AgentPreference } from '../AgentConfigTabs';
-import type { StatusVariant } from '../../utils/agentStatusLabel';
 import { InlineAgentCard } from './InlineAgentCard';
-
-interface AgentWithStatus {
-  role: string;
-  online: boolean;
-  lastSeenAt?: number | null;
-  latestEventType?: string | null;
-  desiredState?: string | null;
-  statusVariant?: StatusVariant;
-}
+import type { AgentWithStatus } from './UnifiedAgentListModal';
 
 interface WorkspaceAgentListProps {
   workspace: Workspace | null;

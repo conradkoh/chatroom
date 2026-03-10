@@ -675,7 +675,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   chatroomId={chatroomId}
                   teamRoles={teamRoles}
                   lifecycle={lifecycle}
-                  onViewPrompt={handleViewPrompt}
                   onConfigure={handleOpenSettings}
                 />
                 <TaskQueue chatroomId={chatroomId} lifecycle={lifecycle} />
