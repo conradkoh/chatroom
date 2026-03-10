@@ -470,3 +470,48 @@ export const migrateEventReasonsToActorPrefixed = internalMutation({
     return { migrated, skipped, total: allEvents.length };
   },
 });
+
+/**
+ * Migration: Deduplicate chatroom_teamAgentConfigs by teamRoleKey.
+ *
+ * After the teamRoleKey migration, there may be duplicate rows sharing
+ * the same teamRoleKey (e.g. from concurrent writes or prior bugs).
+ * This migration keeps the most recently updated row per teamRoleKey
+ * and deletes the rest.
+ *
+ * Idempotent: if no duplicates exist, returns { total: N, deduped: 0 }.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.deduplicateTeamAgentConfigs
+ */
+export const deduplicateTeamAgentConfigs = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allConfigs = await ctx.db.query('chatroom_teamAgentConfigs').collect();
+
+    const groups = new Map<string, typeof allConfigs>();
+    for (const config of allConfigs) {
+      const key = config.teamRoleKey;
+      const group = groups.get(key);
+      if (group) {
+        group.push(config);
+      } else {
+        groups.set(key, [config]);
+      }
+    }
+
+    let deduped = 0;
+    for (const [, group] of groups) {
+      if (group.length <= 1) continue;
+
+      group.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+
+      for (let i = 1; i < group.length; i++) {
+        await ctx.db.delete('chatroom_teamAgentConfigs', group[i]._id);
+        deduped++;
+      }
+    }
+
+    return { total: allConfigs.length, deduped };
+  },
+});
