@@ -2,13 +2,12 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
+import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { ChevronDown, MessageSquare, Play, Square, Star } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React, { memo, useCallback, useMemo, useState } from 'react';
 
-import { AgentStartModal } from './AgentStartModal';
-import type { AgentRoleView } from '../hooks/useAgentPanelData';
+import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
@@ -41,32 +40,6 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
   const displayName = getChatroomDisplayName(chatroom);
   const [startModalOpen, setStartModalOpen] = useState(false);
   const sendCommand = useSessionMutation(api.machines.sendCommand);
-
-  const teamAgentConfigs = useSessionQuery(api.machines.getTeamAgentConfigs, {
-    chatroomId: chatroom._id as Id<'chatroom_rooms'>,
-  });
-  const teamRoles = useMemo(
-    () => (teamAgentConfigs ?? []).map((c) => c.role),
-    [teamAgentConfigs]
-  );
-
-  // Build an AgentRoleView map from team agent configs for passing to AgentStartModal.
-  // This allows the modal to pre-fill model/harness from team config when no saved
-  // preference exists — matching the behavior of InlineAgentCard.
-  const agentRoleViewMap = useMemo(() => {
-    const map = new Map<string, AgentRoleView>();
-    (teamAgentConfigs ?? []).forEach((c) => {
-      map.set(c.role.toLowerCase(), {
-        role: c.role,
-        state: (c.desiredState === 'running' ? 'running' : 'stopped') as AgentRoleView['state'],
-        type: (c.type ?? 'remote') as AgentRoleView['type'],
-        agentHarness: c.agentHarness as AgentRoleView['agentHarness'],
-        model: c.model,
-        workingDir: c.workingDir,
-      });
-    });
-    return map;
-  }, [teamAgentConfigs]);
 
   const handleStop = useCallback(
     async (e: React.MouseEvent) => {
@@ -150,15 +123,11 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
         )}
       </div>
 
-      {startModalOpen && (
-        <AgentStartModal
-          chatroomId={chatroom._id}
-          open={startModalOpen}
-          onOpenChange={setStartModalOpen}
-          knownRoles={teamRoles}
-          agentRoleViewMap={agentRoleViewMap}
-        />
-      )}
+      <UnifiedAgentListModal
+        isOpen={startModalOpen}
+        onClose={() => setStartModalOpen(false)}
+        chatroomId={chatroom._id}
+      />
     </>
   );
 });
