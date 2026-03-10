@@ -5,7 +5,7 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { Rocket, Check, Play } from 'lucide-react';
 import React, { useMemo, useState, memo } from 'react';
 
-import { AgentStartModal } from './AgentStartModal';
+import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 import { AgentStatusRow } from './AgentPanel/AgentStatusRow';
 import { CopyButton } from './CopyButton';
 import type { MachineInfo } from '../types/machine';
@@ -101,10 +101,9 @@ interface AgentRowProps {
   lastSeenAt: number | null;
   canStart: boolean;
   chatroomId: string;
-  knownRoles: string[];
 }
 
-function AgentRow({ role, isJoined, statusLabel, statusVariant, online, lastSeenAt, canStart, chatroomId, knownRoles }: AgentRowProps) {
+function AgentRow({ role, isJoined, statusLabel, statusVariant, online, lastSeenAt, canStart, chatroomId }: AgentRowProps) {
   const [modalOpen, setModalOpen] = useState(false);
   return (
     <>
@@ -136,12 +135,10 @@ function AgentRow({ role, isJoined, statusLabel, statusVariant, online, lastSeen
         )}
       </div>
       {/* Always mount modal so it's ready when opened */}
-      <AgentStartModal
+      <UnifiedAgentListModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
         chatroomId={chatroomId}
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        initialRole={role}
-        knownRoles={knownRoles}
       />
     </>
   );
@@ -301,7 +298,6 @@ export const SetupChecklist = memo(function SetupChecklist({
                     lastSeenAt={agentStatus?.lastSeenAt ?? null}
                     canStart={prereqs.daemonDone}
                     chatroomId={chatroomId}
-                    knownRoles={teamRoles}
                   />
                 );
               })}
