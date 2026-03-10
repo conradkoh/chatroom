@@ -104,7 +104,10 @@ export const SetupChecklist = memo(function SetupChecklist({
   } = useAgentPanelData(chatroomId);
 
   // ── Agent statuses (event stream) ─────────────────────────────────
-  const { agents: agentStatuses } = useAgentStatuses(chatroomId, teamRoles);
+  const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(chatroomId, teamRoles);
+
+  // Combined loading flag — wait for both machine data and agent statuses before rendering
+  const isAllLoading = isLoading || isLoadingStatuses;
   const agentStatusMap = useMemo(
     () => new Map(agentStatuses.map((a) => [a.role.toLowerCase(), a])),
     [agentStatuses]
@@ -166,7 +169,7 @@ export const SetupChecklist = memo(function SetupChecklist({
   // ── Loading guard ─────────────────────────────────────────────────
   // Show skeleton rows while machine data is loading to prevent the
   // prerequisites flashing as "not done" before data arrives.
-  if (isLoading) {
+  if (isAllLoading) {
     return (
       <div className="max-w-2xl mx-auto p-6">
         {!hideHeader && (
