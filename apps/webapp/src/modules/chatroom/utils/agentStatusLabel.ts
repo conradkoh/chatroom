@@ -100,9 +100,10 @@ export function resolveAgentStatus(
     return { label: 'WORKING', variant: 'working' };
   }
 
-  if (eventType === 'task.activated') {
-    return { label: 'TASK RECEIVED', variant: 'ready' };
-  }
+  // NOTE: task.activated is intentionally NOT mapped here. It fires at task
+  // creation (pending status) before any agent claims the task, so mapping it
+  // to "TASK RECEIVED" would be misleading. Only task.acknowledged (which fires
+  // when an agent actually claims a task) should show "TASK RECEIVED".
 
   // ── Fallback ───────────────────────────────────────────────────────────────
   return { label: 'ONLINE', variant: 'ready' };
