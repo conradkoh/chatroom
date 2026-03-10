@@ -166,6 +166,7 @@ export async function executeStartAgent(
       role,
       pid,
       model,
+      reason,
     });
     console.log(`   Updated backend with PID: ${pid}`);
 

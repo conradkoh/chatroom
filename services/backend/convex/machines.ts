@@ -698,6 +698,7 @@ export const updateSpawnedAgent = mutation({
     role: v.string(),
     pid: v.optional(v.number()), // null to clear
     model: v.optional(v.string()), // Save model alongside PID for config persistence
+    reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
@@ -741,6 +742,7 @@ export const updateSpawnedAgent = mutation({
         model: args.model ?? config.model ?? 'unknown',
         workingDir: configWorkingDir,
         pid: args.pid,
+        reason: args.reason,
         timestamp: now,
       });
 

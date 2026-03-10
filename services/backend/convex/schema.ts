@@ -802,6 +802,7 @@ export default defineSchema({
         model: v.string(),
         workingDir: v.string(),
         pid: v.number(),
+        reason: v.optional(v.string()),
         timestamp: v.number(),
       }),
       // Agent process exited (crash or intentional)
