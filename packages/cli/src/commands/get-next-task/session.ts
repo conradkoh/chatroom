@@ -216,8 +216,12 @@ export class GetNextTaskSession {
         role: this.role,
         action: 'get-next-task:started',
       });
-    } catch {
+    } catch (error) {
       // Best-effort — subscription is already running; liveness will catch up
+      console.warn(
+        '[get-next-task] Failed to emit agent.waiting after subscription start:',
+        error
+      );
     }
   }
 
