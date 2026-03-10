@@ -6,8 +6,11 @@ import { Rocket, Check, Play } from 'lucide-react';
 import React, { useMemo, useState, memo } from 'react';
 
 import { AgentStartModal } from './AgentStartModal';
+import { AgentStatusRow } from './AgentPanel/AgentStatusRow';
 import { CopyButton } from './CopyButton';
 import type { MachineInfo } from '../types/machine';
+import { useAgentStatuses } from '../hooks/useAgentStatuses';
+import type { StatusVariant } from '../utils/agentStatusLabel';
 
 import { getDaemonStartCommand, getAuthLoginCommand } from '@/lib/environment';
 
@@ -86,13 +89,22 @@ function PrerequisiteRow({ done, label, command, doneDetail }: PrerequisiteRowPr
 
 interface AgentRowProps {
   role: string;
+  /** Whether the agent has joined (from participant presence — used for row border styling). */
   isJoined: boolean;
+  /** Rich status label from useAgentStatuses (e.g. WAITING, WORKING, OFFLINE). */
+  statusLabel: string;
+  /** Semantic color variant for the status indicator. */
+  statusVariant: StatusVariant;
+  /** Whether the agent is online (from useAgentStatuses). */
+  online: boolean;
+  /** Last seen timestamp for the agent. */
+  lastSeenAt: number | null;
   canStart: boolean;
   chatroomId: string;
   knownRoles: string[];
 }
 
-function AgentRow({ role, isJoined, canStart, chatroomId, knownRoles }: AgentRowProps) {
+function AgentRow({ role, isJoined, statusLabel, statusVariant, online, lastSeenAt, canStart, chatroomId, knownRoles }: AgentRowProps) {
   const [modalOpen, setModalOpen] = useState(false);
   return (
     <>
@@ -103,42 +115,25 @@ function AgentRow({ role, isJoined, canStart, chatroomId, knownRoles }: AgentRow
             : 'border-chatroom-border bg-chatroom-bg-surface'
         }`}
       >
-        <div className="flex items-center gap-3">
-          <span
-            className={`w-4 h-4 flex-shrink-0 flex items-center justify-center ${
-              isJoined ? 'text-chatroom-status-success' : 'text-chatroom-text-muted'
-            }`}
+        {/* Agent status — role name, dot, label, last seen */}
+        <AgentStatusRow
+          role={role}
+          online={online}
+          statusLabel={statusLabel}
+          statusVariant={statusVariant}
+          lastSeenAt={lastSeenAt}
+        />
+
+        {/* Start button — shown when not joined and agent can be started */}
+        {!isJoined && canStart && (
+          <button
+            onClick={() => setModalOpen(true)}
+            className="flex-shrink-0 flex items-center gap-1 px-3 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white transition-colors"
           >
-            {isJoined ? (
-              <Check size={14} />
-            ) : (
-              <span className="w-1.5 h-1.5 bg-chatroom-status-warning rounded-full" />
-            )}
-          </span>
-          <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
-            {role}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span
-            className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-              isJoined
-                ? 'bg-chatroom-status-success/15 text-chatroom-status-success'
-                : 'bg-chatroom-status-warning/15 text-chatroom-status-warning'
-            }`}
-          >
-            {isJoined ? 'Ready' : 'Waiting'}
-          </span>
-          {!isJoined && canStart && (
-            <button
-              onClick={() => setModalOpen(true)}
-              className="flex items-center gap-1 px-3 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white transition-colors"
-            >
-              <Play size={10} />
-              Start
-            </button>
-          )}
-        </div>
+            <Play size={10} />
+            Start
+          </button>
+        )}
       </div>
       {/* Always mount modal so it's ready when opened */}
       <AgentStartModal
@@ -173,6 +168,13 @@ export const SetupChecklist = memo(function SetupChecklist({
   const connectedMachines = useMemo(
     () => allMachines.filter((m) => m.daemonConnected),
     [allMachines]
+  );
+
+  // ── Agent statuses (event stream) ─────────────────────────────────
+  const { agents: agentStatuses } = useAgentStatuses(chatroomId, teamRoles);
+  const agentStatusMap = useMemo(
+    () => new Map(agentStatuses.map((a) => [a.role.toLowerCase(), a])),
+    [agentStatuses]
   );
 
   // ── Prerequisites ─────────────────────────────────────────────────
@@ -287,11 +289,16 @@ export const SetupChecklist = memo(function SetupChecklist({
               {teamRoles.map((role) => {
                 const participant = participantMap.get(role.toLowerCase());
                 const isJoined = participant != null && participant.lastSeenAt != null;
+                const agentStatus = agentStatusMap.get(role.toLowerCase());
                 return (
                   <AgentRow
                     key={role}
                     role={role}
                     isJoined={isJoined}
+                    statusLabel={agentStatus?.statusLabel ?? 'OFFLINE'}
+                    statusVariant={agentStatus?.statusVariant ?? 'offline'}
+                    online={agentStatus?.online ?? false}
+                    lastSeenAt={agentStatus?.lastSeenAt ?? null}
                     canStart={prereqs.daemonDone}
                     chatroomId={chatroomId}
                     knownRoles={teamRoles}
