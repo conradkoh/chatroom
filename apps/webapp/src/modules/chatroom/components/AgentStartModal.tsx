@@ -6,9 +6,13 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 
-import { useAgentControls, RemoteTabContent } from './AgentConfigTabs';
+import { useAgentControls } from './AgentConfigTabs';
 import type { AgentPreference } from './AgentConfigTabs';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
+import { useAgentStatuses } from '../hooks/useAgentStatuses';
+import { AgentStatusRow } from './AgentPanel/AgentStatusRow';
+import { AgentControlsSection } from './AgentPanel/AgentControlsSection';
+import { usePrompts } from '@/contexts/PromptsContext';
 
 import {
   Dialog,
@@ -30,10 +34,12 @@ interface AgentStartModalProps {
 
 /**
  * Standalone modal for starting/stopping a remote agent in a chatroom.
- * Fetches its own data — requires only chatroomId, open, onOpenChange.
+ * Rebuilt to use chatroom theme classes and shared components (AgentStatusRow,
+ * AgentControlsSection) for visual consistency with InlineAgentCard.
  */
 export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, knownRoles }: AgentStartModalProps) {
   const daemonStartCommand = getDaemonStartCommand();
+  const { getAgentPrompt } = usePrompts();
 
   const {
     teamRoles,
@@ -103,26 +109,40 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
     onSavePreference: handleSavePreference,
   });
 
+  // Live status for the selected role — always hook at top level (rules of hooks)
+  const roleForStatus = useMemo(
+    () => (selectedRole ? [selectedRole] : []),
+    [selectedRole]
+  );
+  const { agents: agentStatusList } = useAgentStatuses(chatroomId, roleForStatus);
+  const agentStatus = selectedRole
+    ? agentStatusList.find((a) => a.role.toLowerCase() === selectedRole.toLowerCase())
+    : undefined;
+
+  // Prompt for the selected role
+  const prompt = selectedRole ? (getAgentPrompt(selectedRole) ?? '') : '';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="text-xs font-bold uppercase tracking-widest">
+      <DialogContent className="chatroom-root max-w-lg bg-chatroom-bg-primary border-chatroom-border p-0 gap-0 overflow-hidden">
+        {/* Header */}
+        <DialogHeader className="px-4 py-3 border-b border-chatroom-border">
+          <DialogTitle className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
             Start Agent
           </DialogTitle>
         </DialogHeader>
 
         {/* Role picker — only shown if multiple roles exist */}
         {availableRoles.length > 1 && (
-          <div className="flex gap-2 flex-wrap border-b border-border pb-3 mb-1">
+          <div className="flex gap-2 flex-wrap px-4 py-3 border-b border-chatroom-border">
             {availableRoles.map((role) => (
               <button
                 key={role}
                 onClick={() => setSelectedRole(role)}
-                className={`px-3 py-1 text-xs font-bold uppercase tracking-wider rounded border transition-colors ${
+                className={`text-[11px] font-bold uppercase tracking-wide border-b-2 pb-0.5 transition-colors ${
                   selectedRole === role
-                    ? 'bg-foreground text-background border-foreground'
-                    : 'bg-transparent text-muted-foreground border-border hover:border-foreground hover:text-foreground'
+                    ? 'border-chatroom-accent text-chatroom-text-primary'
+                    : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
                 }`}
               >
                 {role}
@@ -134,17 +154,31 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
         {/* Content */}
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <div className="w-5 h-5 border-2 border-border border-t-foreground rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-chatroom-border border-t-chatroom-accent animate-spin" />
           </div>
         ) : !selectedRole ? (
-          <p className="text-muted-foreground text-sm py-4">Select a role to configure.</p>
+          <p className="text-chatroom-text-muted text-xs py-4 px-4">Select a role to configure.</p>
         ) : (
-          <RemoteTabContent
-            controls={controls}
-            connectedMachines={connectedMachines}
-            isLoadingMachines={isLoading}
-            daemonStartCommand={daemonStartCommand}
-          />
+          <div className="px-4 py-3 flex flex-col gap-3">
+            {/* Live status for the selected role */}
+            <AgentStatusRow
+              role={selectedRole}
+              online={agentStatus?.online ?? false}
+              statusLabel={agentStatus?.statusLabel ?? 'OFFLINE'}
+              statusVariant={agentStatus?.statusVariant}
+              lastSeenAt={agentStatus?.lastSeenAt}
+            />
+
+            {/* Remote + Custom tabs via shared component */}
+            <AgentControlsSection
+              controls={controls}
+              connectedMachines={connectedMachines}
+              isLoadingMachines={isLoading}
+              daemonStartCommand={daemonStartCommand}
+              role={selectedRole}
+              prompt={prompt}
+            />
+          </div>
         )}
       </DialogContent>
     </Dialog>
