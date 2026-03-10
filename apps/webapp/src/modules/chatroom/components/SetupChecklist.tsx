@@ -1,16 +1,12 @@
 'use client';
 
-import { api } from '@workspace/backend/convex/_generated/api';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { Rocket, Check, Play } from 'lucide-react';
-import React, { useMemo, useState, memo } from 'react';
+import { Rocket, Check } from 'lucide-react';
+import React, { useMemo, memo } from 'react';
 
-import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
-import { AgentStatusRow } from './AgentPanel/AgentStatusRow';
+import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
 import { CopyButton } from './CopyButton';
-import type { MachineInfo } from '../types/machine';
+import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
-import type { StatusVariant } from '../utils/agentStatusLabel';
 
 import { getDaemonStartCommand, getAuthLoginCommand } from '@/lib/environment';
 
@@ -85,67 +81,6 @@ function PrerequisiteRow({ done, label, command, doneDetail }: PrerequisiteRowPr
   );
 }
 
-// ─── AgentRow ───────────────────────────────────────────────────────
-
-interface AgentRowProps {
-  role: string;
-  /** Whether the agent has joined (from participant presence — used for row border styling). */
-  isJoined: boolean;
-  /** Rich status label from useAgentStatuses (e.g. WAITING, WORKING, OFFLINE). */
-  statusLabel: string;
-  /** Semantic color variant for the status indicator. */
-  statusVariant: StatusVariant;
-  /** Whether the agent is online (from useAgentStatuses). */
-  online: boolean;
-  /** Last seen timestamp for the agent. */
-  lastSeenAt: number | null;
-  canStart: boolean;
-  chatroomId: string;
-}
-
-function AgentRow({ role, isJoined, statusLabel, statusVariant, online, lastSeenAt, canStart, chatroomId }: AgentRowProps) {
-  const [modalOpen, setModalOpen] = useState(false);
-  return (
-    <>
-      <div
-        className={`flex items-center justify-between px-4 py-3 border ${
-          isJoined
-            ? 'border-chatroom-status-success/20 bg-chatroom-status-success/5'
-            : 'border-chatroom-border bg-chatroom-bg-surface'
-        }`}
-      >
-        {/* Agent status — role name, dot, label, last seen */}
-        <AgentStatusRow
-          role={role}
-          online={online}
-          statusLabel={statusLabel}
-          statusVariant={statusVariant}
-          lastSeenAt={lastSeenAt}
-        />
-
-        {/* Start button — shown when not joined and agent can be started */}
-        {!isJoined && canStart && (
-          <button
-            onClick={() => setModalOpen(true)}
-            className="flex-shrink-0 flex items-center gap-1 px-3 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white transition-colors"
-          >
-            <Play size={10} />
-            Start
-          </button>
-        )}
-      </div>
-      {/* Lazy-mount modal only when open to avoid firing queries for every agent row */}
-      {modalOpen && (
-        <UnifiedAgentListModal
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-          chatroomId={chatroomId}
-        />
-      )}
-    </>
-  );
-}
-
 // ─── Main Component ─────────────────────────────────────────────────
 
 export const SetupChecklist = memo(function SetupChecklist({
@@ -157,17 +92,16 @@ export const SetupChecklist = memo(function SetupChecklist({
   onViewPrompt,
   hideHeader = false,
 }: SetupChecklistProps) {
-  // ── Machine data ──────────────────────────────────────────────────
-  const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
-    | { machines: MachineInfo[] }
-    | undefined;
-
-  const allMachines = useMemo(() => machinesResult?.machines ?? [], [machinesResult?.machines]);
-
-  const connectedMachines = useMemo(
-    () => allMachines.filter((m) => m.daemonConnected),
-    [allMachines]
-  );
+  // ── Panel data (machines, configs, send command) ───────────────────
+  const {
+    agents: agentRoleViews,
+    connectedMachines,
+    machineConfigs,
+    agentPreferenceMap,
+    isLoading,
+    sendCommand,
+    savePreference,
+  } = useAgentPanelData(chatroomId);
 
   // ── Agent statuses (event stream) ─────────────────────────────────
   const { agents: agentStatuses } = useAgentStatuses(chatroomId, teamRoles);
@@ -176,13 +110,19 @@ export const SetupChecklist = memo(function SetupChecklist({
     [agentStatuses]
   );
 
+  // Build a role → AgentRoleView map for InlineAgentCard
+  const agentRoleViewMap = useMemo(
+    () => new Map(agentRoleViews.map((a) => [a.role.toLowerCase(), a])),
+    [agentRoleViews]
+  );
+
   // ── Prerequisites ─────────────────────────────────────────────────
   const prereqs = useMemo<Prerequisites>(() => {
-    const authDone = allMachines.length > 0;
+    const authDone = connectedMachines.length > 0; // any connected machine = auth done
     const daemonDone = connectedMachines.length > 0;
     const harnessDone = connectedMachines.some((m) => m.availableHarnesses.length > 0);
     return { authDone, daemonDone, harnessDone };
-  }, [allMachines, connectedMachines]);
+  }, [connectedMachines]);
 
   // ── Participants ──────────────────────────────────────────────────
   const participantMap = useMemo(
@@ -279,27 +219,33 @@ export const SetupChecklist = memo(function SetupChecklist({
             </div>
           </div>
 
-          {/* Agents section */}
+          {/* Agents section — uses InlineAgentCard for parity with All Agents panel */}
           <div>
             <h3 className="text-xs font-bold uppercase tracking-widest text-chatroom-text-muted mb-3">
               Agents
             </h3>
-            <div className="flex flex-col gap-2">
+            {/* InlineAgentCard uses border-b / last:border-b-0 internally; wrap in a container border */}
+            <div className="border border-chatroom-border">
               {teamRoles.map((role) => {
-                const participant = participantMap.get(role.toLowerCase());
-                const isJoined = participant != null && participant.lastSeenAt != null;
                 const agentStatus = agentStatusMap.get(role.toLowerCase());
+                const agentRoleView = agentRoleViewMap.get(role.toLowerCase());
                 return (
-                  <AgentRow
+                  <InlineAgentCard
                     key={role}
                     role={role}
-                    isJoined={isJoined}
-                    statusLabel={agentStatus?.statusLabel ?? 'OFFLINE'}
-                    statusVariant={agentStatus?.statusVariant ?? 'offline'}
                     online={agentStatus?.online ?? false}
                     lastSeenAt={agentStatus?.lastSeenAt ?? null}
-                    canStart={prereqs.daemonDone}
+                    latestEventType={agentStatus?.latestEventType ?? null}
+                    statusVariant={agentStatus?.statusVariant}
+                    prompt=""
                     chatroomId={chatroomId}
+                    connectedMachines={connectedMachines}
+                    isLoadingMachines={isLoading}
+                    agentConfigs={machineConfigs}
+                    sendCommand={sendCommand}
+                    agentRoleView={agentRoleView}
+                    agentPreference={agentPreferenceMap.get(role.toLowerCase())}
+                    onSavePreference={savePreference}
                   />
                 );
               })}
