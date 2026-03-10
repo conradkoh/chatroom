@@ -15,6 +15,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { AgentStopReason } from '../../entities/agent';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -67,10 +68,15 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
   });
 
   // Mark the agent config as desired-stopped so ensureAgentHandler won't auto-restart it.
-  const teamConfig = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role).eq('machineId', machineId))
-    .first();
+  const stopChatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  let teamConfig = null;
+  if (stopChatroom?.teamId) {
+    const stopTeamRoleKey = buildTeamRoleKey(chatroomId, stopChatroom.teamId, role);
+    teamConfig = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', stopTeamRoleKey))
+      .first();
+  }
 
   if (teamConfig) {
     await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {

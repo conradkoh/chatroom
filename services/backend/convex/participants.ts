@@ -9,6 +9,7 @@ import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-
 import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
+import { buildTeamRoleKey } from './utils/teamRoleKey';
 
 /** Upserts a chatroom participant record.
  * Emits agent.waiting and enables queue promotion only when action is 'get-next-task:started',
@@ -112,14 +113,20 @@ export const join = mutation({
     }
 
     // Reset circuit breaker when agent successfully registers (proves it's healthy)
-    const teamConfig = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .first();
+    let teamConfig = null;
+    if (chatroom.teamId) {
+      const joinTeamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, args.role);
+      teamConfig = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', joinTeamRoleKey))
+        .first();
+    }
 
-    if (teamConfig?.circuitState && teamConfig.circuitState !== 'closed') {
+    if (
+      teamConfig?.type === 'remote' &&
+      teamConfig.circuitState &&
+      teamConfig.circuitState !== 'closed'
+    ) {
       await ctx.db.patch(teamConfig._id, {
         circuitState: 'closed',
         circuitOpenedAt: undefined,
