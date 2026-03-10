@@ -6,6 +6,7 @@ import { WorkspaceAgentList } from './WorkspaceAgentList';
 import { WorkspaceSidebar } from './WorkspaceSidebar';
 import { useWorkspaces } from '../../hooks/useWorkspaces';
 import { useAgentPanelData } from '../../hooks/useAgentPanelData';
+import type { StatusVariant } from '../../utils/agentStatusLabel';
 
 import {
   FixedModal,
@@ -20,6 +21,8 @@ export interface AgentWithStatus {
   online: boolean;
   lastSeenAt?: number | null;
   latestEventType?: string | null;
+  desiredState?: string | null;
+  statusVariant?: StatusVariant;
 }
 
 interface UnifiedAgentListModalProps {

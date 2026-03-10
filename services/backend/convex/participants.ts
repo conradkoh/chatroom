@@ -10,7 +10,11 @@ import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 
-/** Upserts a chatroom participant record, emits agent.waiting if entering get-next-task loop, and auto-promotes queued tasks for the entry point role. */
+/** Upserts a chatroom participant record.
+ * Emits agent.waiting and enables queue promotion only when action is 'get-next-task:started',
+ * which is sent AFTER the WebSocket subscription is established (not before).
+ * Use 'get-next-task:connecting' for the initial registration before the subscription is ready.
+ */
 export const join = mutation({
   args: {
     ...SessionIdArg,
@@ -51,8 +55,10 @@ export const join = mutation({
 
     if (existing) {
       // Update presence fields and optionally connectionId/action/agentType.
+      // connectionId is only updated when explicitly provided — never cleared by heartbeats
+      // that don't supply a connectionId, to avoid breaking superseded-connection detection.
       await ctx.db.patch('chatroom_participants', existing._id, {
-        connectionId: args.connectionId,
+        ...(args.connectionId !== undefined ? { connectionId: args.connectionId } : {}),
         lastSeenAt: now,
         ...(args.action !== undefined ? { lastSeenAction: args.action } : {}),
         ...(args.agentType ? { agentType: args.agentType } : {}),

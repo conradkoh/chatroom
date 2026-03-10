@@ -204,6 +204,25 @@ export class GetNextTaskSession {
         this.handleSubscriptionError(error, 'task subscription');
       }
     );
+
+    // Mark the agent as truly waiting AFTER the subscription is established.
+    // This ensures agent.waiting is only emitted (and lastSeenAction set to
+    // 'get-next-task:started') once the agent can actually receive tasks,
+    // preventing premature task acknowledgement or queue promotion.
+    try {
+      await this.client.mutation(api.participants.join, {
+        sessionId: this.sessionId,
+        chatroomId: this.chatroomId as Id<'chatroom_rooms'>,
+        role: this.role,
+        action: 'get-next-task:started',
+      });
+    } catch (error) {
+      // Best-effort — subscription is already running; liveness will catch up
+      console.warn(
+        '[get-next-task] Failed to emit agent.waiting after subscription start:',
+        error
+      );
+    }
   }
 
   // -----------------------------------------------------------------------

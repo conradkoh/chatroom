@@ -6,12 +6,17 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useMemo } from 'react';
 
 import type { TeamLifecycle } from '../types/readiness';
+import { resolveAgentStatus, type StatusVariant } from '../utils/agentStatusLabel';
 
-// Event types that indicate the agent is offline (not connected)
+// ─── Offline event types ────────────────────────────────────────────────────
+// Agent is considered offline when their latest event is one of these.
+// null/undefined means the agent has never registered.
 const OFFLINE_EVENT_TYPES = new Set(['agent.exited', 'agent.circuitOpen', null, undefined]);
 
-// Idle event types — agent is online but not actively working
-const IDLE_EVENT_TYPES = new Set([
+// ─── Not-working event types ─────────────────────────────────────────────────
+// Agent is online but NOT actively processing a task.
+// Used to compute isWorking: if the latest event is in this set, isWorking = false.
+const NOT_WORKING_EVENT_TYPES = new Set([
   'agent.waiting',
   'agent.registered',
   'agent.exited',
@@ -19,11 +24,18 @@ const IDLE_EVENT_TYPES = new Set([
   undefined,
 ]);
 
+/** Response shape from getLatestAgentEventsForChatroom. */
+interface AgentEventEntry {
+  eventType: string;
+  desiredState: string | null;
+}
+
 export interface AgentStatus {
   role: string;
   online: boolean;
   lastSeenAt: number | null;
   statusLabel: string;
+  statusVariant: StatusVariant;
   isWorking: boolean;
   latestEventType: string | null;
 }
@@ -35,36 +47,6 @@ export interface UseAgentStatusesResult {
   aggregateStatus: AggregateStatus;
   lifecycle: TeamLifecycle | null | undefined;
   isLoading: boolean;
-}
-
-/** Maps a chatroom_eventStream event type to a human-readable status label. */
-function eventTypeToStatusLabel(eventType: string | null | undefined): string {
-  switch (eventType) {
-    case 'agent.registered':
-      return 'REGISTERED';
-    case 'agent.waiting':
-      return 'WAITING';
-    case 'agent.requestStart':
-      return 'STARTING';
-    case 'agent.started':
-      return 'RUNNING';
-    case 'agent.requestStop':
-      return 'STOPPING';
-    case 'agent.exited':
-      return 'STOPPED';
-    case 'agent.circuitOpen':
-      return 'CIRCUIT OPEN';
-    case 'task.acknowledged':
-      return 'TASK RECEIVED';
-    case 'task.activated':
-      return 'ACTIVE';
-    case 'task.inProgress':
-      return 'IN PROGRESS';
-    case 'task.completed':
-      return 'COMPLETED';
-    default:
-      return 'ONLINE';
-  }
 }
 
 /** Centralizes agent status derivation from lifecycle participants and event stream. */
@@ -79,7 +61,7 @@ export function useAgentStatuses(
   const latestEventsByRole = useSessionQuery(api.machines.getLatestAgentEventsForChatroom, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
     roles,
-  }) as Record<string, string> | undefined;
+  }) as Record<string, AgentEventEntry> | undefined;
 
   const participantMap = useMemo(() => {
     if (!lifecycle?.participants) return new Map<string, NonNullable<typeof lifecycle>['participants'][number]>();
@@ -90,21 +72,23 @@ export function useAgentStatuses(
     return roles.map((role) => {
       const participant = participantMap.get(role.toLowerCase());
       const lastSeenAt = participant?.lastSeenAt ?? null;
-      const latestEventType = latestEventsByRole?.[role.toLowerCase()] ?? null;
-      // Agent is online if their latest event is NOT agent.exited and NOT null (never registered)
+      const entry = latestEventsByRole?.[role.toLowerCase()] ?? null;
+      const latestEventType = entry?.eventType ?? null;
+      const desiredState = entry?.desiredState ?? null;
+      // Agent is online if their latest event is NOT agent.exited, agent.circuitOpen, or null
       const online = !OFFLINE_EVENT_TYPES.has(latestEventType as string);
-      const isWorking = online && !IDLE_EVENT_TYPES.has(latestEventType as string);
+      const isWorking = online && !NOT_WORKING_EVENT_TYPES.has(latestEventType as string);
+      const { label: statusLabel, variant: statusVariant } = resolveAgentStatus(
+        latestEventType,
+        desiredState,
+        online
+      );
       return {
         role,
         online,
         lastSeenAt,
-        // Use circuit open label even when offline so user knows why
-        statusLabel:
-          latestEventType === 'agent.circuitOpen'
-            ? 'CIRCUIT OPEN'
-            : online
-            ? eventTypeToStatusLabel(latestEventType)
-            : 'OFFLINE',
+        statusLabel,
+        statusVariant,
         isWorking,
         latestEventType,
       };

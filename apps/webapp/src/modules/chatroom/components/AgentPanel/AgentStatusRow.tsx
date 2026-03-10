@@ -2,10 +2,13 @@
 
 import { memo } from 'react';
 
+import type { StatusVariant } from '../../utils/agentStatusLabel';
+
 interface AgentStatusRowProps {
   role: string;
   online: boolean;
   statusLabel: string;
+  statusVariant?: StatusVariant;
   lastSeenAt?: number | null;
 }
 
@@ -18,15 +21,66 @@ export function formatLastSeen(lastSeenAt: number | null | undefined): string {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
+/**
+ * Maps a StatusVariant to a Tailwind indicator dot class.
+ *
+ * Color system:
+ *   offline      → grey dot
+ *   error        → red dot
+ *   transitioning→ yellow dot
+ *   ready        → green dot
+ *   working      → blue pulse dot
+ */
+function getIndicatorClass(variant: StatusVariant | undefined, online: boolean): string {
+  if (!variant) {
+    // Fallback: use legacy online/offline binary
+    return online ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
+  }
+  switch (variant) {
+    case 'offline':
+      return 'bg-chatroom-text-muted';
+    case 'error':
+      return 'bg-red-500 dark:bg-red-400';
+    case 'transitioning':
+      return 'bg-yellow-500 dark:bg-yellow-400';
+    case 'ready':
+      return 'bg-chatroom-status-success';
+    case 'working':
+      return 'bg-chatroom-status-info animate-pulse';
+  }
+}
+
+/**
+ * Maps a StatusVariant to a Tailwind text color class for the label.
+ */
+function getLabelColorClass(variant: StatusVariant | undefined, online: boolean): string {
+  if (!variant) {
+    return online ? 'text-chatroom-status-success' : 'text-chatroom-text-muted';
+  }
+  switch (variant) {
+    case 'offline':
+      return 'text-chatroom-text-muted';
+    case 'error':
+      return 'text-red-600 dark:text-red-400';
+    case 'transitioning':
+      return 'text-yellow-600 dark:text-yellow-400';
+    case 'ready':
+      return 'text-chatroom-status-success';
+    case 'working':
+      return 'text-chatroom-status-info';
+  }
+}
+
 /** Renders the status indicator dot, role name, status label, and last seen timestamp on one line. */
 export const AgentStatusRow = memo(function AgentStatusRow({
   role,
   online,
   statusLabel,
+  statusVariant,
   lastSeenAt,
 }: AgentStatusRowProps) {
-  const indicatorClass = online ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
-  const statusColorClass = online ? 'text-chatroom-status-success' : 'text-chatroom-text-muted';
+  const indicatorClass = getIndicatorClass(statusVariant, online);
+  const statusColorClass = getLabelColorClass(statusVariant, online);
 
   return (
     <div className="flex items-center gap-2 min-w-0 overflow-hidden">

@@ -1,11 +1,12 @@
 'use client';
 
 import { ChevronRight, MoreHorizontal, Settings } from 'lucide-react';
-import React, { useState, useMemo, useCallback, memo } from 'react';
+import { useState, useMemo, useCallback, memo } from 'react';
 
 import type { TeamLifecycle } from '../types/readiness';
 import { usePresenceTick } from '../hooks/usePresenceTick';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
+import type { AgentStatus } from '../hooks/useAgentStatuses';
 import { UnifiedAgentListModal } from './AgentPanel/UnifiedAgentListModal';
 
 import {
@@ -36,7 +37,107 @@ function formatLastSeen(lastSeenAt: number | null | undefined): string {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
+// ─── AgentSidebarRow ─────────────────────────────────────────────────────────
 
+interface AgentSidebarRowProps {
+  role: string;
+  agentStatus: AgentStatus | undefined;
+  isLoadingStatuses: boolean;
+  onOpen: () => void;
+}
+
+/** A single agent row in the AgentPanel sidebar. Extracted as a proper component so
+ *  React can correctly reconcile keyed list items — keys must be on elements directly
+ *  returned from `.map()`, not inside helper functions. */
+const AgentSidebarRow = memo(function AgentSidebarRow({
+  role,
+  agentStatus,
+  isLoadingStatuses,
+  onOpen,
+}: AgentSidebarRowProps) {
+  const online_ = agentStatus?.online ?? false;
+  const working_ = agentStatus?.isWorking ?? false;
+  const statusLabel = agentStatus?.statusLabel ?? 'OFFLINE';
+  const lastSeenAt = agentStatus?.lastSeenAt ?? null;
+  const statusVariant = agentStatus?.statusVariant;
+
+  // Map statusVariant to indicator dot color
+  const indicatorClass = (() => {
+    switch (statusVariant) {
+      case 'offline': return 'bg-chatroom-text-muted';
+      case 'error': return 'bg-red-500 dark:bg-red-400';
+      case 'transitioning': return 'bg-yellow-500 dark:bg-yellow-400';
+      case 'ready': return 'bg-chatroom-status-success';
+      case 'working': return 'bg-chatroom-status-info animate-pulse';
+      default: return online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
+    }
+  })();
+
+  // Map statusVariant to label text color
+  const labelColorClass = (() => {
+    switch (statusVariant) {
+      case 'offline': return 'text-chatroom-text-muted';
+      case 'error': return 'text-red-600 dark:text-red-400';
+      case 'transitioning': return 'text-yellow-600 dark:text-yellow-400';
+      case 'ready': return 'text-chatroom-status-success';
+      case 'working': return 'text-chatroom-status-info animate-pulse';
+      default: return working_
+        ? 'text-chatroom-status-info animate-pulse'
+        : online_
+          ? 'text-chatroom-status-success'
+          : 'text-chatroom-text-muted';
+    }
+  })();
+
+  return (
+    <div className="border-b border-chatroom-border last:border-b-0">
+      <div
+        className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${working_ ? 'bg-chatroom-status-info/5' : ''}`}
+        role="button"
+        tabIndex={0}
+        aria-label={`${role}: ${isLoadingStatuses ? 'Loading...' : statusLabel}. Click to view all agents.`}
+        onClick={onOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpen();
+          }
+        }}
+      >
+        {/* Status Indicator */}
+        <div
+          className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`}
+          role="status"
+          aria-label={`Status: ${isLoadingStatuses ? 'Loading...' : statusLabel}`}
+        />
+        {/* Agent Info */}
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
+            {role}
+          </div>
+          <div
+            className={`text-[10px] font-bold uppercase tracking-wide ${
+              isLoadingStatuses
+                ? 'text-chatroom-text-muted animate-pulse'
+                : labelColorClass
+            }`}
+          >
+            {isLoadingStatuses ? '...' : statusLabel}
+          </div>
+          <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+            {formatLastSeen(lastSeenAt)}
+          </div>
+        </div>
+        {/* View Indicator */}
+        <div className="text-chatroom-text-muted">
+          <ChevronRight size={14} />
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ─── AgentPanel ──────────────────────────────────────────────────────────────
 
 export const AgentPanel = memo(function AgentPanel({
   chatroomId,
@@ -65,7 +166,6 @@ export const AgentPanel = memo(function AgentPanel({
     rolesToShow
   );
 
-
   // Memoize prompt generation function
   const generatePrompt = useCallback(
     (role: string): string => {
@@ -76,11 +176,12 @@ export const AgentPanel = memo(function AgentPanel({
 
   // Build unified list of all agents with their presence (for UnifiedAgentListModal)
   const allAgentsWithStatus = useMemo(() => {
-    return agentStatuses.map(({ role, online, lastSeenAt, latestEventType }) => ({
+    return agentStatuses.map(({ role, online, lastSeenAt, latestEventType, statusVariant }) => ({
       role,
       online,
       lastSeenAt,
       latestEventType,
+      statusVariant,
     }));
   }, [agentStatuses]);
 
@@ -120,68 +221,6 @@ export const AgentPanel = memo(function AgentPanel({
     );
   }
 
-  // Helper to render an agent row in the sidebar
-  const renderAgentRow = (role: string) => {
-    const agentStatus = agentStatuses.find((a) => a.role === role);
-    const online_ = agentStatus?.online ?? false;
-    const working_ = agentStatus?.isWorking ?? false;
-    const statusLabel = agentStatus?.statusLabel ?? 'OFFLINE';
-    const lastSeenAt = agentStatus?.lastSeenAt ?? null;
-
-    const indicatorClass = online_ ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted';
-
-    return (
-      <div key={role} className="border-b border-chatroom-border last:border-b-0">
-        <div
-          className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover ${working_ ? 'bg-chatroom-status-info/5' : ''}`}
-          role="button"
-          tabIndex={0}
-          aria-label={`${role}: ${isLoadingStatuses ? 'Loading...' : statusLabel}. Click to view all agents.`}
-          onClick={openAgentListModal}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              openAgentListModal();
-            }
-          }}
-        >
-          {/* Status Indicator */}
-          <div
-            className={`w-2.5 h-2.5 flex-shrink-0 ${indicatorClass}`}
-            role="status"
-            aria-label={`Status: ${isLoadingStatuses ? 'Loading...' : statusLabel}`}
-          />
-          {/* Agent Info */}
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary">
-              {role}
-            </div>
-            <div
-              className={`text-[10px] font-bold uppercase tracking-wide ${
-                isLoadingStatuses
-                  ? 'text-chatroom-text-muted animate-pulse'
-                  : working_
-                    ? 'text-chatroom-status-info animate-pulse'
-                    : online_
-                      ? 'text-chatroom-status-success'
-                      : 'text-chatroom-text-muted'
-              }`}
-            >
-              {isLoadingStatuses ? '...' : statusLabel}
-            </div>
-            <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
-              {formatLastSeen(lastSeenAt)}
-            </div>
-          </div>
-          {/* View Indicator */}
-          <div className="text-chatroom-text-muted">
-            <ChevronRight size={14} />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
       {/* Header with settings menu */}
@@ -209,8 +248,16 @@ export const AgentPanel = memo(function AgentPanel({
       </div>
       {/* Scrollable container for agent rows */}
       <div className="overflow-y-auto">
-        {/* All agents as individual compact rows */}
-        {allAgentsWithStatus.map(({ role }) => renderAgentRow(role))}
+        {/* Each AgentSidebarRow is a proper component with key at the map level */}
+        {allAgentsWithStatus.map(({ role }) => (
+          <AgentSidebarRow
+            key={role}
+            role={role}
+            agentStatus={agentStatuses.find((a) => a.role === role)}
+            isLoadingStatuses={isLoadingStatuses}
+            onOpen={openAgentListModal}
+          />
+        ))}
       </div>
 
       {/* Unified Agent List Modal - shows ALL agents with inline config/controls */}

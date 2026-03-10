@@ -13,39 +13,14 @@ import type { AgentPreference } from '../AgentConfigTabs';
 import { AgentStatusRow } from './AgentStatusRow';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { getDaemonStartCommand } from '@/lib/environment';
+import { resolveAgentStatus, type StatusVariant } from '../../utils/agentStatusLabel';
 
 // Re-export helpers that are still imported from this file elsewhere
 export { formatLastSeen } from './AgentStatusRow';
+// Re-export eventTypeToStatusLabel for consumers that import it from this file
+export { eventTypeToStatusLabel } from '../../utils/agentStatusLabel';
 
 // ─── Helper functions ────────────────────────────────────────────────────────
-
-/** Maps a chatroom_eventStream event type to a human-readable status label. */
-export function eventTypeToStatusLabel(eventType: string | null | undefined): string {
-  switch (eventType) {
-    case 'agent.registered':
-      return 'REGISTERED';
-    case 'agent.waiting':
-      return 'WAITING';
-    case 'agent.requestStart':
-      return 'STARTING';
-    case 'agent.started':
-      return 'RUNNING';
-    case 'agent.requestStop':
-      return 'STOPPING';
-    case 'agent.exited':
-      return 'STOPPED';
-    case 'task.acknowledged':
-      return 'TASK RECEIVED';
-    case 'task.activated':
-      return 'ACTIVE';
-    case 'task.inProgress':
-      return 'IN PROGRESS';
-    case 'task.completed':
-      return 'COMPLETED';
-    default:
-      return 'ONLINE';
-  }
-}
 
 /** Resolves machine hostname from connected machines by machineId. */
 export function resolveMachineHostname(
@@ -64,6 +39,10 @@ export interface InlineAgentCardProps {
   online: boolean;
   lastSeenAt?: number | null;
   latestEventType?: string | null;
+  /** Desired lifecycle state from teamAgentConfigs (e.g. 'running' | 'stopped'). */
+  desiredState?: string | null;
+  /** Pre-resolved status variant; if provided, skips local resolveAgentStatus call. */
+  statusVariant?: StatusVariant;
   prompt: string;
   chatroomId: string;
   connectedMachines: MachineInfo[];
@@ -83,6 +62,8 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   online,
   lastSeenAt,
   latestEventType,
+  desiredState,
+  statusVariant: statusVariantProp,
   prompt,
   chatroomId,
   connectedMachines,
@@ -110,7 +91,15 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   });
 
   const daemonStartCommand = getDaemonStartCommand();
-  const statusLabel = online ? eventTypeToStatusLabel(latestEventType) : 'OFFLINE';
+
+  // Resolve status label and variant using the shared utility.
+  // If a pre-resolved statusVariant is passed in, use it; otherwise compute locally.
+  const { label: statusLabel, variant: statusVariant } = resolveAgentStatus(
+    latestEventType ?? null,
+    desiredState ?? null,
+    online
+  );
+  const resolvedVariant = statusVariantProp ?? statusVariant;
 
   // Resolve machineId from agentConfigs for restart stats query (used for machine-specific stats modal)
   const statsMachineId = useMemo(() => {
@@ -137,6 +126,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
             role={role}
             online={online}
             statusLabel={statusLabel}
+            statusVariant={resolvedVariant}
             lastSeenAt={lastSeenAt}
           />
         </div>
