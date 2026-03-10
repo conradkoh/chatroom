@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import React, { memo, useCallback, useMemo, useState } from 'react';
 
 import { AgentStartModal } from './AgentStartModal';
+import type { AgentRoleView } from '../hooks/useAgentPanelData';
 import { useChatroomListing, type ChatroomWithStatus } from '../context/ChatroomListingContext';
 import { getChatroomDisplayName } from '../viewModels/chatroomViewModel';
 
@@ -48,6 +49,24 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
     () => (teamAgentConfigs ?? []).map((c) => c.role),
     [teamAgentConfigs]
   );
+
+  // Build an AgentRoleView map from team agent configs for passing to AgentStartModal.
+  // This allows the modal to pre-fill model/harness from team config when no saved
+  // preference exists — matching the behavior of InlineAgentCard.
+  const agentRoleViewMap = useMemo(() => {
+    const map = new Map<string, AgentRoleView>();
+    (teamAgentConfigs ?? []).forEach((c) => {
+      map.set(c.role.toLowerCase(), {
+        role: c.role,
+        state: (c.desiredState === 'running' ? 'running' : 'stopped') as AgentRoleView['state'],
+        type: (c.type ?? 'remote') as AgentRoleView['type'],
+        agentHarness: c.agentHarness as AgentRoleView['agentHarness'],
+        model: c.model,
+        workingDir: c.workingDir,
+      });
+    });
+    return map;
+  }, [teamAgentConfigs]);
 
   const handleStop = useCallback(
     async (e: React.MouseEvent) => {
@@ -137,6 +156,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           open={startModalOpen}
           onOpenChange={setStartModalOpen}
           knownRoles={teamRoles}
+          agentRoleViewMap={agentRoleViewMap}
         />
       )}
     </>

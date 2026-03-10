@@ -9,6 +9,7 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useAgentControls } from './AgentConfigTabs';
 import type { AgentPreference } from './AgentConfigTabs';
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
+import type { AgentRoleView } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import { AgentStatusRow } from './AgentPanel/AgentStatusRow';
 import { AgentControlsSection } from './AgentPanel/AgentControlsSection';
@@ -35,6 +36,13 @@ interface AgentStartModalProps {
    * Custom tab renders with empty content — which is acceptable.
    */
   prompt?: string;
+  /**
+   * Optional: map of role → AgentRoleView for team-config hints (model, harness).
+   * Used by useAgentControls to pre-fill the model/harness fields when no saved
+   * preference exists. Callers that have the team config (e.g. ChatroomSidebar)
+   * should build this map and pass it in.
+   */
+  agentRoleViewMap?: Map<string, AgentRoleView>;
 }
 
 /**
@@ -42,7 +50,7 @@ interface AgentStartModalProps {
  * Rebuilt to use chatroom theme classes and shared components (AgentStatusRow,
  * AgentControlsSection) for visual consistency with InlineAgentCard.
  */
-export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, knownRoles, prompt = '' }: AgentStartModalProps) {
+export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, knownRoles, prompt = '', agentRoleViewMap }: AgentStartModalProps) {
   const daemonStartCommand = getDaemonStartCommand();
 
   const {
@@ -102,6 +110,11 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
     [savePreference]
   );
 
+  // Resolve team-level agent config for the selected role (for model/harness hints)
+  const selectedAgentRoleView = selectedRole
+    ? agentRoleViewMap?.get(selectedRole.toLowerCase())
+    : undefined;
+
   // useAgentControls MUST be called unconditionally (rules of hooks)
   const controls = useAgentControls({
     role: selectedRole ?? '',
@@ -109,6 +122,8 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
     connectedMachines,
     agentConfigs: machineConfigs,
     sendCommand,
+    teamConfigModel: selectedAgentRoleView?.model,
+    teamConfigHarness: selectedAgentRoleView?.agentHarness,
     agentPreference,
     onSavePreference: handleSavePreference,
   });
