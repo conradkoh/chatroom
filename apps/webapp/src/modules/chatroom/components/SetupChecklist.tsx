@@ -134,12 +134,14 @@ function AgentRow({ role, isJoined, statusLabel, statusVariant, online, lastSeen
           </button>
         )}
       </div>
-      {/* Always mount modal so it's ready when opened */}
-      <UnifiedAgentListModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        chatroomId={chatroomId}
-      />
+      {/* Lazy-mount modal only when open to avoid firing queries for every agent row */}
+      {modalOpen && (
+        <UnifiedAgentListModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          chatroomId={chatroomId}
+        />
+      )}
     </>
   );
 }

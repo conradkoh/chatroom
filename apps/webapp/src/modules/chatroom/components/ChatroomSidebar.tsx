@@ -123,11 +123,13 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
         )}
       </div>
 
-      <UnifiedAgentListModal
-        isOpen={startModalOpen}
-        onClose={() => setStartModalOpen(false)}
-        chatroomId={chatroom._id}
-      />
+      {startModalOpen && (
+        <UnifiedAgentListModal
+          isOpen={startModalOpen}
+          onClose={() => setStartModalOpen(false)}
+          chatroomId={chatroom._id}
+        />
+      )}
     </>
   );
 });
