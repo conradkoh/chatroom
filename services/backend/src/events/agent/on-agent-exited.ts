@@ -2,6 +2,7 @@ import type { Id } from '../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../convex/_generated/server';
 import { internal } from '../../../convex/_generated/api';
 import { getTeamEntryPoint } from '../../domain/entities/team';
+import { buildTeamRoleKey } from '../../../convex/utils/teamRoleKey';
 
 export interface OnAgentExitedArgs {
   chatroomId: Id<'chatroom_rooms'>;
@@ -38,19 +39,28 @@ export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): 
     return;
   }
 
+  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+
   // Belt-and-suspenders: check desiredState before scheduling restart
   // This prevents restart if the user has explicitly stopped the agent
   // (even if stopReason suggests restart is appropriate — e.g. Race 2)
-  const teamConfig = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
-    .first();
+  let teamConfig = null;
+  if (chatroom?.teamId) {
+    const exitTeamRoleKey = buildTeamRoleKey(chatroomId, chatroom.teamId, role);
+    teamConfig = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', exitTeamRoleKey))
+      .first();
+  }
 
   if (teamConfig?.desiredState === 'stopped') {
     return; // User intent respected — no restart
   }
 
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  if (teamConfig && teamConfig.type !== 'remote') {
+    return; // Only remote agents get crash recovery
+  }
+
   const entryPoint = getTeamEntryPoint(chatroom ?? {});
   const normalizedRole = role.toLowerCase();
 

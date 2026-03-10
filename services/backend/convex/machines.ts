@@ -461,12 +461,14 @@ export const getLatestAgentEventsForChatroom = query({
           )
           .order('desc')
           .first();
-        const teamConfig = await ctx.db
-          .query('chatroom_teamAgentConfigs')
-          .withIndex('by_chatroom_role', (q) =>
-            q.eq('chatroomId', args.chatroomId).eq('role', role)
-          )
-          .first();
+        let teamConfig: Doc<'chatroom_teamAgentConfigs'> | null = null;
+        if (chatroom?.teamId) {
+          const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, role);
+          teamConfig = await ctx.db
+            .query('chatroom_teamAgentConfigs')
+            .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+            .first();
+        }
         return {
           role,
           event: event ?? null,
@@ -630,16 +632,24 @@ export const sendCommand = mutation({
     // ── start-agent: resolve defaults then delegate to use case ────────
     if (args.type === 'start-agent' && args.payload?.chatroomId && args.payload?.role) {
       // Read existing config for fallback values when payload is incomplete
-      const existingConfig = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom_role', (q) =>
-          q.eq('chatroomId', args.payload!.chatroomId!).eq('role', args.payload!.role!)
-        )
-        .first();
+      const cmdChatroom = await ctx.db.get('chatroom_rooms', args.payload.chatroomId);
+      let existingConfig: Doc<'chatroom_teamAgentConfigs'> | null = null;
+      if (cmdChatroom?.teamId) {
+        const teamRoleKey = buildTeamRoleKey(cmdChatroom._id, cmdChatroom.teamId, args.payload.role);
+        existingConfig = await ctx.db
+          .query('chatroom_teamAgentConfigs')
+          .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+          .first();
+      }
 
-      const resolvedModel = args.payload.model ?? existingConfig?.model;
-      const resolvedHarness = args.payload.agentHarness ?? existingConfig?.agentHarness;
-      const resolvedWorkingDir = args.payload.workingDir ?? existingConfig?.workingDir;
+      const resolvedModel =
+        args.payload.model ?? (existingConfig?.type === 'remote' ? existingConfig.model : undefined);
+      const resolvedHarness =
+        args.payload.agentHarness ??
+        (existingConfig?.type === 'remote' ? existingConfig.agentHarness : undefined);
+      const resolvedWorkingDir =
+        args.payload.workingDir ??
+        (existingConfig?.type === 'remote' ? existingConfig.workingDir : undefined);
 
       if (!resolvedModel || !resolvedHarness || !resolvedWorkingDir) {
         throw new Error(
@@ -708,14 +718,17 @@ export const updateSpawnedAgent = mutation({
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
     // Find the agent config
+    const spawnChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (!spawnChatroom?.teamId) {
+      throw new Error('Chatroom has no teamId — cannot look up agent config');
+    }
+    const spawnTeamRoleKey = buildTeamRoleKey(spawnChatroom._id, spawnChatroom.teamId, args.role);
     const config = await ctx.db
       .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role).eq('machineId', args.machineId)
-      )
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', spawnTeamRoleKey))
       .first();
 
-    if (!config) {
+    if (!config || config.machineId !== args.machineId) {
       throw new Error('Agent config not found');
     }
 
@@ -825,13 +838,16 @@ export const recordAgentExited = mutation({
     });
 
     // 3. Clear spawnedAgentPid from team agent config
-    const config = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role).eq('machineId', args.machineId)
-      )
-      .first();
-    if (config) {
+    const exitChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    let config: Doc<'chatroom_teamAgentConfigs'> | null = null;
+    if (exitChatroom?.teamId) {
+      const exitTeamRoleKey = buildTeamRoleKey(exitChatroom._id, exitChatroom.teamId, args.role);
+      config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', exitTeamRoleKey))
+        .first();
+    }
+    if (config && config.machineId === args.machineId) {
       await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
         spawnedAgentPid: undefined,
         spawnedAt: undefined,
@@ -994,6 +1010,13 @@ export const saveTeamAgentConfig = mutation({
     if (existing) {
       await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, config);
     } else {
+      const stale = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
+        .collect();
+      for (const row of stale) {
+        await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
+      }
       await ctx.db.insert('chatroom_teamAgentConfigs', {
         ...config,
         createdAt: now,

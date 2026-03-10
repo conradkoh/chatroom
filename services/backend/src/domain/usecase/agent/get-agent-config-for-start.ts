@@ -13,6 +13,7 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness } from '../../entities/agent';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -96,12 +97,14 @@ export async function getAgentConfigForStart(
   }
 
   // 2. Check team config
-  const teamConfig = await ctx.db
-    .query('chatroom_teamAgentConfigs')
-    .withIndex('by_chatroom_role', (q) =>
-      q.eq('chatroomId', input.chatroomId).eq('role', input.role)
-    )
-    .first();
+  let teamConfig = null;
+  if (chatroom.teamId) {
+    const startTeamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, input.role);
+    teamConfig = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', startTeamRoleKey))
+      .first();
+  }
 
   if (teamConfig?.machineId) {
     return {

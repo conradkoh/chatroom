@@ -92,6 +92,10 @@ const MIGRATIONS: Migration[] = [
     name: 'migration:migrateEventReasonsToActorPrefixed',
     addedAt: '2026-03-09T08:12:35.000Z',
   },
+  {
+    name: 'migration:deduplicateTeamAgentConfigs',
+    addedAt: '2026-03-10T15:00:00.000Z',
+  },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
