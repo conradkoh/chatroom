@@ -8,10 +8,11 @@ import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatro
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
-import { useAgentControls, RemoteTabContent, CustomTabContent } from '../AgentConfigTabs';
+import { useAgentControls } from '../AgentConfigTabs';
 import type { AgentPreference } from '../AgentConfigTabs';
 import { AgentStatusRow } from './AgentStatusRow';
 import { AgentRestartStatsModal } from './AgentRestartStatsModal';
+import { AgentControlsSection } from './AgentControlsSection';
 import { getDaemonStartCommand } from '@/lib/environment';
 import { resolveAgentStatus, type StatusVariant } from '../../utils/agentStatusLabel';
 
@@ -74,10 +75,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   agentPreference,
   onSavePreference,
 }: InlineAgentCardProps) {
-  const [activeTab, setActiveTab] = useState<'remote' | 'custom'>(
-    agentRoleView?.type === 'custom' ? 'custom' : 'remote'
-  );
-
   const controls = useAgentControls({
     role,
     chatroomId,
@@ -131,43 +128,16 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           />
         </div>
 
-        {/* Tab bar — closer to content below */}
-        <div className="flex gap-3 mb-1">
-          <button
-            onClick={() => setActiveTab('remote')}
-            className={`text-[11px] font-bold uppercase tracking-wide border-b-2 pb-0.5 transition-colors ${
-              activeTab === 'remote'
-                ? 'border-chatroom-accent text-chatroom-text-primary'
-                : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
-            }`}
-          >
-            Remote
-          </button>
-          <button
-            onClick={() => setActiveTab('custom')}
-            className={`text-[11px] font-bold uppercase tracking-wide border-b-2 pb-0.5 transition-colors ${
-              activeTab === 'custom'
-                ? 'border-chatroom-accent text-chatroom-text-primary'
-                : 'border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary'
-            }`}
-          >
-            Custom
-          </button>
-        </div>
-
-        {/* Tab content — sits directly after tab bar */}
-        <div className="pt-2">
-          {activeTab === 'remote' ? (
-            <RemoteTabContent
-              controls={controls}
-              connectedMachines={connectedMachines}
-              isLoadingMachines={isLoadingMachines}
-              daemonStartCommand={daemonStartCommand}
-            />
-          ) : (
-            <CustomTabContent role={role} prompt={prompt} />
-          )}
-        </div>
+        {/* Tab bar + tab content */}
+        <AgentControlsSection
+          controls={controls}
+          connectedMachines={connectedMachines}
+          isLoadingMachines={isLoadingMachines}
+          daemonStartCommand={daemonStartCommand}
+          role={role}
+          prompt={prompt}
+          initialTab={agentRoleView?.type === 'custom' ? 'custom' : 'remote'}
+        />
 
         {/* Restart stats row — always shown when data is loaded */}
         {restartSummary && (
