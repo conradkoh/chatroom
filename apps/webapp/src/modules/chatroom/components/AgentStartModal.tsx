@@ -12,7 +12,6 @@ import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
 import { AgentStatusRow } from './AgentPanel/AgentStatusRow';
 import { AgentControlsSection } from './AgentPanel/AgentControlsSection';
-import { usePrompts } from '@/contexts/PromptsContext';
 
 import {
   Dialog,
@@ -30,6 +29,12 @@ interface AgentStartModalProps {
   initialRole?: string;
   /** Team roles to show in the role picker when no agent config exists yet. */
   knownRoles?: string[];
+  /**
+   * Optional: pre-generated prompt for the selected role's Custom tab.
+   * When not provided (e.g. when rendered outside PromptsProvider), the
+   * Custom tab renders with empty content — which is acceptable.
+   */
+  prompt?: string;
 }
 
 /**
@@ -37,9 +42,8 @@ interface AgentStartModalProps {
  * Rebuilt to use chatroom theme classes and shared components (AgentStatusRow,
  * AgentControlsSection) for visual consistency with InlineAgentCard.
  */
-export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, knownRoles }: AgentStartModalProps) {
+export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, knownRoles, prompt = '' }: AgentStartModalProps) {
   const daemonStartCommand = getDaemonStartCommand();
-  const { getAgentPrompt } = usePrompts();
 
   const {
     teamRoles,
@@ -118,9 +122,6 @@ export function AgentStartModal({ chatroomId, open, onOpenChange, initialRole, k
   const agentStatus = selectedRole
     ? agentStatusList.find((a) => a.role.toLowerCase() === selectedRole.toLowerCase())
     : undefined;
-
-  // Prompt for the selected role
-  const prompt = selectedRole ? (getAgentPrompt(selectedRole) ?? '') : '';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
