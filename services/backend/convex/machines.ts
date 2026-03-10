@@ -8,7 +8,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
-import { buildTeamRoleKey } from './utils/teamRoleKey';
+import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
@@ -948,9 +948,6 @@ export const ackPing = mutation({
 // Team-level agent configuration for auto-restart decisions
 // ============================================================================
 
-/** Builds a unique key scoped to a chatroom+role for use in chatroom_teamAgentConfigs. */
-// buildTeamRoleKey is imported from ./utils/teamRoleKey
-
 /** Upserts team agent configuration for a chatroom+role and emits an agent.registered event. */
 export const saveTeamAgentConfig = mutation({
   args: {
@@ -1010,13 +1007,7 @@ export const saveTeamAgentConfig = mutation({
     if (existing) {
       await ctx.db.patch('chatroom_teamAgentConfigs', existing._id, config);
     } else {
-      const stale = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-        .collect();
-      for (const row of stale) {
-        await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
-      }
+      await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
       await ctx.db.insert('chatroom_teamAgentConfigs', {
         ...config,
         createdAt: now,

@@ -76,7 +76,9 @@ describe('startAgent use case — desiredState', () => {
     const teamConfig = await t.run(async (ctx) => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
         .first();
     });
 
@@ -112,7 +114,9 @@ describe('startAgent use case — desiredState', () => {
     const stopped = await t.run(async (ctx) => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
         .first();
     });
     expect(stopped?.desiredState).toBe('stopped');
@@ -124,7 +128,9 @@ describe('startAgent use case — desiredState', () => {
     const running = await t.run(async (ctx) => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
         .first();
     });
     expect(running?.desiredState).toBe('running');
@@ -165,7 +171,9 @@ describe('startAgent use case — desiredState', () => {
     const config = await t.run(async (ctx) => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
         .first();
     });
 

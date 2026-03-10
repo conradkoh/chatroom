@@ -10,6 +10,7 @@
 import { expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { startAgent } from '../../src/domain/usecase/agent/start-agent';
 import { stopAgent } from '../../src/domain/usecase/agent/stop-agent';
 import { t } from '../../test.setup';
@@ -374,8 +375,8 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
   const agentConfig = await t.run(async (ctx) => {
     return ctx.db
       .query('chatroom_teamAgentConfigs')
-      .withIndex('by_chatroom_role', (q) =>
-        q.eq('chatroomId', chatroomId).eq('role', 'builder')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
       )
       .first();
   });

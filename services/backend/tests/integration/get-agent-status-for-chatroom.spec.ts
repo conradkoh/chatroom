@@ -9,6 +9,7 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { getAgentStatusForChatroom } from '../../src/domain/usecase/chatroom/get-agent-statuses';
 import { t } from '../../test.setup';
 import {
@@ -143,8 +144,8 @@ describe('getAgentStatusForChatroom — circuit breaker', () => {
     await t.run(async (ctx) => {
       const config = await ctx.db
         .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom_role', (q) =>
-          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
         )
         .first();
       if (config) {

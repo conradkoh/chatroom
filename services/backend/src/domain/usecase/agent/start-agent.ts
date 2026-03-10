@@ -19,7 +19,7 @@ import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
-import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from '../../../../convex/utils/teamRoleKey';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -124,13 +124,7 @@ export async function startAgent(
     if (existingTeamConfig) {
       await ctx.db.patch('chatroom_teamAgentConfigs', existingTeamConfig._id, teamConfig);
     } else {
-      const stale = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
-        .collect();
-      for (const row of stale) {
-        await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
-      }
+      await deleteStaleTeamAgentConfigs(ctx, teamRoleKey);
       await ctx.db.insert('chatroom_teamAgentConfigs', {
         ...teamConfig,
         createdAt: teamConfigNow,

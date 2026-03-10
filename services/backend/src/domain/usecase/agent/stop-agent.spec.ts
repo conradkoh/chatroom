@@ -8,6 +8,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
+import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -73,7 +74,9 @@ describe('stopAgent use case — desiredState', () => {
     const teamConfig = await t.run(async (ctx) => {
       return await ctx.db
         .query('chatroom_teamAgentConfigs')
-        .withIndex('by_chatroom_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
         .first();
     });
 

@@ -78,6 +78,10 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
       .first();
   }
 
+  // We patch whichever config holds the teamRoleKey for this role, not
+  // specifically the machineId passed in. This is safe because uniqueness is
+  // enforced at write time (one row per teamRoleKey), so there can only be
+  // one config to patch.
   if (teamConfig) {
     await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
       desiredState: 'stopped',
