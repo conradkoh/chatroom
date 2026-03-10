@@ -91,6 +91,7 @@ async function insertNonCommandEvent(
       model: 'anthropic/claude-sonnet-4',
       workingDir: '/tmp/test',
       pid: 1234,
+      reason: 'test',
       timestamp: Date.now(),
     });
   });

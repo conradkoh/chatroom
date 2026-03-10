@@ -17,6 +17,7 @@ export type AgentStartedEvent = {
   model: string;
   workingDir: string;
   pid: number;
+  reason?: string;
   timestamp: number;
 };
 
