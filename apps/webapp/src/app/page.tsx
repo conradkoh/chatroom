@@ -1,7 +1,22 @@
 'use client';
 
 import { featureFlags } from '@workspace/backend/config/featureFlags';
-import { ArrowRight, CheckCircle2, ClipboardList, Monitor, RefreshCw } from 'lucide-react';
+import {
+  ArrowRight,
+  CheckCircle2,
+  ClipboardList,
+  Monitor,
+  RefreshCw,
+  Terminal,
+  Layers,
+  Shield,
+  Compass,
+  FileCode2,
+  Wifi,
+  Users,
+  Zap,
+  GitBranch,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -9,9 +24,6 @@ import { Button } from '@/components/ui/button';
 import { useAppVersion } from '@/modules/app/useAppInfo';
 import { useAuthState } from '@/modules/auth/AuthProvider';
 
-/**
- * Terminal-style animated text component
- */
 function TypewriterText({
   text,
   delay = 50,
@@ -55,9 +67,6 @@ function TypewriterText({
   );
 }
 
-/**
- * Animated floating orb for visual interest
- */
 function FloatingOrb({
   size,
   color,
@@ -89,10 +98,6 @@ function FloatingOrb({
   );
 }
 
-/**
- * Animated status line showing "agent activity"
- * Uses square indicators per industrial design system (no circles)
- */
 function AgentStatusLine({
   agent,
   status,
@@ -121,10 +126,6 @@ function AgentStatusLine({
   );
 }
 
-/**
- * Feature card component
- * Industrial design: sharp corners, 2px borders, uppercase headers
- */
 function FeatureCard({
   icon,
   title,
@@ -151,10 +152,60 @@ function FeatureCard({
   );
 }
 
-/**
- * Landing page for unauthenticated users at "/"
- * Terminal/Command Center aesthetic with subtle animations
- */
+function StepCard({
+  step,
+  title,
+  description,
+  delay,
+}: {
+  step: number;
+  title: string;
+  description: string;
+  delay: number;
+}) {
+  return (
+    <div
+      className="relative p-5 border-2 border-zinc-800 bg-zinc-900/30 opacity-0 animate-slideUp"
+      style={{ animationDelay: `${delay}ms`, animationFillMode: 'forwards' }}
+    >
+      <div className="flex items-start gap-4">
+        <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center border-2 border-emerald-500/40 text-emerald-400 text-sm font-bold font-mono">
+          {step}
+        </span>
+        <div>
+          <h3 className="text-sm font-bold text-zinc-100 mb-1.5 uppercase tracking-wider">{title}</h3>
+          <p className="text-zinc-500 text-xs leading-relaxed">{description}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RoleCard({
+  role,
+  description,
+  color,
+  delay,
+}: {
+  role: string;
+  description: string;
+  color: string;
+  delay: number;
+}) {
+  return (
+    <div
+      className="flex items-center gap-3 p-3 border-2 border-zinc-800 bg-zinc-900/30 opacity-0 animate-slideUp"
+      style={{ animationDelay: `${delay}ms`, animationFillMode: 'forwards' }}
+    >
+      <span className={`w-2 h-2 flex-shrink-0 ${color}`} />
+      <div className="min-w-0">
+        <span className="text-xs font-bold text-zinc-200 uppercase tracking-wider">{role}</span>
+        <p className="text-zinc-500 text-[11px] leading-relaxed mt-0.5">{description}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const appVersion = useAppVersion();
   const authState = useAuthState();
@@ -195,15 +246,6 @@ export default function Home() {
             transform: translateY(0);
           }
         }
-        @keyframes pulse-glow {
-          0%,
-          100% {
-            box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
-          }
-          50% {
-            box-shadow: 0 0 40px rgba(16, 185, 129, 0.4);
-          }
-        }
         .animate-float {
           animation: float 20s ease-in-out infinite;
         }
@@ -213,13 +255,10 @@ export default function Home() {
         .animate-slideUp {
           animation: slideUp 0.6s ease-out forwards;
         }
-        .animate-pulse-glow {
-          animation: pulse-glow 3s ease-in-out infinite;
-        }
       `}</style>
 
       <div className="flex-1 bg-zinc-950 text-zinc-100 overflow-auto relative">
-        {/* Ambient background orbs */}
+        {/* Ambient background */}
         <div className="absolute inset-0 overflow-hidden">
           <FloatingOrb
             size={400}
@@ -247,7 +286,6 @@ export default function Home() {
           />
         </div>
 
-        {/* Subtle grid pattern overlay */}
         <div
           className="absolute inset-0 opacity-[0.02]"
           style={{
@@ -259,57 +297,55 @@ export default function Home() {
           }}
         />
 
-        {/* Main content */}
         <div className="relative z-10 flex flex-col min-h-full">
-          {/* Hero section */}
+          {/* ─── Hero ─────────────────────────────────────────────────── */}
           <main className="flex-1 flex flex-col items-center justify-center px-6 py-20">
             <div className="max-w-4xl w-full space-y-12">
-              {/* Terminal window header */}
               <div className="opacity-0 animate-fadeIn" style={{ animationDelay: '200ms' }}>
                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900/80 border-2 border-zinc-800 backdrop-blur-sm">
                   <span className="w-2.5 h-2.5 bg-red-400/80" />
                   <span className="w-2.5 h-2.5 bg-amber-400/80" />
                   <span className="w-2.5 h-2.5 bg-emerald-400/80" />
                   <span className="ml-4 text-[10px] font-mono text-zinc-500 uppercase tracking-wider font-bold">
-                    ~/multi-agent-collaboration
+                    ~/chatroom
                   </span>
                 </div>
               </div>
 
-              {/* Main headline */}
               <div className="space-y-6">
                 <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight">
                   <span className="text-zinc-400 font-mono text-xl sm:text-2xl block mb-2">$</span>
                   <TypewriterText
-                    text="Multi-Agent Collaboration"
-                    delay={40}
+                    text="chatroom"
+                    delay={60}
                     className="text-zinc-100"
                   />
                 </h1>
 
                 <p
                   className="text-lg sm:text-xl text-zinc-400 max-w-2xl leading-relaxed opacity-0 animate-fadeIn"
-                  style={{ animationDelay: '1500ms' }}
+                  style={{ animationDelay: '1200ms' }}
                 >
-                  Orchestrate AI agents working together in real-time. Builder, Reviewer, Architect
-                  — each with their own role, working in harmony to build software.
+                  Orchestrate AI agent teams that plan, build, and review code together.
+                  Define roles, queue tasks, and let agents collaborate with structured handoffs
+                  and quality gates.
                 </p>
               </div>
 
-              {/* Agent status simulation */}
+              {/* Agent activity simulation */}
               <div
                 className="space-y-2 py-4 border-l-2 border-zinc-800 pl-4 opacity-0 animate-fadeIn"
-                style={{ animationDelay: '2000ms' }}
+                style={{ animationDelay: '1800ms' }}
               >
-                <AgentStatusLine agent="builder" status="implementing feature" delay={2200} />
-                <AgentStatusLine agent="reviewer" status="awaiting handoff" delay={2600} />
-                <AgentStatusLine agent="architect" status="planning next task" delay={3000} />
+                <AgentStatusLine agent="planner" status="decomposing task into phases" delay={2000} />
+                <AgentStatusLine agent="builder" status="implementing phase 2 of 3" delay={2400} />
+                <AgentStatusLine agent="reviewer" status="approved — merging to main" delay={2800} />
               </div>
 
-              {/* CTA buttons */}
+              {/* CTA */}
               <div
                 className="flex flex-wrap gap-3 opacity-0 animate-fadeIn"
-                style={{ animationDelay: '2500ms' }}
+                style={{ animationDelay: '2200ms' }}
               >
                 {isAuthenticated ? (
                   <Link href="/app">
@@ -349,41 +385,185 @@ export default function Home() {
             </div>
           </main>
 
-          {/* Features section */}
+          {/* ─── How It Works ─────────────────────────────────────────── */}
           <section className="px-6 py-20 border-t-2 border-zinc-900">
             <div className="max-w-6xl mx-auto">
               <h2
                 className="text-sm font-bold text-zinc-300 mb-8 uppercase tracking-wider opacity-0 animate-fadeIn flex items-center gap-2"
-                style={{ animationDelay: '3000ms' }}
+                style={{ animationDelay: '2800ms' }}
               >
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" strokeWidth={2} />
+                <Zap className="w-3.5 h-3.5 text-emerald-400" strokeWidth={2} />
                 <span>How it works</span>
               </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <FeatureCard
-                  icon={<Monitor className="w-4 h-4" strokeWidth={2} />}
-                  title="Independent Harnesses"
-                  description="Each agent runs in its own IDE — Cursor, Claude Code, Windsurf, or any AI-enabled editor. Parallel development without conflicts."
+                <StepCard
+                  step={1}
+                  title="Define Your Team"
+                  description="Choose a template (Solo, Duo, Squad) or create custom roles. Each role gets its own system prompt, capabilities, and handoff targets."
+                  delay={3000}
+                />
+                <StepCard
+                  step={2}
+                  title="Assign & Queue Tasks"
+                  description="Send tasks to your team and queue follow-ups while agents work. The backlog keeps everything organized with priorities and scoring."
                   delay={3200}
                 />
-                <FeatureCard
-                  icon={<ClipboardList className="w-4 h-4" strokeWidth={2} />}
-                  title="Task Backlog"
-                  description="Queue up multiple tasks while agents work. The backlog persists so nothing gets lost — pick up where you left off anytime."
+                <StepCard
+                  step={3}
+                  title="Agents Collaborate"
+                  description="Agents hand off work, report progress, and create artifacts. Built-in review gates and context management ensure quality before shipping."
                   delay={3400}
-                />
-                <FeatureCard
-                  icon={<RefreshCw className="w-4 h-4" strokeWidth={2} />}
-                  title="Handoff Protocol"
-                  description="Structured handoffs between roles with built-in review gates. Builders implement, reviewers verify — quality before shipping."
-                  delay={3600}
                 />
               </div>
             </div>
           </section>
 
-          {/* Footer */}
+          {/* ─── Capabilities ─────────────────────────────────────────── */}
+          <section className="px-6 py-20 border-t-2 border-zinc-900">
+            <div className="max-w-6xl mx-auto">
+              <h2
+                className="text-sm font-bold text-zinc-300 mb-8 uppercase tracking-wider opacity-0 animate-fadeIn flex items-center gap-2"
+                style={{ animationDelay: '3400ms' }}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" strokeWidth={2} />
+                <span>Capabilities</span>
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <FeatureCard
+                  icon={<Monitor className="w-4 h-4" strokeWidth={2} />}
+                  title="Multi-Harness"
+                  description="Run agents in Cursor, OpenCode, or Pi — each in its own IDE. Parallel development without conflicts."
+                  delay={3600}
+                />
+                <FeatureCard
+                  icon={<RefreshCw className="w-4 h-4" strokeWidth={2} />}
+                  title="Structured Handoffs"
+                  description="Typed handoffs between roles with message classification and review gates. Builders implement, reviewers verify."
+                  delay={3700}
+                />
+                <FeatureCard
+                  icon={<ClipboardList className="w-4 h-4" strokeWidth={2} />}
+                  title="Task & Backlog"
+                  description="Queue tasks, attach backlog items, prioritize with scoring. Nothing gets lost — pick up where you left off."
+                  delay={3800}
+                />
+                <FeatureCard
+                  icon={<Compass className="w-4 h-4" strokeWidth={2} />}
+                  title="Context Management"
+                  description="Pin contexts to keep agents focused. Stale context detection prompts agents to refresh their understanding."
+                  delay={3900}
+                />
+                <FeatureCard
+                  icon={<FileCode2 className="w-4 h-4" strokeWidth={2} />}
+                  title="Artifacts & Versioning"
+                  description="Attach versioned artifacts to handoffs. Track file changes across iterations with full version history."
+                  delay={4000}
+                />
+                <FeatureCard
+                  icon={<Wifi className="w-4 h-4" strokeWidth={2} />}
+                  title="Remote Agent Control"
+                  description="Start, stop, and configure agents from the web UI. Machine daemon with circuit breaker and auto-restart."
+                  delay={4100}
+                />
+                <FeatureCard
+                  icon={<Terminal className="w-4 h-4" strokeWidth={2} />}
+                  title="CLI Integration"
+                  description="Full CLI for agent integration: get-next-task, handoff, report-progress, backlog management, and more."
+                  delay={4200}
+                />
+                <FeatureCard
+                  icon={<Layers className="w-4 h-4" strokeWidth={2} />}
+                  title="Real-Time Dashboard"
+                  description="Live message feed, progress tracking, agent status, workspace grouping, favorites, and unread indicators."
+                  delay={4300}
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* ─── Roles ────────────────────────────────────────────────── */}
+          <section className="px-6 py-20 border-t-2 border-zinc-900">
+            <div className="max-w-6xl mx-auto">
+              <h2
+                className="text-sm font-bold text-zinc-300 mb-2 uppercase tracking-wider opacity-0 animate-fadeIn flex items-center gap-2"
+                style={{ animationDelay: '4400ms' }}
+              >
+                <Users className="w-3.5 h-3.5 text-emerald-400" strokeWidth={2} />
+                <span>Built-in Roles</span>
+              </h2>
+              <p
+                className="text-xs text-zinc-500 mb-8 opacity-0 animate-fadeIn"
+                style={{ animationDelay: '4500ms' }}
+              >
+                Pre-configured roles with customizable prompts — or define your own.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <RoleCard
+                  role="Planner"
+                  description="Decomposes tasks, coordinates the team, communicates with the user."
+                  color="bg-amber-400"
+                  delay={4600}
+                />
+                <RoleCard
+                  role="Builder"
+                  description="Implements solutions, writes code, creates PRs, produces artifacts."
+                  color="bg-emerald-400"
+                  delay={4700}
+                />
+                <RoleCard
+                  role="Reviewer"
+                  description="Reviews code quality, provides feedback, approves merges."
+                  color="bg-blue-400"
+                  delay={4800}
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* ─── Get Started ──────────────────────────────────────────── */}
+          <section className="px-6 py-20 border-t-2 border-zinc-900">
+            <div className="max-w-4xl mx-auto">
+              <h2
+                className="text-sm font-bold text-zinc-300 mb-8 uppercase tracking-wider opacity-0 animate-fadeIn flex items-center gap-2"
+                style={{ animationDelay: '4900ms' }}
+              >
+                <GitBranch className="w-3.5 h-3.5 text-emerald-400" strokeWidth={2} />
+                <span>Get Started</span>
+              </h2>
+
+              <div
+                className="p-5 border-2 border-zinc-800 bg-zinc-900/30 space-y-4 opacity-0 animate-slideUp"
+                style={{ animationDelay: '5000ms', animationFillMode: 'forwards' }}
+              >
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                    Install the CLI
+                  </span>
+                  <div className="flex items-center gap-2 px-3 py-2 bg-zinc-950 border border-zinc-800 font-mono text-sm text-zinc-300">
+                    <span className="text-zinc-600 select-none">$</span>
+                    <span>npm install -g chatroom-cli</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <a
+                    href="https://github.com/conradkoh/chatroom"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 border-2 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 font-bold text-xs uppercase tracking-wider transition-colors"
+                  >
+                    <Shield className="w-3.5 h-3.5" strokeWidth={2} />
+                    View on GitHub
+                  </a>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ─── Footer ───────────────────────────────────────────────── */}
           <footer className="px-6 py-8 border-t-2 border-zinc-900">
             <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
               <div className="font-mono tabular-nums">
