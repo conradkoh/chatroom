@@ -268,9 +268,12 @@ const RecentChatroomCard = memo(function RecentChatroomCard({
   const displayName = chatroom.name || teamName;
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       className="bg-chatroom-bg-surface border-2 border-chatroom-border p-3 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
       onClick={() => onSelect(chatroom._id)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(chatroom._id); } }}
     >
       <div className="flex justify-between items-center mb-2">
         <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-secondary truncate flex-1 mr-2">
@@ -291,7 +294,7 @@ const RecentChatroomCard = memo(function RecentChatroomCard({
         </div>
       </div>
       <div className="font-mono text-[9px] text-chatroom-text-muted truncate">{chatroom._id}</div>
-    </button>
+    </div>
   );
 });
 
@@ -374,9 +377,12 @@ const ChatroomCard = memo(function ChatroomCard({
 
   return (
     <div className="relative">
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         className="bg-chatroom-bg-surface border-2 border-chatroom-border p-4 text-left transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong cursor-pointer w-full"
         onClick={() => onSelect(chatroom._id)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(chatroom._id); } }}
         data-chat-status={chatStatus}
       >
         {/* Card Main */}
@@ -444,7 +450,7 @@ const ChatroomCard = memo(function ChatroomCard({
         </div>
         {/* Card Date */}
         <div className="text-[10px] text-chatroom-text-muted">{formattedDate}</div>
-      </button>
+      </div>
     </div>
   );
 });
