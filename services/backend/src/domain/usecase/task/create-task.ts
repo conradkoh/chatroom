@@ -135,12 +135,10 @@ export async function createTask(
     // Immediate agent start: if no agent is running for this role, try to start one now.
     // This is a best-effort one-time trigger — the ensureAgentHandler fallback above
     // still fires as a safety net.
-    if (role !== 'user' && role !== 'unknown') {
-      await tryStartAgentForTask(ctx, {
-        chatroomId: args.chatroomId,
-        role,
-      });
-    }
+    await tryStartAgentForTask(ctx, {
+      chatroomId: args.chatroomId,
+      role,
+    });
   }
 
   return { taskId, status };

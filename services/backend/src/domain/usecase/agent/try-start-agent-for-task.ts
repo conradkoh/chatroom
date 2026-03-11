@@ -6,7 +6,7 @@
  *
  * Two cases are handled:
  * 1. Config exists (chatroom_teamAgentConfigs) but PID is null:
- *    Emit agent.requestStart if desiredState is 'running' and circuit is not open.
+ *    Emit agent.requestStart if desiredState is 'running'.
  * 2. No config exists:
  *    Fall back to chatroom_agentPreferences (user's last-used config).
  *    If a preference exists with complete data and the machine daemon is connected,
@@ -61,7 +61,6 @@ async function tryStartFromConfig(
     type: string;
     spawnedAgentPid?: number;
     desiredState?: string;
-    circuitState?: string;
     machineId?: string;
     agentHarness?: string;
     model?: string;
@@ -74,7 +73,6 @@ async function tryStartFromConfig(
   if (config.type !== 'remote') return false;
   if (config.spawnedAgentPid != null) return false;
   if (config.desiredState !== 'running') return false;
-  if (config.circuitState === 'open') return false;
   if (!config.machineId || !config.agentHarness || !config.model || !config.workingDir) {
     return false;
   }
