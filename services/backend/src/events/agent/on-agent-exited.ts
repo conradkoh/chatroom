@@ -1,8 +1,8 @@
 import type { Id } from '../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../convex/_generated/server';
-import { internal } from '../../../convex/_generated/api';
 import { getTeamEntryPoint } from '../../domain/entities/team';
 import { buildTeamRoleKey } from '../../../convex/utils/teamRoleKey';
+import { emitRequestStartIfNeeded } from '../../domain/usecase/agent/emit-request-start';
 
 export interface OnAgentExitedArgs {
   chatroomId: Id<'chatroom_rooms'>;
@@ -83,10 +83,12 @@ export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): 
   });
 
   if (relevantTask) {
-    await ctx.scheduler.runAfter(0, internal.ensureAgentHandler.check, {
-      taskId: relevantTask._id,
+    await emitRequestStartIfNeeded(ctx, {
       chatroomId,
-      snapshotUpdatedAt: 0, // bypass staleness guard — crash recovery
+      role: normalizedRole,
+      reason: 'platform.ensure_agent',
+      skipCircuitBreaker: false,
+      createFromPreferences: false,
     });
   }
 }

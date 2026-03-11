@@ -1,8 +1,8 @@
 /**
  * Agent Auto-Restart Integration Tests
  *
- * Verifies that the `onAgentExitedEvent` handler correctly schedules (or skips)
- * ensure-agent based on the `stopReason` and `desiredState` values.
+ * Verifies that the `onAgentExitedEvent` handler correctly emits (or skips)
+ * agent.requestStart events based on the `stopReason` and `desiredState` values.
  *
  * Tests A, B, C cover the stopReason-based restart logic documented in
  * `src/events/agent/on-agent-exited.ts`.
@@ -11,38 +11,42 @@
 import { expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { t } from '../../test.setup';
 import {
   createPairTeamChatroom,
   createTestSession,
   registerMachineWithDaemon,
+  setupRemoteAgentConfig,
 } from '../helpers/integration';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
+
 // ---------------------------------------------------------------------------
-// Helper: find an ensure-agent scheduled function for a chatroom
+// Helper: count agent.requestStart events for a chatroom
 // ---------------------------------------------------------------------------
 
-async function findEnsureAgentCheck(chatroomId: string) {
-  const scheduled = await t.run(async (ctx) => {
-    return ctx.db.system.query('_scheduled_functions').collect();
-  });
-  return scheduled.find((s) => {
-    const argsArray = (s as { args?: unknown[] }).args;
-    const checkArgs = argsArray?.[0] as { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
-    return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
+async function countRequestStartEvents(chatroomId: Id<'chatroom_rooms'>) {
+  return await t.run(async (ctx) => {
+    const events = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom_type', (q) =>
+        q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStart')
+      )
+      .collect();
+    return events.length;
   });
 }
 
 // ---------------------------------------------------------------------------
-// Test A: stopReason=agent_process.crashed → schedules ensure-agent
+// Test A: stopReason=agent_process.crashed → emits agent.requestStart
 // ---------------------------------------------------------------------------
 
-test('recordAgentExited with stopReason=agent_process.crashed schedules ensure-agent', async () => {
-  // SETUP
+test('recordAgentExited with stopReason=agent_process.crashed emits agent.requestStart', async () => {
   const { sessionId } = await createTestSession('test-ar-a');
   const chatroomId = await createPairTeamChatroom(sessionId);
   const machineId = 'machine-ar-a';
   await registerMachineWithDaemon(sessionId, machineId);
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
   // Create an active task
   await t.mutation(api.messages.sendMessage, {
@@ -52,6 +56,9 @@ test('recordAgentExited with stopReason=agent_process.crashed schedules ensure-a
     senderRole: 'user',
     type: 'message',
   });
+
+  // Snapshot AFTER task creation (sendMessage fires emitRequestStartIfNeeded)
+  const startsBefore = await countRequestStartEvents(chatroomId);
 
   // ACTION — intentional=true BUT stopReason overrides it
   await t.mutation(api.machines.recordAgentExited, {
@@ -64,21 +71,21 @@ test('recordAgentExited with stopReason=agent_process.crashed schedules ensure-a
     stopReason: 'agent_process.crashed',
   });
 
-  // VERIFY — ensure-agent IS scheduled (stopReason overrides intentional flag)
-  const ensureCheck = await findEnsureAgentCheck(chatroomId);
-  expect(ensureCheck, 'ensure-agent should be scheduled when stopReason=agent_process.crashed').toBeDefined();
+  // VERIFY — agent.requestStart event emitted by onAgentExited
+  const startsAfter = await countRequestStartEvents(chatroomId);
+  expect(startsAfter).toBeGreaterThan(startsBefore);
 });
 
 // ---------------------------------------------------------------------------
-// Test B: stopReason=agent_process.exited_clean → schedules ensure-agent
+// Test B: stopReason=agent_process.exited_clean → emits agent.requestStart
 // ---------------------------------------------------------------------------
 
-test('recordAgentExited with stopReason=agent_process.exited_clean schedules ensure-agent', async () => {
-  // SETUP
+test('recordAgentExited with stopReason=agent_process.exited_clean emits agent.requestStart', async () => {
   const { sessionId } = await createTestSession('test-ar-b');
   const chatroomId = await createPairTeamChatroom(sessionId);
   const machineId = 'machine-ar-b';
   await registerMachineWithDaemon(sessionId, machineId);
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
   // Create an active task
   await t.mutation(api.messages.sendMessage, {
@@ -88,6 +95,9 @@ test('recordAgentExited with stopReason=agent_process.exited_clean schedules ens
     senderRole: 'user',
     type: 'message',
   });
+
+  // Snapshot AFTER task creation
+  const startsBefore = await countRequestStartEvents(chatroomId);
 
   // ACTION
   await t.mutation(api.machines.recordAgentExited, {
@@ -100,17 +110,16 @@ test('recordAgentExited with stopReason=agent_process.exited_clean schedules ens
     stopReason: 'agent_process.exited_clean',
   });
 
-  // VERIFY — ensure-agent IS scheduled
-  const ensureCheck = await findEnsureAgentCheck(chatroomId);
-  expect(ensureCheck, 'ensure-agent should be scheduled when stopReason=agent_process.exited_clean').toBeDefined();
+  // VERIFY — agent.requestStart event emitted
+  const startsAfter = await countRequestStartEvents(chatroomId);
+  expect(startsAfter).toBeGreaterThan(startsBefore);
 });
 
 // ---------------------------------------------------------------------------
-// Test C: desiredState=stopped → does NOT schedule ensure-agent even if stopReason says restart
+// Test C: desiredState=stopped → does NOT emit agent.requestStart
 // ---------------------------------------------------------------------------
 
-test('recordAgentExited with desiredState=stopped does NOT schedule ensure-agent even when stopReason=agent_process.crashed', async () => {
-  // SETUP
+test('recordAgentExited with desiredState=stopped does NOT emit agent.requestStart even when stopReason=agent_process.crashed', async () => {
   const { sessionId } = await createTestSession('test-ar-c');
   const chatroomId = await createPairTeamChatroom(sessionId);
   const machineId = 'machine-ar-c';
@@ -133,11 +142,18 @@ test('recordAgentExited with desiredState=stopped does NOT schedule ensure-agent
       chatroomId,
       role: 'builder',
       type: 'remote',
+      machineId,
+      agentHarness: 'opencode',
+      model: 'anthropic/claude-sonnet-4',
+      workingDir: '/tmp/test',
       desiredState: 'stopped',
       createdAt: now,
       updatedAt: now,
     });
   });
+
+  // Snapshot AFTER task creation and config setup
+  const startsBefore = await countRequestStartEvents(chatroomId);
 
   // ACTION — stopReason would normally trigger restart, but desiredState='stopped' overrides
   await t.mutation(api.machines.recordAgentExited, {
@@ -150,7 +166,7 @@ test('recordAgentExited with desiredState=stopped does NOT schedule ensure-agent
     stopReason: 'agent_process.crashed',
   });
 
-  // VERIFY — NO ensure-agent scheduled (user intent respected)
-  const ensureCheck = await findEnsureAgentCheck(chatroomId);
-  expect(ensureCheck, 'ensure-agent should NOT be scheduled when desiredState=stopped').toBeUndefined();
+  // VERIFY — NO new agent.requestStart events (user intent respected)
+  const startsAfter = await countRequestStartEvents(chatroomId);
+  expect(startsAfter).toBe(startsBefore);
 });

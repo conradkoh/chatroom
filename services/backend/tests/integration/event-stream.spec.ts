@@ -18,6 +18,7 @@ import {
   createPairTeamChatroom,
   createTestSession,
   registerMachineWithDaemon,
+  setupRemoteAgentConfig,
 } from '../helpers/integration';
 
 // ─── Test 1: agent.requestStart event ────────────────────────────────────────
@@ -383,14 +384,15 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
   expect(agentConfig?.spawnedAgentPid).toBeUndefined();
 });
 
-// ─── Test 7: Crash triggers immediate ensure-agent ────────────────────────────
+// ─── Test 7: Crash triggers immediate agent.requestStart ──────────────────────
 
-test('recordAgentExited with intentional=false schedules ensure-agent when active task exists', async () => {
+test('recordAgentExited with intentional=false emits agent.requestStart when active task exists', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-crash-1');
   const chatroomId = await createPairTeamChatroom(sessionId);
   const machineId = 'machine-es-crash-1';
   await registerMachineWithDaemon(sessionId, machineId);
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
   // Create a pending task via sendMessage (assigns it to entry point 'builder')
   await t.mutation(api.messages.sendMessage, {
@@ -399,6 +401,17 @@ test('recordAgentExited with intentional=false schedules ensure-agent when activ
     content: 'test task for crash recovery',
     senderRole: 'user',
     type: 'message',
+  });
+
+  // Snapshot AFTER task creation (sendMessage fires emitRequestStartIfNeeded)
+  const startsBefore = await t.run(async (ctx) => {
+    const events = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom_type', (q) =>
+        q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStart')
+      )
+      .collect();
+    return events.length;
   });
 
   // ===== ACTION =====
@@ -412,18 +425,17 @@ test('recordAgentExited with intentional=false schedules ensure-agent when activ
   });
 
   // ===== VERIFY =====
-  // An ensure-agent scheduled function should exist for this chatroom
-  const scheduled = await t.run(async (ctx) => {
-    return ctx.db.system.query('_scheduled_functions').collect();
+  const startsAfter = await t.run(async (ctx) => {
+    const events = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom_type', (q) =>
+        q.eq('chatroomId', chatroomId).eq('type', 'agent.requestStart')
+      )
+      .collect();
+    return events.length;
   });
 
-  // Find the crash-recovery scheduled function: snapshotUpdatedAt=0 for this chatroom
-  const ensureCheck = scheduled.find((s) => {
-    const argsArray = (s as { args?: unknown[] }).args;
-    const checkArgs = argsArray?.[0] as { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
-    return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
-  });
-  expect(ensureCheck).toBeDefined();
+  expect(startsAfter).toBeGreaterThan(startsBefore);
 });
 
 // ─── Test 8: Intentional stop does NOT schedule ensure-agent ─────────────────
