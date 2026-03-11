@@ -143,13 +143,8 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
     await setupRemoteAgentConfig(sessionId, chatroomId, plannerMachineId, 'planner');
     await setupRemoteAgentConfig(sessionId, chatroomId, builderMachineId, 'builder');
 
-    // Snapshot event counts BEFORE the ensure-agent handler fires.
-    // setupRemoteAgentConfig calls startAgent which now emits agent.requestStart events,
-    // so we take a baseline before calling ensureAgentHandler.check.
-    const plannerEventsBefore = (await getCommandEvents(sessionId, plannerMachineId)).length;
-    const builderEventsBefore = (await getCommandEvents(sessionId, builderMachineId)).length;
-
     // User sends a message — task is pre-assigned to planner (entry point)
+    // This also fires emitRequestStartIfNeeded (immediate start).
     await t.mutation(api.messages.sendMessage, {
       sessionId,
       chatroomId,
@@ -166,6 +161,11 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
     expect(tasks.length).toBe(1);
     const task = tasks[0]!;
     expect(task.assignedTo).toBe('planner');
+
+    // Snapshot event counts AFTER task creation (which includes the immediate start event)
+    // so we only capture events emitted by ensureAgentHandler.check below.
+    const plannerEventsBefore = (await getCommandEvents(sessionId, plannerMachineId)).length;
+    const builderEventsBefore = (await getCommandEvents(sessionId, builderMachineId)).length;
 
     // Simulate ensure-agent check firing for this task (120s timeout)
     await t.mutation(internal.ensureAgentHandler.check, {
@@ -199,11 +199,7 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
     await setupRemoteAgentConfig(sessionId, chatroomId, plannerMachineId, 'planner');
     await setupRemoteAgentConfig(sessionId, chatroomId, builderMachineId, 'builder');
 
-    // Snapshot event counts BEFORE the handler fires
-    const plannerEventsBefore = (await getCommandEvents(sessionId, plannerMachineId)).length;
-    const builderEventsBefore = (await getCommandEvents(sessionId, builderMachineId)).length;
-
-    // Planner sends handoff to builder
+    // Planner sends handoff to builder — this also fires emitRequestStartIfNeeded.
     await t.mutation(api.messages.sendHandoff, {
       sessionId,
       chatroomId,
@@ -220,6 +216,10 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
     expect(tasks.length).toBe(1);
     const task = tasks[0]!;
     expect(task.assignedTo).toBe('builder');
+
+    // Snapshot event counts AFTER task creation (which includes the immediate start event)
+    const plannerEventsBefore = (await getCommandEvents(sessionId, plannerMachineId)).length;
+    const builderEventsBefore = (await getCommandEvents(sessionId, builderMachineId)).length;
 
     // Simulate ensure-agent check
     await t.mutation(internal.ensureAgentHandler.check, {
@@ -248,9 +248,6 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
     await registerMachineWithDaemon(sessionId, machineId);
     await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-    // Snapshot event count BEFORE the handler is called
-    const eventsBefore = (await getCommandEvents(sessionId, machineId)).length;
-
     await t.mutation(api.messages.sendMessage, {
       sessionId,
       chatroomId,
@@ -265,6 +262,9 @@ describe('Fix B: ensureAgentHandler only restarts the agent assigned to the task
       statusFilter: 'pending',
     });
     const task = tasks[0]!;
+
+    // Snapshot event count AFTER task creation (which includes the immediate start event)
+    const eventsBefore = (await getCommandEvents(sessionId, machineId)).length;
 
     // Pass an old snapshotUpdatedAt (before the task's actual updatedAt) — handler should skip
     await t.mutation(internal.ensureAgentHandler.check, {

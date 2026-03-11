@@ -1,45 +1,44 @@
 /**
- * Use Case: Try Start Agent for Task
+ * Use Case: Emit Request Start If Needed
  *
- * Best-effort one-time trigger to start an agent when a pending task is
- * created and no agent process is running for the assigned role.
+ * Unified helper to emit an agent.requestStart event when a role needs an
+ * agent running. Replaces the earlier try-start-agent-for-task with
+ * additional support for circuit breaker checks and preference-based
+ * config creation.
  *
- * Two cases are handled:
- * 1. Config exists (chatroom_teamAgentConfigs) but PID is null:
- *    Emit agent.requestStart if desiredState is 'running'.
- * 2. No config exists:
- *    Fall back to chatroom_agentPreferences (user's last-used config).
- *    If a preference exists with complete data and the machine daemon is connected,
- *    create the config record and emit agent.requestStart.
- *
- * This does NOT replace the ensureAgentHandler fallback — it runs in addition
- * to provide immediate agent activation without waiting for the scheduled delay.
+ * Two paths:
+ * 1. Config exists → validate state, optionally check circuit breaker,
+ *    emit requestStart if all checks pass.
+ * 2. No config + createFromPreferences → create config from user's
+ *    agentPreferences, emit requestStart.
  */
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { AgentHarness, AgentType } from '../../entities/agent';
+import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from '../../../../convex/utils/teamRoleKey';
+import { checkCircuitBreaker } from './circuit-breaker';
 
-export interface TryStartAgentForTaskInput {
+export interface EmitRequestStartOptions {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
+  reason: AgentStartReason;
+  /** Skip circuit breaker check (default: false) */
+  skipCircuitBreaker?: boolean;
+  /** Create config from agentPreferences if none exists (default: false) */
+  createFromPreferences?: boolean;
 }
 
-/**
- * Attempts to start the agent for a role if it is not currently running.
- * Returns true if an agent.requestStart event was emitted, false otherwise.
- */
-export async function tryStartAgentForTask(
+export async function emitRequestStartIfNeeded(
   ctx: MutationCtx,
-  input: TryStartAgentForTaskInput
+  opts: EmitRequestStartOptions
 ): Promise<boolean> {
-  const { chatroomId, role } = input;
+  const { chatroomId, role, reason } = opts;
   const roleLower = role.toLowerCase();
   const now = Date.now();
 
-  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  const chatroom = await ctx.db.get(chatroomId);
   if (!chatroom?.teamId) return false;
 
   const teamRoleKey = buildTeamRoleKey(chatroomId, chatroom.teamId, role);
@@ -49,15 +48,20 @@ export async function tryStartAgentForTask(
     .first();
 
   if (config) {
-    return await tryStartFromConfig(ctx, config, chatroomId, now);
+    return await emitFromConfig(ctx, config, chatroomId, reason, opts.skipCircuitBreaker, now);
   }
 
-  return await tryStartFromPreference(ctx, chatroom, chatroomId, roleLower, teamRoleKey, now);
+  if (opts.createFromPreferences) {
+    return await emitFromPreference(ctx, chatroom, chatroomId, roleLower, teamRoleKey, reason, now);
+  }
+
+  return false;
 }
 
-async function tryStartFromConfig(
+async function emitFromConfig(
   ctx: MutationCtx,
   config: {
+    _id: Id<'chatroom_teamAgentConfigs'>;
     type: string;
     spawnedAgentPid?: number;
     desiredState?: string;
@@ -66,13 +70,23 @@ async function tryStartFromConfig(
     model?: string;
     workingDir?: string;
     role: string;
+    circuitState?: string;
+    circuitOpenedAt?: number;
   },
   chatroomId: Id<'chatroom_rooms'>,
+  reason: AgentStartReason,
+  skipCircuitBreaker: boolean | undefined,
   now: number
 ): Promise<boolean> {
   if (config.type !== 'remote') return false;
   if (config.spawnedAgentPid != null) return false;
   if (config.desiredState !== 'running') return false;
+
+  if (skipCircuitBreaker !== true) {
+    const status = await checkCircuitBreaker(ctx, chatroomId, config);
+    if (status === 'open') return false;
+  }
+
   if (!config.machineId || !config.agentHarness || !config.model || !config.workingDir) {
     return false;
   }
@@ -92,7 +106,7 @@ async function tryStartFromConfig(
     agentHarness: config.agentHarness! as AgentHarness,
     model: config.model!,
     workingDir: config.workingDir!,
-    reason: 'platform.task_activated',
+    reason,
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
   });
@@ -100,12 +114,13 @@ async function tryStartFromConfig(
   return true;
 }
 
-async function tryStartFromPreference(
+async function emitFromPreference(
   ctx: MutationCtx,
   chatroom: { ownerId: Id<'users'>; teamId?: string },
   chatroomId: Id<'chatroom_rooms'>,
   roleLower: string,
   teamRoleKey: string,
+  reason: AgentStartReason,
   now: number
 ): Promise<boolean> {
   const pref = await ctx.db
@@ -152,7 +167,7 @@ async function tryStartFromPreference(
     agentHarness: pref.agentHarness,
     model: pref.model,
     workingDir: pref.workingDir,
-    reason: 'platform.task_activated',
+    reason,
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
   });
