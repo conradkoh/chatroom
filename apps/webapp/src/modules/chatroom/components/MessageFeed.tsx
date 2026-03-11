@@ -842,13 +842,24 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
 /** Small copy-to-clipboard button with brief check-mark feedback. */
 const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    };
+  }, []);
 
   const handleCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
       navigator.clipboard.writeText(content).then(() => {
         setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+        copyTimeoutRef.current = setTimeout(() => {
+          setCopied(false);
+          copyTimeoutRef.current = null;
+        }, 2000);
       });
     },
     [content]
