@@ -10,7 +10,6 @@ import { Toaster } from '@/components/ui/sonner';
 import { getAppTitle } from '@/lib/environment';
 import { AppInfoProvider } from '@/modules/app/AppInfoProvider';
 import { AuthProvider } from '@/modules/auth/AuthProvider';
-import { ChatroomListingProvider } from '@/modules/chatroom/context/ChatroomListingContext';
 import { HeaderPortalProvider } from '@/modules/header/HeaderPortalProvider';
 import { ThemeProvider } from '@/modules/theme/ThemeProvider';
 
@@ -77,18 +76,16 @@ export default function RootLayout({
           <ConvexQueryCacheProvider>
             <AppInfoProvider>
               <AuthProvider>
-                <ChatroomListingProvider>
-                  <ThemeProvider>
-                    <HeaderPortalProvider>
-                      <div className="flex flex-col h-screen overflow-hidden bg-background dark:bg-zinc-950">
-                        <Navigation />
-                        <main className="flex-1 flex flex-col overflow-auto overscroll-contain">
-                          {children}
-                        </main>
-                      </div>
-                    </HeaderPortalProvider>
-                  </ThemeProvider>
-                </ChatroomListingProvider>
+                <ThemeProvider>
+                  <HeaderPortalProvider>
+                    <div className="flex flex-col h-screen overflow-hidden bg-background dark:bg-zinc-950">
+                      <Navigation />
+                      <main className="flex-1 flex flex-col overflow-auto overscroll-contain">
+                        {children}
+                      </main>
+                    </div>
+                  </HeaderPortalProvider>
+                </ThemeProvider>
               </AuthProvider>
             </AppInfoProvider>
           </ConvexQueryCacheProvider>
