@@ -18,7 +18,7 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from '../../../../convex/utils/teamRoleKey';
-import { checkCircuitBreaker } from './circuit-breaker';
+import { checkCircuitBreaker } from './check-circuit-breaker';
 
 export interface EmitRequestStartOptions {
   chatroomId: Id<'chatroom_rooms'>;
