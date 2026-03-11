@@ -32,6 +32,56 @@ function useIsTouchDevice(): boolean | undefined {
   return mounted ? isTouch : undefined;
 }
 
+// ── Draft storage helpers ──────────────────────────────────────────────────
+const DRAFT_KEY_PREFIX = 'chatroom-draft:';
+const MAX_DRAFTS = 10;
+
+interface StoredDraft {
+  content: string;
+  updatedAt: number;
+}
+
+function parseDraft(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as StoredDraft;
+    if (parsed && typeof parsed.content === 'string') return parsed.content;
+  } catch {
+    // Legacy plain-string format
+    return raw;
+  }
+  return raw;
+}
+
+function saveDraft(key: string, content: string) {
+  const draft: StoredDraft = { content, updatedAt: Date.now() };
+  localStorage.setItem(key, JSON.stringify(draft));
+  cleanupOldDrafts(key);
+}
+
+function cleanupOldDrafts(currentKey: string) {
+  const entries: { key: string; updatedAt: number }[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key?.startsWith(DRAFT_KEY_PREFIX)) continue;
+    const raw = localStorage.getItem(key);
+    if (!raw) continue;
+    let updatedAt = 0;
+    try {
+      const parsed = JSON.parse(raw) as StoredDraft;
+      if (parsed && typeof parsed.updatedAt === 'number') updatedAt = parsed.updatedAt;
+    } catch {
+      // Legacy string — treat as oldest
+    }
+    entries.push({ key, updatedAt });
+  }
+  if (entries.length <= MAX_DRAFTS) return;
+  entries.sort((a, b) => b.updatedAt - a.updatedAt);
+  for (const entry of entries.slice(MAX_DRAFTS)) {
+    if (entry.key !== currentKey) localStorage.removeItem(entry.key);
+  }
+}
+
 export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -43,7 +93,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
 
   // Restore draft on mount (once per chatroomId) and auto-focus the textarea
   useEffect(() => {
-    const saved = localStorage.getItem(draftKey);
+    const saved = parseDraft(localStorage.getItem(draftKey));
     if (saved) setMessage(saved);
     // Auto-focus when switching chatrooms (non-touch devices only)
     if (!isTouchDevice) {
@@ -56,7 +106,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
       if (message) {
-        localStorage.setItem(draftKey, message);
+        saveDraft(draftKey, message);
       } else {
         localStorage.removeItem(draftKey);
       }
