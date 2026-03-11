@@ -13,6 +13,7 @@ import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/sta
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
 import { onAgentExited as onAgentExitedEvent } from '../src/events/agent/on-agent-exited';
+import { processConfigRemoval } from '../src/domain/usecase/agent/config-removal';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
@@ -852,6 +853,13 @@ export const recordAgentExited = mutation({
         spawnedAgentPid: undefined,
         spawnedAt: undefined,
         updatedAt: now,
+      });
+
+      // After clearing spawnedAgentPid, check for pending config removal
+      await processConfigRemoval(ctx, {
+        chatroomId: args.chatroomId,
+        role: args.role,
+        machineId: args.machineId,
       });
     }
 

@@ -916,6 +916,15 @@ export default defineSchema({
         machineId: v.string(),
         pingEventId: v.id('chatroom_eventStream'),
         timestamp: v.number(),
+      }),
+      // Request to remove a teamAgentConfig after the agent process exits
+      v.object({
+        type: v.literal('config.requestRemoval'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        reason: v.string(),
+        timestamp: v.number(),
       })
     )
   )
