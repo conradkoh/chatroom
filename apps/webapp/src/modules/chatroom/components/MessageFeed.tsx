@@ -1092,6 +1092,9 @@ const INITIAL_PAGE_SIZE = 5;
 const LOAD_MORE_SIZE = 10;
 // Threshold in pixels from top to trigger auto-load
 const SCROLL_THRESHOLD = 100;
+// Cap on total loaded messages to prevent unbounded memory growth.
+// Once reached, the "Load older messages" button is hidden and auto-load stops.
+const MAX_LOADED_MESSAGES = 200;
 
 // State for feature detail modal
 interface FeatureModalState {
@@ -1238,6 +1241,10 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     return regularMessages; // Queued messages are shown separately (pinned at bottom)
   }, [results]);
 
+  // Effective loadable status — respects the message cap to prevent unbounded memory growth
+  const hasReachedCap = displayMessages.length >= MAX_LOADED_MESSAGES;
+  const canLoadMore = status === 'CanLoadMore' && !hasReachedCap;
+
   // Track if user is at bottom of scroll for auto-scroll behavior and floating button
   // Using state instead of ref so the floating button can react to changes
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -1318,14 +1325,14 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // 2. All data is loaded (status becomes 'Exhausted')
   // The status === 'CanLoadMore' guard prevents re-triggering during 'LoadingMore'.
   useEffect(() => {
-    if (feedRef.current && status === 'CanLoadMore') {
+    if (feedRef.current && canLoadMore) {
       const { scrollHeight, clientHeight } = feedRef.current;
       // If content doesn't overflow (no scrollbar), auto-load more
       if (scrollHeight <= clientHeight) {
         loadMore(LOAD_MORE_SIZE);
       }
     }
-  }, [status, loadMore, displayMessages.length]);
+  }, [canLoadMore, loadMore, displayMessages.length]);
 
   // Auto-scroll to bottom when queue section appears or disappears (only if already at bottom)
   // This ensures the last message stays visible when the queue section grows/shrinks
@@ -1356,13 +1363,13 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     updateIsAtBottom();
 
     // Load more when user scrolls within threshold of top
-    if (feedRef.current && status === 'CanLoadMore') {
+    if (feedRef.current && canLoadMore) {
       const { scrollTop } = feedRef.current;
       if (scrollTop < SCROLL_THRESHOLD) {
         loadMore(LOAD_MORE_SIZE);
       }
     }
-  }, [status, loadMore, updateIsAtBottom]);
+  }, [canLoadMore, loadMore, updateIsAtBottom]);
 
   if (status === 'LoadingFirstPage' || (isLoading && results.length === 0)) {
     return (
@@ -1398,7 +1405,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
         onScroll={handleScroll}
       >
         {/* Load More indicator at top - clickable to load older messages */}
-        {status === 'CanLoadMore' && (
+        {canLoadMore && (
           <button
             type="button"
             onClick={handleLoadMore}
@@ -1407,6 +1414,11 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
             <ChevronUp size={12} />
             Load older messages
           </button>
+        )}
+        {hasReachedCap && status !== 'Exhausted' && (
+          <div className="w-full py-2 mb-2 text-[10px] text-chatroom-text-muted flex items-center justify-center">
+            Showing latest {MAX_LOADED_MESSAGES} messages
+          </div>
         )}
         {status === 'LoadingMore' && (
           <div className="w-full py-2 mb-2 text-sm text-chatroom-text-muted flex items-center justify-center gap-2">
