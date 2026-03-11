@@ -6,7 +6,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -76,18 +76,6 @@ export function NameEditForm() {
     providerName: '',
     isDisconnecting: false,
   });
-
-  // Refs for popup polling cleanup
-  const popupPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const popupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Clean up popup poll/timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (popupPollRef.current) clearInterval(popupPollRef.current);
-      if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
-    };
-  }, []);
 
   // Convex mutations
   const updateUserName = useSessionMutation(api.auth.updateUserName);
@@ -210,24 +198,18 @@ export function NameEditForm() {
         return;
       }
 
-      // Clear any previous timers
-      if (popupPollRef.current) clearInterval(popupPollRef.current);
-      if (popupTimeoutRef.current) clearTimeout(popupTimeoutRef.current);
-
       // Poll for popup closure
-      popupPollRef.current = setInterval(() => {
+      const pollInterval = setInterval(() => {
         if (popup.closed) {
-          if (popupPollRef.current) clearInterval(popupPollRef.current);
-          popupPollRef.current = null;
+          clearInterval(pollInterval);
+          // Don't reset connecting state here - let the login request status handle it
         }
       }, 1000);
 
       // Cleanup on timeout
-      popupTimeoutRef.current = setTimeout(
+      setTimeout(
         () => {
-          if (popupPollRef.current) clearInterval(popupPollRef.current);
-          popupPollRef.current = null;
-          popupTimeoutRef.current = null;
+          clearInterval(pollInterval);
           if (!popup.closed) {
             popup.close();
           }

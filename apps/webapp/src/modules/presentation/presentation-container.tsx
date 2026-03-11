@@ -7,7 +7,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -216,49 +215,28 @@ function PresentationContainerInner({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [nextSlide, previousSlide, toggleFullScreen]);
 
-  const contextValue = useMemo<PresentationContextType>(
-    () => ({
-      isFullScreen,
-      toggleFullScreen,
-      currentSlide,
-      totalSlides,
-      nextSlide,
-      previousSlide,
-      goToSlide,
-      controlsVisible,
-      isSynced,
-      isPresenter,
-      isPresentationActive,
-      isFollowing,
-      isSoloMode,
-      sessionId,
-      startPresenting,
-      stopPresenting,
-      followPresenter,
-    }),
-    [
-      isFullScreen,
-      toggleFullScreen,
-      currentSlide,
-      totalSlides,
-      nextSlide,
-      previousSlide,
-      goToSlide,
-      controlsVisible,
-      isSynced,
-      isPresenter,
-      isPresentationActive,
-      isFollowing,
-      isSoloMode,
-      sessionId,
-      startPresenting,
-      stopPresenting,
-      followPresenter,
-    ]
-  );
-
   return (
-    <PresentationContext.Provider value={contextValue}>
+    <PresentationContext.Provider
+      value={{
+        isFullScreen,
+        toggleFullScreen,
+        currentSlide,
+        totalSlides,
+        nextSlide,
+        previousSlide,
+        goToSlide,
+        controlsVisible,
+        isSynced,
+        isPresenter,
+        isPresentationActive,
+        isFollowing,
+        isSoloMode,
+        sessionId,
+        startPresenting,
+        stopPresenting,
+        followPresenter,
+      }}
+    >
       <div
         className={cn(
           'grow bg-background text-foreground flex flex-col justify-center pb-20',

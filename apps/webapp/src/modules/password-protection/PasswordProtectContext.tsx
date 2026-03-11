@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 import { verifyPassword } from './password-utils';
 
@@ -105,19 +105,16 @@ export function PasswordProtectProvider({ config, children }: PasswordProtectPro
     setIsTemporarilyHidden(false);
   }, []);
 
-  const contextValue = useMemo<PasswordProtectContextValue>(
-    () => ({
-      isAuthorized,
-      isLoading,
-      error,
-      authenticate,
-      logout,
-      temporarilyHide,
-      unhide,
-      isTemporarilyHidden,
-    }),
-    [isAuthorized, isLoading, error, authenticate, logout, temporarilyHide, unhide, isTemporarilyHidden]
-  );
+  const contextValue: PasswordProtectContextValue = {
+    isAuthorized,
+    isLoading,
+    error,
+    authenticate,
+    logout,
+    temporarilyHide,
+    unhide,
+    isTemporarilyHidden,
+  };
 
   return (
     <PasswordProtectContext.Provider value={contextValue}>

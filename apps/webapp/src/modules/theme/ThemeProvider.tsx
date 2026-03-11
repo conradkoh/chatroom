@@ -1,7 +1,7 @@
 'use client';
 
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 import type { Theme } from './theme-utils';
 
@@ -103,8 +103,6 @@ export function ThemeProvider({ children, targetSelector }: ThemeProviderProps) 
     _setTheme(window.__theme.value);
   }, []);
 
-  const themeContextValue = useMemo(() => ({ theme, setTheme }), [theme, setTheme]);
-
   // We need to use this component pattern for hydration safety
   return (
     <>
@@ -113,7 +111,7 @@ export function ThemeProvider({ children, targetSelector }: ThemeProviderProps) 
       <script dangerouslySetInnerHTML={{ __html: themeScript }} suppressHydrationWarning />
 
       {mounted ? (
-        <ThemeContext.Provider value={themeContextValue}>
+        <ThemeContext.Provider value={{ theme, setTheme }}>
           <NextThemesProvider
             attribute={attribute}
             defaultTheme="system"
