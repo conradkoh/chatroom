@@ -20,6 +20,7 @@ import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { ENSURE_AGENT_FALLBACK_DELAY_MS } from '../../../../config/reliability';
 import { getTeamEntryPoint } from '../../entities/team';
+import { tryStartAgentForTask } from '../agent/try-start-agent-for-task';
 
 export interface CreateTaskArgs {
   chatroomId: Id<'chatroom_rooms'>;
@@ -130,6 +131,16 @@ export async function createTask(
       taskContent: args.content,
       timestamp: now,
     });
+
+    // Immediate agent start: if no agent is running for this role, try to start one now.
+    // This is a best-effort one-time trigger — the ensureAgentHandler fallback above
+    // still fires as a safety net.
+    if (role !== 'user' && role !== 'unknown') {
+      await tryStartAgentForTask(ctx, {
+        chatroomId: args.chatroomId,
+        role,
+      });
+    }
   }
 
   return { taskId, status };

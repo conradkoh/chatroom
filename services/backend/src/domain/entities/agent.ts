@@ -67,12 +67,14 @@ export type MachineCommandStatus = 'pending' | 'completed' | 'failed';
  * - `user.start`: User explicitly started the agent via UI or CLI
  * - `user.restart`: User explicitly restarted the agent via UI or CLI
  * - `platform.ensure_agent`: Auto-restart triggered by the ensure-agent scheduled check
+ * - `platform.task_activated`: Immediate start triggered when a pending task is created and no agent is running
  * - `test`: Used in integration and unit tests only
  */
 export const AGENT_START_REASONS = [
   'user.start',
   'user.restart',
   'platform.ensure_agent',
+  'platform.task_activated',
   'test',
 ] as const;
 export type AgentStartReason = (typeof AGENT_START_REASONS)[number];
