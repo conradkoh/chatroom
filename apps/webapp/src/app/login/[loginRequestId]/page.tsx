@@ -5,7 +5,7 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ export default function LoginRequestPage({ params }: LoginRequestPageProps) {
   const router = useRouter();
   const [loginRequestId, setLoginRequestId] = useState<string | null>(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
-  const [pollInterval, setPollInterval] = useState<NodeJS.Timeout | null>(null);
+  const popupPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Get Google auth config to get client ID and redirect URIs
   const googleConfig = useQuery(api.auth.google.getConfig);
@@ -103,16 +103,17 @@ export default function LoginRequestPage({ params }: LoginRequestPageProps) {
       return;
     }
 
+    // Clear any previous poll before starting a new one
+    if (popupPollRef.current) clearInterval(popupPollRef.current);
+
     // Poll for popup closure
-    const checkClosed = setInterval(() => {
+    popupPollRef.current = setInterval(() => {
       if (popup.closed) {
-        clearInterval(checkClosed);
+        if (popupPollRef.current) clearInterval(popupPollRef.current);
+        popupPollRef.current = null;
         setIsPopupOpen(false);
       }
     }, 1000);
-
-    // The status polling is handled by the useQuery which automatically re-queries
-    // We don't need manual polling since Convex handles real-time updates
   }, [buildGoogleOAuthUrl]);
 
   /**
@@ -122,34 +123,32 @@ export default function LoginRequestPage({ params }: LoginRequestPageProps) {
     if (!loginRequest) return;
 
     if (loginRequest.status === 'completed') {
-      // Success! Redirect to app
-      if (pollInterval) {
-        clearInterval(pollInterval);
-        setPollInterval(null);
+      if (popupPollRef.current) {
+        clearInterval(popupPollRef.current);
+        popupPollRef.current = null;
       }
       toast.success('Login successful!');
       router.push('/app');
     } else if (loginRequest.status === 'failed') {
-      // Failed, show error
-      if (pollInterval) {
-        clearInterval(pollInterval);
-        setPollInterval(null);
+      if (popupPollRef.current) {
+        clearInterval(popupPollRef.current);
+        popupPollRef.current = null;
       }
       toast.error(loginRequest.error || 'Login failed');
       setIsPopupOpen(false);
     }
-  }, [loginRequest, pollInterval, router]);
+  }, [loginRequest, router]);
 
   /**
    * Cleanup polling on unmount.
    */
   useEffect(() => {
     return () => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
+      if (popupPollRef.current) {
+        clearInterval(popupPollRef.current);
       }
     };
-  }, [pollInterval]);
+  }, []);
 
   // Loading state
   if (!loginRequestId || loginRequest === undefined || googleConfig === undefined) {

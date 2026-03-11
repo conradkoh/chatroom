@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
 
 /**
  * Header portal content structure.
@@ -45,8 +45,13 @@ export function HeaderPortalProvider({ children }: { children: ReactNode }) {
     setContentState({});
   }, []);
 
+  const value = useMemo(
+    () => ({ content, setContent, clearContent }),
+    [content, setContent, clearContent]
+  );
+
   return (
-    <HeaderPortalContext.Provider value={{ content, setContent, clearContent }}>
+    <HeaderPortalContext.Provider value={value}>
       {children}
     </HeaderPortalContext.Provider>
   );
