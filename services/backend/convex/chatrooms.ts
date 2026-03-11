@@ -52,10 +52,10 @@ export const listByUser = query({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    // Validate session
+    // Validate session — return empty list for unauthenticated users
     const sessionResult = await validateSession(ctx, args.sessionId);
     if (!sessionResult.valid) {
-      throw new Error(`Authentication failed: ${sessionResult.reason}`);
+      return [];
     }
 
     const chatrooms = await ctx.db
@@ -80,10 +80,10 @@ export const listByUserWithStatus = query({
     ...SessionIdArg,
   },
   handler: async (ctx, args) => {
-    // Validate session
+    // Validate session — return empty list for unauthenticated users
     const sessionResult = await validateSession(ctx, args.sessionId);
     if (!sessionResult.valid) {
-      throw new Error(`Authentication failed: ${sessionResult.reason}`);
+      return [];
     }
 
     // Fetch chatrooms - we'll sort by lastActivityAt after fetching
@@ -369,7 +369,7 @@ export const listFavoriteIds = query({
   handler: async (ctx, args) => {
     const sessionResult = await validateSession(ctx, args.sessionId);
     if (!sessionResult.valid) {
-      throw new Error(`Authentication failed: ${sessionResult.reason}`);
+      return [];
     }
 
     const favorites = await ctx.db
@@ -389,7 +389,7 @@ export const listUnreadStatus = query({
   handler: async (ctx, args) => {
     const sessionResult = await validateSession(ctx, args.sessionId);
     if (!sessionResult.valid) {
-      throw new Error(`Authentication failed: ${sessionResult.reason}`);
+      return [];
     }
 
     // Fetch all chatrooms and read cursors in parallel
@@ -444,7 +444,7 @@ export const listParticipantPresence = query({
   handler: async (ctx, args) => {
     const sessionResult = await validateSession(ctx, args.sessionId);
     if (!sessionResult.valid) {
-      throw new Error(`Authentication failed: ${sessionResult.reason}`);
+      return [];
     }
 
     const chatrooms = await ctx.db
