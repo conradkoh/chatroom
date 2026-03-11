@@ -1,9 +1,13 @@
 'use client';
 
 import { FolderOpen } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 
+import { api } from '@workspace/backend/convex/_generated/api';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import type { Workspace } from '../../types/workspace';
 import type { AgentPreference } from '../AgentConfigTabs';
@@ -50,6 +54,14 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
 
   // Filter agents to only those in the selected workspace
   const workspaceAgents = agents.filter((a) => workspace.agentRoles.includes(a.role));
+
+  const roles = useMemo(() => workspaceAgents.map((a) => a.role), [workspaceAgents]);
+  const restartSummaries = useSessionQuery(
+    api.machines.getAgentRestartSummariesByRoles,
+    roles.length > 0
+      ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, roles }
+      : 'skip'
+  );
 
   const dirLabel = workspace.workingDir
     ? (workspace.workingDir.split('/').filter(Boolean).pop() ?? workspace.workingDir)
@@ -136,6 +148,7 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
               agentRoleView={agentRoleViewMap.get(role.toLowerCase())}
               agentPreference={agentPreferenceMap.get(role.toLowerCase())}
               onSavePreference={onSavePreference}
+              restartSummary={restartSummaries?.[role] ?? null}
             />
           ))}
         </div>

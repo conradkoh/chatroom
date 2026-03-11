@@ -1366,6 +1366,46 @@ export const getAgentRestartSummaryByRole = query({
   },
 });
 
+/** Batched variant — returns restart summaries for multiple roles in a single subscription. */
+export const getAgentRestartSummariesByRoles = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    roles: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    const result: Record<string, { count1h: number; count24h: number }> = {};
+    if (!auth.isAuthenticated) {
+      for (const role of args.roles) result[role] = { count1h: 0, count24h: 0 };
+      return result;
+    }
+
+    const now = Date.now();
+    const since1h = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
+    const since24h = Math.floor((now - 24 * 3_600_000) / 3_600_000) * 3_600_000;
+
+    for (const role of args.roles) {
+      const rows = await ctx.db
+        .query('chatroom_agentRestartMetrics')
+        .withIndex('by_chatroom_role_hour', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('role', role).gte('hourBucket', since24h)
+        )
+        .collect();
+
+      let count1h = 0;
+      let count24h = 0;
+      for (const row of rows) {
+        count24h += row.count;
+        if (row.hourBucket >= since1h) count1h += row.count;
+      }
+      result[role] = { count1h, count24h };
+    }
+
+    return result;
+  },
+});
+
 // ============================================================================
 // NEW QUERIES — Phase 3 (use-case wrappers)
 // ============================================================================
