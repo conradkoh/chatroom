@@ -43,6 +43,15 @@ async function registerMachine(sessionId: SessionId, machineId: string) {
     os: 'linux',
     availableHarnesses: ['opencode'],
   });
+  await t.run(async (ctx) => {
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+      .first();
+    if (machine) {
+      await ctx.db.patch(machine._id, { daemonConnected: true });
+    }
+  });
 }
 
 async function seedTeamAgentConfig(
