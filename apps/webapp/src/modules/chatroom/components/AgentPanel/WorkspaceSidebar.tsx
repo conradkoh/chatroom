@@ -36,8 +36,8 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebar({
         </span>
       </div>
 
-      {workspaceGroups.map((group) => (
-        <div key={group.machineId ?? '__unassigned__'}>
+      {workspaceGroups.map((group, index) => (
+        <div key={group.machineId ?? `__unassigned_${index}`}>
           {/* Machine label */}
           <div className="px-3 pt-3 pb-1">
             <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
