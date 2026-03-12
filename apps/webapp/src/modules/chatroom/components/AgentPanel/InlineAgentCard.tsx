@@ -18,8 +18,6 @@ import { resolveAgentStatus, type StatusVariant } from '../../utils/agentStatusL
 
 // Re-export helpers that are still imported from this file elsewhere
 export { formatLastSeen } from './AgentStatusRow';
-// Re-export eventTypeToStatusLabel for consumers that import it from this file
-export { eventTypeToStatusLabel } from '../../utils/agentStatusLabel';
 
 // ─── Helper functions ────────────────────────────────────────────────────────
 

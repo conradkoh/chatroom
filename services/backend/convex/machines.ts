@@ -408,7 +408,11 @@ export const getDaemonPongEvent = query({
   },
 });
 
-/** Returns the latest event stream entry for a given chatroom+role, or null. */
+/**
+ * @deprecated Frontend now reads agent status from participant.lastStatus.
+ * Retained for backward compatibility and debugging.
+ * Returns the latest event stream entry for a given chatroom+role, or null.
+ */
 export const getLatestAgentEvent = query({
   args: {
     ...SessionIdArg,
@@ -437,7 +441,11 @@ export const getLatestAgentEvent = query({
   },
 });
 
-/** Returns a map of role → latest event type for all specified roles in a chatroom. */
+/**
+ * @deprecated Frontend now reads agent status from participant.lastStatus.
+ * Retained for backward compatibility and debugging.
+ * Returns a map of role → latest event type for all specified roles in a chatroom.
+ */
 export const getLatestAgentEventsForChatroom = query({
   args: {
     ...SessionIdArg,

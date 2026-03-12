@@ -9,13 +9,13 @@ import type { TeamLifecycle } from '../types/readiness';
 import { resolveAgentStatus, type StatusVariant } from '../utils/agentStatusLabel';
 
 // ─── Offline event types ────────────────────────────────────────────────────
-// Agent is considered offline when their latest event is one of these.
+// Agent is considered offline when their lastStatus is one of these.
 // null/undefined means the agent has never registered.
 const OFFLINE_EVENT_TYPES = new Set(['agent.exited', 'agent.circuitOpen', null, undefined]);
 
 // ─── Not-working event types ─────────────────────────────────────────────────
 // Agent is online but NOT actively processing a task.
-// Used to compute isWorking: if the latest event is in this set, isWorking = false.
+// Used to compute isWorking: if lastStatus is in this set, isWorking = false.
 const NOT_WORKING_EVENT_TYPES = new Set([
   'agent.waiting',
   'agent.registered',
