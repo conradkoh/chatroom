@@ -5,6 +5,7 @@ import { getTeamEntryPoint } from '../../domain/entities/team';
 import { ACTIVE_TASK_STATUSES } from '../../domain/entities/task';
 import { buildTeamRoleKey } from '../../../convex/utils/teamRoleKey';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../config/reliability';
+import { patchParticipantStatus } from '../../domain/entities/participant';
 
 export interface OnAgentExitedArgs {
   chatroomId: Id<'chatroom_rooms'>;
@@ -112,5 +113,6 @@ export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): 
       deadline: now + AGENT_REQUEST_DEADLINE_MS,
       timestamp: now,
     });
+    await patchParticipantStatus(ctx, chatroomId, teamConfig.role, 'agent.requestStart');
   }
 }

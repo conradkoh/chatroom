@@ -20,7 +20,7 @@ import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-
 import { transitionTask } from '../src/domain/usecase/task/transition-task';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { processConfigRemoval } from '../src/domain/usecase/agent/config-removal';
-import { PARTICIPANT_EXITED_ACTION } from '../src/domain/entities/participant';
+import { PARTICIPANT_EXITED_ACTION, patchParticipantStatus } from '../src/domain/entities/participant';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
@@ -164,6 +164,7 @@ export const claimTask = mutation({
       taskId: pendingTask._id,
       timestamp: now,
     });
+    await patchParticipantStatus(ctx, args.chatroomId, args.role, 'task.acknowledged');
 
     return { taskId: pendingTask._id, content: pendingTask.content };
   },
@@ -213,6 +214,7 @@ export const startTask = mutation({
           taskId: acknowledgedTask._id,
           timestamp: now,
         });
+        await patchParticipantStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
         return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
       }
 
@@ -252,6 +254,7 @@ export const startTask = mutation({
       taskId: acknowledgedTask._id,
       timestamp: Date.now(),
     });
+    await patchParticipantStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
 
     return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
   },

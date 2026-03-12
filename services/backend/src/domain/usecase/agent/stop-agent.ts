@@ -16,6 +16,7 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { AgentStopReason } from '../../entities/agent';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { patchParticipantStatus } from '../../entities/participant';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -66,6 +67,7 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
   });
+  await patchParticipantStatus(ctx, chatroomId, role, 'agent.requestStop', 'stopped');
 
   // Mark the agent config as desired-stopped so ensureAgentHandler won't auto-restart it.
   const stopChatroom = await ctx.db.get('chatroom_rooms', chatroomId);

@@ -20,6 +20,7 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from '../../../../convex/utils/teamRoleKey';
+import { patchParticipantStatus } from '../../entities/participant';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -148,6 +149,7 @@ export async function startAgent(
     deadline: now + AGENT_REQUEST_DEADLINE_MS,
     timestamp: now,
   });
+  await patchParticipantStatus(ctx, chatroomId, role, 'agent.requestStart', 'running');
 
   return {
     agentHarness,

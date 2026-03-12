@@ -8,7 +8,7 @@ import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
-import { PARTICIPANT_EXITED_ACTION, isActiveParticipant } from '../src/domain/entities/participant';
+import { PARTICIPANT_EXITED_ACTION, isActiveParticipant, patchParticipantStatus } from '../src/domain/entities/participant';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 
@@ -142,6 +142,7 @@ export const join = mutation({
         role: args.role,
         timestamp: now,
       });
+      await patchParticipantStatus(ctx, args.chatroomId, args.role, 'agent.waiting');
     }
 
     return participantId;

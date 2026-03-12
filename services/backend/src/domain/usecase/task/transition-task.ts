@@ -34,6 +34,7 @@ import { ENSURE_AGENT_FALLBACK_DELAY_MS } from '../../../../config/reliability';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
+import { patchParticipantStatus } from '../../entities/participant';
 
 // ============================================================================
 // USECASE
@@ -80,14 +81,18 @@ export async function transitionTask(
         timestamp: Date.now(),
       });
     } else if (TERMINAL_TASK_STATUSES.has(newStatus)) {
+      const completedRole = eventTask.assignedTo ?? 'unknown';
       await ctx.db.insert('chatroom_eventStream', {
         type: 'task.completed',
         chatroomId: eventTask.chatroomId,
         taskId,
-        role: eventTask.assignedTo ?? 'unknown',
+        role: completedRole,
         finalStatus: newStatus,
         timestamp: Date.now(),
       });
+      if (eventTask.assignedTo) {
+        await patchParticipantStatus(ctx, eventTask.chatroomId, eventTask.assignedTo, 'task.completed');
+      }
     }
   }
 

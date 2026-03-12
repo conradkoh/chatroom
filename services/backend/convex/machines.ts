@@ -17,7 +17,7 @@ import { processConfigRemoval } from '../src/domain/usecase/agent/config-removal
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
-import { PARTICIPANT_EXITED_ACTION } from '../src/domain/entities/participant';
+import { PARTICIPANT_EXITED_ACTION, patchParticipantStatus } from '../src/domain/entities/participant';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -565,9 +565,10 @@ export const daemonShutdown = mutation({
         )
         .unique();
       if (participant) {
-        await ctx.db.patch('chatroom_participants', participant._id, {
+        await ctx.db.patch(participant._id, {
           lastSeenAction: PARTICIPANT_EXITED_ACTION,
           connectionId: undefined,
+          lastStatus: 'agent.exited',
         });
       }
     }
@@ -764,6 +765,8 @@ export const updateSpawnedAgent = mutation({
         timestamp: now,
       });
 
+      await patchParticipantStatus(ctx, args.chatroomId, args.role, 'agent.started');
+
       // 2. Upsert restart metric for this hour bucket
       const model = args.model ?? config.model ?? 'unknown';
       const agentType = harness as string;
@@ -875,9 +878,10 @@ export const recordAgentExited = mutation({
       )
       .unique();
     if (participant) {
-      await ctx.db.patch('chatroom_participants', participant._id, {
+      await ctx.db.patch(participant._id, {
         lastSeenAction: PARTICIPANT_EXITED_ACTION,
         connectionId: undefined,
+        lastStatus: 'agent.exited',
       });
     }
 
@@ -923,6 +927,7 @@ export const recordAgentRegistered = mutation({
       machineId: args.machineId,
       timestamp: now,
     });
+    await patchParticipantStatus(ctx, args.chatroomId, args.role, 'agent.registered');
 
     return { success: true };
   },
@@ -1044,6 +1049,7 @@ export const saveTeamAgentConfig = mutation({
       machineId: args.machineId,
       timestamp: now,
     });
+    await patchParticipantStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
 
     return { success: true };
   },

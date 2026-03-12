@@ -14,6 +14,7 @@ import type { Id } from './_generated/dataModel';
 import { internalMutation, type MutationCtx } from './_generated/server';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { ACTIVE_TASK_STATUSES } from '../src/domain/entities/task';
+import { patchParticipantStatus } from '../src/domain/entities/participant';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -114,6 +115,7 @@ async function checkCircuitBreaker(
         reason: `${CIRCUIT_BREAKER_MAX_EXITS} exits in ${CIRCUIT_WINDOW_MS / 60_000} minutes`,
         timestamp: now,
       });
+      await patchParticipantStatus(ctx, chatroomId, config.role, 'agent.circuitOpen');
     }
     return 'open';
   }
@@ -270,6 +272,7 @@ export const check = internalMutation({
           deadline: now + ENSURE_AGENT_FALLBACK_DELAY_MS * 2,
           timestamp: now,
         });
+        await patchParticipantStatus(ctx, chatroomId, config.role, 'agent.requestStart');
       }
     }
   },
