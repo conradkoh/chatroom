@@ -237,3 +237,50 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
     expect(config?.spawnedAt).toBeUndefined();
   });
 });
+
+describe('onAgentExited — participant persistence', () => {
+  async function setupAndExit(sessionPrefix: string) {
+    const { api } = await import('../../../convex/_generated/api');
+    const { sessionId } = await createTestSession(`${sessionPrefix}`);
+    const chatroomId = await createChatroom(sessionId);
+    await registerMachineAndConfig(sessionId, `${sessionPrefix}-m`, chatroomId, 'running');
+
+    await t.mutation(api.participants.join, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    await callRecordAgentExited(sessionId, `${sessionPrefix}-m`, chatroomId, {
+      intentional: false,
+      stopReason: 'agent_process.crashed',
+    });
+
+    const participant = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+    });
+
+    return { participant };
+  }
+
+  test('participant record persists with lastSeenAction "exited" after recordAgentExited', async () => {
+    const { participant } = await setupAndExit('oae-pp-1');
+    expect(participant).not.toBeNull();
+    expect(participant!.lastSeenAction).toBe('exited');
+  });
+
+  test('participant connectionId is cleared after recordAgentExited', async () => {
+    const { participant } = await setupAndExit('oae-pp-2');
+    expect(participant!.connectionId).toBeUndefined();
+  });
+
+  test('participant lastSeenAt is preserved after recordAgentExited', async () => {
+    const { participant } = await setupAndExit('oae-pp-3');
+    expect(participant!.lastSeenAt).toBeTypeOf('number');
+  });
+});
