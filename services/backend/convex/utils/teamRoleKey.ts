@@ -1,5 +1,7 @@
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { AGENT_REQUEST_DEADLINE_MS } from '../../config/reliability';
+import { emitConfigRemoval } from '../../src/domain/usecase/agent/config-removal';
 
 /**
  * Builds a unique key scoped to a chatroom+team+role for use in chatroom_teamAgentConfigs.
@@ -22,8 +24,9 @@ export function buildTeamRoleKey(
 }
 
 /**
- * Deletes all existing chatroom_teamAgentConfigs rows with the given teamRoleKey.
- * Call this before inserting a new row to enforce uniqueness at write time.
+ * Removes stale chatroom_teamAgentConfigs rows with the given teamRoleKey.
+ * For configs with a running process, emits stop + removal events instead of
+ * deleting directly, so the process lifecycle is respected.
  */
 export async function deleteStaleTeamAgentConfigs(
   ctx: MutationCtx,
@@ -33,7 +36,26 @@ export async function deleteStaleTeamAgentConfigs(
     .query('chatroom_teamAgentConfigs')
     .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
     .collect();
+  const now = Date.now();
   for (const row of stale) {
-    await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
+    if (row.spawnedAgentPid != null && row.machineId) {
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'agent.requestStop',
+        chatroomId: row.chatroomId,
+        machineId: row.machineId,
+        role: row.role,
+        reason: 'platform.dedup',
+        deadline: now + AGENT_REQUEST_DEADLINE_MS,
+        timestamp: now,
+      });
+      await emitConfigRemoval(ctx, {
+        chatroomId: row.chatroomId,
+        role: row.role,
+        machineId: row.machineId,
+        reason: 'stale_duplicate',
+      });
+    } else {
+      await ctx.db.delete('chatroom_teamAgentConfigs', row._id);
+    }
   }
 }

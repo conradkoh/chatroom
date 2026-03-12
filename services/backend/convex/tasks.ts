@@ -19,6 +19,7 @@ import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { transitionTask } from '../src/domain/usecase/task/transition-task';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
+import { processConfigRemoval } from '../src/domain/usecase/agent/config-removal';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
@@ -1462,6 +1463,15 @@ export const cleanupStaleMachines = internalMutation({
               updatedAt: now,
             });
           }
+        }
+
+        // 2b. Process any pending config removal requests now that PIDs are cleared
+        for (const config of agentConfigs) {
+          await processConfigRemoval(ctx, {
+            chatroomId: config.chatroomId,
+            role: config.role,
+            machineId: machine.machineId,
+          });
         }
 
         // 3. Delete participant records for agents on this machine
