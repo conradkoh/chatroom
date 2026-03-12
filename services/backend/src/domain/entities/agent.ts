@@ -108,12 +108,6 @@ export const agentStopReasonValidator = v.union(
   ...AGENT_STOP_REASONS.map((r) => v.literal(r))
 );
 
-// ─── Deprecated aliases (remove after full migration) ─────────────────────────
-/** @deprecated Use AgentStartReason instead */
-export type StartAgentReason = AgentStartReason;
-/** @deprecated Use AgentStopReason instead */
-export type StopAgentReason = AgentStopReason;
-
 /**
  * Where the agent's AI model was resolved from.
  *

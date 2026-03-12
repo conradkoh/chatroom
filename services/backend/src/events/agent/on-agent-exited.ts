@@ -2,6 +2,7 @@ import type { Id } from '../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../convex/_generated/server';
 import { internal } from '../../../convex/_generated/api';
 import { getTeamEntryPoint } from '../../domain/entities/team';
+import { ACTIVE_TASK_STATUSES } from '../../domain/entities/task';
 import { buildTeamRoleKey } from '../../../convex/utils/teamRoleKey';
 
 export interface OnAgentExitedArgs {
@@ -64,17 +65,11 @@ export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): 
   const entryPoint = getTeamEntryPoint(chatroom ?? {});
   const normalizedRole = role.toLowerCase();
 
-  const activeTasks = await ctx.db
+  const allTasks = await ctx.db
     .query('chatroom_tasks')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .filter((q) =>
-      q.or(
-        q.eq(q.field('status'), 'pending'),
-        q.eq(q.field('status'), 'acknowledged'),
-        q.eq(q.field('status'), 'in_progress')
-      )
-    )
     .collect();
+  const activeTasks = allTasks.filter((t) => ACTIVE_TASK_STATUSES.has(t.status));
 
   const relevantTask = activeTasks.find((task) => {
     const assignedRole = task.assignedTo?.toLowerCase();

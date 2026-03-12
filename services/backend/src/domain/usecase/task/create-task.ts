@@ -19,7 +19,7 @@ import { internal } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { ENSURE_AGENT_FALLBACK_DELAY_MS } from '../../../../config/reliability';
-import { getTeamEntryPoint } from '../../entities/team';
+import { ACTIVE_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
 
 export interface CreateTaskArgs {
   chatroomId: Id<'chatroom_rooms'>;
@@ -55,18 +55,11 @@ export async function shouldEnqueueMessage(
   ctx: MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
 ): Promise<boolean> {
-  const activeTask = await ctx.db
+  const tasks = await ctx.db
     .query('chatroom_tasks')
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .filter((q) =>
-      q.or(
-        q.eq(q.field('status'), 'pending'),
-        q.eq(q.field('status'), 'acknowledged'),
-        q.eq(q.field('status'), 'in_progress')
-      )
-    )
-    .first();
-  return !!activeTask;
+    .collect();
+  return tasks.some((t) => ACTIVE_TASK_STATUSES.has(t.status));
 }
 
 /**
@@ -116,11 +109,8 @@ export async function createTask(
     });
 
     // Write task.activated event to stream
-    let role = args.assignedTo;
-    if (!role) {
-      const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-      role = getTeamEntryPoint(chatroom ?? {}) ?? 'unknown';
-    }
+    const chatroom = args.assignedTo ? null : await ctx.db.get('chatroom_rooms', args.chatroomId);
+    const role = resolveTaskRole(args.assignedTo, chatroom);
     await ctx.db.insert('chatroom_eventStream', {
       type: 'task.activated',
       chatroomId: args.chatroomId,

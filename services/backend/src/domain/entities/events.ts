@@ -84,6 +84,15 @@ export type AgentRegisteredEvent = {
   timestamp: number;
 };
 
+export type AgentCircuitOpenEvent = {
+  type: 'agent.circuitOpen';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  reason: string;
+  timestamp: number;
+};
+
 export type AgentWaitingEvent = {
   type: 'agent.waiting';
   chatroomId: Id<'chatroom_rooms'>;
@@ -124,6 +133,7 @@ export type DaemonPongEvent = {
 export type ChatroomEvent =
   | AgentStartedEvent
   | AgentExitedEvent
+  | AgentCircuitOpenEvent
   | TaskActivatedEvent
   | TaskCompletedEvent
   | AgentRequestStartEvent

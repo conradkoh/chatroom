@@ -13,11 +13,7 @@ import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { internalMutation, type MutationCtx } from './_generated/server';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-/** Task statuses that indicate an agent should be running. */
-const ACTIVE_TASK_STATUSES = new Set(['pending', 'acknowledged', 'in_progress']);
+import { ACTIVE_TASK_STATUSES } from '../src/domain/entities/task';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

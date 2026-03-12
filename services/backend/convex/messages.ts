@@ -13,6 +13,7 @@ import { getCompletionStatus } from './lib/taskWorkflows';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
+import { ACTIVE_TASK_STATUSES } from '../src/domain/entities/task';
 import { getCliEnvPrefix } from '../prompts/utils/index';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import {
@@ -499,17 +500,11 @@ async function _handoffHandler(
     // 'acknowledged' must be included: a claimed task is actively being worked on.
     // Promoting a queued message while an acknowledged task exists would create a
     // race condition where two tasks compete for agent attention simultaneously.
-    const hasActiveTask = await ctx.db
+    const allTasks = await ctx.db
       .query('chatroom_tasks')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .filter((q) =>
-        q.or(
-          q.eq(q.field('status'), 'pending'),
-          q.eq(q.field('status'), 'acknowledged'),
-          q.eq(q.field('status'), 'in_progress')
-        )
-      )
-      .first();
+      .collect();
+    const hasActiveTask = allTasks.some((t) => ACTIVE_TASK_STATUSES.has(t.status));
 
     if (!hasActiveTask) {
       // No active tasks — find oldest queued message and promote it

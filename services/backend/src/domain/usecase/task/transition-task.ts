@@ -33,27 +33,7 @@ import { areAllAgentsWaiting } from '../../../../convex/auth/cliSessionAuth';
 import { ENSURE_AGENT_FALLBACK_DELAY_MS } from '../../../../config/reliability';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
-import { getTeamEntryPoint } from '../../entities/team';
-
-// ============================================================================
-// TERMINAL STATES THAT TRIGGER QUEUE PROMOTION
-// ============================================================================
-
-/**
- * Task statuses that free the queue slot and should trigger auto-promotion
- * of the next queued task.
- */
-const PROMOTION_TRIGGER_STATUSES: ReadonlySet<TaskStatus> = new Set(['completed', 'closed']);
-
-/**
- * Task statuses that indicate an agent should be running.
- * After transitions to these statuses, we schedule an ensure-agent check.
- */
-const ENSURE_AGENT_TRIGGER_STATUSES: ReadonlySet<TaskStatus> = new Set([
-  'pending',
-  'acknowledged',
-  'in_progress',
-]);
+import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
 
 // ============================================================================
 // USECASE
@@ -87,16 +67,9 @@ export async function transitionTask(
   //    Re-fetch the task to get current fields (assignedTo, content, chatroomId).
   const eventTask = await ctx.db.get('chatroom_tasks', taskId);
   if (eventTask) {
-    const ACTIVATED_STATUSES = new Set<TaskStatus>(['pending', 'acknowledged', 'in_progress']);
-    const COMPLETED_STATUSES = new Set<TaskStatus>(['completed', 'closed']);
-
-    if (ACTIVATED_STATUSES.has(newStatus)) {
-      // Resolve role: prefer assignedTo, fall back to chatroom entry point
-      let role = eventTask.assignedTo;
-      if (!role) {
-        const chatroom = await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
-        role = getTeamEntryPoint(chatroom ?? {}) ?? 'unknown';
-      }
+    if (ACTIVE_TASK_STATUSES.has(newStatus)) {
+      const chatroom = eventTask.assignedTo ? null : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
+      const role = resolveTaskRole(eventTask.assignedTo, chatroom);
       await ctx.db.insert('chatroom_eventStream', {
         type: 'task.activated',
         chatroomId: eventTask.chatroomId,
@@ -106,7 +79,7 @@ export async function transitionTask(
         taskContent: eventTask.content,
         timestamp: Date.now(),
       });
-    } else if (COMPLETED_STATUSES.has(newStatus)) {
+    } else if (TERMINAL_TASK_STATUSES.has(newStatus)) {
       await ctx.db.insert('chatroom_eventStream', {
         type: 'task.completed',
         chatroomId: eventTask.chatroomId,
@@ -121,7 +94,7 @@ export async function transitionTask(
   // 3. After terminal transitions, attempt to promote the next queued task.
   //    We re-fetch the task to get its chatroomId (the transition has already
   //    committed, so the status is now `newStatus`).
-  if (PROMOTION_TRIGGER_STATUSES.has(newStatus)) {
+  if (TERMINAL_TASK_STATUSES.has(newStatus)) {
     const task = await ctx.db.get('chatroom_tasks', taskId);
     if (task) {
       await promoteNextTask(task.chatroomId, {
@@ -142,7 +115,7 @@ export async function transitionTask(
   //    Re-fetch AFTER the FSM transition so updatedAt is the post-transition timestamp.
   //    For in_progress tasks, the check itself handles the token-activity guard
   //    (rescheduling if the agent is still producing output, restarting if stale).
-  if (ENSURE_AGENT_TRIGGER_STATUSES.has(newStatus)) {
+  if (ACTIVE_TASK_STATUSES.has(newStatus)) {
     const activeTask = await ctx.db.get('chatroom_tasks', taskId);
     if (activeTask) {
       await ctx.scheduler.runAfter(ENSURE_AGENT_FALLBACK_DELAY_MS, internal.ensureAgentHandler.check, {

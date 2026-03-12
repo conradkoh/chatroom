@@ -6,6 +6,7 @@ import type { DaemonDeps } from './deps.js';
 import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import type { Id } from '../../../api.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
+import type { AgentStartReason, AgentStopReason } from '@workspace/backend/src/domain/entities/agent';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────
 
@@ -20,23 +21,9 @@ export type SessionId = any;
 
 export type { MachineConfig, AgentHarness };
 
-// ─── Agent Reason Types ───────────────────────────────────────────────────────
-// Mirror of services/backend/src/domain/entities/agent.ts (source of truth).
-
-/**
- * Why an agent was started. Uses actor-prefixed dot notation.
- */
-export type StartAgentReason = 'user.start' | 'user.restart' | 'platform.ensure_agent' | 'test';
-
-/**
- * Why an agent was stopped. Uses actor-prefixed dot notation.
- */
-export type StopAgentReason =
-  | 'user.stop'
-  | 'platform.dedup'
-  | 'platform.team_switch'
-  | 'daemon.respawn'
-  | 'test';
+// Re-export from canonical source (services/backend/src/domain/entities/agent.ts)
+export type StartAgentReason = AgentStartReason;
+export type StopAgentReason = AgentStopReason;
 
 // ─── Command Types ──────────────────────────────────────────────────────────
 
