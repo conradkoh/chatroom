@@ -162,6 +162,7 @@ describe('Participant Persistence', () => {
         .unique();
       return p!.lastSeenAt;
     });
-    expect(afterRejoin).toBeGreaterThanOrEqual(originalLastSeenAt);
+    expect(originalLastSeenAt).toBeDefined();
+    expect(afterRejoin).toBeGreaterThanOrEqual(originalLastSeenAt!);
   });
 });
