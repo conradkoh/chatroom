@@ -352,6 +352,8 @@ export const getTeamLifecycle = query({
         lastSeenAction: participantRow?.lastSeenAction ?? null,
         isStuck: stuckRoles.has(role.toLowerCase()),
         agentType: participantRow?.agentType ?? ('remote' as const),
+        lastStatus: participantRow?.lastStatus ?? null,
+        lastDesiredState: participantRow?.lastDesiredState ?? null,
       };
     });
 

@@ -465,6 +465,8 @@ export const listParticipantPresence = query({
           role: p.role,
           lastSeenAt: p.lastSeenAt ?? null,
           lastSeenAction: p.lastSeenAction ?? null,
+          lastStatus: p.lastStatus ?? null,
+          lastDesiredState: p.lastDesiredState ?? null,
         }));
       })
     );

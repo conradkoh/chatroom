@@ -12,6 +12,8 @@ export interface Agent {
   role: string;
   lastSeenAt: number | null;
   lastSeenAction: string | null;
+  lastStatus: string | null;
+  lastDesiredState: string | null;
 }
 
 export interface ChatroomWithStatus {
@@ -98,7 +100,13 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
     const presenceByRoom = new Map<string, Agent[]>();
     for (const p of presenceData) {
       const existing = presenceByRoom.get(p.chatroomId) ?? [];
-      existing.push({ role: p.role, lastSeenAt: p.lastSeenAt, lastSeenAction: p.lastSeenAction });
+      existing.push({
+        role: p.role,
+        lastSeenAt: p.lastSeenAt,
+        lastSeenAction: p.lastSeenAction,
+        lastStatus: p.lastStatus ?? null,
+        lastDesiredState: p.lastDesiredState ?? null,
+      });
       presenceByRoom.set(p.chatroomId, existing);
     }
 
