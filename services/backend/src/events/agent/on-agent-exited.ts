@@ -4,6 +4,7 @@ import { internal } from '../../../convex/_generated/api';
 import { getTeamEntryPoint } from '../../domain/entities/team';
 import { ACTIVE_TASK_STATUSES } from '../../domain/entities/task';
 import { buildTeamRoleKey } from '../../../convex/utils/teamRoleKey';
+import { AGENT_REQUEST_DEADLINE_MS } from '../../../config/reliability';
 
 export interface OnAgentExitedArgs {
   chatroomId: Id<'chatroom_rooms'>;
@@ -15,22 +16,25 @@ export interface OnAgentExitedArgs {
 /**
  * Handles the `agent.exited` event (backend side).
  *
- * When an agent exits (crash, signal, or clean completion), schedules an
- * immediate ensure-agent check for any active task assigned to that role —
- * bypassing the normal staleness guard so crash recovery fires without
- * waiting for the next scheduled timer interval.
+ * Two recovery paths:
  *
- * Intentional stops (user-initiated via UI) are excluded from restart.
- * The `desiredState` guard provides a second layer of protection against
- * unwanted restarts.
+ * 1. **Active-task recovery** — If the exited role has an active task, schedules
+ *    an immediate `ensureAgentHandler.check` to restart the agent with minimal delay.
+ *
+ * 2. **Eager (idle) recovery** — If no active task exists but the config says the
+ *    agent should be running (`desiredState === 'running'`), emits an
+ *    `agent.requestStart` event directly so the daemon restarts the agent.
+ *    This prevents agents from staying dead when they crash between tasks.
+ *    Guarded by the circuit breaker (`circuitState !== 'open'`).
+ *
+ * Intentional stops (`user.stop`, `platform.team_switch`) skip recovery entirely.
  */
 export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): Promise<void> {
   const { chatroomId, role, intentional, stopReason } = args;
 
-  // Determine if this exit warrants crash recovery
-  // When stopReason is available, restart on clean exits and unexpected crashes.
-  // Also restart on signal-terminated processes — this covers the case where the
-  // daemon kills an idle agent after its turn ends (agent_end in RPC mode).
+  // Determine if this exit warrants crash recovery.
+  // Restart on clean exits and unexpected crashes, including signal-terminated
+  // processes (daemon kills idle agent after turn ends in RPC mode).
   // The desiredState guard below prevents restart when the user explicitly stops.
   const shouldRestart = stopReason
     ? stopReason !== 'user.stop' && stopReason !== 'platform.team_switch'
@@ -42,9 +46,6 @@ export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): 
 
   const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
 
-  // Belt-and-suspenders: check desiredState before scheduling restart
-  // This prevents restart if the user has explicitly stopped the agent
-  // (even if stopReason suggests restart is appropriate — e.g. Race 2)
   let teamConfig = null;
   if (chatroom?.teamId) {
     const exitTeamRoleKey = buildTeamRoleKey(chatroomId, chatroom.teamId, role);
@@ -55,11 +56,11 @@ export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): 
   }
 
   if (teamConfig?.desiredState === 'stopped') {
-    return; // User intent respected — no restart
+    return;
   }
 
   if (teamConfig && teamConfig.type !== 'remote') {
-    return; // Only remote agents get crash recovery
+    return;
   }
 
   const entryPoint = getTeamEntryPoint(chatroom ?? {});
@@ -78,10 +79,38 @@ export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): 
   });
 
   if (relevantTask) {
+    // Path 1: Active-task recovery — schedule immediate ensure-agent check
     await ctx.scheduler.runAfter(0, internal.ensureAgentHandler.check, {
       taskId: relevantTask._id,
       chatroomId,
-      snapshotUpdatedAt: 0, // bypass staleness guard — crash recovery
+      snapshotUpdatedAt: 0, // bypass staleness guard
+    });
+    return;
+  }
+
+  // Path 2: Eager (idle) recovery — no active task, but agent should be running.
+  // Emit agent.requestStart directly so the daemon restarts the agent promptly.
+  if (
+    teamConfig &&
+    teamConfig.desiredState === 'running' &&
+    teamConfig.circuitState !== 'open' &&
+    teamConfig.machineId &&
+    teamConfig.agentHarness &&
+    teamConfig.model &&
+    teamConfig.workingDir
+  ) {
+    const now = Date.now();
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.requestStart',
+      chatroomId,
+      machineId: teamConfig.machineId,
+      role: teamConfig.role,
+      agentHarness: teamConfig.agentHarness,
+      model: teamConfig.model,
+      workingDir: teamConfig.workingDir,
+      reason: 'platform.crash_recovery',
+      deadline: now + AGENT_REQUEST_DEADLINE_MS,
+      timestamp: now,
     });
   }
 }
