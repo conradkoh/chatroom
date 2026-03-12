@@ -8,6 +8,7 @@ import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
+import { PARTICIPANT_EXITED_ACTION, isActiveParticipant } from '../src/domain/entities/participant';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 
@@ -164,7 +165,7 @@ export const list = query({
   },
 });
 
-/** Removes a participant from a chatroom (agent stopped). */
+/** Marks a participant as exited in a chatroom (agent stopped). */
 export const leave = mutation({
   args: {
     ...SessionIdArg,
@@ -184,7 +185,10 @@ export const leave = mutation({
       .unique();
 
     if (participant) {
-      await ctx.db.delete('chatroom_participants', participant._id);
+      await ctx.db.patch('chatroom_participants', participant._id, {
+        lastSeenAction: PARTICIPANT_EXITED_ACTION,
+        connectionId: undefined,
+      });
     }
   },
 });
@@ -248,7 +252,7 @@ export const getHighestPriorityWaitingRole = query({
       .collect();
 
     const presentParticipants = participants.filter(
-      (p) => p.role.toLowerCase() !== 'user'
+      (p) => p.role.toLowerCase() !== 'user' && isActiveParticipant(p)
     );
 
     if (presentParticipants.length === 0) {

@@ -20,6 +20,7 @@ import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-
 import { transitionTask } from '../src/domain/usecase/task/transition-task';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { processConfigRemoval } from '../src/domain/usecase/agent/config-removal';
+import { PARTICIPANT_EXITED_ACTION } from '../src/domain/entities/participant';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
@@ -1474,7 +1475,7 @@ export const cleanupStaleMachines = internalMutation({
           });
         }
 
-        // 3. Delete participant records for agents on this machine
+        // 3. Mark participant records as exited for agents on this machine
         for (const config of agentConfigs) {
           const participant = await ctx.db
             .query('chatroom_participants')
@@ -1483,7 +1484,10 @@ export const cleanupStaleMachines = internalMutation({
             )
             .unique();
           if (participant) {
-            await ctx.db.delete('chatroom_participants', participant._id);
+            await ctx.db.patch('chatroom_participants', participant._id, {
+              lastSeenAction: PARTICIPANT_EXITED_ACTION,
+              connectionId: undefined,
+            });
           }
         }
       }
