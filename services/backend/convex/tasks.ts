@@ -1461,6 +1461,17 @@ export const cleanupStaleMachines = internalMutation({
 
         for (const config of agentConfigs) {
           if (config.spawnedAgentPid != null) {
+            await ctx.db.insert('chatroom_eventStream', {
+              type: 'agent.exited',
+              chatroomId: config.chatroomId,
+              role: config.role,
+              machineId: machine.machineId,
+              pid: config.spawnedAgentPid,
+              intentional: false,
+              stopReason: 'daemon.heartbeatTimeout',
+              timestamp: now,
+            });
+
             await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
               spawnedAgentPid: undefined,
               spawnedAt: undefined,
@@ -1490,6 +1501,7 @@ export const cleanupStaleMachines = internalMutation({
             await ctx.db.patch('chatroom_participants', participant._id, {
               lastSeenAction: PARTICIPANT_EXITED_ACTION,
               connectionId: undefined,
+              lastStatus: 'agent.exited',
             });
           }
         }
