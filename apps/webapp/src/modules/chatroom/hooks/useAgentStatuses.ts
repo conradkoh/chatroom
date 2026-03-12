@@ -24,12 +24,6 @@ const NOT_WORKING_EVENT_TYPES = new Set([
   undefined,
 ]);
 
-/** Response shape from getLatestAgentEventsForChatroom. */
-interface AgentEventEntry {
-  eventType: string;
-  desiredState: string | null;
-}
-
 export interface AgentStatus {
   role: string;
   online: boolean;
@@ -49,7 +43,7 @@ export interface UseAgentStatusesResult {
   isLoading: boolean;
 }
 
-/** Centralizes agent status derivation from lifecycle participants and event stream. */
+/** Centralizes agent status derivation from lastStatus on participant records. */
 export function useAgentStatuses(
   chatroomId: string,
   roles: string[]
@@ -57,11 +51,6 @@ export function useAgentStatuses(
   const lifecycle = useSessionQuery(api.participants.getTeamLifecycle, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamLifecycle | null | undefined;
-
-  const latestEventsByRole = useSessionQuery(api.machines.getLatestAgentEventsForChatroom, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    roles,
-  }) as Record<string, AgentEventEntry> | undefined;
 
   const participantMap = useMemo(() => {
     if (!lifecycle?.participants) return new Map<string, NonNullable<typeof lifecycle>['participants'][number]>();
@@ -72,10 +61,8 @@ export function useAgentStatuses(
     return roles.map((role) => {
       const participant = participantMap.get(role.toLowerCase());
       const lastSeenAt = participant?.lastSeenAt ?? null;
-      const entry = latestEventsByRole?.[role.toLowerCase()] ?? null;
-      const latestEventType = entry?.eventType ?? null;
-      const desiredState = entry?.desiredState ?? null;
-      // Agent is online if their latest event is NOT agent.exited, agent.circuitOpen, or null
+      const latestEventType = participant?.lastStatus ?? null;
+      const desiredState = participant?.lastDesiredState ?? null;
       const online = !OFFLINE_EVENT_TYPES.has(latestEventType as string);
       const isWorking = online && !NOT_WORKING_EVENT_TYPES.has(latestEventType as string);
       const { label: statusLabel, variant: statusVariant } = resolveAgentStatus(
@@ -93,7 +80,7 @@ export function useAgentStatuses(
         latestEventType,
       };
     });
-  }, [roles, participantMap, latestEventsByRole]);
+  }, [roles, participantMap]);
 
   const aggregateStatus = useMemo((): AggregateStatus => {
     const nonUserAgents = agents.filter((a) => a.role.toLowerCase() !== 'user');
@@ -109,6 +96,6 @@ export function useAgentStatuses(
     agents,
     aggregateStatus,
     lifecycle,
-    isLoading: lifecycle === undefined || latestEventsByRole === undefined,
+    isLoading: lifecycle === undefined,
   };
 }
