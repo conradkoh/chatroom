@@ -528,7 +528,7 @@ export function useAgentControls({
  * Returns true if the given model should be hidden based on the machine-level filter.
  * Checks both exact model IDs and provider prefixes (the part before the first '/').
  */
-function isModelHidden(
+export function isModelHidden(
   modelId: string,
   filter: { hiddenModels: string[]; hiddenProviders: string[] } | null | undefined
 ): boolean {
