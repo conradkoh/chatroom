@@ -223,7 +223,7 @@ describe('Daemon Heartbeat', () => {
     });
     expect(daemonConnected).toBe(false);
 
-    // Verify: participant record is deleted (agent appears offline)
+    // Verify: participant record is preserved but marked as exited
     const participant = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_participants')
@@ -232,7 +232,9 @@ describe('Daemon Heartbeat', () => {
         )
         .unique();
     });
-    expect(participant).toBeNull();
+    expect(participant).not.toBeNull();
+    expect(participant!.lastSeenAction).toBe('exited');
+    expect(participant!.connectionId).toBeUndefined();
 
     // Verify: spawnedAgentPid is cleared
     const agentConfig = await t.run(async (ctx) => {
