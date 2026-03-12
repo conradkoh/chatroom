@@ -113,7 +113,9 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
       if (chatroom.status === 'completed') {
         chatStatus = 'completed';
       } else {
-        const onlineAgents = agents.filter((a) => isAgentPresent(a.lastSeenAt, now));
+        const onlineAgents = agents.filter(
+          (a) => a.lastSeenAction !== 'exited' && isAgentPresent(a.lastSeenAt, now)
+        );
         if (onlineAgents.length === 0) {
           chatStatus = 'idle';
         } else {

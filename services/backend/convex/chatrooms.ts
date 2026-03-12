@@ -4,6 +4,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
 import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
+import { isActiveParticipant } from '../src/domain/entities/participant';
 
 /** Creates a new chatroom with the given team configuration. */
 export const create = mutation({
@@ -123,9 +124,9 @@ export const listByUserWithStatus = query({
           .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
           .collect();
 
-        // Compute agent presence from lastSeenAt
+        // Compute agent presence from lastSeenAt (only active participants)
         const LAST_SEEN_ACTIVE_MS = 600_000; // 10 minutes
-        const agents = participants.map((p) => ({
+        const agents = participants.filter(isActiveParticipant).map((p) => ({
           role: p.role,
           lastSeenAt: p.lastSeenAt ?? null,
         }));

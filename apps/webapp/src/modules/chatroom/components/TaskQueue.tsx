@@ -188,8 +188,11 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
     if (!hasActiveTask && hasQueuedTasks) {
       // Check if all agents are waiting (lastSeenAction === 'get-next-task:started')
       const participants = lifecycle?.participants ?? [];
-      if (participants.length === 0) return true; // No agents registered — allow promote
-      const allWaiting = participants.every((p) => p.lastSeenAction === 'get-next-task:started');
+      const activeParticipants = participants.filter((p) => p.lastSeenAction !== 'exited');
+      if (activeParticipants.length === 0) return true; // No active agents — allow promote
+      const allWaiting = activeParticipants.every(
+        (p) => p.lastSeenAction === 'get-next-task:started'
+      );
       return allWaiting;
     }
     return false;

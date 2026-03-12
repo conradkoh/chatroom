@@ -5,6 +5,7 @@ import { ConvexError } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { getTeamEntryPoint } from '../../src/domain/entities/team';
+import { isActiveParticipant } from '../../src/domain/entities/participant';
 
 export interface ValidatedSession {
   sessionId: string;
@@ -170,7 +171,7 @@ export async function requireChatroomAccess(
   };
 }
 
-/** Returns true if all participants in the chatroom are in the get-next-task wait loop. */
+/** Returns true if all active participants in the chatroom are in the get-next-task wait loop. */
 export async function areAllAgentsWaiting(
   ctx: QueryCtx | MutationCtx,
   chatroomId: Id<'chatroom_rooms'>
@@ -180,9 +181,10 @@ export async function areAllAgentsWaiting(
     .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
     .collect();
 
-  if (participants.length === 0) return false;
+  const activeParticipants = participants.filter(isActiveParticipant);
+  if (activeParticipants.length === 0) return false;
 
-  return participants.every((p) => p.lastSeenAction === 'get-next-task:started');
+  return activeParticipants.every((p) => p.lastSeenAction === 'get-next-task:started');
 }
 
 /** Returns the entry point role for a chatroom. */

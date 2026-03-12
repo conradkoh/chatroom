@@ -14,6 +14,7 @@ import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { ACTIVE_TASK_STATUSES } from '../src/domain/entities/task';
+import { isActiveParticipant } from '../src/domain/entities/participant';
 import { getCliEnvPrefix } from '../prompts/utils/index';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import {
@@ -869,16 +870,14 @@ export const getAllowedHandoffRoles = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Get participants
+    // Get active participants (exclude exited agents)
     const participants = await ctx.db
       .query('chatroom_participants')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Find waiting participants (all participants except current role)
-    // No presence filter - always send notification regardless of last seen time
     const waitingParticipants = participants.filter(
-      (p) => p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
     );
 
     // Get the most recent classified user message to determine restrictions (optimized)
@@ -1375,11 +1374,8 @@ export const getLatestForRole = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Find present participants (seen within presence window, excluding current role)
-    // Find waiting participants (all participants except current role)
-    // No presence filter - always send notification regardless of last seen time
     const waitingParticipants = participants.filter(
-      (p) => p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
     );
 
     // Sort by priority to find highest priority waiting
@@ -1600,9 +1596,8 @@ export const getRolePrompt = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Find present participants (excluding current role)
     const waitingParticipants = participants.filter(
-      (p) => p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
     );
 
     // Get the most recent classified user message to determine restrictions (optimized)
@@ -1681,8 +1676,7 @@ export const getInitPrompt = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // All participants are available members (no presence filter)
-    const availableMembers = participants.map((p) => p.role);
+    const availableMembers = participants.filter(isActiveParticipant).map((p) => p.role);
 
     // Look up existing team agent config to include the agent type in the prompt
     const teamRoleKey = chatroom.teamId
@@ -1812,9 +1806,8 @@ export const getTaskDeliveryPrompt = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
-    // Get role prompt info (reuse existing logic)
     const waitingParticipants = participants.filter(
-      (p) => p.role.toLowerCase() !== args.role.toLowerCase()
+      (p) => p.role.toLowerCase() !== args.role.toLowerCase() && isActiveParticipant(p)
     );
 
     // Get recent messages for classification
