@@ -9,6 +9,8 @@ import { describe, expect, test } from 'vitest';
 
 import { t } from '../../test.setup';
 import { createTestSession, createPairTeamChatroom, joinParticipant } from '../helpers/integration';
+import { areAllAgentsWaiting } from '../../convex/auth/cliSessionAuth';
+import { isActiveParticipant } from '../../src/domain/entities/participant';
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -107,6 +109,135 @@ describe('Participant Lifecycle', () => {
           .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
           .collect();
         expect(tasks.filter((t) => t.status === 'pending').length).toBe(0);
+      });
+    });
+  });
+
+  describe('areAllAgentsWaiting with exited participants', () => {
+    test('areAllAgentsWaiting returns true when one participant is waiting and one is exited', async () => {
+      const { sessionId } = await createTestSession('test-exited-one-waiting');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+
+      await joinParticipant(sessionId, chatroomId, 'builder');
+      await joinParticipant(sessionId, chatroomId, 'reviewer');
+
+      await t.run(async (ctx) => {
+        const builder = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom_and_role', (q) =>
+            q.eq('chatroomId', chatroomId).eq('role', 'builder')
+          )
+          .unique();
+        await ctx.db.patch(builder!._id, { lastSeenAction: 'get-next-task:started' });
+
+        const reviewer = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom_and_role', (q) =>
+            q.eq('chatroomId', chatroomId).eq('role', 'reviewer')
+          )
+          .unique();
+        await ctx.db.patch(reviewer!._id, { lastSeenAction: 'exited' });
+      });
+
+      const result = await t.run(async (ctx) => {
+        return areAllAgentsWaiting(ctx, chatroomId);
+      });
+      expect(result).toBe(true);
+    });
+
+    test('areAllAgentsWaiting returns false when all participants are exited (no active participants)', async () => {
+      const { sessionId } = await createTestSession('test-exited-all');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+
+      await joinParticipant(sessionId, chatroomId, 'builder');
+      await joinParticipant(sessionId, chatroomId, 'reviewer');
+
+      await t.run(async (ctx) => {
+        const participants = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+          .collect();
+        for (const p of participants) {
+          await ctx.db.patch(p._id, { lastSeenAction: 'exited' });
+        }
+      });
+
+      const result = await t.run(async (ctx) => {
+        return areAllAgentsWaiting(ctx, chatroomId);
+      });
+      expect(result).toBe(false);
+    });
+
+    test('areAllAgentsWaiting returns true when all active participants are waiting, ignoring exited', async () => {
+      const { sessionId } = await createTestSession('test-exited-ignore');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+
+      await joinParticipant(sessionId, chatroomId, 'builder');
+      await joinParticipant(sessionId, chatroomId, 'reviewer');
+
+      await t.run(async (ctx) => {
+        const participants = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+          .collect();
+        for (const p of participants) {
+          await ctx.db.patch(p._id, { lastSeenAction: 'get-next-task:started' });
+        }
+      });
+
+      await t.run(async (ctx) => {
+        const reviewer = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom_and_role', (q) =>
+            q.eq('chatroomId', chatroomId).eq('role', 'reviewer')
+          )
+          .unique();
+        await ctx.db.patch(reviewer!._id, { lastSeenAction: 'exited' });
+      });
+
+      const result = await t.run(async (ctx) => {
+        return areAllAgentsWaiting(ctx, chatroomId);
+      });
+      expect(result).toBe(true);
+    });
+
+    test('exited participant is excluded from highest priority waiting role', async () => {
+      const { sessionId } = await createTestSession('test-exited-priority');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+
+      await joinParticipant(sessionId, chatroomId, 'builder');
+      await joinParticipant(sessionId, chatroomId, 'reviewer');
+
+      await t.run(async (ctx) => {
+        const builder = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom_and_role', (q) =>
+            q.eq('chatroomId', chatroomId).eq('role', 'builder')
+          )
+          .unique();
+        await ctx.db.patch(builder!._id, { lastSeenAction: 'exited' });
+
+        const reviewer = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom_and_role', (q) =>
+            q.eq('chatroomId', chatroomId).eq('role', 'reviewer')
+          )
+          .unique();
+        await ctx.db.patch(reviewer!._id, { lastSeenAction: 'get-next-task:started' });
+      });
+
+      await t.run(async (ctx) => {
+        const participants = await ctx.db
+          .query('chatroom_participants')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+          .collect();
+
+        const activeWaiting = participants
+          .filter(isActiveParticipant)
+          .filter((p) => p.lastSeenAction === 'get-next-task:started');
+
+        expect(activeWaiting.every((p) => p.role !== 'builder')).toBe(true);
+        expect(activeWaiting.some((p) => p.role === 'reviewer')).toBe(true);
       });
     });
   });
