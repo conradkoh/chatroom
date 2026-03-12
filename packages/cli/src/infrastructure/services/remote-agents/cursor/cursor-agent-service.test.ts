@@ -72,11 +72,14 @@ describe('CursorAgentService', () => {
   });
 
   describe('listModels', () => {
-    it('returns hardcoded cursor models with opus first (default)', async () => {
+    it('returns cursor models with opus-4.6 first (default)', async () => {
       const service = new CursorAgentService(createMockDeps());
       const models = await service.listModels();
-      expect(models).toEqual(['opus-4.6', 'sonnet-4.6']);
       expect(models[0]).toBe('opus-4.6');
+      expect(models.length).toBeGreaterThan(2);
+      expect(models).toContain('gpt-5.4-high');
+      expect(models).toContain('sonnet-4.6');
+      expect(models).toContain('gemini-3.1-pro');
     });
   });
 

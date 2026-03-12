@@ -26,7 +26,62 @@ export type CursorAgentServiceDeps = CLIAgentServiceDeps;
 
 const CURSOR_COMMAND = 'agent';
 
-const CURSOR_MODELS: string[] = ['opus-4.6', 'sonnet-4.6'];
+const CURSOR_MODELS: string[] = [
+  // Anthropic Claude
+  'opus-4.6',
+  'opus-4.6-thinking',
+  'opus-4.5',
+  'opus-4.5-thinking',
+  'sonnet-4.6',
+  'sonnet-4.6-thinking',
+  'sonnet-4.5',
+  'sonnet-4.5-thinking',
+  // OpenAI GPT-5.4
+  'gpt-5.4-low',
+  'gpt-5.4-medium',
+  'gpt-5.4-medium-fast',
+  'gpt-5.4-high',
+  'gpt-5.4-high-fast',
+  'gpt-5.4-xhigh',
+  'gpt-5.4-xhigh-fast',
+  // OpenAI GPT-5.3 Codex
+  'gpt-5.3-codex-low',
+  'gpt-5.3-codex-low-fast',
+  'gpt-5.3-codex',
+  'gpt-5.3-codex-fast',
+  'gpt-5.3-codex-high',
+  'gpt-5.3-codex-high-fast',
+  'gpt-5.3-codex-xhigh',
+  'gpt-5.3-codex-xhigh-fast',
+  'gpt-5.3-codex-spark-preview',
+  // OpenAI GPT-5.2
+  'gpt-5.2',
+  'gpt-5.2-high',
+  'gpt-5.2-codex-low',
+  'gpt-5.2-codex-low-fast',
+  'gpt-5.2-codex',
+  'gpt-5.2-codex-fast',
+  'gpt-5.2-codex-high',
+  'gpt-5.2-codex-high-fast',
+  'gpt-5.2-codex-xhigh',
+  'gpt-5.2-codex-xhigh-fast',
+  // OpenAI GPT-5.1
+  'gpt-5.1-high',
+  'gpt-5.1-codex-max',
+  'gpt-5.1-codex-max-high',
+  'gpt-5.1-codex-mini',
+  // Google Gemini
+  'gemini-3.1-pro',
+  'gemini-3-pro',
+  'gemini-3-flash',
+  // Other
+  'grok',
+  'kimi-k2.5',
+  // Cursor built-in
+  'auto',
+  'composer-1.5',
+  'composer-1',
+];
 
 // ─── Implementation ──────────────────────────────────────────────────────────
 
