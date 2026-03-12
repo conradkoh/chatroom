@@ -1016,11 +1016,13 @@ export const CustomTabContent = memo(function CustomTabContent({
 
   return (
     <>
-      {/* Single prompt row */}
-      <button
-        type="button"
-        className="w-full flex items-center gap-2 text-left hover:bg-chatroom-bg-hover transition-colors px-2 py-2 -mx-2"
+      {/* Single prompt row — uses div instead of button to avoid nesting CopyButton's <button> inside a <button> */}
+      <div
+        role="button"
+        tabIndex={0}
+        className="w-full flex items-center gap-2 text-left hover:bg-chatroom-bg-hover transition-colors px-2 py-2 -mx-2 cursor-pointer"
         onClick={() => setViewerOpen(true)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewerOpen(true); } }}
       >
         <FileText size={14} className="text-chatroom-text-muted flex-shrink-0" />
         <span className="flex-1 text-[12px] font-medium text-chatroom-text-secondary">
@@ -1029,7 +1031,7 @@ export const CustomTabContent = memo(function CustomTabContent({
         <div onClick={(e) => e.stopPropagation()}>
           <CopyButton text={prompt} label="Copy" copiedLabel="Copied!" variant="compact" />
         </div>
-      </button>
+      </div>
 
       {/* Prompt viewer modal */}
       <PromptViewerModal

@@ -13,6 +13,7 @@
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
+import { emitConfigRemoval } from '../agent/config-removal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,7 @@ export async function updateTeam(
 
   const now = Date.now();
   let stoppedAgentCount = 0;
+  let deletedTeamConfigCount = 0;
 
   for (const config of existingTeamConfigs) {
     // Dispatch stop event for running remote agents.
@@ -75,13 +77,30 @@ export async function updateTeam(
       stoppedAgentCount++;
     }
 
-    // Delete the team config — these belong to the platform layer, not the machine.
-    // New configs will be created fresh when agents are restarted under the new team.
-    await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+    if (config.machineId) {
+      // Request config removal via event stream — actual deletion happens
+      // in recordAgentExited after the process is confirmed dead
+      await emitConfigRemoval(ctx, {
+        chatroomId,
+        role: config.role,
+        machineId: config.machineId,
+        reason: 'team_switch',
+      });
+
+      // If no process is running, safe to delete immediately
+      if (config.spawnedAgentPid == null) {
+        await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+        deletedTeamConfigCount++;
+      }
+    } else {
+      // No machine — safe to delete (custom config or orphan)
+      await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
+      deletedTeamConfigCount++;
+    }
   }
 
   return {
     stoppedAgentCount,
-    deletedTeamConfigCount: existingTeamConfigs.length,
+    deletedTeamConfigCount,
   };
 }
