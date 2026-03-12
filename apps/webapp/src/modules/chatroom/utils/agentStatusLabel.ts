@@ -108,24 +108,3 @@ export function resolveAgentStatus(
   // ── Fallback ───────────────────────────────────────────────────────────────
   return { label: 'ONLINE', variant: 'ready' };
 }
-
-// ─── Backward-compat helpers (used by consumers that import these) ──────────
-
-/**
- * @deprecated Use resolveAgentStatus() instead.
- * Maps event type to a label string only (ignores desiredState).
- */
-export function eventTypeToStatusLabel(eventType: string | null | undefined): string {
-  return resolveAgentStatus(eventType, null, eventType !== null && eventType !== undefined && eventType !== 'agent.exited' && eventType !== 'agent.circuitOpen').label;
-}
-
-/**
- * @deprecated Use resolveAgentStatus() instead.
- * Derives status label considering online/offline state.
- */
-export function resolveStatusLabel(
-  latestEventType: string | null,
-  online: boolean
-): string {
-  return resolveAgentStatus(latestEventType, null, online).label;
-}

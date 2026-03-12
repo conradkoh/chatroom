@@ -223,7 +223,7 @@ describe('Daemon Heartbeat', () => {
     });
     expect(daemonConnected).toBe(false);
 
-    // Verify: participant record is deleted (agent appears offline)
+    // Verify: participant record is preserved but marked as exited
     const participant = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_participants')
@@ -232,7 +232,9 @@ describe('Daemon Heartbeat', () => {
         )
         .unique();
     });
-    expect(participant).toBeNull();
+    expect(participant).not.toBeNull();
+    expect(participant!.lastSeenAction).toBe('exited');
+    expect(participant!.connectionId).toBeUndefined();
 
     // Verify: spawnedAgentPid is cleared
     const agentConfig = await t.run(async (ctx) => {
@@ -245,5 +247,126 @@ describe('Daemon Heartbeat', () => {
     });
     expect(agentConfig?.spawnedAgentPid).toBeUndefined();
     expect(agentConfig?.spawnedAt).toBeUndefined();
+  });
+
+  test('cleanupStaleMachines preserves lastSeenAt on participant record', async () => {
+    const { sessionId } = await createTestSession('test-hb-stale-lsa');
+    const machineId = 'machine-hb-stale-lsa';
+
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamId: 'pair',
+      teamName: 'Pair Team',
+      teamRoles: ['builder', 'reviewer'],
+      teamEntryPoint: 'builder',
+    });
+
+    await t.run(async (ctx) => {
+      const teamRoleKey = buildTeamRoleKey(chatroomId, 'pair', 'builder');
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey,
+        machineId,
+        chatroomId,
+        role: 'builder',
+        type: 'remote',
+        agentHarness: 'opencode',
+        workingDir: '/test',
+        spawnedAgentPid: 88888,
+        spawnedAt: Date.now() - 60_000,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.run(async (ctx) => {
+      const machine = await ctx.db
+        .query('chatroom_machines')
+        .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
+        .first();
+      await ctx.db.patch(machine!._id, {
+        lastSeenAt: Date.now() - DAEMON_HEARTBEAT_TTL_MS - 10_000,
+      });
+    });
+
+    await t.mutation(internal.tasks.cleanupStaleMachines, {});
+
+    const participant = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+    });
+    expect(participant).not.toBeNull();
+    expect(participant!.lastSeenAt).toBeTypeOf('number');
+  });
+});
+
+describe('Daemon Shutdown — participant persistence', () => {
+  async function setupDaemonShutdown(sessionPrefix: string) {
+    const { sessionId } = await createTestSession(sessionPrefix);
+    const machineId = `machine-${sessionPrefix}`;
+
+    await registerMachineWithDaemon(sessionId, machineId);
+
+    const chatroomId = await t.mutation(api.chatrooms.create, {
+      sessionId,
+      teamId: 'pair',
+      teamName: 'Pair Team',
+      teamRoles: ['builder', 'reviewer'],
+      teamEntryPoint: 'builder',
+    });
+
+    await t.run(async (ctx) => {
+      const teamRoleKey = buildTeamRoleKey(chatroomId, 'pair', 'builder');
+      await ctx.db.insert('chatroom_teamAgentConfigs', {
+        teamRoleKey,
+        machineId,
+        chatroomId,
+        role: 'builder',
+        type: 'remote',
+        agentHarness: 'opencode',
+        workingDir: '/test',
+        spawnedAgentPid: 77777,
+        spawnedAt: Date.now() - 30_000,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    await joinParticipant(sessionId, chatroomId, 'builder');
+
+    await t.mutation(api.machines.daemonShutdown, {
+      sessionId,
+      machineId,
+    });
+
+    const participant = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+    });
+
+    return { participant };
+  }
+
+  test('daemonShutdown marks participant as exited instead of deleting', async () => {
+    const { participant } = await setupDaemonShutdown('ds-pp-1');
+    expect(participant).not.toBeNull();
+    expect(participant!.lastSeenAction).toBe('exited');
+    expect(participant!.connectionId).toBeUndefined();
+  });
+
+  test('daemonShutdown preserves lastSeenAt on participant', async () => {
+    const { participant } = await setupDaemonShutdown('ds-pp-2');
+    expect(participant!.lastSeenAt).toBeTypeOf('number');
   });
 });

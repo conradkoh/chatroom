@@ -17,6 +17,7 @@ import { processConfigRemoval } from '../src/domain/usecase/agent/config-removal
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
+import { PARTICIPANT_EXITED_ACTION, patchParticipantStatus } from '../src/domain/entities/participant';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -407,7 +408,11 @@ export const getDaemonPongEvent = query({
   },
 });
 
-/** Returns the latest event stream entry for a given chatroom+role, or null. */
+/**
+ * @deprecated Frontend now reads agent status from participant.lastStatus.
+ * Retained for backward compatibility and debugging.
+ * Returns the latest event stream entry for a given chatroom+role, or null.
+ */
 export const getLatestAgentEvent = query({
   args: {
     ...SessionIdArg,
@@ -436,7 +441,11 @@ export const getLatestAgentEvent = query({
   },
 });
 
-/** Returns a map of role → latest event type for all specified roles in a chatroom. */
+/**
+ * @deprecated Frontend now reads agent status from participant.lastStatus.
+ * Retained for backward compatibility and debugging.
+ * Returns a map of role → latest event type for all specified roles in a chatroom.
+ */
 export const getLatestAgentEventsForChatroom = query({
   args: {
     ...SessionIdArg,
@@ -555,7 +564,7 @@ export const daemonShutdown = mutation({
       }
     }
 
-    // 3. Delete participant records for agents on this machine
+    // 3. Mark participant records as exited for agents on this machine
     for (const config of machineConfigs) {
       const participant = await ctx.db
         .query('chatroom_participants')
@@ -564,7 +573,11 @@ export const daemonShutdown = mutation({
         )
         .unique();
       if (participant) {
-        await ctx.db.delete('chatroom_participants', participant._id);
+        await ctx.db.patch(participant._id, {
+          lastSeenAction: PARTICIPANT_EXITED_ACTION,
+          connectionId: undefined,
+          lastStatus: 'agent.exited',
+        });
       }
     }
 
@@ -760,6 +773,8 @@ export const updateSpawnedAgent = mutation({
         timestamp: now,
       });
 
+      await patchParticipantStatus(ctx, args.chatroomId, args.role, 'agent.started');
+
       // 2. Upsert restart metric for this hour bucket
       const model = args.model ?? config.model ?? 'unknown';
       const agentType = harness as string;
@@ -863,7 +878,7 @@ export const recordAgentExited = mutation({
       });
     }
 
-    // 4. Remove participant record so the UI shows the agent as offline
+    // 4. Mark participant as exited (preserves lastSeenAt for UI display)
     const participant = await ctx.db
       .query('chatroom_participants')
       .withIndex('by_chatroom_and_role', (q) =>
@@ -871,7 +886,11 @@ export const recordAgentExited = mutation({
       )
       .unique();
     if (participant) {
-      await ctx.db.delete('chatroom_participants', participant._id);
+      await ctx.db.patch(participant._id, {
+        lastSeenAction: PARTICIPANT_EXITED_ACTION,
+        connectionId: undefined,
+        lastStatus: 'agent.exited',
+      });
     }
 
     // 5. If unintentional crash, immediately schedule ensure-agent for any active task
@@ -916,6 +935,7 @@ export const recordAgentRegistered = mutation({
       machineId: args.machineId,
       timestamp: now,
     });
+    await patchParticipantStatus(ctx, args.chatroomId, args.role, 'agent.registered');
 
     return { success: true };
   },
@@ -1037,6 +1057,7 @@ export const saveTeamAgentConfig = mutation({
       machineId: args.machineId,
       timestamp: now,
     });
+    await patchParticipantStatus(ctx, args.chatroomId, args.role, 'agent.registered', 'running');
 
     return { success: true };
   },

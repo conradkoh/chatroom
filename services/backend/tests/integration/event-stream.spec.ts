@@ -7,7 +7,7 @@
  * Tests are written first (TDD) and drive the Phase 2 implementation.
  */
 
-import { expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
@@ -18,6 +18,7 @@ import {
   createPairTeamChatroom,
   createTestSession,
   registerMachineWithDaemon,
+  setupRemoteAgentConfig,
 } from '../helpers/integration';
 
 // ─── Test 1: agent.requestStart event ────────────────────────────────────────
@@ -712,4 +713,260 @@ test('updateSpawnedAgent with null pid does NOT write agent.started or update me
     ctx.db.query('chatroom_agentRestartMetrics').collect()
   );
   expect(metrics.filter((m) => (m as { machineId: string }).machineId === machineId).length).toBe(0);
+});
+
+// ─── Eager crash recovery (idle agent restart) ──────────────────────────────
+
+describe('Eager crash recovery (idle agent restart)', () => {
+  test('crash with no task + desiredState=running emits agent.requestStart with reason platform.crash_recovery', async () => {
+    const { sessionId } = await createTestSession('test-eager-1');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-eager-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
+        .first();
+      if (config) await ctx.db.patch(config._id, { desiredState: 'running' });
+    });
+
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 12345,
+    });
+
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 12345,
+      intentional: false,
+      stopReason: 'agent_process.crashed',
+    });
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const crashRecoveryEvents = events.filter(
+      (e) =>
+        e.type === 'agent.requestStart' &&
+        (e as { reason?: string }).reason === 'platform.crash_recovery'
+    );
+    expect(crashRecoveryEvents.length).toBe(1);
+
+    const evt = crashRecoveryEvents[0] as {
+      machineId: string;
+      agentHarness: string;
+      model: string;
+      workingDir: string;
+    };
+    expect(evt.machineId).toBe(machineId);
+    expect(typeof evt.agentHarness).toBe('string');
+    expect(typeof evt.model).toBe('string');
+    expect(typeof evt.workingDir).toBe('string');
+  });
+
+  test('crash with no task + desiredState=stopped does NOT emit agent.requestStart', async () => {
+    const { sessionId } = await createTestSession('test-eager-2');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-eager-2';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
+        .first();
+      if (config) await ctx.db.patch(config._id, { desiredState: 'stopped' });
+    });
+
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 12345,
+      intentional: false,
+      stopReason: 'agent_process.crashed',
+    });
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const crashRecoveryEvents = events.filter(
+      (e) =>
+        e.type === 'agent.requestStart' &&
+        (e as { reason?: string }).reason === 'platform.crash_recovery'
+    );
+    expect(crashRecoveryEvents.length).toBe(0);
+  });
+
+  test('crash with no task + circuitState=open does NOT emit agent.requestStart', async () => {
+    const { sessionId } = await createTestSession('test-eager-3');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-eager-3';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
+        .first();
+      if (config) await ctx.db.patch(config._id, { desiredState: 'running', circuitState: 'open' });
+    });
+
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 12345,
+      intentional: false,
+      stopReason: 'agent_process.crashed',
+    });
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const crashRecoveryEvents = events.filter(
+      (e) =>
+        e.type === 'agent.requestStart' &&
+        (e as { reason?: string }).reason === 'platform.crash_recovery'
+    );
+    expect(crashRecoveryEvents.length).toBe(0);
+  });
+
+  test('crash with no task + missing model field does NOT emit agent.requestStart', async () => {
+    const { sessionId } = await createTestSession('test-eager-4');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-eager-4';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
+        .first();
+      if (config) await ctx.db.patch(config._id, { desiredState: 'running', model: undefined });
+    });
+
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 12345,
+      intentional: false,
+      stopReason: 'agent_process.crashed',
+    });
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const crashRecoveryEvents = events.filter(
+      (e) =>
+        e.type === 'agent.requestStart' &&
+        (e as { reason?: string }).reason === 'platform.crash_recovery'
+    );
+    expect(crashRecoveryEvents.length).toBe(0);
+  });
+
+  test('crash with active task prefers ensureAgentHandler over agent.requestStart', async () => {
+    const { sessionId } = await createTestSession('test-eager-5');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-eager-5';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    await t.run(async (ctx) => {
+      const config = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
+        .first();
+      if (config) await ctx.db.patch(config._id, { desiredState: 'running' });
+    });
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      content: 'test task for crash recovery',
+      senderRole: 'user',
+      type: 'message',
+    });
+
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 12345,
+    });
+
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid: 12345,
+      intentional: false,
+      stopReason: 'agent_process.crashed',
+    });
+
+    const scheduled = await t.run(async (ctx) => {
+      return ctx.db.system.query('_scheduled_functions').collect();
+    });
+    const ensureCheck = scheduled.find((s) => {
+      const argsArray = (s as { args?: unknown[] }).args;
+      const checkArgs = argsArray?.[0] as
+        | { snapshotUpdatedAt?: number; chatroomId?: string }
+        | undefined;
+      return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
+    });
+    expect(ensureCheck).toBeDefined();
+
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const crashRecoveryEvents = events.filter(
+      (e) =>
+        e.type === 'agent.requestStart' &&
+        (e as { reason?: string }).reason === 'platform.crash_recovery'
+    );
+    expect(crashRecoveryEvents.length).toBe(0);
+  });
 });

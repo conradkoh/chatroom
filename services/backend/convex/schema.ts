@@ -320,6 +320,13 @@ export default defineSchema({
     // Written by the CLI whenever the agent produces output (throttled to once per 30s).
     // Used to detect stuck agents that have stopped producing output mid-task.
     lastSeenTokenAt: v.optional(v.number()),
+    // Denormalized mirror of the latest event stream event type for this participant.
+    // Written alongside every event stream insert so the frontend can derive agent status
+    // from the participant record alone (without querying the event stream).
+    lastStatus: v.optional(v.string()),
+    // Denormalized mirror of desiredState from chatroom_teamAgentConfigs.
+    // Written when start-agent or stop-agent use cases change desiredState.
+    lastDesiredState: v.optional(v.string()),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_and_role', ['chatroomId', 'role']),
