@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import { Search } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
 
 import { getModelDisplayLabel } from '../types/machine';
 
@@ -51,6 +52,7 @@ export function ModelFilterPanel({
 }: ModelFilterPanelProps) {
   const hiddenModels = filter?.hiddenModels ?? [];
   const hiddenProviders = filter?.hiddenProviders ?? [];
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Group models by provider
   const modelsByProvider = useMemo(() => {
@@ -63,6 +65,23 @@ export function ModelFilterPanel({
     }
     return groups;
   }, [availableModels]);
+
+  // Filter providers and models by search query
+  const filteredModelsByProvider = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return modelsByProvider;
+    const filtered = new Map<string, string[]>();
+    for (const [provider, models] of modelsByProvider) {
+      const matchingModels = models.filter(
+        (m) =>
+          m.toLowerCase().includes(q) || getModelDisplayLabel(m).toLowerCase().includes(q)
+      );
+      if (matchingModels.length > 0 || provider.toLowerCase().includes(q)) {
+        filtered.set(provider, matchingModels.length > 0 ? matchingModels : models);
+      }
+    }
+    return filtered;
+  }, [modelsByProvider, searchQuery]);
 
   const handleModelToggle = (modelId: string) => {
     if (disabled) return;
@@ -109,7 +128,13 @@ export function ModelFilterPanel({
   const hasAnyFilter = hiddenCount > 0;
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setSearchQuery('');
+        onOpenChange(next);
+      }}
+    >
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         className="bg-chatroom-bg-primary border border-chatroom-border p-0 w-[420px] rounded-none"
@@ -127,9 +152,21 @@ export function ModelFilterPanel({
           )}
         </div>
 
+        {/* Search input */}
+        <div className="px-3 py-1.5 border-b border-chatroom-border flex items-center gap-2">
+          <Search size={10} className="text-chatroom-text-muted flex-shrink-0" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search models..."
+            className="flex-1 bg-transparent text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary placeholder:text-chatroom-text-muted focus:outline-none"
+          />
+        </div>
+
         {/* Model list grouped by provider */}
         <div className="max-h-96 overflow-y-auto">
-          {Array.from(modelsByProvider.entries()).map(([provider, models]) => {
+          {Array.from(filteredModelsByProvider.entries()).map(([provider, models]) => {
             const isProviderHidden = hiddenProviders.includes(provider);
             return (
               <div key={provider}>
@@ -206,6 +243,11 @@ export function ModelFilterPanel({
               </div>
             );
           })}
+          {filteredModelsByProvider.size === 0 && (
+            <div className="px-3 py-3 text-center text-[10px] text-chatroom-text-muted uppercase tracking-wider">
+              No models found.
+            </div>
+          )}
         </div>
 
         {/* Reset button */}
