@@ -97,7 +97,7 @@ function parseDiff(content: string): FileDiffSection[] {
 const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
   if (line.type === 'hunk') {
     return (
-      <div className="text-chatroom-text-muted font-mono text-[10px] whitespace-pre px-2 py-0">
+      <div className="text-chatroom-text-muted font-mono text-[10px] whitespace-pre px-3 py-0">
         {line.content}
       </div>
     );
@@ -105,7 +105,7 @@ const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
 
   if (line.type === 'addition') {
     return (
-      <div className="bg-green-50 dark:bg-green-950/20 text-green-800 dark:text-green-300 font-mono text-[11px] whitespace-pre px-2">
+      <div className="bg-green-50 dark:bg-green-950/20 text-green-800 dark:text-green-300 font-mono text-[11px] whitespace-pre px-3">
         {line.content}
       </div>
     );
@@ -113,7 +113,7 @@ const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
 
   if (line.type === 'deletion') {
     return (
-      <div className="bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-300 font-mono text-[11px] whitespace-pre px-2">
+      <div className="bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-300 font-mono text-[11px] whitespace-pre px-3">
         {line.content}
       </div>
     );
@@ -121,7 +121,7 @@ const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
 
   // context
   return (
-    <div className="text-chatroom-text-secondary font-mono text-[11px] whitespace-pre px-2">
+    <div className="text-chatroom-text-secondary font-mono text-[11px] whitespace-pre px-3">
       {line.content}
     </div>
   );
@@ -129,9 +129,9 @@ const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
 
 const FileDiffBlock = memo(function FileDiffBlock({ section }: { section: FileDiffSection }) {
   return (
-    <div className="border border-chatroom-border rounded overflow-hidden">
+    <div className="border border-chatroom-border rounded-md overflow-hidden">
       {/* File header */}
-      <div className="bg-chatroom-bg-tertiary px-3 py-1 font-mono text-[11px] text-chatroom-text-secondary border-b border-chatroom-border truncate">
+      <div className="bg-chatroom-bg-tertiary px-3 py-1.5 font-mono text-[11px] text-chatroom-text-secondary border-b border-chatroom-border truncate">
         {section.filePath || '(unknown file)'}
       </div>
 

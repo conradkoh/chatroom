@@ -101,7 +101,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
       </div>
 
       {/* Content pane */}
-      <div className="pt-2">
+      <div className="pt-3">
         {activeTab === 'branch' && <WorkspaceGitBranch state={gitState} />}
 
         {activeTab === 'diff' && (

@@ -39,15 +39,15 @@ const WorkspaceChip = memo(function WorkspaceChip({
   // Diff stat display
   let statContent: React.ReactNode = null;
   if (gitState.status === 'loading') {
-    statContent = <span className="text-chatroom-text-muted text-[10px]">…</span>;
+    statContent = <span className="text-chatroom-text-muted text-[11px]">…</span>;
   } else if (gitState.status === 'available') {
     const { insertions, deletions, filesChanged } = gitState.diffStat;
     const isClean = filesChanged === 0 && insertions === 0 && deletions === 0;
     if (isClean) {
-      statContent = <span className="text-chatroom-text-muted text-[10px]">clean</span>;
+      statContent = <span className="text-chatroom-text-muted text-[11px]">clean</span>;
     } else {
       statContent = (
-        <span className="flex items-center gap-0.5 text-[10px]">
+        <span className="flex items-center gap-0.5 text-[11px]">
           <span className="text-chatroom-status-success">+{insertions}</span>
           <span className="text-chatroom-status-error">−{deletions}</span>
         </span>
@@ -61,21 +61,21 @@ const WorkspaceChip = memo(function WorkspaceChip({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex items-center gap-1.5 px-2 py-1 rounded-sm cursor-pointer transition-colors text-[11px] shrink-0 whitespace-nowrap',
+        'flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer transition-colors shrink-0 whitespace-nowrap',
         'hover:bg-chatroom-bg-hover',
         isActive && 'bg-chatroom-bg-hover border-b-2 border-chatroom-accent',
         !isActive && 'border-b-2 border-transparent',
       )}
     >
       <FolderOpen size={12} className="text-chatroom-text-muted shrink-0" />
-      <span className="text-chatroom-text-primary font-medium">
+      <span className="text-xs text-chatroom-text-primary font-medium">
         {getWorkspaceName(workspace.workingDir)}
       </span>
-      <span className="text-chatroom-text-muted">·</span>
-      <span className="text-chatroom-text-muted">{workspace.hostname}</span>
+      <span className="text-[11px] text-chatroom-text-muted">·</span>
+      <span className="text-[11px] text-chatroom-text-muted">{workspace.hostname}</span>
       {statContent && (
         <>
-          <span className="text-chatroom-text-muted">·</span>
+          <span className="text-[11px] text-chatroom-text-muted">·</span>
           {statContent}
         </>
       )}
@@ -100,9 +100,9 @@ export const WorkspaceBar = memo(function WorkspaceBar({ workspaces }: Workspace
   const selectedWorkspace = workspaces.find((w) => w.id === selectedId);
 
   return (
-    <div className="border-t border-chatroom-border">
+    <div className="rounded-md border border-chatroom-border mx-3 mb-2">
       {/* Workspace chips row */}
-      <div className="flex items-center gap-1 px-3 py-1 overflow-x-auto">
+      <div className="flex items-center gap-1 px-3 py-1.5 overflow-x-auto">
         {workspaces.map((ws) => (
           <WorkspaceChip
             key={ws.id}
@@ -115,7 +115,7 @@ export const WorkspaceBar = memo(function WorkspaceBar({ workspaces }: Workspace
 
       {/* Expanded git panel */}
       {selectedWorkspace && selectedWorkspace.machineId && (
-        <div className="border-t border-chatroom-border px-3 py-2 max-h-[300px] overflow-y-auto">
+        <div className="border-t border-chatroom-border px-3 py-3 max-h-[300px] overflow-y-auto">
           <WorkspaceGitPanel
             machineId={selectedWorkspace.machineId}
             workingDir={selectedWorkspace.workingDir}

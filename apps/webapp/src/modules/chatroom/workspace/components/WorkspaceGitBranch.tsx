@@ -50,7 +50,7 @@ export const WorkspaceGitBranch = memo(function WorkspaceGitBranch({
     return (
       <div className="flex items-center gap-1.5 text-chatroom-text-muted">
         <AlertCircle size={13} className="shrink-0" />
-        <span className="text-[11px]">Git info not found</span>
+        <span className="text-xs">Git info not found</span>
       </div>
     );
   }
@@ -59,7 +59,7 @@ export const WorkspaceGitBranch = memo(function WorkspaceGitBranch({
     return (
       <div className="flex items-center gap-1.5 text-chatroom-status-error">
         <AlertTriangle size={13} className="shrink-0" />
-        <span className="text-[11px] truncate">{state.message}</span>
+        <span className="text-xs truncate">{state.message}</span>
       </div>
     );
   }

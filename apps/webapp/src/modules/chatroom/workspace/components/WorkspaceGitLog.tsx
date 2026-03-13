@@ -62,7 +62,7 @@ const CommitRow = memo(function CommitRow({ commit, isSelected, onSelect }: Comm
         <span className="text-xs text-chatroom-text-primary truncate">{commit.message}</span>
       </div>
       {/* Second line: author + relative date */}
-      <div className="flex items-center gap-2 text-[10px] text-chatroom-text-muted">
+      <div className="flex items-center gap-2 text-[11px] text-chatroom-text-muted">
         <span>{commit.author}</span>
         <span>·</span>
         <span>{formatRelativeDate(commit.date)}</span>
@@ -86,7 +86,7 @@ export const WorkspaceGitLog = memo(function WorkspaceGitLog({
 }: WorkspaceGitLogProps) {
   if (commits.length === 0) {
     return (
-      <div className="text-[11px] text-chatroom-text-muted px-3 py-2">No commits</div>
+      <div className="text-xs text-chatroom-text-muted px-3 py-2">No commits</div>
     );
   }
 

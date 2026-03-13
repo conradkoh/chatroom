@@ -126,7 +126,7 @@ export const WorkspaceCommitDetail = memo(function WorkspaceCommitDetail({
         <p className="text-xs text-chatroom-text-primary font-medium leading-snug">
           {state.message}
         </p>
-        <div className="flex items-center gap-2 text-[10px] text-chatroom-text-muted flex-wrap">
+        <div className="flex items-center gap-2 text-[11px] text-chatroom-text-muted flex-wrap">
           <span>{state.author}</span>
           <span>·</span>
           <span>{new Date(state.date).toLocaleDateString()}</span>
