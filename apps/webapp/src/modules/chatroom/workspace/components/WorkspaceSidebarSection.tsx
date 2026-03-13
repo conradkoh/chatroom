@@ -103,10 +103,8 @@ const WorkspaceRow = memo(function WorkspaceRow({
 // ─── WorkspaceSidebarSection ──────────────────────────────────────────────────
 
 /**
- * Sidebar section that lists workspaces and opens a full-screen modal
+ * Sidebar section that lists the primary workspace and opens a full-screen modal
  * with the git panel when a workspace is selected.
- *
- * Also renders the Chatroom ID at the bottom.
  */
 export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
   workspaces,
@@ -126,35 +124,31 @@ export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
 
   if (workspaces.length === 0) return null;
 
+  const primaryWorkspace = workspaces[0]!;
+  const extraCount = workspaces.length - 1;
+
   return (
     <>
       <div className="border-t-2 border-chatroom-border-strong">
-        {/* Section header */}
-        <div className="px-3 pt-3 pb-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-            Workspaces
-          </span>
-        </div>
+        {/* Primary workspace */}
+        <WorkspaceRow
+          key={primaryWorkspace.id}
+          workspace={primaryWorkspace}
+          isActive={selectedId === primaryWorkspace.id}
+          onClick={() => handleClick(primaryWorkspace.id)}
+        />
 
-        {/* Workspace list */}
-        {workspaces.map((ws) => (
-          <WorkspaceRow
-            key={ws.id}
-            workspace={ws}
-            isActive={selectedId === ws.id}
-            onClick={() => handleClick(ws.id)}
-          />
-        ))}
-
-        {/* Chatroom ID */}
-        <div className="px-3 py-3 border-t border-chatroom-border mt-2">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
-            Chatroom ID
+        {/* "View X more" indicator */}
+        {extraCount > 0 && (
+          <div className="px-3 py-2">
+            <button
+              type="button"
+              className="text-[10px] text-chatroom-text-muted hover:text-chatroom-text-secondary transition-colors"
+            >
+              View {extraCount} more workspace{extraCount > 1 ? 's' : ''}
+            </button>
           </div>
-          <div className="font-mono text-[10px] font-bold text-chatroom-text-secondary break-all p-1.5 bg-chatroom-bg-tertiary">
-            {chatroomId}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Workspace Git Modal */}
