@@ -70,11 +70,12 @@ function isPermissionDenied(message: string): boolean {
 }
 
 /** Returns true if the error indicates no commits exist yet (empty repo). */
-function isEmptyRepo(stderr: string, stdout: string): boolean {
+function isEmptyRepo(stderr: string): boolean {
   return (
     stderr.includes('does not have any commits yet') ||
+    stderr.includes('no commits yet') ||
     stderr.includes("ambiguous argument 'HEAD'") ||
-    stdout.trim() === ''
+    stderr.includes('unknown revision or path')
   );
 }
 
@@ -154,8 +155,10 @@ export async function isDirty(workingDir: string): Promise<boolean> {
  * Parses `--stat` output into a `GitDiffStat`.
  * Input: the summary line, e.g. "3 files changed, 45 insertions(+), 12 deletions(-)"
  * Returns zero values if the tree is clean or the line cannot be parsed.
+ *
+ * Exported for direct unit testing.
  */
-function parseDiffStatLine(statLine: string): GitDiffStat {
+export function parseDiffStatLine(statLine: string): GitDiffStat {
   const filesMatch = statLine.match(/(\d+)\s+file/);
   const insertMatch = statLine.match(/(\d+)\s+insertion/);
   const deleteMatch = statLine.match(/(\d+)\s+deletion/);
@@ -177,7 +180,7 @@ export async function getDiffStat(workingDir: string): Promise<GitDiffStatResult
 
   if ('error' in result) {
     const errMsg = result.error.message;
-    if (isEmptyRepo(result.error.message, '')) {
+    if (isEmptyRepo(result.error.message)) {
       return { status: 'no_commits' };
     }
     const classified = classifyError(errMsg);
@@ -190,7 +193,7 @@ export async function getDiffStat(workingDir: string): Promise<GitDiffStatResult
   const output = result.stdout;
   const stderr = result.stderr;
 
-  if (isEmptyRepo(stderr, output)) {
+  if (isEmptyRepo(stderr)) {
     return { status: 'no_commits' };
   }
 
@@ -222,7 +225,7 @@ export async function getFullDiff(workingDir: string): Promise<GitFullDiffResult
 
   if ('error' in result) {
     const errMsg = result.error.message;
-    if (isEmptyRepo(errMsg, '')) {
+    if (isEmptyRepo(errMsg)) {
       return { status: 'no_commits' };
     }
     const classified = classifyError(errMsg);
@@ -231,7 +234,7 @@ export async function getFullDiff(workingDir: string): Promise<GitFullDiffResult
   }
 
   const stderr = result.stderr;
-  if (isEmptyRepo(stderr, result.stdout)) {
+  if (isEmptyRepo(stderr)) {
     return { status: 'no_commits' };
   }
 
@@ -287,7 +290,8 @@ export async function getRecentCommits(
  * Returns the full diff for a specific commit SHA (`git show <sha>`).
  * Content is capped at `FULL_DIFF_MAX_BYTES` (500 KB).
  *
- * Returns `{ status: 'not_found' }` if the SHA does not exist.
+ * Returns `{ status: 'not_found' }` if the SHA does not exist in the
+ * repository, or if the repository has no commits yet (empty repo).
  */
 export async function getCommitDetail(
   workingDir: string,
@@ -298,14 +302,23 @@ export async function getCommitDetail(
 
   if ('error' in result) {
     const errMsg = result.error.message;
+
+    // Non-git directory: return not_found
+    const classified = classifyError(errMsg);
+    if (classified.status === 'not_found') return { status: 'not_found' };
+
+    // Empty repo or non-existent SHA → not_found.
+    // Distinguishing "sha doesn't exist" from "no commits yet" is not useful to callers.
     if (
+      isEmptyRepo(errMsg) ||
       errMsg.includes('unknown revision') ||
       errMsg.includes('bad object') ||
       errMsg.includes('does not exist')
     ) {
       return { status: 'not_found' };
     }
-    return classifyError(errMsg);
+
+    return classified;
   }
 
   const raw = result.stdout;

@@ -1,0 +1,371 @@
+/**
+ * git-reader Unit Tests
+ *
+ * Tests all exported functions using mocked child_process.exec.
+ * No actual git commands are run — all responses are simulated via mocks.
+ */
+
+import { describe, expect, test, vi, beforeEach } from 'vitest';
+
+// Mock the node built-ins before importing the module under test
+vi.mock('node:child_process', () => ({
+  exec: vi.fn(),
+}));
+
+vi.mock('node:util', () => ({
+  promisify: (fn: Function) => fn,
+}));
+
+import { exec } from 'node:child_process';
+import {
+  isGitRepo,
+  getBranch,
+  isDirty,
+  getDiffStat,
+  getFullDiff,
+  getRecentCommits,
+  getCommitDetail,
+  parseDiffStatLine,
+} from './git-reader.js';
+import { FULL_DIFF_MAX_BYTES } from './types.js';
+
+const mockExec = vi.mocked(exec);
+
+// ─── Helper: mock exec to return success ────────────────────────────────────
+
+function mockSuccess(stdout: string, stderr = ''): void {
+  // exec is promisified — mock returns a promise that resolves
+  mockExec.mockImplementationOnce((_cmd, _opts, callback) => {
+    // promisify wraps the node-style callback; return the raw value
+    return Promise.resolve({ stdout, stderr }) as unknown as ReturnType<typeof exec>;
+  });
+}
+
+function mockFailure(message: string, code = 1): void {
+  const err = Object.assign(new Error(message), { code });
+  mockExec.mockImplementationOnce(() => {
+    return Promise.reject(err) as unknown as ReturnType<typeof exec>;
+  });
+}
+
+// ─── Restore mocks between tests ────────────────────────────────────────────
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+// ─── parseDiffStatLine ───────────────────────────────────────────────────────
+
+describe('parseDiffStatLine', () => {
+  test('parses standard stat line with all fields', () => {
+    const result = parseDiffStatLine('3 files changed, 45 insertions(+), 12 deletions(-)');
+    expect(result).toEqual({ filesChanged: 3, insertions: 45, deletions: 12 });
+  });
+
+  test('parses stat line with only insertions', () => {
+    const result = parseDiffStatLine('1 file changed, 10 insertions(+)');
+    expect(result).toEqual({ filesChanged: 1, insertions: 10, deletions: 0 });
+  });
+
+  test('parses stat line with only deletions', () => {
+    const result = parseDiffStatLine('2 files changed, 5 deletions(-)');
+    expect(result).toEqual({ filesChanged: 2, insertions: 0, deletions: 5 });
+  });
+
+  test('returns zeros for empty string', () => {
+    const result = parseDiffStatLine('');
+    expect(result).toEqual({ filesChanged: 0, insertions: 0, deletions: 0 });
+  });
+
+  test('parses large numbers', () => {
+    const result = parseDiffStatLine('100 files changed, 10000 insertions(+), 3000 deletions(-)');
+    expect(result).toEqual({ filesChanged: 100, insertions: 10000, deletions: 3000 });
+  });
+});
+
+// ─── isGitRepo ───────────────────────────────────────────────────────────────
+
+describe('isGitRepo', () => {
+  test('returns true when git rev-parse returns a .git path', async () => {
+    mockSuccess('.git\n');
+    expect(await isGitRepo('/some/repo')).toBe(true);
+  });
+
+  test('returns false for non-git directory (not a git repository error)', async () => {
+    mockFailure('fatal: not a git repository (or any of the parent directories): .git');
+    expect(await isGitRepo('/not/a/repo')).toBe(false);
+  });
+
+  test('returns false when git is not installed', async () => {
+    mockFailure('command not found: git');
+    expect(await isGitRepo('/some/dir')).toBe(false);
+  });
+
+  test('returns false on any other error', async () => {
+    mockFailure('Permission denied');
+    expect(await isGitRepo('/restricted')).toBe(false);
+  });
+});
+
+// ─── getBranch ───────────────────────────────────────────────────────────────
+
+describe('getBranch', () => {
+  test('returns available with branch name for normal branch', async () => {
+    mockSuccess('main\n');
+    const result = await getBranch('/repo');
+    expect(result).toEqual({ status: 'available', branch: 'main' });
+  });
+
+  test('returns available with feature branch name', async () => {
+    mockSuccess('feat/my-feature\n');
+    const result = await getBranch('/repo');
+    expect(result).toEqual({ status: 'available', branch: 'feat/my-feature' });
+  });
+
+  test('returns available with HEAD for detached HEAD state', async () => {
+    mockSuccess('HEAD\n');
+    const result = await getBranch('/repo');
+    expect(result).toEqual({ status: 'available', branch: 'HEAD' });
+  });
+
+  test('returns available with HEAD for empty repo (unknown revision)', async () => {
+    mockFailure("fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree");
+    const result = await getBranch('/repo');
+    expect(result).toEqual({ status: 'available', branch: 'HEAD' });
+  });
+
+  test('returns not_found for non-git directory', async () => {
+    mockFailure('fatal: not a git repository (or any of the parent directories): .git');
+    const result = await getBranch('/not/a/repo');
+    expect(result).toEqual({ status: 'not_found' });
+  });
+
+  test('returns error for git not installed', async () => {
+    mockFailure('command not found: git');
+    const result = await getBranch('/repo');
+    expect(result).toEqual({ status: 'error', message: 'git is not installed or not in PATH' });
+  });
+});
+
+// ─── isDirty ─────────────────────────────────────────────────────────────────
+
+describe('isDirty', () => {
+  test('returns true when git status --porcelain has output (dirty)', async () => {
+    mockSuccess(' M src/index.ts\n');
+    expect(await isDirty('/repo')).toBe(true);
+  });
+
+  test('returns false when git status --porcelain is empty (clean)', async () => {
+    mockSuccess('');
+    expect(await isDirty('/repo')).toBe(false);
+  });
+
+  test('returns false for non-git directory (no throw)', async () => {
+    mockFailure('fatal: not a git repository');
+    expect(await isDirty('/not/a/repo')).toBe(false);
+  });
+
+  test('returns false on any error (safe default)', async () => {
+    mockFailure('Permission denied');
+    expect(await isDirty('/restricted')).toBe(false);
+  });
+});
+
+// ─── getDiffStat ─────────────────────────────────────────────────────────────
+
+describe('getDiffStat', () => {
+  test('returns available with zero stats for clean tree', async () => {
+    mockSuccess('');
+    const result = await getDiffStat('/repo');
+    expect(result).toEqual({
+      status: 'available',
+      diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+    });
+  });
+
+  test('returns available with parsed stats for dirty tree', async () => {
+    const statOutput = [
+      ' src/foo.ts | 10 +++++++---',
+      ' src/bar.ts |  5 -----',
+      ' 2 files changed, 7 insertions(+), 8 deletions(-)',
+    ].join('\n');
+    mockSuccess(statOutput);
+    const result = await getDiffStat('/repo');
+    expect(result).toEqual({
+      status: 'available',
+      diffStat: { filesChanged: 2, insertions: 7, deletions: 8 },
+    });
+  });
+
+  test('returns no_commits for empty repository', async () => {
+    mockFailure("fatal: ambiguous argument 'HEAD': unknown revision");
+    const result = await getDiffStat('/empty-repo');
+    expect(result).toEqual({ status: 'no_commits' });
+  });
+
+  test('returns not_found for non-git directory', async () => {
+    mockFailure('fatal: not a git repository');
+    const result = await getDiffStat('/not/a/repo');
+    expect(result).toEqual({ status: 'not_found' });
+  });
+
+  test('returns error for permission denied', async () => {
+    mockFailure('Permission denied');
+    const result = await getDiffStat('/restricted');
+    expect(result.status).toBe('error');
+    if (result.status === 'error') {
+      expect(result.message).toContain('Permission denied');
+    }
+  });
+});
+
+// ─── getFullDiff ─────────────────────────────────────────────────────────────
+
+describe('getFullDiff', () => {
+  test('returns available with empty content for clean tree', async () => {
+    mockSuccess('');
+    const result = await getFullDiff('/repo');
+    expect(result).toEqual({ status: 'available', content: '', truncated: false });
+  });
+
+  test('returns available with diff content', async () => {
+    const diff = 'diff --git a/foo.ts b/foo.ts\n+added line\n';
+    mockSuccess(diff);
+    const result = await getFullDiff('/repo');
+    expect(result).toEqual({ status: 'available', content: diff, truncated: false });
+  });
+
+  test('returns truncated when diff exceeds max bytes', async () => {
+    // Create a string exceeding FULL_DIFF_MAX_BYTES
+    const largeDiff = 'x'.repeat(FULL_DIFF_MAX_BYTES + 1000);
+    mockSuccess(largeDiff);
+    const result = await getFullDiff('/repo');
+    expect(result.status).toBe('truncated');
+    if (result.status === 'truncated') {
+      expect(result.truncated).toBe(true);
+      expect(Buffer.byteLength(result.content, 'utf8')).toBeLessThanOrEqual(FULL_DIFF_MAX_BYTES);
+    }
+  });
+
+  test('returns no_commits for empty repository', async () => {
+    mockFailure("fatal: ambiguous argument 'HEAD': unknown revision");
+    const result = await getFullDiff('/empty-repo');
+    expect(result).toEqual({ status: 'no_commits' });
+  });
+
+  test('returns not_found for non-git directory', async () => {
+    mockFailure('fatal: not a git repository');
+    const result = await getFullDiff('/not/a/repo');
+    expect(result).toEqual({ status: 'not_found' });
+  });
+});
+
+// ─── getRecentCommits ────────────────────────────────────────────────────────
+
+describe('getRecentCommits', () => {
+  test('parses commit list correctly', async () => {
+    // Null-byte separated: sha, shortSha, message, author, date
+    const output = [
+      'abc1234567890abcdef1234567890abcdef123456\x00abc1234\x00Fix bug\x00Alice\x002026-01-01T00:00:00Z',
+      'def5678901234567890abcdef5678901234567890\x00def5678\x00Add feature\x00Bob\x002026-01-02T00:00:00Z',
+    ].join('\n');
+    mockSuccess(output);
+    const result = await getRecentCommits('/repo');
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({
+      sha: 'abc1234567890abcdef1234567890abcdef123456',
+      shortSha: 'abc1234',
+      message: 'Fix bug',
+      author: 'Alice',
+      date: '2026-01-01T00:00:00Z',
+    });
+    expect(result[1]).toEqual({
+      sha: 'def5678901234567890abcdef5678901234567890',
+      shortSha: 'def5678',
+      message: 'Add feature',
+      author: 'Bob',
+      date: '2026-01-02T00:00:00Z',
+    });
+  });
+
+  test('returns empty array for empty repository', async () => {
+    mockFailure('fatal: your current branch has no commits yet');
+    expect(await getRecentCommits('/empty-repo')).toEqual([]);
+  });
+
+  test('returns empty array for non-git directory', async () => {
+    mockFailure('fatal: not a git repository');
+    expect(await getRecentCommits('/not/a/repo')).toEqual([]);
+  });
+
+  test('returns empty array when git output is empty', async () => {
+    mockSuccess('');
+    expect(await getRecentCommits('/repo')).toEqual([]);
+  });
+
+  test('defaults to 20 commits', async () => {
+    mockSuccess('');
+    await getRecentCommits('/repo');
+    expect(mockExec).toHaveBeenCalledWith(
+      expect.stringContaining('log -20'),
+      expect.any(Object)
+    );
+  });
+
+  test('passes custom count to git log', async () => {
+    mockSuccess('');
+    await getRecentCommits('/repo', 5);
+    expect(mockExec).toHaveBeenCalledWith(
+      expect.stringContaining('log -5'),
+      expect.any(Object)
+    );
+  });
+});
+
+// ─── getCommitDetail ─────────────────────────────────────────────────────────
+
+describe('getCommitDetail', () => {
+  test('returns available with commit diff content', async () => {
+    const content = 'diff --git a/file.ts b/file.ts\n+added\n';
+    mockSuccess(content);
+    const result = await getCommitDetail('/repo', 'abc1234');
+    expect(result).toEqual({ status: 'available', content, truncated: false });
+  });
+
+  test('returns truncated when commit diff exceeds max bytes', async () => {
+    const large = 'x'.repeat(FULL_DIFF_MAX_BYTES + 1000);
+    mockSuccess(large);
+    const result = await getCommitDetail('/repo', 'abc1234');
+    expect(result.status).toBe('truncated');
+  });
+
+  test('returns not_found for unknown SHA', async () => {
+    mockFailure('fatal: bad object deadbeef');
+    const result = await getCommitDetail('/repo', 'deadbeef');
+    expect(result).toEqual({ status: 'not_found' });
+  });
+
+  test('returns not_found for empty repository (unknown revision)', async () => {
+    mockFailure("fatal: ambiguous argument 'HEAD': unknown revision");
+    const result = await getCommitDetail('/empty-repo', 'HEAD');
+    expect(result).toEqual({ status: 'not_found' });
+  });
+
+  test('returns not_found for empty repository (no commits yet)', async () => {
+    mockFailure('fatal: your current branch has no commits yet');
+    const result = await getCommitDetail('/empty-repo', 'abc1234');
+    expect(result).toEqual({ status: 'not_found' });
+  });
+
+  test('returns not_found for non-git directory', async () => {
+    mockFailure('fatal: not a git repository');
+    const result = await getCommitDetail('/not/a/repo', 'abc1234');
+    expect(result).toEqual({ status: 'not_found' });
+  });
+
+  test('returns error for permission denied', async () => {
+    mockFailure('Permission denied');
+    const result = await getCommitDetail('/restricted', 'abc1234');
+    expect(result.status).toBe('error');
+  });
+});

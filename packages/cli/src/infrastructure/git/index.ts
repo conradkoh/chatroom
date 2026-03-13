@@ -13,7 +13,7 @@ export type {
   GitCommitDetailResult,
 } from './types.js';
 
-export { FULL_DIFF_MAX_BYTES } from './types.js';
+export { FULL_DIFF_MAX_BYTES, makeGitStateKey } from './types.js';
 
 export {
   isGitRepo,
@@ -23,4 +23,5 @@ export {
   getFullDiff,
   getRecentCommits,
   getCommitDetail,
+  parseDiffStatLine,
 } from './git-reader.js';

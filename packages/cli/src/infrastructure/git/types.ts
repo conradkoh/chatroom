@@ -88,3 +88,13 @@ export type GitCommitDetailResult =
 
 /** Maximum byte size for full diff content before truncation. */
 export const FULL_DIFF_MAX_BYTES = 500_000; // 500 KB
+
+/**
+ * Creates a stable string key for indexing git state by workspace.
+ * Format: `${machineId}::${workingDir}`
+ *
+ * Used as the key in `DaemonContext.lastPushedGitState` for change detection.
+ */
+export function makeGitStateKey(machineId: string, workingDir: string): string {
+  return `${machineId}::${workingDir}`;
+}
