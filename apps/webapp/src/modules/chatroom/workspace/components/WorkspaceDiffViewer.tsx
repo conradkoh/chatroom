@@ -223,6 +223,7 @@ function LoadingSkeleton() {
  */
 export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
   state,
+  onRequest,
 }: WorkspaceDiffViewerProps) {
   const [selectedFileIdx, setSelectedFileIdx] = useState<number>(0);
 
@@ -237,9 +238,20 @@ export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
 
   if (state.status === 'error') {
     return (
-      <div className="flex items-center gap-1.5 text-chatroom-status-error text-[11px] p-4">
-        <AlertTriangle size={13} className="shrink-0" />
-        <span>{state.message}</span>
+      <div className="flex flex-col items-center justify-center h-full min-h-[120px] gap-2 p-4">
+        <div className="flex items-center gap-1.5 text-chatroom-status-error text-[11px]">
+          <AlertTriangle size={13} className="shrink-0" />
+          <span>{state.message}</span>
+        </div>
+        {onRequest && (
+          <button
+            type="button"
+            onClick={onRequest}
+            className="text-[11px] text-chatroom-text-secondary hover:text-chatroom-text-primary transition-colors underline"
+          >
+            Retry
+          </button>
+        )}
       </div>
     );
   }
@@ -249,7 +261,10 @@ export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
 
   if (sections.length === 0) {
     return (
-      <div className="text-[11px] text-chatroom-text-muted p-4">No changes</div>
+      <div className="flex flex-col items-center justify-center h-full min-h-[120px] gap-2 p-4">
+        <span className="text-[11px] text-chatroom-text-muted">✓ No changes</span>
+        <span className="text-[10px] text-chatroom-text-muted">Working tree is clean</span>
+      </div>
     );
   }
 

@@ -5,6 +5,22 @@ import { AlertCircle, AlertTriangle, GitBranch } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { WorkspaceGitState, DiffStat } from '../types/git';
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Formats a timestamp as a relative "ago" string, e.g. "2m ago", "1h ago". */
+function formatUpdatedAgo(updatedAt: number): string {
+  const diffMs = Date.now() - updatedAt;
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 10) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 interface WorkspaceGitBranchProps {
   state: WorkspaceGitState;
 }
@@ -66,12 +82,13 @@ export const WorkspaceGitBranch = memo(function WorkspaceGitBranch({
 
   // state.status === 'available'
   const { branch, isDirty, diffStat } = state;
+  const displayBranch = branch === 'HEAD' ? 'detached HEAD' : branch;
 
   return (
     <div className="flex items-center gap-2 min-w-0">
       {/* Branch icon + name */}
       <GitBranch size={14} className="text-chatroom-text-muted shrink-0" />
-      <span className="font-mono text-xs text-chatroom-text-primary truncate">{branch}</span>
+      <span className="font-mono text-xs text-chatroom-text-primary truncate">{displayBranch}</span>
 
       {/* Dirty indicator */}
       {isDirty && (
@@ -84,6 +101,13 @@ export const WorkspaceGitBranch = memo(function WorkspaceGitBranch({
 
       {/* Diff stat summary */}
       <DiffStatSummary diffStat={diffStat} />
+
+      {/* Last updated */}
+      {state.updatedAt && (
+        <span className="text-[10px] text-chatroom-text-muted shrink-0" title={new Date(state.updatedAt).toLocaleString()}>
+          {formatUpdatedAgo(state.updatedAt)}
+        </span>
+      )}
     </div>
   );
 });

@@ -63,7 +63,7 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
           <div className="flex items-center gap-0.5">
             <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
             <span className="text-[11px] font-mono text-chatroom-text-secondary uppercase tracking-wider">
-              {gitState.branch}
+              {gitState.branch === 'HEAD' ? 'detached HEAD' : gitState.branch}
             </span>
           </div>
         </>
@@ -123,7 +123,9 @@ const WorkspaceRow = memo(function WorkspaceRow({
     }
   }
 
-  const branchName = gitState.status === 'available' ? gitState.branch : null;
+  const branchName = gitState.status === 'available'
+    ? (gitState.branch === 'HEAD' ? 'detached' : gitState.branch)
+    : null;
 
   return (
     <button

@@ -12,7 +12,6 @@ interface WorkspaceCommitDetailProps {
   sha: string;
   state: CommitDetailState;
   onRequestDetail: (sha: string) => void;
-  /** @deprecated No longer rendered — kept for backward compat. */
   onClose?: () => void;
 }
 
