@@ -3,6 +3,13 @@
 import { memo, useState, useCallback } from 'react';
 import { FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  FixedModal,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+  FixedModalBody,
+} from '@/components/ui/fixed-modal';
 import type { Workspace } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
 import { WorkspaceGitPanel } from './WorkspaceGitPanel';
@@ -88,40 +95,72 @@ const WorkspaceChip = memo(function WorkspaceChip({
 /**
  * Dense inline bar displaying all workspaces above the message input.
  *
- * Clicking a chip expands a git panel below the chips; clicking again collapses it.
+ * Clicking a chip opens a near-full-screen modal with the full git panel.
  */
 export const WorkspaceBar = memo(function WorkspaceBar({ workspaces }: WorkspaceBarProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const handleClick = useCallback((wsId: string) => {
-    setSelectedId((prev) => (prev === wsId ? null : wsId));
+    setSelectedId(wsId);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setSelectedId(null);
   }, []);
 
   const selectedWorkspace = workspaces.find((w) => w.id === selectedId);
 
   return (
-    <div className="border-t border-chatroom-border bg-chatroom-bg-surface">
-      {/* Workspace chips row */}
-      <div className="flex items-center gap-2 px-4 py-2 overflow-x-auto">
-        {workspaces.map((ws) => (
-          <WorkspaceChip
-            key={ws.id}
-            workspace={ws}
-            isActive={selectedId === ws.id}
-            onClick={() => handleClick(ws.id)}
-          />
-        ))}
+    <>
+      <div className="border-t border-chatroom-border bg-chatroom-bg-surface">
+        {/* Workspace chips row */}
+        <div className="flex items-center gap-2 px-4 py-2 overflow-x-auto">
+          {workspaces.map((ws) => (
+            <WorkspaceChip
+              key={ws.id}
+              workspace={ws}
+              isActive={selectedId === ws.id}
+              onClick={() => handleClick(ws.id)}
+            />
+          ))}
+        </div>
       </div>
 
-      {/* Expanded git panel */}
-      {selectedWorkspace && selectedWorkspace.machineId && (
-        <div className="border-t border-chatroom-border px-4 py-3 max-h-[300px] overflow-y-auto">
-          <WorkspaceGitPanel
-            machineId={selectedWorkspace.machineId}
-            workingDir={selectedWorkspace.workingDir}
-          />
-        </div>
-      )}
-    </div>
+      {/* Workspace Git Modal */}
+      <FixedModal
+        isOpen={selectedId !== null}
+        onClose={handleClose}
+        maxWidth="max-w-[96vw]"
+        className="sm:!h-[92vh]"
+      >
+        <FixedModalContent>
+          <FixedModalHeader onClose={handleClose}>
+            <FixedModalTitle>
+              <div className="flex items-center gap-2">
+                <FolderOpen size={16} className="text-chatroom-text-muted" />
+                <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary">
+                  {selectedWorkspace ? getWorkspaceName(selectedWorkspace.workingDir) : ''}
+                </span>
+                {selectedWorkspace && (
+                  <span className="text-[11px] text-chatroom-text-muted">
+                    {selectedWorkspace.hostname}
+                  </span>
+                )}
+              </div>
+            </FixedModalTitle>
+          </FixedModalHeader>
+          <FixedModalBody>
+            {selectedWorkspace && selectedWorkspace.machineId && (
+              <div className="p-4">
+                <WorkspaceGitPanel
+                  machineId={selectedWorkspace.machineId}
+                  workingDir={selectedWorkspace.workingDir}
+                />
+              </div>
+            )}
+          </FixedModalBody>
+        </FixedModalContent>
+      </FixedModal>
+    </>
   );
 });
