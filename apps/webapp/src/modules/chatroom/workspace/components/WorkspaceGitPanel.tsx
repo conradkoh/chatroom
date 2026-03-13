@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import {
   useWorkspaceGit,
@@ -27,7 +27,7 @@ type ActiveTab = 'diff' | 'log';
 // ─── Navigation items ─────────────────────────────────────────────────────────
 
 const TABS: { id: ActiveTab; label: string }[] = [
-  { id: 'diff', label: 'Diff' },
+  { id: 'diff', label: 'Changes' },
   { id: 'log', label: 'History' },
 ];
 
@@ -69,6 +69,11 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
     setSelectedCommitSha(null);
     clearCommitDetail();
   }, [clearCommitDetail]);
+
+  // Auto-load diff when the panel mounts or machineId/workingDir change
+  useEffect(() => {
+    requestDiff();
+  }, [requestDiff]);
 
   // For non-available states, render without sidebar (simple single-pane view)
   if (gitState.status !== 'available') {

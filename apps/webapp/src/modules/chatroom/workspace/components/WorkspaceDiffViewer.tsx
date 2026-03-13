@@ -1,8 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { AlertTriangle, FileCode } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { FullDiffState } from '../types/git';
 
@@ -10,7 +9,7 @@ import type { FullDiffState } from '../types/git';
 
 interface WorkspaceDiffViewerProps {
   state: FullDiffState;
-  onRequest: () => void;
+  onRequest?: () => void;
 }
 
 interface DiffLine {
@@ -157,19 +156,16 @@ const FileDiffBlock = memo(function FileDiffBlock({ section }: { section: FileDi
  */
 export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
   state,
-  onRequest,
 }: WorkspaceDiffViewerProps) {
   if (state.status === 'idle') {
     return (
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onRequest}
-        className="text-xs text-chatroom-text-secondary hover:text-chatroom-text-primary gap-1.5"
-      >
-        <FileCode size={13} />
-        Load Diff
-      </Button>
+      <div className="flex flex-col gap-1.5 py-1">
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-5/6" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-4/6" />
+        <Skeleton className="h-3 w-3/4" />
+      </div>
     );
   }
 
