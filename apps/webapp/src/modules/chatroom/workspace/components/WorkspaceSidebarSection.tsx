@@ -206,8 +206,20 @@ export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
           Workspaces
         </div>
-        <div className="text-[11px] text-chatroom-text-muted">
+        <div className="text-[11px] text-chatroom-text-muted mb-2">
           No workspaces available
+        </div>
+        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
+          Chatroom ID
+        </div>
+        <div
+          className="font-mono text-[10px] font-bold text-chatroom-text-secondary break-all p-1.5 bg-chatroom-bg-tertiary cursor-pointer hover:bg-chatroom-bg-hover transition-colors"
+          onClick={() => {
+            navigator.clipboard.writeText(chatroomId);
+          }}
+          title="Click to copy"
+        >
+          {chatroomId}
         </div>
       </div>
     );
