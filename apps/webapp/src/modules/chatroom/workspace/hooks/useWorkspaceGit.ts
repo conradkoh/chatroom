@@ -184,7 +184,24 @@ index 0000000..9876543
 +      await ctx.db.insert('workspaceGitState', { ...args, updatedAt: Date.now() });
 +    }
 +  },
-+});`;
++});
+diff --git a/services/backend/src/domain/types/workspace-git.ts b/services/backend/src/domain/types/workspace-git.ts
+index def5678..abc9012 100644
+--- a/services/backend/src/domain/types/workspace-git.ts
++++ b/services/backend/src/domain/types/workspace-git.ts
+@@ -5,9 +5,9 @@ export interface DiffStat {
+   deletions: number;
+ }
+ 
+-/** A single commit from the git log. */
++/** A single commit entry from the git history. */
+ export interface GitCommit {
+-  sha: string;
++  fullSha: string;
+   shortSha: string;
+-  message: string;
++  commitMessage: string;
+   author: string;`;
 
 /** Mock diff for a commit that deletes files. */
 const MOCK_DELETE_DIFF = `diff --git a/packages/cli/src/infrastructure/git/helpers.ts b/packages/cli/src/infrastructure/git/helpers.ts
@@ -387,7 +404,7 @@ export function useCommitDetail(
 
       // Return different diffs based on SHA prefix
       let mockDiff = MOCK_COMMIT_DIFF;
-      let diffStat = { filesChanged: 1, insertions: 28, deletions: 0 };
+      let diffStat = { filesChanged: 2, insertions: 31, deletions: 3 };
 
       if (sha.startsWith('a7b8')) {
         // delete commit
