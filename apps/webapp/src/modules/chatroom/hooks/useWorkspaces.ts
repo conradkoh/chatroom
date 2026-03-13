@@ -40,7 +40,7 @@ export function useWorkspaces(params: UseWorkspacesParams): UseWorkspacesResult 
       const wsId = `${bw.hostname}::${bw.workingDir}`;
       workspaceMap.set(wsId, {
         id: wsId,
-        machineId: bw.hostname || 'mock-machine-id', // TODO(P6): Replace with real machineId from WorkspaceView
+        machineId: bw.machineId,
         hostname: bw.hostname,
         workingDir: bw.workingDir,
         agentRoles: [...bw.agentRoles],

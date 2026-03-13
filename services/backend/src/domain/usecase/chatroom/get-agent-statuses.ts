@@ -28,6 +28,7 @@ export interface AgentRoleView {
 
 /** Workspace view derived from team agent configs. */
 export interface WorkspaceView {
+  machineId: string;
   hostname: string;
   workingDir: string;
   agentRoles: string[];
@@ -129,6 +130,7 @@ export async function getAgentStatusForChatroom(
 
     if (!workspaceMap.has(wsKey)) {
       workspaceMap.set(wsKey, {
+        machineId: teamConfig.machineId,
         hostname,
         workingDir: teamConfig.workingDir,
         agentRoles: [],
