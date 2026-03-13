@@ -93,6 +93,12 @@ export interface DaemonContext {
   events: DaemonEventBus;
   agentServices: Map<string, RemoteAgentService>;
   /**
+   * Set of active working directories being tracked for git state.
+   * Populated when agents start (via start-agent handler) and on daemon startup
+   * (via state recovery). Used by the heartbeat to know which directories to collect.
+   */
+  activeWorkingDirs: Set<string>;
+  /**
    * Tracks the last git state pushed for each workspace (keyed by `machineId::workingDir`).
    * Value is a hash of the git state (branch + isDirty + diffStat) used for change detection.
    * Only push to backend when this hash changes.

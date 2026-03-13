@@ -74,7 +74,8 @@ function createMockContext(
         }),
       ],
     ]),
-    lastPushedGitState: new Map(),
+    activeWorkingDirs: new Set(),
+      lastPushedGitState: new Map(),
   };
 }
 

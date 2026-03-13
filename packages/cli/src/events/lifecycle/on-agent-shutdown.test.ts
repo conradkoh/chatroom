@@ -140,7 +140,8 @@ function createCtx(deps: DaemonDeps): DaemonContext {
         }),
       ],
     ]),
-    lastPushedGitState: new Map(),
+    activeWorkingDirs: new Set(),
+      lastPushedGitState: new Map(),
   };
 }
 

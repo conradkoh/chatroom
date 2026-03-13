@@ -24,6 +24,7 @@ import {
 import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
 import { startGitPollingLoop } from './git-polling.js';
+import { pushGitState } from './git-heartbeat.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 
@@ -140,6 +141,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       .then(() => {
         heartbeatCount++;
         console.log(`[${formatTimestamp()}] 💓 Daemon heartbeat #${heartbeatCount} OK`);
+        // Push git state after each successful heartbeat (change-detected, no-op if unchanged)
+        pushGitState(ctx).catch((err: Error) => {
+          console.warn(`[${formatTimestamp()}] ⚠️  Git state push failed: ${err.message}`);
+        });
       })
       .catch((err: Error) => {
         console.warn(`[${formatTimestamp()}] ⚠️  Daemon heartbeat failed: ${err.message}`);
@@ -153,6 +158,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Fast polling loop (5s) for on-demand workspace git requests.
   // Separate from the heartbeat so git requests get low latency (~5s).
   const gitPollingHandle = startGitPollingLoop(ctx);
+
+  // Trigger an immediate git state push on startup so the frontend gets
+  // data right away without waiting 30s for the first heartbeat.
+  pushGitState(ctx).catch(() => {});
 
   const shutdown = async () => {
     console.log(`\n[${formatTimestamp()}] Shutting down...`);
