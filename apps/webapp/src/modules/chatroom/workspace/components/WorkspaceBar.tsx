@@ -46,15 +46,15 @@ const WorkspaceChip = memo(function WorkspaceChip({
   // Diff stat display
   let statContent: React.ReactNode = null;
   if (gitState.status === 'loading') {
-    statContent = <span className="text-chatroom-text-muted text-[11px]">…</span>;
+    statContent = <span className="text-chatroom-text-muted text-[9px]">…</span>;
   } else if (gitState.status === 'available') {
     const { insertions, deletions, filesChanged } = gitState.diffStat;
     const isClean = filesChanged === 0 && insertions === 0 && deletions === 0;
     if (isClean) {
-      statContent = <span className="text-chatroom-text-muted text-[11px]">clean</span>;
+      statContent = <span className="text-chatroom-text-muted text-[9px]">clean</span>;
     } else {
       statContent = (
-        <span className="flex items-center gap-0.5 text-[11px]">
+        <span className="flex items-center gap-0.5 text-[9px]">
           <span className="text-chatroom-status-success">+{insertions}</span>
           <span className="text-chatroom-status-error">−{deletions}</span>
         </span>
