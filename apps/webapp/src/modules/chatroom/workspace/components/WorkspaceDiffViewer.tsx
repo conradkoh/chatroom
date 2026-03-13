@@ -85,7 +85,9 @@ function enrichWithIntraLineDiff(lines: DiffLine[]): DiffLine[] {
 function parseDiff(content: string): FileDiffSection[] {
   if (!content.trim()) return [];
 
-  const rawSections = content.split(/^(?=diff --git )/m).filter(Boolean);
+  const rawSections = content
+    .split(/^(?=diff --git )/m)
+    .filter((s) => s.startsWith('diff --git '));
 
   return rawSections.map((section): FileDiffSection => {
     const lines = section.split('\n');
