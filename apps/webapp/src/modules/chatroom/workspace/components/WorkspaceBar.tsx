@@ -13,6 +13,7 @@ import {
 import type { Workspace } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
 import { WorkspaceGitPanel } from './WorkspaceGitPanel';
+import { WorkspaceInfoFooter } from './WorkspaceSidebarSection';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -161,6 +162,9 @@ export const WorkspaceBar = memo(function WorkspaceBar({ workspaces, chatroomId 
               />
             )}
           </FixedModalBody>
+          {selectedWorkspace && selectedWorkspace.machineId && (
+            <WorkspaceInfoFooter workspace={selectedWorkspace} />
+          )}
         </FixedModalContent>
       </FixedModal>
     </>

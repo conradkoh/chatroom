@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useState, useCallback } from 'react';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, GitBranch } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   FixedModal,
@@ -27,6 +27,70 @@ function getWorkspaceName(workingDir: string): string {
   return workingDir.split('/').filter(Boolean).pop() ?? workingDir;
 }
 
+// ─── WorkspaceInfoFooter ──────────────────────────────────────────────────────
+
+/**
+ * Footer bar for the workspace git modal.
+ * Shows workspace name, hostname, git branch, and diff stats.
+ */
+export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
+  workspace,
+}: {
+  workspace: Workspace;
+}) {
+  const gitState = useWorkspaceGit(workspace.machineId!, workspace.workingDir);
+
+  const isAvailable = gitState.status === 'available';
+
+  return (
+    <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface px-4 py-2 flex-shrink-0 flex items-center gap-2 flex-wrap">
+      {/* Workspace name */}
+      <div className="flex items-center gap-1">
+        <FolderOpen size={11} className="text-chatroom-text-muted shrink-0" />
+        <span className="text-[11px] text-chatroom-text-primary font-medium">
+          {getWorkspaceName(workspace.workingDir)}
+        </span>
+      </div>
+
+      {/* Hostname */}
+      <span className="text-[11px] text-chatroom-text-muted">·</span>
+      <span className="text-[11px] text-chatroom-text-muted">{workspace.hostname}</span>
+
+      {/* Branch name (when available) */}
+      {isAvailable && (
+        <>
+          <span className="text-[11px] text-chatroom-text-muted">·</span>
+          <div className="flex items-center gap-0.5">
+            <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
+            <span className="text-[11px] font-mono text-chatroom-text-secondary truncate max-w-[120px]">
+              {gitState.branch}
+            </span>
+          </div>
+        </>
+      )}
+
+      {/* Diff stats (when available) */}
+      {isAvailable && (() => {
+        const { insertions, deletions, filesChanged } = gitState.diffStat;
+        const isClean = filesChanged === 0 && insertions === 0 && deletions === 0;
+        return (
+          <>
+            <span className="text-[11px] text-chatroom-text-muted">·</span>
+            {isClean ? (
+              <span className="text-[11px] text-chatroom-text-muted">clean</span>
+            ) : (
+              <span className="flex items-center gap-0.5 text-[11px]">
+                <span className="text-chatroom-status-success">+{insertions}</span>
+                <span className="text-chatroom-status-error">−{deletions}</span>
+              </span>
+            )}
+          </>
+        );
+      })()}
+    </div>
+  );
+});
+
 // ─── WorkspaceRow ─────────────────────────────────────────────────────────────
 
 const WorkspaceRow = memo(function WorkspaceRow({
@@ -40,7 +104,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
 }) {
   const gitState = useWorkspaceGit(workspace.machineId!, workspace.workingDir);
 
-  // Build stat content (same logic as WorkspaceChip)
+  // Build stat content
   let statContent: React.ReactNode = null;
   if (gitState.status === 'loading') {
     statContent = <span className="text-chatroom-text-muted text-[10px]">…</span>;
@@ -58,6 +122,8 @@ const WorkspaceRow = memo(function WorkspaceRow({
       );
     }
   }
+
+  const branchName = gitState.status === 'available' ? gitState.branch : null;
 
   return (
     <button
@@ -86,8 +152,19 @@ const WorkspaceRow = memo(function WorkspaceRow({
         >
           {getWorkspaceName(workspace.workingDir)}
         </span>
-        <div className="flex items-center gap-1 mt-0.5">
+        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
           <span className="text-[10px] text-chatroom-text-muted">{workspace.hostname}</span>
+          {branchName && (
+            <>
+              <span className="text-[10px] text-chatroom-text-muted">·</span>
+              <span className="flex items-center gap-0.5">
+                <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
+                <span className="text-[10px] font-mono text-chatroom-text-muted truncate max-w-[80px]">
+                  {branchName}
+                </span>
+              </span>
+            </>
+          )}
           {statContent && (
             <>
               <span className="text-[10px] text-chatroom-text-muted">·</span>
@@ -183,6 +260,9 @@ export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
               />
             )}
           </FixedModalBody>
+          {selectedWorkspace && selectedWorkspace.machineId && (
+            <WorkspaceInfoFooter workspace={selectedWorkspace} />
+          )}
         </FixedModalContent>
       </FixedModal>
     </>
