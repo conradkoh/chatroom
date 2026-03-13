@@ -12,11 +12,12 @@ import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleK
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
-import { cleanupAgentOnExit } from '../src/domain/usecase/daemon/on-restart';
+import { cleanupMachineAgent } from '../src/domain/usecase/machine/cleanup-machine-agent';
+import { onAgentExited } from '../src/events/agent/on-agent-exited';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
-import { PARTICIPANT_EXITED_ACTION, patchParticipantStatus } from '../src/domain/entities/participant';
+import { patchParticipantStatus } from '../src/domain/entities/participant';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -546,38 +547,19 @@ export const daemonShutdown = mutation({
       lastSeenAt: Date.now(),
     });
 
-    // 2. Clear all spawnedAgent records for this machine
+    // 2. Clean up all agents on this machine (clear PID, mark participant exited)
     const machineConfigs = await ctx.db
       .query('chatroom_teamAgentConfigs')
       .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
       .collect();
 
-    const now = Date.now();
     for (const config of machineConfigs) {
-      if (config.spawnedAgentPid != null) {
-        await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-          spawnedAgentPid: undefined,
-          spawnedAt: undefined,
-          updatedAt: now,
-        });
-      }
-    }
-
-    // 3. Mark participant records as exited for agents on this machine
-    for (const config of machineConfigs) {
-      const participant = await ctx.db
-        .query('chatroom_participants')
-        .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', config.chatroomId).eq('role', config.role)
-        )
-        .unique();
-      if (participant) {
-        await ctx.db.patch(participant._id, {
-          lastSeenAction: PARTICIPANT_EXITED_ACTION,
-          connectionId: undefined,
-          lastStatus: 'agent.exited',
-        });
-      }
+      await cleanupMachineAgent(ctx, {
+        chatroomId: config.chatroomId,
+        role: config.role,
+        machineId: args.machineId,
+        skipConfigRemoval: true,
+      });
     }
 
     return { clearedAgents: machineConfigs.length };
@@ -852,15 +834,19 @@ export const recordAgentExited = mutation({
       timestamp: now,
     });
 
-    // 3-5. Clear PID, process config removal, update participant, trigger recovery
-    await cleanupAgentOnExit(ctx, {
+    // 3. Clear PID, process config removal, update participant
+    await cleanupMachineAgent(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
       machineId: args.machineId,
-      pid: args.pid,
+    });
+
+    // 4. Trigger crash recovery
+    await onAgentExited(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
       intentional: args.intentional,
       stopReason: args.stopReason,
-      skipEvent: true,
     });
 
     return { success: true };

@@ -19,8 +19,8 @@ import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { transitionTask } from '../src/domain/usecase/task/transition-task';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
-import { processConfigRemoval } from '../src/domain/usecase/agent/config-removal';
-import { PARTICIPANT_EXITED_ACTION, patchParticipantStatus } from '../src/domain/entities/participant';
+import { patchParticipantStatus } from '../src/domain/entities/participant';
+import { cleanupMachineAgent } from '../src/domain/usecase/machine/cleanup-machine-agent';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
@@ -1453,45 +1453,18 @@ export const cleanupStaleMachines = internalMutation({
           `[Daemon Cleanup] Machine "${machine.hostname}" (${machine.machineId}) daemon marked disconnected — last seen ${timeSinceLastSeen}ms ago`
         );
 
-        // 2. Clear spawnedAgent records for all agents on this machine
+        // 2. Clean up all agents on this machine (clear PID, process config removal, mark participant exited)
         const agentConfigs = await ctx.db
           .query('chatroom_teamAgentConfigs')
           .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
           .collect();
 
         for (const config of agentConfigs) {
-          if (config.spawnedAgentPid != null) {
-            await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-              spawnedAgentPid: undefined,
-              spawnedAt: undefined,
-              updatedAt: now,
-            });
-          }
-        }
-
-        // 2b. Process any pending config removal requests now that PIDs are cleared
-        for (const config of agentConfigs) {
-          await processConfigRemoval(ctx, {
+          await cleanupMachineAgent(ctx, {
             chatroomId: config.chatroomId,
             role: config.role,
             machineId: machine.machineId,
           });
-        }
-
-        // 3. Mark participant records as exited for agents on this machine
-        for (const config of agentConfigs) {
-          const participant = await ctx.db
-            .query('chatroom_participants')
-            .withIndex('by_chatroom_and_role', (q) =>
-              q.eq('chatroomId', config.chatroomId).eq('role', config.role)
-            )
-            .unique();
-          if (participant) {
-            await ctx.db.patch('chatroom_participants', participant._id, {
-              lastSeenAction: PARTICIPANT_EXITED_ACTION,
-              connectionId: undefined,
-            });
-          }
         }
       }
     }
