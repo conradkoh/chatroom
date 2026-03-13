@@ -5,6 +5,7 @@ import { AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { FullDiffState } from '../types/git';
+import { computeIntraLineDiff, type DiffSegment } from '../utils/intra-line-diff';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,8 @@ interface DiffLine {
   content: string;
   oldLineNum?: number; // line number in original file
   newLineNum?: number; // line number in new file
+  /** Intra-line diff segments — present when this line is part of a paired deletion/addition */
+  intraSegments?: DiffSegment[];
 }
 
 interface FileDiffSection {
@@ -28,6 +31,50 @@ interface FileDiffSection {
 }
 
 // ─── Diff Parser ──────────────────────────────────────────────────────────────
+
+/**
+ * Post-processing pass: pairs consecutive deletion/addition blocks and enriches
+ * them with character-level intra-line diff segments.
+ */
+function enrichWithIntraLineDiff(lines: DiffLine[]): DiffLine[] {
+  const result = [...lines];
+  let i = 0;
+
+  while (i < result.length) {
+    // Scan for a block of consecutive deletions
+    const delStart = i;
+    while (i < result.length && result[i]!.type === 'deletion') i++;
+    const delEnd = i;
+
+    // Immediately followed by a block of consecutive additions
+    const addStart = i;
+    while (i < result.length && result[i]!.type === 'addition') i++;
+    const addEnd = i;
+
+    const delCount = delEnd - delStart;
+    const addCount = addEnd - addStart;
+
+    if (delCount > 0 && addCount > 0) {
+      // Pair up: min(delCount, addCount) pairs
+      const pairs = Math.min(delCount, addCount);
+      for (let p = 0; p < pairs; p++) {
+        const delLine = result[delStart + p]!;
+        const addLine = result[addStart + p]!;
+        // Strip the leading -/+ for diff computation
+        const oldContent = delLine.content.slice(1);
+        const newContent = addLine.content.slice(1);
+        const intra = computeIntraLineDiff(oldContent, newContent);
+        result[delStart + p] = { ...delLine, intraSegments: intra.oldSegments };
+        result[addStart + p] = { ...addLine, intraSegments: intra.newSegments };
+      }
+    }
+
+    // If no deletion block was found, advance past the current line
+    if (i === delStart) i++;
+  }
+
+  return result;
+}
 
 /**
  * Parses a unified diff string into per-file sections.
@@ -120,7 +167,7 @@ function parseDiff(content: string): FileDiffSection[] {
       }
     }
 
-    return { filePath, lines: parsedLines, status };
+    return { filePath, lines: enrichWithIntraLineDiff(parsedLines), status };
   });
 }
 
@@ -154,7 +201,23 @@ const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
           {line.newLineNum}
         </div>
         {/* Content */}
-        <div className="font-mono text-[11px] whitespace-pre px-3 py-px">{line.content}</div>
+        <div className="font-mono text-[11px] whitespace-pre px-3 py-px">
+          {line.intraSegments ? (
+            <>
+              <span>{line.content[0]}</span>
+              {line.intraSegments.map((seg, i) => (
+                <span
+                  key={i}
+                  className={seg.type === 'changed' ? 'bg-green-200 dark:bg-green-800/40' : ''}
+                >
+                  {seg.text}
+                </span>
+              ))}
+            </>
+          ) : (
+            line.content
+          )}
+        </div>
       </div>
     );
   }
@@ -169,7 +232,23 @@ const DiffLineRow = memo(function DiffLineRow({ line }: { line: DiffLine }) {
         {/* New line number — empty */}
         <div className="w-[35px] shrink-0 px-1 py-px text-right font-mono text-[10px] text-chatroom-text-muted border-r border-chatroom-border select-none" />
         {/* Content */}
-        <div className="font-mono text-[11px] whitespace-pre px-3 py-px">{line.content}</div>
+        <div className="font-mono text-[11px] whitespace-pre px-3 py-px">
+          {line.intraSegments ? (
+            <>
+              <span>{line.content[0]}</span>
+              {line.intraSegments.map((seg, i) => (
+                <span
+                  key={i}
+                  className={seg.type === 'changed' ? 'bg-red-200 dark:bg-red-800/40' : ''}
+                >
+                  {seg.text}
+                </span>
+              ))}
+            </>
+          ) : (
+            line.content
+          )}
+        </div>
       </div>
     );
   }
