@@ -28,29 +28,6 @@ export interface GitCommit {
   date: string;
 }
 
-/** Full diff content for the working tree or a specific commit. */
-export interface FullDiff {
-  /** Raw unified diff string (may be empty for a clean tree). */
-  content: string;
-  /** True if the content was capped at the size limit. */
-  truncated: boolean;
-  /** Stats derived from the diff. */
-  diffStat: DiffStat;
-}
-
-/** Full diff content for a single commit (`git show <sha>`). */
-export interface CommitDetail {
-  sha: string;
-  message: string;
-  author: string;
-  date: string;
-  /** Raw unified diff string. */
-  content: string;
-  /** True if the content was capped at the size limit. */
-  truncated: boolean;
-  diffStat: DiffStat;
-}
-
 // ─── Workspace Git State (discriminated union) ────────────────────────────────
 
 /**
@@ -88,26 +65,3 @@ export type WorkspaceGitState =
       /** Unix timestamp (ms) when the error was last recorded. */
       updatedAt: number;
     };
-
-// ─── On-Demand Request Types ─────────────────────────────────────────────────
-
-/** Request for the full diff content of the working tree. */
-export interface DiffRequest {
-  machineId: string;
-  workingDir: string;
-}
-
-/** Request for the full diff of a specific commit SHA. */
-export interface CommitDetailRequest {
-  machineId: string;
-  workingDir: string;
-  sha: string;
-}
-
-/** Request to load more commits (pagination). */
-export interface MoreCommitsRequest {
-  machineId: string;
-  workingDir: string;
-  /** How many commits to skip (e.g. 20 to load the next page after the first 20). */
-  offset: number;
-}
