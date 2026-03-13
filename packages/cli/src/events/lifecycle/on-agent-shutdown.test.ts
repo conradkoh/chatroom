@@ -118,6 +118,12 @@ function createMockDeps(overrides?: Partial<DaemonDeps>): DaemonDeps {
       now: () => Date.now(),
       delay: vi.fn().mockResolvedValue(undefined),
     },
+    spawning: {
+      shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
+      recordSpawn: vi.fn(),
+      recordExit: vi.fn(),
+      getConcurrentCount: vi.fn().mockReturnValue(0),
+    },
     ...overrides,
   };
 }

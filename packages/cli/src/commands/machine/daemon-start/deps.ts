@@ -19,6 +19,7 @@ import type {
 } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
+import type { HarnessSpawningService } from '../../../infrastructure/services/harness-spawning/index.js';
 
 // ─── Domain-Specific Interfaces ─────────────────────────────────────────────
 
@@ -101,4 +102,5 @@ export interface DaemonDeps {
   stops: IntentionalStopOps;
   machine: MachineStateOps;
   clock: ClockOps;
+  spawning: HarnessSpawningService;
 }
