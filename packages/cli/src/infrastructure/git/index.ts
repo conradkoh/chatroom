@@ -5,6 +5,7 @@
  */
 
 export type {
+  DiffStat,
   GitDiffStat,
   GitCommit,
   GitBranchResult,

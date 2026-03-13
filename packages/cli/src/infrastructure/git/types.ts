@@ -5,28 +5,15 @@
  * exhaustive handling — no optional fields for conditional state.
  */
 
+import type { DiffStat, GitCommit } from '@workspace/backend/src/domain/types/workspace-git';
+
+// Re-export backend domain types so existing consumers don't break.
+export type { DiffStat, GitCommit };
+
 // ─── Primitive Types ─────────────────────────────────────────────────────────
 
-/** Diff summary statistics from `git diff HEAD --stat`. */
-export interface GitDiffStat {
-  filesChanged: number;
-  insertions: number;
-  deletions: number;
-}
-
-/** A single commit entry from `git log`. */
-export interface GitCommit {
-  /** Full 40-character SHA. */
-  sha: string;
-  /** 7-character abbreviated SHA. */
-  shortSha: string;
-  /** First line of the commit message. */
-  message: string;
-  /** Author display name. */
-  author: string;
-  /** ISO 8601 date string. */
-  date: string;
-}
+/** @deprecated Use `DiffStat` from the backend domain types. Alias kept for backward compatibility. */
+export type GitDiffStat = DiffStat;
 
 // ─── Discriminated Union Results ─────────────────────────────────────────────
 
