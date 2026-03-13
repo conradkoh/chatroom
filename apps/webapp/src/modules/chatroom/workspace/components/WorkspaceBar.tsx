@@ -100,9 +100,9 @@ export const WorkspaceBar = memo(function WorkspaceBar({ workspaces }: Workspace
   const selectedWorkspace = workspaces.find((w) => w.id === selectedId);
 
   return (
-    <div className="rounded-md border border-chatroom-border mx-3 mb-2">
+    <div className="border-t border-chatroom-border bg-chatroom-bg-surface">
       {/* Workspace chips row */}
-      <div className="flex items-center gap-1 px-3 py-1.5 overflow-x-auto">
+      <div className="flex items-center gap-1 px-4 py-1.5 overflow-x-auto">
         {workspaces.map((ws) => (
           <WorkspaceChip
             key={ws.id}
@@ -115,7 +115,7 @@ export const WorkspaceBar = memo(function WorkspaceBar({ workspaces }: Workspace
 
       {/* Expanded git panel */}
       {selectedWorkspace && selectedWorkspace.machineId && (
-        <div className="border-t border-chatroom-border px-3 py-3 max-h-[300px] overflow-y-auto">
+        <div className="border-t border-chatroom-border px-4 py-3 max-h-[300px] overflow-y-auto">
           <WorkspaceGitPanel
             machineId={selectedWorkspace.machineId}
             workingDir={selectedWorkspace.workingDir}
