@@ -55,15 +55,15 @@ describe('HarnessSpawningService', () => {
   // ─── Concurrent Agent Limit ───────────────────────────────────────────────
 
   describe('concurrent agent limit enforcement', () => {
-    it('rejects spawn when concurrent limit is reached (3)', () => {
+    it('rejects spawn when concurrent limit is reached (10)', () => {
       const rateLimiter = createMockRateLimiter(true);
       const service = new HarnessSpawningService({ rateLimiter });
       const chatroomId = 'room-concurrent';
 
-      // Simulate 3 active agents
-      service.recordSpawn(chatroomId);
-      service.recordSpawn(chatroomId);
-      service.recordSpawn(chatroomId);
+      // Simulate 10 active agents
+      for (let i = 0; i < 10; i++) {
+        service.recordSpawn(chatroomId);
+      }
 
       const result = service.shouldAllowSpawn(chatroomId, 'platform.restart');
       expect(result.allowed).toBe(false);
@@ -79,6 +79,9 @@ describe('HarnessSpawningService', () => {
       service.recordSpawn('room-x');
       service.recordSpawn('room-x');
       service.recordSpawn('room-x');
+      for (let i = 0; i < 7; i++) {
+        service.recordSpawn('room-x');
+      }
 
       service.shouldAllowSpawn('room-x', 'platform.restart');
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Concurrent agent limit reached'));
@@ -89,9 +92,9 @@ describe('HarnessSpawningService', () => {
       const service = new HarnessSpawningService({ rateLimiter });
       const chatroomId = 'room-exit';
 
-      service.recordSpawn(chatroomId);
-      service.recordSpawn(chatroomId);
-      service.recordSpawn(chatroomId);
+      for (let i = 0; i < 10; i++) {
+        service.recordSpawn(chatroomId);
+      }
 
       // One exits
       service.recordExit(chatroomId);

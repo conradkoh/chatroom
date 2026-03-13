@@ -12,7 +12,7 @@ import type { SpawnRateLimiter, TryConsumeResult } from './rate-limiter.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const MAX_CONCURRENT_AGENTS_PER_CHATROOM = 3;
+const MAX_CONCURRENT_AGENTS_PER_CHATROOM = 10;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
