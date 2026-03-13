@@ -43,18 +43,18 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
   const isAvailable = gitState.status === 'available';
 
   return (
-    <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface px-4 py-2 flex-shrink-0 flex items-center gap-2 flex-wrap">
+    <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface px-4 py-2 flex-shrink-0 flex items-center justify-end gap-2 flex-wrap">
       {/* Workspace name */}
       <div className="flex items-center gap-1">
         <FolderOpen size={11} className="text-chatroom-text-muted shrink-0" />
-        <span className="text-[11px] text-chatroom-text-primary font-medium">
+        <span className="text-[11px] text-chatroom-text-primary font-medium uppercase tracking-wider">
           {getWorkspaceName(workspace.workingDir)}
         </span>
       </div>
 
       {/* Hostname */}
       <span className="text-[11px] text-chatroom-text-muted">·</span>
-      <span className="text-[11px] text-chatroom-text-muted">{workspace.hostname}</span>
+      <span className="text-[11px] text-chatroom-text-muted uppercase tracking-wider">{workspace.hostname}</span>
 
       {/* Branch name (when available) */}
       {isAvailable && (
@@ -62,7 +62,7 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
           <span className="text-[11px] text-chatroom-text-muted">·</span>
           <div className="flex items-center gap-0.5">
             <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
-            <span className="text-[11px] font-mono text-chatroom-text-secondary truncate max-w-[120px]">
+            <span className="text-[11px] font-mono text-chatroom-text-secondary uppercase tracking-wider truncate max-w-[120px]">
               {gitState.branch}
             </span>
           </div>
@@ -77,9 +77,9 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
           <>
             <span className="text-[11px] text-chatroom-text-muted">·</span>
             {isClean ? (
-              <span className="text-[11px] text-chatroom-text-muted">clean</span>
+              <span className="text-[11px] text-chatroom-text-muted uppercase tracking-wider">clean</span>
             ) : (
-              <span className="flex items-center gap-0.5 text-[11px]">
+              <span className="flex items-center gap-0.5 text-[11px] uppercase tracking-wider">
                 <span className="text-chatroom-status-success">+{insertions}</span>
                 <span className="text-chatroom-status-error">−{deletions}</span>
               </span>
