@@ -31,6 +31,8 @@ import { TaskQueue } from './components/TaskQueue';
 import { AttachedTasksProvider } from './context/AttachedTasksContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import type { TeamLifecycle } from './types/readiness';
+import { WorkspaceBar } from './workspace/components/WorkspaceBar';
+import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
 
 import {
   DropdownMenu,
@@ -348,6 +350,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   // Use hook to get aggregate status (event stream + lifecycle)
   const { aggregateStatus } = useAgentStatuses(chatroomId, teamRoles);
 
+  // Workspace bar data
+  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
+
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
     () => getTeamEntryPoint({ teamEntryPoint: chatroom?.teamEntryPoint, teamRoles }) ?? 'builder',
@@ -646,6 +651,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               {/* Message Section */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 <MessageFeed chatroomId={chatroomId} activeTask={activeTask} />
+                {chatroomWorkspaces.length > 0 && (
+                  <WorkspaceBar workspaces={chatroomWorkspaces} />
+                )}
                 <SendForm chatroomId={chatroomId} />
               </div>
 
