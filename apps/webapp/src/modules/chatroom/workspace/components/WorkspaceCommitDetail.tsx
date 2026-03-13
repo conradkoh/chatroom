@@ -3,8 +3,9 @@
 import { memo, useEffect } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { CommitDetailState, FullDiffState, DiffStat } from '../types/git';
+import type { CommitDetailState, FullDiffState } from '../types/git';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
+import { InlineDiffStat } from './shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -14,29 +15,6 @@ interface WorkspaceCommitDetailProps {
   onRequestDetail: (sha: string) => void;
   onClose?: () => void;
 }
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-/** Compact diff stat line: "3 files · +28 −0" */
-const InlineDiffStat = memo(function InlineDiffStat({ diffStat }: { diffStat: DiffStat }) {
-  const { filesChanged, insertions, deletions } = diffStat;
-  const isClean = filesChanged === 0 && insertions === 0 && deletions === 0;
-
-  if (isClean) {
-    return <span className="text-[11px] text-chatroom-text-muted">Clean</span>;
-  }
-
-  return (
-    <span className="text-[11px] text-chatroom-text-muted flex items-center gap-1">
-      <span>
-        {filesChanged} {filesChanged === 1 ? 'file' : 'files'}
-      </span>
-      <span>·</span>
-      <span className="text-chatroom-status-success">+{insertions}</span>
-      <span className="text-chatroom-status-error">−{deletions}</span>
-    </span>
-  );
-});
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 

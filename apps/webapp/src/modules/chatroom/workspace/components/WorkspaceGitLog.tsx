@@ -4,6 +4,7 @@ import { memo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { GitCommit } from '../types/git';
+import { formatRelativeTime } from './shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -14,23 +15,6 @@ interface WorkspaceGitLogProps {
   loadingMore: boolean;
   onSelectCommit: (sha: string) => void;
   onLoadMore: () => void;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatRelativeDate(isoDate: string): string {
-  const now = Date.now();
-  const then = new Date(isoDate).getTime();
-  const diffMs = now - then;
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -65,7 +49,7 @@ const CommitRow = memo(function CommitRow({ commit, isSelected, onSelect }: Comm
       <div className="flex items-center gap-2 text-[11px] text-chatroom-text-muted">
         <span>{commit.author}</span>
         <span>·</span>
-        <span>{formatRelativeDate(commit.date)}</span>
+        <span>{formatRelativeTime(commit.date)}</span>
       </div>
     </button>
   );

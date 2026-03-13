@@ -13,6 +13,7 @@ import {
 import type { Workspace } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
 import { WorkspaceGitPanel } from './WorkspaceGitPanel';
+import { InlineDiffStat } from './shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,23 +71,12 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
       )}
 
       {/* Diff stats (when available) */}
-      {isAvailable && (() => {
-        const { insertions, deletions, filesChanged } = gitState.diffStat;
-        const isClean = filesChanged === 0 && insertions === 0 && deletions === 0;
-        return (
-          <>
-            <span className="text-[11px] text-chatroom-text-muted">·</span>
-            {isClean ? (
-              <span className="text-[11px] text-chatroom-text-muted uppercase tracking-wider">clean</span>
-            ) : (
-              <span className="flex items-center gap-0.5 text-[11px] uppercase tracking-wider">
-                <span className="text-chatroom-status-success">+{insertions}</span>
-                <span className="text-chatroom-status-error">−{deletions}</span>
-              </span>
-            )}
-          </>
-        );
-      })()}
+      {isAvailable && (
+        <>
+          <span className="text-[11px] text-chatroom-text-muted">·</span>
+          <InlineDiffStat diffStat={gitState.diffStat} showFileCount={false} />
+        </>
+      )}
     </div>
   );
 });
@@ -109,18 +99,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
   if (gitState.status === 'loading') {
     statContent = <span className="text-chatroom-text-muted text-[10px]">…</span>;
   } else if (gitState.status === 'available') {
-    const { insertions, deletions, filesChanged } = gitState.diffStat;
-    const isClean = filesChanged === 0 && insertions === 0 && deletions === 0;
-    if (isClean) {
-      statContent = <span className="text-chatroom-text-muted text-[10px]">clean</span>;
-    } else {
-      statContent = (
-        <span className="flex items-center gap-0.5 text-[10px]">
-          <span className="text-chatroom-status-success">+{insertions}</span>
-          <span className="text-chatroom-status-error">−{deletions}</span>
-        </span>
-      );
-    }
+    statContent = <InlineDiffStat diffStat={gitState.diffStat} showFileCount={false} />;
   }
 
   const branchName = gitState.status === 'available'
