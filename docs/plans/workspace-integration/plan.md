@@ -10,61 +10,99 @@ Each chatroom may reside in one or more workspaces (determined by the `workingDi
 
 ---
 
+## Key Decisions (User-Approved)
+
+| # | Decision | Choice | Rationale |
+|---|----------|--------|-----------|
+| 1 | Push frequency | Change-detection: skip if unchanged | Only push when git state changes (compare branch + diff hash) |
+| 2 | Diff storage | diffStat only; full diff on-demand | Lighter writes, fetch full diff when user requests |
+| 3 | Git log depth | 20 commits + "load more" | Start with 20, allow pagination for more |
+| 4 | Commit detail latency | Fast on-demand pipeline | NOT heartbeat-gated; process requests immediately via fast polling loop |
+| 5 | Data scope | machineId + workingDir | All chatrooms sharing machine+workingDir see same git data |
+| 6 | Diff type | `git diff HEAD` | Show all uncommitted changes (staged + unstaged) |
+| 7 | Non-git dirs | Show workspace, display "Git info not found" | Use union types for proper state encoding (not null/undefined) |
+
+---
+
 ## 1. Architecture Decision
 
-### Recommended: Push-on-Heartbeat Model
+### Hybrid Model: Change-Detection Push + On-Demand Details
 
-**Decision: Daemon pushes git state to Convex on every heartbeat (every 30s).**
+**Decision: Daemon checks for git state changes on heartbeat (every 30s), pushes only if changed. Full diff content and commit details are fetched on-demand via a fast pipeline (~5s response).**
 
-#### Rationale
-
-| Factor | Push-on-Heartbeat | On-Demand Command |
-|--------|-------------------|-------------------|
-| Data freshness | Good (30s lag max) | Excellent (immediate) |
-| Implementation complexity | Low | High |
-| Backend complexity | Minimal (upsert) | Complex (command/response) |
-| UX | Always-up-to-date display | Requires user trigger |
-| Works when UI closed | Yes (data pre-fetched) | No |
-| Consistency with existing patterns | ✅ matches `daemonHeartbeat` + `refreshCapabilities` | Requires new event types |
-
-The heartbeat model aligns with existing patterns in the codebase:
-- `daemonHeartbeat` already fires every 30s in `command-loop.ts`
-- `refreshCapabilities` also fires on a timer (model refresh, 5 min)
-- Git diff/branch/log are cheap read operations — running them every 30s is fine
-
-On-demand would require: new `workspace.requestGitRefresh` event type in schema, new command-loop handler, new `getDaemonPongEvent`-style query, and React polling logic. This is significantly more complex for marginal UX benefit.
-
-#### Data Flow
+#### Data Flow (State Summary — Heartbeat)
 
 ```
 Daemon (heartbeat, every 30s)
-  → runs git commands (branch, diff --stat, log, diff)
-  → calls mutation: machines.upsertWorkspaceGitState
-  → Convex upserts chatroom_workspaceGitState table
+  → runs git commands (branch, status, diff HEAD --stat)
+  → compares with last pushed state (branch + isDirty + diffStat hash)
+  → IF CHANGED: calls mutation: workspaces.upsertWorkspaceGitState
+  → IF UNCHANGED: skips (no write)
+  → Convex stores chatroom_workspaceGitState table
 
 Frontend
-  → useSessionQuery(api.machines.getWorkspaceGitState, { machineId, workingDir })
+  → useSessionQuery(api.workspaces.getWorkspaceGitState, { machineId, workingDir })
   → Convex real-time subscription (live updates on upsert)
-  → WorkspaceGitPanel renders branch / diff / history
+  → WorkspaceGitPanel renders branch / diffStat / history summary
+```
+
+#### Data Flow (On-Demand Full Diff)
+
+```
+User clicks "View Diff" in UI
+  → Frontend calls mutation: workspaces.requestFullDiff({ machineId, workingDir })
+  → Inserts pending row in chatroom_workspaceDiffRequests
+
+Daemon (fast polling loop, every 5s)
+  → Queries pending diff requests for this machine
+  → Runs git diff HEAD (up to 500KB cap)
+  → Calls mutation: workspaces.upsertFullDiff({ machineId, workingDir, content })
+  → Marks request as done
+
+Frontend
+  → useSessionQuery(api.workspaces.getFullDiff, { machineId, workingDir })
+  → Renders full diff when available (~5s latency)
+```
+
+#### Data Flow (On-Demand Commit Detail)
+
+Same pattern as full diff — user clicks a commit, request inserted, daemon processes on fast polling loop (~5s), result pushed to separate table.
+
+#### Data Flow (Load More Commits)
+
+```
+User clicks "Load More" in git log
+  → Frontend calls mutation: workspaces.requestMoreCommits({ machineId, workingDir, offset: 20 })
+  → Daemon processes on fast loop, runs: git log -20 --skip=20 ...
+  → Appends to recentCommits in chatroom_workspaceGitState
 ```
 
 #### Key Design Points
 
 - Git state is keyed by `machineId + workingDir` — workspace-level, not chatroom-level
-- This means if two chatrooms share the same workspace, they see the same git state (correct behavior)
-- Full diff content (`git diff`) is stored as a string; per-file parsing happens on the frontend
-- Recent commits (`git log -20`) are stored as structured JSON
-- Commit detail (full diff for a SHA) is **not** pre-fetched — it's requested on-demand via a separate mutation (too large to store for all 20 commits)
-
-#### Commit Detail: On-Demand via Mutation + Separate Table
-
-For commit details (`git show <sha>`), we use a hybrid: daemon writes commit diffs to a separate `chatroom_workspaceCommitDetail` table when requested by the frontend (via a new `workspace.requestCommitDetail` event). This keeps the heartbeat payload small.
-
-Alternatively (simpler): fetch commit detail lazily, store the last N viewed commits in the table, keyed by `machineId + workingDir + sha`. The daemon polls `getWorkspaceCommitRequests` on heartbeat and processes pending requests.
+- All chatrooms sharing the same machine+workingDir see the same git data (correct behavior)
+- **State types use discriminated unions** — `GitStateAvailable | GitStateNotFound | GitStateLoading` — no null/undefined for optional states
+- Heartbeat push is **change-detected**: daemon tracks last pushed state, only writes when different
+- Full diff content (`git diff HEAD`) is **on-demand only** — not stored in heartbeat push
+- Commit detail (`git show <sha>`) is also **on-demand only**
+- Recent commits start at 20, user can request more via "load more" (pagination)
+- Non-git directories are explicitly represented with `status: 'not_found'` state
 
 ---
 
 ## 2. Backend Schema Changes
+
+### Type Strategy: Discriminated Unions
+
+All git state uses discriminated unions for proper state encoding:
+
+```typescript
+// GitState discriminated union
+type GitState =
+  | { status: 'available'; branch: string; isDirty: boolean; diffStat: DiffStat; recentCommits: Commit[]; updatedAt: number }
+  | { status: 'not_found' }  // Not a git repository
+  | { status: 'loading' }    // Initial state, daemon hasn't pushed yet
+```
 
 ### New Table: `chatroom_workspaceGitState`
 
@@ -74,22 +112,28 @@ chatroom_workspaceGitState: defineTable({
   machineId: v.string(),
   workingDir: v.string(),
 
-  // Branch info
-  branch: v.string(),           // e.g. "main", "feat/my-feature", "HEAD" (detached)
-  isDirty: v.boolean(),         // true if working tree has uncommitted changes
+  // Discriminated union status
+  status: v.union(
+    v.literal('available'),
+    v.literal('not_found'),
+    v.literal('error')
+  ),
 
-  // Diff summary (git diff --stat)
+  // Branch info (only when status === 'available')
+  branch: v.optional(v.string()),           // e.g. "main", "feat/my-feature", "HEAD" (detached)
+  isDirty: v.optional(v.boolean()),         // true if working tree has uncommitted changes
+
+  // Diff summary: git diff HEAD --stat (only when status === 'available')
   diffStat: v.optional(v.object({
     filesChanged: v.number(),
     insertions: v.number(),
     deletions: v.number(),
   })),
 
-  // Full diff content (git diff, up to ~500KB cap)
-  // Stored as raw unified diff string; parsed client-side per-file
-  diffContent: v.optional(v.string()),
+  // NOTE: Full diff content is NOT stored here — fetch on-demand via requestFullDiff
 
-  // Recent commits (git log --oneline -20 --format=...)
+  // Recent commits: git log -20 --format=... (only when status === 'available')
+  // Paginated: daemon appends more when user requests "load more"
   recentCommits: v.optional(v.array(v.object({
     sha: v.string(),             // full SHA
     shortSha: v.string(),        // 7-char short SHA
@@ -98,10 +142,61 @@ chatroom_workspaceGitState: defineTable({
     date: v.string(),            // ISO 8601 date string
   }))),
 
+  // Total commit count (for "load more" logic)
+  totalCommitCount: v.optional(v.number()),
+  hasMoreCommits: v.optional(v.boolean()),
+
+  // Error message (only when status === 'error')
+  errorMessage: v.optional(v.string()),
+
   // Last time git state was pushed by the daemon
   updatedAt: v.number(),
 })
   .index('by_machine_workingDir', ['machineId', 'workingDir'])
+```
+
+### New Table: `chatroom_workspaceFullDiff`
+
+```typescript
+chatroom_workspaceFullDiff: defineTable({
+  machineId: v.string(),
+  workingDir: v.string(),
+
+  // git diff HEAD output (up to 500KB cap)
+  diffContent: v.string(),      // raw unified diff string
+  truncated: v.boolean(),       // true if diff was capped at 500KB
+
+  // Stats derived from the diff
+  filesChanged: v.number(),
+  insertions: v.number(),
+  deletions: v.number(),
+
+  updatedAt: v.number(),
+})
+  .index('by_machine_workingDir', ['machineId', 'workingDir'])
+```
+
+### New Table: `chatroom_workspaceDiffRequests`
+
+```typescript
+chatroom_workspaceDiffRequests: defineTable({
+  machineId: v.string(),
+  workingDir: v.string(),
+  requestType: v.union(
+    v.literal('full_diff'),
+    v.literal('commit_detail'),
+    v.literal('more_commits')
+  ),
+  // For commit_detail requests
+  sha: v.optional(v.string()),
+  // For more_commits requests
+  offset: v.optional(v.number()),
+  status: v.union(v.literal('pending'), v.literal('processing'), v.literal('done'), v.literal('error')),
+  requestedAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index('by_machine_status', ['machineId', 'status'])
+  .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType'])
 ```
 
 ### New Table: `chatroom_workspaceCommitDetail`
@@ -114,6 +209,12 @@ chatroom_workspaceCommitDetail: defineTable({
 
   // git show <sha> output (stat + full patch)
   diffContent: v.string(),      // raw unified diff string
+  truncated: v.boolean(),       // true if diff was capped
+
+  // Commit metadata
+  message: v.string(),
+  author: v.string(),
+  date: v.string(),
 
   // Derived stats from the commit
   filesChanged: v.number(),
@@ -125,21 +226,6 @@ chatroom_workspaceCommitDetail: defineTable({
   .index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha'])
 ```
 
-### New Table: `chatroom_workspaceCommitRequests`
-
-```typescript
-chatroom_workspaceCommitRequests: defineTable({
-  machineId: v.string(),
-  workingDir: v.string(),
-  sha: v.string(),
-  status: v.union(v.literal('pending'), v.literal('done'), v.literal('error')),
-  requestedAt: v.number(),
-  updatedAt: v.number(),
-})
-  .index('by_machine_workingDir', ['machineId', 'workingDir'])
-  .index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha'])
-```
-
 ---
 
 ## 3. Backend Mutations/Queries
@@ -147,56 +233,89 @@ chatroom_workspaceCommitRequests: defineTable({
 ### New file: `services/backend/convex/workspaces.ts`
 
 ```typescript
-// Mutations (called by daemon):
+// === Mutations (called by daemon) ===
+
 export const upsertWorkspaceGitState = mutation(...)
-// - Args: SessionIdArg, machineId, workingDir, branch, isDirty, diffStat, diffContent, recentCommits
+// - Args: SessionIdArg, machineId, workingDir, status, branch?, isDirty?, diffStat?, recentCommits?, hasMoreCommits?, errorMessage?
 // - Upserts chatroom_workspaceGitState by machineId + workingDir
-// - Auth: validates machine ownership (same pattern as machines.ts)
+// - Auth: validates machine ownership
+
+export const upsertFullDiff = mutation(...)
+// - Args: SessionIdArg, machineId, workingDir, diffContent, truncated, filesChanged, insertions, deletions
+// - Upserts chatroom_workspaceFullDiff
+// - Called by daemon when processing a full_diff request
 
 export const upsertCommitDetail = mutation(...)
-// - Args: SessionIdArg, machineId, workingDir, sha, diffContent, filesChanged, insertions, deletions
+// - Args: SessionIdArg, machineId, workingDir, sha, diffContent, truncated, message, author, date, filesChanged, insertions, deletions
 // - Upserts chatroom_workspaceCommitDetail
-// - Called by daemon when processing a commit detail request
+// - Called by daemon when processing a commit_detail request
+
+export const appendMoreCommits = mutation(...)
+// - Args: SessionIdArg, machineId, workingDir, commits[], hasMoreCommits
+// - Appends commits to recentCommits in chatroom_workspaceGitState
+// - Called by daemon when processing a more_commits request
+
+export const updateRequestStatus = mutation(...)
+// - Args: SessionIdArg, requestId, status
+// - Updates status field of a request row
+
+// === Mutations (called by frontend) ===
+
+export const requestFullDiff = mutation(...)
+// - Args: SessionIdArg, machineId, workingDir
+// - Inserts a pending chatroom_workspaceDiffRequests row with requestType='full_diff'
+// - Idempotent: if pending request exists, return existing
 
 export const requestCommitDetail = mutation(...)
 // - Args: SessionIdArg, machineId, workingDir, sha
-// - Inserts a pending chatroom_workspaceCommitRequests row (idempotent)
-// - Called by frontend when user opens a commit
+// - Inserts a pending chatroom_workspaceDiffRequests row with requestType='commit_detail'
 
-// Queries (called by frontend):
+export const requestMoreCommits = mutation(...)
+// - Args: SessionIdArg, machineId, workingDir, offset
+// - Inserts a pending chatroom_workspaceDiffRequests row with requestType='more_commits'
+
+// === Queries (called by frontend) ===
+
 export const getWorkspaceGitState = query(...)
 // - Args: SessionIdArg, machineId, workingDir
-// - Returns chatroom_workspaceGitState row or null
+// - Returns chatroom_workspaceGitState row or { status: 'loading' }
+
+export const getFullDiff = query(...)
+// - Args: SessionIdArg, machineId, workingDir
+// - Returns chatroom_workspaceFullDiff row or null
 
 export const getCommitDetail = query(...)
 // - Args: SessionIdArg, machineId, workingDir, sha
 // - Returns chatroom_workspaceCommitDetail row or null
 
-export const getWorkspaceCommitRequests = query(...)
-// - Args: SessionIdArg, machineId (all pending requests for this machine)
-// - Returns pending chatroom_workspaceCommitRequests rows
-// - Polled by daemon on heartbeat
+// === Queries (called by daemon) ===
+
+export const getPendingRequests = query(...)
+// - Args: SessionIdArg, machineId
+// - Returns all pending chatroom_workspaceDiffRequests rows for this machine
 ```
 
 ---
 
 ## 4. CLI/Daemon Changes
 
-### Heartbeat Extension: `packages/cli/src/commands/machine/daemon-start/command-loop.ts`
+### Fast Polling Loop for On-Demand Requests
 
-In `startCommandLoop`, add git state push **inside the heartbeat timer** (every 30s):
+In addition to the 30s heartbeat, add a **5s fast polling loop** for processing on-demand requests:
 
 ```typescript
+// In command-loop.ts
+
+// Existing heartbeat (30s) — change-detection push
 const heartbeatTimer = setInterval(() => {
-  // Existing heartbeat
   ctx.deps.backend.mutation(api.machines.daemonHeartbeat, {...})
+  pushGitStateSummaryIfChanged(ctx).catch(...)  // Only pushes if state changed
+}, DAEMON_HEARTBEAT_INTERVAL_MS); // 30s
 
-  // New: push git state for all active workspaces
-  pushGitStateForAllWorkspaces(ctx).catch(...)
-
-  // New: process pending commit detail requests
-  processCommitDetailRequests(ctx).catch(...)
-}, DAEMON_HEARTBEAT_INTERVAL_MS);
+// New fast loop (5s) — on-demand request processing
+const requestProcessorTimer = setInterval(() => {
+  processGitRequests(ctx).catch(...)  // Full diff, commit detail, more commits
+}, GIT_REQUEST_POLL_INTERVAL_MS); // 5s
 ```
 
 ### New file: `packages/cli/src/infrastructure/git/git-reader.ts`
@@ -223,124 +342,230 @@ export interface GitCommit {
   date: string;
 }
 
+export type GitReadResult =
+  | { status: 'available'; data: GitStateData }
+  | { status: 'not_found' }
+  | { status: 'error'; message: string };
+
 // Git commands to run:
-// git rev-parse --abbrev-ref HEAD         → branch name
-// git status --porcelain                  → isDirty (non-empty = dirty)
-// git diff --stat                         → diff stat (insertions/deletions/files)
-// git diff                                → full diff content (cap at 500KB)
+// git rev-parse --is-inside-work-tree    → check if git repo (returns 'true' or error)
+// git rev-parse --abbrev-ref HEAD        → branch name
+// git status --porcelain                 → isDirty (non-empty = dirty)
+// git diff HEAD --stat                   → diff stat (insertions/deletions/files)
+// git diff HEAD                          → full diff content (cap at 500KB)
 // git log -20 --format="%H|%h|%s|%an|%aI" → recent commits
-// git show <sha> --format="" --stat -p    → commit detail
+// git rev-list --count HEAD              → total commit count (for hasMoreCommits)
+// git log -20 --skip=N --format=...      → more commits (pagination)
+// git show <sha> --format="%s|%an|%aI" --stat -p    → commit detail
 ```
 
 ### New file: `packages/cli/src/infrastructure/git/push-git-state.ts`
 
 ```typescript
-// pushGitStateForAllWorkspaces(ctx)
+// pushGitStateSummaryIfChanged(ctx)
 // 1. Collect all active workingDirs from ctx (tracked via agent configs)
-// 2. For each workingDir, run git commands via git-reader
-// 3. Call api.workspaces.upsertWorkspaceGitState with results
-// 4. Cap diffContent at 500KB to avoid Convex document size limits
+// 2. For each workingDir:
+//    a. Check if git repo (git rev-parse --is-inside-work-tree)
+//    b. If not git repo: push { status: 'not_found' }
+//    c. If git repo: run git commands via git-reader
+//    d. Compare with last pushed state (stored in memory)
+//    e. If changed: call api.workspaces.upsertWorkspaceGitState
+//    f. If unchanged: skip
+// 3. Track last state in DaemonContext for change detection
 ```
 
-### New file: `packages/cli/src/infrastructure/git/process-commit-requests.ts`
+### New file: `packages/cli/src/infrastructure/git/process-git-requests.ts`
 
 ```typescript
-// processCommitDetailRequests(ctx)
-// 1. Query api.workspaces.getWorkspaceCommitRequests for pending requests
-// 2. For each pending request, run: git show <sha> --format="" --stat -p
-// 3. Call api.workspaces.upsertCommitDetail
-// 4. Mark request as done
+// processGitRequests(ctx)
+// 1. Query api.workspaces.getPendingRequests for this machineId
+// 2. For each pending request:
+//    a. Mark as 'processing' via updateRequestStatus
+//    b. Based on requestType:
+//       - full_diff: run `git diff HEAD`, call upsertFullDiff
+//       - commit_detail: run `git show <sha>`, call upsertCommitDetail
+//       - more_commits: run `git log -20 --skip=N`, call appendMoreCommits
+//    c. Mark as 'done' via updateRequestStatus
+// 3. Cap diff content at 500KB, set truncated=true if capped
 ```
 
 ### Modified file: `packages/cli/src/commands/machine/daemon-start/command-loop.ts`
 
-- Import and call `pushGitStateForAllWorkspaces` and `processCommitDetailRequests` inside heartbeat
+- Add fast polling timer (5s) for request processing
+- Import and call `pushGitStateSummaryIfChanged` in heartbeat (change-detected)
+- Import and call `processGitRequests` in fast loop
+- Add cleanup for both timers on shutdown
 
-### Workspace Tracking in DaemonContext
+### DaemonContext Changes
 
-The daemon needs to know which `workingDir` values are active. These are already stored on `chatroom_teamAgentConfigs` (available via agent configs). The daemon can read them from there, or we can track them in `DaemonContext` as a `Set<string>` updated when agents start/stop.
+Add state tracking for change detection:
 
-Simplest approach: query `chatroom_teamAgentConfigs` for this machine on each heartbeat to get the current set of active `workingDir` values.
+```typescript
+interface DaemonContext {
+  // ... existing fields
+  lastPushedGitState: Map<string, GitStateSummary>; // workingDir -> summary hash
+}
+```
 
 ---
 
 ## 5. Frontend Layers
+
+### Type Definitions
+
+**New file: `apps/webapp/src/modules/chatroom/types/git.ts`**
+
+```typescript
+// Discriminated union types for git state
+export type WorkspaceGitState =
+  | { status: 'loading' }
+  | { status: 'not_found' }
+  | { status: 'error'; message: string }
+  | {
+      status: 'available';
+      branch: string;
+      isDirty: boolean;
+      diffStat: { filesChanged: number; insertions: number; deletions: number };
+      recentCommits: GitCommit[];
+      hasMoreCommits: boolean;
+      updatedAt: number;
+    };
+
+export interface GitCommit {
+  sha: string;
+  shortSha: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+export type FullDiffState =
+  | { status: 'idle' }           // Not requested yet
+  | { status: 'loading' }        // Request pending
+  | { status: 'available'; content: string; truncated: boolean; stats: DiffStat }
+  | { status: 'error'; message: string };
+
+export type CommitDetailState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'available'; content: string; truncated: boolean; message: string; author: string; date: string; stats: DiffStat }
+  | { status: 'error'; message: string };
+```
 
 ### Hooks Layer
 
 **New file: `apps/webapp/src/modules/chatroom/hooks/useWorkspaceGit.ts`**
 
 ```typescript
-// useWorkspaceGit(machineId: string, workingDir: string)
+// useWorkspaceGit(machineId: string, workingDir: string): WorkspaceGitState
 // - Calls useSessionQuery(api.workspaces.getWorkspaceGitState, { machineId, workingDir })
-// - Returns: { branch, isDirty, diffStat, diffContent, recentCommits, updatedAt } | null
+// - Transforms backend response to WorkspaceGitState discriminated union
+// - Returns { status: 'loading' } while query is undefined
 
-// useWorkspaceCommitDetail(machineId: string, workingDir: string, sha: string | null)
-// - Calls useSessionQuery(api.workspaces.getCommitDetail, { machineId, workingDir, sha })
-//   only when sha is non-null
-// - Returns the commit detail row or null
+// useFullDiff(machineId: string, workingDir: string): { state: FullDiffState; request: () => void }
+// - state: from useSessionQuery(api.workspaces.getFullDiff)
+// - request: calls useSessionMutation(api.workspaces.requestFullDiff)
+
+// useCommitDetail(machineId: string, workingDir: string, sha: string | null): { state: CommitDetailState; request: (sha: string) => void }
+// - Similar pattern to useFullDiff
+
+// useLoadMoreCommits(machineId: string, workingDir: string): { loading: boolean; loadMore: () => void }
+// - Tracks loading state
+// - loadMore: calls requestMoreCommits with current offset
 ```
 
 ### View Components
 
 **New file: `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitBranch.tsx`**
-- Displays branch name with a `GitBranch` icon (from `lucide-react`)
-- Shows a yellow dot (or "dirty" badge) when `isDirty` is true
-- Shows `diffStat` summary: "3 files changed, +45 -12" in muted text
-- Accepts: `{ branch: string; isDirty: boolean; diffStat?: DiffStat }`
+
+```typescript
+// Props: { state: WorkspaceGitState }
+// Renders based on state.status:
+// - 'loading': Skeleton/spinner
+// - 'not_found': "Git info not found" message with icon
+// - 'error': Error message
+// - 'available': Branch name + dirty indicator + diff stat summary
+//   - GitBranch icon (lucide-react)
+//   - Branch name (mono font)
+//   - Yellow dot if isDirty
+//   - "3 files, +45 -12" in muted text
+```
 
 **New file: `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceDiffViewer.tsx`**
-- Renders the full `diffContent` string (unified diff)
-- Parses unified diff client-side into per-file sections (split on `diff --git`)
-- Each file section is collapsible (click to expand/collapse)
-- Diff hunks rendered with syntax highlighting: green for additions, red for deletions
-- Uses monospace font, `text-xs`, `overflow-x-auto` for wide lines
-- Shows file header: `+N -M` stats per file
-- Accepts: `{ diffContent: string }` 
+
+```typescript
+// Props: { state: FullDiffState; onRequest: () => void }
+// Renders based on state.status:
+// - 'idle': "Click to load diff" button
+// - 'loading': Skeleton/spinner
+// - 'error': Error message
+// - 'available': Full unified diff with:
+//   - Truncation warning if state.truncated
+//   - Per-file collapsible sections (parse on `diff --git`)
+//   - Syntax highlighting (green additions, red deletions)
+//   - Monospace font, text-xs, overflow-x-auto
+//   - File header with +N -M stats
+```
 
 **New file: `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitLog.tsx`**
-- Lists recent commits in a scrollable list
-- Each row: short SHA (mono), message, author, relative date (e.g. "2 hours ago")
-- Click a row to open commit detail
-- Selected row highlighted
-- Keyboard: `↑/↓` to navigate, `Enter` to open, `Escape` to close detail
-- Accepts: `{ commits: GitCommit[]; onSelectCommit: (sha: string) => void; selectedSha: string | null }`
+
+```typescript
+// Props: { commits: GitCommit[]; hasMore: boolean; onSelectCommit: (sha: string) => void; onLoadMore: () => void; selectedSha: string | null; loadingMore: boolean }
+// - Scrollable list of commits
+// - Each row: short SHA (mono), message, author, relative date
+// - Selected row highlighted
+// - "Load more" button at bottom if hasMore
+// - Keyboard: ↑/↓ to navigate, Enter to select
+```
 
 **New file: `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceCommitDetail.tsx`**
-- Shows full diff for a selected commit
-- Header: SHA, author, date, message
-- Back button (or `Escape`) to return to log
-- Renders same unified diff format as WorkspaceDiffViewer
-- Shows loading state while daemon processes the request
-- Accepts: `{ machineId: string; workingDir: string; sha: string; onClose: () => void }`
+
+```typescript
+// Props: { machineId: string; workingDir: string; sha: string; onClose: () => void }
+// - Header: SHA, author, date, commit message
+// - Back button or Escape to close
+// - Uses useCommitDetail hook
+// - Renders based on state.status:
+//   - 'idle' / 'loading': Loading state with spinner
+//   - 'available': Full diff (same renderer as WorkspaceDiffViewer)
+//   - 'error': Error message
+```
 
 **New file: `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitPanel.tsx`**
 
-Container component — ties all hooks + views together:
+Container component:
 
 ```typescript
+// Props: { machineId: string; workingDir: string }
 // State:
 // - activeTab: 'branch' | 'diff' | 'log'
-// - selectedCommitSha: string | null
+// - selectedCommitSha: string | null (when viewing commit detail)
 
-// Props:
-// - machineId: string
-// - workingDir: string
+// Uses hooks:
+// - useWorkspaceGit(machineId, workingDir)
+// - useFullDiff(machineId, workingDir)
+// - useCommitDetail(machineId, workingDir, selectedCommitSha)
+// - useLoadMoreCommits(machineId, workingDir)
 
 // Renders:
-// - Tab bar: "Branch" | "Diff" | "History"
-// - Content pane based on activeTab:
-//   - branch: WorkspaceGitBranch
-//   - diff:   WorkspaceDiffViewer
-//   - log:    WorkspaceGitLog (when commit selected, renders WorkspaceCommitDetail)
+// - If state.status === 'not_found': Just shows "Git info not found"
+// - Otherwise: Tab bar + content pane
 
-// Keyboard shortcuts (within panel focus):
+// Tab bar: "Branch" | "Diff" | "History"
+// Content pane:
+// - branch tab: WorkspaceGitBranch
+// - diff tab: WorkspaceDiffViewer
+// - log tab: WorkspaceGitLog (or WorkspaceCommitDetail when commit selected)
+
+// Keyboard shortcuts (register when panel focused):
 // - g b → switch to Branch tab
 // - g d → switch to Diff tab
 // - g l → switch to History/Log tab
 // - Escape → close commit detail (return to log)
 // - ↑/↓ → navigate log when log tab active
 // - Enter → open selected commit
+
+// Collapsible: controlled by parent
 ```
 
 ---
@@ -349,26 +574,27 @@ Container component — ties all hooks + views together:
 
 ### Location: Inside `WorkspaceAgentList.tsx`, below workspace header
 
-The git panel is added as a new **collapsible section** inside `WorkspaceAgentList.tsx`, between the workspace header (folder + machine + agent count) and the agents list.
+The git panel is added as a new **collapsible section** inside `WorkspaceAgentList.tsx`, between the workspace header and the agents list.
 
 ```
 WorkspaceAgentList
 ├── Workspace header (existing)
 │   ├── Folder icon + name + path
 │   └── Machine + agent count metadata
-├── [NEW] WorkspaceGitPanel  ← inserted here
-│   ├── Tab bar: Branch | Diff | History
+├── [NEW] WorkspaceGitPanel (collapsible, default: collapsed)
+│   ├── Collapse toggle (chevron)
+│   ├── Tab bar: Branch | Diff | History (when expanded)
 │   └── Content pane
 ├── "AGENTS" section label (existing)
 └── Agent cards (existing, scrollable)
 ```
 
-**Why here (not as a separate modal or new tab in the outer modal)?**
-- The workspace panel in `UnifiedAgentListModal` is already the right context (user selected a workspace)
-- The git data is scoped to `machineId + workingDir` — exactly what a workspace represents
-- Avoids creating a new entry point or navigation layer
+**Non-git directories:** Workspace icon still shows. When user clicks in, `WorkspaceGitPanel` displays "Git info not found" message (from the `not_found` state). No error, clean UX.
 
-**Collapse behavior:** The `WorkspaceGitPanel` is collapsible via a toggle button (chevron). Default: collapsed. The layout remains compact when not needed.
+**Why here (not as a separate modal)?**
+- The workspace panel is already the right context (user selected a workspace)
+- Git data is scoped to `machineId + workingDir` — exactly what a workspace represents
+- Avoids creating a new navigation layer
 
 ---
 
@@ -378,121 +604,163 @@ WorkspaceAgentList
 
 | File | Change |
 |------|--------|
-| `services/backend/convex/schema.ts` | Add `chatroom_workspaceGitState`, `chatroom_workspaceCommitDetail`, `chatroom_workspaceCommitRequests` tables |
-| `services/backend/convex/workspaces.ts` | **NEW** — mutations: `upsertWorkspaceGitState`, `upsertCommitDetail`, `requestCommitDetail`; queries: `getWorkspaceGitState`, `getCommitDetail`, `getWorkspaceCommitRequests` |
+| `services/backend/convex/schema.ts` | Add `chatroom_workspaceGitState`, `chatroom_workspaceFullDiff`, `chatroom_workspaceCommitDetail`, `chatroom_workspaceDiffRequests` tables |
+| `services/backend/convex/workspaces.ts` | **NEW** — all mutations and queries listed in section 3 |
 
 ### CLI/Daemon
 
 | File | Change |
 |------|--------|
-| `packages/cli/src/infrastructure/git/git-reader.ts` | **NEW** — git command wrappers (branch, status, diff, log, show) |
-| `packages/cli/src/infrastructure/git/push-git-state.ts` | **NEW** — collects workingDirs, runs git, calls upsertWorkspaceGitState |
-| `packages/cli/src/infrastructure/git/process-commit-requests.ts` | **NEW** — polls pending commit requests, runs `git show`, calls upsertCommitDetail |
-| `packages/cli/src/commands/machine/daemon-start/command-loop.ts` | **MODIFY** — add `pushGitStateForAllWorkspaces` and `processCommitDetailRequests` to heartbeat timer |
+| `packages/cli/src/infrastructure/git/git-reader.ts` | **NEW** — git command wrappers with union return types |
+| `packages/cli/src/infrastructure/git/push-git-state.ts` | **NEW** — change-detection push on heartbeat |
+| `packages/cli/src/infrastructure/git/process-git-requests.ts` | **NEW** — fast loop request processor |
+| `packages/cli/src/commands/machine/daemon-start/command-loop.ts` | **MODIFY** — add fast polling timer, call git functions |
+| `packages/cli/src/commands/machine/daemon-start/types.ts` | **MODIFY** — add `lastPushedGitState` to DaemonContext |
+
+### Frontend — Types
+
+| File | Change |
+|------|--------|
+| `apps/webapp/src/modules/chatroom/types/git.ts` | **NEW** — discriminated union types for git state |
 
 ### Frontend — Hooks
 
 | File | Change |
 |------|--------|
-| `apps/webapp/src/modules/chatroom/hooks/useWorkspaceGit.ts` | **NEW** — `useWorkspaceGit`, `useWorkspaceCommitDetail` hooks |
+| `apps/webapp/src/modules/chatroom/hooks/useWorkspaceGit.ts` | **NEW** — all git-related hooks |
 
 ### Frontend — Components
 
 | File | Change |
 |------|--------|
-| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitBranch.tsx` | **NEW** — branch + dirty indicator + diff stat summary |
-| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceDiffViewer.tsx` | **NEW** — unified diff renderer (collapsible per-file sections) |
-| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitLog.tsx` | **NEW** — commit list with keyboard navigation |
-| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceCommitDetail.tsx` | **NEW** — per-commit diff viewer with loading state |
-| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitPanel.tsx` | **NEW** — container with tab bar, keyboard shortcuts, collapse toggle |
-| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceAgentList.tsx` | **MODIFY** — add `WorkspaceGitPanel` between header and agents section; pass `machineId` prop |
-| `apps/webapp/src/modules/chatroom/types/workspace.ts` | **MODIFY** — add `machineId: string` field to `Workspace` interface (currently `null`, needs to be the real machineId from backend workspaces) |
+| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitBranch.tsx` | **NEW** — branch + dirty indicator + diff stat |
+| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceDiffViewer.tsx` | **NEW** — full diff renderer |
+| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitLog.tsx` | **NEW** — commit list with load more |
+| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceCommitDetail.tsx` | **NEW** — per-commit diff viewer |
+| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitPanel.tsx` | **NEW** — container with tabs + keyboard |
+| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceAgentList.tsx` | **MODIFY** — add collapsible WorkspaceGitPanel |
 
-### Backend — Supporting Types
+### Backend — Supporting Changes
 
 | File | Change |
 |------|--------|
-| `services/backend/src/domain/usecase/chatroom/get-agent-statuses.ts` | **MODIFY** — ensure `WorkspaceView` exposes `machineId` (currently may be omitted) |
+| `services/backend/src/domain/usecase/chatroom/get-agent-statuses.ts` | **MODIFY** — ensure `WorkspaceView` exposes `machineId` |
 
 ---
 
 ## 8. Implementation Phases
 
-### Phase 1: Backend Schema + Daemon Push (No UI yet)
+### Phase 1: Backend Schema + Daemon Push (Change-Detection)
 
-**Goal:** Daemon pushes git state to Convex on every heartbeat. Can be verified via Convex dashboard.
+**Goal:** Daemon pushes git state summary (branch, diffStat, commits) to Convex on heartbeat, only when changed. Non-git directories are explicitly marked.
 
-1. Add `chatroom_workspaceGitState` table to `schema.ts`
-2. Create `services/backend/convex/workspaces.ts` with `upsertWorkspaceGitState` mutation and `getWorkspaceGitState` query
+1. Add all 4 tables to `schema.ts`
+2. Create `services/backend/convex/workspaces.ts` with:
+   - `upsertWorkspaceGitState` mutation
+   - `getWorkspaceGitState` query
 3. Create `packages/cli/src/infrastructure/git/git-reader.ts`
-4. Create `packages/cli/src/infrastructure/git/push-git-state.ts`
-5. Modify `command-loop.ts` to call `pushGitStateForAllWorkspaces` in heartbeat
+4. Create `packages/cli/src/infrastructure/git/push-git-state.ts` (with change detection)
+5. Modify `command-loop.ts` to call `pushGitStateSummaryIfChanged` in heartbeat
+6. Modify `DaemonContext` to track `lastPushedGitState`
 
-**Acceptance:** Running `chatroom machine start` and waiting 30s shows a `chatroom_workspaceGitState` row in the Convex dashboard with real git data.
-
----
-
-### Phase 2: Frontend Git State Display (Branch + Diff)
-
-**Goal:** Users can see branch and diff in the workspace panel.
-
-1. Create `useWorkspaceGit.ts` hook
-2. Ensure `WorkspaceView` in backend exposes `machineId` — patch `get-agent-statuses.ts` and `workspace.ts` type
-3. Create `WorkspaceGitBranch.tsx`
-4. Create `WorkspaceDiffViewer.tsx` (unified diff parser + renderer)
-5. Create `WorkspaceGitPanel.tsx` with tabs (branch + diff only, log tab disabled)
-6. Modify `WorkspaceAgentList.tsx` to render `WorkspaceGitPanel` (collapsible)
-
-**Acceptance:** Opening the All Agents modal shows branch name, dirty indicator, and file diff when a workspace is selected and daemon is running.
+**Acceptance:** 
+- Running `chatroom machine start` in a git repo shows a `chatroom_workspaceGitState` row with `status: 'available'`
+- Running in a non-git dir shows `status: 'not_found'`
+- Repeated heartbeats don't create new writes if state unchanged
 
 ---
 
-### Phase 3: Git History (Log List)
+### Phase 2: Frontend Git State Display (Branch + DiffStat)
 
-**Goal:** Users can browse recent commits.
+**Goal:** Users see branch info and diff summary in the workspace panel.
 
-1. Create `WorkspaceGitLog.tsx` with keyboard navigation (`↑/↓`, `Enter`)
-2. Enable the "History" tab in `WorkspaceGitPanel.tsx`
-3. Add keyboard shortcuts (`g l`, `g b`, `g d`) to `WorkspaceGitPanel.tsx`
+1. Create `types/git.ts` with discriminated unions
+2. Create `useWorkspaceGit.ts` hook
+3. Ensure `WorkspaceView` exposes `machineId` — patch `get-agent-statuses.ts`
+4. Create `WorkspaceGitBranch.tsx`
+5. Create `WorkspaceGitPanel.tsx` (tabs: Branch only for now)
+6. Modify `WorkspaceAgentList.tsx` to render `WorkspaceGitPanel`
 
-**Acceptance:** Switching to History tab shows 20 recent commits with SHA, message, author, date.
+**Acceptance:**
+- Opening All Agents modal → selecting workspace shows branch name + dirty indicator
+- Non-git workspace shows "Git info not found" message
 
 ---
 
-### Phase 4: Commit Detail (On-Demand)
+### Phase 3: On-Demand Full Diff
+
+**Goal:** Users can request and view full diff content.
+
+1. Add `requestFullDiff`, `upsertFullDiff`, `getFullDiff` to `workspaces.ts`
+2. Create fast polling loop (5s) in `command-loop.ts`
+3. Create `packages/cli/src/infrastructure/git/process-git-requests.ts`
+4. Create `useFullDiff` hook
+5. Create `WorkspaceDiffViewer.tsx`
+6. Enable Diff tab in `WorkspaceGitPanel.tsx`
+
+**Acceptance:**
+- Clicking Diff tab shows "Load Diff" button
+- Clicking button triggers request, diff appears within ~5s
+- Large diffs show truncation warning
+
+---
+
+### Phase 4: Git History + Load More
+
+**Goal:** Users can browse commits with pagination.
+
+1. Add `requestMoreCommits`, `appendMoreCommits` to `workspaces.ts`
+2. Add more_commits handling to `process-git-requests.ts`
+3. Create `useLoadMoreCommits` hook
+4. Create `WorkspaceGitLog.tsx` with keyboard navigation
+5. Enable History tab in `WorkspaceGitPanel.tsx`
+6. Add keyboard shortcuts (`g b/d/l`, `↑/↓`, `Enter`)
+
+**Acceptance:**
+- History tab shows 20 commits
+- "Load More" button loads next 20
+- Keyboard navigation works
+
+---
+
+### Phase 5: Commit Detail (On-Demand)
 
 **Goal:** Click a commit to see its full diff.
 
-1. Add `chatroom_workspaceCommitDetail` and `chatroom_workspaceCommitRequests` tables to `schema.ts`
-2. Add `requestCommitDetail`, `upsertCommitDetail`, `getCommitDetail`, `getWorkspaceCommitRequests` to `workspaces.ts`
-3. Create `packages/cli/src/infrastructure/git/process-commit-requests.ts`
-4. Modify `command-loop.ts` to call `processCommitDetailRequests` in heartbeat
-5. Create `WorkspaceCommitDetail.tsx` (with loading state while daemon processes request)
-6. Wire commit selection in `WorkspaceGitPanel.tsx`: clicking a commit calls `requestCommitDetail`, then subscribes to `getCommitDetail` for the result
+1. Add `requestCommitDetail`, `upsertCommitDetail`, `getCommitDetail` to `workspaces.ts`
+2. Add commit_detail handling to `process-git-requests.ts`
+3. Create `useCommitDetail` hook
+4. Create `WorkspaceCommitDetail.tsx`
+5. Wire commit selection in `WorkspaceGitLog.tsx`
 
-**Acceptance:** Clicking a commit shows its diff within ~30s (one heartbeat cycle). Subsequent opens are instant (cached in `chatroom_workspaceCommitDetail`).
-
----
-
-### Phase 5: Polish + Edge Cases
-
-1. Cap `diffContent` at 500KB in `push-git-state.ts` to avoid Convex limits; show truncation notice in UI
-2. Handle non-git directories gracefully (no error, just skip; show "Not a git repo" in panel)
-3. Handle detached HEAD state (`git rev-parse` returns "HEAD" — display as "detached HEAD @ <sha>")
-4. Dark mode audit for all new components (use semantic colors)
-5. Empty state: "No changes" when `diffContent` is empty; "No commits" when `recentCommits` is empty
-6. Handle daemon offline: show stale timestamp ("Last updated 5 min ago") using `updatedAt`
+**Acceptance:**
+- Clicking a commit shows loading state
+- Diff appears within ~5s
+- Back/Escape returns to log
 
 ---
 
-## Appendix: Key Decisions Summary
+### Phase 6: Polish + Edge Cases
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Data push model | Heartbeat (30s push) | Simpler, consistent with existing patterns |
-| Commit detail fetch | On-demand via request table | Avoids storing 20× full diffs per workspace |
-| Diff size cap | 500KB | Convex document size limit (~1MB), leave headroom |
-| UI integration point | Inside WorkspaceAgentList (collapsible) | Right context, no new navigation layer |
-| Tab UX | Tab bar with keyboard shortcuts | Familiar pattern; `g b/d/l` mnemonics |
-| Per-file diff parsing | Client-side (split on `diff --git`) | Server returns raw unified diff; no extra complexity |
-| workingDir tracking | Query teamAgentConfigs on heartbeat | Simplest; avoids extra state in DaemonContext |
+1. Dark mode audit for all new components
+2. Handle detached HEAD (`git rev-parse` returns "HEAD" → display "detached @ <sha>")
+3. Empty states: "No changes" when clean, "No commits" when empty
+4. Stale timestamp display ("Last updated 5 min ago") using `updatedAt`
+5. Error state styling and retry affordance
+6. Performance: debounce keyboard navigation, virtualize long commit lists
+
+---
+
+## Appendix: Git Commands Reference
+
+| Purpose | Command | Notes |
+|---------|---------|-------|
+| Check if git repo | `git rev-parse --is-inside-work-tree` | Returns 'true' or error |
+| Get branch | `git rev-parse --abbrev-ref HEAD` | Returns 'HEAD' if detached |
+| Check dirty | `git status --porcelain` | Non-empty = dirty |
+| Diff stat | `git diff HEAD --stat` | All uncommitted changes |
+| Full diff | `git diff HEAD` | Cap at 500KB |
+| Recent commits | `git log -20 --format="%H\|%h\|%s\|%an\|%aI"` | Pipe-delimited |
+| Total commits | `git rev-list --count HEAD` | For hasMoreCommits |
+| More commits | `git log -20 --skip=N --format=...` | Pagination |
+| Commit detail | `git show <sha> --format="%s\|%an\|%aI" -p` | Full patch |
