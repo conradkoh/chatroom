@@ -3,7 +3,7 @@
 import { FolderOpen, ChevronRight } from 'lucide-react';
 import { memo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { WorkspaceGitPanel } from './WorkspaceGitPanel';
+import { WorkspaceGitPanel } from '../../workspace/components/WorkspaceGitPanel';
 
 import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';

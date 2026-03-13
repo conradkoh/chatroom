@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import { AlertCircle, AlertTriangle, GitBranch } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { WorkspaceGitState, DiffStat } from '../../types/git';
+import type { WorkspaceGitState, DiffStat } from '../types/git';
 
 interface WorkspaceGitBranchProps {
   state: WorkspaceGitState;

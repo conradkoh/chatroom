@@ -7,7 +7,7 @@ import {
   useFullDiff,
   useCommitDetail,
   useLoadMoreCommits,
-} from '../../hooks/useWorkspaceGit';
+} from '../hooks/useWorkspaceGit';
 import { WorkspaceGitBranch } from './WorkspaceGitBranch';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
 import { WorkspaceGitLog } from './WorkspaceGitLog';

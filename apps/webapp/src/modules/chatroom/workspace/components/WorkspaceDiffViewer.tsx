@@ -4,7 +4,7 @@ import { memo } from 'react';
 import { AlertTriangle, FileCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { FullDiffState } from '../../types/git';
+import type { FullDiffState } from '../types/git';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

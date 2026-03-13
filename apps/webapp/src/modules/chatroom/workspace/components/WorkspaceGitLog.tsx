@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { GitCommit } from '../../types/git';
+import type { GitCommit } from '../types/git';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

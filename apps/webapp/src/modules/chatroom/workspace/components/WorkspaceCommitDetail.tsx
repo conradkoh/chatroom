@@ -4,7 +4,7 @@ import { memo, useEffect } from 'react';
 import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { CommitDetailState, FullDiffState, DiffStat } from '../../types/git';
+import type { CommitDetailState, FullDiffState, DiffStat } from '../types/git';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
