@@ -149,14 +149,12 @@ export const WorkspaceBar = memo(function WorkspaceBar({ workspaces }: Workspace
               </div>
             </FixedModalTitle>
           </FixedModalHeader>
-          <FixedModalBody>
+          <FixedModalBody className="p-0 overflow-hidden">
             {selectedWorkspace && selectedWorkspace.machineId && (
-              <div className="p-4">
-                <WorkspaceGitPanel
-                  machineId={selectedWorkspace.machineId}
-                  workingDir={selectedWorkspace.workingDir}
-                />
-              </div>
+              <WorkspaceGitPanel
+                machineId={selectedWorkspace.machineId}
+                workingDir={selectedWorkspace.workingDir}
+              />
             )}
           </FixedModalBody>
         </FixedModalContent>

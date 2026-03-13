@@ -22,7 +22,7 @@ interface WorkspaceGitPanelProps {
 
 type ActiveTab = 'branch' | 'diff' | 'log';
 
-// ─── Tab bar ──────────────────────────────────────────────────────────────────
+// ─── Navigation items ─────────────────────────────────────────────────────────
 
 const TABS: { id: ActiveTab; label: string }[] = [
   { id: 'branch', label: 'Branch' },
@@ -35,6 +35,7 @@ const TABS: { id: ActiveTab; label: string }[] = [
 /**
  * Container panel for workspace git info.
  *
+ * Renders a sidebar navigation on the left and content area on the right.
  * Fetches git state and wires child components together with
  * tab switching and commit selection state.
  */
@@ -67,15 +68,27 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
     clearCommitDetail();
   }, [clearCommitDetail]);
 
-  // For non-available states, render without tabs
+  // For non-available states, render without sidebar (simple single-pane view)
   if (gitState.status !== 'available') {
-    return <WorkspaceGitBranch state={gitState} />;
+    return (
+      <div className="p-4">
+        <WorkspaceGitBranch state={gitState} />
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col">
-      {/* Tab bar */}
-      <div className="flex items-center gap-3 border-b border-chatroom-border mb-0">
+    <div className="flex flex-row h-full">
+      {/* Side panel */}
+      <div className="w-40 flex-shrink-0 border-r-2 border-chatroom-border overflow-y-auto">
+        {/* Header */}
+        <div className="px-3 pt-3 pb-2 border-b border-chatroom-border">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+            Git
+          </span>
+        </div>
+
+        {/* Navigation items */}
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -89,19 +102,28 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
               }
             }}
             className={cn(
-              'text-[10px] font-bold uppercase tracking-widest pb-1.5 transition-colors border-b-2 -mb-px',
+              'w-full text-left px-3 py-2 flex items-center gap-1.5 transition-colors',
               activeTab === tab.id
-                ? 'text-chatroom-text-primary border-chatroom-accent'
-                : 'text-chatroom-text-muted hover:text-chatroom-text-secondary border-transparent',
+                ? 'bg-chatroom-bg-hover border-l-2 border-chatroom-accent'
+                : 'border-l-2 border-transparent hover:bg-chatroom-bg-hover/50',
             )}
           >
-            {tab.label}
+            <span
+              className={cn(
+                'text-[11px] font-medium',
+                activeTab === tab.id
+                  ? 'text-chatroom-text-primary'
+                  : 'text-chatroom-text-secondary',
+              )}
+            >
+              {tab.label}
+            </span>
           </button>
         ))}
       </div>
 
-      {/* Content pane */}
-      <div className="pt-3">
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto p-4">
         {activeTab === 'branch' && <WorkspaceGitBranch state={gitState} />}
 
         {activeTab === 'diff' && (
