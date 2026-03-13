@@ -39,15 +39,15 @@ const WorkspaceChip = memo(function WorkspaceChip({
   // Diff stat display
   let statContent: React.ReactNode = null;
   if (gitState.status === 'loading') {
-    statContent = <span className="text-chatroom-text-muted text-xs">…</span>;
+    statContent = <span className="text-chatroom-text-muted text-[11px]">…</span>;
   } else if (gitState.status === 'available') {
     const { insertions, deletions, filesChanged } = gitState.diffStat;
     const isClean = filesChanged === 0 && insertions === 0 && deletions === 0;
     if (isClean) {
-      statContent = <span className="text-chatroom-text-muted text-xs">clean</span>;
+      statContent = <span className="text-chatroom-text-muted text-[11px]">clean</span>;
     } else {
       statContent = (
-        <span className="flex items-center gap-0.5 text-xs">
+        <span className="flex items-center gap-0.5 text-[11px]">
           <span className="text-chatroom-status-success">+{insertions}</span>
           <span className="text-chatroom-status-error">−{deletions}</span>
         </span>
@@ -71,11 +71,11 @@ const WorkspaceChip = memo(function WorkspaceChip({
       <span className="text-xs text-chatroom-text-primary font-medium">
         {getWorkspaceName(workspace.workingDir)}
       </span>
-      <span className="text-xs text-chatroom-text-muted">·</span>
-      <span className="text-xs text-chatroom-text-muted">{workspace.hostname}</span>
+      <span className="text-[11px] text-chatroom-text-muted">·</span>
+      <span className="text-[11px] text-chatroom-text-muted">{workspace.hostname}</span>
       {statContent && (
         <>
-          <span className="text-xs text-chatroom-text-muted">·</span>
+          <span className="text-[11px] text-chatroom-text-muted">·</span>
           {statContent}
         </>
       )}
