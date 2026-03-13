@@ -78,6 +78,7 @@ const WorkspaceChip = memo(function WorkspaceChip({
       <span className="text-xs font-semibold text-chatroom-text-primary whitespace-nowrap">
         {getWorkspaceName(workspace.workingDir)}
       </span>
+      <span className="h-3 w-px bg-chatroom-border shrink-0" />
       <span className="text-[10px] text-chatroom-text-muted whitespace-nowrap">
         {workspace.hostname}
       </span>
