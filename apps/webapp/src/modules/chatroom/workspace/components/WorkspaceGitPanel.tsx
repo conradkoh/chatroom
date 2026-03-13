@@ -142,7 +142,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
       </div>
 
       {/* Content area */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className={cn('flex-1 overflow-y-auto', activeTab === 'diff' ? 'p-0' : 'p-4')}>
         {activeTab === 'diff' && (
           <WorkspaceDiffViewer state={fullDiffState} onRequest={requestDiff} />
         )}

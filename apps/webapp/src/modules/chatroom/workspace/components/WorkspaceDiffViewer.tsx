@@ -1,8 +1,9 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import type { FullDiffState } from '../types/git';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -23,6 +24,7 @@ interface FileDiffSection {
   /** File path extracted from the +++ b/... line. */
   filePath: string;
   lines: DiffLine[];
+  status: 'created' | 'deleted' | 'modified';
 }
 
 // ─── Diff Parser ──────────────────────────────────────────────────────────────
@@ -31,6 +33,7 @@ interface FileDiffSection {
  * Parses a unified diff string into per-file sections.
  * Splits on `diff --git` boundaries and classifies each line.
  * Tracks old/new line numbers from @@ hunk headers.
+ * Detects file status (created/deleted/modified).
  */
 function parseDiff(content: string): FileDiffSection[] {
   if (!content.trim()) return [];
@@ -42,19 +45,24 @@ function parseDiff(content: string): FileDiffSection[] {
 
     // Extract file path from `+++ b/<path>` or fall back to the diff header
     let filePath = '';
+    let status: FileDiffSection['status'] = 'modified';
+
     for (const line of lines) {
+      if (line.startsWith('new file mode') || line.startsWith('--- /dev/null')) {
+        status = 'created';
+      }
+      if (line.startsWith('deleted file mode') || line.startsWith('+++ /dev/null')) {
+        status = 'deleted';
+      }
       if (line.startsWith('+++ b/')) {
         filePath = line.slice(6);
-        break;
-      }
-      if (line.startsWith('+++ /dev/null')) {
-        filePath = '(deleted file)';
-        break;
+      } else if (line.startsWith('+++ /dev/null')) {
+        filePath = filePath || '(deleted file)';
       }
       if (line.startsWith('diff --git ')) {
         // e.g. "diff --git a/foo/bar.ts b/foo/bar.ts"
         const match = /diff --git a\/.+ b\/(.+)/.exec(line);
-        if (match) filePath = match[1]!;
+        if (match) filePath = filePath || match[1]!;
       }
     }
 
@@ -95,16 +103,31 @@ function parseDiff(content: string): FileDiffSection[] {
         parsedLines.push({ type: 'deletion', content: raw, oldLineNum: oldLineNum++ });
       } else {
         // context line (or empty trailing line)
-        if (raw === '' && parsedLines.length > 0 && parsedLines[parsedLines.length - 1]!.type === 'hunk') {
+        if (
+          raw === '' &&
+          parsedLines.length > 0 &&
+          parsedLines[parsedLines.length - 1]!.type === 'hunk'
+        ) {
           // skip trailing empty lines after hunk headers
           continue;
         }
-        parsedLines.push({ type: 'context', content: raw, oldLineNum: oldLineNum++, newLineNum: newLineNum++ });
+        parsedLines.push({
+          type: 'context',
+          content: raw,
+          oldLineNum: oldLineNum++,
+          newLineNum: newLineNum++,
+        });
       }
     }
 
-    return { filePath, lines: parsedLines };
+    return { filePath, lines: parsedLines, status };
   });
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function basename(filePath: string): string {
+  return filePath.split('/').pop() ?? filePath;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -189,43 +212,116 @@ const FileDiffBlock = memo(function FileDiffBlock({ section }: { section: FileDi
   );
 });
 
+// ─── File List Sidebar ────────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<
+  FileDiffSection['status'],
+  { letter: string; className: string }
+> = {
+  created: { letter: 'A', className: 'text-green-600 dark:text-green-400' },
+  deleted: { letter: 'D', className: 'text-red-600 dark:text-red-400' },
+  modified: { letter: 'M', className: 'text-yellow-600 dark:text-yellow-400' },
+};
+
+interface FileListSidebarProps {
+  sections: FileDiffSection[];
+  selectedIdx: number;
+  onSelect: (idx: number) => void;
+}
+
+const FileListSidebar = memo(function FileListSidebar({
+  sections,
+  selectedIdx,
+  onSelect,
+}: FileListSidebarProps) {
+  return (
+    <div className="w-56 shrink-0 border-r border-chatroom-border overflow-y-auto flex flex-col">
+      {/* Header */}
+      <div className="px-3 pt-3 pb-2 border-b border-chatroom-border">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+          Files
+        </span>
+      </div>
+
+      {/* File list */}
+      {sections.map((section, idx) => {
+        const statusConfig = STATUS_CONFIG[section.status];
+        const isActive = idx === selectedIdx;
+        const name = basename(section.filePath) || '(unknown)';
+
+        return (
+          <button
+            key={idx}
+            type="button"
+            title={section.filePath}
+            onClick={() => onSelect(idx)}
+            className={cn(
+              'w-full text-left px-3 py-2 flex items-center gap-1.5 transition-colors',
+              isActive
+                ? 'bg-chatroom-bg-hover border-l-2 border-chatroom-accent'
+                : 'border-l-2 border-transparent hover:bg-chatroom-bg-hover/50',
+            )}
+          >
+            {/* Status indicator */}
+            <span className={cn('text-[10px] font-bold shrink-0', statusConfig.className)}>
+              {statusConfig.letter}
+            </span>
+
+            {/* File name */}
+            <span
+              className={cn(
+                'font-mono text-[11px] truncate',
+                isActive ? 'text-chatroom-text-primary' : 'text-chatroom-text-secondary',
+              )}
+            >
+              {name}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+});
+
+// ─── Loading Skeleton ─────────────────────────────────────────────────────────
+
+function LoadingSkeleton() {
+  return (
+    <div className="flex flex-col gap-1.5 py-1 p-4">
+      <Skeleton className="h-3 w-full" />
+      <Skeleton className="h-3 w-5/6" />
+      <Skeleton className="h-3 w-full" />
+      <Skeleton className="h-3 w-4/6" />
+      <Skeleton className="h-3 w-3/4" />
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 /**
- * Renders a unified diff with syntax highlighting and line numbers.
+ * Renders a unified diff with syntax highlighting, line numbers, and a file
+ * list sidebar for navigating between changed files.
  *
  * States: idle | loading | error | available
  */
 export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
   state,
 }: WorkspaceDiffViewerProps) {
-  if (state.status === 'idle') {
-    return (
-      <div className="flex flex-col gap-1.5 py-1">
-        <Skeleton className="h-3 w-full" />
-        <Skeleton className="h-3 w-5/6" />
-        <Skeleton className="h-3 w-full" />
-        <Skeleton className="h-3 w-4/6" />
-        <Skeleton className="h-3 w-3/4" />
-      </div>
-    );
-  }
+  const [selectedFileIdx, setSelectedFileIdx] = useState<number>(0);
 
-  if (state.status === 'loading') {
-    return (
-      <div className="flex flex-col gap-1.5 py-1">
-        <Skeleton className="h-3 w-full" />
-        <Skeleton className="h-3 w-5/6" />
-        <Skeleton className="h-3 w-full" />
-        <Skeleton className="h-3 w-4/6" />
-        <Skeleton className="h-3 w-3/4" />
-      </div>
-    );
+  // Reset selection when diff content changes
+  useEffect(() => {
+    setSelectedFileIdx(0);
+  }, [state.status === 'available' ? state.content : null]);
+
+  if (state.status === 'idle' || state.status === 'loading') {
+    return <LoadingSkeleton />;
   }
 
   if (state.status === 'error') {
     return (
-      <div className="flex items-center gap-1.5 text-chatroom-status-error text-[11px]">
+      <div className="flex items-center gap-1.5 text-chatroom-status-error text-[11px] p-4">
         <AlertTriangle size={13} className="shrink-0" />
         <span>{state.message}</span>
       </div>
@@ -235,23 +331,36 @@ export const WorkspaceDiffViewer = memo(function WorkspaceDiffViewer({
   // state.status === 'available'
   const sections = parseDiff(state.content);
 
-  return (
-    <div className="flex flex-col gap-2">
-      {/* Truncation warning */}
-      {state.truncated && (
-        <div className="flex items-center gap-1.5 text-chatroom-status-warning text-[11px] py-0.5">
-          <AlertTriangle size={12} className="shrink-0" />
-          Diff truncated (exceeds 500KB)
-        </div>
-      )}
+  if (sections.length === 0) {
+    return (
+      <div className="text-[11px] text-chatroom-text-muted p-4">No changes</div>
+    );
+  }
 
-      {/* File diff sections — no max-height, parent handles scrolling */}
-      <div className="flex flex-col gap-2">
-        {sections.length === 0 ? (
-          <div className="text-[11px] text-chatroom-text-muted">No changes</div>
-        ) : (
-          sections.map((section, idx) => <FileDiffBlock key={idx} section={section} />)
+  const selectedSection = sections[selectedFileIdx] ?? sections[0]!;
+
+  return (
+    <div className="flex flex-row h-full">
+      {/* File list sidebar */}
+      <FileListSidebar
+        sections={sections}
+        selectedIdx={selectedFileIdx}
+        onSelect={setSelectedFileIdx}
+      />
+
+      {/* Diff content area */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Truncation warning */}
+        {state.truncated && (
+          <div className="flex items-center gap-1.5 text-chatroom-status-warning text-[11px] px-4 py-2 border-b border-chatroom-border">
+            <AlertTriangle size={12} className="shrink-0" />
+            Diff truncated (exceeds 500KB)
+          </div>
         )}
+
+        <div className="p-4">
+          <FileDiffBlock section={selectedSection} />
+        </div>
       </div>
     </div>
   );
