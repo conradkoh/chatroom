@@ -726,7 +726,7 @@ WorkspaceAgentList
 
 ---
 
-### Phase 3: Frontend UI with Comprehensive Dummy Data
+### Phase 3: Frontend UI with Comprehensive Dummy Data ✅ COMPLETE
 
 **Goal:** Build the full UI experience with hardcoded/mock data. All components, tabs, keyboard shortcuts, and states should work — just not connected to real backend yet.
 
@@ -774,6 +774,46 @@ WorkspaceAgentList
    - Add `WorkspaceGitPanel` between header and agents
    - Pass machineId and workingDir props
 
+**Additions implemented beyond original plan:**
+
+1. **Word-level intra-line diff highlighting** (GitHub Desktop-style)
+   - New file: `apps/webapp/src/modules/chatroom/workspace/utils/intra-line-diff.ts`
+   - New file: `apps/webapp/src/modules/chatroom/workspace/utils/intra-line-diff.test.ts` (17 tests, TDD)
+   - Token-level LCS algorithm for coherent word highlighting
+   - Integrated into `WorkspaceDiffViewer` for paired deletion/addition lines
+   - Changed segments shown with intensified background colors
+
+2. **File list sidebar with status indicators** in diff viewer
+   - Files shown with A (Added/green), D (Deleted/red), M (Modified/yellow) status letters
+   - Click a file to see only that file's diff
+   - Two-pane layout within the diff viewer
+
+3. **4-column layout for History tab**
+   - Layout: `[sidebar | commit list | file list | diff view]`
+   - All panels visible simultaneously (no toggle between list/detail)
+   - Auto-selects first commit when switching to History tab
+   - Removed back button from commit detail (commit list always visible)
+
+4. **Auto-loading diffs on mount**
+   - Diff loads automatically when modal opens (no "Load Diff" button)
+   - Renamed "Diff" tab to "Changes"
+   - Removed "Branch" tab (redundant after adding branch to footer)
+
+5. **Workspace info in sidebar + modal footer**
+   - Branch name shown in workspace sidebar row
+   - `WorkspaceInfoFooter` component: footer in modal with workspace name, hostname, branch, diff stats
+   - Uppercase styling, right-aligned to match sidebar convention
+
+6. **Unified diff line numbers**
+   - Old/new line number gutter columns (35px each)
+   - Proper line number tracking from hunk headers
+   - Hunk headers visually distinct
+
+7. **Expanded mock data**
+   - 8 mock commits (up from 5) covering merge, delete, and mixed operations
+   - Per-SHA diff routing (different commits return different diffs)
+   - Modification example with paired -/+ lines for intra-line highlighting verification
+
 **Acceptance:**
 - All UI components render correctly with mock data
 - Tab switching works (Branch → Diff → History)
@@ -783,6 +823,10 @@ WorkspaceAgentList
 - Git log shows commits with "Load More"
 - Commit detail opens/closes properly
 - Dark mode works for all components
+- Word-level intra-line diff highlighting works cleanly (token-level, not character-level)
+- File list sidebar shows A/D/M status and allows per-file viewing
+- 4-column history layout shows all panels simultaneously
+- 17 unit tests pass for intra-line diff utility
 
 ---
 
