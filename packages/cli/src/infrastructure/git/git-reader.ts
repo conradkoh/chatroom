@@ -252,18 +252,20 @@ export async function getFullDiff(workingDir: string): Promise<GitFullDiffResult
 
 /**
  * Returns up to `count` recent commits from the current branch.
- * Default: 20 commits.
+ * Default: 20 commits. Optional `skip` to paginate (0-based offset).
  *
  * Returns an empty array for an empty repository (no commits).
  * Returns an empty array for non-git directories (does not throw).
  */
 export async function getRecentCommits(
   workingDir: string,
-  count = 20
+  count = 20,
+  skip = 0
 ): Promise<GitCommit[]> {
   // Use a null-byte separator to safely handle multi-line messages
   const format = '%H%x00%h%x00%s%x00%an%x00%aI';
-  const result = await runGit(`log -${count} --format=${format}`, workingDir);
+  const skipArg = skip > 0 ? ` --skip=${skip}` : '';
+  const result = await runGit(`log -${count}${skipArg} --format=${format}`, workingDir);
 
   if ('error' in result) {
     // Empty repo or non-git directory — return empty list, not an error
@@ -330,4 +332,24 @@ export async function getCommitDetail(
   }
 
   return { status: 'available', content: raw, truncated: false };
+}
+
+/**
+ * Returns commit metadata (message, author, date) for a specific SHA.
+ *
+ * Uses `git log -1 --format=...` with null-byte separators for safe parsing.
+ * Returns `null` if the SHA is not found or the directory is not a git repo.
+ */
+export async function getCommitMetadata(
+  workingDir: string,
+  sha: string
+): Promise<{ message: string; author: string; date: string } | null> {
+  const format = '%s%x00%an%x00%aI';
+  const result = await runGit(`log -1 --format=${format} ${sha}`, workingDir);
+  if ('error' in result) return null;
+  const output = result.stdout.trim();
+  if (!output) return null;
+  const parts = output.split('\x00');
+  if (parts.length !== 3) return null;
+  return { message: parts[0]!, author: parts[1]!, date: parts[2]! };
 }
