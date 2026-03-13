@@ -62,7 +62,7 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
           <span className="text-[11px] text-chatroom-text-muted">·</span>
           <div className="flex items-center gap-0.5">
             <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
-            <span className="text-[11px] font-mono text-chatroom-text-secondary uppercase tracking-wider truncate max-w-[120px]">
+            <span className="text-[11px] font-mono text-chatroom-text-secondary uppercase tracking-wider">
               {gitState.branch}
             </span>
           </div>
