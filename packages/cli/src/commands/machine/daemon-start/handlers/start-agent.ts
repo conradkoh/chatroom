@@ -207,14 +207,14 @@ export async function executeStartAgent(
 
   // When the agent completes a turn (agent_end), kill the process so the daemon's
   // restart lifecycle fires a fresh agent for the next turn.
-  // We do NOT mark this as intentional — the SIGTERM kill will produce
-  // stopReason='agent_process.signal', which triggers the backend to
-  // schedule ensureAgentHandler.check → agent.requestStart → fresh spawn.
+  // We mark this as an intentional turn-complete exit BEFORE killing, so the backend
+  // can distinguish it from a crash and skip crash recovery.
   if (spawnResult.onAgentEnd) {
     spawnResult.onAgentEnd(() => {
-      // Kill the process group (negative pid = entire process group).
-      // Do NOT call stops.mark() — we want this to look like an unexpected exit
-      // so the daemon's restart logic fires via agent:exited → ensureAgentHandler.
+      // Mark this as an intentional turn-complete exit BEFORE killing.
+      // The backend will recognize 'daemon.turn_complete' and skip crash recovery,
+      // preventing the spawn loop that occurs when turn completion is indistinguishable from a crash.
+      ctx.deps.stops.mark(chatroomId, role, 'daemon.turn_complete');
       try {
         ctx.deps.processes.kill(-pid, 'SIGTERM');
       } catch {
