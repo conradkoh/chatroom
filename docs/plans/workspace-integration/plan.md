@@ -935,6 +935,8 @@ At this point:
 
 **Goal:** Connect frontend hooks to real backend queries. Replace mock data with live subscriptions.
 
+**Cleanup:** Remove hardcoded `machineId` fallback in `useWorkspaces.ts` (currently uses `hostname` as stand-in). Replace with real `machineId` from `WorkspaceView` after backend exposes it.
+
 **Files:**
 1. `apps/webapp/src/modules/chatroom/hooks/useWorkspaceGit.ts` — **MODIFY**
    - Replace mock data with `useSessionQuery(api.workspaces.getWorkspaceGitState)`
