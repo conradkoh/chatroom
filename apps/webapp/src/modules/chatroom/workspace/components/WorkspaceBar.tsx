@@ -102,7 +102,7 @@ export const WorkspaceBar = memo(function WorkspaceBar({ workspaces }: Workspace
   return (
     <div className="border-t border-chatroom-border bg-chatroom-bg-surface">
       {/* Workspace chips row */}
-      <div className="flex items-center gap-1 px-4 py-1.5 overflow-x-auto">
+      <div className="flex items-center gap-2 px-4 py-2 overflow-x-auto">
         {workspaces.map((ws) => (
           <WorkspaceChip
             key={ws.id}
