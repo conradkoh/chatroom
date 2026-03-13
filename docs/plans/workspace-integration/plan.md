@@ -650,88 +650,372 @@ WorkspaceAgentList
 
 ## 8. Implementation Phases
 
-### Phase 1: Backend Schema + Daemon Push (Change-Detection)
-
-**Goal:** Daemon pushes git state summary (branch, diffStat, commits) to Convex on heartbeat, only when changed. Non-git directories are explicitly marked.
-
-1. Add all 4 tables to `schema.ts`
-2. Create `services/backend/convex/workspaces.ts` with:
-   - `upsertWorkspaceGitState` mutation
-   - `getWorkspaceGitState` query
-3. Create `packages/cli/src/infrastructure/git/git-reader.ts`
-4. Create `packages/cli/src/infrastructure/git/push-git-state.ts` (with change detection)
-5. Modify `command-loop.ts` to call `pushGitStateSummaryIfChanged` in heartbeat
-6. Modify `DaemonContext` to track `lastPushedGitState`
-
-**Acceptance:** 
-- Running `chatroom machine start` in a git repo shows a `chatroom_workspaceGitState` row with `status: 'available'`
-- Running in a non-git dir shows `status: 'not_found'`
-- Repeated heartbeats don't create new writes if state unchanged
+> **Review Checkpoints:** This plan includes explicit pause points for user validation before proceeding. This ensures the foundational architecture is correct before building on top of it.
 
 ---
 
-### Phase 2: Frontend Git State Display (Branch + DiffStat)
+### Phase 1: CLI Infrastructure — Real-Time Command Receiving
 
-**Goal:** Users see branch info and diff summary in the workspace panel.
+**Goal:** Build the daemon infrastructure to support real-time receiving of on-demand commands (for git requests). This establishes the fast polling loop pattern.
 
-1. Create `types/git.ts` with discriminated unions
-2. Create `useWorkspaceGit.ts` hook
-3. Ensure `WorkspaceView` exposes `machineId` — patch `get-agent-statuses.ts`
-4. Create `WorkspaceGitBranch.tsx`
-5. Create `WorkspaceGitPanel.tsx` (tabs: Branch only for now)
-6. Modify `WorkspaceAgentList.tsx` to render `WorkspaceGitPanel`
+**Files:**
+1. `packages/cli/src/infrastructure/git/git-reader.ts` — **NEW**
+   - Git command wrappers with discriminated union return types
+   - Functions: `isGitRepo()`, `getBranch()`, `isDirty()`, `getDiffStat()`, `getFullDiff()`, `getRecentCommits()`, `getCommitDetail()`
+   - All functions return `Result<T, GitError>` or similar union type
+   
+2. `packages/cli/src/infrastructure/git/types.ts` — **NEW**
+   - Type definitions: `GitBranchInfo`, `GitDiffStat`, `GitCommit`, `GitReadResult`
+   - Discriminated unions: `GitStateAvailable | GitStateNotFound | GitStateError`
+
+3. `packages/cli/src/commands/machine/daemon-start/git-polling.ts` — **NEW**
+   - Fast polling loop infrastructure (5s interval)
+   - Pattern: poll for pending requests → process → push results
+   - For now: just the loop skeleton, no actual request processing yet
+
+4. `packages/cli/src/commands/machine/daemon-start/command-loop.ts` — **MODIFY**
+   - Add fast polling timer (5s) alongside heartbeat timer (30s)
+   - Import and start `gitPollingLoop` on daemon start
+   - Proper cleanup on shutdown
+
+5. `packages/cli/src/commands/machine/daemon-start/types.ts` — **MODIFY**
+   - Add `lastPushedGitState: Map<string, string>` to DaemonContext (for change detection)
 
 **Acceptance:**
-- Opening All Agents modal → selecting workspace shows branch name + dirty indicator
-- Non-git workspace shows "Git info not found" message
+- Daemon starts with two timers: heartbeat (30s) + git polling (5s)
+- `git-reader.ts` functions work standalone (manual testing via CLI)
+- Git commands return proper discriminated union results
+- Non-git directories return `{ status: 'not_found' }` cleanly
 
 ---
 
-### Phase 3: On-Demand Full Diff
+### Phase 2: Backend Domain Models + Use Cases
 
-**Goal:** Users can request and view full diff content.
+**Goal:** Define the backend domain layer — types, use cases, and Convex functions — without schema yet. Use in-memory or placeholder data.
 
-1. Add `requestFullDiff`, `upsertFullDiff`, `getFullDiff` to `workspaces.ts`
-2. Create fast polling loop (5s) in `command-loop.ts`
-3. Create `packages/cli/src/infrastructure/git/process-git-requests.ts`
-4. Create `useFullDiff` hook
-5. Create `WorkspaceDiffViewer.tsx`
-6. Enable Diff tab in `WorkspaceGitPanel.tsx`
+**Files:**
+1. `services/backend/src/domain/types/workspace-git.ts` — **NEW**
+   - Domain types: `WorkspaceGitState`, `GitCommit`, `DiffStat`, `FullDiff`, `CommitDetail`
+   - Request types: `DiffRequest`, `CommitDetailRequest`, `MoreCommitsRequest`
+   - All using discriminated unions
+
+2. `services/backend/src/domain/usecase/workspace/get-workspace-git-state.ts` — **NEW**
+   - Use case: `getWorkspaceGitState(machineId, workingDir)`
+   - For now: returns mock data (hardcoded git state)
+   - Interface defined, implementation placeholder
+
+3. `services/backend/src/domain/usecase/workspace/request-full-diff.ts` — **NEW**
+   - Use case: `requestFullDiff(machineId, workingDir)`
+   - For now: no-op or logs to console
+   
+4. `services/backend/src/domain/usecase/workspace/upsert-workspace-git-state.ts` — **NEW**
+   - Use case: `upsertWorkspaceGitState(data)`
+   - For now: logs or stores in memory (no DB)
+
+5. `services/backend/convex/workspaces.ts` — **NEW**
+   - Convex functions that wrap domain use cases
+   - Queries: `getWorkspaceGitState` (returns mock data)
+   - Mutations: `upsertWorkspaceGitState`, `requestFullDiff` (no-ops for now)
+   - Auth: validate session + machine ownership pattern
 
 **Acceptance:**
-- Clicking Diff tab shows "Load Diff" button
-- Clicking button triggers request, diff appears within ~5s
+- Domain types are defined with proper discriminated unions
+- Convex functions are callable (via dashboard or frontend)
+- `getWorkspaceGitState` returns mock data with all fields
+- Type exports work correctly for frontend consumption
+
+---
+
+### Phase 3: Frontend UI with Comprehensive Dummy Data
+
+**Goal:** Build the full UI experience with hardcoded/mock data. All components, tabs, keyboard shortcuts, and states should work — just not connected to real backend yet.
+
+**Files:**
+1. `apps/webapp/src/modules/chatroom/types/git.ts` — **NEW**
+   - Frontend type definitions (mirror of domain types)
+   - `WorkspaceGitState`, `FullDiffState`, `CommitDetailState` discriminated unions
+
+2. `apps/webapp/src/modules/chatroom/hooks/useWorkspaceGit.ts` — **NEW**
+   - Hooks with mock data (not calling backend yet)
+   - `useWorkspaceGit()` — returns hardcoded available state
+   - `useFullDiff()` — returns hardcoded diff content
+   - `useCommitDetail()` — returns hardcoded commit diff
+   - `useLoadMoreCommits()` — simulates loading
+
+3. `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitBranch.tsx` — **NEW**
+   - Renders branch, dirty indicator, diff stat summary
+   - Handles all states: loading, not_found, error, available
+
+4. `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceDiffViewer.tsx` — **NEW**
+   - Full unified diff renderer
+   - Per-file collapsible sections
+   - Syntax highlighting (additions green, deletions red)
+   - Truncation warning
+   - "Load Diff" button for idle state
+
+5. `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitLog.tsx` — **NEW**
+   - Commit list with keyboard navigation (↑/↓/Enter)
+   - "Load More" button
+   - Selected row highlighting
+
+6. `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceCommitDetail.tsx` — **NEW**
+   - Per-commit diff viewer
+   - Header: SHA, author, date, message
+   - Back button / Escape to close
+   - Loading state
+
+7. `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitPanel.tsx` — **NEW**
+   - Container with tab bar (Branch | Diff | History)
+   - Keyboard shortcuts (g b/d/l)
+   - Collapsible toggle
+   - Handles not_found state
+
+8. `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceAgentList.tsx` — **MODIFY**
+   - Add `WorkspaceGitPanel` between header and agents
+   - Pass machineId and workingDir props
+
+**Acceptance:**
+- All UI components render correctly with mock data
+- Tab switching works (Branch → Diff → History)
+- Keyboard shortcuts work (g b/d/l, ↑/↓, Enter, Escape)
+- All states visible: loading, available, not_found, error
+- Diff viewer shows syntax-highlighted unified diff
+- Git log shows commits with "Load More"
+- Commit detail opens/closes properly
+- Dark mode works for all components
+
+---
+
+## ⏸️ REVIEW CHECKPOINT 1
+
+**Pause here for user review.**
+
+At this point:
+- CLI infrastructure is in place (git-reader, polling loop)
+- Backend domain types and use cases are defined
+- Frontend UI is fully built with mock data
+
+**User validates:**
+1. ✓ CLI git-reader works correctly (run manual tests)
+2. ✓ Domain types are well-structured (discriminated unions)
+3. ✓ UI looks and feels right (all states, tabs, keyboard)
+4. ✓ UX flows make sense
+
+**Proceed to Phase 4 only after user approval.**
+
+---
+
+### Phase 4: Database Schema
+
+**Goal:** Add the Convex schema tables. No data flow yet — just the schema definition.
+
+**Files:**
+1. `services/backend/convex/schema.ts` — **MODIFY**
+   - Add `chatroom_workspaceGitState` table
+   - Add `chatroom_workspaceFullDiff` table
+   - Add `chatroom_workspaceCommitDetail` table
+   - Add `chatroom_workspaceDiffRequests` table
+   - All with proper indexes
+
+**Table Definitions:**
+
+```typescript
+// chatroom_workspaceGitState
+{
+  machineId: v.string(),
+  workingDir: v.string(),
+  status: v.union(v.literal('available'), v.literal('not_found'), v.literal('error')),
+  branch: v.optional(v.string()),
+  isDirty: v.optional(v.boolean()),
+  diffStat: v.optional(v.object({ filesChanged, insertions, deletions })),
+  recentCommits: v.optional(v.array(...)),
+  hasMoreCommits: v.optional(v.boolean()),
+  errorMessage: v.optional(v.string()),
+  updatedAt: v.number(),
+}
+.index('by_machine_workingDir', ['machineId', 'workingDir'])
+
+// chatroom_workspaceFullDiff
+{
+  machineId: v.string(),
+  workingDir: v.string(),
+  diffContent: v.string(),
+  truncated: v.boolean(),
+  filesChanged: v.number(),
+  insertions: v.number(),
+  deletions: v.number(),
+  updatedAt: v.number(),
+}
+.index('by_machine_workingDir', ['machineId', 'workingDir'])
+
+// chatroom_workspaceDiffRequests
+{
+  machineId: v.string(),
+  workingDir: v.string(),
+  requestType: v.union(v.literal('full_diff'), v.literal('commit_detail'), v.literal('more_commits')),
+  sha: v.optional(v.string()),
+  offset: v.optional(v.number()),
+  status: v.union(v.literal('pending'), v.literal('processing'), v.literal('done'), v.literal('error')),
+  requestedAt: v.number(),
+  updatedAt: v.number(),
+}
+.index('by_machine_status', ['machineId', 'status'])
+
+// chatroom_workspaceCommitDetail
+{
+  machineId: v.string(),
+  workingDir: v.string(),
+  sha: v.string(),
+  diffContent: v.string(),
+  truncated: v.boolean(),
+  message: v.string(),
+  author: v.string(),
+  date: v.string(),
+  filesChanged: v.number(),
+  insertions: v.number(),
+  deletions: v.number(),
+  updatedAt: v.number(),
+}
+.index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha'])
+```
+
+**Acceptance:**
+- Schema deploys successfully to Convex
+- Tables visible in Convex dashboard
+- Indexes created correctly
+
+---
+
+## ⏸️ REVIEW CHECKPOINT 2
+
+**Pause here for user review.**
+
+At this point:
+- Schema is defined and deployed
+- No data flowing yet
+
+**User validates:**
+1. ✓ Table structure is correct
+2. ✓ Field types match domain model
+3. ✓ Indexes are appropriate
+4. ✓ Discriminated union encoding is right
+
+**Proceed to Phase 5 only after user approval.**
+
+---
+
+### Phase 5: Wire CLI → Backend (Daemon Push)
+
+**Goal:** Connect daemon git-reader to backend. Daemon pushes git state on heartbeat (change-detected).
+
+**Files:**
+1. `packages/cli/src/infrastructure/git/push-git-state.ts` — **NEW**
+   - `pushGitStateSummaryIfChanged(ctx)` function
+   - Collects active workingDirs from agent configs
+   - Runs git-reader for each workingDir
+   - Compares with lastPushedGitState
+   - Calls `api.workspaces.upsertWorkspaceGitState` if changed
+
+2. `services/backend/convex/workspaces.ts` — **MODIFY**
+   - Implement `upsertWorkspaceGitState` mutation (actually writes to DB)
+   - Implement `getWorkspaceGitState` query (reads from DB)
+
+3. `packages/cli/src/commands/machine/daemon-start/command-loop.ts` — **MODIFY**
+   - Call `pushGitStateSummaryIfChanged` in heartbeat timer
+
+**Acceptance:**
+- Running daemon in a git repo creates `chatroom_workspaceGitState` row
+- Row shows correct branch, isDirty, diffStat
+- Non-git dir creates row with `status: 'not_found'`
+- Repeated heartbeats don't create new writes if unchanged
+
+---
+
+### Phase 6: Wire Frontend → Backend (Read State)
+
+**Goal:** Connect frontend hooks to real backend queries. Replace mock data with live subscriptions.
+
+**Files:**
+1. `apps/webapp/src/modules/chatroom/hooks/useWorkspaceGit.ts` — **MODIFY**
+   - Replace mock data with `useSessionQuery(api.workspaces.getWorkspaceGitState)`
+   - Transform backend response to discriminated union
+
+2. `services/backend/src/domain/usecase/chatroom/get-agent-statuses.ts` — **MODIFY**
+   - Ensure `WorkspaceView` exposes `machineId`
+
+**Acceptance:**
+- Opening workspace panel shows real git data from daemon
+- Data updates live when branch changes
+- Non-git workspaces show "Git info not found"
+
+---
+
+### Phase 7: On-Demand Full Diff
+
+**Goal:** Wire the full diff request/response cycle.
+
+**Files:**
+1. `services/backend/convex/workspaces.ts` — **MODIFY**
+   - Implement `requestFullDiff` mutation (inserts pending request)
+   - Implement `getFullDiff` query
+   - Implement `upsertFullDiff` mutation
+   - Implement `getPendingRequests` query
+
+2. `packages/cli/src/infrastructure/git/process-git-requests.ts` — **NEW**
+   - `processGitRequests(ctx)` function
+   - Polls `getPendingRequests`
+   - Processes `full_diff` requests: runs git diff HEAD, calls upsertFullDiff
+
+3. `packages/cli/src/commands/machine/daemon-start/git-polling.ts` — **MODIFY**
+   - Call `processGitRequests` in fast loop
+
+4. `apps/webapp/src/modules/chatroom/hooks/useWorkspaceGit.ts` — **MODIFY**
+   - Implement `useFullDiff` with real backend calls
+
+**Acceptance:**
+- Clicking "Load Diff" triggers request
+- Diff appears within ~5s
 - Large diffs show truncation warning
 
 ---
 
-### Phase 4: Git History + Load More
+### Phase 8: Git History + Load More
 
-**Goal:** Users can browse commits with pagination.
+**Goal:** Wire commit history and pagination.
 
-1. Add `requestMoreCommits`, `appendMoreCommits` to `workspaces.ts`
-2. Add more_commits handling to `process-git-requests.ts`
-3. Create `useLoadMoreCommits` hook
-4. Create `WorkspaceGitLog.tsx` with keyboard navigation
-5. Enable History tab in `WorkspaceGitPanel.tsx`
-6. Add keyboard shortcuts (`g b/d/l`, `↑/↓`, `Enter`)
+**Files:**
+1. `services/backend/convex/workspaces.ts` — **MODIFY**
+   - Implement `requestMoreCommits` mutation
+   - Implement `appendMoreCommits` mutation
+
+2. `packages/cli/src/infrastructure/git/process-git-requests.ts` — **MODIFY**
+   - Process `more_commits` requests
+
+3. `apps/webapp/src/modules/chatroom/hooks/useWorkspaceGit.ts` — **MODIFY**
+   - Implement `useLoadMoreCommits` with real backend calls
 
 **Acceptance:**
-- History tab shows 20 commits
-- "Load More" button loads next 20
-- Keyboard navigation works
+- History tab shows 20 real commits
+- "Load More" fetches next 20
+- Commits match actual git history
 
 ---
 
-### Phase 5: Commit Detail (On-Demand)
+### Phase 9: Commit Detail
 
-**Goal:** Click a commit to see its full diff.
+**Goal:** Wire commit detail request/response.
 
-1. Add `requestCommitDetail`, `upsertCommitDetail`, `getCommitDetail` to `workspaces.ts`
-2. Add commit_detail handling to `process-git-requests.ts`
-3. Create `useCommitDetail` hook
-4. Create `WorkspaceCommitDetail.tsx`
-5. Wire commit selection in `WorkspaceGitLog.tsx`
+**Files:**
+1. `services/backend/convex/workspaces.ts` — **MODIFY**
+   - Implement `requestCommitDetail` mutation
+   - Implement `getCommitDetail` query
+   - Implement `upsertCommitDetail` mutation
+
+2. `packages/cli/src/infrastructure/git/process-git-requests.ts` — **MODIFY**
+   - Process `commit_detail` requests
+
+3. `apps/webapp/src/modules/chatroom/hooks/useWorkspaceGit.ts` — **MODIFY**
+   - Implement `useCommitDetail` with real backend calls
 
 **Acceptance:**
 - Clicking a commit shows loading state
@@ -740,14 +1024,17 @@ WorkspaceAgentList
 
 ---
 
-### Phase 6: Polish + Edge Cases
+### Phase 10: Polish + Edge Cases
+
+**Goal:** Handle edge cases and polish the experience.
 
 1. Dark mode audit for all new components
 2. Handle detached HEAD (`git rev-parse` returns "HEAD" → display "detached @ <sha>")
 3. Empty states: "No changes" when clean, "No commits" when empty
 4. Stale timestamp display ("Last updated 5 min ago") using `updatedAt`
 5. Error state styling and retry affordance
-6. Performance: debounce keyboard navigation, virtualize long commit lists
+6. Performance: debounce keyboard navigation
+7. Cleanup: remove any remaining mock data or debug code
 
 ---
 
