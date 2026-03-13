@@ -302,6 +302,7 @@ export async function initDaemon(): Promise<DaemonContext> {
     deps,
     events,
     agentServices,
+    lastPushedGitState: new Map(),
   };
 
   registerEventListeners(ctx);

@@ -92,4 +92,10 @@ export interface DaemonContext {
   deps: DaemonDeps;
   events: DaemonEventBus;
   agentServices: Map<string, RemoteAgentService>;
+  /**
+   * Tracks the last git state pushed for each workspace (keyed by `machineId::workingDir`).
+   * Value is a hash of the git state (branch + isDirty + diffStat) used for change detection.
+   * Only push to backend when this hash changes.
+   */
+  lastPushedGitState: Map<string, string>;
 }
