@@ -20,6 +20,7 @@ import type { DaemonDeps } from '../../commands/machine/daemon-start/deps.js';
 import { DaemonEventBus } from '../daemon/event-bus.js';
 import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
+import { createMockDaemonDeps } from '../../commands/machine/daemon-start/testing/index.js';
 
 // ---------------------------------------------------------------------------
 // Mock module-level imports (same pattern as stop-agent.test.ts)
@@ -91,41 +92,7 @@ const { onAgentShutdown } = await import('./on-agent-shutdown.js');
 // ---------------------------------------------------------------------------
 
 function createMockDeps(overrides?: Partial<DaemonDeps>): DaemonDeps {
-  return {
-    backend: {
-      mutation: vi.fn().mockResolvedValue(undefined),
-      query: vi.fn().mockResolvedValue({ configs: [] }),
-    },
-    processes: {
-      kill: vi.fn(),
-    },
-    fs: {
-      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
-    },
-    stops: {
-      mark: vi.fn(),
-      consume: vi.fn(() => null),
-      clear: vi.fn(),
-    },
-    machine: {
-      clearAgentPid: vi.fn(),
-      persistAgentPid: vi.fn(),
-      listAgentEntries: vi.fn(() => []),
-      persistEventCursor: vi.fn(),
-      loadEventCursor: vi.fn().mockReturnValue(null),
-    },
-    clock: {
-      now: () => Date.now(),
-      delay: vi.fn().mockResolvedValue(undefined),
-    },
-    spawning: {
-      shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
-      recordSpawn: vi.fn(),
-      recordExit: vi.fn(),
-      getConcurrentCount: vi.fn().mockReturnValue(0),
-    },
-    ...overrides,
-  };
+  return createMockDaemonDeps(overrides);
 }
 
 function createCtx(deps: DaemonDeps): DaemonContext {
