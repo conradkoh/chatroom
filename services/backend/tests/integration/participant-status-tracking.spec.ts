@@ -231,23 +231,6 @@ describe('Participant Status Tracking', () => {
     expect(status.lastStatus).toBe('agent.exited');
   });
 
-  test('agent.exited via daemonShutdown', async () => {
-    const { sessionId } = await createTestSession('test-pst-daemon-shutdown');
-    const chatroomId = await createPairTeamChatroom(sessionId);
-    const machineId = 'machine-pst-daemon-shutdown';
-    await registerMachineWithDaemon(sessionId, machineId);
-    await joinParticipant(sessionId, chatroomId, 'builder');
-    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
-
-    await t.mutation(api.machines.daemonShutdown, {
-      sessionId,
-      machineId,
-    });
-
-    const status = await getParticipantStatus(chatroomId, 'builder');
-    expect(status.lastStatus).toBe('agent.exited');
-  });
-
   test('agent.requestStop + lastDesiredState=stopped via stop-agent use case', async () => {
     const { sessionId } = await createTestSession('test-pst-stop');
     const chatroomId = await createPairTeamChatroom(sessionId);

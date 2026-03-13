@@ -421,7 +421,9 @@ test('recordAgentExited with intentional=false schedules ensure-agent when activ
   // Find the crash-recovery scheduled function: snapshotUpdatedAt=0 for this chatroom
   const ensureCheck = scheduled.find((s) => {
     const argsArray = (s as { args?: unknown[] }).args;
-    const checkArgs = argsArray?.[0] as { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
+    const checkArgs = argsArray?.[0] as
+      | { snapshotUpdatedAt?: number; chatroomId?: string }
+      | undefined;
     return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
   });
   expect(ensureCheck).toBeDefined();
@@ -464,7 +466,9 @@ test('recordAgentExited with intentional=true does NOT schedule ensure-agent', a
 
   const crashRecoveryCheck = scheduled.find((s) => {
     const argsArray = (s as { args?: unknown[] }).args;
-    const checkArgs = argsArray?.[0] as { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
+    const checkArgs = argsArray?.[0] as
+      | { snapshotUpdatedAt?: number; chatroomId?: string }
+      | undefined;
     return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
   });
   expect(crashRecoveryCheck).toBeUndefined();
@@ -499,7 +503,9 @@ test('recordAgentExited with intentional=false but no active task does NOT sched
 
   const crashRecoveryCheck = scheduled.find((s) => {
     const argsArray = (s as { args?: unknown[] }).args;
-    const checkArgs = argsArray?.[0] as { snapshotUpdatedAt?: number; chatroomId?: string } | undefined;
+    const checkArgs = argsArray?.[0] as
+      | { snapshotUpdatedAt?: number; chatroomId?: string }
+      | undefined;
     return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
   });
   expect(crashRecoveryCheck).toBeUndefined();
@@ -704,7 +710,9 @@ test('updateSpawnedAgent with null pid does NOT write agent.started or update me
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
       .collect()
   );
-  const startedEvents = eventsAfter.filter((e) => (e as { type?: string }).type === 'agent.started');
+  const startedEvents = eventsAfter.filter(
+    (e) => (e as { type?: string }).type === 'agent.started'
+  );
   expect(startedEvents.length).toBe(0);
   expect(eventsAfter.length).toBe(eventsBefore.length); // no new events
 
@@ -712,7 +720,9 @@ test('updateSpawnedAgent with null pid does NOT write agent.started or update me
   const metrics = await t.run(async (ctx) =>
     ctx.db.query('chatroom_agentRestartMetrics').collect()
   );
-  expect(metrics.filter((m) => (m as { machineId: string }).machineId === machineId).length).toBe(0);
+  expect(metrics.filter((m) => (m as { machineId: string }).machineId === machineId).length).toBe(
+    0
+  );
 });
 
 // ─── Eager crash recovery (idle agent restart) ──────────────────────────────
@@ -968,5 +978,128 @@ describe('Eager crash recovery (idle agent restart)', () => {
         (e as { reason?: string }).reason === 'platform.crash_recovery'
     );
     expect(crashRecoveryEvents.length).toBe(0);
+  });
+});
+
+// ─── Test: Deferred config removal via recordAgentExited ─────────────────────
+
+describe('Deferred config removal', () => {
+  test('recordAgentExited deletes agent config when config.requestRemoval event exists', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-config-removal-1');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-config-removal-1';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    // Set a PID on the agent config (marks agent as running)
+    const pid = 55555;
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid,
+    });
+
+    // Verify config exists and has PID set
+    const configBefore = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
+        .first();
+    });
+    expect(configBefore).toBeDefined();
+    expect(configBefore!.spawnedAgentPid).toBe(pid);
+
+    // Emit a config.requestRemoval event (simulates a deferred removal request)
+    await t.run(async (ctx) => {
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'config.requestRemoval',
+        chatroomId,
+        role: 'builder',
+        machineId,
+        reason: 'team_switch',
+        timestamp: Date.now(),
+      });
+    });
+
+    // Verify the config is NOT yet deleted (PID guard prevents deletion)
+    const configMidway = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
+        .first();
+    });
+    expect(configMidway).toBeDefined(); // still exists
+
+    // ===== ACTION =====
+    // Agent exits — this clears the PID and then processes the removal request
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid,
+      intentional: true,
+    });
+
+    // ===== VERIFY =====
+    // Config should be deleted now (PID was cleared, then removal processed)
+    const configAfter = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
+        .first();
+    });
+    expect(configAfter).toBeNull();
+  });
+
+  test('recordAgentExited does NOT delete config when no config.requestRemoval event exists', async () => {
+    // ===== SETUP =====
+    const { sessionId } = await createTestSession('test-config-removal-2');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    const machineId = 'machine-config-removal-2';
+    await registerMachineWithDaemon(sessionId, machineId);
+    await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+    const pid = 12345;
+    await t.mutation(api.machines.updateSpawnedAgent, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid,
+    });
+
+    // ===== ACTION =====
+    // Agent exits — no config.requestRemoval event pending
+    await t.mutation(api.machines.recordAgentExited, {
+      sessionId,
+      machineId,
+      chatroomId,
+      role: 'builder',
+      pid,
+      intentional: false,
+    });
+
+    // ===== VERIFY =====
+    // Config should still exist (no removal event, so no deletion)
+    const configAfter = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) =>
+          q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+        )
+        .first();
+    });
+    expect(configAfter).toBeDefined();
+    expect(configAfter!.spawnedAgentPid).toBeUndefined(); // PID was cleared
   });
 });

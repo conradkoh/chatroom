@@ -6,8 +6,8 @@ import {
   type BackendError,
   type BackendErrorCode,
 } from '../config/errorCodes';
-import { DAEMON_HEARTBEAT_TTL_MS, RECOVERY_GRACE_PERIOD_MS } from '../config/reliability';
-import { internalMutation, mutation, query } from './_generated/server';
+import { RECOVERY_GRACE_PERIOD_MS } from '../config/reliability';
+import { mutation, query } from './_generated/server';
 import {
   areAllAgentsWaiting,
   getAndIncrementQueuePosition,
@@ -19,8 +19,7 @@ import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 import { transitionTask } from '../src/domain/usecase/task/transition-task';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
-import { processConfigRemoval } from '../src/domain/usecase/agent/config-removal';
-import { PARTICIPANT_EXITED_ACTION, patchParticipantStatus } from '../src/domain/entities/participant';
+import { patchParticipantStatus } from '../src/domain/entities/participant';
 
 /** Maximum number of active tasks per chatroom. */
 const MAX_ACTIVE_TASKS = 100;
@@ -1428,76 +1427,4 @@ export const getTaskLimits = query({
   },
 });
 
-/** Marks daemons with stale heartbeats as disconnected. */
-export const cleanupStaleMachines = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const now = Date.now();
 
-    // ─── Stale Daemon Detection ─────────────────────────────────────────
-    // Check for daemons that stopped sending heartbeats (e.g. SIGKILL, machine crash).
-    const allMachines = await ctx.db.query('chatroom_machines').collect();
-    let staleDaemonCount = 0;
-
-    for (const machine of allMachines) {
-      if (!machine.daemonConnected) continue;
-
-      const timeSinceLastSeen = now - machine.lastSeenAt;
-      if (timeSinceLastSeen > DAEMON_HEARTBEAT_TTL_MS) {
-        // 1. Mark daemon as disconnected
-        await ctx.db.patch('chatroom_machines', machine._id, {
-          daemonConnected: false,
-        });
-        staleDaemonCount++;
-        console.warn(
-          `[Daemon Cleanup] Machine "${machine.hostname}" (${machine.machineId}) daemon marked disconnected — last seen ${timeSinceLastSeen}ms ago`
-        );
-
-        // 2. Clear spawnedAgent records for all agents on this machine
-        const agentConfigs = await ctx.db
-          .query('chatroom_teamAgentConfigs')
-          .withIndex('by_machineId', (q) => q.eq('machineId', machine.machineId))
-          .collect();
-
-        for (const config of agentConfigs) {
-          if (config.spawnedAgentPid != null) {
-            await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-              spawnedAgentPid: undefined,
-              spawnedAt: undefined,
-              updatedAt: now,
-            });
-          }
-        }
-
-        // 2b. Process any pending config removal requests now that PIDs are cleared
-        for (const config of agentConfigs) {
-          await processConfigRemoval(ctx, {
-            chatroomId: config.chatroomId,
-            role: config.role,
-            machineId: machine.machineId,
-          });
-        }
-
-        // 3. Mark participant records as exited for agents on this machine
-        for (const config of agentConfigs) {
-          const participant = await ctx.db
-            .query('chatroom_participants')
-            .withIndex('by_chatroom_and_role', (q) =>
-              q.eq('chatroomId', config.chatroomId).eq('role', config.role)
-            )
-            .unique();
-          if (participant) {
-            await ctx.db.patch('chatroom_participants', participant._id, {
-              lastSeenAction: PARTICIPANT_EXITED_ACTION,
-              connectionId: undefined,
-            });
-          }
-        }
-      }
-    }
-
-    if (staleDaemonCount > 0) {
-      console.warn(`[Daemon Cleanup] Marked ${staleDaemonCount} stale daemon(s) as disconnected`);
-    }
-  },
-});

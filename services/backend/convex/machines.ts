@@ -12,12 +12,12 @@ import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleK
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
-import { onAgentExited as onAgentExitedEvent } from '../src/events/agent/on-agent-exited';
-import { processConfigRemoval } from '../src/domain/usecase/agent/config-removal';
+import { cleanupMachineAgent } from '../src/domain/usecase/machine/cleanup-machine-agent';
+import { onAgentExited } from '../src/events/agent/on-agent-exited';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
-import { PARTICIPANT_EXITED_ACTION, patchParticipantStatus } from '../src/domain/entities/participant';
+import { patchParticipantStatus } from '../src/domain/entities/participant';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -528,62 +528,6 @@ export const updateDaemonStatus = mutation({
   },
 });
 
-/** Clears daemon status, spawned agent records, and participant records for a machine in one transaction. */
-export const daemonShutdown = mutation({
-  args: {
-    ...SessionIdArg,
-    machineId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const auth = await getAuthenticatedUser(ctx, args.sessionId);
-    if (!auth.isAuthenticated) {
-      throw new Error('Authentication required');
-    }
-    const machine = await getOwnedMachine(ctx, args.machineId, auth.user._id);
-
-    // 1. Set daemon as disconnected
-    await ctx.db.patch('chatroom_machines', machine._id, {
-      daemonConnected: false,
-      lastSeenAt: Date.now(),
-    });
-
-    // 2. Clear all spawnedAgent records for this machine
-    const machineConfigs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .collect();
-
-    const now = Date.now();
-    for (const config of machineConfigs) {
-      if (config.spawnedAgentPid != null) {
-        await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-          spawnedAgentPid: undefined,
-          spawnedAt: undefined,
-          updatedAt: now,
-        });
-      }
-    }
-
-    // 3. Mark participant records as exited for agents on this machine
-    for (const config of machineConfigs) {
-      const participant = await ctx.db
-        .query('chatroom_participants')
-        .withIndex('by_chatroom_and_role', (q) =>
-          q.eq('chatroomId', config.chatroomId).eq('role', config.role)
-        )
-        .unique();
-      if (participant) {
-        await ctx.db.patch(participant._id, {
-          lastSeenAction: PARTICIPANT_EXITED_ACTION,
-          connectionId: undefined,
-          lastStatus: 'agent.exited',
-        });
-      }
-    }
-
-    return { clearedAgents: machineConfigs.length };
-  },
-});
 
 /** Updates lastSeenAt for liveness detection; sets daemonConnected to true. */
 export const daemonHeartbeat = mutation({
@@ -816,7 +760,7 @@ export const updateSpawnedAgent = mutation({
   },
 });
 
-/** Records an agent exit: writes agent.exited event, clears PID, removes participant, and schedules crash recovery if unintentional. */
+/** Records an agent exit: emits agent.exited event, clears PID, removes participant, and schedules crash recovery if unintentional. */
 export const recordAgentExited = mutation({
   args: {
     ...SessionIdArg,
@@ -836,9 +780,7 @@ export const recordAgentExited = mutation({
     if (!auth.isAuthenticated) throw new Error('Authentication required');
     await getOwnedMachine(ctx, args.machineId, auth.user._id);
 
-    const now = Date.now();
-
-    // 2. Write agent.exited event to stream
+    // 2. Emit agent.exited event to the event stream
     await ctx.db.insert('chatroom_eventStream', {
       type: 'agent.exited',
       chatroomId: args.chatroomId,
@@ -846,55 +788,22 @@ export const recordAgentExited = mutation({
       machineId: args.machineId,
       pid: args.pid,
       intentional: args.intentional,
-      stopReason: args.stopReason,
-      stopSignal: args.stopSignal,
       exitCode: args.exitCode,
       signal: args.signal,
-      timestamp: now,
+      stopReason: args.stopReason,
+      stopSignal: args.stopSignal,
+      timestamp: Date.now(),
     });
 
-    // 3. Clear spawnedAgentPid from team agent config
-    const exitChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    let config: Doc<'chatroom_teamAgentConfigs'> | null = null;
-    if (exitChatroom?.teamId) {
-      const exitTeamRoleKey = buildTeamRoleKey(exitChatroom._id, exitChatroom.teamId, args.role);
-      config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', exitTeamRoleKey))
-        .first();
-    }
-    if (config && config.machineId === args.machineId) {
-      await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-        spawnedAgentPid: undefined,
-        spawnedAt: undefined,
-        updatedAt: now,
-      });
+    // 3. Clear PID, process config removal, update participant
+    await cleanupMachineAgent(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+    });
 
-      // After clearing spawnedAgentPid, check for pending config removal
-      await processConfigRemoval(ctx, {
-        chatroomId: args.chatroomId,
-        role: args.role,
-        machineId: args.machineId,
-      });
-    }
-
-    // 4. Mark participant as exited (preserves lastSeenAt for UI display)
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
-    if (participant) {
-      await ctx.db.patch(participant._id, {
-        lastSeenAction: PARTICIPANT_EXITED_ACTION,
-        connectionId: undefined,
-        lastStatus: 'agent.exited',
-      });
-    }
-
-    // 5. If unintentional crash, immediately schedule ensure-agent for any active task
-    await onAgentExitedEvent(ctx, {
+    // 4. Trigger crash recovery
+    await onAgentExited(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
       intentional: args.intentional,
