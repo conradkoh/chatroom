@@ -75,6 +75,18 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
     requestDiff();
   }, [requestDiff]);
 
+  // Auto-select first commit when switching to log tab
+  useEffect(() => {
+    if (
+      activeTab === 'log' &&
+      !selectedCommitSha &&
+      gitState.status === 'available' &&
+      gitState.recentCommits.length > 0
+    ) {
+      handleSelectCommit(gitState.recentCommits[0]!.sha);
+    }
+  }, [activeTab, selectedCommitSha, gitState, handleSelectCommit]);
+
   // For non-available states, render without sidebar (simple single-pane view)
   if (gitState.status !== 'available') {
     return (
@@ -142,21 +154,15 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
       </div>
 
       {/* Content area */}
-      <div className={cn('flex-1 overflow-y-auto', activeTab === 'diff' ? 'p-0' : 'p-4')}>
+      <div className={cn('flex-1 overflow-y-auto', activeTab === 'diff' || activeTab === 'log' ? 'p-0' : 'p-4')}>
         {activeTab === 'diff' && (
           <WorkspaceDiffViewer state={fullDiffState} onRequest={requestDiff} />
         )}
 
         {activeTab === 'log' && (
-          <>
-            {selectedCommitSha ? (
-              <WorkspaceCommitDetail
-                sha={selectedCommitSha}
-                state={commitDetailState}
-                onRequestDetail={requestCommitDetail}
-                onClose={handleCloseCommitDetail}
-              />
-            ) : (
+          <div className="flex flex-row h-full">
+            {/* Column 2: Commit list */}
+            <div className="w-64 shrink-0 border-r border-chatroom-border overflow-y-auto">
               <WorkspaceGitLog
                 commits={gitState.recentCommits}
                 hasMore={gitState.hasMoreCommits}
@@ -165,8 +171,24 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
                 onSelectCommit={handleSelectCommit}
                 onLoadMore={loadMore}
               />
-            )}
-          </>
+            </div>
+
+            {/* Columns 3-4: Commit detail (file list + diff) */}
+            <div className="flex-1 min-w-0">
+              {selectedCommitSha ? (
+                <WorkspaceCommitDetail
+                  sha={selectedCommitSha}
+                  state={commitDetailState}
+                  onRequestDetail={requestCommitDetail}
+                  onClose={handleCloseCommitDetail}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-[11px] text-chatroom-text-muted">
+                  Select a commit to view details
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -91,9 +91,9 @@ export const WorkspaceGitLog = memo(function WorkspaceGitLog({
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full">
       {/* Commit list */}
-      <div className="max-h-[400px] overflow-y-auto divide-y divide-chatroom-border">
+      <div className="overflow-y-auto divide-y divide-chatroom-border flex-1">
         {commits.map((commit) => (
           <CommitRow
             key={commit.sha}

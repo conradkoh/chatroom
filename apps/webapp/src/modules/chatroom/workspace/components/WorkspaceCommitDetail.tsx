@@ -1,8 +1,7 @@
 'use client';
 
 import { memo, useEffect } from 'react';
-import { ArrowLeft, AlertTriangle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { CommitDetailState, FullDiffState, DiffStat } from '../types/git';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
@@ -13,7 +12,8 @@ interface WorkspaceCommitDetailProps {
   sha: string;
   state: CommitDetailState;
   onRequestDetail: (sha: string) => void;
-  onClose: () => void;
+  /** @deprecated No longer rendered — kept for backward compat. */
+  onClose?: () => void;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -29,35 +29,13 @@ const InlineDiffStat = memo(function InlineDiffStat({ diffStat }: { diffStat: Di
 
   return (
     <span className="text-[11px] text-chatroom-text-muted flex items-center gap-1">
-      <span>{filesChanged} {filesChanged === 1 ? 'file' : 'files'}</span>
+      <span>
+        {filesChanged} {filesChanged === 1 ? 'file' : 'files'}
+      </span>
       <span>·</span>
       <span className="text-chatroom-status-success">+{insertions}</span>
       <span className="text-chatroom-status-error">−{deletions}</span>
     </span>
-  );
-});
-
-/** Header row shown in all states. */
-const DetailHeader = memo(function DetailHeader({
-  sha,
-  onClose,
-}: {
-  sha: string;
-  onClose: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-2 pb-2 border-b border-chatroom-border">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onClose}
-        className="p-0 h-auto text-chatroom-text-muted hover:text-chatroom-text-primary"
-        title="Back to log"
-      >
-        <ArrowLeft size={14} />
-      </Button>
-      <span className="font-mono text-[11px] text-chatroom-text-secondary truncate">{sha.slice(0, 12)}</span>
-    </div>
   );
 });
 
@@ -66,14 +44,14 @@ const DetailHeader = memo(function DetailHeader({
 /**
  * Displays the detail view for a single git commit.
  *
- * Requests detail data on mount / when sha changes (if state is idle).
- * Reuses WorkspaceDiffViewer for the diff content.
+ * Shows a compact commit info header and a full-height WorkspaceDiffViewer
+ * (which includes its own file list sidebar). Intended to be rendered in the
+ * right portion of a multi-column layout alongside the commit list.
  */
 export const WorkspaceCommitDetail = memo(function WorkspaceCommitDetail({
   sha,
   state,
   onRequestDetail,
-  onClose,
 }: WorkspaceCommitDetailProps) {
   // Auto-request detail when sha changes and state is idle.
   useEffect(() => {
@@ -84,27 +62,21 @@ export const WorkspaceCommitDetail = memo(function WorkspaceCommitDetail({
 
   if (state.status === 'idle' || state.status === 'loading') {
     return (
-      <div className="flex flex-col gap-3">
-        <DetailHeader sha={sha} onClose={onClose} />
-        <div className="flex flex-col gap-1.5">
-          <Skeleton className="h-3 w-full" />
-          <Skeleton className="h-3 w-4/5" />
-          <Skeleton className="h-3 w-full" />
-          <Skeleton className="h-3 w-3/5" />
-          <Skeleton className="h-3 w-5/6" />
-        </div>
+      <div className="flex flex-col gap-1.5 p-4">
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-4/5" />
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-3/5" />
+        <Skeleton className="h-3 w-5/6" />
       </div>
     );
   }
 
   if (state.status === 'error') {
     return (
-      <div className="flex flex-col gap-3">
-        <DetailHeader sha={sha} onClose={onClose} />
-        <div className="flex items-center gap-1.5 text-chatroom-status-error text-[11px]">
-          <AlertTriangle size={13} className="shrink-0" />
-          <span>{state.message}</span>
-        </div>
+      <div className="flex items-center gap-1.5 text-chatroom-status-error text-[11px] p-4">
+        <AlertTriangle size={13} className="shrink-0" />
+        <span>{state.message}</span>
       </div>
     );
   }
@@ -118,25 +90,28 @@ export const WorkspaceCommitDetail = memo(function WorkspaceCommitDetail({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <DetailHeader sha={sha} onClose={onClose} />
-
-      {/* Commit metadata */}
-      <div className="flex flex-col gap-0.5">
-        <p className="text-xs text-chatroom-text-primary font-medium leading-snug">
+    <div className="h-full flex flex-col">
+      {/* Compact commit info header */}
+      <div className="px-4 py-2 border-b border-chatroom-border shrink-0 flex items-center gap-2 flex-wrap">
+        <span className="font-mono text-[11px] text-chatroom-accent shrink-0">
+          {sha.slice(0, 12)}
+        </span>
+        <span className="text-xs text-chatroom-text-primary font-medium leading-snug truncate min-w-0">
           {state.message}
-        </p>
-        <div className="flex items-center gap-2 text-[11px] text-chatroom-text-muted flex-wrap">
-          <span>{state.author}</span>
-          <span>·</span>
-          <span>{new Date(state.date).toLocaleDateString()}</span>
-          <span>·</span>
-          <InlineDiffStat diffStat={state.diffStat} />
-        </div>
+        </span>
+        <span className="text-[11px] text-chatroom-text-muted shrink-0">{state.author}</span>
+        <span className="text-[11px] text-chatroom-text-muted shrink-0">·</span>
+        <span className="text-[11px] text-chatroom-text-muted shrink-0">
+          {new Date(state.date).toLocaleDateString()}
+        </span>
+        <span className="text-[11px] text-chatroom-text-muted shrink-0">·</span>
+        <InlineDiffStat diffStat={state.diffStat} />
       </div>
 
-      {/* Diff viewer */}
-      <WorkspaceDiffViewer state={fullDiffState} onRequest={() => {}} />
+      {/* Diff viewer — fills remaining height */}
+      <div className="flex-1 min-h-0">
+        <WorkspaceDiffViewer state={fullDiffState} />
+      </div>
     </div>
   );
 });
