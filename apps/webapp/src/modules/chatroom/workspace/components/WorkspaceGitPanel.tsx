@@ -22,12 +22,11 @@ interface WorkspaceGitPanelProps {
   chatroomId?: string;
 }
 
-type ActiveTab = 'branch' | 'diff' | 'log';
+type ActiveTab = 'diff' | 'log';
 
 // ─── Navigation items ─────────────────────────────────────────────────────────
 
 const TABS: { id: ActiveTab; label: string }[] = [
-  { id: 'branch', label: 'Branch' },
   { id: 'diff', label: 'Diff' },
   { id: 'log', label: 'History' },
 ];
@@ -46,7 +45,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   workingDir,
   chatroomId,
 }: WorkspaceGitPanelProps) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('branch');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('diff');
   const [selectedCommitSha, setSelectedCommitSha] = useState<string | null>(null);
 
   const gitState = useWorkspaceGit(machineId, workingDir);
@@ -139,8 +138,6 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto p-4">
-        {activeTab === 'branch' && <WorkspaceGitBranch state={gitState} />}
-
         {activeTab === 'diff' && (
           <WorkspaceDiffViewer state={fullDiffState} onRequest={requestDiff} />
         )}
