@@ -95,6 +95,7 @@ describe('refreshModels', () => {
       deps,
       events: new DaemonEventBus(),
       agentServices,
+      lastPushedGitState: new Map(),
     };
   }
 

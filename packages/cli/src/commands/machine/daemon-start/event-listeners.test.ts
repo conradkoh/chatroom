@@ -53,6 +53,7 @@ function createTestContext(): DaemonContext {
         delay: vi.fn().mockResolvedValue(undefined),
       },
     },
+    lastPushedGitState: new Map(),
   };
 }
 

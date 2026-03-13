@@ -74,6 +74,7 @@ function createMockContext(
         }),
       ],
     ]),
+    lastPushedGitState: new Map(),
   };
 }
 
