@@ -31,7 +31,7 @@ import { TaskQueue } from './components/TaskQueue';
 import { AttachedTasksProvider } from './context/AttachedTasksContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import type { TeamLifecycle } from './types/readiness';
-import { WorkspaceBar } from './workspace/components/WorkspaceBar';
+import { WorkspaceSidebarSection } from './workspace/components/WorkspaceSidebarSection';
 import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
 
 import {
@@ -651,9 +651,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               {/* Message Section */}
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 <MessageFeed chatroomId={chatroomId} activeTask={activeTask} />
-                {chatroomWorkspaces.length > 0 && (
-                  <WorkspaceBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} />
-                )}
                 <SendForm chatroomId={chatroomId} />
               </div>
 
@@ -686,6 +683,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   onConfigure={handleOpenSettings}
                 />
                 <TaskQueue chatroomId={chatroomId} lifecycle={lifecycle} />
+                <WorkspaceSidebarSection workspaces={chatroomWorkspaces} chatroomId={chatroomId} />
               </div>
             </div>
           </div>
