@@ -12,8 +12,7 @@ import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleK
 import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
 import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
-import { onAgentExited as onAgentExitedEvent } from '../src/events/agent/on-agent-exited';
-import { processConfigRemoval } from '../src/domain/usecase/agent/config-removal';
+import { cleanupAgentOnExit } from '../src/domain/usecase/daemon/on-restart';
 import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
@@ -853,52 +852,15 @@ export const recordAgentExited = mutation({
       timestamp: now,
     });
 
-    // 3. Clear spawnedAgentPid from team agent config
-    const exitChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
-    let config: Doc<'chatroom_teamAgentConfigs'> | null = null;
-    if (exitChatroom?.teamId) {
-      const exitTeamRoleKey = buildTeamRoleKey(exitChatroom._id, exitChatroom.teamId, args.role);
-      config = await ctx.db
-        .query('chatroom_teamAgentConfigs')
-        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', exitTeamRoleKey))
-        .first();
-    }
-    if (config && config.machineId === args.machineId) {
-      await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
-        spawnedAgentPid: undefined,
-        spawnedAt: undefined,
-        updatedAt: now,
-      });
-
-      // After clearing spawnedAgentPid, check for pending config removal
-      await processConfigRemoval(ctx, {
-        chatroomId: args.chatroomId,
-        role: args.role,
-        machineId: args.machineId,
-      });
-    }
-
-    // 4. Mark participant as exited (preserves lastSeenAt for UI display)
-    const participant = await ctx.db
-      .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('role', args.role)
-      )
-      .unique();
-    if (participant) {
-      await ctx.db.patch(participant._id, {
-        lastSeenAction: PARTICIPANT_EXITED_ACTION,
-        connectionId: undefined,
-        lastStatus: 'agent.exited',
-      });
-    }
-
-    // 5. If unintentional crash, immediately schedule ensure-agent for any active task
-    await onAgentExitedEvent(ctx, {
+    // 3-5. Clear PID, process config removal, update participant, trigger recovery
+    await cleanupAgentOnExit(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
+      machineId: args.machineId,
+      pid: args.pid,
       intentional: args.intentional,
       stopReason: args.stopReason,
+      skipEvent: true,
     });
 
     return { success: true };
