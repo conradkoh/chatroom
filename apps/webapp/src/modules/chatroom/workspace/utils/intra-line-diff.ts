@@ -1,8 +1,10 @@
 /**
- * Intra-line diff utility — character-level diff for paired deletion/addition lines.
+ * Intra-line diff utility — token-level diff for paired deletion/addition lines.
  *
- * Uses a character-level LCS (Longest Common Subsequence) to identify which
- * parts of two strings are the same and which have changed.
+ * Uses a token-level LCS (Longest Common Subsequence) to identify which
+ * parts of two strings are the same and which have changed. Operates on
+ * tokens (words, whitespace runs, individual punctuation) rather than
+ * individual characters, producing coherent word-level highlights.
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -17,16 +19,29 @@ export interface IntraLineDiffResult {
   newSegments: DiffSegment[];
 }
 
+// ─── Tokenizer ────────────────────────────────────────────────────────────────
+
+/**
+ * Splits a string into tokens: word runs, whitespace runs, and individual
+ * punctuation/symbols.
+ *
+ * Examples:
+ *   "sha: string;" → ["sha", ":", " ", "string", ";"]
+ *   'const name = "Alice";' → ["const", " ", "name", " ", "=", " ", '"', "Alice", '"', ";"]
+ */
+export function tokenize(s: string): string[] {
+  return s.match(/\w+|\s+|[^\w\s]/g) ?? [];
+}
+
 // ─── LCS Implementation ───────────────────────────────────────────────────────
 
 /**
- * Computes the Longest Common Subsequence length table for two strings.
- * Returns a 2D array where lcs[i][j] = length of LCS of a[0..i-1] and b[0..j-1].
+ * Computes the Longest Common Subsequence length table for two token arrays.
+ * Returns a 2D array where dp[i][j] = LCS length of a[0..i-1] and b[0..j-1].
  */
-function buildLCSTable(a: string, b: string): number[][] {
+function buildLCSTable(a: string[], b: string[]): number[][] {
   const m = a.length;
   const n = b.length;
-  // Allocate table with zeros
   const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
 
   for (let i = 1; i <= m; i++) {
@@ -42,30 +57,29 @@ function buildLCSTable(a: string, b: string): number[][] {
   return dp;
 }
 
-/**
- * Backtracks through the LCS table to produce character-level edit operations.
- * Returns arrays of 'same' | 'old-changed' | 'new-changed' operations.
- */
-type CharOp =
-  | { type: 'same'; char: string }
-  | { type: 'old-changed'; char: string }
-  | { type: 'new-changed'; char: string };
+type TokenOp =
+  | { type: 'same'; token: string }
+  | { type: 'old-changed'; token: string }
+  | { type: 'new-changed'; token: string };
 
-function backtrackLCS(a: string, b: string, dp: number[][]): CharOp[] {
-  const ops: CharOp[] = [];
+/**
+ * Backtracks through the LCS table to produce token-level edit operations.
+ */
+function backtrackLCS(a: string[], b: string[], dp: number[][]): TokenOp[] {
+  const ops: TokenOp[] = [];
   let i = a.length;
   let j = b.length;
 
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
-      ops.push({ type: 'same', char: a[i - 1]! });
+      ops.push({ type: 'same', token: a[i - 1]! });
       i--;
       j--;
     } else if (j > 0 && (i === 0 || dp[i]![j - 1]! >= dp[i - 1]![j]!)) {
-      ops.push({ type: 'new-changed', char: b[j - 1]! });
+      ops.push({ type: 'new-changed', token: b[j - 1]! });
       j--;
     } else {
-      ops.push({ type: 'old-changed', char: a[i - 1]! });
+      ops.push({ type: 'old-changed', token: a[i - 1]! });
       i--;
     }
   }
@@ -77,22 +91,22 @@ function backtrackLCS(a: string, b: string, dp: number[][]): CharOp[] {
 // ─── Segment Builder ──────────────────────────────────────────────────────────
 
 /**
- * Groups an array of character operations into merged DiffSegments.
- * Ensures no two adjacent segments have the same type.
+ * Groups token ops into merged DiffSegments.
+ * Adjacent tokens of the same type are concatenated into one segment.
  */
-function buildSegments(chars: string[], types: ('same' | 'changed')[]): DiffSegment[] {
-  if (chars.length === 0) return [];
+function buildSegments(tokens: string[], types: ('same' | 'changed')[]): DiffSegment[] {
+  if (tokens.length === 0) return [];
 
   const segments: DiffSegment[] = [];
-  let currentText = chars[0]!;
+  let currentText = tokens[0]!;
   let currentType = types[0]!;
 
-  for (let i = 1; i < chars.length; i++) {
+  for (let i = 1; i < tokens.length; i++) {
     if (types[i] === currentType) {
-      currentText += chars[i];
+      currentText += tokens[i];
     } else {
       segments.push({ text: currentText, type: currentType });
-      currentText = chars[i]!;
+      currentText = tokens[i]!;
       currentType = types[i]!;
     }
   }
@@ -105,6 +119,7 @@ function buildSegments(chars: string[], types: ('same' | 'changed')[]): DiffSegm
 
 /**
  * Computes intra-line diff between a pair of old and new line strings.
+ * Uses token-level LCS for coherent word/symbol-level highlighting.
  *
  * @param oldLine - Content of the deletion line (without leading `-`)
  * @param newLine - Content of the addition line (without leading `+`)
@@ -128,33 +143,37 @@ export function computeIntraLineDiff(oldLine: string, newLine: string): IntraLin
     };
   }
 
-  // Build LCS and backtrack to get character-level ops
-  const dp = buildLCSTable(oldLine, newLine);
-  const ops = backtrackLCS(oldLine, newLine, dp);
+  // Tokenize both lines
+  const oldTokens = tokenize(oldLine);
+  const newTokens = tokenize(newLine);
 
-  // Separate ops into old-line characters and new-line characters
-  const oldChars: string[] = [];
+  // Build LCS on token arrays and backtrack
+  const dp = buildLCSTable(oldTokens, newTokens);
+  const ops = backtrackLCS(oldTokens, newTokens, dp);
+
+  // Separate ops into old-line tokens and new-line tokens
+  const oldTokenList: string[] = [];
   const oldTypes: ('same' | 'changed')[] = [];
-  const newChars: string[] = [];
+  const newTokenList: string[] = [];
   const newTypes: ('same' | 'changed')[] = [];
 
   for (const op of ops) {
     if (op.type === 'same') {
-      oldChars.push(op.char);
+      oldTokenList.push(op.token);
       oldTypes.push('same');
-      newChars.push(op.char);
+      newTokenList.push(op.token);
       newTypes.push('same');
     } else if (op.type === 'old-changed') {
-      oldChars.push(op.char);
+      oldTokenList.push(op.token);
       oldTypes.push('changed');
     } else {
-      newChars.push(op.char);
+      newTokenList.push(op.token);
       newTypes.push('changed');
     }
   }
 
   return {
-    oldSegments: buildSegments(oldChars, oldTypes),
-    newSegments: buildSegments(newChars, newTypes),
+    oldSegments: buildSegments(oldTokenList, oldTypes),
+    newSegments: buildSegments(newTokenList, newTypes),
   };
 }

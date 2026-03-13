@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeIntraLineDiff } from './intra-line-diff';
+import { computeIntraLineDiff, tokenize } from './intra-line-diff';
 import type { DiffSegment } from './intra-line-diff';
 
 // Helper: flatten segments to a string (for easier debugging)
@@ -7,30 +7,63 @@ function flatten(segments: DiffSegment[]): string {
   return segments.map((s) => s.text).join('');
 }
 
+// Helper: get all text of a given type from segments
+function textOfType(segments: DiffSegment[], type: 'same' | 'changed'): string {
+  return segments
+    .filter((s) => s.type === type)
+    .map((s) => s.text)
+    .join('');
+}
+
+// ─── tokenize ────────────────────────────────────────────────────────────────
+
+describe('tokenize', () => {
+  it('splits words, whitespace, and punctuation', () => {
+    expect(tokenize('sha: string;')).toEqual(['sha', ':', ' ', 'string', ';']);
+  });
+
+  it('handles camelCase as one token', () => {
+    expect(tokenize('fullSha')).toEqual(['fullSha']);
+  });
+
+  it('handles leading spaces as whitespace token', () => {
+    expect(tokenize('  return x;')).toEqual(['  ', 'return', ' ', 'x', ';']);
+  });
+
+  it('handles empty string', () => {
+    expect(tokenize('')).toEqual([]);
+  });
+
+  it('handles string with only punctuation', () => {
+    expect(tokenize('{ }')).toEqual(['{', ' ', '}']);
+  });
+});
+
+// ─── computeIntraLineDiff ────────────────────────────────────────────────────
+
 describe('computeIntraLineDiff', () => {
   it('single word change in the middle', () => {
     const old = 'const name = "Alice";';
     const next = 'const name = "Bob";';
     const result = computeIntraLineDiff(old, next);
 
-    // Flattened should equal the original strings
     expect(flatten(result.oldSegments)).toBe(old);
     expect(flatten(result.newSegments)).toBe(next);
 
-    // Specific segments
-    expect(result.oldSegments).toEqual([
-      { text: 'const name = "', type: 'same' },
-      { text: 'Alice', type: 'changed' },
-      { text: '";', type: 'same' },
-    ]);
-    expect(result.newSegments).toEqual([
-      { text: 'const name = "', type: 'same' },
-      { text: 'Bob', type: 'changed' },
-      { text: '";', type: 'same' },
-    ]);
+    // Alice should be entirely in a changed segment, Bob too
+    const oldChanged = textOfType(result.oldSegments, 'changed');
+    const newChanged = textOfType(result.newSegments, 'changed');
+
+    expect(oldChanged).toContain('Alice');
+    expect(newChanged).toContain('Bob');
+
+    // Surrounding text should be same
+    const oldSame = textOfType(result.oldSegments, 'same');
+    expect(oldSame).toContain('const');
+    expect(oldSame).toContain('name');
   });
 
-  it('completely different lines are entirely changed', () => {
+  it('completely different lines are mostly changed', () => {
     const old = "import { foo } from 'bar';";
     const next = 'export const baz = 42;';
     const result = computeIntraLineDiff(old, next);
@@ -38,21 +71,12 @@ describe('computeIntraLineDiff', () => {
     expect(flatten(result.oldSegments)).toBe(old);
     expect(flatten(result.newSegments)).toBe(next);
 
-    // Both lines should have at least one 'changed' segment and no 'same' segments
-    // (for completely different content, the LCS might find a few chars in common,
-    //  so we verify there are no large 'same' chunks — at least the bulk is changed)
-    const oldSameText = result.oldSegments
-      .filter((s) => s.type === 'same')
-      .map((s) => s.text)
-      .join('');
-    const newSameText = result.newSegments
-      .filter((s) => s.type === 'same')
-      .map((s) => s.text)
-      .join('');
-
     // The 'same' portions should be a small fraction of the total content
-    expect(oldSameText.length).toBeLessThan(old.length * 0.5);
-    expect(newSameText.length).toBeLessThan(next.length * 0.5);
+    const oldSame = textOfType(result.oldSegments, 'same');
+    const newSame = textOfType(result.newSegments, 'same');
+
+    expect(oldSame.length).toBeLessThan(old.length * 0.5);
+    expect(newSame.length).toBeLessThan(next.length * 0.5);
   });
 
   it('identical lines are entirely same', () => {
@@ -66,7 +90,7 @@ describe('computeIntraLineDiff', () => {
     expect(result.newSegments).toEqual([{ text: line, type: 'same' }]);
   });
 
-  it('change at the beginning', () => {
+  it('change at the beginning — let → const', () => {
     const old = 'let x = 1;';
     const next = 'const x = 1;';
     const result = computeIntraLineDiff(old, next);
@@ -74,30 +98,20 @@ describe('computeIntraLineDiff', () => {
     expect(flatten(result.oldSegments)).toBe(old);
     expect(flatten(result.newSegments)).toBe(next);
 
-    // ' x = 1;' should be same (shared suffix)
-    const oldSame = result.oldSegments
-      .filter((s) => s.type === 'same')
-      .map((s) => s.text)
-      .join('');
-    expect(oldSame).toContain('x = 1;');
+    // Token-level: 'let' is a single token, should be entirely in changed
+    const oldChanged = textOfType(result.oldSegments, 'changed');
+    const newChanged = textOfType(result.newSegments, 'changed');
 
-    // The changed portion in old should include some part of 'let'
-    const oldChanged = result.oldSegments
-      .filter((s) => s.type === 'changed')
-      .map((s) => s.text)
-      .join('');
-    expect(old.startsWith(oldChanged) || oldChanged.length > 0).toBe(true);
-    expect(oldChanged.length).toBeGreaterThan(0);
+    expect(oldChanged).toContain('let');
+    expect(newChanged).toContain('const');
 
-    // Similarly for new — changed portion includes part of 'const'
-    const newChanged = result.newSegments
-      .filter((s) => s.type === 'changed')
-      .map((s) => s.text)
-      .join('');
-    expect(newChanged.length).toBeGreaterThan(0);
+    // The shared ' x = 1;' part should be same
+    const oldSame = textOfType(result.oldSegments, 'same');
+    expect(oldSame).toContain('x');
+    expect(oldSame).toContain('=');
   });
 
-  it('change at the end', () => {
+  it('change at the end — result → result.data', () => {
     const old = 'return result;';
     const next = 'return result.data;';
     const result = computeIntraLineDiff(old, next);
@@ -105,26 +119,18 @@ describe('computeIntraLineDiff', () => {
     expect(flatten(result.oldSegments)).toBe(old);
     expect(flatten(result.newSegments)).toBe(next);
 
-    // 'return result' should be same (common prefix)
-    const oldSame = result.oldSegments
-      .filter((s) => s.type === 'same')
-      .map((s) => s.text)
-      .join('');
-    expect(oldSame).toContain('return result');
+    // 'return' and 'result' tokens are same
+    const oldSame = textOfType(result.oldSegments, 'same');
+    expect(oldSame).toContain('return');
+    expect(oldSame).toContain('result');
 
-    // The new line has additional text '.data' that should be marked changed
-    const newChanged = result.newSegments
-      .filter((s) => s.type === 'changed')
-      .map((s) => s.text)
-      .join('');
+    // The new line has extra tokens (.data) that are changed
+    const newChanged = textOfType(result.newSegments, 'changed');
     expect(newChanged.length).toBeGreaterThan(0);
-    // The changed text in new should include some of the extra characters
-    // (note: character-level LCS may split chars non-contiguously across segments)
-    const newChangedSet = new Set(newChanged);
-    expect(newChangedSet.has('d') || newChangedSet.has('a')).toBe(true);
+    expect(newChanged).toContain('data');
   });
 
-  it('multiple changes in one line', () => {
+  it('multiple changes in one line — add→multiply, +→*', () => {
     const old = 'function add(a, b) { return a + b; }';
     const next = 'function multiply(a, b) { return a * b; }';
     const result = computeIntraLineDiff(old, next);
@@ -132,25 +138,20 @@ describe('computeIntraLineDiff', () => {
     expect(flatten(result.oldSegments)).toBe(old);
     expect(flatten(result.newSegments)).toBe(next);
 
-    // 'add' should appear as changed in old
-    const oldChanged = result.oldSegments
-      .filter((s) => s.type === 'changed')
-      .map((s) => s.text)
-      .join('');
-    const newChanged = result.newSegments
-      .filter((s) => s.type === 'changed')
-      .map((s) => s.text)
-      .join('');
+    // Token-level: 'add' and 'multiply' are single tokens → entirely changed
+    const oldChanged = textOfType(result.oldSegments, 'changed');
+    const newChanged = textOfType(result.newSegments, 'changed');
 
     expect(oldChanged).toContain('add');
     expect(newChanged).toContain('multiply');
 
-    // Both should have some 'same' content (the shared parts)
-    const oldSame = result.oldSegments
-      .filter((s) => s.type === 'same')
-      .map((s) => s.text)
-      .join('');
-    expect(oldSame.length).toBeGreaterThan(0);
+    // '+' and '*' are single punctuation tokens → changed
+    expect(oldChanged).toContain('+');
+    expect(newChanged).toContain('*');
+
+    // Shared parts like 'function', 'a', 'b' are same
+    const oldSame = textOfType(result.oldSegments, 'same');
+    expect(oldSame).toContain('function');
   });
 
   it('empty old line — new line is entirely changed', () => {
@@ -161,8 +162,6 @@ describe('computeIntraLineDiff', () => {
     expect(flatten(result.oldSegments)).toBe(old);
     expect(flatten(result.newSegments)).toBe(next);
 
-    // Old has nothing; new should be entirely 'changed'
-    expect(result.oldSegments.every((s) => s.text === '' || s.type === 'changed')).toBe(true);
     expect(result.newSegments).toEqual([{ text: next, type: 'changed' }]);
   });
 
@@ -174,9 +173,7 @@ describe('computeIntraLineDiff', () => {
     expect(flatten(result.oldSegments)).toBe(old);
     expect(flatten(result.newSegments)).toBe(next);
 
-    // Old should be entirely 'changed'
     expect(result.oldSegments).toEqual([{ text: old, type: 'changed' }]);
-    expect(result.newSegments.every((s) => s.text === '' || s.type === 'changed')).toBe(true);
   });
 
   it('no adjacent segments of the same type (segments are merged)', () => {
@@ -193,16 +190,52 @@ describe('computeIntraLineDiff', () => {
   });
 
   it('segment texts concatenated equal original strings', () => {
-    const cases = [
+    const cases: [string, string][] = [
       ['hello world', 'hello there'],
       ['foo bar baz', 'foo qux baz'],
       ['  indented code', '    more indented code'],
       ['', ''],
+      ['const x = 1;', 'let x = 2;'],
     ];
     for (const [old, next] of cases) {
-      const result = computeIntraLineDiff(old!, next!);
+      const result = computeIntraLineDiff(old, next);
       expect(flatten(result.oldSegments)).toBe(old);
       expect(flatten(result.newSegments)).toBe(next);
     }
+  });
+
+  it('token-level: sha → fullSha', () => {
+    const old = '  sha: string;';
+    const next = '  fullSha: string;';
+    const result = computeIntraLineDiff(old, next);
+
+    expect(flatten(result.oldSegments)).toBe(old);
+    expect(flatten(result.newSegments)).toBe(next);
+
+    // 'sha' and 'fullSha' are different tokens — should be changed
+    const oldChanged = textOfType(result.oldSegments, 'changed');
+    const newChanged = textOfType(result.newSegments, 'changed');
+
+    expect(oldChanged).toContain('sha');
+    expect(newChanged).toContain('fullSha');
+
+    // ':' and 'string' and ';' should be same
+    const oldSame = textOfType(result.oldSegments, 'same');
+    expect(oldSame).toContain('string');
+  });
+
+  it('token-level: message → commitMessage', () => {
+    const old = '  message: string;';
+    const next = '  commitMessage: string;';
+    const result = computeIntraLineDiff(old, next);
+
+    expect(flatten(result.oldSegments)).toBe(old);
+    expect(flatten(result.newSegments)).toBe(next);
+
+    const oldChanged = textOfType(result.oldSegments, 'changed');
+    const newChanged = textOfType(result.newSegments, 'changed');
+
+    expect(oldChanged).toContain('message');
+    expect(newChanged).toContain('commitMessage');
   });
 });
