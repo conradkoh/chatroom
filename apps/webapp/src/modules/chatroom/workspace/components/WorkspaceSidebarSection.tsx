@@ -188,6 +188,7 @@ export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
   chatroomId,
 }: WorkspaceSidebarSectionProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const handleClick = useCallback((wsId: string) => {
     setSelectedId(wsId);
@@ -199,30 +200,47 @@ export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
 
   const selectedWorkspace = workspaces.find((w) => w.id === selectedId);
 
-  if (workspaces.length === 0) return null;
+  if (workspaces.length === 0) {
+    return (
+      <div className="border-t-2 border-chatroom-border-strong px-3 py-4">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
+          Workspaces
+        </div>
+        <div className="text-[11px] text-chatroom-text-muted">
+          No workspaces available
+        </div>
+      </div>
+    );
+  }
 
   const primaryWorkspace = workspaces[0]!;
   const extraCount = workspaces.length - 1;
+  const visibleWorkspaces = expanded ? workspaces : [primaryWorkspace];
 
   return (
     <>
       <div className="border-t-2 border-chatroom-border-strong">
-        {/* Primary workspace */}
-        <WorkspaceRow
-          key={primaryWorkspace.id}
-          workspace={primaryWorkspace}
-          isActive={selectedId === primaryWorkspace.id}
-          onClick={() => handleClick(primaryWorkspace.id)}
-        />
+        {/* Visible workspaces */}
+        {visibleWorkspaces.map((ws) => (
+          <WorkspaceRow
+            key={ws.id}
+            workspace={ws}
+            isActive={selectedId === ws.id}
+            onClick={() => handleClick(ws.id)}
+          />
+        ))}
 
-        {/* "View X more" indicator */}
+        {/* Expand / collapse toggle */}
         {extraCount > 0 && (
           <div className="px-3 py-2">
             <button
               type="button"
+              onClick={() => setExpanded(!expanded)}
               className="text-[10px] text-chatroom-text-muted hover:text-chatroom-text-secondary transition-colors"
             >
-              View {extraCount} more workspace{extraCount > 1 ? 's' : ''}
+              {expanded
+                ? 'Show less'
+                : `View ${extraCount} more workspace${extraCount > 1 ? 's' : ''}`}
             </button>
           </div>
         )}
