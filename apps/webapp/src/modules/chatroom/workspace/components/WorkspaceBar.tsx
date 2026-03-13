@@ -68,24 +68,29 @@ const WorkspaceChip = memo(function WorkspaceChip({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer transition-colors shrink-0 whitespace-nowrap',
+        'flex flex-col items-start px-3 py-2 rounded-lg cursor-pointer transition-colors shrink-0',
         'hover:bg-chatroom-bg-hover',
         isActive && 'bg-chatroom-bg-hover border-b-2 border-chatroom-accent',
         !isActive && 'border-b-2 border-transparent',
       )}
     >
-      <FolderOpen size={12} className="text-chatroom-text-muted shrink-0" />
-      <span className="text-xs text-chatroom-text-primary font-medium">
+      {/* Row 1: Workspace name (most attention) */}
+      <span className="text-xs font-semibold text-chatroom-text-primary leading-tight">
         {getWorkspaceName(workspace.workingDir)}
       </span>
-      <span className="text-[11px] text-chatroom-text-muted">·</span>
-      <span className="text-[11px] text-chatroom-text-muted">{workspace.hostname}</span>
-      {statContent && (
-        <>
-          <span className="text-[11px] text-chatroom-text-muted">·</span>
-          {statContent}
-        </>
-      )}
+
+      {/* Row 2: Machine name + diff stats */}
+      <div className="flex items-center gap-1.5 mt-0.5">
+        <span className="text-[10px] text-chatroom-text-muted">
+          {workspace.hostname}
+        </span>
+        {statContent && (
+          <>
+            <span className="text-[10px] text-chatroom-text-muted">·</span>
+            {statContent}
+          </>
+        )}
+      </div>
     </button>
   );
 });
