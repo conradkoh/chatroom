@@ -23,6 +23,7 @@ import {
 } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
+import { startGitPollingLoop } from './git-polling.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 
@@ -148,11 +149,19 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Don't let the heartbeat timer keep the process alive during shutdown
   heartbeatTimer.unref();
 
+  // ── Git Polling Loop ─────────────────────────────────────────────────
+  // Fast polling loop (5s) for on-demand workspace git requests.
+  // Separate from the heartbeat so git requests get low latency (~5s).
+  const gitPollingHandle = startGitPollingLoop(ctx);
+
   const shutdown = async () => {
     console.log(`\n[${formatTimestamp()}] Shutting down...`);
 
     // Stop heartbeat timers
     clearInterval(heartbeatTimer);
+
+    // Stop git polling loop
+    gitPollingHandle.stop();
 
     await onDaemonShutdown(ctx);
 
