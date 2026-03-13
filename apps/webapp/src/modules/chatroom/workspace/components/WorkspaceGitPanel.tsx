@@ -18,6 +18,8 @@ import { WorkspaceCommitDetail } from './WorkspaceCommitDetail';
 interface WorkspaceGitPanelProps {
   machineId: string;
   workingDir: string;
+  /** Optional chatroomId to display in the sidebar footer. */
+  chatroomId?: string;
 }
 
 type ActiveTab = 'branch' | 'diff' | 'log';
@@ -42,6 +44,7 @@ const TABS: { id: ActiveTab; label: string }[] = [
 export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   machineId,
   workingDir,
+  chatroomId,
 }: WorkspaceGitPanelProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('branch');
   const [selectedCommitSha, setSelectedCommitSha] = useState<string | null>(null);
@@ -80,7 +83,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
   return (
     <div className="flex flex-row h-full">
       {/* Side panel */}
-      <div className="w-40 flex-shrink-0 border-r-2 border-chatroom-border overflow-y-auto">
+      <div className="w-40 flex-shrink-0 border-r-2 border-chatroom-border overflow-y-auto flex flex-col">
         {/* Header */}
         <div className="px-3 pt-3 pb-2 border-b border-chatroom-border">
           <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
@@ -120,6 +123,18 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
             </span>
           </button>
         ))}
+
+        {/* Chatroom details — pushed to bottom */}
+        {chatroomId && (
+          <div className="mt-auto px-3 py-3 border-t border-chatroom-border">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
+              Chatroom ID
+            </div>
+            <div className="font-mono text-[10px] font-bold text-chatroom-text-secondary break-all p-1.5 bg-chatroom-bg-tertiary">
+              {chatroomId}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Content area */}

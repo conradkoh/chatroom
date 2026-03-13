@@ -652,7 +652,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 <MessageFeed chatroomId={chatroomId} activeTask={activeTask} />
                 {chatroomWorkspaces.length > 0 && (
-                  <WorkspaceBar workspaces={chatroomWorkspaces} />
+                  <WorkspaceBar workspaces={chatroomWorkspaces} chatroomId={chatroomId} />
                 )}
                 <SendForm chatroomId={chatroomId} />
               </div>
@@ -686,14 +686,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   onConfigure={handleOpenSettings}
                 />
                 <TaskQueue chatroomId={chatroomId} lifecycle={lifecycle} />
-                <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
-                    Chatroom ID
-                  </div>
-                  <div className="font-mono text-[10px] font-bold text-chatroom-text-secondary break-all p-2 bg-chatroom-bg-tertiary">
-                    {chatroomId}
-                  </div>
-                </div>
               </div>
             </div>
           </div>

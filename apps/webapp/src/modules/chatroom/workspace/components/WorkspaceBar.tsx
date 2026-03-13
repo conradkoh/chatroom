@@ -18,6 +18,7 @@ import { WorkspaceGitPanel } from './WorkspaceGitPanel';
 
 interface WorkspaceBarProps {
   workspaces: Workspace[];
+  chatroomId: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -99,7 +100,7 @@ const WorkspaceChip = memo(function WorkspaceChip({
  *
  * Clicking a chip opens a near-full-screen modal with the full git panel.
  */
-export const WorkspaceBar = memo(function WorkspaceBar({ workspaces }: WorkspaceBarProps) {
+export const WorkspaceBar = memo(function WorkspaceBar({ workspaces, chatroomId }: WorkspaceBarProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const handleClick = useCallback((wsId: string) => {
@@ -156,6 +157,7 @@ export const WorkspaceBar = memo(function WorkspaceBar({ workspaces }: Workspace
               <WorkspaceGitPanel
                 machineId={selectedWorkspace.machineId}
                 workingDir={selectedWorkspace.workingDir}
+                chatroomId={chatroomId}
               />
             )}
           </FixedModalBody>
