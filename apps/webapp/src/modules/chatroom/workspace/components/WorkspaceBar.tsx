@@ -75,11 +75,11 @@ const WorkspaceChip = memo(function WorkspaceChip({
       )}
     >
       <FolderOpen size={12} className="text-chatroom-text-muted shrink-0" />
-      <span className="text-xs font-semibold text-chatroom-text-primary whitespace-nowrap">
+      <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-primary whitespace-nowrap">
         {getWorkspaceName(workspace.workingDir)}
       </span>
       <span className="h-3 w-px bg-chatroom-border shrink-0" />
-      <span className="text-[10px] text-chatroom-text-muted whitespace-nowrap">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted whitespace-nowrap">
         {workspace.hostname}
       </span>
       {statContent && (
