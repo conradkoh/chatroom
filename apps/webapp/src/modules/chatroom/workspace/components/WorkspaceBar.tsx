@@ -74,7 +74,7 @@ const WorkspaceChip = memo(function WorkspaceChip({
         !isActive && 'border-b-2 border-transparent',
       )}
     >
-      <FolderOpen size={12} className="text-chatroom-text-muted shrink-0" />
+      <FolderOpen size={12} className="text-chatroom-text-muted shrink-0 mr-0.5" />
       <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary whitespace-nowrap">
         {getWorkspaceName(workspace.workingDir)}
       </span>
