@@ -68,7 +68,7 @@ export function startGitPollingLoop(ctx: DaemonContext): GitPollingHandle {
  * " 3 files changed, 45 insertions(+), 12 deletions(-)"
  * This appears before the diff hunks (which start with "diff --git").
  */
-function extractDiffStatFromShowOutput(content: string): {
+export function extractDiffStatFromShowOutput(content: string): {
   filesChanged: number;
   insertions: number;
   deletions: number;
@@ -160,11 +160,32 @@ async function processCommitDetail(
   ]);
 
   if (result.status === 'not_found') {
-    throw new Error(`Commit ${req.sha} not found`);
+    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir: req.workingDir,
+      sha: req.sha,
+      status: 'not_found',
+      message: metadata?.message,
+      author: metadata?.author,
+      date: metadata?.date,
+    });
+    return;
   }
 
   if (result.status === 'error') {
-    throw new Error(`getCommitDetail failed: ${(result as { status: 'error'; message: string }).message}`);
+    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir: req.workingDir,
+      sha: req.sha,
+      status: 'error',
+      errorMessage: (result as { status: 'error'; message: string }).message,
+      message: metadata?.message,
+      author: metadata?.author,
+      date: metadata?.date,
+    });
+    return;
   }
 
   // result.status is 'available' or 'truncated'
@@ -175,11 +196,12 @@ async function processCommitDetail(
     machineId: ctx.machineId,
     workingDir: req.workingDir,
     sha: req.sha,
+    status: 'available',
     diffContent: result.content,
     truncated: result.truncated,
-    message: metadata?.message ?? '',
-    author: metadata?.author ?? '',
-    date: metadata?.date ?? '',
+    message: metadata?.message,
+    author: metadata?.author,
+    date: metadata?.date,
     diffStat,
   });
 

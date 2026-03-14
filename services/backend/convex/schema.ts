@@ -1086,21 +1086,30 @@ export default defineSchema({
     workingDir: v.string(),
     sha: v.string(),
 
-    // git show <sha> output
-    diffContent: v.string(),
-    truncated: v.boolean(),
+    // Discriminated union status
+    status: v.union(
+      v.literal('available'),
+      v.literal('too_large'),
+      v.literal('error'),
+      v.literal('not_found'),
+    ),
 
-    // Commit metadata
-    message: v.string(),
-    author: v.string(),
-    date: v.string(),
-
-    // Stats
-    diffStat: v.object({
+    // Only when status === 'available'
+    diffContent: v.optional(v.string()),
+    truncated: v.optional(v.boolean()),
+    diffStat: v.optional(v.object({
       filesChanged: v.number(),
       insertions: v.number(),
       deletions: v.number(),
-    }),
+    })),
+
+    // Commit metadata (available when status === 'available' or 'too_large')
+    message: v.optional(v.string()),
+    author: v.optional(v.string()),
+    date: v.optional(v.string()),
+
+    // Only when status === 'error'
+    errorMessage: v.optional(v.string()),
 
     updatedAt: v.number(),
   })

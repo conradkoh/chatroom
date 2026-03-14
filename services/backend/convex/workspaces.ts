@@ -132,6 +132,35 @@ export const getCommitDetail = query({
   },
 });
 
+/**
+ * Returns the subset of provided SHAs that are NOT yet in chatroom_workspaceCommitDetail.
+ * Used by the daemon to skip pre-fetching commits already stored.
+ */
+export const getMissingCommitShas = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+    shas: v.array(v.string()),
+  },
+  handler: async (ctx, args): Promise<string[]> => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.valid) return [];
+
+    const missing: string[] = [];
+    for (const sha of args.shas) {
+      const row = await ctx.db
+        .query('chatroom_workspaceCommitDetail')
+        .withIndex('by_machine_workingDir_sha', (q) =>
+          q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('sha', sha)
+        )
+        .first();
+      if (!row) missing.push(sha);
+    }
+    return missing;
+  },
+});
+
 // ─── Queries (called by daemon) ───────────────────────────────────────────────
 
 /**
@@ -302,16 +331,26 @@ export const upsertCommitDetail = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     sha: v.string(),
-    diffContent: v.string(),
-    truncated: v.boolean(),
-    message: v.string(),
-    author: v.string(),
-    date: v.string(),
-    diffStat: v.object({
+    status: v.union(
+      v.literal('available'),
+      v.literal('too_large'),
+      v.literal('error'),
+      v.literal('not_found'),
+    ),
+    // Available when status === 'available'
+    diffContent: v.optional(v.string()),
+    truncated: v.optional(v.boolean()),
+    diffStat: v.optional(v.object({
       filesChanged: v.number(),
       insertions: v.number(),
       deletions: v.number(),
-    }),
+    })),
+    // Available when status === 'available' or 'too_large'
+    message: v.optional(v.string()),
+    author: v.optional(v.string()),
+    date: v.optional(v.string()),
+    // Available when status === 'error'
+    errorMessage: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<void> => {
     const session = await validateSession(ctx, args.sessionId);
@@ -320,19 +359,6 @@ export const upsertCommitDetail = mutation({
     }
 
     const now = Date.now();
-
-    const data = {
-      machineId: args.machineId,
-      workingDir: args.workingDir,
-      sha: args.sha,
-      diffContent: args.diffContent,
-      truncated: args.truncated,
-      message: args.message,
-      author: args.author,
-      date: args.date,
-      diffStat: args.diffStat,
-      updatedAt: now,
-    };
 
     const existing = await ctx.db
       .query('chatroom_workspaceCommitDetail')
@@ -343,6 +369,24 @@ export const upsertCommitDetail = mutation({
           .eq('sha', args.sha)
       )
       .first();
+
+    // Never overwrite a successfully resolved result
+    if (existing?.status === 'available') return;
+
+    const data = {
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      sha: args.sha,
+      status: args.status,
+      diffContent: args.diffContent,
+      truncated: args.truncated,
+      diffStat: args.diffStat,
+      message: args.message,
+      author: args.author,
+      date: args.date,
+      errorMessage: args.errorMessage,
+      updatedAt: now,
+    };
 
     if (existing) {
       await ctx.db.patch('chatroom_workspaceCommitDetail', existing._id, data);

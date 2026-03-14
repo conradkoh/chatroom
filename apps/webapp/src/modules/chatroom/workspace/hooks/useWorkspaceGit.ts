@@ -105,16 +105,27 @@ export function useCommitDetail(
 
   const state: CommitDetailState = useMemo(() => {
     if (!activeSha) return { status: 'idle' };
-    if (!result) return { status: 'loading' };
-    return {
-      status: 'available',
-      content: result.diffContent,
-      truncated: result.truncated,
-      message: result.message,
-      author: result.author,
-      date: result.date,
-      diffStat: result.diffStat,
-    };
+    if (result === undefined) return { status: 'loading' }; // query still loading
+    if (result === null) return { status: 'loading' }; // no row yet
+    if (result.status === 'available') {
+      return {
+        status: 'available',
+        content: result.diffContent ?? '',
+        truncated: result.truncated ?? false,
+        message: result.message ?? '',
+        author: result.author ?? '',
+        date: result.date ?? '',
+        diffStat: result.diffStat ?? { filesChanged: 0, insertions: 0, deletions: 0 },
+      };
+    }
+    if (result.status === 'too_large') {
+      return { status: 'too_large', message: result.message, author: result.author, date: result.date };
+    }
+    if (result.status === 'not_found') {
+      return { status: 'not_found' };
+    }
+    // error
+    return { status: 'error', message: result.errorMessage ?? 'Unknown error' };
   }, [activeSha, result]);
 
   return { state, request, clear };

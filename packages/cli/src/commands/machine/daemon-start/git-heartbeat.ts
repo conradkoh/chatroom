@@ -10,6 +10,8 @@ import { createHash } from 'node:crypto';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { makeGitStateKey, COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
+import type { GitCommit } from '../../../infrastructure/git/types.js';
+import { extractDiffStatFromShowOutput } from './git-polling.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 
@@ -122,4 +124,107 @@ async function pushSingleWorkspaceGitState(
   console.log(
     `[${formatTimestamp()}] 🔀 Git state pushed: ${workingDir} (${branch}${isDirty ? ', dirty' : ', clean'})`
   );
+
+  // Pre-fetch commit details for commits not yet stored (background, non-blocking)
+  prefetchMissingCommitDetails(ctx, workingDir, commits).catch((err: Error) => {
+    console.warn(
+      `[${formatTimestamp()}] ⚠️  Commit pre-fetch failed for ${workingDir}: ${err.message}`
+    );
+  });
+}
+
+/**
+ * Eagerly pre-fetches commit details for any commits not yet stored in the backend.
+ * Called after each successful git state push to fill the commit detail cache
+ * so users see instant results when clicking on commits.
+ */
+async function prefetchMissingCommitDetails(
+  ctx: DaemonContext,
+  workingDir: string,
+  commits: GitCommit[]
+): Promise<void> {
+  if (commits.length === 0) return;
+
+  const shas = commits.map((c) => c.sha);
+
+  // Ask backend which SHAs we don't have yet
+  const missingShas = await ctx.deps.backend.query(api.workspaces.getMissingCommitShas, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    workingDir,
+    shas,
+  });
+
+  if (missingShas.length === 0) return;
+
+  console.log(
+    `[${formatTimestamp()}] 🔍 Pre-fetching ${missingShas.length} commit(s) for ${workingDir}`
+  );
+
+  for (const sha of missingShas) {
+    try {
+      await prefetchSingleCommit(ctx, workingDir, sha, commits);
+    } catch (err) {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Pre-fetch failed for ${sha.slice(0, 7)}: ${(err as Error).message}`
+      );
+    }
+  }
+}
+
+async function prefetchSingleCommit(
+  ctx: DaemonContext,
+  workingDir: string,
+  sha: string,
+  commits: GitCommit[]
+): Promise<void> {
+  const metadata = commits.find((c) => c.sha === sha);
+  const result = await gitReader.getCommitDetail(workingDir, sha);
+
+  if (result.status === 'not_found') {
+    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir,
+      sha,
+      status: 'not_found',
+      message: metadata?.message,
+      author: metadata?.author,
+      date: metadata?.date,
+    });
+    return;
+  }
+
+  if (result.status === 'error') {
+    await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+      workingDir,
+      sha,
+      status: 'error',
+      errorMessage: result.message,
+      message: metadata?.message,
+      author: metadata?.author,
+      date: metadata?.date,
+    });
+    return;
+  }
+
+  // available or truncated
+  const diffStat = extractDiffStatFromShowOutput(result.content);
+  await ctx.deps.backend.mutation(api.workspaces.upsertCommitDetail, {
+    sessionId: ctx.sessionId,
+    machineId: ctx.machineId,
+    workingDir,
+    sha,
+    status: 'available',
+    diffContent: result.content,
+    truncated: result.truncated,
+    message: metadata?.message,
+    author: metadata?.author,
+    date: metadata?.date,
+    diffStat,
+  });
+
+  console.log(`[${formatTimestamp()}] ✅ Pre-fetched: ${sha.slice(0, 7)} in ${workingDir}`);
 }

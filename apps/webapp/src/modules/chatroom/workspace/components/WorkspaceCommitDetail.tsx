@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useEffect } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, AlertCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { CommitDetailState, FullDiffState } from '../types/git';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
@@ -45,6 +45,24 @@ export const WorkspaceCommitDetail = memo(function WorkspaceCommitDetail({
         <Skeleton className="h-3 w-full" />
         <Skeleton className="h-3 w-3/5" />
         <Skeleton className="h-3 w-5/6" />
+      </div>
+    );
+  }
+
+  if (state.status === 'too_large') {
+    return (
+      <div className="flex items-center gap-1.5 text-chatroom-text-muted text-[11px] p-4">
+        <AlertCircle size={13} className="shrink-0" />
+        <span>Commit diff is too large to display</span>
+      </div>
+    );
+  }
+
+  if (state.status === 'not_found') {
+    return (
+      <div className="flex items-center gap-1.5 text-chatroom-text-muted text-[11px] p-4">
+        <AlertCircle size={13} className="shrink-0" />
+        <span>Commit not found</span>
       </div>
     );
   }

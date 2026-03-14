@@ -37,6 +37,8 @@ export type FullDiffState =
  * - `idle`: no request made yet
  * - `loading`: request in flight
  * - `available`: commit detail ready
+ * - `too_large`: commit diff is too large to display
+ * - `not_found`: commit SHA does not exist in the repository
  * - `error`: request failed
  */
 export type CommitDetailState =
@@ -51,4 +53,6 @@ export type CommitDetailState =
       date: string;
       diffStat: DiffStat;
     }
+  | { status: 'too_large'; message?: string; author?: string; date?: string }
+  | { status: 'not_found' }
   | { status: 'error'; message: string };
