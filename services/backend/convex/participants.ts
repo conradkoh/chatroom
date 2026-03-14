@@ -86,7 +86,12 @@ export const join = mutation({
     const normalizedEntryPoint = entryPoint?.toLowerCase();
 
     if (normalizedRole === normalizedEntryPoint) {
-      // Check if there's an active task (pending or in_progress).
+      // Check if there's an active task (pending, acknowledged, or in_progress).
+      // 'acknowledged' must be included: it means an agent has claimed the task
+      // (called get-next-task and received it) but hasn't started work yet.
+      // Promoting a queued message while an acknowledged task exists would create
+      // a race condition where two tasks compete for the same agent simultaneously.
+      //
       // Promotion is only attempted when no active task exists — this guard is
       // unique to the join scenario (no task transition fires here, so the
       // transitionTask usecase's auto-promotion won't trigger).
@@ -94,7 +99,11 @@ export const join = mutation({
         .query('chatroom_tasks')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
         .filter((q) =>
-          q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
+          q.or(
+            q.eq(q.field('status'), 'pending'),
+            q.eq(q.field('status'), 'acknowledged'),
+            q.eq(q.field('status'), 'in_progress')
+          )
         )
         .collect();
 
