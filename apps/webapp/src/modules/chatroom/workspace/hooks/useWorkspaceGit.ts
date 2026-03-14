@@ -156,3 +156,28 @@ export function useLoadMoreCommits(
 
   return { loading, loadMore };
 }
+
+/**
+ * Returns a function that triggers an on-demand git state refresh.
+ *
+ * Sends a daemon.gitRefresh event via the event stream. The daemon
+ * responds by re-running pushGitState within milliseconds.
+ * The live getWorkspaceGitState subscription updates automatically.
+ */
+export function useGitRefresh(
+  machineId: string,
+  workingDir: string,
+): { refresh: () => void; isRefreshing: boolean } {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const requestMutation = useSessionMutation(api.machines.requestGitRefresh);
+
+  const refresh = useCallback(() => {
+    setIsRefreshing(true);
+    requestMutation({ machineId, workingDir }).finally(() => {
+      // Show spinner for ~3s (daemon typically responds within 1-2s)
+      setTimeout(() => setIsRefreshing(false), 3000);
+    });
+  }, [requestMutation, machineId, workingDir]);
+
+  return { refresh, isRefreshing };
+}

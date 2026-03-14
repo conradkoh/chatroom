@@ -366,8 +366,17 @@ export const getCommandEvents = query({
       .order('asc')
       .collect();
 
-    // 6. Merge and sort by _creationTime ascending
-    const all = [...startEvents, ...stopEvents, ...pingEvents].sort((a, b) =>
+    // 6. Fetch daemon.gitRefresh events — session dedup handled by daemon, idempotent
+    const gitRefreshEvents = await ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_machineId_type', (q) =>
+        q.eq('machineId', args.machineId).eq('type', 'daemon.gitRefresh')
+      )
+      .order('asc')
+      .collect();
+
+    // 7. Merge and sort by _creationTime ascending
+    const all = [...startEvents, ...stopEvents, ...pingEvents, ...gitRefreshEvents].sort((a, b) =>
       a._creationTime < b._creationTime ? -1 : 1
     );
 
@@ -875,6 +884,36 @@ export const ackPing = mutation({
       type: 'daemon.pong',
       machineId: args.machineId,
       pingEventId: args.pingEventId,
+      timestamp: Date.now(),
+    });
+  },
+});
+
+/**
+ * Requests an immediate git state refresh for a workspace.
+ *
+ * Inserts a daemon.gitRefresh event into chatroom_eventStream.
+ * The daemon receives it via its live WebSocket subscription and responds
+ * by re-running pushGitState for the specified workspace.
+ */
+export const requestGitRefresh = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    workingDir: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    const user = auth.user;
+    await getOwnedMachine(ctx, args.machineId, user._id);
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'daemon.gitRefresh',
+      machineId: args.machineId,
+      workingDir: args.workingDir,
       timestamp: Date.now(),
     });
   },

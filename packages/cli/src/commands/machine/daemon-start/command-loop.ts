@@ -25,6 +25,7 @@ import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
 import { startGitPollingLoop } from './git-polling.js';
 import { pushGitState } from './git-heartbeat.js';
+import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 
@@ -72,7 +73,8 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
  */
 function evictStaleDedupEntries(
   processedCommandIds: Map<string, number>,
-  processedPingIds: Map<string, number>
+  processedPingIds: Map<string, number>,
+  processedGitRefreshIds?: Map<string, number>
 ): void {
   const evictBefore = Date.now() - AGENT_REQUEST_DEADLINE_MS;
   for (const [id, ts] of processedCommandIds) {
@@ -80,6 +82,11 @@ function evictStaleDedupEntries(
   }
   for (const [id, ts] of processedPingIds) {
     if (ts < evictBefore) processedPingIds.delete(id);
+  }
+  if (processedGitRefreshIds) {
+    for (const [id, ts] of processedGitRefreshIds) {
+      if (ts < evictBefore) processedGitRefreshIds.delete(id);
+    }
   }
 }
 
@@ -91,7 +98,8 @@ async function dispatchCommandEvent(
   ctx: DaemonContext,
   event: { _id: string; type: string; [key: string]: unknown },
   processedCommandIds: Map<string, number>,
-  processedPingIds: Map<string, number>
+  processedPingIds: Map<string, number>,
+  processedGitRefreshIds: Map<string, number>
 ): Promise<void> {
   const eventId = event._id.toString();
 
@@ -117,6 +125,20 @@ async function dispatchCommandEvent(
       machineId: ctx.machineId,
       pingEventId: event._id as Id<'chatroom_eventStream'>,
     });
+  } else if (event.type === 'daemon.gitRefresh') {
+    // Session dedup — don't re-process same refresh event twice in one daemon run
+    if (processedGitRefreshIds.has(eventId)) return;
+    processedGitRefreshIds.set(eventId, Date.now());
+
+    const workingDir = (event as unknown as { workingDir: string }).workingDir;
+
+    // Clear in-memory state hash to bypass change detection on next push
+    const stateKey = makeGitStateKey(ctx.machineId, workingDir);
+    ctx.lastPushedGitState.delete(stateKey);
+
+    // Push git state immediately (non-blocking from caller perspective)
+    console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${workingDir}`);
+    await pushGitState(ctx);
   }
 }
 
@@ -201,6 +223,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // are evicted at the start of each batch to bound memory growth.
   const processedCommandIds = new Map<string, number>(); // agent.requestStart / agent.requestStop
   const processedPingIds = new Map<string, number>(); // daemon.ping
+  const processedGitRefreshIds = new Map<string, number>(); // daemon.gitRefresh
 
   wsClient.onUpdate(
     api.machines.getCommandEvents,
@@ -211,12 +234,12 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     async (result: { events: Array<{ _id: string; type: string; [key: string]: unknown }> }) => {
       if (!result.events || result.events.length === 0) return;
 
-      evictStaleDedupEntries(processedCommandIds, processedPingIds);
+      evictStaleDedupEntries(processedCommandIds, processedPingIds, processedGitRefreshIds);
 
       for (const event of result.events) {
         try {
           console.log(`[${formatTimestamp()}] 📡 Stream command event: ${event.type}`);
-          await dispatchCommandEvent(ctx, event, processedCommandIds, processedPingIds);
+          await dispatchCommandEvent(ctx, event, processedCommandIds, processedPingIds, processedGitRefreshIds);
         } catch (err) {
           console.error(
             `[${formatTimestamp()}] ❌ Stream command event failed: ${(err as Error).message}`

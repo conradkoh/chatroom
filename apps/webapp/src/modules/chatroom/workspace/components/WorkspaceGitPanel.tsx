@@ -1,12 +1,14 @@
 'use client';
 
 import { memo, useState, useCallback, useEffect } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   useWorkspaceGit,
   useFullDiff,
   useCommitDetail,
   useLoadMoreCommits,
+  useGitRefresh,
 } from '../hooks/useWorkspaceGit';
 import { WorkspaceGitBranch } from './WorkspaceGitBranch';
 import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
@@ -56,6 +58,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
     clear: clearCommitDetail,
   } = useCommitDetail(machineId, workingDir);
   const { loading: loadingMore, loadMore } = useLoadMoreCommits(machineId, workingDir);
+  const { refresh, isRefreshing } = useGitRefresh(machineId, workingDir);
 
   const handleSelectCommit = useCallback(
     (sha: string) => {
@@ -101,10 +104,19 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
       {/* Side panel */}
       <div className="w-40 flex-shrink-0 border-r-2 border-chatroom-border overflow-y-auto flex flex-col">
         {/* Header */}
-        <div className="px-3 pt-3 pb-2 border-b border-chatroom-border">
+        <div className="px-3 pt-3 pb-2 border-b border-chatroom-border flex items-center justify-between">
           <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
             Git
           </span>
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={isRefreshing}
+            className="text-chatroom-text-muted hover:text-chatroom-text-secondary transition-colors disabled:opacity-50"
+            title="Sync git state"
+          >
+            <RefreshCw size={11} className={isRefreshing ? 'animate-spin' : ''} />
+          </button>
         </div>
 
         {/* Navigation items */}

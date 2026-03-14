@@ -917,6 +917,13 @@ export default defineSchema({
         machineId: v.string(),
         timestamp: v.number(),
       }),
+      // UI-initiated git state refresh request
+      v.object({
+        type: v.literal('daemon.gitRefresh'),
+        machineId: v.string(),
+        workingDir: v.string(),
+        timestamp: v.number(),
+      }),
       // Daemon response to a daemon.ping event
       v.object({
         type: v.literal('daemon.pong'),
