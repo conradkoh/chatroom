@@ -14,17 +14,28 @@ import type { TeamCompositionConfig } from './team-composition';
 export function getDelegationGuidelinesSection(
   config: Pick<TeamCompositionConfig, 'hasBuilder'>
 ): string {
-  const lastLine = config.hasBuilder
-    ? '- Do NOT send a full implementation plan to the builder — feed tasks incrementally'
-    : '- When implementing yourself, tackle one logical change at a time — avoid large monolithic changes';
+  const feedingNote = config.hasBuilder
+    ? 'Do NOT hand the builder a full implementation plan upfront — feed phases incrementally'
+    : 'When implementing yourself, tackle one layer at a time — avoid large monolithic changes';
 
   return `**Delegation Guidelines:**
-- Break complex tasks into small, focused phases — delegate ONE phase at a time
-- **Phase design**: each phase should be targeted and result in a working version of the code — never leave the codebase in a broken state mid-feature
-- **Cleanup phases**: always add cleanup/refactoring phases at the end of a feature to remove scaffolding, consolidate duplication, and prevent tech debt build-up
-- Each delegation should be a single, well-scoped unit of work (e.g. one file, one feature, one fix)
-- Include acceptance criteria so team members know when they're done
-- After receiving completed work, review it before delegating the next phase
-- If work doesn't meet requirements, send it back with specific feedback before moving on
-${lastLine}`;
+
+Break complex features into small, focused phases — delegate **one phase at a time** and never leave the codebase in a broken state between phases.
+
+**Phase order for code changes:**
+1. **Domain model** — define or refine types, entities, and invariants first
+2. **Use case layer** — implement business logic with dependency inversion; implementations must be pure and testable in isolation
+3. **Persistence layer** — update the data schema, storage format, and write any required migration scripts
+4. **Remaining tasks** — UI, integrations, cleanup, tests, and anything else that depends on the above
+
+**Phase design principles:**
+- Each phase should produce working, shippable code — no scaffolding left behind
+- Always add a cleanup phase at the end: remove dead code, consolidate duplication, prevent tech debt buildup
+- Each delegation is a single, well-scoped unit of work (one file, one layer, one concern)
+- Include clear acceptance criteria so ${config.hasBuilder ? 'the builder' : 'you'} know when a phase is done
+
+**Review loop:**
+- After each phase, review the completed work before delegating the next
+- If it doesn't meet requirements, send it back with specific feedback before moving on
+- ${feedingNote}`;
 }

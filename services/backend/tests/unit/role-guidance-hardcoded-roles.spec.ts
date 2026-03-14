@@ -141,9 +141,9 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       availableMembers: ['planner', 'builder'],
     });
     expect(guidance).toContain(
-      'Do NOT send a full implementation plan to the builder — feed tasks incrementally'
+      'Do NOT hand the builder a full implementation plan upfront — feed phases incrementally'
     );
-    expect(guidance).not.toContain('tackle one logical change at a time');
+    expect(guidance).not.toContain('tackle one layer at a time');
   });
 
   test('solo planner: Delegation Guidelines mentions self-implementation instruction', () => {
@@ -154,8 +154,8 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
       availableMembers: ['planner'],
     });
-    expect(guidance).toContain('tackle one logical change at a time');
-    expect(guidance).not.toContain('Do NOT send a full implementation plan to the builder');
+    expect(guidance).toContain('tackle one layer at a time');
+    expect(guidance).not.toContain('Do NOT hand the builder a full implementation plan upfront');
   });
 
   test('planner+reviewer only: Delegation Guidelines uses self-implementation instruction', () => {
@@ -166,8 +166,8 @@ describe('getPlannerGuidance - Handoff Rules should be conditional on team membe
       convexUrl: CONVEX_URL,
       availableMembers: ['planner', 'reviewer'],
     });
-    expect(guidance).toContain('tackle one logical change at a time');
-    expect(guidance).not.toContain('Do NOT send a full implementation plan to the builder');
+    expect(guidance).toContain('tackle one layer at a time');
+    expect(guidance).not.toContain('Do NOT hand the builder a full implementation plan upfront');
   });
 
   // ---------------------------------------------------------------------------
