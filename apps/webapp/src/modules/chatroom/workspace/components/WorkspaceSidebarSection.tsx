@@ -22,6 +22,12 @@ interface WorkspaceSidebarSectionProps {
   chatroomId: string;
 }
 
+/**
+ * A workspace that is guaranteed to have a machineId.
+ * Used for components that require a valid machine connection.
+ */
+type WorkspaceWithMachine = Workspace & { machineId: string };
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getWorkspaceName(workingDir: string): string {
@@ -37,9 +43,9 @@ function getWorkspaceName(workingDir: string): string {
 export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
   workspace,
 }: {
-  workspace: Workspace;
+  workspace: WorkspaceWithMachine;
 }) {
-  const gitState = useWorkspaceGit(workspace.machineId!, workspace.workingDir);
+  const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
 
   const isAvailable = gitState.status === 'available';
 
@@ -88,11 +94,11 @@ const WorkspaceRow = memo(function WorkspaceRow({
   isActive,
   onClick,
 }: {
-  workspace: Workspace;
+  workspace: WorkspaceWithMachine;
   isActive: boolean;
   onClick: () => void;
 }) {
-  const gitState = useWorkspaceGit(workspace.machineId!, workspace.workingDir);
+  const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
 
   // Build stat content
   let statContent: React.ReactNode = null;
@@ -217,7 +223,7 @@ export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
         {visibleWorkspaces.map((ws) => (
           <WorkspaceRow
             key={ws.id}
-            workspace={ws}
+            workspace={ws as WorkspaceWithMachine}
             isActive={selectedId === ws.id}
             onClick={() => handleClick(ws.id)}
           />
@@ -272,7 +278,7 @@ export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
             )}
           </FixedModalBody>
           {selectedWorkspace && selectedWorkspace.machineId && (
-            <WorkspaceInfoFooter workspace={selectedWorkspace} />
+            <WorkspaceInfoFooter workspace={selectedWorkspace as WorkspaceWithMachine} />
           )}
         </FixedModalContent>
       </FixedModal>

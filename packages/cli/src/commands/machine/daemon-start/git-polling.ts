@@ -14,14 +14,12 @@
 
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
+import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 
 /** How often the git polling loop checks for pending requests (ms). */
 export const GIT_POLLING_INTERVAL_MS = 5_000; // 5 seconds
-
-/** Number of commits to fetch per page for more_commits requests. */
-const COMMITS_PER_PAGE = 20;
 
 /** Handle returned by `startGitPollingLoop` to stop the loop. */
 export interface GitPollingHandle {

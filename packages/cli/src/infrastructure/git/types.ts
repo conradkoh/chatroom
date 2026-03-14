@@ -76,6 +76,9 @@ export type GitCommitDetailResult =
 /** Maximum byte size for full diff content before truncation. */
 export const FULL_DIFF_MAX_BYTES = 500_000; // 500 KB
 
+/** Number of commits to fetch per page for git history. */
+export const COMMITS_PER_PAGE = 20;
+
 /**
  * Creates a stable string key for indexing git state by workspace.
  * Format: `${machineId}::${workingDir}`

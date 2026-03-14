@@ -65,6 +65,10 @@ export function formatRelativeTime(timestamp: number | string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
+  if (days < 365) {
+    const months = Math.round(days / 30.44); // average days per month
+    return `${months}mo ago`;
+  }
+  const years = Math.floor(days / 365);
+  return `${years}y ago`;
 }

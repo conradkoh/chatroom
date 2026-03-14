@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { api } from '@workspace/backend/convex/_generated/api';
 import type {
@@ -50,14 +50,16 @@ export function useFullDiff(
 ): { state: FullDiffState; request: () => void } {
   const result = useSessionQuery(api.workspaces.getFullDiff, { machineId, workingDir });
   const requestMutation = useSessionMutation(api.workspaces.requestFullDiff);
+  const requestedRef = useRef(false);
 
   const request = useCallback(() => {
+    requestedRef.current = true;
     requestMutation({ machineId, workingDir });
   }, [requestMutation, machineId, workingDir]);
 
   const state: FullDiffState = useMemo(() => {
     if (!result) {
-      return { status: 'idle' };
+      return requestedRef.current ? { status: 'loading' } : { status: 'idle' };
     }
     return {
       status: 'available',

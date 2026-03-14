@@ -9,11 +9,9 @@ import { createHash } from 'node:crypto';
 
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
-import { makeGitStateKey } from '../../../infrastructure/git/types.js';
+import { makeGitStateKey, COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
-
-const COMMITS_PER_PAGE = 20;
 
 /**
  * Collect git state for all tracked working directories and push to backend.
