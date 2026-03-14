@@ -26,6 +26,10 @@ import {
   initHarnessRegistry,
   getAllHarnesses,
 } from '../../../infrastructure/services/remote-agents/index.js';
+import {
+  SpawnRateLimiter,
+  HarnessSpawningService,
+} from '../../../infrastructure/services/harness-spawning/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getVersion } from '../../../version.js';
@@ -96,6 +100,7 @@ export function createDefaultDeps(): DaemonDeps {
       now: () => Date.now(),
       delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     },
+    spawning: new HarnessSpawningService({ rateLimiter: new SpawnRateLimiter() }),
   };
 }
 

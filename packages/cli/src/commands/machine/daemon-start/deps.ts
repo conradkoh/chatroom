@@ -19,6 +19,7 @@ import type {
 } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
+import type { TryConsumeResult } from '../../../infrastructure/services/harness-spawning/index.js';
 
 // ─── Domain-Specific Interfaces ─────────────────────────────────────────────
 
@@ -83,6 +84,19 @@ export interface StateRecoveryDeps {
   machine: Pick<MachineStateOps, 'listAgentEntries' | 'clearAgentPid'>;
 }
 
+// ─── Spawning Interface ─────────────────────────────────────────────────────
+
+/**
+ * Structural interface for the spawning service, so tests can provide plain
+ * mock objects without having to satisfy private class members.
+ */
+export interface SpawningOps {
+  shouldAllowSpawn(chatroomId: string, reason: string): TryConsumeResult;
+  recordSpawn(chatroomId: string): void;
+  recordExit(chatroomId: string): void;
+  getConcurrentCount(chatroomId: string): number;
+}
+
 // ─── Aggregated DaemonDeps ──────────────────────────────────────────────────
 
 /**
@@ -101,4 +115,5 @@ export interface DaemonDeps {
   stops: IntentionalStopOps;
   machine: MachineStateOps;
   clock: ClockOps;
+  spawning: SpawningOps;
 }

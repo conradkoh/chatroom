@@ -12,6 +12,7 @@ import { OpenCodeAgentService } from '../../../../infrastructure/services/remote
 import type { DaemonDeps } from '../deps.js';
 import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import type { DaemonContext, StopAgentCommand } from '../types.js';
+import { createMockDaemonDeps } from '../testing/index.js';
 
 // ---------------------------------------------------------------------------
 // Mock module-level imports used by handler files
@@ -92,35 +93,7 @@ const { handleStopAgent } = await import('./stop-agent.js');
 // ---------------------------------------------------------------------------
 
 function createMockDeps(overrides?: Partial<DaemonDeps>): DaemonDeps {
-  return {
-    backend: {
-      mutation: vi.fn().mockResolvedValue(undefined),
-      query: vi.fn().mockResolvedValue({ configs: [] }),
-    },
-    processes: {
-      kill: vi.fn(),
-    },
-    fs: {
-      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
-    },
-    stops: {
-      mark: vi.fn(),
-      consume: vi.fn(() => null),
-      clear: vi.fn(),
-    },
-    machine: {
-      clearAgentPid: vi.fn(),
-      persistAgentPid: vi.fn(),
-      listAgentEntries: vi.fn(() => []),
-      persistEventCursor: vi.fn(),
-      loadEventCursor: vi.fn().mockReturnValue(null),
-    },
-    clock: {
-      now: () => Date.now(),
-      delay: vi.fn().mockResolvedValue(undefined),
-    },
-    ...overrides,
-  };
+  return createMockDaemonDeps(overrides);
 }
 
 function createCtx(deps: DaemonDeps): DaemonContext {

@@ -157,6 +157,9 @@ export async function executeStartAgent(
   const msg = `Agent spawned (PID: ${pid})`;
   console.log(`   ✅ ${msg}`);
 
+  // Track this new agent in the spawning service
+  ctx.deps.spawning.recordSpawn(chatroomId);
+
   // Update backend with spawned agent PID and persist locally
   try {
     await ctx.deps.backend.mutation(api.machines.updateSpawnedAgent, {
@@ -185,6 +188,8 @@ export async function executeStartAgent(
 
   // Monitor for process exit — emit event so centralized listeners handle cleanup.
   spawnResult.onExit(({ code, signal }) => {
+    // Decrement concurrent agent count for this chatroom
+    ctx.deps.spawning.recordExit(chatroomId);
     const pendingReason = ctx.deps.stops.consume(chatroomId, role);
     // If the daemon marked a specific reason (user.stop or daemon.respawn),
     // use it directly. Otherwise, derive from exit code/signal as before.

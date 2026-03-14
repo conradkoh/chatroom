@@ -97,16 +97,19 @@ async function dispatchCommandEvent(
     // Deadline-filtered — use processedCommandIds for session dedup
     if (processedCommandIds.has(eventId)) return;
     processedCommandIds.set(eventId, Date.now());
+    console.log(`[${formatTimestamp()}] 📡 Stream command event: ${event.type}`);
     await onRequestStartAgent(ctx, event as unknown as AgentRequestStartEventPayload);
   } else if (event.type === 'agent.requestStop') {
     // Deadline-filtered — use processedCommandIds for session dedup
     if (processedCommandIds.has(eventId)) return;
     processedCommandIds.set(eventId, Date.now());
+    console.log(`[${formatTimestamp()}] 📡 Stream command event: ${event.type}`);
     await onRequestStopAgent(ctx, event as unknown as AgentRequestStopEventPayload);
   } else if (event.type === 'daemon.ping') {
     // Session dedup — prevents re-ponging the same ping twice in one daemon run
     if (processedPingIds.has(eventId)) return;
     processedPingIds.set(eventId, Date.now());
+    console.log(`[${formatTimestamp()}] 📡 Stream command event: ${event.type}`);
 
     // Respond to ping with a pong via mutation
     handlePing();
@@ -197,7 +200,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
       for (const event of result.events) {
         try {
-          console.log(`[${formatTimestamp()}] 📡 Stream command event: ${event.type}`);
           await dispatchCommandEvent(ctx, event, processedCommandIds, processedPingIds);
         } catch (err) {
           console.error(

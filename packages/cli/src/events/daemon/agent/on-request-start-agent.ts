@@ -32,6 +32,17 @@ export async function onRequestStartAgent(
     );
     return;
   }
+
+  // Gate the spawn through the HarnessSpawningService rate limiter
+  const spawnCheck = ctx.deps.spawning.shouldAllowSpawn(event.chatroomId, event.reason);
+  if (!spawnCheck.allowed) {
+    const retryMsg = spawnCheck.retryAfterMs ? ` Retry after ${spawnCheck.retryAfterMs}ms.` : '';
+    console.warn(
+      `[daemon] ⚠️  Spawn suppressed for chatroom=${event.chatroomId} role=${event.role} reason=${event.reason}.${retryMsg}`
+    );
+    return;
+  }
+
   await executeStartAgent(ctx, {
     chatroomId: event.chatroomId,
     role: event.role,

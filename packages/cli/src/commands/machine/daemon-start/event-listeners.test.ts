@@ -45,12 +45,18 @@ function createTestContext(): DaemonContext {
         clearAgentPid: vi.fn(),
         persistAgentPid: vi.fn(),
         listAgentEntries: vi.fn().mockReturnValue([]),
-      persistEventCursor: vi.fn(),
-      loadEventCursor: vi.fn().mockReturnValue(null),
+        persistEventCursor: vi.fn(),
+        loadEventCursor: vi.fn().mockReturnValue(null),
       },
       clock: {
         now: () => Date.now(),
         delay: vi.fn().mockResolvedValue(undefined),
+      },
+      spawning: {
+        shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
+        recordSpawn: vi.fn(),
+        recordExit: vi.fn(),
+        getConcurrentCount: vi.fn().mockReturnValue(0),
       },
     },
   };
@@ -109,9 +115,7 @@ describe('registerEventListeners', () => {
       const calls = (ctx.deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
       const recordCall = calls.find(
         (c) =>
-          c[1]?.role === 'builder' &&
-          c[1]?.chatroomId === CHATROOM_ID &&
-          c[1]?.intentional === true
+          c[1]?.role === 'builder' && c[1]?.chatroomId === CHATROOM_ID && c[1]?.intentional === true
       );
       expect(recordCall).toBeDefined();
     });
@@ -185,10 +189,10 @@ describe('registerEventListeners', () => {
       chatroomId: CHATROOM_ID,
       role: 'builder',
       pid: 9999,
-      code: 0,        // ← natural exit code (not a crash)
+      code: 0, // ← natural exit code (not a crash)
       signal: null,
       stopReason: 'agent_process.exited_clean',
-      intentional: false,  // ← no prior stops.mark() — treated as unintentional
+      intentional: false, // ← no prior stops.mark() — treated as unintentional
     });
 
     await vi.waitFor(() => {
@@ -198,7 +202,7 @@ describe('registerEventListeners', () => {
           chatroomId: CHATROOM_ID,
           role: 'builder',
           pid: 9999,
-          intentional: false,  // ← crash recovery will fire on backend
+          intentional: false, // ← crash recovery will fire on backend
         })
       );
     });

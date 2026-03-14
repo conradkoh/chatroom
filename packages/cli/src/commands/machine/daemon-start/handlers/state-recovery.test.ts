@@ -12,6 +12,7 @@ import type { DaemonDeps } from '../deps.js';
 import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import type { DaemonContext } from '../types.js';
 import { recoverAgentState } from './state-recovery.js';
+import { createMockDaemonDeps } from '../testing/index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -21,22 +22,7 @@ function createMockContext(
   entries: { chatroomId: string; role: string; entry: { pid: number; harness: 'opencode' } }[],
   aliveCheck?: (pid: number) => boolean
 ): DaemonContext {
-  const deps: DaemonDeps = {
-    backend: {
-      mutation: vi.fn().mockResolvedValue(undefined),
-      query: vi.fn().mockResolvedValue(undefined),
-    },
-    processes: {
-      kill: vi.fn(),
-    },
-    fs: {
-      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
-    },
-    stops: {
-      mark: vi.fn(),
-      consume: vi.fn().mockReturnValue(false),
-      clear: vi.fn(),
-    },
+  const deps: DaemonDeps = createMockDaemonDeps({
     machine: {
       clearAgentPid: vi.fn(),
       persistAgentPid: vi.fn(),
@@ -44,11 +30,7 @@ function createMockContext(
       persistEventCursor: vi.fn(),
       loadEventCursor: vi.fn().mockReturnValue(null),
     },
-    clock: {
-      now: vi.fn().mockReturnValue(Date.now()),
-      delay: vi.fn().mockResolvedValue(undefined),
-    },
-  };
+  });
 
   // agentService.isAlive(pid) uses deps.kill(pid, 0) — throws => dead, no throw => alive
   const killMock = vi.fn().mockImplementation((pid: number, _signal: number | string) => {
