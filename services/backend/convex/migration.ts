@@ -515,3 +515,23 @@ export const deduplicateTeamAgentConfigs = internalMutation({
     return { total: allConfigs.length, deduped };
   },
 });
+
+/**
+ * Migration: Purge all rows from chatroom_workspaceCommitDetail.
+ *
+ * Required before deploying the schema change that adds the `status` discriminated union.
+ * Existing rows lack the required `status` field and will fail validation.
+ * Safe to run multiple times (idempotent).
+ */
+export const purgeWorkspaceCommitDetails = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allRows = await ctx.db.query('chatroom_workspaceCommitDetail').collect();
+    let deleted = 0;
+    for (const row of allRows) {
+      await ctx.db.delete('chatroom_workspaceCommitDetail', row._id);
+      deleted++;
+    }
+    return { deleted };
+  },
+});
