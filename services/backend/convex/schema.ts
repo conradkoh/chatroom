@@ -917,6 +917,13 @@ export default defineSchema({
         machineId: v.string(),
         timestamp: v.number(),
       }),
+      // UI-initiated git state refresh request
+      v.object({
+        type: v.literal('daemon.gitRefresh'),
+        machineId: v.string(),
+        workingDir: v.string(),
+        timestamp: v.number(),
+      }),
       // Daemon response to a daemon.ping event
       v.object({
         type: v.literal('daemon.pong'),
@@ -973,4 +980,145 @@ export default defineSchema({
 
     // Query: workspace (machineId+workingDir) + role, time range (for workspace breakdown)
     .index('by_workspace_role_hour', ['machineId', 'workingDir', 'role', 'hourBucket']),
+
+  /**
+   * Workspace git state pushed by the daemon on heartbeat.
+   * Stores branch, dirty status, diff stats, and recent commits.
+   * Keyed by machineId + workingDir (workspace-level, not chatroom-level).
+   */
+  chatroom_workspaceGitState: defineTable({
+    // Identity: unique workspace
+    machineId: v.string(),
+    workingDir: v.string(),
+
+    // Discriminated union status
+    status: v.union(
+      v.literal('available'),
+      v.literal('not_found'),
+      v.literal('error')
+    ),
+
+    // Branch info (only when status === 'available')
+    branch: v.optional(v.string()),
+    isDirty: v.optional(v.boolean()),
+
+    // Diff summary: git diff HEAD --stat (only when status === 'available')
+    diffStat: v.optional(v.object({
+      filesChanged: v.number(),
+      insertions: v.number(),
+      deletions: v.number(),
+    })),
+
+    // Recent commits (only when status === 'available')
+    recentCommits: v.optional(v.array(v.object({
+      sha: v.string(),
+      shortSha: v.string(),
+      message: v.string(),
+      author: v.string(),
+      date: v.string(),
+    }))),
+
+    // Pagination
+    hasMoreCommits: v.optional(v.boolean()),
+
+    // Error message (only when status === 'error')
+    errorMessage: v.optional(v.string()),
+
+    // Timestamp
+    updatedAt: v.number(),
+  })
+    .index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * On-demand full diff content for a workspace.
+   * Stores the output of `git diff HEAD` (up to 500KB cap).
+   * Refreshed when the frontend requests an updated diff.
+   */
+  chatroom_workspaceFullDiff: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+
+    // git diff HEAD output (up to 500KB cap)
+    diffContent: v.string(),
+    truncated: v.boolean(),
+
+    // Stats
+    diffStat: v.object({
+      filesChanged: v.number(),
+      insertions: v.number(),
+      deletions: v.number(),
+    }),
+
+    updatedAt: v.number(),
+  })
+    .index('by_machine_workingDir', ['machineId', 'workingDir']),
+
+  /**
+   * Request queue for on-demand workspace operations.
+   * The daemon polls this table for pending requests and fulfills them.
+   * Supports: full diff, commit detail, and load-more commits.
+   */
+  chatroom_workspaceDiffRequests: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    requestType: v.union(
+      v.literal('full_diff'),
+      v.literal('commit_detail'),
+      v.literal('more_commits')
+    ),
+    // For commit_detail requests
+    sha: v.optional(v.string()),
+    // For more_commits requests
+    offset: v.optional(v.number()),
+    // Request status
+    status: v.union(
+      v.literal('pending'),
+      v.literal('processing'),
+      v.literal('done'),
+      v.literal('error')
+    ),
+    requestedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_machine_status', ['machineId', 'status'])
+    .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType']),
+
+  /**
+   * Per-commit diff content fetched on demand.
+   * Stores the output of `git show <sha>` (up to 500KB cap).
+   * Keyed by machineId + workingDir + sha.
+   */
+  chatroom_workspaceCommitDetail: defineTable({
+    machineId: v.string(),
+    workingDir: v.string(),
+    sha: v.string(),
+
+    // Discriminated union status
+    status: v.union(
+      v.literal('available'),
+      v.literal('too_large'),
+      v.literal('error'),
+      v.literal('not_found'),
+    ),
+
+    // Only when status === 'available'
+    diffContent: v.optional(v.string()),
+    truncated: v.optional(v.boolean()),
+    diffStat: v.optional(v.object({
+      filesChanged: v.number(),
+      insertions: v.number(),
+      deletions: v.number(),
+    })),
+
+    // Commit metadata (available when status === 'available' or 'too_large')
+    message: v.optional(v.string()),
+    author: v.optional(v.string()),
+    date: v.optional(v.string()),
+
+    // Only when status === 'error'
+    errorMessage: v.optional(v.string()),
+
+    updatedAt: v.number(),
+  })
+    .index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha']),
 });

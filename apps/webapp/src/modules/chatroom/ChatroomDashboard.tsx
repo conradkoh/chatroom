@@ -31,6 +31,8 @@ import { TaskQueue } from './components/TaskQueue';
 import { AttachedTasksProvider } from './context/AttachedTasksContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import type { TeamLifecycle } from './types/readiness';
+import { WorkspaceSidebarSection } from './workspace/components/WorkspaceSidebarSection';
+import { useChatroomWorkspaces } from './workspace/hooks/useChatroomWorkspaces';
 
 import {
   DropdownMenu,
@@ -347,6 +349,9 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
 
   // Use hook to get aggregate status (event stream + lifecycle)
   const { aggregateStatus } = useAgentStatuses(chatroomId, teamRoles);
+
+  // Workspace bar data
+  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
 
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
@@ -678,14 +683,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   onConfigure={handleOpenSettings}
                 />
                 <TaskQueue chatroomId={chatroomId} lifecycle={lifecycle} />
-                <div className="p-4 mt-auto border-t-2 border-chatroom-border-strong">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
-                    Chatroom ID
-                  </div>
-                  <div className="font-mono text-[10px] font-bold text-chatroom-text-secondary break-all p-2 bg-chatroom-bg-tertiary">
-                    {chatroomId}
-                  </div>
-                </div>
+                <WorkspaceSidebarSection workspaces={chatroomWorkspaces} chatroomId={chatroomId} />
               </div>
             </div>
           </div>

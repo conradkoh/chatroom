@@ -186,6 +186,9 @@ export async function executeStartAgent(
     model,
   });
 
+  // Track this working directory for git state collection on heartbeat
+  ctx.activeWorkingDirs.add(workingDir);
+
   // Monitor for process exit — emit event so centralized listeners handle cleanup.
   spawnResult.onExit(({ code, signal }) => {
     // Decrement concurrent agent count for this chatroom

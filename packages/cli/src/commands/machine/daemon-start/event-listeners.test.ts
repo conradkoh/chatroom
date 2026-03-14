@@ -59,6 +59,8 @@ function createTestContext(): DaemonContext {
         getConcurrentCount: vi.fn().mockReturnValue(0),
       },
     },
+    activeWorkingDirs: new Set(),
+      lastPushedGitState: new Map(),
   };
 }
 

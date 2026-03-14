@@ -1,0 +1,28 @@
+/**
+ * Git infrastructure — public API.
+ *
+ * Re-exports all types and reader functions from the git sub-module.
+ */
+
+export type {
+  DiffStat,
+  GitDiffStat,
+  GitCommit,
+  GitBranchResult,
+  GitDiffStatResult,
+  GitFullDiffResult,
+  GitCommitDetailResult,
+} from './types.js';
+
+export { FULL_DIFF_MAX_BYTES, makeGitStateKey } from './types.js';
+
+export {
+  isGitRepo,
+  getBranch,
+  isDirty,
+  getDiffStat,
+  getFullDiff,
+  getRecentCommits,
+  getCommitDetail,
+  parseDiffStatLine,
+} from './git-reader.js';
