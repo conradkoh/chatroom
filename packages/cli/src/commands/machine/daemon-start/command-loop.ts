@@ -8,18 +8,16 @@ import {
 } from '@workspace/backend/config/reliability.js';
 
 import { api } from '../../../api.js';
-import type { Id } from '../../../api.js';
+import type { FunctionReturnType } from 'convex/server';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { discoverModels } from './init.js';
 import {
   onRequestStartAgent,
-  type AgentRequestStartEventPayload,
 } from '../../../events/daemon/agent/on-request-start-agent.js';
 import {
   onRequestStopAgent,
-  type AgentRequestStopEventPayload,
 } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
@@ -29,14 +27,13 @@ import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 
-// ─── Event Payload Types ────────────────────────────────────────────────────
+// ─── Derived Types ──────────────────────────────────────────────────────────
 
-/** Payload shape for daemon.gitRefresh events received from the event stream. */
-interface GitRefreshEventPayload {
-  workingDir: string;
-  machineId: string;
-  timestamp: number;
-}
+/** The inferred return type of the getCommandEvents Convex query. */
+type CommandEventsResult = FunctionReturnType<typeof api.machines.getCommandEvents>;
+
+/** A single event from the command event stream. */
+type CommandEvent = CommandEventsResult['events'][number];
 
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
@@ -103,7 +100,7 @@ function evictStaleDedupEntries(
  */
 async function dispatchCommandEvent(
   ctx: DaemonContext,
-  event: { _id: string; type: string; [key: string]: unknown },
+  event: CommandEvent,
   processedCommandIds: Map<string, number>,
   processedPingIds: Map<string, number>,
   processedGitRefreshIds: Map<string, number>
@@ -114,12 +111,12 @@ async function dispatchCommandEvent(
     // Deadline-filtered — use processedCommandIds for session dedup
     if (processedCommandIds.has(eventId)) return;
     processedCommandIds.set(eventId, Date.now());
-    await onRequestStartAgent(ctx, event as unknown as AgentRequestStartEventPayload);
+    await onRequestStartAgent(ctx, event);
   } else if (event.type === 'agent.requestStop') {
     // Deadline-filtered — use processedCommandIds for session dedup
     if (processedCommandIds.has(eventId)) return;
     processedCommandIds.set(eventId, Date.now());
-    await onRequestStopAgent(ctx, event as unknown as AgentRequestStopEventPayload);
+    await onRequestStopAgent(ctx, event);
   } else if (event.type === 'daemon.ping') {
     // Session dedup — prevents re-ponging the same ping twice in one daemon run
     if (processedPingIds.has(eventId)) return;
@@ -130,21 +127,19 @@ async function dispatchCommandEvent(
     await ctx.deps.backend.mutation(api.machines.ackPing, {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
-      pingEventId: event._id as Id<'chatroom_eventStream'>,
+      pingEventId: event._id,
     });
   } else if (event.type === 'daemon.gitRefresh') {
     // Session dedup — don't re-process same refresh event twice in one daemon run
     if (processedGitRefreshIds.has(eventId)) return;
     processedGitRefreshIds.set(eventId, Date.now());
 
-    const { workingDir } = event as unknown as GitRefreshEventPayload;
-
     // Clear in-memory state hash to bypass change detection on next push
-    const stateKey = makeGitStateKey(ctx.machineId, workingDir);
+    const stateKey = makeGitStateKey(ctx.machineId, event.workingDir);
     ctx.lastPushedGitState.delete(stateKey);
 
     // Push git state immediately (non-blocking from caller perspective)
-    console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${workingDir}`);
+    console.log(`[${formatTimestamp()}] 🔄 Git refresh requested for ${event.workingDir}`);
     await pushGitState(ctx);
   }
 }
@@ -238,7 +233,7 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
       sessionId: ctx.sessionId,
       machineId: ctx.machineId,
     },
-    async (result: { events: Array<{ _id: string; type: string; [key: string]: unknown }> }) => {
+    async (result) => {
       if (!result.events || result.events.length === 0) return;
 
       evictStaleDedupEntries(processedCommandIds, processedPingIds, processedGitRefreshIds);
