@@ -19,7 +19,6 @@ export type StopReason =
   | 'platform.dedup'               // Platform stopped duplicate agent for same role
   | 'platform.team_switch'         // Platform stopped agent due to team change
   | 'daemon.respawn'               // Daemon killed to spawn fresh agent — NOT user-initiated
-  | 'daemon.turn_complete'         // Daemon killed agent after completing a turn (RPC mode turn boundary)
   | 'agent_process.exited_clean'   // Exit code 0 without prior stop request (unexpected clean exit)
   | 'agent_process.signal'         // Killed by external signal (SIGTERM, SIGKILL, etc.)
   | 'agent_process.crashed'        // Non-zero exit code, unknown cause

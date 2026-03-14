@@ -690,7 +690,7 @@ describe('handleStartAgent', () => {
     );
   });
 
-  it('marks daemon.turn_complete and kills process with SIGTERM when onAgentEnd fires', async () => {
+  it('kills process with SIGTERM (no intentional mark) when onAgentEnd fires', async () => {
     let agentEndCallback: (() => void) | null = null;
 
     const ctx = createMockContext({
@@ -714,8 +714,8 @@ describe('handleStartAgent', () => {
 
     // Should kill the process group (negative pid)
     expect(ctx.deps.processes.kill).toHaveBeenCalledWith(-5678, 'SIGTERM');
-    // Must mark as daemon.turn_complete BEFORE killing — so the backend skips crash recovery
-    expect(ctx.deps.stops.mark).toHaveBeenCalledWith(cmd.payload.chatroomId, cmd.payload.role, 'daemon.turn_complete');
+    // Must NOT mark as intentional — we want the restart lifecycle to fire
+    expect(ctx.deps.stops.mark).not.toHaveBeenCalled();
   });
 
   it('does not register onAgentEnd handler when spawnResult does not provide it', async () => {

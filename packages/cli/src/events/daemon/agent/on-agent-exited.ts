@@ -29,8 +29,7 @@ export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): 
   console.log(`[${ts}] Agent stopped: ${stopReason} (${role})`);
 
   const isDaemonRespawn = stopReason === 'daemon.respawn';
-  const isTurnComplete = stopReason === 'daemon.turn_complete';
-  const isIntentional = intentional && !isDaemonRespawn && !isTurnComplete;
+  const isIntentional = intentional && !isDaemonRespawn;
 
   if (isIntentional) {
     console.log(
@@ -41,11 +40,6 @@ export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): 
     console.log(
       `[${ts}] 🔄  Agent process stopped for respawn ` +
         `(PID: ${pid}, role: ${role}, code: ${code}, signal: ${signal})`
-    );
-  } else if (isTurnComplete) {
-    console.log(
-      `[${ts}] ✅ Agent turn complete — process stopped ` +
-        `(PID: ${pid}, role: ${role})`
     );
   } else {
     // DESIGN DECISION: intentional=false covers both crashes AND natural completions.

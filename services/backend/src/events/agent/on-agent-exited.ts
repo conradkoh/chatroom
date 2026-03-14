@@ -38,7 +38,7 @@ export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): 
   // processes (daemon kills idle agent after turn ends in RPC mode).
   // The desiredState guard below prevents restart when the user explicitly stops.
   const shouldRestart = stopReason
-    ? stopReason !== 'user.stop' && stopReason !== 'platform.team_switch' && stopReason !== 'daemon.turn_complete'
+    ? stopReason !== 'user.stop' && stopReason !== 'platform.team_switch'
     : !intentional;
 
   if (!shouldRestart) {
