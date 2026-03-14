@@ -33,6 +33,11 @@ export function resolveMachineHostname(
 
 // ─── InlineAgentCard ─────────────────────────────────────────────────────────
 
+export interface RestartSummary {
+  count1h: number;
+  count24h: number;
+}
+
 export interface InlineAgentCardProps {
   role: string;
   online: boolean;
@@ -53,6 +58,8 @@ export interface InlineAgentCardProps {
   agentPreference?: AgentPreference;
   /** Called when user starts an agent — persists preference to backend */
   onSavePreference?: (pref: AgentPreference) => void;
+  /** Pre-fetched restart summary from parent (avoids per-card subscription). Falls back to own query if not provided. */
+  restartSummary?: RestartSummary | null;
 }
 
 /** Compact always-visible agent row with tabs for inline remote config editing. */
@@ -71,7 +78,8 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   sendCommand,
   agentRoleView,
   agentPreference,
-  onSavePreference,
+    onSavePreference,
+    restartSummary: restartSummaryProp,
 }: InlineAgentCardProps) {
   const controls = useAgentControls({
     role,
@@ -104,12 +112,12 @@ export const InlineAgentCard = memo(function InlineAgentCard({
 
   const [statsOpen, setStatsOpen] = useState(false);
 
-  // Always fetch restart stats by chatroom+role (aggregated across all machines) so the
-  // metrics section is always visible regardless of whether a machine config exists.
-  const restartSummary = useSessionQuery(api.machines.getAgentRestartSummaryByRole, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    role,
-  });
+  // Use parent-provided summary when available; fall back to per-card query for standalone usage.
+  const restartSummaryOwn = useSessionQuery(
+    api.machines.getAgentRestartSummaryByRole,
+    restartSummaryProp !== undefined ? 'skip' : { chatroomId: chatroomId as Id<'chatroom_rooms'>, role }
+  );
+  const restartSummary = restartSummaryProp ?? restartSummaryOwn;
 
   return (
     <div className="border-b border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3">
