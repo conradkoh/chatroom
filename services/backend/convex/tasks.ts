@@ -448,6 +448,20 @@ export const completeTaskById = mutation({
       // Queue promotion is now handled automatically by the transitionTask usecase
       // whenever a task transitions to 'completed'. No inline promotion needed here.
 
+      // For force-complete from UI: the transitionTask emits 'task.completed' which maps to
+      // "WORKING" in the UI. Unlike normal completion (where the agent immediately re-enters
+      // get-next-task and emits 'agent.waiting'), force-complete from the UI leaves the agent
+      // status stuck at "WORKING". Fix: emit an explicit 'agent.waiting' event for the assigned
+      // role to reset the visual status to "WAITING".
+      if (task.assignedTo) {
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'agent.waiting',
+          chatroomId: task.chatroomId,
+          role: task.assignedTo,
+          timestamp: Date.now(),
+        });
+      }
+
       return { success: true, taskId: args.taskId, wasForced: true };
     }
 
