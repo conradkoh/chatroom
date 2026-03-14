@@ -29,6 +29,15 @@ import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 
+// ─── Event Payload Types ────────────────────────────────────────────────────
+
+/** Payload shape for daemon.gitRefresh events received from the event stream. */
+interface GitRefreshEventPayload {
+  workingDir: string;
+  machineId: string;
+  timestamp: number;
+}
+
 // ─── Model Refresh ──────────────────────────────────────────────────────────
 
 /** Interval for periodic model discovery refresh (5 minutes). */
@@ -74,7 +83,7 @@ export async function refreshModels(ctx: DaemonContext): Promise<void> {
 function evictStaleDedupEntries(
   processedCommandIds: Map<string, number>,
   processedPingIds: Map<string, number>,
-  processedGitRefreshIds?: Map<string, number>
+  processedGitRefreshIds: Map<string, number>
 ): void {
   const evictBefore = Date.now() - AGENT_REQUEST_DEADLINE_MS;
   for (const [id, ts] of processedCommandIds) {
@@ -83,10 +92,8 @@ function evictStaleDedupEntries(
   for (const [id, ts] of processedPingIds) {
     if (ts < evictBefore) processedPingIds.delete(id);
   }
-  if (processedGitRefreshIds) {
-    for (const [id, ts] of processedGitRefreshIds) {
-      if (ts < evictBefore) processedGitRefreshIds.delete(id);
-    }
+  for (const [id, ts] of processedGitRefreshIds) {
+    if (ts < evictBefore) processedGitRefreshIds.delete(id);
   }
 }
 
@@ -130,7 +137,7 @@ async function dispatchCommandEvent(
     if (processedGitRefreshIds.has(eventId)) return;
     processedGitRefreshIds.set(eventId, Date.now());
 
-    const workingDir = (event as unknown as { workingDir: string }).workingDir;
+    const { workingDir } = event as unknown as GitRefreshEventPayload;
 
     // Clear in-memory state hash to bypass change detection on next push
     const stateKey = makeGitStateKey(ctx.machineId, workingDir);
