@@ -115,6 +115,64 @@ function buildSegments(tokens: string[], types: ('same' | 'changed')[]): DiffSeg
   return segments;
 }
 
+/**
+ * Post-processes segments to move leading/trailing whitespace out of 'changed'
+ * segments and into adjacent 'same' segments.
+ *
+ * When a 'changed' segment has trailing or leading whitespace (e.g., "foo "),
+ * that whitespace appears highlighted in the UI even though it's adjacent to
+ * unchanged content. This creates the visual illusion that the space "before
+ * the next word" is highlighted when it isn't actually different.
+ *
+ * This function moves the boundary whitespace out of 'changed' segments into
+ * neighboring 'same' segments (or standalone 'same' segments at the ends),
+ * improving visual clarity without changing diff semantics.
+ */
+function trimWhitespaceFromChangedSegments(segments: DiffSegment[]): DiffSegment[] {
+  if (segments.length === 0) return segments;
+
+  const result: DiffSegment[] = [];
+
+  for (const seg of segments) {
+    if (seg.type !== 'changed') {
+      result.push(seg);
+      continue;
+    }
+
+    // Strip leading whitespace from changed segment
+    const leadingMatch = /^(\s+)/.exec(seg.text);
+    const leadingWs = leadingMatch ? leadingMatch[1]! : '';
+    const withoutLeading = leadingWs ? seg.text.slice(leadingWs.length) : seg.text;
+
+    // Strip trailing whitespace from the remainder
+    const trailingMatch = /(\s+)$/.exec(withoutLeading);
+    const trailingWs = trailingMatch ? trailingMatch[1]! : '';
+    const core = trailingWs ? withoutLeading.slice(0, -trailingWs.length) : withoutLeading;
+
+    // Emit leading whitespace as a 'same' segment (merged with prev if it's also 'same')
+    if (leadingWs) {
+      const prev = result[result.length - 1];
+      if (prev && prev.type === 'same') {
+        result[result.length - 1] = { text: prev.text + leadingWs, type: 'same' };
+      } else {
+        result.push({ text: leadingWs, type: 'same' });
+      }
+    }
+
+    // Emit the core changed text (only if non-empty)
+    if (core) {
+      result.push({ text: core, type: 'changed' });
+    }
+
+    // Emit trailing whitespace as a 'same' segment
+    if (trailingWs) {
+      result.push({ text: trailingWs, type: 'same' });
+    }
+  }
+
+  return result;
+}
+
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
 /**
@@ -173,7 +231,7 @@ export function computeIntraLineDiff(oldLine: string, newLine: string): IntraLin
   }
 
   return {
-    oldSegments: buildSegments(oldTokenList, oldTypes),
-    newSegments: buildSegments(newTokenList, newTypes),
+    oldSegments: trimWhitespaceFromChangedSegments(buildSegments(oldTokenList, oldTypes)),
+    newSegments: trimWhitespaceFromChangedSegments(buildSegments(newTokenList, newTypes)),
   };
 }

@@ -239,3 +239,70 @@ describe('computeIntraLineDiff', () => {
     expect(newChanged).toContain('commitMessage');
   });
 });
+
+// ─── trimWhitespaceFromChangedSegments (via computeIntraLineDiff) ─────────────
+
+describe('whitespace trimming in changed segments', () => {
+  it('does not include trailing whitespace in a changed segment when next word is unchanged', () => {
+    // "foo entry" → "EXIT entry": 'foo ' should not be highlighted; only 'foo' is changed
+    const old = 'foo entry';
+    const next = 'EXIT entry';
+    const result = computeIntraLineDiff(old, next);
+
+    expect(flatten(result.oldSegments)).toBe(old);
+    expect(flatten(result.newSegments)).toBe(next);
+
+    // The space between "foo"/"EXIT" and "entry" should NOT be in a changed segment
+    for (const seg of [...result.oldSegments, ...result.newSegments]) {
+      if (seg.type === 'changed') {
+        expect(seg.text).not.toMatch(/^\s|\s$/);
+      }
+    }
+  });
+
+  it('does not include leading whitespace in a changed segment when prev content is unchanged', () => {
+    // "a b entry" → "a b EXIT": ' entry'/'  EXIT' shouldn't have leading space in changed
+    const old = 'a b entry';
+    const next = 'a b EXIT';
+    const result = computeIntraLineDiff(old, next);
+
+    expect(flatten(result.oldSegments)).toBe(old);
+    expect(flatten(result.newSegments)).toBe(next);
+
+    for (const seg of [...result.oldSegments, ...result.newSegments]) {
+      if (seg.type === 'changed') {
+        expect(seg.text).not.toMatch(/^\s|\s$/);
+      }
+    }
+  });
+
+  it('preserves full text content after whitespace trimming', () => {
+    const cases: [string, string][] = [
+      ['foo entry bar', 'EXIT entry bar'],
+      ['a b c', 'a B c'],
+      ['  indented old', '  indented new'],
+      ['foo bar', 'baz bar'],
+    ];
+    for (const [old, next] of cases) {
+      const result = computeIntraLineDiff(old, next);
+      expect(flatten(result.oldSegments)).toBe(old);
+      expect(flatten(result.newSegments)).toBe(next);
+    }
+  });
+
+  it('no adjacent same-type segments after whitespace trimming', () => {
+    const cases: [string, string][] = [
+      ['foo entry', 'EXIT entry'],
+      ['a b', 'c b'],
+      ['word entry rest', 'other entry rest'],
+    ];
+    for (const [old, next] of cases) {
+      const result = computeIntraLineDiff(old, next);
+      for (const segments of [result.oldSegments, result.newSegments]) {
+        for (let i = 1; i < segments.length; i++) {
+          expect(segments[i]!.type).not.toBe(segments[i - 1]!.type);
+        }
+      }
+    }
+  });
+});
