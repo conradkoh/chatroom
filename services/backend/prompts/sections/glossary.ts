@@ -36,7 +36,7 @@ const GLOSSARY_TERMS: GlossaryTerm[] = [
   {
     term: 'software-engineering',
     definition:
-      'The engineering standards used in this project: clean architecture layers, DAFT abstraction principles, and naming conventions.',
+      'The engineering standards used in this project: clean architecture layers, SOLID principles, and naming conventions.',
     linkedSkillId: 'software-engineering',
   },
 ];

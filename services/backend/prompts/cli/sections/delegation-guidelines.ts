@@ -25,7 +25,7 @@ export function getDelegationGuidelinesSection(
 
 Break complex features into small, focused phases — delegate **one phase at a time** and never leave the codebase in a broken state between phases.
 
-For clean architecture layer order, DAFT principles, and phase design standards:
+For clean architecture layer order, SOLID principles, and phase design standards:
 \`\`\`bash
 ${cliEnvPrefix}chatroom skill activate software-engineering --chatroom-id=<id> --role=<role>
 \`\`\`

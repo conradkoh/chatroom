@@ -93,7 +93,7 @@ describe('listSkills', () => {
     const deps = createMockDeps();
     (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValue([
       {
-        skillId: 'backlog-score',
+        skillId: 'backlog',
         name: 'Score Backlog',
         description: 'Score all unscored backlog items by complexity, value, and priority.',
         type: 'builtin',
@@ -104,7 +104,7 @@ describe('listSkills', () => {
 
     expect(exitSpy).not.toHaveBeenCalled();
     const output = getAllLogOutput();
-    expect(output).toContain('backlog-score');
+    expect(output).toContain('backlog');
     expect(output).toContain('Score all unscored backlog items by complexity, value, and priority.');
     expect(output).toContain('Available skills:');
   });
@@ -136,7 +136,7 @@ describe('activateSkill', () => {
       },
     });
 
-    await activateSkill(TEST_CHATROOM_ID, 'backlog-score', { role: 'builder' }, deps);
+    await activateSkill(TEST_CHATROOM_ID, 'backlog', { role: 'builder' }, deps);
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getAllErrorOutput()).toContain('Not authenticated');
@@ -147,17 +147,17 @@ describe('activateSkill', () => {
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       skill: {
-        skillId: 'backlog-score',
+        skillId: 'backlog',
         name: 'Score Backlog',
         description: 'Score all unscored backlog items.',
       },
     });
 
-    await activateSkill(TEST_CHATROOM_ID, 'backlog-score', { role: 'builder' }, deps);
+    await activateSkill(TEST_CHATROOM_ID, 'backlog', { role: 'builder' }, deps);
 
     expect(exitSpy).not.toHaveBeenCalled();
     const output = getAllLogOutput();
-    expect(output).toContain('✅ Skill "backlog-score" activated.');
+    expect(output).toContain('✅ Skill "backlog" activated.');
     expect(output).toContain('Score all unscored backlog items.');
   });
 
@@ -180,7 +180,7 @@ describe('activateSkill', () => {
       new Error('Connection refused')
     );
 
-    await activateSkill(TEST_CHATROOM_ID, 'backlog-score', { role: 'builder' }, deps);
+    await activateSkill(TEST_CHATROOM_ID, 'backlog', { role: 'builder' }, deps);
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     const errorOutput = getAllErrorOutput();
@@ -192,20 +192,20 @@ describe('activateSkill', () => {
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       skill: {
-        skillId: 'backlog-score',
+        skillId: 'backlog',
         name: 'Score Backlog',
         description: 'Score all unscored backlog items.',
       },
     });
 
-    await activateSkill(TEST_CHATROOM_ID, 'backlog-score', { role: 'planner' }, deps);
+    await activateSkill(TEST_CHATROOM_ID, 'backlog', { role: 'planner' }, deps);
 
     expect(deps.backend.mutation).toHaveBeenCalledWith(
       expect.anything(), // api.skills.activate
       expect.objectContaining({
         sessionId: TEST_SESSION_ID,
         chatroomId: TEST_CHATROOM_ID,
-        skillId: 'backlog-score',
+        skillId: 'backlog',
         role: 'planner',
       })
     );

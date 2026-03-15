@@ -90,7 +90,7 @@ describe('Squad Team > Reviewer > System Prompt', () => {
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
 
       - \`software-engineering\` (1 skill available)
-          - The engineering standards used in this project: clean architecture layers, DAFT abstraction principles, and naming conventions.
+          - The engineering standards used in this project: clean architecture layers, SOLID principles, and naming conventions.
 
       # Skills
 

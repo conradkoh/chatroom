@@ -44,7 +44,7 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
 
       - \`software-engineering\` (1 skill available)
-          - The engineering standards used in this project: clean architecture layers, DAFT abstraction principles, and naming conventions.
+          - The engineering standards used in this project: clean architecture layers, SOLID principles, and naming conventions.
 
       # Skills
 
@@ -179,7 +179,7 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
 
       Break complex features into small, focused phases — delegate **one phase at a time** and never leave the codebase in a broken state between phases.
 
-      For clean architecture layer order, DAFT principles, and phase design standards:
+      For clean architecture layer order, SOLID principles, and phase design standards:
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill activate software-engineering --chatroom-id=<id> --role=<role>
       \`\`\`
