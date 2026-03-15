@@ -89,6 +89,90 @@ describe('skills.activate', () => {
       data: expect.stringContaining('not found or is disabled'),
     });
   });
+
+  test('seeding is idempotent — calling activate twice does not duplicate skills', async () => {
+    const { sessionId } = await createTestSession('skills-activate-idempotent-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Activate twice
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog-score',
+      role: 'builder',
+    });
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog-score',
+      role: 'builder',
+    });
+
+    // List should show only one backlog-score entry
+    const skills = await t.query(api.skills.list, {
+      sessionId,
+      chatroomId,
+    });
+
+    const backlogScoreSkills = skills.filter((s) => s.skillId === 'backlog-score');
+    expect(backlogScoreSkills).toHaveLength(1);
+  });
+
+  test('activate correctly sets createdBy on the task', async () => {
+    const { sessionId } = await createTestSession('skills-activate-createdby-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog-score',
+      role: 'planner',
+    });
+
+    const task = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .first();
+    });
+
+    expect(task).toBeDefined();
+    expect(task?.createdBy).toBe('planner');
+  });
+
+  test('activate fails if sessionId is invalid', async () => {
+    const { sessionId } = await createTestSession('skills-activate-invalidsession-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    await expect(
+      t.mutation(api.skills.activate, {
+        sessionId: 'bogus-invalid-session-id-xyz' as SessionId,
+        chatroomId,
+        skillId: 'backlog-score',
+        role: 'builder',
+      })
+    ).rejects.toThrow();
+  });
+
+  test('activate fails if chatroomId belongs to a different session', async () => {
+    const { sessionId: sessionA } = await createTestSession('skills-activate-crosschatroom-a');
+    const { sessionId: sessionB } = await createTestSession('skills-activate-crosschatroom-b');
+
+    // chatroomA belongs to sessionA
+    const chatroomA = await createChatroom(sessionA);
+    // chatroomB belongs to sessionB
+    await createChatroom(sessionB);
+
+    // sessionB tries to activate a skill in chatroomA — should be rejected
+    await expect(
+      t.mutation(api.skills.activate, {
+        sessionId: sessionB,
+        chatroomId: chatroomA,
+        skillId: 'backlog-score',
+        role: 'builder',
+      })
+    ).rejects.toThrow();
+  });
 });
 
 describe('skills.list', () => {
@@ -124,6 +208,71 @@ describe('skills.list', () => {
     });
 
     expect(skills).toEqual([]);
+  });
+
+  test('only returns enabled skills — disabled skills are excluded', async () => {
+    const { sessionId } = await createTestSession('skills-list-disabled-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    // Seed via activate
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog-score',
+      role: 'builder',
+    });
+
+    // Manually disable the skill
+    await t.run(async (ctx) => {
+      const skill = await ctx.db
+        .query('chatroom_skills')
+        .withIndex('by_chatroom_skillId', (q) =>
+          q.eq('chatroomId', chatroomId).eq('skillId', 'backlog-score')
+        )
+        .unique();
+      if (skill) {
+        await ctx.db.patch(skill._id, { isEnabled: false });
+      }
+    });
+
+    const skills = await t.query(api.skills.list, {
+      sessionId,
+      chatroomId,
+    });
+
+    // Disabled skill should not appear
+    expect(skills.some((s) => s.skillId === 'backlog-score')).toBe(false);
+  });
+
+  test('returns correct shape { skillId, name, description, type } without prompt or _id', async () => {
+    const { sessionId } = await createTestSession('skills-list-shape-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog-score',
+      role: 'builder',
+    });
+
+    const skills = await t.query(api.skills.list, {
+      sessionId,
+      chatroomId,
+    });
+
+    expect(skills.length).toBeGreaterThan(0);
+    const skill = skills[0]!;
+
+    // Required fields
+    expect(skill).toHaveProperty('skillId');
+    expect(skill).toHaveProperty('name');
+    expect(skill).toHaveProperty('description');
+    expect(skill).toHaveProperty('type');
+
+    // Fields that should NOT be present in the summary view
+    expect(skill).not.toHaveProperty('prompt');
+    expect(skill).not.toHaveProperty('_id');
+    expect(skill).not.toHaveProperty('_creationTime');
   });
 });
 
@@ -163,5 +312,28 @@ describe('skills.get', () => {
     });
 
     expect(skill).toBeNull();
+  });
+
+  test('returns the full document including prompt text', async () => {
+    const { sessionId } = await createTestSession('skills-get-prompt-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog-score',
+      role: 'builder',
+    });
+
+    const skill = await t.query(api.skills.get, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog-score',
+    });
+
+    expect(skill).toBeDefined();
+    // Prompt should be a non-empty string containing key context
+    expect(typeof skill?.prompt).toBe('string');
+    expect(skill?.prompt).toContain('backlog-score');
   });
 });
