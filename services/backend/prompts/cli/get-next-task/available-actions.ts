@@ -50,12 +50,6 @@ git log --oneline -10
 \`\`\`
 
 ### Backlog
-The chatroom has a task backlog. View items with:
-
-\`\`\`bash
-${cliEnvPrefix}chatroom backlog list --chatroom-id="${chatroomId}" --role="${role}" --status=backlog
-\`\`\`
-
 **After completing work on a backlog item**, mark it for user review:
 
 \`\`\`bash
@@ -64,10 +58,11 @@ ${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --
 
 This transitions the task to \`pending_user_review\` where the user can confirm completion or send it back for rework.
 
-#### Backlog Scoring and Maintenance
-When requested, help organize the backlog and score items by priority (impact vs. effort). Use \`${cliEnvPrefix}chatroom backlog list --chatroom-id="${chatroomId}" --role="${role}" --status=backlog\` to view items, then provide recommendations.
+For the full backlog command reference, activate the backlog skill:
 
-More actions: \`chatroom backlog --help\``);
+\`\`\`bash
+${cliEnvPrefix}chatroom skill activate backlog --chatroom-id="${chatroomId}" --role="${role}"
+\`\`\``);
 
   // Context management is restricted to the entry point (planner) role only
   if (isEntryPoint) {
