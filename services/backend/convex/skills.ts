@@ -27,6 +27,51 @@ For each unscored backlog item:
 
 Complete all items before handing off back to the user with a summary of what was scored.`,
   },
+  {
+    skillId: 'backlog',
+    name: 'Backlog Reference',
+    description: 'Show all available backlog commands and how to use them.',
+    prompt: `You have been activated with the "backlog" skill.
+
+Here is the complete reference for all backlog commands. Replace <id> with your actual chatroom ID and role name.
+
+## Listing
+\`\`\`
+chatroom backlog list --chatroom-id=<id> --role=<role> --status=<status>
+\`\`\`
+Status options: \`backlog\` | \`pending\` | \`in_progress\` | \`completed\` | \`pending_review\` | \`all\`
+Options: \`--limit=<n>\`, \`--full\` (show full content)
+
+## Adding
+\`\`\`
+chatroom backlog add --chatroom-id=<id> --role=<role> --content="<content>"
+\`\`\`
+
+## Scoring
+\`\`\`
+chatroom backlog score --chatroom-id=<id> --role=<role> --task-id=<id> \\
+  --complexity=<low|medium|high> \\
+  --value=<low|medium|high> \\
+  --priority=<1-100>
+\`\`\`
+
+## Completing
+\`\`\`
+chatroom backlog complete --chatroom-id=<id> --role=<role> --task-id=<id>
+\`\`\`
+
+## Reopening
+\`\`\`
+chatroom backlog reopen --chatroom-id=<id> --role=<role> --task-id=<id>
+\`\`\`
+
+## Marking for Review
+\`\`\`
+chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --task-id=<id>
+\`\`\`
+
+After reviewing the above reference, hand off back to the user with a brief acknowledgement that you now understand the backlog commands.`,
+  },
 ] as const;
 
 // ---------------------------------------------------------------------------

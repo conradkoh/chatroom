@@ -32,6 +32,7 @@ import { getClassificationGuideSection } from './sections/classification-guide';
 import { getCommandsReferenceSection } from './sections/commands-reference';
 import { getCurrentClassificationSection } from './sections/current-classification';
 import { getGettingStartedSection } from './sections/getting-started';
+import { getGlossarySection } from './sections/glossary';
 import { getHandoffOptionsSection } from './sections/handoff-options';
 import { getNextStepSection } from './sections/next-step';
 import { getRoleGuidanceSection } from './sections/role-guidance';
@@ -251,6 +252,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   // Role identity
   sections.push(getRoleTitleSection(selectorCtx));
   sections.push(getRoleDescriptionSection(selectorCtx));
+  sections.push(getGlossarySection());
 
   // Role-specific guidance (team-aware)
   sections.push(getRoleGuidanceSection(selectorCtx));
@@ -644,6 +646,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   sections.push(getTeamHeaderSection(teamName));
   sections.push(getRoleTitleSection(selectorCtx));
   sections.push(getRoleDescriptionSection(selectorCtx));
+  sections.push(getGlossarySection());
 
   // Context-gaining: Getting Started commands (context read, get-next-task)
   sections.push(getGettingStartedSection(selectorCtx));
