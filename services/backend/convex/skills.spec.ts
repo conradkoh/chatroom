@@ -369,7 +369,7 @@ describe('skills.activate — software-engineering', () => {
 
     expect(task).toBeDefined();
     expect(task?.status).toBe('pending');
-    // Prompt contains DAFT principles
-    expect(task?.content).toContain('DAFT');
+    // Prompt contains SOLID principles
+    expect(task?.content).toContain('SOLID');
   });
 });

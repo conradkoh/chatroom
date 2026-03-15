@@ -113,10 +113,10 @@ ROI = low complexity × high value.`,
   {
     skillId: 'software-engineering',
     name: 'Software Engineering Reference',
-    description: 'Clean architecture layer order, DAFT principles, and implementation standards.',
+    description: 'Implementation order, SOLID principles, and engineering standards.',
     prompt: `You have been activated with the "software-engineering" skill.
 
-## Layer Order (Clean Architecture)
+## Implementation Order
 
 \`\`\`mermaid
 flowchart TD
@@ -131,12 +131,13 @@ Always end with a cleanup phase: remove dead code, de-duplicate.
 
 ---
 
-## DAFT Abstraction Principles
+## SOLID Principles
 
-- **D**imensionality — high-dimension problems (UI layer) can't be solved by abstraction alone
-- **A**tomicity — one responsibility per abstraction
-- **F**riction — good defaults with few props beat many mandatory props
-- **T**esting — simple functions are easier to test than complex classes
+- **S**ingle Responsibility — each module has one reason to change
+- **O**pen/Closed — open for extension, closed for modification
+- **L**iskov Substitution — subtypes must be substitutable for their base types
+- **I**nterface Segregation — prefer many small, focused interfaces over one large one
+- **D**ependency Inversion — depend on abstractions, not concretions
 
 ---
 
