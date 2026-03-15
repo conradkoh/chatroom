@@ -36,7 +36,7 @@ const GLOSSARY_TERMS: GlossaryTerm[] = [
   {
     term: 'software-engineering',
     definition:
-      'The engineering standards used in this project: clean architecture layers, SOLID principles, and naming conventions.',
+      'Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.',
     linkedSkillId: 'software-engineering',
   },
 ];

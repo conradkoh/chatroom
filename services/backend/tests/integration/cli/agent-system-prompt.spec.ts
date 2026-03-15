@@ -128,7 +128,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
 
       - \`software-engineering\` (1 skill available)
-          - The engineering standards used in this project: clean architecture layers, SOLID principles, and naming conventions.
+          - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
       # Skills
 
@@ -382,7 +382,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
 
       - \`software-engineering\` (1 skill available)
-          - The engineering standards used in this project: clean architecture layers, SOLID principles, and naming conventions.
+          - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
       # Skills
 

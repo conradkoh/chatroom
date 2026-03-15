@@ -3,22 +3,25 @@ import type { SkillModule } from '../../registry';
 export const softwareEngineeringSkill: SkillModule = {
   skillId: 'software-engineering',
   name: 'Software Engineering Reference',
-  description: 'Implementation order, SOLID principles, and engineering standards.',
+  description:
+    'Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.',
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "software-engineering" skill.
 
-## Implementation Order
+## Build Order
+
+Start from the core and work outward. The core must never depend on external systems (frameworks, databases, APIs).
 
 \`\`\`mermaid
 flowchart TD
-  A([New Feature]) --> B["Domain Model\\ntypes · entities · invariants"]
-  B --> C["Use Case Layer\\nbusiness logic · dependency inversion · pure · testable"]
-  C --> D["Persistence Layer\\nschema · storage · migrations"]
-  D --> E["Remaining\\nUI · integrations · cleanup · tests"]
+  A([New Feature]) --> B["Application Core\\nentities · domain logic · pure functions · no external deps"]
+  B --> C["Use Cases\\nbusiness logic · orchestration · defines ports and interfaces"]
+  C --> D["Adapters\\npersistence · APIs · UI · external services · implements ports"]
+  D --> E["Cleanup\\nremove dead code · de-duplicate · enforce boundaries"]
 \`\`\`
 
-Each phase: shippable code, no scaffolding, one concern, clear acceptance criteria.
-Always end with a cleanup phase: remove dead code, de-duplicate.
+Each phase: shippable code, one concern, clear acceptance criteria.
+Always end with a cleanup phase.
 
 ---
 
