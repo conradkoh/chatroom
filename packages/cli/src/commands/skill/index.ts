@@ -107,11 +107,14 @@ export async function activateSkill(
   const sessionId = requireAuth(d);
 
   try {
+    const convexUrl = d.session.getConvexUrl();
+
     const result = await d.backend.mutation(api.skills.activate, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       skillId,
       role: options.role,
+      convexUrl: convexUrl ?? undefined,
     });
 
     console.log('');

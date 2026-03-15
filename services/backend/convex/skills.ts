@@ -4,6 +4,10 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliSessionAuth';
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
+import { getConfig } from '../prompts/config/index';
+import { getCliEnvPrefix } from '../prompts/utils/index';
+
+const config = getConfig();
 
 // ---------------------------------------------------------------------------
 // Built-in skill definitions
@@ -14,25 +18,25 @@ const BUILTIN_SKILLS = [
     skillId: 'backlog',
     name: 'Backlog Reference',
     description: 'Full backlog command reference with scoring, completion, and workflow guides.',
-    prompt: `You have been activated with the "backlog" skill.
+    getPrompt: (cliEnvPrefix: string) => `You have been activated with the "backlog" skill.
 
 ## Command Reference
 
 ### List
 \`\`\`
-chatroom backlog list --chatroom-id=<id> --role=<role> --status=<status>
+${cliEnvPrefix}chatroom backlog list --chatroom-id=<id> --role=<role> --status=<status>
 \`\`\`
 Status: \`backlog\` | \`pending\` | \`in_progress\` | \`completed\` | \`pending_review\` | \`all\`
 Flags: \`--limit=<n>\`, \`--full\`
 
 ### Add
 \`\`\`
-chatroom backlog add --chatroom-id=<id> --role=<role> --content="<content>"
+${cliEnvPrefix}chatroom backlog add --chatroom-id=<id> --role=<role> --content="<content>"
 \`\`\`
 
 ### Score
 \`\`\`
-chatroom backlog score --chatroom-id=<id> --role=<role> --task-id=<id> \\
+${cliEnvPrefix}chatroom backlog score --chatroom-id=<id> --role=<role> --task-id=<id> \\
   --complexity=<low|medium|high> \\
   --value=<low|medium|high> \\
   --priority=<1-100>
@@ -40,17 +44,17 @@ chatroom backlog score --chatroom-id=<id> --role=<role> --task-id=<id> \\
 
 ### Complete
 \`\`\`
-chatroom backlog complete --chatroom-id=<id> --role=<role> --task-id=<id>
+${cliEnvPrefix}chatroom backlog complete --chatroom-id=<id> --role=<role> --task-id=<id>
 \`\`\`
 
 ### Reopen
 \`\`\`
-chatroom backlog reopen --chatroom-id=<id> --role=<role> --task-id=<id>
+${cliEnvPrefix}chatroom backlog reopen --chatroom-id=<id> --role=<role> --task-id=<id>
 \`\`\`
 
 ### Mark for Review
 \`\`\`
-chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --task-id=<id>
+${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --task-id=<id>
 \`\`\`
 
 ---
@@ -112,7 +116,8 @@ ROI = low complexity × high value.`,
     skillId: 'software-engineering',
     name: 'Software Engineering Reference',
     description: 'Implementation order, SOLID principles, and engineering standards.',
-    prompt: `You have been activated with the "software-engineering" skill.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "software-engineering" skill.
 
 ## Implementation Order
 
@@ -175,12 +180,14 @@ export const list = query({
 /**
  * Fetch a single skill by skillId.
  * Reads directly from BUILTIN_SKILLS — returns null if not found.
+ * Accepts convexUrl to inject cliEnvPrefix into the prompt.
  */
 export const get = query({
   args: {
     ...SessionIdArg,
     chatroomId: v.id('chatroom_rooms'),
     skillId: v.string(),
+    convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -188,13 +195,15 @@ export const get = query({
     const skill = BUILTIN_SKILLS.find((s) => s.skillId === args.skillId);
     if (!skill) return null;
 
+    const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
+
     return {
       skillId: skill.skillId,
       name: skill.name,
       description: skill.description,
       type: 'builtin' as const,
       isEnabled: true,
-      prompt: skill.prompt,
+      prompt: skill.getPrompt(cliEnvPrefix),
     };
   },
 });
@@ -206,7 +215,7 @@ export const get = query({
 /**
  * Activate a skill for a chatroom.
  * Looks up the skill directly from BUILTIN_SKILLS and creates a pending task
- * whose content is the skill's prompt.
+ * whose content is the skill's prompt (with cliEnvPrefix injected).
  */
 export const activate = mutation({
   args: {
@@ -214,6 +223,7 @@ export const activate = mutation({
     chatroomId: v.id('chatroom_rooms'),
     skillId: v.string(),
     role: v.string(),
+    convexUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
@@ -225,14 +235,16 @@ export const activate = mutation({
       throw new ConvexError(`Skill "${args.skillId}" not found or is disabled.`);
     }
 
+    const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(args.convexUrl));
+
     // Get queue position atomically
     const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
-    // Create a pending task whose content is the skill prompt
+    // Create a pending task whose content is the skill prompt (with env prefix)
     await createTaskUsecase(ctx, {
       chatroomId: args.chatroomId,
       createdBy: args.role,
-      content: skill.prompt,
+      content: skill.getPrompt(cliEnvPrefix),
       forceStatus: 'pending',
       queuePosition,
       origin: 'chat',

@@ -207,6 +207,7 @@ describe('activateSkill', () => {
         chatroomId: TEST_CHATROOM_ID,
         skillId: 'backlog',
         role: 'planner',
+        convexUrl: 'http://test:3210',
       })
     );
   });

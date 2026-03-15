@@ -268,3 +268,29 @@ describe('skills.get', () => {
     expect(skill?.prompt).toContain('Stale item');
   });
 });
+
+describe('skills.activate — cliEnvPrefix injection', () => {
+  test('activate injects cliEnvPrefix into backlog skill prompt for local convexUrl', async () => {
+    const { sessionId } = await createTestSession('skills-activate-prefix-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'backlog',
+      role: 'builder',
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    const task = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .first();
+    });
+
+    expect(task?.content).toContain(
+      'CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list'
+    );
+  });
+});
