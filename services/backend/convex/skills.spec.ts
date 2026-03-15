@@ -1,5 +1,6 @@
 /**
  * Tests for skills mutations and queries.
+ * Built-in skills are read from BUILTIN_SKILLS constants — no DB seeding.
  */
 
 import { ConvexError } from 'convex/values';
@@ -61,7 +62,6 @@ describe('skills.activate', () => {
     expect(task).toBeDefined();
     expect(task?.status).toBe('pending');
     expect(task?.origin).toBe('chat');
-    // Prompt contains workflow documentation
     expect(task?.content).toContain('Continuous Backlog Execution');
   });
 
@@ -89,34 +89,6 @@ describe('skills.activate', () => {
     ).rejects.toMatchObject({
       data: expect.stringContaining('not found or is disabled'),
     });
-  });
-
-  test('seeding is idempotent — calling activate twice does not duplicate skills', async () => {
-    const { sessionId } = await createTestSession('skills-activate-idempotent-1');
-    const chatroomId = await createChatroom(sessionId);
-
-    // Activate twice
-    await t.mutation(api.skills.activate, {
-      sessionId,
-      chatroomId,
-      skillId: 'backlog',
-      role: 'builder',
-    });
-    await t.mutation(api.skills.activate, {
-      sessionId,
-      chatroomId,
-      skillId: 'backlog',
-      role: 'builder',
-    });
-
-    // List should show only one backlog entry
-    const skills = await t.query(api.skills.list, {
-      sessionId,
-      chatroomId,
-    });
-
-    const backlogSkills = skills.filter((s) => s.skillId === 'backlog');
-    expect(backlogSkills).toHaveLength(1);
   });
 
   test('activate correctly sets createdBy on the task', async () => {
@@ -174,21 +146,40 @@ describe('skills.activate', () => {
       })
     ).rejects.toThrow();
   });
-});
 
-describe('skills.list', () => {
-  test('returns the backlog skill after activate is called', async () => {
-    const { sessionId } = await createTestSession('skills-list-after-activate-1');
+  test('activates software-engineering skill and creates a pending task with SOLID content', async () => {
+    const { sessionId } = await createTestSession('skills-se-activate-1');
     const chatroomId = await createChatroom(sessionId);
 
-    // Activate seeds built-ins
-    await t.mutation(api.skills.activate, {
+    const result = await t.mutation(api.skills.activate, {
       sessionId,
       chatroomId,
-      skillId: 'backlog',
+      skillId: 'software-engineering',
       role: 'builder',
     });
 
+    expect(result.success).toBe(true);
+    expect(result.skill.skillId).toBe('software-engineering');
+
+    const task = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .first();
+    });
+
+    expect(task).toBeDefined();
+    expect(task?.status).toBe('pending');
+    expect(task?.content).toContain('SOLID');
+  });
+});
+
+describe('skills.list', () => {
+  test('returns all built-in skills without requiring activate first', async () => {
+    const { sessionId } = await createTestSession('skills-list-all-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    // list reads from constants — no activate needed
     const skills = await t.query(api.skills.list, {
       sessionId,
       chatroomId,
@@ -197,66 +188,12 @@ describe('skills.list', () => {
     expect(skills).toBeDefined();
     expect(skills.length).toBeGreaterThan(0);
     expect(skills.some((s) => s.skillId === 'backlog')).toBe(true);
-    // backlog-score no longer exists as a separate skill
-    expect(skills.some((s) => s.skillId === 'backlog-score')).toBe(false);
-  });
-
-  test('returns empty array when no skills exist', async () => {
-    const { sessionId } = await createTestSession('skills-list-empty-1');
-    const chatroomId = await createChatroom(sessionId);
-
-    const skills = await t.query(api.skills.list, {
-      sessionId,
-      chatroomId,
-    });
-
-    expect(skills).toEqual([]);
-  });
-
-  test('only returns enabled skills — disabled skills are excluded', async () => {
-    const { sessionId } = await createTestSession('skills-list-disabled-1');
-    const chatroomId = await createChatroom(sessionId);
-
-    // Seed via activate
-    await t.mutation(api.skills.activate, {
-      sessionId,
-      chatroomId,
-      skillId: 'backlog',
-      role: 'builder',
-    });
-
-    // Manually disable the skill
-    await t.run(async (ctx) => {
-      const skill = await ctx.db
-        .query('chatroom_skills')
-        .withIndex('by_chatroom_skillId', (q) =>
-          q.eq('chatroomId', chatroomId).eq('skillId', 'backlog')
-        )
-        .unique();
-      if (skill) {
-        await ctx.db.patch(skill._id, { isEnabled: false });
-      }
-    });
-
-    const skills = await t.query(api.skills.list, {
-      sessionId,
-      chatroomId,
-    });
-
-    // Disabled skill should not appear
-    expect(skills.some((s) => s.skillId === 'backlog')).toBe(false);
+    expect(skills.some((s) => s.skillId === 'software-engineering')).toBe(true);
   });
 
   test('returns correct shape { skillId, name, description, type } without prompt or _id', async () => {
     const { sessionId } = await createTestSession('skills-list-shape-1');
     const chatroomId = await createChatroom(sessionId);
-
-    await t.mutation(api.skills.activate, {
-      sessionId,
-      chatroomId,
-      skillId: 'backlog',
-      role: 'builder',
-    });
 
     const skills = await t.query(api.skills.list, {
       sessionId,
@@ -280,18 +217,11 @@ describe('skills.list', () => {
 });
 
 describe('skills.get', () => {
-  test('returns the backlog skill after it has been seeded', async () => {
+  test('returns the backlog skill directly from constants', async () => {
     const { sessionId } = await createTestSession('skills-get-1');
     const chatroomId = await createChatroom(sessionId);
 
-    // Seed via activate
-    await t.mutation(api.skills.activate, {
-      sessionId,
-      chatroomId,
-      skillId: 'backlog',
-      role: 'builder',
-    });
-
+    // get reads from constants — no activate needed
     const skill = await t.query(api.skills.get, {
       sessionId,
       chatroomId,
@@ -321,13 +251,7 @@ describe('skills.get', () => {
     const { sessionId } = await createTestSession('skills-get-prompt-1');
     const chatroomId = await createChatroom(sessionId);
 
-    await t.mutation(api.skills.activate, {
-      sessionId,
-      chatroomId,
-      skillId: 'backlog',
-      role: 'builder',
-    });
-
+    // get reads from constants — no activate needed
     const skill = await t.query(api.skills.get, {
       sessionId,
       chatroomId,
@@ -342,34 +266,5 @@ describe('skills.get', () => {
     expect(skill?.prompt).toContain('pending_user_review');
     // Stale item concept
     expect(skill?.prompt).toContain('Stale item');
-  });
-});
-
-describe('skills.activate — software-engineering', () => {
-  test('activates software-engineering skill and creates a pending task with DAFT content', async () => {
-    const { sessionId } = await createTestSession('skills-se-activate-1');
-    const chatroomId = await createChatroom(sessionId);
-
-    const result = await t.mutation(api.skills.activate, {
-      sessionId,
-      chatroomId,
-      skillId: 'software-engineering',
-      role: 'builder',
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.skill.skillId).toBe('software-engineering');
-
-    const task = await t.run(async (ctx) => {
-      return await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .first();
-    });
-
-    expect(task).toBeDefined();
-    expect(task?.status).toBe('pending');
-    // Prompt contains SOLID principles
-    expect(task?.content).toContain('SOLID');
   });
 });

@@ -1,9 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
-import type { MutationCtx } from './_generated/server';
 import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliSessionAuth';
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 
@@ -150,51 +148,12 @@ No mutations in "get" methods.`,
 ] as const;
 
 // ---------------------------------------------------------------------------
-// Internal helper — NOT a Convex mutation
-// ---------------------------------------------------------------------------
-
-/**
- * Upserts all built-in skills for a given chatroom.
- * If a skill already exists (by chatroomId + skillId), it is left unchanged.
- * Called internally by the `activate` mutation (Phase 3).
- */
-export async function seedBuiltinSkills(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>
-): Promise<void> {
-  const now = Date.now();
-
-  for (const skill of BUILTIN_SKILLS) {
-    const existing = await ctx.db
-      .query('chatroom_skills')
-      .withIndex('by_chatroom_skillId', (q) =>
-        q.eq('chatroomId', chatroomId).eq('skillId', skill.skillId)
-      )
-      .unique();
-
-    if (!existing) {
-      await ctx.db.insert('chatroom_skills', {
-        chatroomId,
-        skillId: skill.skillId,
-        name: skill.name,
-        description: skill.description,
-        type: 'builtin',
-        isEnabled: true,
-        prompt: skill.prompt,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
 
 /**
- * List all enabled skills for a chatroom.
- * Returns a summary view: { skillId, name, description, type }.
+ * List all built-in skills.
+ * Reads directly from the BUILTIN_SKILLS constant — no DB access needed.
  */
 export const list = query({
   args: {
@@ -204,24 +163,18 @@ export const list = query({
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const skills = await ctx.db
-      .query('chatroom_skills')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .filter((q) => q.eq(q.field('isEnabled'), true))
-      .collect();
-
-    return skills.map((s) => ({
+    return BUILTIN_SKILLS.map((s) => ({
       skillId: s.skillId,
       name: s.name,
       description: s.description,
-      type: s.type,
+      type: 'builtin' as const,
     }));
   },
 });
 
 /**
- * Fetch a single skill by chatroomId + skillId.
- * Returns the full skill document or null if not found.
+ * Fetch a single skill by skillId.
+ * Reads directly from BUILTIN_SKILLS — returns null if not found.
  */
 export const get = query({
   args: {
@@ -232,14 +185,17 @@ export const get = query({
   handler: async (ctx, args) => {
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const skill = await ctx.db
-      .query('chatroom_skills')
-      .withIndex('by_chatroom_skillId', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('skillId', args.skillId)
-      )
-      .unique();
+    const skill = BUILTIN_SKILLS.find((s) => s.skillId === args.skillId);
+    if (!skill) return null;
 
-    return skill ?? null;
+    return {
+      skillId: skill.skillId,
+      name: skill.name,
+      description: skill.description,
+      type: 'builtin' as const,
+      isEnabled: true,
+      prompt: skill.prompt,
+    };
   },
 });
 
@@ -249,7 +205,7 @@ export const get = query({
 
 /**
  * Activate a skill for a chatroom.
- * Seeds built-in skills if not already present, then creates a pending task
+ * Looks up the skill directly from BUILTIN_SKILLS and creates a pending task
  * whose content is the skill's prompt.
  */
 export const activate = mutation({
@@ -262,18 +218,10 @@ export const activate = mutation({
   handler: async (ctx, args) => {
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Ensure built-in skills exist in the DB
-    await seedBuiltinSkills(ctx, args.chatroomId);
+    // Look up directly from constants — no DB seeding needed
+    const skill = BUILTIN_SKILLS.find((s) => s.skillId === args.skillId);
 
-    // Look up the requested skill
-    const skill = await ctx.db
-      .query('chatroom_skills')
-      .withIndex('by_chatroom_skillId', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('skillId', args.skillId)
-      )
-      .unique();
-
-    if (!skill || !skill.isEnabled) {
+    if (!skill) {
       throw new ConvexError(`Skill "${args.skillId}" not found or is disabled.`);
     }
 
