@@ -144,8 +144,12 @@ Test technical specifications`,
 
         # Glossary
 
-        **backlog** *(1 skill available — run \`chatroom skill activate backlog\` for full reference)*
-        The list of work items the team intends to do but has not yet started. In this system, backlog items are tasks stored in \`chatroom_tasks\` with \`origin: "backlog"\`. They have optional scoring fields: \`complexity\` (low/medium/high), \`value\` (low/medium/high), and \`priority\` (numeric — higher = more important). Agents interact with backlog items using the \`chatroom backlog\` CLI command group.
+        - \`backlog\` (1 skill available)
+            - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
+
+        # Skills
+
+        Run \`chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
 
 
          **Pair Team Context:**
@@ -329,8 +333,12 @@ Test technical specifications`,
 
         # Glossary
 
-        **backlog** *(1 skill available — run \`chatroom skill activate backlog\` for full reference)*
-        The list of work items the team intends to do but has not yet started. In this system, backlog items are tasks stored in \`chatroom_tasks\` with \`origin: "backlog"\`. They have optional scoring fields: \`complexity\` (low/medium/high), \`value\` (low/medium/high), and \`priority\` (numeric — higher = more important). Agents interact with backlog items using the \`chatroom backlog\` CLI command group.
+        - \`backlog\` (1 skill available)
+            - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
+
+        # Skills
+
+        Run \`chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
 
 
          **Pair Team Context:**
@@ -640,8 +648,12 @@ Test technical specifications`,
 
         # Glossary
 
-        **backlog** *(1 skill available — run \`chatroom skill activate backlog\` for full reference)*
-        The list of work items the team intends to do but has not yet started. In this system, backlog items are tasks stored in \`chatroom_tasks\` with \`origin: "backlog"\`. They have optional scoring fields: \`complexity\` (low/medium/high), \`value\` (low/medium/high), and \`priority\` (numeric — higher = more important). Agents interact with backlog items using the \`chatroom backlog\` CLI command group.
+        - \`backlog\` (1 skill available)
+            - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
+
+        # Skills
+
+        Run \`chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
 
 
          **Pair Team Context:**
