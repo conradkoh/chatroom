@@ -242,3 +242,62 @@ describe('Participant Lifecycle', () => {
     });
   });
 });
+
+  describe('queue promotion guard includes acknowledged tasks', () => {
+    test('acknowledged task blocks queue promotion when entry point joins with get-next-task:started', async () => {
+      const { sessionId } = await createTestSession('test-acknowledged-blocks-promo');
+      const chatroomId = await createPairTeamChatroom(sessionId);
+
+      // Create an acknowledged task (entry point builder has claimed it but not started yet)
+      await t.run(async (ctx) => {
+        const now = Date.now();
+        await ctx.db.insert('chatroom_tasks', {
+          chatroomId,
+          createdBy: 'user',
+          content: 'acknowledged task content',
+          status: 'acknowledged',
+          origin: 'chat',
+          createdAt: now,
+          updatedAt: now,
+          queuePosition: 0,
+          assignedTo: 'builder',
+        });
+      });
+
+      // Create a queue record (user sent another message while builder has an acknowledged task)
+      let queuedMessageId: string | undefined;
+      await t.run(async (ctx) => {
+        queuedMessageId = (await ctx.db.insert('chatroom_messageQueue', {
+          chatroomId,
+          senderRole: 'user',
+          targetRole: 'builder',
+          content: 'second queued message',
+          type: 'message',
+          queuePosition: 1,
+        })) as unknown as string;
+      });
+
+      // Builder (entry point) joins with get-next-task:started — this simulates crash recovery
+      // or re-registration. The acknowledged task must block queue promotion.
+      await t.mutation(require('../../convex/_generated/api').api.participants.join, {
+        sessionId,
+        chatroomId,
+        role: 'builder',
+        action: 'get-next-task:started',
+      });
+
+      // Verify the queue record was NOT consumed
+      await t.run(async (ctx) => {
+        const queueRecord = await ctx.db.get('chatroom_messageQueue', queuedMessageId as any);
+        expect(queueRecord).not.toBeNull();
+
+        // No additional pending task should have been created
+        const tasks = await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+          .collect();
+        const pendingTasks = tasks.filter((t) => t.status === 'pending');
+        expect(pendingTasks.length).toBe(0);
+      });
+    });
+  });
