@@ -360,3 +360,156 @@ describe('transitionTask usecase — trigger label determines the rule', () => {
     expect(reopened?.completedAt).toBeUndefined(); // cleared by FSM on reopen
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests: skipAgentStatusUpdate option (force-complete path)
+// ---------------------------------------------------------------------------
+
+describe('transitionTask — skipAgentStatusUpdate option', () => {
+  test('force-complete: no task.completed event emitted when skipAgentStatusUpdate=true', async () => {
+    const { sessionId } = await createTestSession('tt-skip-status-1');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Create and start a task
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      content: 'Task to force-complete',
+      senderRole: 'user',
+      type: 'message',
+    });
+
+    const claimResult = await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    const taskId = claimResult.taskId;
+    await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
+
+    // Verify task.inProgress event was emitted
+    const eventsBefore = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    expect(eventsBefore.some((e) => e.type === 'task.inProgress')).toBe(true);
+
+    // Force-complete the task (skipAgentStatusUpdate=true via completeTaskById)
+    const result = await t.mutation(api.tasks.completeTaskById, {
+      sessionId,
+      taskId,
+      force: true,
+    });
+    expect(result.success).toBe(true);
+    expect(result.wasForced).toBe(true);
+
+    // Verify task is completed
+    const tasks = await t.query(api.tasks.listTasks, {
+      sessionId,
+      chatroomId,
+      statusFilter: 'archived',
+    });
+    const task = tasks.find((t) => t._id === taskId);
+    expect(task?.status).toBe('completed');
+
+    // Verify NO task.completed event was emitted
+    const eventsAfter = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const taskCompletedEvents = eventsAfter.filter((e) => e.type === 'task.completed');
+    expect(taskCompletedEvents.length).toBe(0);
+  });
+
+  test('force-complete: participant lastStatus NOT updated when skipAgentStatusUpdate=true', async () => {
+    const { sessionId } = await createTestSession('tt-skip-status-2');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Create and start a task for builder
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      content: 'Task to force-complete',
+      senderRole: 'user',
+      type: 'message',
+    });
+
+    const claimResult = await t.mutation(api.tasks.claimTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+    const taskId = claimResult.taskId;
+    await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
+
+    // Get the builder's lastStatus before force-complete
+    const statusBefore = await t.run(async (ctx) => {
+      const participant = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      return participant?.lastStatus ?? null;
+    });
+
+    // Force-complete
+    await t.mutation(api.tasks.completeTaskById, {
+      sessionId,
+      taskId,
+      force: true,
+    });
+
+    // Verify participant lastStatus was NOT changed to 'task.completed'
+    const statusAfter = await t.run(async (ctx) => {
+      const participant = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom_and_role', (q) =>
+          q.eq('chatroomId', chatroomId).eq('role', 'builder')
+        )
+        .unique();
+      return participant?.lastStatus ?? null;
+    });
+
+    // lastStatus should not have been updated to 'task.completed'
+    expect(statusAfter).not.toBe('task.completed');
+    // It should be the same as before force-complete (or whatever startTask set it to)
+    expect(statusAfter).toBe(statusBefore);
+  });
+
+  test('normal completion: task.completed event IS emitted (no skipAgentStatusUpdate)', async () => {
+    const { sessionId } = await createTestSession('tt-skip-status-3');
+    const chatroomId = await createChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      content: 'Task to complete normally',
+      senderRole: 'user',
+      type: 'message',
+    });
+
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+    await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
+
+    // Normal completion (not force)
+    await t.mutation(api.tasks.completeTask, { sessionId, chatroomId, role: 'builder' });
+
+    // task.completed event SHOULD be emitted for normal completion
+    const events = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const taskCompletedEvents = events.filter((e) => e.type === 'task.completed');
+    expect(taskCompletedEvents.length).toBe(1);
+  });
+});
