@@ -35,20 +35,20 @@ async function createChatroom(sessionId: SessionId): Promise<Id<'chatroom_rooms'
 // ---------------------------------------------------------------------------
 
 describe('skills.activate', () => {
-  test('activates a valid built-in skill and creates a pending task', async () => {
+  test('activates the backlog skill and creates a pending task', async () => {
     const { sessionId } = await createTestSession('skills-activate-valid-1');
     const chatroomId = await createChatroom(sessionId);
 
     const result = await t.mutation(api.skills.activate, {
       sessionId,
       chatroomId,
-      skillId: 'backlog-score',
+      skillId: 'backlog',
       role: 'builder',
     });
 
     expect(result.success).toBe(true);
-    expect(result.skill.skillId).toBe('backlog-score');
-    expect(result.skill.name).toBe('Score Backlog');
+    expect(result.skill.skillId).toBe('backlog');
+    expect(result.skill.name).toBe('Backlog Reference');
 
     // Verify a pending task was created with the skill prompt as content
     const task = await t.run(async (ctx) => {
@@ -61,7 +61,8 @@ describe('skills.activate', () => {
     expect(task).toBeDefined();
     expect(task?.status).toBe('pending');
     expect(task?.origin).toBe('chat');
-    expect(task?.content).toContain('backlog-score');
+    // Prompt contains workflow documentation
+    expect(task?.content).toContain('Continuous Backlog Execution');
   });
 
   test('throws ConvexError for an unknown skill', async () => {
@@ -98,24 +99,24 @@ describe('skills.activate', () => {
     await t.mutation(api.skills.activate, {
       sessionId,
       chatroomId,
-      skillId: 'backlog-score',
+      skillId: 'backlog',
       role: 'builder',
     });
     await t.mutation(api.skills.activate, {
       sessionId,
       chatroomId,
-      skillId: 'backlog-score',
+      skillId: 'backlog',
       role: 'builder',
     });
 
-    // List should show only one backlog-score entry
+    // List should show only one backlog entry
     const skills = await t.query(api.skills.list, {
       sessionId,
       chatroomId,
     });
 
-    const backlogScoreSkills = skills.filter((s) => s.skillId === 'backlog-score');
-    expect(backlogScoreSkills).toHaveLength(1);
+    const backlogSkills = skills.filter((s) => s.skillId === 'backlog');
+    expect(backlogSkills).toHaveLength(1);
   });
 
   test('activate correctly sets createdBy on the task', async () => {
@@ -125,7 +126,7 @@ describe('skills.activate', () => {
     await t.mutation(api.skills.activate, {
       sessionId,
       chatroomId,
-      skillId: 'backlog-score',
+      skillId: 'backlog',
       role: 'planner',
     });
 
@@ -148,7 +149,7 @@ describe('skills.activate', () => {
       t.mutation(api.skills.activate, {
         sessionId: 'bogus-invalid-session-id-xyz' as SessionId,
         chatroomId,
-        skillId: 'backlog-score',
+        skillId: 'backlog',
         role: 'builder',
       })
     ).rejects.toThrow();
@@ -168,7 +169,7 @@ describe('skills.activate', () => {
       t.mutation(api.skills.activate, {
         sessionId: sessionB,
         chatroomId: chatroomA,
-        skillId: 'backlog-score',
+        skillId: 'backlog',
         role: 'builder',
       })
     ).rejects.toThrow();
@@ -176,7 +177,7 @@ describe('skills.activate', () => {
 });
 
 describe('skills.list', () => {
-  test('returns seeded built-in skills after activate is called', async () => {
+  test('returns the backlog skill after activate is called', async () => {
     const { sessionId } = await createTestSession('skills-list-after-activate-1');
     const chatroomId = await createChatroom(sessionId);
 
@@ -184,7 +185,7 @@ describe('skills.list', () => {
     await t.mutation(api.skills.activate, {
       sessionId,
       chatroomId,
-      skillId: 'backlog-score',
+      skillId: 'backlog',
       role: 'builder',
     });
 
@@ -195,7 +196,9 @@ describe('skills.list', () => {
 
     expect(skills).toBeDefined();
     expect(skills.length).toBeGreaterThan(0);
-    expect(skills.some((s) => s.skillId === 'backlog-score')).toBe(true);
+    expect(skills.some((s) => s.skillId === 'backlog')).toBe(true);
+    // backlog-score no longer exists as a separate skill
+    expect(skills.some((s) => s.skillId === 'backlog-score')).toBe(false);
   });
 
   test('returns empty array when no skills exist', async () => {
@@ -218,7 +221,7 @@ describe('skills.list', () => {
     await t.mutation(api.skills.activate, {
       sessionId,
       chatroomId,
-      skillId: 'backlog-score',
+      skillId: 'backlog',
       role: 'builder',
     });
 
@@ -227,7 +230,7 @@ describe('skills.list', () => {
       const skill = await ctx.db
         .query('chatroom_skills')
         .withIndex('by_chatroom_skillId', (q) =>
-          q.eq('chatroomId', chatroomId).eq('skillId', 'backlog-score')
+          q.eq('chatroomId', chatroomId).eq('skillId', 'backlog')
         )
         .unique();
       if (skill) {
@@ -241,7 +244,7 @@ describe('skills.list', () => {
     });
 
     // Disabled skill should not appear
-    expect(skills.some((s) => s.skillId === 'backlog-score')).toBe(false);
+    expect(skills.some((s) => s.skillId === 'backlog')).toBe(false);
   });
 
   test('returns correct shape { skillId, name, description, type } without prompt or _id', async () => {
@@ -251,7 +254,7 @@ describe('skills.list', () => {
     await t.mutation(api.skills.activate, {
       sessionId,
       chatroomId,
-      skillId: 'backlog-score',
+      skillId: 'backlog',
       role: 'builder',
     });
 
@@ -277,7 +280,7 @@ describe('skills.list', () => {
 });
 
 describe('skills.get', () => {
-  test('returns a skill after it has been seeded', async () => {
+  test('returns the backlog skill after it has been seeded', async () => {
     const { sessionId } = await createTestSession('skills-get-1');
     const chatroomId = await createChatroom(sessionId);
 
@@ -285,18 +288,18 @@ describe('skills.get', () => {
     await t.mutation(api.skills.activate, {
       sessionId,
       chatroomId,
-      skillId: 'backlog-score',
+      skillId: 'backlog',
       role: 'builder',
     });
 
     const skill = await t.query(api.skills.get, {
       sessionId,
       chatroomId,
-      skillId: 'backlog-score',
+      skillId: 'backlog',
     });
 
     expect(skill).toBeDefined();
-    expect(skill?.skillId).toBe('backlog-score');
+    expect(skill?.skillId).toBe('backlog');
     expect(skill?.type).toBe('builtin');
     expect(skill?.isEnabled).toBe(true);
   });
@@ -314,26 +317,30 @@ describe('skills.get', () => {
     expect(skill).toBeNull();
   });
 
-  test('returns the full document including prompt text', async () => {
+  test('returns the full document with consolidated backlog prompt containing all 3 workflows', async () => {
     const { sessionId } = await createTestSession('skills-get-prompt-1');
     const chatroomId = await createChatroom(sessionId);
 
     await t.mutation(api.skills.activate, {
       sessionId,
       chatroomId,
-      skillId: 'backlog-score',
+      skillId: 'backlog',
       role: 'builder',
     });
 
     const skill = await t.query(api.skills.get, {
       sessionId,
       chatroomId,
-      skillId: 'backlog-score',
+      skillId: 'backlog',
     });
 
     expect(skill).toBeDefined();
-    // Prompt should be a non-empty string containing key context
     expect(typeof skill?.prompt).toBe('string');
-    expect(skill?.prompt).toContain('backlog-score');
+    // Workflow 3: Continuous Backlog Execution
+    expect(skill?.prompt).toContain('Continuous Backlog Execution');
+    // Workflow 2: After completing a task
+    expect(skill?.prompt).toContain('pending_user_review');
+    // Stale item concept
+    expect(skill?.prompt).toContain('Stale item');
   });
 });
