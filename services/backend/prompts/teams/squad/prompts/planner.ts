@@ -80,7 +80,7 @@ ${workflowGuidance}
 
 ${getCoreResponsibilitiesSection(SQUAD_TEAM_CONFIG)}
 
-${getDelegationGuidelinesSection(SQUAD_TEAM_CONFIG)}
+${getDelegationGuidelinesSection(SQUAD_TEAM_CONFIG, { cliEnvPrefix })}
 
 ${getHandoffRulesSection(SQUAD_TEAM_CONFIG)}
 

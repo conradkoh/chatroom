@@ -72,7 +72,7 @@ ${workflowGuidance}
 
 ${getCoreResponsibilitiesSection(DUO_TEAM_CONFIG)}
 
-${getDelegationGuidelinesSection(DUO_TEAM_CONFIG)}
+${getDelegationGuidelinesSection(DUO_TEAM_CONFIG, { cliEnvPrefix })}
 
 ${getHandoffRulesSection(DUO_TEAM_CONFIG)}
 

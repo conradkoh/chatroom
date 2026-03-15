@@ -82,6 +82,18 @@ describe('Pair Team > Builder > System Prompt', () => {
 
       You are the implementer responsible for writing code and building solutions.
 
+      # Glossary
+
+      - \`backlog\` (1 skill available)
+          - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
+
+      - \`software-engineering\` (1 skill available)
+          - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+
+      # Skills
+
+      Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
+
       ## Getting Started
 
       ### Workflow Loop

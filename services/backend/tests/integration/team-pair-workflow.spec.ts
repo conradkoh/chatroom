@@ -142,6 +142,18 @@ Test technical specifications`,
 
         You are the implementer responsible for writing code and building solutions.
 
+        # Glossary
+
+        - \`backlog\` (1 skill available)
+            - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
+
+        - \`software-engineering\` (1 skill available)
+            - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+
+        # Skills
+
+        Run \`chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
+
 
          **Pair Team Context:**
          - You work with a reviewer who will check your code
@@ -321,6 +333,18 @@ Test technical specifications`,
         "## Your Role: REVIEWER
 
         You are the quality guardian responsible for reviewing and validating code changes.
+
+        # Glossary
+
+        - \`backlog\` (1 skill available)
+            - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
+
+        - \`software-engineering\` (1 skill available)
+            - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+
+        # Skills
+
+        Run \`chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
 
 
          **Pair Team Context:**
@@ -627,6 +651,18 @@ Test technical specifications`,
         "## Your Role: BUILDER
 
         You are the implementer responsible for writing code and building solutions.
+
+        # Glossary
+
+        - \`backlog\` (1 skill available)
+            - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
+
+        - \`software-engineering\` (1 skill available)
+            - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+
+        # Skills
+
+        Run \`chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
 
 
          **Pair Team Context:**

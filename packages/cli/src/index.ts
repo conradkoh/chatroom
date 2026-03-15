@@ -479,6 +479,34 @@ backlogCommand
   });
 
 // ============================================================================
+// SKILL COMMANDS (auth required)
+// ============================================================================
+
+const skillCommand = program.command('skill').description('Manage and activate chatroom skills');
+
+skillCommand
+  .command('list')
+  .description('List available skills for a chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .action(async (options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+    const { listSkills } = await import('./commands/skill/index.js');
+    await listSkills(options.chatroomId, { role: options.role });
+  });
+
+skillCommand
+  .command('activate <skill-name>')
+  .description('Activate a named skill in the chatroom')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .action(async (skillName: string, options: { chatroomId: string; role: string }) => {
+    await maybeRequireAuth();
+    const { activateSkill } = await import('./commands/skill/index.js');
+    await activateSkill(options.chatroomId, skillName, { role: options.role });
+  });
+
+// ============================================================================
 // MESSAGES COMMANDS (auth required)
 // ============================================================================
 
