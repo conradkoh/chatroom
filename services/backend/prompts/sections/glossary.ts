@@ -33,6 +33,12 @@ const GLOSSARY_TERMS: GlossaryTerm[] = [
       'Agents use the `chatroom backlog` CLI command group to manage backlog items.',
     linkedSkillId: 'backlog',
   },
+  {
+    term: 'software-engineering',
+    definition:
+      'The engineering standards used in this project: clean architecture layers, DAFT abstraction principles, and naming conventions.',
+    linkedSkillId: 'software-engineering',
+  },
 ];
 
 /**

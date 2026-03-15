@@ -62,7 +62,7 @@ ${getWorkflowSection(teamConfig)}
 
 ${getCoreResponsibilitiesSection(teamConfig)}
 
-${getDelegationGuidelinesSection(teamConfig)}
+${getDelegationGuidelinesSection(teamConfig, { cliEnvPrefix })}
 
 ${getHandoffRulesSection(teamConfig)}
 

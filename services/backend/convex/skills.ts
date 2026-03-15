@@ -110,6 +110,42 @@ flowchart TD
 Stale item = backlog task already present in the codebase. Mark immediately; skip implementation.
 ROI = low complexity × high value.`,
   },
+  {
+    skillId: 'software-engineering',
+    name: 'Software Engineering Reference',
+    description: 'Clean architecture layer order, DAFT principles, and implementation standards.',
+    prompt: `You have been activated with the "software-engineering" skill.
+
+## Layer Order (Clean Architecture)
+
+\`\`\`mermaid
+flowchart TD
+  A([New Feature]) --> B["Domain Model\\ntypes · entities · invariants"]
+  B --> C["Use Case Layer\\nbusiness logic · dependency inversion · pure · testable"]
+  C --> D["Persistence Layer\\nschema · storage · migrations"]
+  D --> E["Remaining\\nUI · integrations · cleanup · tests"]
+\`\`\`
+
+Each phase: shippable code, no scaffolding, one concern, clear acceptance criteria.
+Always end with a cleanup phase: remove dead code, de-duplicate.
+
+---
+
+## DAFT Abstraction Principles
+
+- **D**imensionality — high-dimension problems (UI layer) can't be solved by abstraction alone
+- **A**tomicity — one responsibility per abstraction
+- **F**riction — good defaults with few props beat many mandatory props
+- **T**esting — simple functions are easier to test than complex classes
+
+---
+
+## Naming Conventions
+
+Mutations: \`create\`, \`write\`, \`update\`
+Queries: \`get\`, \`list\`, \`fetch\`
+No mutations in "get" methods.`,
+  },
 ] as const;
 
 // ---------------------------------------------------------------------------

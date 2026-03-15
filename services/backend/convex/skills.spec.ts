@@ -344,3 +344,32 @@ describe('skills.get', () => {
     expect(skill?.prompt).toContain('Stale item');
   });
 });
+
+describe('skills.activate — software-engineering', () => {
+  test('activates software-engineering skill and creates a pending task with DAFT content', async () => {
+    const { sessionId } = await createTestSession('skills-se-activate-1');
+    const chatroomId = await createChatroom(sessionId);
+
+    const result = await t.mutation(api.skills.activate, {
+      sessionId,
+      chatroomId,
+      skillId: 'software-engineering',
+      role: 'builder',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.skill.skillId).toBe('software-engineering');
+
+    const task = await t.run(async (ctx) => {
+      return await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .first();
+    });
+
+    expect(task).toBeDefined();
+    expect(task?.status).toBe('pending');
+    // Prompt contains DAFT principles
+    expect(task?.content).toContain('DAFT');
+  });
+});

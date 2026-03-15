@@ -127,6 +127,9 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - \`backlog\` (1 skill available)
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
 
+      - \`software-engineering\` (1 skill available)
+          - The engineering standards used in this project: clean architecture layers, DAFT abstraction principles, and naming conventions.
+
       # Skills
 
       Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
@@ -377,6 +380,9 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       - \`backlog\` (1 skill available)
           - The list of work items the team intends to do but has not yet started. Agents use the \`chatroom backlog\` CLI command group to manage backlog items.
+
+      - \`software-engineering\` (1 skill available)
+          - The engineering standards used in this project: clean architecture layers, DAFT abstraction principles, and naming conventions.
 
       # Skills
 
