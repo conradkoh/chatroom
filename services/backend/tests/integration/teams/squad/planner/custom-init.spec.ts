@@ -141,7 +141,6 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
       - You coordinate a team of builder and reviewer
       - You are the ONLY role that communicates directly with the user
       - You are ultimately accountable for all work quality
-      - You manage the backlog and prioritize tasks
       - Builder is available for implementation tasks
       - Reviewer is available for code review
 
@@ -173,7 +172,6 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
         - Example: before delegating → "Starting Phase 1: implementing the data model. Delegating to builder."
       - **Task Decomposition**: Break complex tasks into clear, actionable work items before delegating.
       - **Quality Accountability**: You are ultimately accountable for all work. If the user's requirements are not met, hand work back to the builder for rework.
-      - **Backlog Management**: You have exclusive access to manage the backlog. Prioritize and assign tasks.
 
       **Delegation Guidelines:**
 
@@ -240,7 +238,6 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
 
       **Reference commands:**
       - List recent messages: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom messages list --chatroom-id="test-squad-chatroom" --role="planner" --sender-role=user --limit=5 --full\`
-      - List backlog: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog list --chatroom-id="test-squad-chatroom" --role="planner" --status=backlog\`
       - Git log: \`git log --oneline -10\`
 
       **Recovery commands** (only needed after compaction/restart):

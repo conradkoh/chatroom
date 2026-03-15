@@ -73,7 +73,6 @@ ${getNextTaskReminder()}
 
 **Reference commands:**
 - List recent messages: \`${cliEnvPrefix}chatroom messages list --chatroom-id="${params.chatroomId}" --role="${params.role}" --sender-role=user --limit=5 --full\`
-- List backlog: \`${cliEnvPrefix}chatroom backlog list --chatroom-id="${params.chatroomId}" --role="${params.role}" --status=backlog\`
 - Git log: \`git log --oneline -10\`
 
 **Recovery commands** (only needed after compaction/restart):

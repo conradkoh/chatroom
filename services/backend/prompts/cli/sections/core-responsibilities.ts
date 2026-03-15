@@ -23,6 +23,5 @@ export function getCoreResponsibilitiesSection(config: TeamCompositionConfig): s
   - Use \`report-progress\` to keep the user informed at key milestones: when you start work, when you delegate phases, and when you receive results back.
   - Example: before delegating → "Starting Phase 1: implementing the data model. Delegating to builder."
 - **Task Decomposition**: Break complex tasks into clear, actionable work items before delegating.
-- **Quality Accountability**: You are ultimately accountable for all work. ${qualityLine}
-- **Backlog Management**: You have exclusive access to manage the backlog. Prioritize and assign tasks.`;
+- **Quality Accountability**: You are ultimately accountable for all work. ${qualityLine}`;
 }

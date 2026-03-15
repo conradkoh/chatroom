@@ -50,15 +50,7 @@ git log --oneline -10
 \`\`\`
 
 ### Backlog
-**After completing work on a backlog item**, mark it for user review:
-
-\`\`\`bash
-${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --task-id=<task-id>
-\`\`\`
-
-This transitions the task to \`pending_user_review\` where the user can confirm completion or send it back for rework.
-
-For the full backlog command reference, activate the backlog skill:
+For backlog commands and workflows, activate the backlog skill:
 
 \`\`\`bash
 ${cliEnvPrefix}chatroom skill activate backlog --chatroom-id="${chatroomId}" --role="${role}"
