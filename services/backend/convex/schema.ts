@@ -1124,4 +1124,30 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha']),
+
+  /**
+   * Skills available to chatroom agents.
+   * Built-in skills are seeded per chatroom; custom skills can be created via the web UI (future).
+   */
+  chatroom_skills: defineTable({
+    // Which chatroom this skill belongs to
+    chatroomId: v.id('chatroom_rooms'),
+    // Stable identifier for the skill (e.g. "backlog-score")
+    skillId: v.string(),
+    // Human-readable name
+    name: v.string(),
+    // What this skill does (shown in `chatroom skill list`)
+    description: v.string(),
+    // Source of skill: 'builtin' (shipped with product) or 'custom' (user-created)
+    type: v.union(v.literal('builtin'), v.literal('custom')),
+    // Whether this skill is currently active
+    isEnabled: v.boolean(),
+    // The instruction text injected into a task when this skill is activated
+    prompt: v.string(),
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_skillId', ['chatroomId', 'skillId']),
 });
