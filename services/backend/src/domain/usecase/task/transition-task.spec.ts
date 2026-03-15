@@ -366,7 +366,7 @@ describe('transitionTask usecase — trigger label determines the rule', () => {
 // ---------------------------------------------------------------------------
 
 describe('transitionTask — skipAgentStatusUpdate option', () => {
-  test('force-complete: no task.completed event emitted when skipAgentStatusUpdate=true', async () => {
+  test('force-complete: task.completed event IS emitted with skipAgentStatusUpdate=true flag', async () => {
     const { sessionId } = await createTestSession('tt-skip-status-1');
     const chatroomId = await createChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
@@ -388,15 +388,6 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
     const taskId = claimResult.taskId;
     await t.mutation(api.tasks.startTask, { sessionId, chatroomId, role: 'builder' });
 
-    // Verify task.inProgress event was emitted
-    const eventsBefore = await t.run(async (ctx) => {
-      return ctx.db
-        .query('chatroom_eventStream')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-    });
-    expect(eventsBefore.some((e) => e.type === 'task.inProgress')).toBe(true);
-
     // Force-complete the task (skipAgentStatusUpdate=true via completeTaskById)
     const result = await t.mutation(api.tasks.completeTaskById, {
       sessionId,
@@ -415,7 +406,8 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
     const task = tasks.find((t) => t._id === taskId);
     expect(task?.status).toBe('completed');
 
-    // Verify NO task.completed event was emitted
+    // Verify task.completed event WAS emitted (always emitted — it's the authoritative record)
+    // AND it carries skipAgentStatusUpdate: true so consumers know not to update agent status
     const eventsAfter = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_eventStream')
@@ -423,7 +415,8 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
         .collect();
     });
     const taskCompletedEvents = eventsAfter.filter((e) => e.type === 'task.completed');
-    expect(taskCompletedEvents.length).toBe(0);
+    expect(taskCompletedEvents.length).toBe(1);
+    expect((taskCompletedEvents[0] as { skipAgentStatusUpdate?: boolean }).skipAgentStatusUpdate).toBe(true);
   });
 
   test('force-complete: participant lastStatus NOT updated when skipAgentStatusUpdate=true', async () => {
@@ -483,7 +476,7 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
     expect(statusAfter).toBe(statusBefore);
   });
 
-  test('normal completion: task.completed event IS emitted (no skipAgentStatusUpdate)', async () => {
+  test('normal completion: task.completed event emitted WITHOUT skipAgentStatusUpdate flag', async () => {
     const { sessionId } = await createTestSession('tt-skip-status-3');
     const chatroomId = await createChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
@@ -511,5 +504,7 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
     });
     const taskCompletedEvents = events.filter((e) => e.type === 'task.completed');
     expect(taskCompletedEvents.length).toBe(1);
+    // Normal completion: skipAgentStatusUpdate should NOT be set
+    expect((taskCompletedEvents[0] as { skipAgentStatusUpdate?: boolean }).skipAgentStatusUpdate).toBeUndefined();
   });
 });

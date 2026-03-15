@@ -105,18 +105,25 @@ export async function transitionTask(
     } else if (TERMINAL_TASK_STATUSES.has(newStatus)) {
       const completedRole = eventTask.assignedTo ?? 'unknown';
 
-      // Skip agent status update when explicitly requested (e.g. force-complete from UI).
-      // In that case the agent process may still be running and will update its own
-      // status naturally via get-next-task or agent.exited events.
+      // Always emit task.completed — it's the authoritative terminal-transition event.
+      // When skipAgentStatusUpdate is requested (e.g. force-complete from UI), include
+      // the flag on the event so consumers know agent status should NOT be derived from it.
+      // The actual agent process may still be running and will update status naturally.
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'task.completed',
+        chatroomId: eventTask.chatroomId,
+        taskId,
+        role: completedRole,
+        finalStatus: newStatus,
+        timestamp: Date.now(),
+        ...(options?.skipAgentStatusUpdate && { skipAgentStatusUpdate: true }),
+      });
+
+      // Only update participant lastStatus when NOT skipping agent status.
+      // patchParticipantStatus writes to the participant record which drives the UI.
+      // For force-complete, we skip this so the UI reflects the real agent state
+      // rather than the externally-forced completion.
       if (!options?.skipAgentStatusUpdate) {
-        await ctx.db.insert('chatroom_eventStream', {
-          type: 'task.completed',
-          chatroomId: eventTask.chatroomId,
-          taskId,
-          role: completedRole,
-          finalStatus: newStatus,
-          timestamp: Date.now(),
-        });
         if (eventTask.assignedTo) {
           await patchParticipantStatus(ctx, eventTask.chatroomId, eventTask.assignedTo, 'task.completed');
         }

@@ -854,6 +854,9 @@ export default defineSchema({
         machineId: v.optional(v.string()),
         finalStatus: v.string(),
         timestamp: v.number(),
+        // When true, consumers should skip using this event to update agent status.
+        // Set for externally force-completed tasks where the agent process may still be running.
+        skipAgentStatusUpdate: v.optional(v.boolean()),
       }),
       // An agent start was requested (replaces command.startAgent; includes deadline)
       v.object({
