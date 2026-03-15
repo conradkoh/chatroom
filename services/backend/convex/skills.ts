@@ -1,10 +1,11 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
-import { query } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
-import { requireChatroomAccess } from './auth/cliSessionAuth';
+import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliSessionAuth';
 import { Id } from './_generated/dataModel';
+import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 
 // ---------------------------------------------------------------------------
 // Built-in skill definitions
@@ -119,5 +120,63 @@ export const get = query({
       .unique();
 
     return skill ?? null;
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Mutations
+// ---------------------------------------------------------------------------
+
+/**
+ * Activate a skill for a chatroom.
+ * Seeds built-in skills if not already present, then creates a pending task
+ * whose content is the skill's prompt.
+ */
+export const activate = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    skillId: v.string(),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Ensure built-in skills exist in the DB
+    await seedBuiltinSkills(ctx, args.chatroomId);
+
+    // Look up the requested skill
+    const skill = await ctx.db
+      .query('chatroom_skills')
+      .withIndex('by_chatroom_skillId', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('skillId', args.skillId)
+      )
+      .unique();
+
+    if (!skill || !skill.isEnabled) {
+      throw new ConvexError(`Skill "${args.skillId}" not found or is disabled.`);
+    }
+
+    // Get queue position atomically
+    const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
+
+    // Create a pending task whose content is the skill prompt
+    await createTaskUsecase(ctx, {
+      chatroomId: args.chatroomId,
+      createdBy: args.role,
+      content: skill.prompt,
+      forceStatus: 'pending',
+      queuePosition,
+      origin: 'chat',
+    });
+
+    return {
+      success: true,
+      skill: {
+        skillId: skill.skillId,
+        name: skill.name,
+        description: skill.description,
+      },
+    };
   },
 });
