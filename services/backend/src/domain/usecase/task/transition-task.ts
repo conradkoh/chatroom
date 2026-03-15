@@ -37,6 +37,26 @@ import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '.
 import { patchParticipantStatus } from '../../entities/participant';
 
 // ============================================================================
+// TYPES
+// ============================================================================
+
+/**
+ * Options for controlling side effects during a task transition.
+ */
+export interface TransitionTaskOptions {
+  /**
+   * When true, skips writing the agent status event to chatroom_eventStream
+   * and skips updating the participant's lastStatus via patchParticipantStatus.
+   *
+   * Use this when the task is being externally force-completed (e.g. from the UI)
+   * and the actual agent process may still be running. Emitting status events in
+   * this case would mislead the UI — the agent will update its own status naturally
+   * when it calls get-next-task again or when it crashes and exits.
+   */
+  skipAgentStatusUpdate?: boolean;
+}
+
+// ============================================================================
 // USECASE
 // ============================================================================
 
@@ -53,13 +73,15 @@ import { patchParticipantStatus } from '../../entities/participant';
  * @param newStatus - The desired target status
  * @param trigger - FSM trigger label (must match a valid transition rule)
  * @param overrides - Optional field overrides applied after transition
+ * @param options - Optional behavior flags (e.g. skipAgentStatusUpdate)
  */
 export async function transitionTask(
   ctx: MutationCtx,
   taskId: Id<'chatroom_tasks'>,
   newStatus: TaskStatus,
   trigger: string,
-  overrides?: Partial<Task>
+  overrides?: Partial<Task>,
+  options?: TransitionTaskOptions
 ): Promise<void> {
   // 1. Delegate the FSM transition (validates rules, applies patches, logs)
   await fsmTransitionTask(ctx, taskId, newStatus, trigger, overrides);
@@ -82,16 +104,22 @@ export async function transitionTask(
       });
     } else if (TERMINAL_TASK_STATUSES.has(newStatus)) {
       const completedRole = eventTask.assignedTo ?? 'unknown';
-      await ctx.db.insert('chatroom_eventStream', {
-        type: 'task.completed',
-        chatroomId: eventTask.chatroomId,
-        taskId,
-        role: completedRole,
-        finalStatus: newStatus,
-        timestamp: Date.now(),
-      });
-      if (eventTask.assignedTo) {
-        await patchParticipantStatus(ctx, eventTask.chatroomId, eventTask.assignedTo, 'task.completed');
+
+      // Skip agent status update when explicitly requested (e.g. force-complete from UI).
+      // In that case the agent process may still be running and will update its own
+      // status naturally via get-next-task or agent.exited events.
+      if (!options?.skipAgentStatusUpdate) {
+        await ctx.db.insert('chatroom_eventStream', {
+          type: 'task.completed',
+          chatroomId: eventTask.chatroomId,
+          taskId,
+          role: completedRole,
+          finalStatus: newStatus,
+          timestamp: Date.now(),
+        });
+        if (eventTask.assignedTo) {
+          await patchParticipantStatus(ctx, eventTask.chatroomId, eventTask.assignedTo, 'task.completed');
+        }
       }
     }
   }

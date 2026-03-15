@@ -17,7 +17,7 @@ import {
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
-import { transitionTask } from '../src/domain/usecase/task/transition-task';
+import { transitionTask, type TransitionTaskOptions } from '../src/domain/usecase/task/transition-task';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { patchParticipantStatus } from '../src/domain/entities/participant';
 
@@ -433,9 +433,14 @@ export const completeTaskById = mutation({
         );
       }
 
-      // Use FSM for transition
-
-      await transitionTask(ctx, args.taskId, 'completed', 'completeTaskById');
+      // Use FSM for transition.
+      // Pass skipAgentStatusUpdate=true to suppress the task.completed event and participant
+      // status patch. The agent process may still be running — it will update its own status
+      // naturally when it calls get-next-task (→ agent.waiting) or crashes (→ agent.exited).
+      // Emitting agent status events here would mislead the UI.
+      await transitionTask(ctx, args.taskId, 'completed', 'completeTaskById', undefined, {
+        skipAgentStatusUpdate: true,
+      } satisfies TransitionTaskOptions);
 
       // Log force completion (suppress during testing)
       if (process.env.NODE_ENV !== 'test') {
@@ -447,20 +452,6 @@ export const completeTaskById = mutation({
 
       // Queue promotion is now handled automatically by the transitionTask usecase
       // whenever a task transitions to 'completed'. No inline promotion needed here.
-
-      // For force-complete from UI: the transitionTask emits 'task.completed' which maps to
-      // "WORKING" in the UI. Unlike normal completion (where the agent immediately re-enters
-      // get-next-task and emits 'agent.waiting'), force-complete from the UI leaves the agent
-      // status stuck at "WORKING". Fix: emit an explicit 'agent.waiting' event for the assigned
-      // role to reset the visual status to "WAITING".
-      if (task.assignedTo) {
-        await ctx.db.insert('chatroom_eventStream', {
-          type: 'agent.waiting',
-          chatroomId: task.chatroomId,
-          role: task.assignedTo,
-          timestamp: Date.now(),
-        });
-      }
 
       return { success: true, taskId: args.taskId, wasForced: true };
     }
