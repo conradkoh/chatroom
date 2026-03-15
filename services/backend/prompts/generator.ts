@@ -252,7 +252,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
   // Role identity
   sections.push(getRoleTitleSection(selectorCtx));
   sections.push(getRoleDescriptionSection(selectorCtx));
-  sections.push(getGlossarySection());
+  sections.push(getGlossarySection({ convexUrl: ctx.convexUrl ?? '', chatroomId: ctx.chatroomId }));
 
   // Role-specific guidance (team-aware)
   sections.push(getRoleGuidanceSection(selectorCtx));
@@ -646,7 +646,7 @@ export function composeSystemPrompt(input: InitPromptInput): string {
   sections.push(getTeamHeaderSection(teamName));
   sections.push(getRoleTitleSection(selectorCtx));
   sections.push(getRoleDescriptionSection(selectorCtx));
-  sections.push(getGlossarySection());
+  sections.push(getGlossarySection({ convexUrl: convexUrl ?? '', chatroomId }));
 
   // Context-gaining: Getting Started commands (context read, get-next-task)
   sections.push(getGettingStartedSection(selectorCtx));
