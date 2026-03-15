@@ -82,6 +82,11 @@ describe('Pair Team > Reviewer > System Prompt', () => {
 
       You are the quality guardian responsible for reviewing and validating code changes.
 
+      # Glossary
+
+      **backlog** *(1 skill available — run \`chatroom skill activate backlog\` for full reference)*
+      The list of work items the team intends to do but has not yet started. In this system, backlog items are tasks stored in \`chatroom_tasks\` with \`origin: "backlog"\`. They have optional scoring fields: \`complexity\` (low/medium/high), \`value\` (low/medium/high), and \`priority\` (numeric — higher = more important). Agents interact with backlog items using the \`chatroom backlog\` CLI command group.
+
       ## Getting Started
 
       ### Workflow Loop

@@ -97,7 +97,9 @@ export type SectionId =
   // Next Step
   | 'next-step'
   // Get-next-task reminder
-  | 'get-next-task-reminder';
+  | 'get-next-task-reminder'
+  // Glossary
+  | 'glossary';
 
 /**
  * Helper to create a PromptSection with type safety.
