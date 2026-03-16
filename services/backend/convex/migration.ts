@@ -13,6 +13,8 @@
  * - User access level defaults (set undefined → 'user')
  * - Task origin normalization (set undefined → 'chat'/'backlog')
  * - Tool → Harness field rename (availableTools → availableHarnesses, etc.)
+ * - Convert backlog_acknowledged task status to backlog (migrateBacklogAcknowledgedToBacklog)
+ * - Move backlog items from chatroom_tasks to chatroom_backlog (migrateBacklogItemsToBacklogTable)
  */
 
 import { internalMutation } from './_generated/server';
