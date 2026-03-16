@@ -218,6 +218,12 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('');
   lines.push('<next-steps>');
 
+  // Mandatory first step warning - applies to ALL cases
+  lines.push('');
+  lines.push('⚠️  REQUIRED FIRST STEP: Run task-started IMMEDIATELY before any other work.');
+  lines.push('   This marks the task as in_progress and prevents unnecessary agent restarts.');
+  lines.push('');
+
   if (isUserMessage) {
     // Classification command with placeholder
     const baseCmd = taskStartedCommand({
@@ -231,14 +237,13 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       '--origin-message-classification=<type>'
     );
 
-    lines.push('');
-    lines.push(`Classify → \`${baseCmd}\``);
+    lines.push(`1. Classify → \`${baseCmd}\``);
 
     // new_feature example
     lines.push('');
-    lines.push('new_feature example:');
+    lines.push('   new_feature example:');
     lines.push(
-      taskStartedCommand({
+      `   ${taskStartedCommand({
         chatroomId,
         role,
         taskId: task._id,
@@ -247,7 +252,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         description: '<description>',
         techSpecs: '<tech-specs>',
         cliEnvPrefix,
-      })
+      })}`
     );
 
     if (role === 'planner') {
@@ -292,10 +297,14 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       }
     }
   } else if (message) {
-    lines.push('');
     lines.push(`handed off from ${message.senderRole} — start work immediately.`);
+    lines.push('');
+    lines.push('1. Run task-started to acknowledge:');
+    lines.push(
+      `   ${cliEnvPrefix}chatroom task-started --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}" --no-classify`
+    );
 
-    let nextStepNum = 1;
+    let nextStepNum = 2;
     if (isEntryPoint) {
       lines.push(
         `${nextStepNum}. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
@@ -316,7 +325,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       lines.push(`(targets: ${availableHandoffTargets.join(', ')})`);
     }
   } else {
-    lines.push('');
     lines.push(`No message found. Task ID: ${task._id}`);
   }
 
