@@ -35,18 +35,18 @@ export interface AddBacklogOptions {
 
 export interface CompleteBacklogOptions {
   role: string;
-  taskId: string;
+  backlogItemId: string;
   force?: boolean;
 }
 
 export interface ReopenBacklogOptions {
   role: string;
-  taskId: string;
+  backlogItemId: string;
 }
 
 export interface PatchBacklogOptions {
   role: string;
-  taskId: string;
+  backlogItemId: string;
   complexity?: string;
   value?: string;
   priority?: string;
@@ -54,7 +54,7 @@ export interface PatchBacklogOptions {
 
 export interface ScoreBacklogOptions {
   role: string;
-  taskId: string;
+  backlogItemId: string;
   complexity?: string;
   value?: string;
   priority?: string;
@@ -62,7 +62,7 @@ export interface ScoreBacklogOptions {
 
 export interface MarkForReviewBacklogOptions {
   role: string;
-  taskId: string;
+  backlogItemId: string;
 }
 
 export interface HistoryBacklogOptions {
@@ -192,7 +192,7 @@ export async function listBacklog(
 }
 
 /**
- * Add a task to the backlog
+ * Add a backlog item
  */
 export async function addBacklog(
   chatroomId: string,
@@ -205,7 +205,7 @@ export async function addBacklog(
 
   // Validate content
   if (!options.content || options.content.trim().length === 0) {
-    console.error(`❌ Task content cannot be empty`);
+    console.error(`❌ Backlog item content cannot be empty`);
     process.exit(1);
     return;
   }
@@ -219,19 +219,19 @@ export async function addBacklog(
     });
 
     console.log('');
-    console.log('✅ Task added to backlog');
+    console.log('✅ Backlog item added');
     console.log(`   ID: ${itemId}`);
     console.log(`   Status: backlog`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to add task: ${(error as Error).message}`);
+    console.error(`❌ Failed to add backlog item: ${(error as Error).message}`);
     process.exit(1);
     return;
   }
 }
 
 /**
- * Complete a backlog task by ID.
+ * Complete a task (promoted from the backlog) by ID.
  * Use --force to complete stuck in_progress or pending tasks.
  */
 export async function completeBacklog(
@@ -243,9 +243,9 @@ export async function completeBacklog(
   const sessionId = requireAuth(d);
   validateChatroomId(chatroomId);
 
-  // Validate task ID
-  if (!options.taskId || options.taskId.trim().length === 0) {
-    console.error(`❌ Task ID is required`);
+  // Validate backlog item ID
+  if (!options.backlogItemId || options.backlogItemId.trim().length === 0) {
+    console.error(`❌ Backlog item ID is required`);
     process.exit(1);
     return;
   }
@@ -253,17 +253,17 @@ export async function completeBacklog(
   try {
     const result = await d.backend.mutation(api.tasks.completeTaskById, {
       sessionId,
-      taskId: options.taskId as Id<'chatroom_tasks'>,
+      taskId: options.backlogItemId as Id<'chatroom_tasks'>,
       force: options.force,
     });
 
     console.log('');
     if (result.wasForced) {
-      console.log('⚠️  Task force-completed (was in_progress or pending)');
+      console.log('⚠️  Backlog item force-completed (was in_progress or pending)');
     } else {
-      console.log('✅ Task completed');
+      console.log('✅ Backlog item completed');
     }
-    console.log(`   ID: ${options.taskId}`);
+    console.log(`   ID: ${options.backlogItemId}`);
 
     if (result.promoted) {
       console.log(`   📤 Next task promoted: ${result.promoted}`);
@@ -272,7 +272,7 @@ export async function completeBacklog(
     }
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to complete task: ${(error as Error).message}`);
+    console.error(`❌ Failed to complete backlog item: ${(error as Error).message}`);
     process.exit(1);
     return;
   }
@@ -290,9 +290,9 @@ export async function reopenBacklog(
   const sessionId = requireAuth(d);
   validateChatroomId(chatroomId);
 
-  // Validate task ID
-  if (!options.taskId || options.taskId.trim().length === 0) {
-    console.error(`❌ Task ID is required`);
+  // Validate backlog item ID
+  if (!options.backlogItemId || options.backlogItemId.trim().length === 0) {
+    console.error(`❌ Backlog item ID is required`);
     process.exit(1);
     return;
   }
@@ -300,18 +300,18 @@ export async function reopenBacklog(
   try {
     await d.backend.mutation(api.backlog.reopenBacklogItem, {
       sessionId,
-      itemId: options.taskId as Id<'chatroom_backlog'>,
+      itemId: options.backlogItemId as Id<'chatroom_backlog'>,
     });
 
     console.log('');
-    console.log('✅ Task reopened');
-    console.log(`   ID: ${options.taskId}`);
+    console.log('✅ Backlog item reopened');
+    console.log(`   ID: ${options.backlogItemId}`);
     console.log(`   Status: backlog`);
     console.log('');
-    console.log('💡 The task is now ready for user review again.');
+    console.log('💡 The backlog item is now ready for user review again.');
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to reopen task: ${(error as Error).message}`);
+    console.error(`❌ Failed to reopen backlog item: ${(error as Error).message}`);
     process.exit(1);
     return;
   }
@@ -330,9 +330,9 @@ export async function patchBacklog(
   const sessionId = requireAuth(d);
   validateChatroomId(chatroomId);
 
-  // Validate task ID
-  if (!options.taskId || options.taskId.trim().length === 0) {
-    console.error(`❌ Task ID is required`);
+  // Validate backlog item ID
+  if (!options.backlogItemId || options.backlogItemId.trim().length === 0) {
+    console.error(`❌ Backlog item ID is required`);
     process.exit(1);
     return;
   }
@@ -380,15 +380,15 @@ export async function patchBacklog(
   try {
     await d.backend.mutation(api.tasks.patchTask, {
       sessionId,
-      taskId: options.taskId as Id<'chatroom_tasks'>,
+      taskId: options.backlogItemId as Id<'chatroom_tasks'>,
       complexity: options.complexity as 'low' | 'medium' | 'high' | undefined,
       value: options.value as 'low' | 'medium' | 'high' | undefined,
       priority: priorityNum,
     });
 
     console.log('');
-    console.log('✅ Task updated');
-    console.log(`   ID: ${options.taskId}`);
+    console.log('✅ Backlog item updated');
+    console.log(`   ID: ${options.backlogItemId}`);
     if (options.complexity !== undefined) {
       console.log(`   Complexity: ${options.complexity}`);
     }
@@ -400,7 +400,7 @@ export async function patchBacklog(
     }
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to patch task: ${(error as Error).message}`);
+    console.error(`❌ Failed to patch backlog item: ${(error as Error).message}`);
     process.exit(1);
     return;
   }
@@ -418,9 +418,9 @@ export async function scoreBacklog(
   const sessionId = requireAuth(d);
   validateChatroomId(chatroomId);
 
-  // Validate task ID
-  if (!options.taskId || options.taskId.trim().length === 0) {
-    console.error(`❌ Task ID is required`);
+  // Validate backlog item ID
+  if (!options.backlogItemId || options.backlogItemId.trim().length === 0) {
+    console.error(`❌ Backlog item ID is required`);
     process.exit(1);
     return;
   }
@@ -433,7 +433,7 @@ export async function scoreBacklog(
   ) {
     console.error(`❌ At least one of --complexity, --value, or --priority is required`);
     console.error(
-      `   Example: chatroom backlog score --task-id=... --complexity=medium --value=high`
+      `   Example: chatroom backlog score --backlog-item-id=... --complexity=medium --value=high`
     );
     process.exit(1);
     return;
@@ -471,15 +471,15 @@ export async function scoreBacklog(
   try {
     await d.backend.mutation(api.tasks.patchTask, {
       sessionId,
-      taskId: options.taskId as Id<'chatroom_tasks'>,
+      taskId: options.backlogItemId as Id<'chatroom_tasks'>,
       complexity: options.complexity as 'low' | 'medium' | 'high' | undefined,
       value: options.value as 'low' | 'medium' | 'high' | undefined,
       priority: priorityNum,
     });
 
     console.log('');
-    console.log('✅ Task scored');
-    console.log(`   ID: ${options.taskId}`);
+    console.log('✅ Backlog item scored');
+    console.log(`   ID: ${options.backlogItemId}`);
     if (options.complexity !== undefined) {
       console.log(`   Complexity: ${options.complexity}`);
     }
@@ -491,7 +491,7 @@ export async function scoreBacklog(
     }
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to score task: ${(error as Error).message}`);
+    console.error(`❌ Failed to score backlog item: ${(error as Error).message}`);
     process.exit(1);
     return;
   }
@@ -509,9 +509,9 @@ export async function markForReviewBacklog(
   const sessionId = requireAuth(d);
   validateChatroomId(chatroomId);
 
-  // Validate task ID
-  if (!options.taskId || options.taskId.trim().length === 0) {
-    console.error(`❌ Task ID is required`);
+  // Validate backlog item ID
+  if (!options.backlogItemId || options.backlogItemId.trim().length === 0) {
+    console.error(`❌ Backlog item ID is required`);
     process.exit(1);
     return;
   }
@@ -519,20 +519,20 @@ export async function markForReviewBacklog(
   try {
     await d.backend.mutation(api.backlog.markBacklogItemForReview, {
       sessionId,
-      itemId: options.taskId as Id<'chatroom_backlog'>,
+      itemId: options.backlogItemId as Id<'chatroom_backlog'>,
     });
 
     console.log('');
-    console.log('✅ Task marked for review');
-    console.log(`   ID: ${options.taskId}`);
+    console.log('✅ Backlog item marked for review');
+    console.log(`   ID: ${options.backlogItemId}`);
     console.log(`   Status: pending_user_review`);
     console.log('');
     console.log(
-      '💡 The task is now visible in the "Pending Review" section for user confirmation.'
+      '💡 The backlog item is now visible in the "Pending Review" section for user confirmation.'
     );
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to mark task for review: ${(error as Error).message}`);
+    console.error(`❌ Failed to mark backlog item for review: ${(error as Error).message}`);
     process.exit(1);
     return;
   }
