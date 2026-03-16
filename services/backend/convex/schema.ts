@@ -441,7 +441,7 @@ export default defineSchema({
     // Determines which workflow/state machine applies to this task
     origin: v.optional(
       v.union(
-        v.literal('backlog'), // Created in backlog tab
+        v.literal('backlog'), // @deprecated — all backlog items are now in chatroom_backlog table
         v.literal('chat') // Created from chat message
       )
     ),
@@ -449,15 +449,15 @@ export default defineSchema({
     // Status tracking
     // Note: available statuses depend on origin (see workflows above)
     status: v.union(
-      v.literal('backlog'), // Backlog origin: initial state, task is in backlog tab
+      v.literal('backlog'), // @deprecated — no backlog-origin tasks exist in production; use chatroom_backlog table
       v.literal('pending'), // Ready for agent to pick up
       v.literal('acknowledged'), // Agent claimed task via get-next-task, not yet started
       v.literal('in_progress'), // Agent actively working on it
-      v.literal('pending_user_review'), // Backlog only: agent done, user must confirm
+      v.literal('pending_user_review'), // @deprecated for chatroom_tasks — this status was only used by origin:'backlog' tasks. No records exist with this status; kept for schema compatibility.
       v.literal('completed'), // Finished successfully
-      v.literal('closed'), // Backlog only: user closed without completing
+      v.literal('closed'), // @deprecated for chatroom_tasks — only used by origin:'backlog' tasks. No records should have this status; kept for schema compatibility.
       // DEPRECATED: Remove after running migration.migrateBacklogAcknowledgedToBacklog
-      v.literal('backlog_acknowledged')
+      v.literal('backlog_acknowledged') // @deprecated — was transitional status, migrated via migrateBacklogAcknowledgedToBacklog
     ),
 
     // Assignment
@@ -467,7 +467,9 @@ export default defineSchema({
     sourceMessageId: v.optional(v.id('chatroom_messages')),
 
     // Backlog attachment tracking (bidirectional)
+    // @deprecated — backlog-specific field; use chatroom_backlog references instead
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Backlog tasks attached to this task
+    // @deprecated — backlog-specific field
     parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Tasks this backlog item is attached to
 
     // Timestamps
@@ -534,7 +536,7 @@ export default defineSchema({
 
     // Legacy reference — set during migration from chatroom_tasks
     // Used to remap attachedTaskIds/parentTaskIds in messages and tasks
-    // Can be removed after Phase 3 reference migration completes
+    // @deprecated — migration reference from Phase 1; can be removed after Phase 5 (reference cleanup)
     legacyTaskId: v.optional(v.id('chatroom_tasks')),
   })
     .index('by_chatroom', ['chatroomId'])
