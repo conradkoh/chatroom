@@ -14,11 +14,15 @@ import {
 } from '@/components/ui/fixed-modal';
 
 import { compactMarkdownComponents } from './markdown-utils';
+import { getScoringBadge } from './backlog-utils';
 
 interface AttachedBacklogItemChipProps {
   itemId: Id<'chatroom_backlog'>;
   content: string;
   onRemove: () => void;
+  complexity?: 'low' | 'medium' | 'high';
+  value?: 'low' | 'medium' | 'high';
+  priority?: number;
 }
 
 /**
@@ -42,7 +46,7 @@ function stripMarkdownHeading(line: string): string {
  * Click the chip label to open a centered modal showing the full content.
  * Renders minimal markdown in the chip; full markdown in the modal.
  */
-export function AttachedBacklogItemChip({ content, onRemove }: AttachedBacklogItemChipProps) {
+export function AttachedBacklogItemChip({ content, onRemove, complexity, value, priority }: AttachedBacklogItemChipProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   // Get first non-empty line for chip label, stripping markdown heading syntax
@@ -86,6 +90,26 @@ export function AttachedBacklogItemChip({ content, onRemove }: AttachedBacklogIt
             <div className="flex items-center gap-2">
               <ListChecks size={14} className="text-chatroom-text-muted" />
               <FixedModalTitle>Backlog Item</FixedModalTitle>
+              {/* Scoring Badges */}
+              {priority !== undefined && (
+                <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
+                  P:{priority}
+                </span>
+              )}
+              {complexity && (
+                <span
+                  className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', complexity).classes}`}
+                >
+                  {getScoringBadge('complexity', complexity).label}
+                </span>
+              )}
+              {value && (
+                <span
+                  className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', value).classes}`}
+                >
+                  {getScoringBadge('value', value).label}
+                </span>
+              )}
             </div>
           </FixedModalHeader>
           <FixedModalBody>
