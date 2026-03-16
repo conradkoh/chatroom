@@ -183,9 +183,10 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   }) as Task[] | undefined;
 
   // Query backlog items from the dedicated chatroom_backlog table
+  // Only fetch items with status 'backlog' (excludes 'pending_user_review' items shown in the Pending Review section)
   const backlogItemsRaw = useSessionQuery(api.backlog.listBacklogItems, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    statusFilter: 'active',
+    statusFilter: 'backlog',
     limit: 100,
   });
   const backlogItems = (backlogItemsRaw ?? []) as BacklogItem[];
@@ -199,10 +200,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   // A promotion is needed when: no active task, there are queued tasks, and all agents are waiting
   const needsPromotion = useMemo(() => {
     if (!counts) return false;
-    const hasActiveTask =
-      counts.pending > 0 ||
-      counts.acknowledged > 0 ||
-      counts.in_progress > 0;
+    const hasActiveTask = counts.pending > 0 || counts.acknowledged > 0 || counts.in_progress > 0;
     const hasQueuedTasks = counts.queued > 0;
     if (!hasActiveTask && hasQueuedTasks) {
       // Check if all agents are waiting (lastSeenAction === 'get-next-task:started')
@@ -244,14 +242,13 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
 
   // Categorize tasks by status
   const categorizedTasks = useMemo(() => {
+    // Sort backlog items by updatedAt descending (most recently updated first)
+    const sortedBacklog = [...backlogItems].sort((a, b) => b.updatedAt - a.updatedAt);
     return {
       current: (tasks ?? []).filter(
-        (t) =>
-          t.status === 'pending' ||
-          t.status === 'acknowledged' ||
-          t.status === 'in_progress'
+        (t) => t.status === 'pending' || t.status === 'acknowledged' || t.status === 'in_progress'
       ),
-      backlog: backlogItems,
+      backlog: sortedBacklog,
     };
   }, [tasks, backlogItems]);
 
@@ -337,9 +334,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
     if (!categorizedTasks.current) return;
 
     // Filter for acknowledged tasks
-    const acknowledgedTasks = categorizedTasks.current.filter(
-      (t) => t.status === 'acknowledged'
-    );
+    const acknowledgedTasks = categorizedTasks.current.filter((t) => t.status === 'acknowledged');
 
     if (acknowledgedTasks.length === 0) {
       console.log('No acknowledged tasks to close');
@@ -365,11 +360,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   const activeTotal = useMemo(() => {
     if (!counts) return 0;
     return (
-      counts.pending +
-      counts.acknowledged +
-      counts.in_progress +
-      counts.queued +
-      counts.backlog
+      counts.pending + counts.acknowledged + counts.in_progress + counts.queued + counts.backlog
     );
   }, [counts]);
 
@@ -464,7 +455,10 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
           <div className="border-b border-chatroom-border">
             <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center gap-2">
               <ClipboardCheck size={12} className="text-violet-500 dark:text-violet-400" />
-              <span>Pending Review ({filteredPendingReviewTasks.length + pendingReviewBacklogItems.length})</span>
+              <span>
+                Pending Review (
+                {filteredPendingReviewTasks.length + pendingReviewBacklogItems.length})
+              </span>
             </div>
             {/* Show task pending review items first, then backlog pending review items */}
             {filteredPendingReviewTasks.slice(0, PENDING_REVIEW_PREVIEW_LIMIT).map((task) => (
@@ -485,9 +479,14 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
                   />
                 ))}
             {/* Show "View More" button when there are more items in total */}
-            {filteredPendingReviewTasks.length + pendingReviewBacklogItems.length > PENDING_REVIEW_PREVIEW_LIMIT && (
+            {filteredPendingReviewTasks.length + pendingReviewBacklogItems.length >
+              PENDING_REVIEW_PREVIEW_LIMIT && (
               <ViewMoreButton
-                count={filteredPendingReviewTasks.length + pendingReviewBacklogItems.length - PENDING_REVIEW_PREVIEW_LIMIT}
+                count={
+                  filteredPendingReviewTasks.length +
+                  pendingReviewBacklogItems.length -
+                  PENDING_REVIEW_PREVIEW_LIMIT
+                }
                 onClick={() => setIsPendingReviewModalOpen(true)}
               />
             )}
@@ -525,7 +524,9 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
           )}
 
           {categorizedTasks.backlog.length === 0 && (
-            <div className="p-3 text-center text-chatroom-text-muted text-xs">No active backlog items</div>
+            <div className="p-3 text-center text-chatroom-text-muted text-xs">
+              No active backlog items
+            </div>
           )}
         </div>
         {/* End of Backlog Tasks */}
@@ -618,12 +619,7 @@ interface TaskItemProps {
   onClick?: () => void;
 }
 
-function TaskItem({
-  task,
-  isProtected = false,
-  onDelete,
-  onClick,
-}: TaskItemProps) {
+function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskItemProps) {
   const badge = getStatusBadge(task.status);
 
   const isClickable = !!onClick;
@@ -854,7 +850,13 @@ interface PendingReviewModalProps {
   onBacklogItemClick: (item: BacklogItem) => void;
 }
 
-function PendingReviewModal({ tasks, backlogItems, onClose, onTaskClick, onBacklogItemClick }: PendingReviewModalProps) {
+function PendingReviewModal({
+  tasks,
+  backlogItems,
+  onClose,
+  onTaskClick,
+  onBacklogItemClick,
+}: PendingReviewModalProps) {
   // Handle Escape key
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
