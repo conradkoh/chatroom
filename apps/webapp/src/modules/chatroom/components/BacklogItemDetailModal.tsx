@@ -275,11 +275,12 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
               {item.status === 'backlog' && (
                 <button
                   type="button"
-                  onClick={() => handleMutation(() => markForReview({ itemId: item._id }))}
-                  disabled={isLoading}
-                  className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-violet-500 text-violet-500 dark:border-violet-400 dark:text-violet-400 hover:bg-violet-500 hover:text-white dark:hover:bg-violet-400 dark:hover:text-white transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleAttach}
+                  disabled={isAttachedToContext || isLoading}
+                  className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-transparent bg-chatroom-accent text-chatroom-bg-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isLoading ? 'Working...' : 'Mark for Review'}
+                  <Check size={12} className={isAttachedToContext ? 'opacity-100' : 'opacity-0'} />
+                  {isAttachedToContext ? 'Attached ✓' : 'Attach to Context'}
                 </button>
               )}
 
@@ -292,7 +293,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                     className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-status-success text-chatroom-status-success hover:bg-chatroom-status-success hover:text-chatroom-bg-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Check size={12} />
-                    {isLoading ? 'Working...' : 'Complete'}
+                    {isLoading ? 'Working...' : 'Mark Complete'}
                   </button>
                   <button
                     type="button"
@@ -340,6 +341,18 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                     <Pencil size={14} />
                     Edit
                   </DropdownMenuItem>
+
+                  {/* Mark for Review — only for backlog status */}
+                  {item.status === 'backlog' && (
+                    <DropdownMenuItem
+                      onClick={() => handleMutation(() => markForReview({ itemId: item._id }))}
+                      disabled={isLoading}
+                      className="flex items-center gap-2 cursor-pointer text-violet-500 dark:text-violet-400"
+                    >
+                      <Check size={14} />
+                      Mark for Review
+                    </DropdownMenuItem>
+                  )}
 
                   {/* Attach to Context */}
                   <DropdownMenuItem
