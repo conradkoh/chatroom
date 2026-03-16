@@ -231,7 +231,7 @@ export async function addBacklog(
 }
 
 /**
- * Complete a task (promoted from the backlog) by ID.
+ * Complete a backlog item by ID.
  * Use --force to complete stuck in_progress or pending tasks.
  */
 export async function completeBacklog(
@@ -279,7 +279,7 @@ export async function completeBacklog(
 }
 
 /**
- * Reopen a completed backlog task, returning it to pending_user_review status.
+ * Reopen a closed backlog item, returning it to backlog status.
  */
 export async function reopenBacklog(
   chatroomId: string,
@@ -318,7 +318,7 @@ export async function reopenBacklog(
 }
 
 /**
- * Patch a task's scoring fields (complexity, value, priority).
+ * Patch a backlog item's scoring fields (complexity, value, priority).
  * Idempotent - can be called multiple times with same or different values.
  */
 export async function patchBacklog(
@@ -407,7 +407,7 @@ export async function patchBacklog(
 }
 
 /**
- * Score a backlog task by complexity, value, and priority.
+ * Score a backlog item by complexity, value, and priority.
  */
 export async function scoreBacklog(
   chatroomId: string,
@@ -498,7 +498,7 @@ export async function scoreBacklog(
 }
 
 /**
- * Mark a backlog task as ready for user review.
+ * Mark a backlog item as ready for user review.
  */
 export async function markForReviewBacklog(
   chatroomId: string,

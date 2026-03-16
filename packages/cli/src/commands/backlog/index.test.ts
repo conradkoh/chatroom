@@ -80,37 +80,26 @@ describe('listBacklog', () => {
     expect(getAllErrorOutput()).toContain('Not authenticated');
   });
 
-  it('lists tasks successfully', async () => {
+  it('lists backlog items successfully', async () => {
     const deps = createMockDeps();
-    const mockCounts = {
-      pending: 2,
-      in_progress: 1,
-      queued: 0,
-      backlog: 3,
-      pending_user_review: 0,
-      completed: 5,
-      closed: 0,
-    };
-    const mockTasks = [
+    const mockItems = [
       {
-        _id: 'task1',
-        content: 'Test task',
+        _id: 'item1',
+        content: 'Test backlog item',
         status: 'backlog',
         createdAt: Date.now(),
         assignedTo: null,
       },
     ];
 
-    (deps.backend.query as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce(mockCounts) // getTaskCounts
-      .mockResolvedValueOnce(mockTasks); // listTasks
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockItems);
 
     await listBacklog(TEST_CHATROOM_ID, { role: 'planner' }, deps);
 
     expect(exitSpy).not.toHaveBeenCalled();
     const output = getAllLogOutput();
-    expect(output).toContain('TASK QUEUE');
-    expect(output).toContain('Test task');
+    expect(output).toContain('ACTIVE BACKLOG');
+    expect(output).toContain('Test backlog item');
   });
 
   it('exits with code 1 when query fails', async () => {
@@ -122,24 +111,20 @@ describe('listBacklog', () => {
     await listBacklog(TEST_CHATROOM_ID, { role: 'planner' }, deps);
 
     expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(getAllErrorOutput()).toContain('Failed to list tasks');
+    expect(getAllErrorOutput()).toContain('Failed to list backlog items');
   });
 });
 
 describe('addBacklog', () => {
-  it('adds a task to the backlog', async () => {
+  it('adds a backlog item', async () => {
     const deps = createMockDeps();
-    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
-      taskId: 'new-task-id',
-      status: 'backlog',
-      queuePosition: 4,
-    });
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue('new-item-id');
 
-    await addBacklog(TEST_CHATROOM_ID, { role: 'planner', content: 'New task' }, deps);
+    await addBacklog(TEST_CHATROOM_ID, { role: 'planner', content: 'New backlog item' }, deps);
 
     expect(exitSpy).not.toHaveBeenCalled();
     expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
-    expect(getAllLogOutput()).toContain('Task added to backlog');
+    expect(getAllLogOutput()).toContain('Backlog item added');
   });
 
   it('exits with code 1 when content is empty', async () => {
@@ -148,22 +133,22 @@ describe('addBacklog', () => {
     await addBacklog(TEST_CHATROOM_ID, { role: 'planner', content: '' }, deps);
 
     expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(getAllErrorOutput()).toContain('Task content cannot be empty');
+    expect(getAllErrorOutput()).toContain('Backlog item content cannot be empty');
   });
 });
 
 describe('completeBacklog', () => {
-  it('completes a task', async () => {
+  it('completes a backlog item', async () => {
     const deps = createMockDeps();
     (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue({
       wasForced: false,
       promoted: null,
     });
 
-    await completeBacklog(TEST_CHATROOM_ID, { role: 'planner', taskId: TEST_TASK_ID }, deps);
+    await completeBacklog(TEST_CHATROOM_ID, { role: 'planner', backlogItemId: TEST_TASK_ID }, deps);
 
     expect(exitSpy).not.toHaveBeenCalled();
-    expect(getAllLogOutput()).toContain('Task completed');
+    expect(getAllLogOutput()).toContain('Backlog item completed');
   });
 
   it('shows promoted task when present', async () => {
@@ -173,7 +158,7 @@ describe('completeBacklog', () => {
       promoted: 'next-task-id',
     });
 
-    await completeBacklog(TEST_CHATROOM_ID, { role: 'planner', taskId: TEST_TASK_ID }, deps);
+    await completeBacklog(TEST_CHATROOM_ID, { role: 'planner', backlogItemId: TEST_TASK_ID }, deps);
 
     expect(exitSpy).not.toHaveBeenCalled();
     expect(getAllLogOutput()).toContain('Next task promoted');

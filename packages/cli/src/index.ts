@@ -346,7 +346,7 @@ backlogCommand
 
 backlogCommand
   .command('add')
-  .description('Add a task to the backlog')
+  .description('Add a backlog item')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role (creator)')
   .requiredOption('--content-file <path>', 'Path to file containing task content')
@@ -376,13 +376,13 @@ backlogCommand
 
 backlogCommand
   .command('complete')
-  .description('Mark a task as complete. Use --force for stuck in_progress/pending tasks.')
+  .description('Mark a backlog item as complete. Use --force for stuck in_progress/pending tasks.')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--task-id <taskId>', 'Task ID to complete')
+  .requiredOption('--backlog-item-id <id>', 'Backlog item ID to complete')
   .option('-f, --force', 'Force complete a stuck in_progress or pending task')
   .action(
-    async (options: { chatroomId: string; role: string; taskId: string; force?: boolean }) => {
+    async (options: { chatroomId: string; role: string; backlogItemId: string; force?: boolean }) => {
       await maybeRequireAuth();
       const { completeBacklog } = await import('./commands/backlog/index.js');
       await completeBacklog(options.chatroomId, options);
@@ -391,11 +391,11 @@ backlogCommand
 
 backlogCommand
   .command('reopen')
-  .description('Reopen a completed backlog task, returning it to pending_user_review status.')
+  .description('Reopen a closed backlog item, returning it to backlog status.')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--task-id <taskId>', 'Task ID to reopen')
-  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
+  .requiredOption('--backlog-item-id <id>', 'Backlog item ID to reopen')
+  .action(async (options: { chatroomId: string; role: string; backlogItemId: string }) => {
     await maybeRequireAuth();
     const { reopenBacklog } = await import('./commands/backlog/index.js');
     await reopenBacklog(options.chatroomId, options);
@@ -403,10 +403,10 @@ backlogCommand
 
 backlogCommand
   .command('score')
-  .description('Score a backlog task by complexity, value, and priority')
+  .description('Score a backlog item by complexity, value, and priority')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--task-id <taskId>', 'Task ID to score')
+  .requiredOption('--backlog-item-id <id>', 'Backlog item ID to score')
   .option('--complexity <level>', 'Complexity level: low, medium, high')
   .option('--value <level>', 'Value level: low, medium, high')
   .option('--priority <n>', 'Priority number (higher = more important)')
@@ -414,7 +414,7 @@ backlogCommand
     async (options: {
       chatroomId: string;
       role: string;
-      taskId: string;
+      backlogItemId: string;
       complexity?: string;
       value?: string;
       priority?: string;
@@ -427,11 +427,11 @@ backlogCommand
 
 backlogCommand
   .command('mark-for-review')
-  .description('Mark a backlog task as ready for user review (backlog → pending_user_review)')
+  .description('Mark a backlog item as ready for user review (backlog → pending_user_review)')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--task-id <taskId>', 'Task ID to mark for review')
-  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
+  .requiredOption('--backlog-item-id <id>', 'Backlog item ID to mark for review')
+  .action(async (options: { chatroomId: string; role: string; backlogItemId: string }) => {
     await maybeRequireAuth();
     const { markForReviewBacklog } = await import('./commands/backlog/index.js');
     await markForReviewBacklog(options.chatroomId, options);
