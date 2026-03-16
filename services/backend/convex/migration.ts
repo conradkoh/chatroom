@@ -517,6 +517,46 @@ export const deduplicateTeamAgentConfigs = internalMutation({
 });
 
 /**
+ * Migration: Convert backlog_acknowledged task status to backlog.
+ *
+ * The 'backlog_acknowledged' status was removed from the schema. Existing
+ * documents with this status must be updated to 'backlog' (their logical
+ * equivalent — still in the backlog, awaiting pickup).
+ *
+ * After running this migration in production:
+ *   1. In schema.ts — remove v.literal('backlog_acknowledged') from
+ *      chatroom_tasks.status union (and the DEPRECATED comment).
+ *   2. Remove this migration (move description to the "Previously executed" list above).
+ *
+ * Idempotent: documents already in 'backlog' status are skipped.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.migrateBacklogAcknowledgedToBacklog
+ */
+export const migrateBacklogAcknowledgedToBacklog = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    // Can't filter by removed status via index — full table scan needed
+    const allTasks = await ctx.db.query('chatroom_tasks').collect();
+
+    let migrated = 0;
+    let skipped = 0;
+
+    for (const task of allTasks) {
+      const raw = task as Record<string, unknown>;
+      if (raw.status === 'backlog_acknowledged') {
+        await ctx.db.patch(task._id, { status: 'backlog' } as never);
+        migrated++;
+      } else {
+        skipped++;
+      }
+    }
+
+    return { migrated, skipped, total: allTasks.length };
+  },
+});
+
+/**
  * Migration: Purge all rows from chatroom_workspaceCommitDetail.
  *
  * Required before deploying the schema change that adds the `status` discriminated union.

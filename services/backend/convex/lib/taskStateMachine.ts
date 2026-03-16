@@ -22,7 +22,10 @@ export type TaskStatus =
   | 'pending_user_review' // Agent done, awaiting user confirmation
 
   // Common
-  | 'closed'; // Cancelled
+  | 'closed' // Cancelled
+
+  // DEPRECATED: Remove after running migration.migrateBacklogAcknowledgedToBacklog
+  | 'backlog_acknowledged';
 
 export type Task = Doc<'chatroom_tasks'>;
 

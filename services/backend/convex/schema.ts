@@ -452,7 +452,9 @@ export default defineSchema({
       v.literal('in_progress'), // Agent actively working on it
       v.literal('pending_user_review'), // Backlog only: agent done, user must confirm
       v.literal('completed'), // Finished successfully
-      v.literal('closed') // Backlog only: user closed without completing
+      v.literal('closed'), // Backlog only: user closed without completing
+      // DEPRECATED: Remove after running migration.migrateBacklogAcknowledgedToBacklog
+      v.literal('backlog_acknowledged')
     ),
 
     // Assignment
