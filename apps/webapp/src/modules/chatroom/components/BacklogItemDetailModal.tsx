@@ -351,10 +351,18 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                     {isAttachedToContext ? 'Attached' : 'Attach to Context'}
                   </DropdownMenuItem>
 
-                  {/* Close — only for non-closed statuses */}
+                  {/* Mark as Complete + Close — only for non-closed statuses */}
                   {item.status !== 'closed' && (
                     <>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => handleMutation(() => completeItem({ itemId: item._id }))}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <Check size={14} />
+                        Mark as Complete
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => handleMutation(() => closeItem({ itemId: item._id }))}
                         disabled={isLoading}
