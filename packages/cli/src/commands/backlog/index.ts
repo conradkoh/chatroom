@@ -70,7 +70,7 @@ export interface HistoryBacklogOptions {
   role: string;
   from?: string; // ISO date string e.g. "2026-03-01"
   to?: string;   // ISO date string e.g. "2026-03-16"
-  status?: 'completed' | 'closed'; // filter by status (default: both)
+  // status removed - always shows both completed and closed
   limit?: number;
 }
 
@@ -147,6 +147,14 @@ export async function listBacklog(
       limit,
     });
 
+    // Get backlog items from the dedicated chatroom_backlog table
+    const backlogItems = await d.backend.query(api.backlog.listBacklogItems, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      statusFilter: 'active',
+      limit,
+    });
+
     // Display header
     console.log('');
     console.log('══════════════════════════════════════════════════');
@@ -204,6 +212,40 @@ export async function listBacklog(
       }
     }
 
+    // Display backlog items
+    if (backlogItems.length > 0) {
+      console.log('──────────────────────────────────────────────────');
+      console.log('📋 BACKLOG ITEMS');
+      console.log('──────────────────────────────────────────────────');
+
+      for (let i = 0; i < backlogItems.length; i++) {
+        const item = backlogItems[i]!;
+        const statusEmoji = getStatusEmoji(item.status as BacklogItemStatus);
+        const date = new Date(item.createdAt).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+
+        console.log(`#${i + 1} [${statusEmoji} ${item.status.toUpperCase()}] ${item.content}`);
+        console.log(`   ID: ${item._id}`);
+        console.log(
+          `   Created: ${date}${item.assignedTo ? ` | Assigned: ${item.assignedTo}` : ''}`
+        );
+        // Show scoring info if available
+        if (item.complexity !== undefined || item.value !== undefined || item.priority !== undefined) {
+          const parts: string[] = [];
+          if (item.complexity) parts.push(`complexity=${item.complexity}`);
+          if (item.value) parts.push(`value=${item.value}`);
+          if (item.priority !== undefined) parts.push(`priority=${item.priority}`);
+          console.log(`   Score: ${parts.join(' | ')}`);
+        }
+        console.log('');
+      }
+    }
+
     console.log('──────────────────────────────────────────────────');
     const totalForFilter =
       counts.pending +
@@ -218,6 +260,9 @@ export async function listBacklog(
       );
     } else {
       console.log(`Showing ${tasks.length} task(s)`);
+    }
+    if (backlogItems.length > 0) {
+      console.log(`Showing ${backlogItems.length} backlog item(s)`);
     }
     console.log('');
   } catch (error) {
@@ -614,20 +659,12 @@ export async function historyBacklog(
     toMs = parsed + 86399999;
   }
 
-  // Validate status filter
-  if (options.status && !['completed', 'closed'].includes(options.status)) {
-    console.error(`❌ Invalid --status: "${options.status}". Must be one of: completed, closed`);
-    process.exit(1);
-    return;
-  }
-
   try {
     const tasks = await d.backend.query(api.tasks.listHistoricalTasks, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       from: fromMs,
       to: toMs,
-      status: options.status,
       limit: options.limit,
     });
 
@@ -649,11 +686,7 @@ export async function historyBacklog(
     console.log('══════════════════════════════════════════════════');
     console.log(`Chatroom: ${chatroomId}`);
     console.log(`Date range: ${fromDate} → ${toDate}`);
-    if (options.status) {
-      console.log(`Filter: ${options.status}`);
-    } else {
-      console.log(`Filter: completed + closed`);
-    }
+    console.log(`Filter: completed + closed`);
     console.log('');
 
     if (tasks.length === 0) {

@@ -442,21 +442,19 @@ backlogCommand
 
 backlogCommand
   .command('history')
-  .description('View completed and closed backlog items by date range')
+  .description('View completed and closed backlog items by date range (all statuses)')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .option('--from <date>', 'Start date (YYYY-MM-DD), defaults to 30 days ago')
   .option('--to <date>', 'End date (YYYY-MM-DD), defaults to today')
-  .option('--status <status>', 'Filter by status (completed|closed), defaults to all')
   .option('--limit <n>', 'Maximum number of items to show')
-  .action(async (options: { chatroomId: string; role: string; from?: string; to?: string; status?: string; limit?: string }) => {
+  .action(async (options: { chatroomId: string; role: string; from?: string; to?: string; limit?: string }) => {
     await maybeRequireAuth();
     const { historyBacklog } = await import('./commands/backlog/index.js');
     await historyBacklog(options.chatroomId, {
       role: options.role,
       from: options.from,
       to: options.to,
-      status: options.status as 'completed' | 'closed' | undefined,
       limit: options.limit ? parseInt(options.limit, 10) : undefined,
     });
   });
