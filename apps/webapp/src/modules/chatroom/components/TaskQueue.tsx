@@ -975,6 +975,31 @@ function PendingReviewBacklogItem({ item, onClick }: PendingReviewBacklogItemPro
         Review
       </span>
 
+      {/* Scoring badges */}
+      {(item.complexity || item.value || item.priority !== undefined) && (
+        <div className="flex-shrink-0 flex items-center gap-1">
+          {item.priority !== undefined && (
+            <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
+              P:{item.priority}
+            </span>
+          )}
+          {item.complexity && (
+            <span
+              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', item.complexity).classes}`}
+            >
+              {getScoringBadge('complexity', item.complexity).label}
+            </span>
+          )}
+          {item.value && (
+            <span
+              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', item.value).classes}`}
+            >
+              {getScoringBadge('value', item.value).label}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Content - 2 lines max */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
         <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
@@ -1020,6 +1045,31 @@ function PendingReviewBacklogModalItem({ item, onClick }: PendingReviewBacklogMo
       <span className="flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400">
         Review
       </span>
+
+      {/* Scoring badges */}
+      {(item.complexity || item.value || item.priority !== undefined) && (
+        <div className="flex-shrink-0 flex items-center gap-1">
+          {item.priority !== undefined && (
+            <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
+              P:{item.priority}
+            </span>
+          )}
+          {item.complexity && (
+            <span
+              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', item.complexity).classes}`}
+            >
+              {getScoringBadge('complexity', item.complexity).label}
+            </span>
+          )}
+          {item.value && (
+            <span
+              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', item.value).classes}`}
+            >
+              {getScoringBadge('value', item.value).label}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Content - with markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
