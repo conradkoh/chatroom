@@ -388,7 +388,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                         className="flex items-center gap-2 cursor-pointer text-chatroom-status-error"
                       >
                         <X size={14} />
-                        Close
+                        Mark as Closed
                       </DropdownMenuItem>
                     </>
                   )}
