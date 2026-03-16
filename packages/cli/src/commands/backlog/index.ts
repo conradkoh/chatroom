@@ -246,19 +246,17 @@ export async function addBacklog(
   }
 
   try {
-    const result = await d.backend.mutation(api.tasks.createTask, {
+    const itemId = await d.backend.mutation(api.backlog.createBacklogItem, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       content: options.content.trim(),
       createdBy: options.role,
-      isBacklog: true,
     });
 
     console.log('');
     console.log('✅ Task added to backlog');
-    console.log(`   ID: ${result.taskId}`);
-    console.log(`   Status: ${result.status}`);
-    console.log(`   Position: ${result.queuePosition}`);
+    console.log(`   ID: ${itemId}`);
+    console.log(`   Status: backlog`);
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to add task: ${(error as Error).message}`);
@@ -335,15 +333,15 @@ export async function reopenBacklog(
   }
 
   try {
-    await d.backend.mutation(api.tasks.reopenBacklogTask, {
+    await d.backend.mutation(api.backlog.reopenBacklogItem, {
       sessionId,
-      taskId: options.taskId as Id<'chatroom_tasks'>,
+      itemId: options.taskId as Id<'chatroom_backlog'>,
     });
 
     console.log('');
     console.log('✅ Task reopened');
     console.log(`   ID: ${options.taskId}`);
-    console.log(`   Status: pending_user_review`);
+    console.log(`   Status: backlog`);
     console.log('');
     console.log('💡 The task is now ready for user review again.');
     console.log('');
@@ -554,9 +552,9 @@ export async function markForReviewBacklog(
   }
 
   try {
-    await d.backend.mutation(api.tasks.markBacklogForReview, {
+    await d.backend.mutation(api.backlog.markBacklogItemForReview, {
       sessionId,
-      taskId: options.taskId as Id<'chatroom_tasks'>,
+      itemId: options.taskId as Id<'chatroom_backlog'>,
     });
 
     console.log('');
