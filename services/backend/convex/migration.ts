@@ -667,3 +667,113 @@ export const migrateBacklogItemsToBacklogTable = internalMutation({
     return { migrated, skipped, deleted, total: allTasks.length };
   },
 });
+
+/**
+ * Migration: Remap legacy chatroom_tasks IDs in messages to chatroom_backlog IDs.
+ *
+ * When backlog items were migrated from chatroom_tasks to chatroom_backlog
+ * (via migrateBacklogItemsToBacklogTable), the legacyTaskId field was set
+ * to preserve the old ID for reference remapping.
+ *
+ * This migration finds all chatroom_messages and chatroom_messageQueue records
+ * that still reference the old chatroom_tasks IDs in their attachedTaskIds field,
+ * and moves those references to attachedBacklogItemIds (pointing to the new
+ * chatroom_backlog records).
+ *
+ * Idempotent: records already updated (legacyTaskId no longer in attachedTaskIds)
+ * are skipped.
+ *
+ * After running this migration in production:
+ *   1. Move this description to "Previously executed migrations" list.
+ *   2. legacyTaskId can then be safely removed from chatroom_backlog schema.
+ *   3. Remove deprecated attachedTaskIds and parentTaskIds from chatroom_tasks.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.remapBacklogTaskIdsInMessages
+ */
+export const remapBacklogTaskIdsInMessages = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    // Get all backlog items that have a legacyTaskId
+    const backlogItems = await ctx.db
+      .query('chatroom_backlog')
+      .collect();
+
+    const legacyItems = backlogItems.filter((item) => item.legacyTaskId != null);
+
+    // Build a map: oldTaskId (string) → newBacklogId
+    const legacyToNew = new Map(
+      legacyItems.map((item) => [item.legacyTaskId!.toString(), item._id])
+    );
+
+    let updatedMessages = 0;
+    let updatedQueueItems = 0;
+
+    // Process chatroom_messages
+    const messages = await ctx.db.query('chatroom_messages').collect();
+    for (const msg of messages) {
+      if (!msg.attachedTaskIds || msg.attachedTaskIds.length === 0) continue;
+
+      const remainingTaskIds: typeof msg.attachedTaskIds = [];
+      const newBacklogIds: typeof msg.attachedBacklogItemIds = [...(msg.attachedBacklogItemIds ?? [])];
+      let changed = false;
+
+      for (const taskId of msg.attachedTaskIds) {
+        const newId = legacyToNew.get(taskId.toString());
+        if (newId) {
+          // Don't add duplicates
+          if (!newBacklogIds.find((id) => id === newId)) {
+            newBacklogIds.push(newId);
+          }
+          changed = true;
+        } else {
+          remainingTaskIds.push(taskId);
+        }
+      }
+
+      if (changed) {
+        await ctx.db.patch(msg._id, {
+          attachedTaskIds: remainingTaskIds.length > 0 ? remainingTaskIds : undefined,
+          attachedBacklogItemIds: newBacklogIds.length > 0 ? newBacklogIds : undefined,
+        });
+        updatedMessages++;
+      }
+    }
+
+    // Process chatroom_messageQueue (same logic)
+    const queueItems = await ctx.db.query('chatroom_messageQueue').collect();
+    for (const item of queueItems) {
+      if (!item.attachedTaskIds || item.attachedTaskIds.length === 0) continue;
+
+      const remainingTaskIds: typeof item.attachedTaskIds = [];
+      const newBacklogIds: typeof item.attachedBacklogItemIds = [...(item.attachedBacklogItemIds ?? [])];
+      let changed = false;
+
+      for (const taskId of item.attachedTaskIds) {
+        const newId = legacyToNew.get(taskId.toString());
+        if (newId) {
+          if (!newBacklogIds.find((id) => id === newId)) {
+            newBacklogIds.push(newId);
+          }
+          changed = true;
+        } else {
+          remainingTaskIds.push(taskId);
+        }
+      }
+
+      if (changed) {
+        await ctx.db.patch(item._id, {
+          attachedTaskIds: remainingTaskIds.length > 0 ? remainingTaskIds : undefined,
+          attachedBacklogItemIds: newBacklogIds.length > 0 ? newBacklogIds : undefined,
+        });
+        updatedQueueItems++;
+      }
+    }
+
+    return {
+      legacyMappings: legacyItems.length,
+      updatedMessages,
+      updatedQueueItems,
+    };
+  },
+});
