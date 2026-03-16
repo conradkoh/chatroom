@@ -23,6 +23,7 @@ import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { baseMarkdownComponents, compactMarkdownComponents } from './markdown-utils';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
+import { type BacklogItem, getScoringBadge } from './backlog-utils';
 
 import type { TeamLifecycle } from '../types/readiness';
 
@@ -63,23 +64,6 @@ interface Task {
   complexity?: 'low' | 'medium' | 'high';
   value?: 'low' | 'medium' | 'high';
   priority?: number;
-}
-
-/** Represents an item from the dedicated chatroom_backlog table. */
-interface BacklogItem {
-  _id: Id<'chatroom_backlog'>;
-  chatroomId: Id<'chatroom_rooms'>;
-  createdBy: string;
-  content: string;
-  status: 'backlog' | 'pending_user_review' | 'closed';
-  assignedTo?: string;
-  createdAt: number;
-  updatedAt: number;
-  completedAt?: number;
-  complexity?: 'low' | 'medium' | 'high';
-  value?: 'low' | 'medium' | 'high';
-  priority?: number;
-  legacyTaskId?: Id<'chatroom_tasks'>;
 }
 
 interface TaskCounts {
@@ -688,23 +672,6 @@ interface CompactBacklogItemProps {
 }
 
 // compactMarkdownComponents is imported from markdown-utils.tsx
-
-// Scoring badge helper for complexity/value
-function getScoringBadge(type: 'complexity' | 'value', level: 'low' | 'medium' | 'high') {
-  const colors = {
-    low: 'bg-green-500/15 text-green-600 dark:text-green-400',
-    medium: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
-    high: 'bg-red-500/15 text-red-600 dark:text-red-400',
-  };
-  const labels = {
-    complexity: { low: 'C:L', medium: 'C:M', high: 'C:H' },
-    value: { low: 'V:L', medium: 'V:M', high: 'V:H' },
-  };
-  return {
-    label: labels[type][level],
-    classes: colors[level],
-  };
-}
 
 function CompactBacklogItem({ item, onClick }: CompactBacklogItemProps) {
   const hasScoring = item.complexity || item.value || item.priority !== undefined;

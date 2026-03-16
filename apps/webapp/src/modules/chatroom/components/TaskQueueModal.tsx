@@ -312,6 +312,8 @@ const compactMarkdownComponents = {
   ),
 };
 
+import { getScoringBadge } from './backlog-utils';
+
 // Task List Item Component
 interface TaskListItemProps {
   task: Task;
@@ -319,23 +321,6 @@ interface TaskListItemProps {
   isProtected?: boolean;
   onStartEdit?: () => void;
   onDelete?: () => void;
-}
-
-// Scoring badge helper for complexity/value
-function getScoringBadge(type: 'complexity' | 'value', level: 'low' | 'medium' | 'high') {
-  const colors = {
-    low: 'bg-green-500/15 text-green-600 dark:text-green-400',
-    medium: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
-    high: 'bg-red-500/15 text-red-600 dark:text-red-400',
-  };
-  const labels = {
-    complexity: { low: 'C:L', medium: 'C:M', high: 'C:H' },
-    value: { low: 'V:L', medium: 'V:M', high: 'V:H' },
-  };
-  return {
-    label: labels[type][level],
-    classes: colors[level],
-  };
 }
 
 function TaskListItem({

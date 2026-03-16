@@ -1597,8 +1597,11 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
           selectedAttachedBacklogItem
             ? {
                 _id: selectedAttachedBacklogItem.id as Id<'chatroom_backlog'>,
+                chatroomId: chatroomId as Id<'chatroom_rooms'>,
+                createdBy: 'unknown',
                 content: selectedAttachedBacklogItem.content,
                 status: selectedAttachedBacklogItem.status as 'backlog' | 'pending_user_review' | 'closed',
+                createdAt: Date.now(),
                 updatedAt: Date.now(),
               }
             : null

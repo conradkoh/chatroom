@@ -1,7 +1,6 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Check, CornerUpLeft, Link, ListChecks, MoreHorizontal, Pencil, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
@@ -26,47 +25,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import { baseMarkdownComponents } from './markdown-utils';
+import { type BacklogItem, getBacklogStatusBadge } from './backlog-utils';
 import { useAttachments } from '../context/AttachmentsContext';
-
-interface BacklogItem {
-  _id: Id<'chatroom_backlog'>;
-  content: string;
-  status: 'backlog' | 'pending_user_review' | 'closed';
-  completedAt?: number;
-  updatedAt: number;
-}
 
 interface BacklogItemDetailModalProps {
   isOpen: boolean;
   item: BacklogItem | null;
   onClose: () => void;
 }
-
-// Status badge colors for backlog items
-const getBacklogStatusBadge = (status: BacklogItem['status']) => {
-  switch (status) {
-    case 'backlog':
-      return {
-        label: 'Backlog',
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
-    case 'pending_user_review':
-      return {
-        label: 'Pending Review',
-        classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
-      };
-    case 'closed':
-      return {
-        label: 'Closed',
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
-    default:
-      return {
-        label: status,
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
-  }
-};
 
 /**
  * Modal for viewing and acting on a chatroom_backlog item.
