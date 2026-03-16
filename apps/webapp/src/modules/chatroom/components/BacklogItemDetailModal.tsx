@@ -3,11 +3,19 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { ListChecks, X } from 'lucide-react';
-import React, { useState, useCallback, useEffect } from 'react';
+import { ListChecks } from 'lucide-react';
+import React, { useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+
+import {
+  FixedModal,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+  FixedModalBody,
+} from '@/components/ui/fixed-modal';
 
 import { baseMarkdownComponents } from './markdown-utils';
 import { useAttachedTasks } from '../context/AttachedTasksContext';
@@ -68,36 +76,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
   const reopenItem = useSessionMutation(api.backlog.reopenBacklogItem);
   const closeItem = useSessionMutation(api.backlog.closeBacklogItem);
 
-  // Handle Escape key
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
-  useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, handleKeyDown]);
-
-  // Handle backdrop click
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
-  if (!isOpen || !item) return null;
+  if (!item) return null;
 
   const badge = getBacklogStatusBadge(item.status);
   const isAttached = isBacklogItemAttached(item._id);
@@ -119,22 +98,12 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
   };
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
-        onClick={handleBackdropClick}
-      />
-
-      {/* Modal */}
-      <div className="fixed inset-x-2 top-16 bottom-2 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[95%] md:max-w-2xl md:max-h-[80vh] bg-chatroom-bg-primary border-2 border-chatroom-border-strong z-50 flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
+    <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl">
+      <FixedModalContent>
+        <FixedModalHeader onClose={onClose}>
           <div className="flex items-center gap-2">
             <ListChecks size={16} className="text-chatroom-text-muted" />
-            <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
-              Backlog Item
-            </span>
+            <FixedModalTitle>Backlog Item</FixedModalTitle>
             {/* Status Badge */}
             <span
               className={`px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${badge.classes}`}
@@ -142,26 +111,18 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
               {badge.label}
             </span>
           </div>
-          <button
-            className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        </FixedModalHeader>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto min-h-0 p-4">
-          <div className="text-chatroom-text-primary text-sm leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:uppercase prose-headings:tracking-wider prose-headings:mt-4 prose-headings:mb-2 prose-headings:text-chatroom-text-primary prose-p:my-2 prose-p:text-chatroom-text-primary prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary prose-code:text-chatroom-text-primary prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-li:text-chatroom-text-primary prose-pre:bg-chatroom-bg-tertiary prose-pre:border prose-pre:border-chatroom-border prose-pre:rounded-none">
+        <FixedModalBody>
+          <div className="p-4 text-chatroom-text-primary text-sm leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:uppercase prose-headings:tracking-wider prose-headings:mt-4 prose-headings:mb-2 prose-headings:text-chatroom-text-primary prose-p:my-2 prose-p:text-chatroom-text-primary prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary prose-code:text-chatroom-text-primary prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-li:text-chatroom-text-primary prose-pre:bg-chatroom-bg-tertiary prose-pre:border prose-pre:border-chatroom-border prose-pre:rounded-none">
             <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
               {item.content}
             </Markdown>
           </div>
-        </div>
+        </FixedModalBody>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0 flex flex-wrap gap-2">
+        <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-surface flex flex-wrap gap-2 p-4 flex-shrink-0">
           {/* Attach to Context */}
           <button
             type="button"
@@ -176,9 +137,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
           {item.status === 'backlog' && (
             <button
               type="button"
-              onClick={() =>
-                handleMutation(() => markForReview({ itemId: item._id }))
-              }
+              onClick={() => handleMutation(() => markForReview({ itemId: item._id }))}
               disabled={isLoading}
               className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-violet-500 text-violet-500 dark:border-violet-400 dark:text-violet-400 hover:bg-violet-500 hover:text-white dark:hover:bg-violet-400 dark:hover:text-white transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -190,9 +149,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
             <>
               <button
                 type="button"
-                onClick={() =>
-                  handleMutation(() => completeItem({ itemId: item._id }))
-                }
+                onClick={() => handleMutation(() => completeItem({ itemId: item._id }))}
                 disabled={isLoading}
                 className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-status-success text-chatroom-status-success hover:bg-chatroom-status-success hover:text-chatroom-bg-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -200,9 +157,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  handleMutation(() => sendBackForRework({ itemId: item._id }))
-                }
+                onClick={() => handleMutation(() => sendBackForRework({ itemId: item._id }))}
                 disabled={isLoading}
                 className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -214,9 +169,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
           {item.status === 'closed' && (
             <button
               type="button"
-              onClick={() =>
-                handleMutation(() => reopenItem({ itemId: item._id }))
-              }
+              onClick={() => handleMutation(() => reopenItem({ itemId: item._id }))}
               disabled={isLoading}
               className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -228,9 +181,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
           {item.status !== 'closed' && (
             <button
               type="button"
-              onClick={() =>
-                handleMutation(() => closeItem({ itemId: item._id }))
-              }
+              onClick={() => handleMutation(() => closeItem({ itemId: item._id }))}
               disabled={isLoading}
               className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-status-error text-chatroom-status-error hover:bg-chatroom-status-error hover:text-chatroom-bg-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -238,7 +189,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
             </button>
           )}
         </div>
-      </div>
-    </>
+      </FixedModalContent>
+    </FixedModal>
   );
 }
