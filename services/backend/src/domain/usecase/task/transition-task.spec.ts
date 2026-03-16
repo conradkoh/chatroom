@@ -353,7 +353,7 @@ describe('transitionTask usecase — trigger label determines the rule', () => {
     const tasks = await t.query(api.tasks.listTasks, {
       sessionId,
       chatroomId,
-      statusFilter: 'pending_review',
+      statusFilter: 'pending_user_review',
     });
     const reopened = tasks.find((t) => t._id === backlogTask.taskId);
     expect(reopened?.status).toBe('pending_user_review');

@@ -213,7 +213,6 @@ function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; class
       };
     case 'pending':
     case 'acknowledged':
-    case 'backlog_acknowledged':
       return {
         label: status === 'pending' ? 'Pending' : 'Acknowledged',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',

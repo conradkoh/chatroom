@@ -309,8 +309,8 @@ describe('FSM: Acknowledged to Pending User Review Transition', () => {
     // Check that the FSM allows acknowledged → pending_user_review transition
     const backlogTaskUpdated = tasks.find((t) => t._id === backlogTask.taskId);
     expect(backlogTaskUpdated).toBeDefined();
-    // Backlog task should be in backlog_acknowledged or pending_user_review
-    expect(['backlog_acknowledged', 'pending_user_review']).toContain(backlogTaskUpdated?.status);
+    // Backlog task should remain in backlog or transition to pending_user_review
+    expect(['backlog', 'pending_user_review']).toContain(backlogTaskUpdated?.status);
   });
 });
 
@@ -342,14 +342,15 @@ describe('FSM Phase 2: Backlog Attachment Tracking', () => {
       });
       expect(messageId).toBeDefined();
 
-      // Step 3: Verify backlog task transitioned to backlog_acknowledged
+      // Step 3: Verify backlog task parentTaskIds are tracked (status stays 'backlog')
       const tasks = await t.query(api.tasks.listTasks, {
         sessionId,
         chatroomId,
         limit: 100,
       });
       const attachedTask = tasks.find((t) => t._id === backlogTask.taskId);
-      expect(attachedTask?.status).toBe('backlog_acknowledged');
+      // Backlog task stays in 'backlog' status — backlog_acknowledged has been removed
+      expect(attachedTask?.status).toBe('backlog');
       expect(attachedTask?.parentTaskIds).toBeDefined();
       expect(attachedTask?.parentTaskIds?.length).toBeGreaterThan(0);
 
@@ -758,7 +759,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       const tasks = await t.query(api.tasks.listTasks, {
         sessionId,
         chatroomId,
-        statusFilter: 'pending_review',
+        statusFilter: 'pending_user_review',
       });
       const reopenedTask = tasks.find((t) => t._id === backlogTask.taskId);
       expect(reopenedTask?.status).toBe('pending_user_review');

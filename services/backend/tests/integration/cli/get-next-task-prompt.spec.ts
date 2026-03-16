@@ -387,7 +387,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       Can we add a backlog section to the available actions? Keep it concise and follow current format.
 
       ## Attached Backlog (1)
-      - [BACKLOG_ACKNOWLEDGED] Fix: Agent lacks knowledge of backlog listing
+      - [BACKLOG] Fix: Agent lacks knowledge of backlog listing
 
       Add backlog section to get-next-task
       </task>
@@ -497,7 +497,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     const attachedTask = jsonContext.contextWindow.originMessage?.attachedTasks?.[0];
     expect(attachedTask).toBeDefined();
     expect(attachedTask?.content).toContain('Fix: Agent lacks knowledge');
-    expect(attachedTask?.status).toBe('backlog_acknowledged');
+    expect(attachedTask?.status).toBe('backlog');
 
     // Should have role prompt context
     expect(jsonContext.rolePrompt).toBeDefined();

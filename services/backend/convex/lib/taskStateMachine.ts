@@ -19,15 +19,10 @@ export type TaskStatus =
 
   // Backlog flow
   | 'backlog' // In backlog tab, not sent yet
-  | 'backlog_acknowledged' // Attached to message, visible to agent
   | 'pending_user_review' // Agent done, awaiting user confirmation
 
   // Common
-  | 'closed' // Cancelled
-
-  // MIGRATION ONLY: removed in PR #23, kept temporarily for migrateQueuedTasks migration.
-  // Remove after running the migration in production.
-  | 'queued';
+  | 'closed'; // Cancelled
 
 export type Task = Doc<'chatroom_tasks'>;
 
@@ -141,25 +136,8 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   // ==========================================================================
-  // BACKLOG FLOW: backlog → backlog_acknowledged → pending_user_review → completed
+  // BACKLOG FLOW: backlog → pending_user_review → completed
   // ==========================================================================
-
-  {
-    from: 'backlog',
-    to: 'backlog_acknowledged',
-    trigger: 'attachToMessage',
-    requiredFields: ['parentTaskIds'],
-    setFields: {
-      parentTaskIds: 'PROVIDED',
-    },
-  },
-
-  {
-    from: 'backlog_acknowledged',
-    to: 'pending_user_review',
-    trigger: 'parentTaskAcknowledged',
-    setFields: {},
-  },
 
   {
     from: 'backlog',
@@ -207,28 +185,12 @@ const TRANSITIONS: TransitionRule[] = [
     },
   },
 
-  {
-    from: 'backlog_acknowledged',
-    to: 'completed',
-    trigger: 'markBacklogComplete',
-    setFields: {
-      completedAt: 'NOW',
-    },
-  },
-
   // ==========================================================================
-  // MARK FOR REVIEW: backlog/backlog_acknowledged → pending_user_review
+  // MARK FOR REVIEW: backlog → pending_user_review
   // ==========================================================================
 
   {
     from: 'backlog',
-    to: 'pending_user_review',
-    trigger: 'markForReview',
-    setFields: {},
-  },
-
-  {
-    from: 'backlog_acknowledged',
     to: 'pending_user_review',
     trigger: 'markForReview',
     setFields: {},
@@ -299,13 +261,6 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   {
-    from: 'backlog_acknowledged',
-    to: 'closed',
-    trigger: 'cancelTask',
-    setFields: {},
-  },
-
-  {
     from: 'pending_user_review',
     to: 'closed',
     trigger: 'cancelTask',
@@ -367,14 +322,6 @@ const TRANSITIONS: TransitionRule[] = [
 
   {
     from: 'backlog',
-    to: 'completed',
-    trigger: 'completeTaskById',
-    setFields: {
-      completedAt: 'NOW',
-    },
-  },
-  {
-    from: 'backlog_acknowledged',
     to: 'completed',
     trigger: 'completeTaskById',
     setFields: {

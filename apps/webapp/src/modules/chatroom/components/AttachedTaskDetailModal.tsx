@@ -53,7 +53,6 @@ export function AttachedTaskDetailModal({ isOpen, task, onClose }: AttachedTaskD
         };
       case 'pending':
       case 'acknowledged':
-      case 'backlog_acknowledged':
         return {
           label: task.backlogStatus === 'pending' ? 'Pending' : 'Acknowledged',
           classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',

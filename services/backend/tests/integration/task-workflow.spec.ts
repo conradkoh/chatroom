@@ -192,7 +192,7 @@ describe('Task Workflow - Backlog Origin', () => {
       const reviewTasks = await t.query(api.tasks.listTasks, {
         sessionId,
         chatroomId,
-        statusFilter: 'pending_review',
+        statusFilter: 'pending_user_review',
       });
 
       const task = reviewTasks.find((t) => t._id === backlogTask.taskId);

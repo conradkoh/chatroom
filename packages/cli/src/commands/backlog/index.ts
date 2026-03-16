@@ -18,14 +18,13 @@ type TaskStatus =
   | 'acknowledged'
   | 'in_progress'
   | 'backlog'
-  | 'backlog_acknowledged'
   | 'completed'
   | 'pending_user_review'
   | 'closed';
 
 export interface ListBacklogOptions {
   role: string;
-  status: string;
+  status?: string; // Optional — defaults to 'backlog'
   limit?: number;
   full?: boolean;
 }
@@ -123,28 +122,29 @@ export async function listBacklog(
   const sessionId = requireAuth(d);
   validateChatroomId(chatroomId);
 
-  // Validate status filter
+  // Validate status filter — default to 'backlog' if not specified
   const validStatuses = [
     'pending',
-    'acknowledged',
     'in_progress',
     'backlog',
-    'backlog_acknowledged',
     'completed',
     'closed',
     'active',
-    'pending_review',
     'archived',
+    'pending_user_review',
     'all',
   ];
-  const statusFilter = options.status;
-  if (!statusFilter || !validStatuses.includes(statusFilter)) {
+  const statusFilter = options.status || 'backlog';
+  if (!validStatuses.includes(statusFilter)) {
     console.error(
-      `❌ Invalid or missing status: ${statusFilter || '(none)'}. Must be one of: ${validStatuses.join(', ')}`
+      `❌ Invalid status: ${statusFilter}. Must be one of: ${validStatuses.join(', ')}`
     );
     process.exit(1);
     return;
   }
+
+  // For --status=all, apply a default limit of 50 if none provided
+  const limit = options.limit ?? (statusFilter === 'all' ? 50 : 100);
 
   try {
     // Get task counts
@@ -159,13 +159,13 @@ export async function listBacklog(
       tasks = await d.backend.query(api.tasks.listActiveTasks, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        limit: options.limit || 100,
+        limit,
       });
     } else if (statusFilter === 'archived') {
       tasks = await d.backend.query(api.tasks.listArchivedTasks, {
         sessionId,
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        limit: options.limit || 100,
+        limit,
       });
     } else {
       tasks = await d.backend.query(api.tasks.listTasks, {
@@ -182,9 +182,8 @@ export async function listBacklog(
                 | 'pending_user_review'
                 | 'closed'
                 | 'active'
-                | 'pending_review'
                 | 'archived'),
-        limit: options.limit || 100,
+        limit,
       });
     }
 
@@ -234,6 +233,14 @@ export async function listBacklog(
         console.log(
           `   Created: ${date}${task.assignedTo ? ` | Assigned: ${task.assignedTo}` : ''}`
         );
+        // Show scoring info if available
+        if (task.complexity !== undefined || task.value !== undefined || task.priority !== undefined) {
+          const parts: string[] = [];
+          if (task.complexity) parts.push(`complexity=${task.complexity}`);
+          if (task.value) parts.push(`value=${task.value}`);
+          if (task.priority !== undefined) parts.push(`priority=${task.priority}`);
+          console.log(`   Score: ${parts.join(' | ')}`);
+        }
         console.log('');
       }
     }
@@ -253,8 +260,6 @@ export async function listBacklog(
       totalForFilter = counts.pending + counts.in_progress + counts.queued + counts.backlog;
     } else if (statusFilter === 'archived') {
       totalForFilter = counts.completed + counts.closed;
-    } else if (statusFilter === 'pending_review') {
-      totalForFilter = tasks.length;
     } else {
       totalForFilter = counts[statusFilter as keyof typeof counts] ?? tasks.length;
     }
@@ -633,8 +638,6 @@ function getStatusEmoji(status: TaskStatus): string {
       return '🔵';
     case 'backlog':
       return '⚪';
-    case 'backlog_acknowledged':
-      return '📋';
     case 'completed':
       return '✅';
     case 'pending_user_review':

@@ -37,7 +37,6 @@ type TaskStatus =
   | 'acknowledged'
   | 'in_progress'
   | 'backlog'
-  | 'backlog_acknowledged'
   | 'pending_user_review'
   | 'completed'
   | 'closed'
@@ -71,7 +70,6 @@ interface TaskCounts {
   in_progress: number;
   queued: number;
   backlog: number;
-  backlog_acknowledged: number;
   pending_user_review: number;
   completed: number;
   closed: number;
@@ -97,12 +95,6 @@ const getStatusBadge = (status: TaskStatus) => {
       return {
         emoji: '🟢',
         label: 'Acknowledged',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'backlog_acknowledged':
-      return {
-        emoji: '🟢',
-        label: 'Backlog Acknowledged',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
     case 'in_progress':
@@ -182,8 +174,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
     const hasActiveTask =
       counts.pending > 0 ||
       counts.acknowledged > 0 ||
-      counts.in_progress > 0 ||
-      counts.backlog_acknowledged > 0;
+      counts.in_progress > 0;
     const hasQueuedTasks = counts.queued > 0;
     if (!hasActiveTask && hasQueuedTasks) {
       // Check if all agents are waiting (lastSeenAction === 'get-next-task:started')
@@ -201,11 +192,11 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   // Query pending review tasks (tasks with pending_user_review status)
   const pendingReviewTasks = useSessionQuery(api.tasks.listTasks, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    statusFilter: 'pending_review',
+    statusFilter: 'pending_user_review',
     limit: 100, // Match MAX_TASK_LIST_LIMIT from backend
   }) as Task[] | undefined;
 
-  // No frontend filtering needed - backend handles pending_review filter
+  // No frontend filtering needed - backend handles pending_user_review filter
   const filteredPendingReviewTasks = pendingReviewTasks ?? [];
 
   // Mutations
@@ -235,8 +226,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
         (t) =>
           t.status === 'pending' ||
           t.status === 'acknowledged' ||
-          t.status === 'in_progress' ||
-          t.status === 'backlog_acknowledged'
+          t.status === 'in_progress'
       ),
       backlog: backlogTasks,
     };
@@ -366,9 +356,9 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   const handleCloseAllAcknowledged = useCallback(async () => {
     if (!categorizedTasks.current) return;
 
-    // Filter for acknowledged and backlog_acknowledged tasks
+    // Filter for acknowledged tasks
     const acknowledgedTasks = categorizedTasks.current.filter(
-      (t) => t.status === 'acknowledged' || t.status === 'backlog_acknowledged'
+      (t) => t.status === 'acknowledged'
     );
 
     if (acknowledgedTasks.length === 0) {
@@ -399,8 +389,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
       counts.acknowledged +
       counts.in_progress +
       counts.queued +
-      counts.backlog +
-      counts.backlog_acknowledged
+      counts.backlog
     );
   }, [counts]);
 

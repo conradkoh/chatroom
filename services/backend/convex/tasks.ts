@@ -353,7 +353,6 @@ export const cancelTask = mutation({
       'pending',
       'acknowledged',
       'backlog',
-      'backlog_acknowledged',
       'pending_user_review',
       'in_progress',
     ];
@@ -419,12 +418,11 @@ export const completeTaskById = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // For active tasks (pending, in_progress, acknowledged, backlog_acknowledged), require force flag
+    // For active tasks (pending, in_progress, acknowledged), require force flag
     if (
       task.status === 'pending' ||
       task.status === 'in_progress' ||
-      task.status === 'acknowledged' ||
-      task.status === 'backlog_acknowledged'
+      task.status === 'acknowledged'
     ) {
       if (!args.force) {
         throw new Error(
@@ -459,7 +457,7 @@ export const completeTaskById = mutation({
     // For backlog tasks, complete normally (no promotion needed)
     if (task.status !== 'backlog') {
       throw new Error(
-        `Cannot complete task with status: ${task.status}. Only backlog, pending, in_progress, acknowledged, and backlog_acknowledged tasks can be completed.`
+        `Cannot complete task with status: ${task.status}. Only backlog, pending, in_progress, and acknowledged tasks can be completed.`
       );
     }
 
@@ -485,9 +483,9 @@ export const updateTask = mutation({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, task.chatroomId);
 
-    // Only allow editing of backlog, pending, acknowledged, and backlog_acknowledged tasks
+    // Only allow editing of backlog, pending, and acknowledged tasks
     if (
-      !['backlog', 'pending', 'acknowledged', 'backlog_acknowledged'].includes(
+      !['backlog', 'pending', 'acknowledged'].includes(
         task.status
       )
     ) {
@@ -600,12 +598,10 @@ export const markBacklogComplete = mutation({
       throw new Error(`Task is already ${task.status}`);
     }
 
-    // Allow completion from pending_user_review (normal flow), backlog (force complete),
-    // or backlog_acknowledged (attached to message but needs force complete)
+    // Allow completion from pending_user_review (normal flow) or backlog (force complete)
     if (
       task.status !== 'pending_user_review' &&
-      task.status !== 'backlog' &&
-      task.status !== 'backlog_acknowledged'
+      task.status !== 'backlog'
     ) {
       throw new Error(`Cannot complete task with status: ${task.status}`);
     }
@@ -638,9 +634,9 @@ export const markBacklogForReview = mutation({
       throw new Error('Task is not a backlog item');
     }
 
-    if (task.status !== 'backlog' && task.status !== 'backlog_acknowledged') {
+    if (task.status !== 'backlog') {
       throw new Error(
-        `Cannot mark task for review with status: ${task.status}. Task must be in 'backlog' or 'backlog_acknowledged' status.`
+        `Cannot mark task for review with status: ${task.status}. Task must be in 'backlog' status.`
       );
     }
 
@@ -848,8 +844,7 @@ export const listTasks = query({
         v.literal('completed'),
         v.literal('closed'),
         v.literal('pending_user_review'),
-        v.literal('active'), // pending + acknowledged + in_progress + backlog + backlog_acknowledged
-        v.literal('pending_review'), // pending_user_review status
+        v.literal('active'), // pending + acknowledged + in_progress + backlog
         v.literal('archived') // completed + closed
       )
     ),
@@ -864,20 +859,12 @@ export const listTasks = query({
     // Use by_chatroom_status index for single-status filters to avoid full table scans.
     // Fall back to by_chatroom (full scan) for multi-status filters (active, archived)
     // or when no filter is specified.
-    if (args.statusFilter === 'pending_review') {
-      // Index: by_chatroom_status — pending_review is an alias for pending_user_review
-      tasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'pending_user_review')
-        )
-        .collect();
-    } else if (
+    if (
       args.statusFilter &&
       args.statusFilter !== 'active' &&
       args.statusFilter !== 'archived'
     ) {
-      // Other single concrete statuses (pending, in_progress, backlog, completed, closed…)
+      // Single concrete statuses (pending, in_progress, backlog, completed, closed, pending_user_review)
       tasks = await ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom_status', (q) =>
@@ -904,8 +891,7 @@ export const listTasks = query({
             t.status === 'pending' ||
             t.status === 'acknowledged' ||
             t.status === 'in_progress' ||
-            t.status === 'backlog' ||
-            t.status === 'backlog_acknowledged'
+            t.status === 'backlog'
         );
       } else if (args.statusFilter === 'archived') {
         // Archived: completed or closed tasks
@@ -963,7 +949,6 @@ export const listActiveTasks = query({
         t.status === 'acknowledged' ||
         t.status === 'in_progress' ||
         t.status === 'backlog' ||
-        t.status === 'backlog_acknowledged' ||
         t.status === 'pending_user_review'
     );
 
@@ -1195,7 +1180,6 @@ export const getTaskCounts = query({
       in_progress: tasks.filter((t) => t.status === 'in_progress').length,
       queued: queuedMessages.length, // Count from chatroom_messageQueue
       backlog: tasks.filter((t) => t.status === 'backlog').length,
-      backlog_acknowledged: tasks.filter((t) => t.status === 'backlog_acknowledged').length,
       pending_user_review: tasks.filter((t) => t.status === 'pending_user_review').length,
       completed: tasks.filter((t) => t.status === 'completed').length,
       closed: tasks.filter((t) => t.status === 'closed').length,

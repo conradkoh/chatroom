@@ -61,8 +61,7 @@ export function getTaskSection(_origin: TaskOrigin | undefined, status: TaskStat
   if (
     status === 'in_progress' ||
     status === 'pending' ||
-    status === 'acknowledged' ||
-    status === 'backlog_acknowledged'
+    status === 'acknowledged'
   ) {
     return 'current';
   }

@@ -328,34 +328,26 @@ backlogCommand
   .description('List tasks in a chatroom')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption(
+  .option(
     '--status <status>',
-    'Filter by status (pending|in_progress|backlog|completed|cancelled|active|pending_review|archived|all)'
+    'Filter by status (pending|in_progress|backlog|completed|pending_user_review|closed|active|archived|all). Defaults to backlog.'
   )
-  .option('--limit <n>', 'Maximum number of tasks to show (required for --status=all)')
+  .option('--limit <n>', 'Maximum number of tasks to show')
   .option('--full', 'Show full task content without truncation')
   .action(
     async (options: {
       chatroomId: string;
       role: string;
-      status: string;
+      status?: string;
       limit?: string;
       full?: boolean;
     }) => {
-      // Validate: --status=all requires --limit
-      if (options.status === 'all' && !options.limit) {
-        console.error('❌ When using --status=all, you must specify --limit=<n>');
-        console.error(
-          '   Example: chatroom backlog list --chatroom-id=<id> --role=builder --status=all --limit=50'
-        );
-        process.exit(1);
-      }
       await maybeRequireAuth();
       const { listBacklog } = await import('./commands/backlog/index.js');
       await listBacklog(options.chatroomId, {
         role: options.role,
         status: options.status,
-        limit: options.limit ? parseInt(options.limit, 10) : 20,
+        limit: options.limit ? parseInt(options.limit, 10) : undefined,
         full: options.full,
       });
     }
@@ -417,30 +409,6 @@ backlogCommand
     const { reopenBacklog } = await import('./commands/backlog/index.js');
     await reopenBacklog(options.chatroomId, options);
   });
-
-backlogCommand
-  .command('patch-task')
-  .description('Update task scoring fields (complexity, value, priority)')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--task-id <taskId>', 'Task ID to patch')
-  .option('--complexity <level>', 'Complexity level (low|medium|high)')
-  .option('--value <level>', 'Value level (low|medium|high)')
-  .option('--priority <n>', 'Priority number (higher = more important)')
-  .action(
-    async (options: {
-      chatroomId: string;
-      role: string;
-      taskId: string;
-      complexity?: string;
-      value?: string;
-      priority?: string;
-    }) => {
-      await maybeRequireAuth();
-      const { patchBacklog } = await import('./commands/backlog/index.js');
-      await patchBacklog(options.chatroomId, options);
-    }
-  );
 
 backlogCommand
   .command('score')

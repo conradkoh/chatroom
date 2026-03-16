@@ -12,7 +12,6 @@ type TaskStatus =
   | 'acknowledged'
   | 'in_progress'
   | 'backlog'
-  | 'backlog_acknowledged'
   | 'pending_user_review'
   | 'completed'
   | 'closed'
@@ -56,11 +55,6 @@ const getStatusBadge = (status: TaskStatus) => {
     case 'acknowledged':
       return {
         label: 'Acknowledged',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'backlog_acknowledged':
-      return {
-        label: 'Backlog Acknowledged',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
     case 'in_progress':

@@ -10,10 +10,12 @@ export const backlogSkill: SkillModule = {
 
 ### List
 \`\`\`
-${cliEnvPrefix}chatroom backlog list --chatroom-id=<id> --role=<role> --status=<status>
+${cliEnvPrefix}chatroom backlog list --chatroom-id=<id> --role=<role>
 \`\`\`
-Status: \`backlog\` | \`pending\` | \`in_progress\` | \`completed\` | \`pending_review\` | \`all\`
-Flags: \`--limit=<n>\`, \`--full\`
+Status (optional, defaults to \`backlog\`): \`backlog\` | \`pending\` | \`in_progress\` | \`completed\` | \`pending_user_review\` | \`closed\` | \`active\` | \`archived\` | \`all\`
+Flags: \`--status=<status>\`, \`--limit=<n>\`, \`--full\`
+
+The list output shows scoring info (complexity, value, priority) for each item if it has been scored.
 
 ### Add
 \`\`\`
@@ -27,6 +29,9 @@ ${cliEnvPrefix}chatroom backlog score --chatroom-id=<id> --role=<role> --task-id
   --value=<low|medium|high> \\
   --priority=<1-100>
 \`\`\`
+
+**Important**: Only score items that do not already have all three fields set (complexity, value, priority).
+Check the list output — items showing "Score: ..." are already scored. Skip them to avoid overwriting.
 
 ### Complete
 \`\`\`
@@ -54,9 +59,14 @@ flowchart TD
   A([Start]) --> B[List backlog items]
   B --> C{Any unscored?}
   C -->|No| D([Done])
-  C -->|Yes| E[Score item: complexity, value, priority]
-  E --> C
+  C -->|Yes| E["Check item: does it already have complexity + value + priority set?"]
+  E -->|Already scored| F[Skip — do not overwrite existing score]
+  F --> C
+  E -->|Not scored| G[Score item: complexity, value, priority]
+  G --> C
 \`\`\`
+
+An item is "already scored" if the list output shows "Score: complexity=... | value=... | priority=...".
 
 ### 2. After Completing a Backlog Task
 
@@ -78,7 +88,7 @@ Only activate when the user explicitly instructs autonomous execution
 flowchart TD
   A([Start]) --> B[List all backlog items]
   B --> C{Any unscored?}
-  C -->|Yes| D[Score all unscored items] --> E[Re-list]
+  C -->|Yes| D["Score only items missing complexity/value/priority\\n(skip already-scored items)"] --> E[Re-list]
   C -->|No| E
   E --> F["Select items: complexity=low AND value=high"]
   F --> G{Qualifying items?}

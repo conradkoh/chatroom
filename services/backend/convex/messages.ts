@@ -172,16 +172,9 @@ async function _sendMessageHandler(
             updatedAt: now,
           });
           if (attachedTask.status === 'backlog') {
-            try {
-              await transitionTask(ctx, attachedTaskId, 'backlog_acknowledged', 'attachToMessage', {
-                parentTaskIds: [...existingParents, taskId],
-              });
-            } catch (error) {
-              console.error(
-                `Failed to transition backlog task ${attachedTaskId} to backlog_acknowledged:`,
-                error
-              );
-            }
+            // Note: backlog_acknowledged status has been removed.
+            // Attached tasks remain in 'backlog' status; the parentTaskIds field
+            // is still tracked for reference but no status transition is needed.
           }
         }
       }
@@ -692,20 +685,17 @@ export const taskStarted = mutation({
       });
     }
 
-    // Get the associated message (all tasks have sourceMessageId since they are created at promotion time)
+    // Get the associated message (user-originated tasks have sourceMessageId;
+    // system-generated tasks like skill activations may not)
     let message: Doc<'chatroom_messages'> | null = null;
 
     if (task.sourceMessageId) {
       message = await ctx.db.get('chatroom_messages', task.sourceMessageId);
-    } else {
-      throw new ConvexError({
-        code: 'INVALID_TASK',
-        message: 'Task must have an associated message (sourceMessageId)',
-      });
     }
+    // System tasks without a sourceMessageId are allowed — they skip classification below
 
-    // Only allow classification of user messages (skip this check if we're not classifying)
-    if (!args.skipClassification && message!.senderRole.toLowerCase() !== 'user') {
+    // Only allow classification of user messages (skip this check for system tasks or when not classifying)
+    if (!args.skipClassification && message !== null && message.senderRole.toLowerCase() !== 'user') {
       throw new ConvexError({
         code: 'INVALID_MESSAGE',
         message: 'Can only classify user messages',
@@ -718,6 +708,17 @@ export const taskStarted = mutation({
         code: 'INVALID_TASK_STATUS',
         message: `Task must be in_progress to classify (current status: ${task.status}). Call startTask first.`,
       });
+    }
+
+    // System tasks (no sourceMessageId) have no associated user message — skip classification entirely
+    if (!task.sourceMessageId) {
+      return {
+        success: true,
+        taskId: task._id,
+        chatroomId: task.chatroomId,
+        classification: 'question' as const, // System tasks are treated as questions
+        isSystemTask: true,
+      };
     }
 
     // Use existing classification if skipClassification is true
