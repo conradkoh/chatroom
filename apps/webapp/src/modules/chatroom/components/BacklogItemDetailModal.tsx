@@ -377,7 +377,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                       <DropdownMenuItem
                         onClick={() => handleMutation(() => completeItem({ itemId: item._id }))}
                         disabled={isLoading}
-                        className="flex items-center gap-2 cursor-pointer"
+                        className="flex items-center gap-2 cursor-pointer text-chatroom-status-success"
                       >
                         <Check size={14} />
                         Mark as Complete
