@@ -524,7 +524,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
         {/* Backlog Tasks */}
         <div className="border-b border-chatroom-border">
           <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
-            <span>Backlog ({categorizedTasks.backlog.length})</span>
+            <span>Active Backlog ({categorizedTasks.backlog.length})</span>
             <button
               onClick={() => setIsBacklogCreateModalOpen(true)}
               className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
@@ -552,7 +552,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
           )}
 
           {categorizedTasks.backlog.length === 0 && (
-            <div className="p-3 text-center text-chatroom-text-muted text-xs">No backlog items</div>
+            <div className="p-3 text-center text-chatroom-text-muted text-xs">No active backlog items</div>
           )}
         </div>
         {/* End of Backlog Tasks */}
@@ -1168,7 +1168,7 @@ function BacklogQueueModal({ items, onClose, onItemClick }: BacklogQueueModalPro
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
           <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
-            Backlog ({items.length} items)
+            Active Backlog ({items.length} items)
           </span>
           <button
             className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
@@ -1183,7 +1183,7 @@ function BacklogQueueModal({ items, onClose, onItemClick }: BacklogQueueModalPro
         <div className="flex-1 overflow-y-auto min-h-0">
           {items.length === 0 ? (
             <div className="p-8 text-center text-chatroom-text-muted text-sm">
-              No backlog items
+              No active backlog items
             </div>
           ) : (
             items.map((item) => (
@@ -1200,10 +1200,16 @@ function BacklogQueueModal({ items, onClose, onItemClick }: BacklogQueueModalPro
                   }
                 }}
               >
-                {/* Backlog Status Badge */}
-                <span className="flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-chatroom-text-muted/15 text-chatroom-text-muted">
-                  Backlog
-                </span>
+                {/* Status Badge - reflects actual item status */}
+                {item.status === 'pending_user_review' ? (
+                  <span className="flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400">
+                    Review
+                  </span>
+                ) : (
+                  <span className="flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-chatroom-text-muted/15 text-chatroom-text-muted">
+                    Active
+                  </span>
+                )}
 
                 {/* Content - with markdown */}
                 <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
