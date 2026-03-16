@@ -26,7 +26,6 @@ export const ACTIVE_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
  */
 export const TERMINAL_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
   'completed',
-  'closed',
 ]);
 
 /**

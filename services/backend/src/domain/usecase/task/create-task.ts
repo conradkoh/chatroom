@@ -26,17 +26,16 @@ export interface CreateTaskArgs {
   createdBy: string;
   content: string;
   /** If provided, forces this status instead of auto-detecting pending vs backlog */
-  forceStatus?: 'pending' | 'backlog';
+  forceStatus?: 'pending';
   assignedTo?: string;
   sourceMessageId?: Id<'chatroom_messages'>;
   attachedTaskIds?: Id<'chatroom_tasks'>[];
   queuePosition: number;
-  origin?: 'chat' | 'backlog';
 }
 
 export interface CreateTaskResult {
   taskId: Id<'chatroom_tasks'>;
-  status: 'pending' | 'backlog';
+  status: 'pending';
 }
 
 /**
@@ -72,23 +71,14 @@ export async function createTask(
 ): Promise<CreateTaskResult> {
   const now = Date.now();
 
-  // Determine status: pending or backlog (never queued — queue messages are separate)
-  let status: 'pending' | 'backlog';
-  if (args.forceStatus === 'backlog') {
-    status = 'backlog';
-  } else if (args.forceStatus === 'pending') {
-    status = 'pending';
-  } else {
-    // Auto-detect: always pending for direct task creation (caller handles queuing via messageQueue)
-    status = 'pending';
-  }
+  // Status is always pending for direct task creation
+  const status: 'pending' = 'pending';
 
   const taskId = await ctx.db.insert('chatroom_tasks', {
     chatroomId: args.chatroomId,
     createdBy: args.createdBy,
     content: args.content,
     status,
-    origin: args.origin ?? 'chat',
     sourceMessageId: args.sourceMessageId,
     createdAt: now,
     updatedAt: now,

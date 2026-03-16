@@ -12,7 +12,7 @@
  * all existing callers remain unchanged. Internally it:
  *
  *   1. Delegates the FSM transition to `lib/taskStateMachine.transitionTask`
- *   2. After transitions to `completed` or `closed`, calls `promoteNextTask`
+ *   2. After transitions to `completed`, calls `promoteNextTask`
  *      using deps wired from the Convex mutation context
  *
  * ## Callers

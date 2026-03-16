@@ -48,7 +48,6 @@ export async function activateSkill(
     content: skill.prompt,
     forceStatus: 'pending',
     queuePosition,
-    origin: 'chat',
   });
 
   return {

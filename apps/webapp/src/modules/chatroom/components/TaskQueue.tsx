@@ -340,14 +340,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
     }
   }, [categorizedTasks.current, cancelTask]);
 
-  // Calculate active total
-  const activeTotal = useMemo(() => {
-    if (!counts) return 0;
-    return (
-      counts.pending + counts.acknowledged + counts.in_progress + counts.queued + counts.backlog
-    );
-  }, [counts]);
-
   if (tasks === undefined) {
     return (
       <div className="flex flex-col border-b-2 border-chatroom-border-strong">
@@ -364,7 +356,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
       {/* Header */}
       <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border flex items-center justify-between flex-shrink-0">
         <span>Task Queue</span>
-        <span className="text-chatroom-text-muted font-normal">{activeTotal}/100</span>
       </div>
 
       {/* Scrollable Task List Container */}

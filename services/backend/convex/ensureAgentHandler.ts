@@ -8,7 +8,6 @@ import {
   CIRCUIT_WINDOW_MS,
   CIRCUIT_COOLDOWN_MS,
 } from '../config/reliability';
-import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { internalMutation, type MutationCtx } from './_generated/server';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
