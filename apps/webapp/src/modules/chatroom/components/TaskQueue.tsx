@@ -551,14 +551,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
             />
           )}
 
-          {/* View More Button */}
-          {categorizedTasks.backlog.length > 3 && (
-            <ViewMoreButton
-              count={categorizedTasks.backlog.length - 3}
-              onClick={() => setIsQueueModalOpen(true)}
-            />
-          )}
-
           {categorizedTasks.backlog.length === 0 && (
             <div className="p-3 text-center text-chatroom-text-muted text-xs">No backlog items</div>
           )}
