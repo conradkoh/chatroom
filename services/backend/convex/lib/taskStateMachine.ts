@@ -15,17 +15,7 @@ export type TaskStatus =
   | 'pending' // Created, waiting for agent
   | 'acknowledged' // Agent claimed via get-next-task
   | 'in_progress' // Agent started work via task-started
-  | 'completed' // Work finished
-
-  // Backlog flow
-  | 'backlog' // In backlog tab, not sent yet
-  | 'pending_user_review' // Agent done, awaiting user confirmation
-
-  // Common
-  | 'closed' // Cancelled
-
-  // DEPRECATED: Remove after running migration.migrateBacklogAcknowledgedToBacklog
-  | 'backlog_acknowledged';
+  | 'completed'; // Work finished
 
 export type Task = Doc<'chatroom_tasks'>;
 
@@ -116,13 +106,6 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   {
-    from: 'in_progress',
-    to: 'pending_user_review',
-    trigger: 'completeTask',
-    setFields: {},
-  },
-
-  {
     from: 'acknowledged',
     to: 'completed',
     trigger: 'completeTask',
@@ -131,169 +114,8 @@ const TRANSITIONS: TransitionRule[] = [
     },
   },
 
-  {
-    from: 'acknowledged',
-    to: 'pending_user_review',
-    trigger: 'completeTask',
-    setFields: {},
-  },
-
   // ==========================================================================
-  // BACKLOG FLOW: backlog → pending_user_review → completed
-  // ==========================================================================
-
-  {
-    from: 'backlog',
-    to: 'pending_user_review',
-    trigger: 'parentTaskAcknowledged',
-    setFields: {},
-  },
-
-  {
-    from: 'pending',
-    to: 'pending_user_review',
-    trigger: 'parentTaskAcknowledged',
-    setFields: {},
-  },
-
-  {
-    from: 'in_progress',
-    to: 'pending_user_review',
-    trigger: 'parentTaskAcknowledged',
-    setFields: {},
-  },
-
-  {
-    from: 'acknowledged',
-    to: 'pending_user_review',
-    trigger: 'parentTaskAcknowledged',
-    setFields: {},
-  },
-
-  {
-    from: 'pending_user_review',
-    to: 'completed',
-    trigger: 'markBacklogComplete',
-    setFields: {
-      completedAt: 'NOW',
-    },
-  },
-
-  {
-    from: 'backlog',
-    to: 'completed',
-    trigger: 'markBacklogComplete',
-    setFields: {
-      completedAt: 'NOW',
-    },
-  },
-
-  // ==========================================================================
-  // MARK FOR REVIEW: backlog → pending_user_review
-  // ==========================================================================
-
-  {
-    from: 'backlog',
-    to: 'pending_user_review',
-    trigger: 'markForReview',
-    setFields: {},
-  },
-
-  // ==========================================================================
-  // REWORK FLOW: pending_user_review → pending
-  // ==========================================================================
-
-  {
-    from: 'pending_user_review',
-    to: 'pending',
-    trigger: 'sendBackForRework',
-    setFields: {},
-    clearFields: ['acknowledgedAt', 'startedAt', 'assignedTo', 'completedAt', 'parentTaskIds'],
-  },
-
-  // ==========================================================================
-  // BACKLOG TO QUEUE: backlog → pending
-  // ==========================================================================
-
-  {
-    from: 'backlog',
-    to: 'pending',
-    trigger: 'moveToQueue',
-    setFields: {},
-    clearFields: ['startedAt', 'assignedTo', 'completedAt', 'acknowledgedAt'],
-  },
-
-  {
-    from: 'pending_user_review',
-    to: 'pending',
-    trigger: 'moveToQueue',
-    setFields: {},
-    clearFields: ['completedAt'],
-  },
-
-  // ==========================================================================
-  // CANCELLATION: any active state → closed
-  // ==========================================================================
-
-  {
-    from: 'pending',
-    to: 'closed',
-    trigger: 'cancelTask',
-    setFields: {},
-  },
-
-  {
-    from: 'acknowledged',
-    to: 'closed',
-    trigger: 'cancelTask',
-    setFields: {},
-  },
-
-  {
-    from: 'in_progress',
-    to: 'closed',
-    trigger: 'cancelTask',
-    setFields: {},
-  },
-
-  {
-    from: 'backlog',
-    to: 'closed',
-    trigger: 'cancelTask',
-    setFields: {},
-  },
-
-  {
-    from: 'pending_user_review',
-    to: 'closed',
-    trigger: 'cancelTask',
-    setFields: {},
-  },
-
-  // ==========================================================================
-  // REOPENING: completed/closed → pending_user_review
-  // ==========================================================================
-
-  {
-    from: 'completed',
-    to: 'pending_user_review',
-    trigger: 'reopenBacklogTask',
-    validate: (task) => task.origin === 'backlog',
-    setFields: {},
-    clearFields: ['completedAt'],
-  },
-
-  {
-    from: 'closed',
-    to: 'pending_user_review',
-    trigger: 'reopenBacklogTask',
-    validate: (task) => task.origin === 'backlog',
-    setFields: {},
-    clearFields: ['completedAt'],
-  },
-
-  // ==========================================================================
-  // FORCE COMPLETION: pending/acknowledged/in_progress/backlog → completed
+  // FORCE COMPLETION: pending/acknowledged/in_progress → completed
   // ==========================================================================
 
   {
@@ -316,15 +138,6 @@ const TRANSITIONS: TransitionRule[] = [
 
   {
     from: 'in_progress',
-    to: 'completed',
-    trigger: 'completeTaskById',
-    setFields: {
-      completedAt: 'NOW',
-    },
-  },
-
-  {
-    from: 'backlog',
     to: 'completed',
     trigger: 'completeTaskById',
     setFields: {
