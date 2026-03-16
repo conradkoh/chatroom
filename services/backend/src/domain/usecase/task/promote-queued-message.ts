@@ -37,6 +37,9 @@ export async function promoteQueuedMessage(
     content: queueRecord.content,
     type: queueRecord.type,
     ...(queueRecord.attachedTaskIds?.length && { attachedTaskIds: queueRecord.attachedTaskIds }),
+    ...(queueRecord.attachedBacklogItemIds?.length && {
+      attachedBacklogItemIds: queueRecord.attachedBacklogItemIds,
+    }),
     ...(queueRecord.attachedArtifactIds?.length && {
       attachedArtifactIds: queueRecord.attachedArtifactIds,
     }),

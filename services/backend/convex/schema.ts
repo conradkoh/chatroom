@@ -374,6 +374,7 @@ export default defineSchema({
     // Attached tasks remain in 'backlog' status until agent hands off to user,
     // at which point they transition to 'pending_user_review'
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
 
     // Attached artifacts for context
     // Agents can attach multiple artifacts to handoffs for reference
@@ -410,6 +411,8 @@ export default defineSchema({
     type: v.literal('message'),
     // Attached backlog tasks for context
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    // Attached backlog items for context
+    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
     // Attached artifacts
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
     // Queue ordering (lower = earlier in queue, older message)

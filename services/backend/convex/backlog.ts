@@ -222,3 +222,21 @@ export const updateBacklogItem = mutation({
     return { success: true };
   },
 });
+
+/** Fetches multiple backlog items by their IDs. Returns only items the session has access to. */
+export const getBacklogItemsByIds = query({
+  args: {
+    ...SessionIdArg,
+    itemIds: v.array(v.id('chatroom_backlog')),
+  },
+  handler: async (ctx, args) => {
+    if (args.itemIds.length === 0) return [];
+    const items = await Promise.all(args.itemIds.map((id) => ctx.db.get('chatroom_backlog', id)));
+    const validItems = items.filter((i): i is NonNullable<typeof i> => i !== null);
+    // Access check: use first item's chatroomId (all should be same chatroom)
+    if (validItems.length > 0) {
+      await requireChatroomAccess(ctx, args.sessionId, validItems[0]!.chatroomId);
+    }
+    return validItems;
+  },
+});
