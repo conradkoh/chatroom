@@ -82,3 +82,143 @@ export const createBacklogItem = mutation({
     });
   },
 });
+
+/** Closes a backlog item (without marking it as completed). */
+export const closeBacklogItem = mutation({
+  args: {
+    ...SessionIdArg,
+    itemId: v.id('chatroom_backlog'),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
+    if (!item) throw new ConvexError('Backlog item not found');
+    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+    if (item.status === 'closed') throw new ConvexError('Item is already closed');
+    const now = Date.now();
+    await ctx.db.patch('chatroom_backlog', args.itemId, { status: 'closed', updatedAt: now });
+    return { success: true };
+  },
+});
+
+/** Marks a backlog item as completed (user confirms agent's work is done). Must be in pending_user_review. */
+export const completeBacklogItem = mutation({
+  args: {
+    ...SessionIdArg,
+    itemId: v.id('chatroom_backlog'),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
+    if (!item) throw new ConvexError('Backlog item not found');
+    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+    if (item.status !== 'pending_user_review') {
+      throw new ConvexError(
+        `Cannot complete item with status: ${item.status}. Must be in pending_user_review.`
+      );
+    }
+    const now = Date.now();
+    await ctx.db.patch('chatroom_backlog', args.itemId, {
+      status: 'closed',
+      completedAt: now,
+      updatedAt: now,
+    });
+    return { success: true };
+  },
+});
+
+/** Reopens a closed backlog item back to backlog status. */
+export const reopenBacklogItem = mutation({
+  args: {
+    ...SessionIdArg,
+    itemId: v.id('chatroom_backlog'),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
+    if (!item) throw new ConvexError('Backlog item not found');
+    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+    if (item.status !== 'closed') {
+      throw new ConvexError(
+        `Cannot reopen item with status: ${item.status}. Must be closed.`
+      );
+    }
+    const now = Date.now();
+    await ctx.db.patch('chatroom_backlog', args.itemId, {
+      status: 'backlog',
+      completedAt: undefined,
+      updatedAt: now,
+    });
+    return { success: true };
+  },
+});
+
+/** Agent-facing: signals a backlog item is done and needs user review. Must be in backlog status. */
+export const markBacklogItemForReview = mutation({
+  args: {
+    ...SessionIdArg,
+    itemId: v.id('chatroom_backlog'),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
+    if (!item) throw new ConvexError('Backlog item not found');
+    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+    if (item.status !== 'backlog') {
+      throw new ConvexError(
+        `Cannot mark for review with status: ${item.status}. Must be in backlog.`
+      );
+    }
+    const now = Date.now();
+    await ctx.db.patch('chatroom_backlog', args.itemId, {
+      status: 'pending_user_review',
+      updatedAt: now,
+    });
+    return { success: true };
+  },
+});
+
+/** User sends a pending_user_review item back to backlog for more work. */
+export const sendBacklogItemBackForRework = mutation({
+  args: {
+    ...SessionIdArg,
+    itemId: v.id('chatroom_backlog'),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
+    if (!item) throw new ConvexError('Backlog item not found');
+    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+    if (item.status !== 'pending_user_review') {
+      throw new ConvexError(
+        `Cannot send back with status: ${item.status}. Must be in pending_user_review.`
+      );
+    }
+    const now = Date.now();
+    await ctx.db.patch('chatroom_backlog', args.itemId, {
+      status: 'backlog',
+      updatedAt: now,
+    });
+    return { success: true };
+  },
+});
+
+/** Updates the content of a backlog item. Only allowed when status is backlog. */
+export const updateBacklogItem = mutation({
+  args: {
+    ...SessionIdArg,
+    itemId: v.id('chatroom_backlog'),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
+    if (!item) throw new ConvexError('Backlog item not found');
+    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+    if (item.status !== 'backlog') {
+      throw new ConvexError(
+        `Cannot edit item with status: ${item.status}. Must be in backlog.`
+      );
+    }
+    if (!args.content.trim()) throw new ConvexError('Content cannot be empty');
+    await ctx.db.patch('chatroom_backlog', args.itemId, {
+      content: args.content.trim(),
+      updatedAt: Date.now(),
+    });
+    return { success: true };
+  },
+});
