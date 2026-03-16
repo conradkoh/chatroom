@@ -575,3 +575,93 @@ export const purgeWorkspaceCommitDetails = internalMutation({
     return { deleted };
   },
 });
+
+/**
+ * Migration: Move backlog items from chatroom_tasks to chatroom_backlog.
+ *
+ * The chatroom_backlog table was added as a dedicated home for long-lived
+ * planning items. Previously these were stored as chatroom_tasks rows with
+ * origin === 'backlog'. This migration copies them into chatroom_backlog and
+ * removes them from chatroom_tasks.
+ *
+ * A legacyTaskId field on the new chatroom_backlog row preserves the old ID
+ * so that reference remapping (attachedTaskIds / parentTaskIds in messages
+ * and tasks) can be done in a follow-up migration.
+ *
+ * Idempotent: rows already in chatroom_backlog (identified via legacyTaskId index)
+ * are skipped. chatroom_tasks rows with origin !== 'backlog' are untouched.
+ *
+ * After running this migration in production:
+ *   1. Run the follow-up reference migration (when added).
+ *   2. In a cleanup PR, remove legacyTaskId from schema, remove origin:'backlog'
+ *      from chatroom_tasks, and drop backlog-only fields from chatroom_tasks.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.migrateBacklogItemsToBacklogTable
+ */
+export const migrateBacklogItemsToBacklogTable = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allTasks = await ctx.db.query('chatroom_tasks').collect();
+
+    let migrated = 0;
+    let skipped = 0;
+    let deleted = 0;
+
+    for (const task of allTasks) {
+      const raw = task as Record<string, unknown>;
+
+      // Only migrate backlog-origin tasks
+      if (raw.origin !== 'backlog') {
+        skipped++;
+        continue;
+      }
+
+      // Idempotency check: if already migrated (exists in chatroom_backlog by legacyTaskId), skip
+      const existing = await ctx.db
+        .query('chatroom_backlog')
+        .withIndex('by_legacy_task_id', (q) => q.eq('legacyTaskId', task._id))
+        .first();
+
+      if (existing !== null) {
+        // Already migrated — delete from tasks if it somehow survived
+        await ctx.db.delete(task._id);
+        deleted++;
+        continue;
+      }
+
+      // Map status: 'backlog' and 'backlog_acknowledged' → 'backlog'
+      // 'pending_user_review' and 'closed' stay as-is
+      let newStatus: 'backlog' | 'pending_user_review' | 'closed' = 'backlog';
+      const rawStatus = raw.status as string;
+      if (rawStatus === 'pending_user_review') {
+        newStatus = 'pending_user_review';
+      } else if (rawStatus === 'closed') {
+        newStatus = 'closed';
+      }
+
+      // Insert into chatroom_backlog
+      await ctx.db.insert('chatroom_backlog', {
+        chatroomId: task.chatroomId,
+        createdBy: task.createdBy,
+        content: task.content,
+        status: newStatus,
+        assignedTo: task.assignedTo,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+        completedAt: task.completedAt,
+        complexity: task.complexity,
+        value: task.value,
+        priority: task.priority,
+        legacyTaskId: task._id,
+      });
+
+      // Remove from chatroom_tasks
+      await ctx.db.delete(task._id);
+      migrated++;
+      deleted++;
+    }
+
+    return { migrated, skipped, deleted, total: allTasks.length };
+  },
+});

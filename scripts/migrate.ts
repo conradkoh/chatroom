@@ -100,6 +100,10 @@ const MIGRATIONS: Migration[] = [
     name: 'migration:migrateBacklogAcknowledgedToBacklog',
     addedAt: '2026-03-16T03:25:00.000Z',
   },
+  {
+    name: 'migration:migrateBacklogItemsToBacklogTable',
+    addedAt: '2026-03-16T03:31:00.000Z',
+  },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
