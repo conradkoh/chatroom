@@ -1477,4 +1477,72 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(gracePeriod.remainingMs).toBeGreaterThan(0);
     expect(gracePeriod.remainingMs).toBeLessThanOrEqual(60_000);
   });
+
+  test('attached chatroom_backlog items (Attach to Context) appear in CLI output and JSON', async () => {
+    // Regression test for: bb701b29
+    // Bug: backlog items attached via "Attach to Context" (using chatroom_backlog table, not
+    // chatroom_tasks) were stored correctly in attachedBacklogItemIds but were never passed to
+    // generateFullCliOutput — so agents never saw them in the task delivery output.
+
+    const { sessionId } = await createTestSession('test-backlog-item-attach-to-context');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Create a chatroom_backlog item (created via the backlog tab, not via createTask)
+    const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
+      sessionId,
+      chatroomId,
+      content: 'Refactor: extract shared auth helpers into a utility module',
+      createdBy: 'user',
+    });
+
+    // User attaches the backlog item and sends a message — simulates clicking "Attach to Context"
+    // Note: this uses attachedBacklogItemIds (chatroom_backlog), NOT attachedTaskIds (chatroom_tasks)
+    const userMessageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Can you work on this backlog item?',
+      type: 'message',
+      attachedBacklogItemIds: [backlogItemId],
+    });
+
+    // Builder claims and starts the task
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Get task delivery prompt
+    const taskDeliveryPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: startResult.taskId,
+      messageId: userMessageId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // ── Verify JSON context has the attached backlog item ──────────────────────
+    const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
+    expect(originMessage).toBeDefined();
+
+    // The backlog item ID should appear in attachedBacklogItemIds
+    expect(originMessage?.attachedBacklogItemIds).toBeDefined();
+    expect(originMessage?.attachedBacklogItemIds).toContain(backlogItemId);
+
+    // The resolved item should appear in attachedBacklogItems
+    expect(originMessage?.attachedBacklogItems).toBeDefined();
+    expect(originMessage?.attachedBacklogItems?.length).toBe(1);
+    const attachedItem = originMessage?.attachedBacklogItems?.[0];
+    expect(attachedItem?.content).toBe('Refactor: extract shared auth helpers into a utility module');
+    expect(attachedItem?.status).toBe('backlog');
+
+    // ── Verify CLI output contains the item in ## Attached Backlog ────────────
+    const fullOutput = taskDeliveryPrompt.fullCliOutput;
+    expect(fullOutput).toContain('## Attached Backlog (1)');
+    expect(fullOutput).toContain('- [BACKLOG] Refactor: extract shared auth helpers into a utility module');
+  });
 });
