@@ -1167,12 +1167,18 @@ export const getTaskCounts = query({
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
       .collect();
 
+    // Backlog items are now in chatroom_backlog, not chatroom_tasks
+    const backlogItems = await ctx.db
+      .query('chatroom_backlog')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
     return {
       pending: tasks.filter((t) => t.status === 'pending').length,
       acknowledged: tasks.filter((t) => t.status === 'acknowledged').length,
       in_progress: tasks.filter((t) => t.status === 'in_progress').length,
       queued: queuedMessages.length, // Count from chatroom_messageQueue
-      backlog: tasks.filter((t) => t.status === 'backlog').length,
+      backlog: backlogItems.filter((i) => i.status === 'backlog').length,
       pending_user_review: tasks.filter((t) => t.status === 'pending_user_review').length,
       completed: tasks.filter((t) => t.status === 'completed').length,
       closed: tasks.filter((t) => t.status === 'closed').length,

@@ -64,6 +64,23 @@ interface Task {
   priority?: number;
 }
 
+/** Represents an item from the dedicated chatroom_backlog table. */
+interface BacklogItem {
+  _id: Id<'chatroom_backlog'>;
+  chatroomId: Id<'chatroom_rooms'>;
+  createdBy: string;
+  content: string;
+  status: 'backlog' | 'pending_user_review' | 'closed';
+  assignedTo?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  complexity?: 'low' | 'medium' | 'high';
+  value?: 'low' | 'medium' | 'high';
+  priority?: number;
+  legacyTaskId?: Id<'chatroom_tasks'>;
+}
+
 interface TaskCounts {
   pending: number;
   acknowledged: number;
@@ -162,6 +179,14 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
     limit: 100, // Match MAX_TASK_LIST_LIMIT from backend
   }) as Task[] | undefined;
 
+  // Query backlog items from the dedicated chatroom_backlog table
+  const backlogItemsRaw = useSessionQuery(api.backlog.listBacklogItems, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    statusFilter: 'active',
+    limit: 100,
+  });
+  const backlogItems = (backlogItemsRaw ?? []) as BacklogItem[];
+
   // Query task counts
   const counts = useSessionQuery(api.tasks.getTaskCounts, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -200,7 +225,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   const filteredPendingReviewTasks = pendingReviewTasks ?? [];
 
   // Mutations
-  const createTask = useSessionMutation(api.tasks.createTask);
+  const createBacklogItem = useSessionMutation(api.backlog.createBacklogItem);
   const promoteNextTask = useSessionMutation(api.tasks.promoteNextTask);
   const updateTask = useSessionMutation(api.tasks.updateTask);
   const cancelTask = useSessionMutation(api.tasks.cancelTask);
@@ -210,39 +235,28 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   const reopenBacklogTask = useSessionMutation(api.tasks.reopenBacklogTask);
 
   // Categorize tasks by status
-  // Backlog items sorted by priority descending (higher first), then by createdAt descending
-  // Tasks without priority sort to the end
   const categorizedTasks = useMemo(() => {
-    if (!tasks) return { current: [], queued: [], backlog: [] };
-
-    // Backlog items sorted by createdAt descending (newest first)
-    // Priority is displayed as metadata but does not affect sort order
-    const backlogTasks = tasks
-      .filter((t) => t.status === 'backlog')
-      .sort((a, b) => b.createdAt - a.createdAt);
-
     return {
-      current: tasks.filter(
+      current: (tasks ?? []).filter(
         (t) =>
           t.status === 'pending' ||
           t.status === 'acknowledged' ||
           t.status === 'in_progress'
       ),
-      backlog: backlogTasks,
+      backlog: backlogItems,
     };
-  }, [tasks]);
+  }, [tasks, backlogItems]);
 
   // Handlers
   const handleAddTask = useCallback(
     async (content: string) => {
-      await createTask({
+      await createBacklogItem({
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         content,
         createdBy: 'user',
-        isBacklog: true,
       });
     },
-    [createTask, chatroomId]
+    [createBacklogItem, chatroomId]
   );
 
   const handlePromoteNext = useCallback(async () => {
@@ -518,13 +532,24 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
           </div>
 
           {/* Compact Backlog Items - Show first 3 */}
-          {categorizedTasks.backlog.slice(0, 3).map((task) => (
+          {categorizedTasks.backlog.slice(0, 3).map((item) => (
             <CompactBacklogItem
-              key={task._id}
-              task={task}
-              onClick={() => handleOpenTaskDetail(task)}
+              key={item._id}
+              item={item}
+              onClick={() => {
+                // TODO: Open dedicated backlog item detail modal (Phase 3)
+                // For now, backlog items are view-only in the list
+              }}
             />
           ))}
+
+          {/* View More Button */}
+          {categorizedTasks.backlog.length > 3 && (
+            <ViewMoreButton
+              count={categorizedTasks.backlog.length - 3}
+              onClick={() => setIsQueueModalOpen(true)}
+            />
+          )}
 
           {/* View More Button */}
           {categorizedTasks.backlog.length > 3 && (
@@ -676,7 +701,7 @@ function TaskItem({
 
 // Compact Backlog Item - for sidebar display
 interface CompactBacklogItemProps {
-  task: Task;
+  item: BacklogItem;
   onClick: () => void;
 }
 
@@ -699,8 +724,8 @@ function getScoringBadge(type: 'complexity' | 'value', level: 'low' | 'medium' |
   };
 }
 
-function CompactBacklogItem({ task, onClick }: CompactBacklogItemProps) {
-  const hasScoring = task.complexity || task.value || task.priority !== undefined;
+function CompactBacklogItem({ item, onClick }: CompactBacklogItemProps) {
+  const hasScoring = item.complexity || item.value || item.priority !== undefined;
 
   return (
     <div
@@ -718,23 +743,23 @@ function CompactBacklogItem({ task, onClick }: CompactBacklogItemProps) {
       {/* Scoring badges */}
       {hasScoring && (
         <div className="flex-shrink-0 flex items-center gap-1">
-          {task.priority !== undefined && (
+          {item.priority !== undefined && (
             <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
-              P:{task.priority}
+              P:{item.priority}
             </span>
           )}
-          {task.complexity && (
+          {item.complexity && (
             <span
-              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', task.complexity).classes}`}
+              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', item.complexity).classes}`}
             >
-              {getScoringBadge('complexity', task.complexity).label}
+              {getScoringBadge('complexity', item.complexity).label}
             </span>
           )}
-          {task.value && (
+          {item.value && (
             <span
-              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', task.value).classes}`}
+              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', item.value).classes}`}
             >
-              {getScoringBadge('value', task.value).label}
+              {getScoringBadge('value', item.value).label}
             </span>
           )}
         </div>
@@ -743,7 +768,7 @@ function CompactBacklogItem({ task, onClick }: CompactBacklogItemProps) {
       {/* Content - 2 lines max, with simplified markdown */}
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
         <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
-          {task.content}
+          {item.content}
         </Markdown>
       </div>
 
