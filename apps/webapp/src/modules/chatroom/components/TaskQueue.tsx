@@ -227,6 +227,14 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   // No frontend filtering needed - backend handles pending_user_review filter
   const filteredPendingReviewTasks = pendingReviewTasks ?? [];
 
+  // Query pending review backlog items from the dedicated chatroom_backlog table
+  const pendingReviewBacklogItemsRaw = useSessionQuery(api.backlog.listBacklogItems, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    statusFilter: 'pending_user_review',
+    limit: 100,
+  });
+  const pendingReviewBacklogItems = (pendingReviewBacklogItemsRaw ?? []) as BacklogItem[];
+
   // Mutations
   const createBacklogItem = useSessionMutation(api.backlog.createBacklogItem);
   const promoteNextTask = useSessionMutation(api.tasks.promoteNextTask);
@@ -497,13 +505,13 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
         {/* Note: Queued messages are shown in MessageFeed (pinned above status bar), not here */}
 
         {/* Pending Review - Tasks completed by agents awaiting user confirmation */}
-        {filteredPendingReviewTasks.length > 0 && (
+        {(filteredPendingReviewTasks.length > 0 || pendingReviewBacklogItems.length > 0) && (
           <div className="border-b border-chatroom-border">
             <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center gap-2">
               <ClipboardCheck size={12} className="text-violet-500 dark:text-violet-400" />
-              <span>Pending Review ({filteredPendingReviewTasks.length})</span>
+              <span>Pending Review ({filteredPendingReviewTasks.length + pendingReviewBacklogItems.length})</span>
             </div>
-            {/* Show only first PENDING_REVIEW_PREVIEW_LIMIT items */}
+            {/* Show task pending review items first, then backlog pending review items */}
             {filteredPendingReviewTasks.slice(0, PENDING_REVIEW_PREVIEW_LIMIT).map((task) => (
               <PendingReviewItem
                 key={task._id}
@@ -511,10 +519,20 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
                 onClick={() => handleOpenTaskDetail(task)}
               />
             ))}
-            {/* Show "View More" button when there are more items */}
-            {filteredPendingReviewTasks.length > PENDING_REVIEW_PREVIEW_LIMIT && (
+            {filteredPendingReviewTasks.length < PENDING_REVIEW_PREVIEW_LIMIT &&
+              pendingReviewBacklogItems
+                .slice(0, PENDING_REVIEW_PREVIEW_LIMIT - filteredPendingReviewTasks.length)
+                .map((item) => (
+                  <PendingReviewBacklogItem
+                    key={item._id}
+                    item={item}
+                    onClick={() => setSelectedBacklogItem(item)}
+                  />
+                ))}
+            {/* Show "View More" button when there are more items in total */}
+            {filteredPendingReviewTasks.length + pendingReviewBacklogItems.length > PENDING_REVIEW_PREVIEW_LIMIT && (
               <ViewMoreButton
-                count={filteredPendingReviewTasks.length - PENDING_REVIEW_PREVIEW_LIMIT}
+                count={filteredPendingReviewTasks.length + pendingReviewBacklogItems.length - PENDING_REVIEW_PREVIEW_LIMIT}
                 onClick={() => setIsPendingReviewModalOpen(true)}
               />
             )}
@@ -589,9 +607,13 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
       {isPendingReviewModalOpen && (
         <PendingReviewModal
           tasks={filteredPendingReviewTasks}
+          backlogItems={pendingReviewBacklogItems}
           onClose={() => setIsPendingReviewModalOpen(false)}
           onTaskClick={(task) => {
             handleOpenTaskDetail(task);
+          }}
+          onBacklogItemClick={(item) => {
+            setSelectedBacklogItem(item);
           }}
         />
       )}
@@ -874,11 +896,13 @@ function PendingReviewItem({ task, onClick }: PendingReviewItemProps) {
 // Pending Review Modal Component
 interface PendingReviewModalProps {
   tasks: Task[];
+  backlogItems: BacklogItem[];
   onClose: () => void;
   onTaskClick: (task: Task) => void;
+  onBacklogItemClick: (item: BacklogItem) => void;
 }
 
-function PendingReviewModal({ tasks, onClose, onTaskClick }: PendingReviewModalProps) {
+function PendingReviewModal({ tasks, backlogItems, onClose, onTaskClick, onBacklogItemClick }: PendingReviewModalProps) {
   // Handle Escape key
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -921,7 +945,7 @@ function PendingReviewModal({ tasks, onClose, onTaskClick }: PendingReviewModalP
           <div className="flex items-center gap-2">
             <ClipboardCheck size={16} className="text-violet-500 dark:text-violet-400" />
             <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
-              Pending Review ({tasks.length})
+              Pending Review ({tasks.length + backlogItems.length})
             </span>
           </div>
           <button
@@ -935,18 +959,27 @@ function PendingReviewModal({ tasks, onClose, onTaskClick }: PendingReviewModalP
 
         {/* Task List */}
         <div className="flex-1 overflow-y-auto min-h-0">
-          {tasks.length === 0 ? (
+          {tasks.length === 0 && backlogItems.length === 0 ? (
             <div className="p-8 text-center text-chatroom-text-muted text-sm">
               No tasks pending review
             </div>
           ) : (
-            tasks.map((task) => (
-              <PendingReviewModalItem
-                key={task._id}
-                task={task}
-                onClick={() => onTaskClick(task)}
-              />
-            ))
+            <>
+              {tasks.map((task) => (
+                <PendingReviewModalItem
+                  key={task._id}
+                  task={task}
+                  onClick={() => onTaskClick(task)}
+                />
+              ))}
+              {backlogItems.map((item) => (
+                <PendingReviewBacklogModalItem
+                  key={item._id}
+                  item={item}
+                  onClick={() => onBacklogItemClick(item)}
+                />
+              ))}
+            </>
           )}
         </div>
       </div>
@@ -985,6 +1018,92 @@ function PendingReviewModalItem({ task, onClick }: PendingReviewModalItemProps) 
       <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
         <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
           {task.content}
+        </Markdown>
+      </div>
+
+      {/* Relative Time */}
+      <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>
+    </div>
+  );
+}
+
+// Pending Review Backlog Item (sidebar) - for backlog items awaiting user confirmation
+interface PendingReviewBacklogItemProps {
+  item: BacklogItem;
+  onClick: () => void;
+}
+
+function PendingReviewBacklogItem({ item, onClick }: PendingReviewBacklogItemProps) {
+  const relativeTime = formatRelativeTime(item.updatedAt);
+
+  return (
+    <div
+      className="flex items-center gap-2 p-2 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      {/* Review Badge - Purple/Violet for visual distinction */}
+      <span className="flex-shrink-0 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400">
+        Review
+      </span>
+
+      {/* Content - 2 lines max */}
+      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
+        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
+          {item.content}
+        </Markdown>
+      </div>
+
+      {/* Relative Time */}
+      <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>
+
+      {/* Arrow to indicate clickable */}
+      <ChevronRight
+        size={14}
+        className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
+      />
+    </div>
+  );
+}
+
+// Pending Review Backlog Modal Item - for backlog items in the PendingReviewModal
+interface PendingReviewBacklogModalItemProps {
+  item: BacklogItem;
+  onClick: () => void;
+}
+
+function PendingReviewBacklogModalItem({ item, onClick }: PendingReviewBacklogModalItemProps) {
+  const relativeTime = item.updatedAt ? formatRelativeTime(item.updatedAt) : '';
+
+  return (
+    <div
+      className="flex items-start gap-3 p-3 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group border-b border-chatroom-border last:border-b-0"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      {/* Review Badge */}
+      <span className="flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400">
+        Review
+      </span>
+
+      {/* Content - with markdown */}
+      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-3">
+        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
+          {item.content}
         </Markdown>
       </div>
 
