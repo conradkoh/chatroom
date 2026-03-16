@@ -23,7 +23,7 @@ import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { baseMarkdownComponents, compactMarkdownComponents } from './markdown-utils';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
-import { type BacklogItem, getScoringBadge } from './backlog-utils';
+import { type BacklogItem, getScoringBadge, getBacklogStatusBadge } from './backlog-utils';
 
 import type { TeamLifecycle } from '../types/readiness';
 
@@ -1241,14 +1241,40 @@ function BacklogQueueModal({ items, onClose, onItemClick }: BacklogQueueModalPro
                 }}
               >
                 {/* Status Badge - reflects actual item status */}
-                {item.status === 'pending_user_review' ? (
-                  <span className="flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400">
-                    Review
-                  </span>
-                ) : (
-                  <span className="flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-chatroom-text-muted/15 text-chatroom-text-muted">
-                    Active
-                  </span>
+                {(() => {
+                  const itemBadge = getBacklogStatusBadge(item.status);
+                  return (
+                    <span
+                      className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${itemBadge.classes}`}
+                    >
+                      {itemBadge.label}
+                    </span>
+                  );
+                })()}
+
+                {/* Scoring badges */}
+                {(item.complexity || item.value || item.priority !== undefined) && (
+                  <div className="flex-shrink-0 flex items-center gap-1">
+                    {item.priority !== undefined && (
+                      <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
+                        P:{item.priority}
+                      </span>
+                    )}
+                    {item.complexity && (
+                      <span
+                        className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', item.complexity).classes}`}
+                      >
+                        {getScoringBadge('complexity', item.complexity).label}
+                      </span>
+                    )}
+                    {item.value && (
+                      <span
+                        className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', item.value).classes}`}
+                      >
+                        {getScoringBadge('value', item.value).label}
+                      </span>
+                    )}
+                  </div>
                 )}
 
                 {/* Content - with markdown */}
