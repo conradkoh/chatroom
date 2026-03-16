@@ -1,9 +1,8 @@
-/** Scheduled fallback that restarts a stale or stuck agent for an active task. */
+/** Scheduled fallback that restarts an agent for an active task. */
 
 import { v } from 'convex/values';
 
 import {
-  STUCK_TOKEN_THRESHOLD_MS,
   ENSURE_AGENT_FALLBACK_DELAY_MS,
   CIRCUIT_BREAKER_MAX_EXITS,
   CIRCUIT_WINDOW_MS,
@@ -17,34 +16,6 @@ import { ACTIVE_TASK_STATUSES } from '../src/domain/entities/task';
 import { patchParticipantStatus } from '../src/domain/entities/participant';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Returns true if the assigned agent has stale or missing token output. */
-async function isAgentStuck(
-  ctx: MutationCtx,
-  chatroomId: Id<'chatroom_rooms'>,
-  assignedTo: string
-): Promise<boolean> {
-  const participant = await ctx.db
-    .query('chatroom_participants')
-    .withIndex('by_chatroom_and_role', (q) =>
-      q.eq('chatroomId', chatroomId).eq('role', assignedTo)
-    )
-    .first();
-
-  if (participant?.lastSeenTokenAt == null) {
-    // No participant or no token activity — assume stuck
-    return true;
-  }
-
-  const tokenAge = Date.now() - participant.lastSeenTokenAt;
-  if (tokenAge < STUCK_TOKEN_THRESHOLD_MS) {
-    // Agent is still producing tokens — healthy
-    return false;
-  }
-
-  // Token output is stale — agent is stuck
-  return true;
-}
 
 type CircuitStatus = 'closed' | 'open';
 
@@ -89,9 +60,7 @@ async function checkCircuitBreaker(
   const windowStart = now - CIRCUIT_WINDOW_MS;
   const recentEvents = await ctx.db
     .query('chatroom_eventStream')
-    .withIndex('by_chatroomId_role', (q) =>
-      q.eq('chatroomId', chatroomId).eq('role', config.role)
-    )
+    .withIndex('by_chatroomId_role', (q) => q.eq('chatroomId', chatroomId).eq('role', config.role))
     .order('desc')
     .take(CIRCUIT_BREAKER_MAX_EXITS + 5);
 
@@ -159,27 +128,7 @@ export const check = internalMutation({
       return;
     }
 
-    // ── 4. Smart token check for in_progress tasks ────────────────────────
-    //
-    // If the task is already in_progress, check whether the agent is still
-    // actively producing tokens. If healthy, reschedule and return without
-    // restarting. Only stuck agents (stale token output) are restarted.
-
-    if (task.status === 'in_progress' && task.assignedTo) {
-      const stuck = await isAgentStuck(ctx, chatroomId, task.assignedTo);
-      if (!stuck) {
-        // Agent is still producing tokens — reschedule check and wait.
-        await ctx.scheduler.runAfter(ENSURE_AGENT_FALLBACK_DELAY_MS, internal.ensureAgentHandler.check, {
-          taskId,
-          chatroomId,
-          snapshotUpdatedAt: task.updatedAt,
-        });
-        return;
-      }
-      // Agent is stuck (stale or missing token output) — fall through to restart.
-    }
-
-    // ── 5. Find all remote agent configs for this chatroom ────────────────
+    // ── 4. Find all remote agent configs for this chatroom ────────────────
 
     const teamAgentConfigs = await ctx.db
       .query('chatroom_teamAgentConfigs')
