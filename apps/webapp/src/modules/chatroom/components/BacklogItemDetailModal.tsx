@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import { baseMarkdownComponents } from './markdown-utils';
-import { type BacklogItem, getBacklogStatusBadge } from './backlog-utils';
+import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog-utils';
 import { useAttachments } from '../context/AttachmentsContext';
 
 interface BacklogItemDetailModalProps {
@@ -139,6 +139,26 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
             >
               {badge.label}
             </span>
+            {/* Scoring Badges */}
+            {item.priority !== undefined && (
+              <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
+                P:{item.priority}
+              </span>
+            )}
+            {item.complexity && (
+              <span
+                className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', item.complexity).classes}`}
+              >
+                {getScoringBadge('complexity', item.complexity).label}
+              </span>
+            )}
+            {item.value && (
+              <span
+                className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', item.value).classes}`}
+              >
+                {getScoringBadge('value', item.value).label}
+              </span>
+            )}
           </div>
         </FixedModalHeader>
 
