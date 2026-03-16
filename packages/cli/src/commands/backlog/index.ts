@@ -26,7 +26,6 @@ type BacklogItemStatus = 'backlog' | 'pending_user_review' | 'closed';
 export interface ListBacklogOptions {
   role: string;
   limit?: number;
-  full?: boolean;
 }
 
 export interface AddBacklogOptions {
@@ -119,7 +118,7 @@ function validateChatroomId(chatroomId: string): void {
 // ─── Commands ──────────────────────────────────────────────────────────────
 
 /**
- * List tasks in a chatroom
+ * List active backlog items
  */
 export async function listBacklog(
   chatroomId: string,
@@ -133,20 +132,6 @@ export async function listBacklog(
   const limit = options.limit ?? 100;
 
   try {
-    // Get task counts
-    const counts = await d.backend.query(api.tasks.getTaskCounts, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    });
-
-    // Get tasks (all non-historical)
-    const tasks = await d.backend.query(api.tasks.listTasks, {
-      sessionId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      statusFilter: undefined,
-      limit,
-    });
-
     // Get backlog items from the dedicated chatroom_backlog table
     const backlogItems = await d.backend.query(api.backlog.listBacklogItems, {
       sessionId,
@@ -158,64 +143,14 @@ export async function listBacklog(
     // Display header
     console.log('');
     console.log('══════════════════════════════════════════════════');
-    console.log('📋 TASK QUEUE');
+    console.log('📋 ACTIVE BACKLOG');
     console.log('══════════════════════════════════════════════════');
     console.log(`Chatroom: ${chatroomId}`);
     console.log('');
 
-    // Display counts summary
-    console.log('──────────────────────────────────────────────────');
-    console.log('📊 SUMMARY');
-    console.log('──────────────────────────────────────────────────');
-    if (counts.pending > 0) console.log(`  🟢 Pending: ${counts.pending}`);
-    if (counts.in_progress > 0) console.log(`  🔵 In Progress: ${counts.in_progress}`);
-    if (counts.queued > 0) console.log(`  🟡 Queued: ${counts.queued}`);
-    if (counts.backlog > 0) console.log(`  ⚪ Backlog: ${counts.backlog}`);
-    const activeTotal = counts.pending + counts.in_progress + counts.queued + counts.backlog;
-    console.log(`  📝 Active Total: ${activeTotal}/100`);
-    console.log('');
-
-    // Display tasks
-    if (tasks.length === 0) {
-      console.log('No tasks found.');
+    if (backlogItems.length === 0) {
+      console.log('No active backlog items.');
     } else {
-      console.log('──────────────────────────────────────────────────');
-      console.log('📝 TASKS');
-      console.log('──────────────────────────────────────────────────');
-
-      for (let i = 0; i < tasks.length; i++) {
-        const task = tasks[i]!;
-        const statusEmoji = getStatusEmoji(task.status);
-        const date = new Date(task.createdAt).toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        });
-
-        const displayContent = task.content;
-        console.log(`#${i + 1} [${statusEmoji} ${task.status.toUpperCase()}] ${displayContent}`);
-        console.log(`   ID: ${task._id}`);
-        console.log(
-          `   Created: ${date}${task.assignedTo ? ` | Assigned: ${task.assignedTo}` : ''}`
-        );
-        // Show scoring info if available
-        if (task.complexity !== undefined || task.value !== undefined || task.priority !== undefined) {
-          const parts: string[] = [];
-          if (task.complexity) parts.push(`complexity=${task.complexity}`);
-          if (task.value) parts.push(`value=${task.value}`);
-          if (task.priority !== undefined) parts.push(`priority=${task.priority}`);
-          console.log(`   Score: ${parts.join(' | ')}`);
-        }
-        console.log('');
-      }
-    }
-
-    // Display backlog items
-    if (backlogItems.length > 0) {
-      console.log('──────────────────────────────────────────────────');
-      console.log('📋 BACKLOG ITEMS');
       console.log('──────────────────────────────────────────────────');
 
       for (let i = 0; i < backlogItems.length; i++) {
@@ -247,26 +182,10 @@ export async function listBacklog(
     }
 
     console.log('──────────────────────────────────────────────────');
-    const totalForFilter =
-      counts.pending +
-      counts.in_progress +
-      counts.queued +
-      counts.backlog +
-      counts.pending_user_review;
-
-    if (tasks.length < totalForFilter) {
-      console.log(
-        `Showing ${tasks.length} of ${totalForFilter} task(s) (use --limit=N to see more)`
-      );
-    } else {
-      console.log(`Showing ${tasks.length} task(s)`);
-    }
-    if (backlogItems.length > 0) {
-      console.log(`Showing ${backlogItems.length} backlog item(s)`);
-    }
+    console.log(`Showing ${backlogItems.length} backlog item(s)`);
     console.log('');
   } catch (error) {
-    console.error(`❌ Failed to list tasks: ${(error as Error).message}`);
+    console.error(`❌ Failed to list backlog items: ${(error as Error).message}`);
     process.exit(1);
     return;
   }

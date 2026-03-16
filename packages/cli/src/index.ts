@@ -325,24 +325,21 @@ const backlogCommand = program.command('backlog').description('Manage task queue
 
 backlogCommand
   .command('list')
-  .description('List tasks in a chatroom')
+  .description('List active backlog items')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .option('--limit <n>', 'Maximum number of tasks to show')
-  .option('--full', 'Show full task content without truncation')
+  .option('--limit <n>', 'Maximum number of items to show')
   .action(
     async (options: {
       chatroomId: string;
       role: string;
       limit?: string;
-      full?: boolean;
     }) => {
       await maybeRequireAuth();
       const { listBacklog } = await import('./commands/backlog/index.js');
       await listBacklog(options.chatroomId, {
         role: options.role,
         limit: options.limit ? parseInt(options.limit, 10) : undefined,
-        full: options.full,
       });
     }
   );
