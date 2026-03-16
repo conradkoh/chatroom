@@ -7,6 +7,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { baseMarkdownComponents } from './markdown-utils';
+import { getBacklogStatusBadge } from './backlog-utils';
 
 interface AttachedTask {
   _id: string;
@@ -44,44 +45,42 @@ export function AttachedTaskDetailModal({ isOpen, task, onClose }: AttachedTaskD
 
   if (!isOpen || !task) return null;
 
-  const getBacklogStatusBadge = () => {
-    switch (task.backlogStatus) {
+  const getStatusBadgeForAttachedTask = (status?: string) => {
+    // Use shared backlog status badge for backlog-specific statuses
+    if (status === 'backlog' || status === 'pending_user_review' || status === 'closed') {
+      return getBacklogStatusBadge(status);
+    }
+    // Fallback for task-level statuses
+    switch (status) {
       case 'in_progress':
         return {
           label: 'In Progress',
           classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
         };
       case 'pending':
-      case 'acknowledged':
         return {
-          label: task.backlogStatus === 'pending' ? 'Pending' : 'Acknowledged',
+          label: 'Pending',
           classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
         };
-      case 'pending_user_review':
+      case 'acknowledged':
         return {
-          label: 'Pending Review',
-          classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
+          label: 'Acknowledged',
+          classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
         };
       case 'completed':
         return {
           label: 'Completed',
           classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
         };
-      case 'closed':
-        return {
-          label: 'Closed',
-          classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-        };
-      case 'backlog':
       default:
         return {
-          label: 'Not Started',
+          label: 'Backlog',
           classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
         };
     }
   };
 
-  const statusBadge = getBacklogStatusBadge();
+  const statusBadge = getStatusBadgeForAttachedTask(task.backlogStatus);
 
   return (
     <>
