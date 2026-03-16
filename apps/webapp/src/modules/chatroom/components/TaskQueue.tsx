@@ -199,16 +199,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
     return false;
   }, [counts, lifecycle]);
 
-  // Query pending review tasks (tasks with pending_user_review status)
-  const pendingReviewTasks = useSessionQuery(api.tasks.listTasks, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    statusFilter: 'pending_user_review',
-    limit: 100, // Match MAX_TASK_LIST_LIMIT from backend
-  }) as Task[] | undefined;
-
-  // No frontend filtering needed - backend handles pending_user_review filter
-  const filteredPendingReviewTasks = pendingReviewTasks ?? [];
-
   // Query pending review backlog items from the dedicated chatroom_backlog table
   const pendingReviewBacklogItemsRaw = useSessionQuery(api.backlog.listBacklogItems, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
@@ -221,8 +211,8 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   const createBacklogItem = useSessionMutation(api.backlog.createBacklogItem);
   const promoteNextTask = useSessionMutation(api.tasks.promoteNextTask);
   const updateTask = useSessionMutation(api.tasks.updateTask);
-  const cancelTask = useSessionMutation(api.tasks.cancelTask);
   const completeTaskById = useSessionMutation(api.tasks.completeTaskById);
+  // Note: cancelTask mutation was removed in Phase 3 backlog cleanup
 
   // Categorize tasks by status
   const categorizedTasks = useMemo(() => {
@@ -284,20 +274,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
     [updateTask]
   );
 
-  const handleModalDelete = useCallback(
-    async (taskId: string) => {
-      try {
-        await cancelTask({
-          taskId: taskId as Id<'chatroom_tasks'>,
-        });
-      } catch (error) {
-        console.error('Failed to delete task:', error);
-        throw error;
-      }
-    },
-    [cancelTask]
-  );
-
   const handleModalForceComplete = useCallback(
     async (taskId: string) => {
       try {
@@ -313,7 +289,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
     [completeTaskById]
   );
 
-  // Batch close all acknowledged tasks
+  // Batch close all acknowledged tasks (force complete)
   const handleCloseAllAcknowledged = useCallback(async () => {
     if (!categorizedTasks.current) return;
 
@@ -325,12 +301,13 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
       return;
     }
 
-    // Close all acknowledged tasks
+    // Force complete all acknowledged tasks
     try {
       await Promise.all(
         acknowledgedTasks.map((task) =>
-          cancelTask({
+          completeTaskById({
             taskId: task._id as Id<'chatroom_tasks'>,
+            force: true,
           })
         )
       );
@@ -338,7 +315,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
     } catch (error) {
       console.error('Failed to close all acknowledged tasks:', error);
     }
-  }, [categorizedTasks.current, cancelTask]);
+  }, [categorizedTasks.current, completeTaskById]);
 
   if (tasks === undefined) {
     return (
@@ -425,44 +402,30 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
 
         {/* Note: Queued messages are shown in MessageFeed (pinned above status bar), not here */}
 
-        {/* Pending Review - Tasks completed by agents awaiting user confirmation */}
-        {(filteredPendingReviewTasks.length > 0 || pendingReviewBacklogItems.length > 0) && (
+        {/* Pending Review - Backlog items awaiting user confirmation */}
+        {pendingReviewBacklogItems.length > 0 && (
           <div className="border-b border-chatroom-border">
             <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center gap-2">
               <ClipboardCheck size={12} className="text-violet-500 dark:text-violet-400" />
               <span>
-                Pending Review (
-                {filteredPendingReviewTasks.length + pendingReviewBacklogItems.length})
+                Pending Review ({pendingReviewBacklogItems.length})
               </span>
             </div>
-            {/* Show task pending review items first, then backlog pending review items */}
-            {filteredPendingReviewTasks.slice(0, PENDING_REVIEW_PREVIEW_LIMIT).map((task) => (
-              <PendingReviewItem
-                key={task._id}
-                task={task}
-                onClick={() => handleOpenTaskDetail(task)}
-              />
-            ))}
-            {filteredPendingReviewTasks.length < PENDING_REVIEW_PREVIEW_LIMIT &&
-              pendingReviewBacklogItems
-                .slice(0, PENDING_REVIEW_PREVIEW_LIMIT - filteredPendingReviewTasks.length)
-                .map((item) => (
-                  <PendingReviewBacklogItem
-                    key={item._id}
-                    item={item}
-                    onClick={() => setSelectedBacklogItem(item)}
-                  />
-                ))}
+            {/* Show backlog pending review items */}
+            {pendingReviewBacklogItems
+              .slice(0, PENDING_REVIEW_PREVIEW_LIMIT)
+              .map((item) => (
+                <PendingReviewBacklogItem
+                  key={item._id}
+                  item={item}
+                  onClick={() => setSelectedBacklogItem(item)}
+                />
+              ))}
             {/* Show "View More" button when there are more items in total */}
-            {filteredPendingReviewTasks.length + pendingReviewBacklogItems.length >
-              PENDING_REVIEW_PREVIEW_LIMIT && (
+            {pendingReviewBacklogItems.length > PENDING_REVIEW_PREVIEW_LIMIT && (
               <ViewMoreButton
-                count={
-                  filteredPendingReviewTasks.length +
-                  pendingReviewBacklogItems.length -
-                  PENDING_REVIEW_PREVIEW_LIMIT
-                }
-                onClick={() => setIsPendingReviewModalOpen(true)}
+                count={pendingReviewBacklogItems.length - PENDING_REVIEW_PREVIEW_LIMIT}
+                onClick={() => setIsBacklogQueueModalOpen(true)}
               />
             )}
           </div>
@@ -515,7 +478,7 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
           task={selectedTask}
           onClose={handleCloseTaskDetail}
           onEdit={handleModalEdit}
-          onDelete={handleModalDelete}
+          onDelete={handleModalForceComplete}
           onForceComplete={handleModalForceComplete}
         />
       )}
@@ -531,10 +494,10 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
         }}
       />
 
-      {/* Pending Review Modal */}
+      {/* Pending Review Modal - Note: shows backlog items only since pending_user_review status removed */}
       {isPendingReviewModalOpen && (
         <PendingReviewModal
-          tasks={filteredPendingReviewTasks}
+          tasks={[]}
           backlogItems={pendingReviewBacklogItems}
           onClose={() => setIsPendingReviewModalOpen(false)}
           onTaskClick={(task) => {
@@ -739,11 +702,6 @@ function ViewMoreButton({ count, onClick }: ViewMoreButtonProps) {
 }
 
 // Pending Review Item - for tasks awaiting user confirmation
-interface PendingReviewItemProps {
-  task: Task;
-  onClick: () => void;
-}
-
 // Helper to format relative time
 function formatRelativeTime(timestamp: number): string {
   const now = Date.now();
@@ -757,46 +715,6 @@ function formatRelativeTime(timestamp: number): string {
   if (hours < 24) return `${hours}h ago`;
   if (days < 7) return `${days}d ago`;
   return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function PendingReviewItem({ task, onClick }: PendingReviewItemProps) {
-  const relativeTime = formatRelativeTime(task.updatedAt);
-
-  return (
-    <div
-      className="flex items-center gap-2 p-2 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group"
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-    >
-      {/* Review Badge - Purple/Violet for visual distinction */}
-      <span className="flex-shrink-0 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400">
-        Review
-      </span>
-
-      {/* Content - 2 lines max */}
-      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
-          {task.content}
-        </Markdown>
-      </div>
-
-      {/* Relative Time */}
-      <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted">{relativeTime}</span>
-
-      {/* Arrow to indicate clickable */}
-      <ChevronRight
-        size={14}
-        className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
-      />
-    </div>
-  );
 }
 
 // Pending Review Modal Component
