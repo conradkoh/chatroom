@@ -52,6 +52,10 @@ export interface FullCliOutputParams {
       status: string;
       content: string;
     }[];
+    attachedBacklogItems?: {
+      status: string;
+      content: string;
+    }[];
   } | null;
 
   /** Number of follow-up messages since origin */
@@ -187,12 +191,16 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('## Task');
   lines.push(task.content);
 
-  // Attached backlog tasks from origin message
-  if (originMessage?.attachedTasks && originMessage.attachedTasks.length > 0) {
+  // Attached items from origin message (legacy chatroom_tasks + backlog items)
+  const allAttached = [
+    ...(originMessage?.attachedTasks ?? []),
+    ...(originMessage?.attachedBacklogItems ?? []),
+  ];
+  if (allAttached.length > 0) {
     lines.push('');
-    lines.push(`## Attached Backlog (${originMessage.attachedTasks.length})`);
-    for (const attachedTask of originMessage.attachedTasks) {
-      lines.push(`- [${attachedTask.status.toUpperCase()}] ${attachedTask.content}`);
+    lines.push(`## Attached Backlog (${allAttached.length})`);
+    for (const attached of allAttached) {
+      lines.push(`- [${attached.status.toUpperCase()}] ${attached.content}`);
     }
   }
 

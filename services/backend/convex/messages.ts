@@ -2144,6 +2144,13 @@ export const getTaskDeliveryPrompt = query({
                 status: t!.status,
                 content: t!.content,
               })),
+            attachedBacklogItems: originMessage.attachedBacklogItemIds
+              ?.map((id) => attachedBacklogItemsMap.get(id))
+              .filter(Boolean)
+              .map((i) => ({
+                status: i!.status,
+                content: i!.content,
+              })),
           }
         : null,
       followUpCountSinceOrigin,
