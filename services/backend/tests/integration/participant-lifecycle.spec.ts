@@ -256,7 +256,6 @@ describe('Participant Lifecycle', () => {
           createdBy: 'user',
           content: 'acknowledged task content',
           status: 'acknowledged',
-          origin: 'chat',
           createdAt: now,
           updatedAt: now,
           queuePosition: 0,

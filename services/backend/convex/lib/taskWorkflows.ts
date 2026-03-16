@@ -13,7 +13,7 @@ export type TaskSection =
   | 'archived'; // Archived/completed section
 
 /** Returns the UI section for a task based on its status. */
-export function getTaskSection(_origin: undefined, status: TaskStatus): TaskSection {
+export function getTaskSection(status: TaskStatus): TaskSection {
   // Terminal state
   if (status === 'completed') {
     return 'archived';
@@ -37,7 +37,6 @@ export function getTaskSection(_origin: undefined, status: TaskStatus): TaskSect
  * Check if a status transition is valid
  */
 export function isValidTransition(
-  _origin: undefined,
   fromStatus: TaskStatus,
   toStatus: TaskStatus
 ): boolean {
@@ -61,14 +60,14 @@ export function isValidTransition(
 /**
  * Check if a task is in a terminal state
  */
-export function isTerminalStatus(_origin: undefined, status: TaskStatus): boolean {
+export function isTerminalStatus(status: TaskStatus): boolean {
   return status === 'completed';
 }
 
 /**
  * Get allowed next statuses for a task
  */
-export function getNextStatuses(_origin: undefined, status: TaskStatus): TaskStatus[] {
+export function getNextStatuses(status: TaskStatus): TaskStatus[] {
   const transitions: Record<string, TaskStatus[]> = {
     pending: ['acknowledged', 'completed'],
     acknowledged: ['in_progress', 'completed'],
@@ -81,7 +80,6 @@ export function getNextStatuses(_origin: undefined, status: TaskStatus): TaskSta
 
 /** Returns the completion status a task should transition to when the agent finishes work. */
 export function getCompletionStatus(
-  _origin: undefined,
   currentStatus: TaskStatus
 ): TaskStatus {
   // All tasks transition to 'completed' when work is done

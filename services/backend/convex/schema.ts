@@ -473,8 +473,7 @@ export default defineSchema({
    *
    * Lifecycle: backlog → pending_user_review → closed (or deleted)
    *
-   * Items are promoted to chatroom_tasks (as origin:'chat') when the user
-   * decides to execute them.
+   * Items are promoted to chatroom_tasks when the user decides to execute them.
    */
   chatroom_backlog: defineTable({
     chatroomId: v.id('chatroom_rooms'),

@@ -240,3 +240,28 @@ export const getBacklogItemsByIds = query({
     return validItems;
   },
 });
+
+/** Updates priority, complexity, or value of a backlog item. Only allowed when status is backlog. */
+export const patchBacklogItem = mutation({
+  args: {
+    ...SessionIdArg,
+    itemId: v.id('chatroom_backlog'),
+    priority: v.optional(v.number()),
+    complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get('chatroom_backlog', args.itemId);
+    if (!item) throw new ConvexError('Backlog item not found');
+    await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
+
+    // Build update object with only provided fields
+    const updates: Record<string, unknown> = { updatedAt: Date.now() };
+    if (args.priority !== undefined) updates.priority = args.priority;
+    if (args.complexity !== undefined) updates.complexity = args.complexity;
+    if (args.value !== undefined) updates.value = args.value;
+
+    await ctx.db.patch('chatroom_backlog', args.itemId, updates);
+    return { success: true };
+  },
+});

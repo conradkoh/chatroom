@@ -378,9 +378,9 @@ export async function patchBacklog(
   }
 
   try {
-    await d.backend.mutation(api.tasks.patchTask, {
+    await d.backend.mutation(api.backlog.patchBacklogItem, {
       sessionId,
-      taskId: options.backlogItemId as Id<'chatroom_tasks'>,
+      itemId: options.backlogItemId as Id<'chatroom_backlog'>,
       complexity: options.complexity as 'low' | 'medium' | 'high' | undefined,
       value: options.value as 'low' | 'medium' | 'high' | undefined,
       priority: priorityNum,
@@ -469,9 +469,9 @@ export async function scoreBacklog(
   }
 
   try {
-    await d.backend.mutation(api.tasks.patchTask, {
+    await d.backend.mutation(api.backlog.patchBacklogItem, {
       sessionId,
-      taskId: options.backlogItemId as Id<'chatroom_tasks'>,
+      itemId: options.backlogItemId as Id<'chatroom_backlog'>,
       complexity: options.complexity as 'low' | 'medium' | 'high' | undefined,
       value: options.value as 'low' | 'medium' | 'high' | undefined,
       priority: priorityNum,

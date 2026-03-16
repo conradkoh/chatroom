@@ -43,7 +43,6 @@ async function seedTask(
       createdBy: 'user',
       content: 'test task',
       status,
-      origin: 'chat',
       createdAt: now,
       updatedAt: now,
       queuePosition: 0,

@@ -143,7 +143,6 @@ describe('promoteSpecificTask', () => {
         createdBy: 'user',
         content: 'in progress task',
         status: 'in_progress',
-        origin: 'chat',
         createdAt: now,
         updatedAt: now,
         queuePosition: 0,

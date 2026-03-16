@@ -37,7 +37,6 @@ async function seedActiveTask(chatroomId: Id<'chatroom_rooms'>) {
       createdBy: 'user',
       content: 'active task',
       status: 'in_progress',
-      origin: 'chat',
       createdAt: now,
       updatedAt: now,
       queuePosition: 0,

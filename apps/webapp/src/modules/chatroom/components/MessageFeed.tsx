@@ -226,25 +226,14 @@ function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; class
         label: status === 'pending' ? 'Pending' : 'Acknowledged',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
-    case 'pending_user_review':
-      return {
-        label: 'Pending Review',
-        classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
-      };
     case 'completed':
       return {
         label: 'Completed',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
-    case 'closed':
-      return {
-        label: 'Closed',
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
-    case 'backlog':
     default:
       return {
-        label: 'Not Started',
+        label: 'Unknown',
         classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
       };
   }

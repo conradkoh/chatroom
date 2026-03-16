@@ -9,7 +9,6 @@ import { mutation, query } from './_generated/server';
 import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
 import { decodeStructured } from './lib/stdinDecoder';
-import { getCompletionStatus } from './lib/taskWorkflows';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
@@ -71,10 +70,10 @@ async function _sendMessageHandler(
           message: 'Invalid task reference: task belongs to different chatroom.',
         });
       }
-      if (task.status === 'closed' || task.status === 'completed') {
+      if (task.status === 'completed') {
         throw new ConvexError({
           code: 'INVALID_TASK_STATUS',
-          message: 'Cannot attach closed or completed tasks. Please select active backlog items.',
+          message: 'Cannot attach completed tasks. Please select active items.',
         });
       }
     }
@@ -183,29 +182,9 @@ async function _sendMessageHandler(
         sourceMessageId: messageId,
         attachedTaskIds: args.attachedTaskIds,
         queuePosition,
-        origin: 'chat',
       });
 
       await ctx.db.patch('chatroom_messages', messageId, { taskId });
-
-      // Bidirectional tracking for attached backlog tasks
-      if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
-        const now = Date.now();
-        for (const attachedTaskId of args.attachedTaskIds) {
-          const attachedTask = await ctx.db.get('chatroom_tasks', attachedTaskId);
-          if (!attachedTask) continue;
-          const existingParents = attachedTask.parentTaskIds || [];
-          await ctx.db.patch('chatroom_tasks', attachedTaskId, {
-            parentTaskIds: [...existingParents, taskId],
-            updatedAt: now,
-          });
-          if (attachedTask.status === 'backlog') {
-            // Note: backlog_acknowledged status has been removed.
-            // Attached tasks remain in 'backlog' status; the parentTaskIds field
-            // is still tracked for reference but no status transition is needed.
-          }
-        }
-      }
 
       return messageId;
     }
@@ -238,7 +217,6 @@ async function _sendMessageHandler(
         sourceMessageId: messageId,
         attachedTaskIds: args.attachedTaskIds,
         queuePosition,
-        origin: 'chat',
       });
       await ctx.db.patch('chatroom_messages', messageId, { taskId });
     }
@@ -396,22 +374,15 @@ async function _handoffHandler(
   const completedTaskIds: Id<'chatroom_tasks'>[] = [];
 
   for (const task of tasksToComplete) {
-    // Determine the new status using the workflow definition:
-    // - When handing off to user: use workflow-defined completion status
-    //   (backlog → pending_user_review, chat → completed)
-    // - When handing off to agent: always 'completed' (a new task is created for target)
-    const newStatus: 'pending_user_review' | 'completed' = isHandoffToUser
-      ? (getCompletionStatus(task.origin, task.status) as 'pending_user_review' | 'completed')
-      : 'completed';
+    // All tasks complete to 'completed' status
+    const newStatus: 'completed' = 'completed';
 
     // Use FSM for transition
-    // Use appropriate trigger based on context
-    const trigger = isHandoffToUser ? 'completeTask' : 'completeTask';
-    await transitionTask(ctx, task._id, newStatus, trigger);
+    await transitionTask(ctx, task._id, newStatus, 'completeTask');
     completedTaskIds.push(task._id);
 
-    // Set completedAt on the source message (lifecycle tracking) - only for completed tasks
-    if (task.sourceMessageId && newStatus === 'completed') {
+    // Set completedAt on the source message (lifecycle tracking)
+    if (task.sourceMessageId) {
       await ctx.db.patch('chatroom_messages', task.sourceMessageId, {
         completedAt: now,
       });
@@ -455,7 +426,6 @@ async function _handoffHandler(
       assignedTo: args.targetRole,
       sourceMessageId: messageId,
       queuePosition,
-      origin: 'chat',
     });
     newTaskId = createdTaskId;
 
@@ -477,44 +447,15 @@ async function _handoffHandler(
     });
   }
 
-  // Step 5: Update attached backlog tasks to pending_user_review when handing off to user
-  // This is the ONLY place where attached backlog tasks should have their status changed
-  // Use whitelist approach: only transition specific statuses, not "everything except completed/closed"
-  // This avoids accidentally flipping cancelled/archived tasks
-  const TRANSITIONABLE_STATUSES = ['backlog', 'pending', 'in_progress'] as const;
-  type TransitionableStatus = (typeof TRANSITIONABLE_STATUSES)[number];
-
+  // Step 5: Update attached backlog items to pending_user_review when handing off to user
+  // This is the ONLY place where attached backlog items should have their status changed
   if (isHandoffToUser) {
-    // For each completed task, get its source message and update attached backlog tasks
+    // For each completed task, get its source message and update attached backlog items
     for (const task of inProgressTasks) {
       if (task.sourceMessageId) {
         const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
 
-        // 5a. Legacy path: chatroom_tasks with origin:'backlog' attached via attachedTaskIds
-        if (sourceMessage?.attachedTaskIds && sourceMessage.attachedTaskIds.length > 0) {
-          for (const attachedTaskId of sourceMessage.attachedTaskIds) {
-            const attachedTask = await ctx.db.get('chatroom_tasks', attachedTaskId);
-            // Only update backlog-origin tasks in transitionable statuses
-            if (
-              attachedTask &&
-              attachedTask.origin === 'backlog' &&
-              TRANSITIONABLE_STATUSES.includes(attachedTask.status as TransitionableStatus)
-            ) {
-              await transitionTask(
-                ctx,
-                attachedTaskId,
-                'pending_user_review',
-                'parentTaskAcknowledged'
-              );
-              console.warn(
-                `[Attached Task Update] chatroomId=${task.chatroomId} taskId=${attachedTaskId} ` +
-                  `from=${attachedTask.status} to=pending_user_review`
-              );
-            }
-          }
-        }
-
-        // 5b. New path: chatroom_backlog items attached via "Attach to Context" (attachedBacklogItemIds)
+        // Update chatroom_backlog items attached via "Attach to Context" (attachedBacklogItemIds)
         if (sourceMessage?.attachedBacklogItemIds && sourceMessage.attachedBacklogItemIds.length > 0) {
           const now = Date.now();
           for (const backlogItemId of sourceMessage.attachedBacklogItemIds) {
@@ -1130,9 +1071,7 @@ export const listPaginated = query({
           | {
               _id: string;
               content: string;
-              backlogStatus?: TaskStatus;
               status: TaskStatus;
-              origin?: string;
             }[]
           | undefined;
         if (message.attachedTaskIds && message.attachedTaskIds.length > 0) {
@@ -1145,9 +1084,6 @@ export const listPaginated = query({
               _id: t!._id,
               content: t!.content,
               status: t!.status,
-              origin: t!.origin,
-              // Compute backlogStatus from actual task status for display in the UI
-              backlogStatus: t!.status,
             }));
         }
 
@@ -1996,7 +1932,7 @@ export const getTaskDeliveryPrompt = query({
     // Fetch attached task details
     const attachedTasksMap = new Map<
       string,
-      { id: string; content: string; status: TaskStatus; createdBy: string; backlogStatus?: string }
+      { id: string; content: string; status: TaskStatus; createdBy: string }
     >();
     if (allAttachedTaskIds.length > 0) {
       const uniqueTaskIds = [...new Set(allAttachedTaskIds)];
@@ -2008,7 +1944,6 @@ export const getTaskDeliveryPrompt = query({
             content: attachedTask.content,
             status: attachedTask.status,
             createdBy: attachedTask.createdBy,
-            backlogStatus: attachedTask.origin === 'backlog' ? attachedTask.status : undefined,
           });
         }
       }
