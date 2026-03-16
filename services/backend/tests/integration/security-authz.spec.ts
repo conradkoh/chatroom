@@ -20,7 +20,6 @@ describe('security authz protections', () => {
       chatroomId: ownerChatroomId,
       content: 'Owner task',
       createdBy: 'user',
-      isBacklog: false,
     });
 
     const attackerTask = await t.mutation(api.tasks.createTask, {
@@ -28,7 +27,6 @@ describe('security authz protections', () => {
       chatroomId: attackerChatroomId,
       content: 'Attacker task',
       createdBy: 'user',
-      isBacklog: false,
     });
 
     const leakedTasks = await t.query(api.tasks.getTasksByIds, {

@@ -132,7 +132,6 @@ describe('shouldEnqueueMessage', () => {
         createdBy: 'user',
         content: 'test task',
         status: 'acknowledged',
-        origin: 'chat',
         createdAt: now,
         updatedAt: now,
         queuePosition: 0,

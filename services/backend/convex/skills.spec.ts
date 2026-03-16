@@ -61,7 +61,6 @@ describe('skills.activate', () => {
 
     expect(task).toBeDefined();
     expect(task?.status).toBe('pending');
-    expect(task?.origin).toBe('chat');
     expect(task?.content).toContain('Continuous Backlog Execution');
   });
 

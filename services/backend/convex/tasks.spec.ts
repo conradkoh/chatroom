@@ -108,7 +108,6 @@ describe('promoteSpecificTask', () => {
         createdBy: 'user',
         content: 'pending task',
         status: 'pending',
-        origin: 'chat',
         createdAt: now,
         updatedAt: now,
         queuePosition: 0,

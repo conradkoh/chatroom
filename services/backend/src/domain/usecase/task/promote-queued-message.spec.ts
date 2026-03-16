@@ -98,7 +98,6 @@ describe('promoteQueuedMessage', () => {
     expect(task).toBeDefined();
     expect(task?.status).toBe('pending');
     expect(task?.content).toBe('queued message content');
-    expect(task?.origin).toBe('chat');
   });
 
   test('links message and task bidirectionally', async () => {
