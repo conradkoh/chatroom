@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import { baseMarkdownComponents } from './markdown-utils';
-import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog-utils';
+import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
 import { useAttachments } from '../context/AttachmentsContext';
 
 interface BacklogItemDetailModalProps {

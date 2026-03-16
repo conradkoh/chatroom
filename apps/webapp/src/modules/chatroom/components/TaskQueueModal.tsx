@@ -312,7 +312,7 @@ const compactMarkdownComponents = {
   ),
 };
 
-import { getScoringBadge } from './backlog-utils';
+import { getScoringBadge } from './backlog';
 
 // Task List Item Component
 interface TaskListItemProps {

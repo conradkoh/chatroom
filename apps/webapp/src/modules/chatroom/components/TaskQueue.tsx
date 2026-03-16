@@ -23,7 +23,7 @@ import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { baseMarkdownComponents, compactMarkdownComponents } from './markdown-utils';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
-import { type BacklogItem, getScoringBadge, getBacklogStatusBadge } from './backlog-utils';
+import { type BacklogItem, getScoringBadge, getBacklogStatusBadge } from './backlog';
 
 import type { TeamLifecycle } from '../types/readiness';
 

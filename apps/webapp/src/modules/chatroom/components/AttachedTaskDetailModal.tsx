@@ -7,7 +7,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { baseMarkdownComponents } from './markdown-utils';
-import { getBacklogStatusBadge } from './backlog-utils';
+import { getBacklogStatusBadge } from './backlog';
 
 interface AttachedTask {
   _id: string;

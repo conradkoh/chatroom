@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/fixed-modal';
 
 import { compactMarkdownComponents } from './markdown-utils';
-import { getScoringBadge } from './backlog-utils';
+import { getScoringBadge } from './backlog';
 
 interface AttachedBacklogItemChipProps {
   itemId: Id<'chatroom_backlog'>;
