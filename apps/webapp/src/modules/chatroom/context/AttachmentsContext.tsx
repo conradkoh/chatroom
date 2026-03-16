@@ -4,177 +4,116 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 /**
- * Maximum number of tasks that can be attached to a single message.
- * This limit is designed to be extensible for future attachment types (e.g., images).
+ * Maximum number of attachments that can be added to a single message.
+ * This limit applies to the combined total across all attachment types.
  */
 export const MAX_ATTACHMENTS = 10;
 
-/**
- * Represents an attached task with minimal required fields.
- */
-export interface AttachedTask {
-  _id: Id<'chatroom_tasks'>;
+// ── Attachment types (discriminated union) ─────────────────────────────────
+
+export type TaskAttachment = {
+  type: 'task';
+  id: Id<'chatroom_tasks'>;
   content: string;
-}
+};
+
+export type BacklogAttachment = {
+  type: 'backlog';
+  id: Id<'chatroom_backlog'>;
+  content: string;
+};
+
+/** Discriminated union of all supported attachment types. */
+export type Attachment = TaskAttachment | BacklogAttachment;
+
+// ── Context interface ──────────────────────────────────────────────────────
 
 /**
- * Represents an attached backlog item with minimal required fields.
- */
-export interface AttachedBacklogItem {
-  _id: Id<'chatroom_backlog'>;
-  content: string;
-}
-
-/**
- * Context value interface for attachments state management.
+ * Context value interface for the attachments registry.
+ * Uses a single generic attachment list to support any number of attachment types.
  */
 interface AttachmentsContextValue {
-  /** Currently attached tasks */
-  attachedTasks: AttachedTask[];
-  /** Add a task to attachments. Returns false if limit reached or already attached. */
-  addTask: (task: AttachedTask) => boolean;
-  /** Remove a task from attachments by ID */
-  removeTask: (taskId: Id<'chatroom_tasks'>) => void;
-  /** Clear all attached tasks */
-  clearTasks: () => void;
-  /** Whether more tasks can be added (under limit) */
-  canAddMore: boolean;
-  /** Check if a specific task is already attached */
-  isTaskAttached: (taskId: Id<'chatroom_tasks'>) => boolean;
-
-  // Backlog item attachments
-  /** Currently attached backlog items */
-  attachedBacklogItems: AttachedBacklogItem[];
-  /** Add a backlog item to attachments. Returns false if limit reached or already attached. */
-  addBacklogItem: (item: AttachedBacklogItem) => boolean;
-  /** Remove a backlog item from attachments by ID */
-  removeBacklogItem: (itemId: Id<'chatroom_backlog'>) => void;
-  /** Check if a specific backlog item is already attached */
-  isBacklogItemAttached: (itemId: Id<'chatroom_backlog'>) => boolean;
-
-  // Combined helpers
-  /** Clear both tasks and backlog items */
-  clearAll: () => void;
-  /** Total count of all attachments (tasks + backlog items) */
+  /** All current attachments (tasks + backlog items + future types) */
+  attachments: Attachment[];
+  /** Total count of all attachments */
   totalCount: number;
+  /** Whether more attachments can be added (under MAX_ATTACHMENTS limit) */
+  canAddMore: boolean;
+  /** Add an attachment. Returns false if limit reached or already attached. */
+  add: (attachment: Attachment) => boolean;
+  /** Remove an attachment by type + id */
+  remove: (type: Attachment['type'], id: string) => void;
+  /** Check if a specific attachment is already attached */
+  isAttached: (type: Attachment['type'], id: string) => boolean;
+  /** Clear all attachments */
+  clearAll: () => void;
 }
 
 const AttachmentsContext = createContext<AttachmentsContextValue | null>(null);
 
+// ── Provider ───────────────────────────────────────────────────────────────
+
 /**
- * Provider component for attached tasks state.
+ * Provider component for the attachments registry.
  * Wrap ChatroomDashboard or similar parent component with this provider.
  */
 export function AttachmentsProvider({ children }: { children: React.ReactNode }) {
-  const [attachedTasks, setAttachedTasks] = useState<AttachedTask[]>([]);
-  const [attachedBacklogItems, setAttachedBacklogItems] = useState<AttachedBacklogItem[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
 
-  const totalCount = attachedTasks.length + attachedBacklogItems.length;
+  const totalCount = attachments.length;
   const canAddMore = totalCount < MAX_ATTACHMENTS;
 
-  const isTaskAttached = useCallback(
-    (taskId: Id<'chatroom_tasks'>) => {
-      return attachedTasks.some((task) => task._id === taskId);
+  const isAttached = useCallback(
+    (type: Attachment['type'], id: string): boolean => {
+      return attachments.some((a) => a.type === type && a.id === id);
     },
-    [attachedTasks]
+    [attachments]
   );
 
-  const addTask = useCallback(
-    (task: AttachedTask): boolean => {
-      // Check if already attached
-      if (isTaskAttached(task._id)) {
+  const add = useCallback(
+    (attachment: Attachment): boolean => {
+      // Check if already attached (dedup by type + id)
+      if (isAttached(attachment.type, attachment.id)) {
         return false;
       }
-
       // Check limit
-      if (attachedTasks.length + attachedBacklogItems.length >= MAX_ATTACHMENTS) {
+      if (attachments.length >= MAX_ATTACHMENTS) {
         return false;
       }
-
-      setAttachedTasks((prev) => [...prev, task]);
+      setAttachments((prev) => [...prev, attachment]);
       return true;
     },
-    [attachedTasks.length, attachedBacklogItems.length, isTaskAttached]
+    [attachments.length, isAttached]
   );
 
-  const removeTask = useCallback((taskId: Id<'chatroom_tasks'>) => {
-    setAttachedTasks((prev) => prev.filter((task) => task._id !== taskId));
-  }, []);
-
-  const clearTasks = useCallback(() => {
-    setAttachedTasks([]);
-  }, []);
-
-  const isBacklogItemAttached = useCallback(
-    (itemId: Id<'chatroom_backlog'>) => {
-      return attachedBacklogItems.some((item) => item._id === itemId);
-    },
-    [attachedBacklogItems]
-  );
-
-  const addBacklogItem = useCallback(
-    (item: AttachedBacklogItem): boolean => {
-      // Check if already attached
-      if (isBacklogItemAttached(item._id)) {
-        return false;
-      }
-
-      // Check limit
-      if (attachedTasks.length + attachedBacklogItems.length >= MAX_ATTACHMENTS) {
-        return false;
-      }
-
-      setAttachedBacklogItems((prev) => [...prev, item]);
-      return true;
-    },
-    [attachedTasks.length, attachedBacklogItems.length, isBacklogItemAttached]
-  );
-
-  const removeBacklogItem = useCallback((itemId: Id<'chatroom_backlog'>) => {
-    setAttachedBacklogItems((prev) => prev.filter((item) => item._id !== itemId));
+  const remove = useCallback((type: Attachment['type'], id: string) => {
+    setAttachments((prev) => prev.filter((a) => !(a.type === type && a.id === id)));
   }, []);
 
   const clearAll = useCallback(() => {
-    setAttachedTasks([]);
-    setAttachedBacklogItems([]);
+    setAttachments([]);
   }, []);
 
   const value = useMemo(
     () => ({
-      attachedTasks,
-      addTask,
-      removeTask,
-      clearTasks,
-      canAddMore,
-      isTaskAttached,
-      attachedBacklogItems,
-      addBacklogItem,
-      removeBacklogItem,
-      isBacklogItemAttached,
-      clearAll,
+      attachments,
       totalCount,
+      canAddMore,
+      add,
+      remove,
+      isAttached,
+      clearAll,
     }),
-    [
-      attachedTasks,
-      addTask,
-      removeTask,
-      clearTasks,
-      canAddMore,
-      isTaskAttached,
-      attachedBacklogItems,
-      addBacklogItem,
-      removeBacklogItem,
-      isBacklogItemAttached,
-      clearAll,
-      totalCount,
-    ]
+    [attachments, totalCount, canAddMore, add, remove, isAttached, clearAll]
   );
 
   return <AttachmentsContext.Provider value={value}>{children}</AttachmentsContext.Provider>;
 }
 
+// ── Hooks ──────────────────────────────────────────────────────────────────
+
 /**
- * Hook to access attached tasks context.
+ * Hook to access the full attachments context.
  * Must be used within an AttachmentsProvider.
  */
 export function useAttachments(): AttachmentsContextValue {
@@ -183,4 +122,22 @@ export function useAttachments(): AttachmentsContextValue {
     throw new Error('useAttachments must be used within an AttachmentsProvider');
   }
   return context;
+}
+
+/**
+ * Selector hook — returns only the task attachments from the registry.
+ * Pure derived state; does not add to the context interface.
+ */
+export function useTaskAttachments(): TaskAttachment[] {
+  const { attachments } = useAttachments();
+  return attachments.filter((a): a is TaskAttachment => a.type === 'task');
+}
+
+/**
+ * Selector hook — returns only the backlog item attachments from the registry.
+ * Pure derived state; does not add to the context interface.
+ */
+export function useBacklogAttachments(): BacklogAttachment[] {
+  const { attachments } = useAttachments();
+  return attachments.filter((a): a is BacklogAttachment => a.type === 'backlog');
 }

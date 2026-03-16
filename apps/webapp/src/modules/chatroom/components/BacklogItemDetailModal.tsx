@@ -67,7 +67,7 @@ const getBacklogStatusBadge = (status: BacklogItem['status']) => {
 export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDetailModalProps) {
   const [isLoading, setIsLoading] = useState(false);
 
-  const { addBacklogItem, isBacklogItemAttached } = useAttachments();
+  const { add, isAttached } = useAttachments();
 
   // Lifecycle mutations
   const markForReview = useSessionMutation(api.backlog.markBacklogItemForReview);
@@ -79,10 +79,10 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
   if (!item) return null;
 
   const badge = getBacklogStatusBadge(item.status);
-  const isAttached = isBacklogItemAttached(item._id);
+  const isAttachedToContext = isAttached('backlog', item._id);
 
   const handleAttach = () => {
-    addBacklogItem({ _id: item._id, content: item.content });
+    add({ type: 'backlog', id: item._id, content: item.content });
   };
 
   const handleMutation = async (fn: () => Promise<unknown>) => {
@@ -127,10 +127,10 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
           <button
             type="button"
             onClick={handleAttach}
-            disabled={isAttached || isLoading}
+            disabled={isAttachedToContext || isLoading}
             className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed border-chatroom-accent text-chatroom-accent hover:bg-chatroom-accent hover:text-chatroom-bg-primary"
           >
-            {isAttached ? 'Attached ✓' : 'Attach to Context'}
+            {isAttachedToContext ? 'Attached ✓' : 'Attach to Context'}
           </button>
 
           {/* Lifecycle buttons - depend on current status */}

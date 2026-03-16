@@ -133,8 +133,8 @@ export function TaskDetailModal({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
 
-  // Attached tasks context for adding to chat
-  const { addTask, isTaskAttached, canAddMore } = useAttachments();
+  // Attachments context for adding to chat
+  const { add, isAttached, canAddMore } = useAttachments();
 
   // Track which task we've initialized for - prevents resetting during edits
   const [initializedTaskId, setInitializedTaskId] = useState<string | null>(null);
@@ -415,17 +415,17 @@ export function TaskDetailModal({
                     <DropdownMenuItem
                       onClick={() => {
                         if (task) {
-                          const added = addTask({ _id: task._id, content: task.content });
+                          const added = add({ type: 'task', id: task._id, content: task.content });
                           if (added) {
                             onClose();
                           }
                         }
                       }}
-                      disabled={isTaskAttached(task._id) || !canAddMore}
+                      disabled={isAttached('task', task._id) || !canAddMore}
                       className="flex items-center gap-2 cursor-pointer"
                     >
                       <Link size={14} />
-                      {isTaskAttached(task._id) ? 'Already Attached' : 'Attach to Context'}
+                      {isAttached('task', task._id) ? 'Already Attached' : 'Attach to Context'}
                     </DropdownMenuItem>
 
                     {/* Delete action - always at bottom, dangerous */}
