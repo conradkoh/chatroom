@@ -17,10 +17,11 @@ type TaskStatus =
   | 'pending'
   | 'acknowledged'
   | 'in_progress'
-  | 'backlog'
-  | 'completed'
   | 'pending_user_review'
+  | 'completed'
   | 'closed';
+
+type BacklogItemStatus = 'backlog' | 'pending_user_review' | 'closed';
 
 export interface ListBacklogOptions {
   role: string;
@@ -69,7 +70,7 @@ export interface HistoryBacklogOptions {
   role: string;
   from?: string; // ISO date string e.g. "2026-03-01"
   to?: string;   // ISO date string e.g. "2026-03-16"
-  status?: string; // completed | closed (default: both)
+  status?: 'completed' | 'closed'; // filter by status (default: both)
   limit?: number;
 }
 
@@ -626,7 +627,7 @@ export async function historyBacklog(
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       from: fromMs,
       to: toMs,
-      status: options.status as 'completed' | 'closed' | undefined,
+      status: options.status,
       limit: options.limit,
     });
 
@@ -664,7 +665,7 @@ export async function historyBacklog(
 
       for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i]!;
-        const statusEmoji = getStatusEmoji(task.status as TaskStatus);
+        const statusEmoji = getStatusEmoji(task.status as TaskStatus | BacklogItemStatus);
         const completedTs = (task as { completedAt?: number }).completedAt ?? task.updatedAt;
         const date = new Date(completedTs).toLocaleString('en-US', {
           month: 'short',
@@ -699,7 +700,7 @@ export async function historyBacklog(
   }
 }
 
-function getStatusEmoji(status: TaskStatus): string {
+function getStatusEmoji(status: TaskStatus | BacklogItemStatus): string {
   switch (status) {
     case 'pending':
       return '🟢';

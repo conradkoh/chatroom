@@ -456,7 +456,7 @@ backlogCommand
       role: options.role,
       from: options.from,
       to: options.to,
-      status: options.status,
+      status: options.status as 'completed' | 'closed' | undefined,
       limit: options.limit ? parseInt(options.limit, 10) : undefined,
     });
   });
