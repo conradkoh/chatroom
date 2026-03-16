@@ -140,10 +140,9 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
       expect(completeResult.completed).toBe(true);
 
       // Verify task is completed
-      tasks = await t.query(api.tasks.listTasks, {
+      tasks = await t.query(api.tasks.listHistoricalTasks, {
         sessionId,
         chatroomId,
-        statusFilter: 'archived',
       });
       const completedTask = tasks.find((t) => t._id === taskId);
       expect(completedTask?.status).toBe('completed');
@@ -685,10 +684,9 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       expect(markResult.success).toBe(true);
 
       // Verify task is completed
-      const tasks = await t.query(api.tasks.listTasks, {
+      const tasks = await t.query(api.tasks.listHistoricalTasks, {
         sessionId,
         chatroomId,
-        statusFilter: 'archived',
       });
       const completedTask = tasks.find((t) => t._id === backlogTask.taskId);
       expect(completedTask?.status).toBe('completed');
@@ -718,10 +716,9 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       expect(closeResult.success).toBe(true);
 
       // Verify task is closed
-      const tasks = await t.query(api.tasks.listTasks, {
+      const tasks = await t.query(api.tasks.listHistoricalTasks, {
         sessionId,
         chatroomId,
-        statusFilter: 'archived',
       });
       const closedTask = tasks.find((t) => t._id === backlogTask.taskId);
       expect(closedTask?.status).toBe('closed');
@@ -799,10 +796,9 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       expect(cancelResult.status).toBe('closed');
 
       // Verify task is closed
-      const archivedTasks = await t.query(api.tasks.listTasks, {
+      const archivedTasks = await t.query(api.tasks.listHistoricalTasks, {
         sessionId,
         chatroomId,
-        statusFilter: 'archived',
       });
       const cancelledTask = archivedTasks.find((t) => t._id === taskId);
       expect(cancelledTask?.status).toBe('closed');
@@ -842,10 +838,9 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       expect(completeResult.wasForced).toBe(true);
 
       // Verify task is completed
-      const archivedTasks = await t.query(api.tasks.listTasks, {
+      const archivedTasks = await t.query(api.tasks.listHistoricalTasks, {
         sessionId,
         chatroomId,
-        statusFilter: 'archived',
       });
       const completedTask = archivedTasks.find((t) => t._id === taskId);
       expect(completedTask?.status).toBe('completed');

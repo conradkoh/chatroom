@@ -330,7 +330,7 @@ backlogCommand
   .requiredOption('--role <role>', 'Your role')
   .option(
     '--status <status>',
-    'Filter by status (pending|in_progress|backlog|completed|pending_user_review|closed|active|archived|all). Defaults to backlog.'
+    'Filter by status (backlog|pending|in_progress|pending_user_review|active|all). Defaults to backlog.'
   )
   .option('--limit <n>', 'Maximum number of tasks to show')
   .option('--full', 'Show full task content without truncation')
@@ -444,6 +444,27 @@ backlogCommand
     await maybeRequireAuth();
     const { markForReviewBacklog } = await import('./commands/backlog/index.js');
     await markForReviewBacklog(options.chatroomId, options);
+  });
+
+backlogCommand
+  .command('history')
+  .description('View completed and closed backlog items by date range')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--from <date>', 'Start date (YYYY-MM-DD), defaults to 30 days ago')
+  .option('--to <date>', 'End date (YYYY-MM-DD), defaults to today')
+  .option('--status <status>', 'Filter by status (completed|closed), defaults to all')
+  .option('--limit <n>', 'Maximum number of items to show')
+  .action(async (options: { chatroomId: string; role: string; from?: string; to?: string; status?: string; limit?: string }) => {
+    await maybeRequireAuth();
+    const { historyBacklog } = await import('./commands/backlog/index.js');
+    await historyBacklog(options.chatroomId, {
+      role: options.role,
+      from: options.from,
+      to: options.to,
+      status: options.status,
+      limit: options.limit ? parseInt(options.limit, 10) : undefined,
+    });
   });
 
 // ============================================================================

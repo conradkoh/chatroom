@@ -12,10 +12,19 @@ export const backlogSkill: SkillModule = {
 \`\`\`
 ${cliEnvPrefix}chatroom backlog list --chatroom-id=<id> --role=<role>
 \`\`\`
-Status (optional, defaults to \`backlog\`): \`backlog\` | \`pending\` | \`in_progress\` | \`completed\` | \`pending_user_review\` | \`closed\` | \`active\` | \`archived\` | \`all\`
+Status (optional, defaults to \`backlog\`): \`backlog\` | \`pending\` | \`in_progress\` | \`pending_user_review\` | \`active\` | \`all\`
 Flags: \`--status=<status>\`, \`--limit=<n>\`, \`--full\`
 
 The list output shows scoring info (complexity, value, priority) for each item if it has been scored.
+
+### History
+\`\`\`
+${cliEnvPrefix}chatroom backlog history --chatroom-id=<id> --role=<role>
+\`\`\`
+Options: \`--from=YYYY-MM-DD\`, \`--to=YYYY-MM-DD\`, \`--status=<completed|closed>\`
+Defaults: last 30 days, both completed and closed items.
+
+Use \`history\` to see what was previously completed or cancelled. Use \`list\` for active items.
 
 ### Add
 \`\`\`

@@ -532,7 +532,6 @@ export const moveToQueue = mutation({
     }
 
     const now = Date.now();
-    // Tasks are always pending when moved to queue (queued status is deprecated)
     const newStatus = 'pending' as const;
 
     // Use custom message if provided, otherwise use task content
@@ -743,7 +742,6 @@ export const sendBackForRework = mutation({
     }
 
     const now = Date.now();
-    // Tasks are always pending when sent back for rework (queued status is deprecated)
     const newStatus = 'pending' as const;
 
     // If feedback provided, create a message from user
@@ -841,11 +839,9 @@ export const listTasks = query({
         v.literal('pending'),
         v.literal('in_progress'),
         v.literal('backlog'),
-        v.literal('completed'),
-        v.literal('closed'),
         v.literal('pending_user_review'),
         v.literal('active'), // pending + acknowledged + in_progress + backlog
-        v.literal('archived') // completed + closed
+        v.literal('all'),    // all active (not historical)
       )
     ),
     limit: v.optional(v.number()),
@@ -857,23 +853,23 @@ export const listTasks = query({
     let tasks;
 
     // Use by_chatroom_status index for single-status filters to avoid full table scans.
-    // Fall back to by_chatroom (full scan) for multi-status filters (active, archived)
+    // Fall back to by_chatroom (full scan) for multi-status filters (active, all)
     // or when no filter is specified.
     if (
       args.statusFilter &&
       args.statusFilter !== 'active' &&
-      args.statusFilter !== 'archived'
+      args.statusFilter !== 'all'
     ) {
-      // Single concrete statuses (pending, in_progress, backlog, completed, closed, pending_user_review)
+      // Single concrete statuses (pending, in_progress, backlog, pending_user_review)
       tasks = await ctx.db
         .query('chatroom_tasks')
         .withIndex('by_chatroom_status', (q) =>
           q.eq('chatroomId', args.chatroomId).eq(
             'status',
             // At this branch, statusFilter is a concrete DB status (not a virtual filter like
-            // 'active' or 'archived'). The cast is safe — TypeScript cannot infer the subtype
+            // 'active' or 'all'). The cast is safe — TypeScript cannot infer the subtype
             // relationship between the statusFilter union and the schema status union.
-            args.statusFilter as 'pending' | 'in_progress' | 'backlog' | 'completed' | 'closed' | 'pending_user_review'
+            args.statusFilter as 'pending' | 'in_progress' | 'backlog' | 'pending_user_review'
           )
         )
         .collect();
@@ -893,17 +889,14 @@ export const listTasks = query({
             t.status === 'in_progress' ||
             t.status === 'backlog'
         );
-      } else if (args.statusFilter === 'archived') {
-        // Archived: completed or closed tasks
-        tasks = tasks.filter((t) => t.status === 'completed' || t.status === 'closed');
+      } else if (args.statusFilter === 'all') {
+        // All active (not historical): exclude completed and closed
+        tasks = tasks.filter((t) => t.status !== 'completed' && t.status !== 'closed');
       }
     }
 
     // Sort based on filter type
-    if (args.statusFilter === 'archived') {
-      // Archived: sort by updatedAt descending
-      tasks.sort((a, b) => b.updatedAt - a.updatedAt);
-    } else if (args.statusFilter === 'backlog') {
+    if (args.statusFilter === 'backlog') {
       // Backlog: sort by priority descending (higher first), then by createdAt descending
       // Tasks without priority sort to the end
       tasks.sort((a, b) => {
@@ -1416,4 +1409,55 @@ export const getTaskLimits = query({
   },
 });
 
+/** Returns completed and closed tasks in a chatroom, filtered by date range. */
+export const listHistoricalTasks = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    from: v.optional(v.number()), // epoch ms, defaults to 30 days ago
+    to: v.optional(v.number()),   // epoch ms, defaults to now
+    status: v.optional(v.union(
+      v.literal('completed'),
+      v.literal('closed'),
+    )), // omit = both
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Validate session
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    const now = Date.now();
+    const fromMs = args.from ?? (now - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+    const toMs = args.to ?? now;
+
+    let tasks = await ctx.db
+      .query('chatroom_tasks')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .collect();
+
+    // Filter to completed/closed
+    tasks = tasks.filter(t => t.status === 'completed' || t.status === 'closed');
+
+    // Apply status filter if provided
+    if (args.status) {
+      tasks = tasks.filter(t => t.status === args.status);
+    }
+
+    // Apply date range filter (use completedAt if available, fall back to updatedAt)
+    tasks = tasks.filter(t => {
+      const ts = t.completedAt ?? t.updatedAt;
+      return ts >= fromMs && ts <= toMs;
+    });
+
+    // Sort by completedAt/updatedAt descending (most recent first)
+    tasks.sort((a, b) => {
+      const aTs = a.completedAt ?? a.updatedAt;
+      const bTs = b.completedAt ?? b.updatedAt;
+      return bTs - aTs;
+    });
+
+    const limit = args.limit ? Math.min(args.limit, MAX_TASK_LIST_LIMIT) : MAX_TASK_LIST_LIMIT;
+    return tasks.slice(0, limit);
+  },
+});
 

@@ -238,10 +238,9 @@ describe('Task Workflow - Backlog Origin', () => {
       expect(completeResult.pendingReview.length).toBe(0);
 
       // Verify task is completed
-      const tasks = await t.query(api.tasks.listTasks, {
+      const tasks = await t.query(api.tasks.listHistoricalTasks, {
         sessionId,
         chatroomId,
-        statusFilter: 'archived',
       });
 
       const task = tasks.find((t) => t._id === chatTask.taskId);
@@ -297,10 +296,9 @@ describe('Task Workflow - Backlog Origin', () => {
       expect(markResult.success).toBe(true);
 
       // Verify task is completed
-      const tasks = await t.query(api.tasks.listTasks, {
+      const tasks = await t.query(api.tasks.listHistoricalTasks, {
         sessionId,
         chatroomId,
-        statusFilter: 'archived',
       });
 
       const task = tasks.find((t) => t._id === backlogTask.taskId);
@@ -355,10 +353,9 @@ describe('Task Workflow - Backlog Origin', () => {
       expect(closeResult.success).toBe(true);
 
       // Verify task is closed
-      const tasks = await t.query(api.tasks.listTasks, {
+      const tasks = await t.query(api.tasks.listHistoricalTasks, {
         sessionId,
         chatroomId,
-        statusFilter: 'archived',
       });
 
       const task = tasks.find((t) => t._id === backlogTask.taskId);

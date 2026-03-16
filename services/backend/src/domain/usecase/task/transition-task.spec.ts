@@ -140,10 +140,10 @@ describe('transitionTask usecase — valid transitions', () => {
     });
     expect(completeResult.completed).toBe(true);
 
-    const tasks = await t.query(api.tasks.listTasks, {
+    const tasks = await t.query(api.tasks.listHistoricalTasks, {
       sessionId,
       chatroomId,
-      statusFilter: 'archived',
+      // no statusFilter needed - listHistoricalTasks returns completed+closed by default
     });
     const task = tasks.find((t) => t._id === taskId);
     expect(task?.status).toBe('completed');
@@ -314,10 +314,10 @@ describe('transitionTask usecase — trigger label determines the rule', () => {
     });
     expect(result.success).toBe(true);
 
-    const tasks = await t.query(api.tasks.listTasks, {
+    const tasks = await t.query(api.tasks.listHistoricalTasks, {
       sessionId,
       chatroomId,
-      statusFilter: 'archived',
+      // no statusFilter needed - listHistoricalTasks returns completed+closed by default
     });
     const cancelled = tasks.find((t) => t._id === backlogTask.taskId);
     expect(cancelled?.status).toBe('closed');
@@ -398,10 +398,10 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
     expect(result.wasForced).toBe(true);
 
     // Verify task is completed
-    const tasks = await t.query(api.tasks.listTasks, {
+    const tasks = await t.query(api.tasks.listHistoricalTasks, {
       sessionId,
       chatroomId,
-      statusFilter: 'archived',
+      // no statusFilter needed - listHistoricalTasks returns completed+closed by default
     });
     const task = tasks.find((t) => t._id === taskId);
     expect(task?.status).toBe('completed');

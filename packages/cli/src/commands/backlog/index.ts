@@ -66,6 +66,14 @@ export interface MarkForReviewBacklogOptions {
   taskId: string;
 }
 
+export interface HistoryBacklogOptions {
+  role: string;
+  from?: string; // ISO date string e.g. "2026-03-01"
+  to?: string;   // ISO date string e.g. "2026-03-16"
+  status?: string; // completed | closed (default: both)
+  limit?: number;
+}
+
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
 async function createDefaultDeps(): Promise<BacklogDeps> {
@@ -124,15 +132,12 @@ export async function listBacklog(
 
   // Validate status filter — default to 'backlog' if not specified
   const validStatuses = [
+    'backlog',           // default
     'pending',
     'in_progress',
-    'backlog',
-    'completed',
-    'closed',
-    'active',
-    'archived',
     'pending_user_review',
-    'all',
+    'active',            // pending + acknowledged + in_progress + backlog
+    'all',               // all active (not historical)
   ];
   const statusFilter = options.status || 'backlog';
   if (!validStatuses.includes(statusFilter)) {
@@ -161,12 +166,6 @@ export async function listBacklog(
         chatroomId: chatroomId as Id<'chatroom_rooms'>,
         limit,
       });
-    } else if (statusFilter === 'archived') {
-      tasks = await d.backend.query(api.tasks.listArchivedTasks, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        limit,
-      });
     } else {
       tasks = await d.backend.query(api.tasks.listTasks, {
         sessionId,
@@ -178,11 +177,8 @@ export async function listBacklog(
                 | 'pending'
                 | 'in_progress'
                 | 'backlog'
-                | 'completed'
                 | 'pending_user_review'
-                | 'closed'
-                | 'active'
-                | 'archived'),
+                | 'active'),
         limit,
       });
     }
@@ -253,13 +249,9 @@ export async function listBacklog(
         counts.in_progress +
         counts.queued +
         counts.backlog +
-        counts.pending_user_review +
-        counts.completed +
-        counts.closed;
+        counts.pending_user_review;
     } else if (statusFilter === 'active') {
       totalForFilter = counts.pending + counts.in_progress + counts.queued + counts.backlog;
-    } else if (statusFilter === 'archived') {
-      totalForFilter = counts.completed + counts.closed;
     } else {
       totalForFilter = counts[statusFilter as keyof typeof counts] ?? tasks.length;
     }
@@ -623,6 +615,132 @@ export async function markForReviewBacklog(
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to mark task for review: ${(error as Error).message}`);
+    process.exit(1);
+    return;
+  }
+}
+
+/**
+ * View completed and closed backlog items by date range.
+ */
+export async function historyBacklog(
+  chatroomId: string,
+  options: HistoryBacklogOptions,
+  deps?: BacklogDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
+
+  // Parse date range
+  const now = Date.now();
+  const defaultFrom = now - 30 * 24 * 60 * 60 * 1000; // 30 days ago
+
+  let fromMs: number | undefined;
+  let toMs: number | undefined;
+
+  if (options.from) {
+    const parsed = Date.parse(options.from);
+    if (isNaN(parsed)) {
+      console.error(`❌ Invalid --from date: "${options.from}". Use YYYY-MM-DD format.`);
+      process.exit(1);
+      return;
+    }
+    fromMs = parsed;
+  }
+
+  if (options.to) {
+    const parsed = Date.parse(options.to);
+    if (isNaN(parsed)) {
+      console.error(`❌ Invalid --to date: "${options.to}". Use YYYY-MM-DD format.`);
+      process.exit(1);
+      return;
+    }
+    // Include the full end day (end of day = +86399999ms)
+    toMs = parsed + 86399999;
+  }
+
+  // Validate status filter
+  if (options.status && !['completed', 'closed'].includes(options.status)) {
+    console.error(`❌ Invalid --status: "${options.status}". Must be one of: completed, closed`);
+    process.exit(1);
+    return;
+  }
+
+  try {
+    const tasks = await d.backend.query(api.tasks.listHistoricalTasks, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      from: fromMs,
+      to: toMs,
+      status: options.status as 'completed' | 'closed' | undefined,
+      limit: options.limit,
+    });
+
+    // Compute display range strings
+    const fromDate = new Date(fromMs ?? defaultFrom).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const toDate = new Date(toMs ?? now).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    console.log('');
+    console.log('══════════════════════════════════════════════════');
+    console.log('📜 TASK HISTORY');
+    console.log('══════════════════════════════════════════════════');
+    console.log(`Chatroom: ${chatroomId}`);
+    console.log(`Date range: ${fromDate} → ${toDate}`);
+    if (options.status) {
+      console.log(`Filter: ${options.status}`);
+    } else {
+      console.log(`Filter: completed + closed`);
+    }
+    console.log('');
+
+    if (tasks.length === 0) {
+      console.log('No history found for date range.');
+    } else {
+      console.log('──────────────────────────────────────────────────');
+      console.log('📝 COMPLETED / CLOSED TASKS');
+      console.log('──────────────────────────────────────────────────');
+
+      for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i]!;
+        const statusEmoji = getStatusEmoji(task.status as TaskStatus);
+        const completedTs = (task as { completedAt?: number }).completedAt ?? task.updatedAt;
+        const date = new Date(completedTs).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+
+        console.log(`#${i + 1} [${statusEmoji} ${task.status.toUpperCase()}] ${task.content}`);
+        console.log(`   ID: ${task._id}`);
+        console.log(`   Completed: ${date}${task.assignedTo ? ` | Assigned: ${task.assignedTo}` : ''}`);
+        if (task.complexity !== undefined || task.value !== undefined || task.priority !== undefined) {
+          const parts: string[] = [];
+          if (task.complexity) parts.push(`complexity=${task.complexity}`);
+          if (task.value) parts.push(`value=${task.value}`);
+          if (task.priority !== undefined) parts.push(`priority=${task.priority}`);
+          console.log(`   Score: ${parts.join(' | ')}`);
+        }
+        console.log('');
+      }
+    }
+
+    console.log('──────────────────────────────────────────────────');
+    console.log(`Showing ${tasks.length} task(s)`);
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to load history: ${(error as Error).message}`);
     process.exit(1);
     return;
   }
