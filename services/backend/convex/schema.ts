@@ -490,6 +490,55 @@ export default defineSchema({
     .index('by_chatroom_status', ['chatroomId', 'status'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
 
+  /**
+   * Backlog items for chatroom planning.
+   * Long-lived planning items managed by the user, separate from active task queue.
+   *
+   * Lifecycle: backlog → pending_user_review → closed (or deleted)
+   *
+   * Items are promoted to chatroom_tasks (as origin:'chat') when the user
+   * decides to execute them.
+   */
+  chatroom_backlog: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    createdBy: v.string(), // 'user' or role name that created the item
+
+    // Content (plain text only)
+    content: v.string(),
+
+    // Status lifecycle
+    status: v.union(
+      v.literal('backlog'), // Sitting in the backlog, awaiting pickup
+      v.literal('pending_user_review'), // Agent completed work, awaiting user confirmation
+      v.literal('closed') // User closed without completing
+    ),
+
+    // Assignment (when an agent is working on this item)
+    assignedTo: v.optional(v.string()),
+
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+
+    // Scoring fields for prioritization
+    // Complexity: low = easy to implement, high = complex/risky
+    complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    // Value: low = nice-to-have, high = critical/high-impact
+    value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    // Priority: numeric priority for flexible ordering (higher = more important)
+    priority: v.optional(v.number()),
+
+    // Legacy reference — set during migration from chatroom_tasks
+    // Used to remap attachedTaskIds/parentTaskIds in messages and tasks
+    // Can be removed after Phase 3 reference migration completes
+    legacyTaskId: v.optional(v.id('chatroom_tasks')),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_status', ['chatroomId', 'status'])
+    .index('by_chatroom_priority', ['chatroomId', 'priority'])
+    .index('by_legacy_task_id', ['legacyTaskId']),
+
   // ============================================================================
   // CLI AUTHENTICATION TABLES
   // Device authorization flow for CLI tools
