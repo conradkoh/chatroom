@@ -74,7 +74,7 @@ describe('listBacklog', () => {
       },
     });
 
-    await listBacklog(TEST_CHATROOM_ID, { role: 'planner', status: 'all' }, deps);
+    await listBacklog(TEST_CHATROOM_ID, { role: 'planner' }, deps);
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getAllErrorOutput()).toContain('Not authenticated');
@@ -105,7 +105,7 @@ describe('listBacklog', () => {
       .mockResolvedValueOnce(mockCounts) // getTaskCounts
       .mockResolvedValueOnce(mockTasks); // listTasks
 
-    await listBacklog(TEST_CHATROOM_ID, { role: 'planner', status: 'all' }, deps);
+    await listBacklog(TEST_CHATROOM_ID, { role: 'planner' }, deps);
 
     expect(exitSpy).not.toHaveBeenCalled();
     const output = getAllLogOutput();
@@ -119,7 +119,7 @@ describe('listBacklog', () => {
       new Error('Connection refused')
     );
 
-    await listBacklog(TEST_CHATROOM_ID, { role: 'planner', status: 'all' }, deps);
+    await listBacklog(TEST_CHATROOM_ID, { role: 'planner' }, deps);
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getAllErrorOutput()).toContain('Failed to list tasks');

@@ -24,7 +24,6 @@ type TaskStatus =
 
 export interface ListBacklogOptions {
   role: string;
-  status?: string; // Optional — defaults to 'backlog'
   limit?: number;
   full?: boolean;
 }
@@ -130,26 +129,7 @@ export async function listBacklog(
   const sessionId = requireAuth(d);
   validateChatroomId(chatroomId);
 
-  // Validate status filter — default to 'backlog' if not specified
-  const validStatuses = [
-    'backlog',           // default
-    'pending',
-    'in_progress',
-    'pending_user_review',
-    'active',            // pending + acknowledged + in_progress + backlog
-    'all',               // all active (not historical)
-  ];
-  const statusFilter = options.status || 'backlog';
-  if (!validStatuses.includes(statusFilter)) {
-    console.error(
-      `❌ Invalid status: ${statusFilter}. Must be one of: ${validStatuses.join(', ')}`
-    );
-    process.exit(1);
-    return;
-  }
-
-  // For --status=all, apply a default limit of 50 if none provided
-  const limit = options.limit ?? (statusFilter === 'all' ? 50 : 100);
+  const limit = options.limit ?? 100;
 
   try {
     // Get task counts
@@ -158,30 +138,13 @@ export async function listBacklog(
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
     });
 
-    // Get tasks with filter
-    let tasks;
-    if (statusFilter === 'active') {
-      tasks = await d.backend.query(api.tasks.listActiveTasks, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        limit,
-      });
-    } else {
-      tasks = await d.backend.query(api.tasks.listTasks, {
-        sessionId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        statusFilter:
-          statusFilter === 'all'
-            ? undefined
-            : (statusFilter as
-                | 'pending'
-                | 'in_progress'
-                | 'backlog'
-                | 'pending_user_review'
-                | 'active'),
-        limit,
-      });
-    }
+    // Get tasks (all non-historical)
+    const tasks = await d.backend.query(api.tasks.listTasks, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      statusFilter: undefined,
+      limit,
+    });
 
     // Display header
     console.log('');
@@ -189,7 +152,6 @@ export async function listBacklog(
     console.log('📋 TASK QUEUE');
     console.log('══════════════════════════════════════════════════');
     console.log(`Chatroom: ${chatroomId}`);
-    console.log(`Filter: ${statusFilter}`);
     console.log('');
 
     // Display counts summary
@@ -242,19 +204,12 @@ export async function listBacklog(
     }
 
     console.log('──────────────────────────────────────────────────');
-    let totalForFilter: number;
-    if (statusFilter === 'all') {
-      totalForFilter =
-        counts.pending +
-        counts.in_progress +
-        counts.queued +
-        counts.backlog +
-        counts.pending_user_review;
-    } else if (statusFilter === 'active') {
-      totalForFilter = counts.pending + counts.in_progress + counts.queued + counts.backlog;
-    } else {
-      totalForFilter = counts[statusFilter as keyof typeof counts] ?? tasks.length;
-    }
+    const totalForFilter =
+      counts.pending +
+      counts.in_progress +
+      counts.queued +
+      counts.backlog +
+      counts.pending_user_review;
 
     if (tasks.length < totalForFilter) {
       console.log(

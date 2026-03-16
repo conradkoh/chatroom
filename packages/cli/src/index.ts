@@ -328,17 +328,12 @@ backlogCommand
   .description('List tasks in a chatroom')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .option(
-    '--status <status>',
-    'Filter by status (backlog|pending|in_progress|pending_user_review|active|all). Defaults to backlog.'
-  )
   .option('--limit <n>', 'Maximum number of tasks to show')
   .option('--full', 'Show full task content without truncation')
   .action(
     async (options: {
       chatroomId: string;
       role: string;
-      status?: string;
       limit?: string;
       full?: boolean;
     }) => {
@@ -346,7 +341,6 @@ backlogCommand
       const { listBacklog } = await import('./commands/backlog/index.js');
       await listBacklog(options.chatroomId, {
         role: options.role,
-        status: options.status,
         limit: options.limit ? parseInt(options.limit, 10) : undefined,
         full: options.full,
       });
