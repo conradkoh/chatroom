@@ -28,7 +28,7 @@ import { PromptModal } from './components/PromptModal';
 import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
 import { TaskQueue } from './components/TaskQueue';
-import { AttachedTasksProvider } from './context/AttachedTasksContext';
+import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import type { TeamLifecycle } from './types/readiness';
 import { WorkspaceSidebarSection } from './workspace/components/WorkspaceSidebarSection';
@@ -637,7 +637,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   }
 
   return (
-    <AttachedTasksProvider>
+    <AttachmentsProvider>
       <PromptsProvider
         chatroomId={chatroomId}
         teamId={chatroom?.teamId}
@@ -719,6 +719,6 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
           />
         </>
       </PromptsProvider>
-    </AttachedTasksProvider>
+    </AttachmentsProvider>
   );
 }

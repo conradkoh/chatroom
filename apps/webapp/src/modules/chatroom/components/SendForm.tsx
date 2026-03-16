@@ -7,7 +7,7 @@ import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 
 import { AttachedTaskChip } from './AttachedTaskChip';
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
-import { useAttachedTasks } from '../context/AttachedTasksContext';
+import { useAttachments } from '../context/AttachmentsContext';
 
 interface SendFormProps {
   chatroomId: string;
@@ -116,7 +116,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
   }, [message, draftKey]);
 
   // Attached tasks context
-  const { attachedTasks, removeTask, attachedBacklogItems, removeBacklogItem, clearAll } = useAttachedTasks();
+  const { attachedTasks, removeTask, attachedBacklogItems, removeBacklogItem, clearAll } = useAttachments();
 
   const sendMessage = useSessionMutation(api.messages.send);
 

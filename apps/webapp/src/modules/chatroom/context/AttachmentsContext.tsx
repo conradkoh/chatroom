@@ -26,9 +26,9 @@ export interface AttachedBacklogItem {
 }
 
 /**
- * Context value interface for attached tasks state management.
+ * Context value interface for attachments state management.
  */
-interface AttachedTasksContextValue {
+interface AttachmentsContextValue {
   /** Currently attached tasks */
   attachedTasks: AttachedTask[];
   /** Add a task to attachments. Returns false if limit reached or already attached. */
@@ -59,13 +59,13 @@ interface AttachedTasksContextValue {
   totalCount: number;
 }
 
-const AttachedTasksContext = createContext<AttachedTasksContextValue | null>(null);
+const AttachmentsContext = createContext<AttachmentsContextValue | null>(null);
 
 /**
  * Provider component for attached tasks state.
  * Wrap ChatroomDashboard or similar parent component with this provider.
  */
-export function AttachedTasksProvider({ children }: { children: React.ReactNode }) {
+export function AttachmentsProvider({ children }: { children: React.ReactNode }) {
   const [attachedTasks, setAttachedTasks] = useState<AttachedTask[]>([]);
   const [attachedBacklogItems, setAttachedBacklogItems] = useState<AttachedBacklogItem[]>([]);
 
@@ -170,17 +170,17 @@ export function AttachedTasksProvider({ children }: { children: React.ReactNode 
     ]
   );
 
-  return <AttachedTasksContext.Provider value={value}>{children}</AttachedTasksContext.Provider>;
+  return <AttachmentsContext.Provider value={value}>{children}</AttachmentsContext.Provider>;
 }
 
 /**
  * Hook to access attached tasks context.
- * Must be used within an AttachedTasksProvider.
+ * Must be used within an AttachmentsProvider.
  */
-export function useAttachedTasks(): AttachedTasksContextValue {
-  const context = useContext(AttachedTasksContext);
+export function useAttachments(): AttachmentsContextValue {
+  const context = useContext(AttachmentsContext);
   if (!context) {
-    throw new Error('useAttachedTasks must be used within an AttachedTasksProvider');
+    throw new Error('useAttachments must be used within an AttachmentsProvider');
   }
   return context;
 }

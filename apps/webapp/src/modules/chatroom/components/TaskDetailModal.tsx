@@ -16,7 +16,7 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 
 import { baseMarkdownComponents } from './markdown-utils';
-import { useAttachedTasks } from '../context/AttachedTasksContext';
+import { useAttachments } from '../context/AttachmentsContext';
 
 import {
   DropdownMenu,
@@ -134,7 +134,7 @@ export function TaskDetailModal({
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
 
   // Attached tasks context for adding to chat
-  const { addTask, isTaskAttached, canAddMore } = useAttachedTasks();
+  const { addTask, isTaskAttached, canAddMore } = useAttachments();
 
   // Track which task we've initialized for - prevents resetting during edits
   const [initializedTaskId, setInitializedTaskId] = useState<string | null>(null);

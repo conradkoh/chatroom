@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/fixed-modal';
 
 import { baseMarkdownComponents } from './markdown-utils';
-import { useAttachedTasks } from '../context/AttachedTasksContext';
+import { useAttachments } from '../context/AttachmentsContext';
 
 interface BacklogItem {
   _id: Id<'chatroom_backlog'>;
@@ -67,7 +67,7 @@ const getBacklogStatusBadge = (status: BacklogItem['status']) => {
 export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDetailModalProps) {
   const [isLoading, setIsLoading] = useState(false);
 
-  const { addBacklogItem, isBacklogItemAttached } = useAttachedTasks();
+  const { addBacklogItem, isBacklogItemAttached } = useAttachments();
 
   // Lifecycle mutations
   const markForReview = useSessionMutation(api.backlog.markBacklogItemForReview);
