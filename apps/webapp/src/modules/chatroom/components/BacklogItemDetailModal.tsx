@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { Check, Link, ListChecks, MoreHorizontal, Pencil, X } from 'lucide-react';
+import { Check, CornerUpLeft, Link, ListChecks, MoreHorizontal, Pencil, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -301,14 +301,6 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                     <Check size={12} />
                     {isLoading ? 'Working...' : 'Mark Complete'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleMutation(() => sendBackForRework({ itemId: item._id }))}
-                    disabled={isLoading}
-                    className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-border text-chatroom-text-secondary hover:border-chatroom-border-strong hover:text-chatroom-text-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isLoading ? 'Working...' : 'Send Back'}
-                  </button>
                 </>
               )}
 
@@ -370,7 +362,19 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                     {isAttachedToContext ? 'Attached' : 'Attach to Context'}
                   </DropdownMenuItem>
 
-                  {/* Mark as Complete + Close — only for non-closed statuses */}
+                  {/* Return to Backlog — only for pending_user_review */}
+                  {item.status === 'pending_user_review' && (
+                    <DropdownMenuItem
+                      onClick={() => handleMutation(() => sendBackForRework({ itemId: item._id }))}
+                      disabled={isLoading}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <CornerUpLeft size={14} />
+                      Return to Backlog
+                    </DropdownMenuItem>
+                  )}
+
+                  {/* Mark as Complete + Mark as Closed — only for non-closed statuses */}
                   {item.status !== 'closed' && (
                     <>
                       <DropdownMenuSeparator />
