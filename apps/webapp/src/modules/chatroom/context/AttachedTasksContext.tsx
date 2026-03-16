@@ -18,6 +18,14 @@ export interface AttachedTask {
 }
 
 /**
+ * Represents an attached backlog item with minimal required fields.
+ */
+export interface AttachedBacklogItem {
+  _id: Id<'chatroom_backlog'>;
+  content: string;
+}
+
+/**
  * Context value interface for attached tasks state management.
  */
 interface AttachedTasksContextValue {
@@ -33,6 +41,22 @@ interface AttachedTasksContextValue {
   canAddMore: boolean;
   /** Check if a specific task is already attached */
   isTaskAttached: (taskId: Id<'chatroom_tasks'>) => boolean;
+
+  // Backlog item attachments
+  /** Currently attached backlog items */
+  attachedBacklogItems: AttachedBacklogItem[];
+  /** Add a backlog item to attachments. Returns false if limit reached or already attached. */
+  addBacklogItem: (item: AttachedBacklogItem) => boolean;
+  /** Remove a backlog item from attachments by ID */
+  removeBacklogItem: (itemId: Id<'chatroom_backlog'>) => void;
+  /** Check if a specific backlog item is already attached */
+  isBacklogItemAttached: (itemId: Id<'chatroom_backlog'>) => boolean;
+
+  // Combined helpers
+  /** Clear both tasks and backlog items */
+  clearAll: () => void;
+  /** Total count of all attachments (tasks + backlog items) */
+  totalCount: number;
 }
 
 const AttachedTasksContext = createContext<AttachedTasksContextValue | null>(null);
@@ -43,8 +67,10 @@ const AttachedTasksContext = createContext<AttachedTasksContextValue | null>(nul
  */
 export function AttachedTasksProvider({ children }: { children: React.ReactNode }) {
   const [attachedTasks, setAttachedTasks] = useState<AttachedTask[]>([]);
+  const [attachedBacklogItems, setAttachedBacklogItems] = useState<AttachedBacklogItem[]>([]);
 
-  const canAddMore = attachedTasks.length < MAX_ATTACHMENTS;
+  const totalCount = attachedTasks.length + attachedBacklogItems.length;
+  const canAddMore = totalCount < MAX_ATTACHMENTS;
 
   const isTaskAttached = useCallback(
     (taskId: Id<'chatroom_tasks'>) => {
@@ -61,14 +87,14 @@ export function AttachedTasksProvider({ children }: { children: React.ReactNode 
       }
 
       // Check limit
-      if (attachedTasks.length >= MAX_ATTACHMENTS) {
+      if (attachedTasks.length + attachedBacklogItems.length >= MAX_ATTACHMENTS) {
         return false;
       }
 
       setAttachedTasks((prev) => [...prev, task]);
       return true;
     },
-    [attachedTasks.length, isTaskAttached]
+    [attachedTasks.length, attachedBacklogItems.length, isTaskAttached]
   );
 
   const removeTask = useCallback((taskId: Id<'chatroom_tasks'>) => {
@@ -79,6 +105,40 @@ export function AttachedTasksProvider({ children }: { children: React.ReactNode 
     setAttachedTasks([]);
   }, []);
 
+  const isBacklogItemAttached = useCallback(
+    (itemId: Id<'chatroom_backlog'>) => {
+      return attachedBacklogItems.some((item) => item._id === itemId);
+    },
+    [attachedBacklogItems]
+  );
+
+  const addBacklogItem = useCallback(
+    (item: AttachedBacklogItem): boolean => {
+      // Check if already attached
+      if (isBacklogItemAttached(item._id)) {
+        return false;
+      }
+
+      // Check limit
+      if (attachedTasks.length + attachedBacklogItems.length >= MAX_ATTACHMENTS) {
+        return false;
+      }
+
+      setAttachedBacklogItems((prev) => [...prev, item]);
+      return true;
+    },
+    [attachedTasks.length, attachedBacklogItems.length, isBacklogItemAttached]
+  );
+
+  const removeBacklogItem = useCallback((itemId: Id<'chatroom_backlog'>) => {
+    setAttachedBacklogItems((prev) => prev.filter((item) => item._id !== itemId));
+  }, []);
+
+  const clearAll = useCallback(() => {
+    setAttachedTasks([]);
+    setAttachedBacklogItems([]);
+  }, []);
+
   const value = useMemo(
     () => ({
       attachedTasks,
@@ -87,8 +147,27 @@ export function AttachedTasksProvider({ children }: { children: React.ReactNode 
       clearTasks,
       canAddMore,
       isTaskAttached,
+      attachedBacklogItems,
+      addBacklogItem,
+      removeBacklogItem,
+      isBacklogItemAttached,
+      clearAll,
+      totalCount,
     }),
-    [attachedTasks, addTask, removeTask, clearTasks, canAddMore, isTaskAttached]
+    [
+      attachedTasks,
+      addTask,
+      removeTask,
+      clearTasks,
+      canAddMore,
+      isTaskAttached,
+      attachedBacklogItems,
+      addBacklogItem,
+      removeBacklogItem,
+      isBacklogItemAttached,
+      clearAll,
+      totalCount,
+    ]
   );
 
   return <AttachedTasksContext.Provider value={value}>{children}</AttachedTasksContext.Provider>;
