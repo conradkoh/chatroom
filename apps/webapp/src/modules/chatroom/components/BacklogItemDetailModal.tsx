@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
-import { Check, ListChecks, MoreHorizontal, Pencil, X } from 'lucide-react';
+import { Check, Link, ListChecks, MoreHorizontal, Pencil, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -227,7 +227,10 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                 ) : (
                   // Preview Tab — Read-only rendered markdown
                   <div className="h-full overflow-y-auto p-4 text-chatroom-text-primary text-sm leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:uppercase prose-headings:tracking-wider prose-headings:mt-4 prose-headings:mb-2 prose-headings:text-chatroom-text-primary prose-p:my-2 prose-p:text-chatroom-text-primary prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary prose-code:text-chatroom-text-primary prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-li:text-chatroom-text-primary prose-pre:bg-chatroom-bg-tertiary prose-pre:border prose-pre:border-chatroom-border prose-pre:rounded-none">
-                    <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
+                    <Markdown
+                      remarkPlugins={[remarkGfm, remarkBreaks]}
+                      components={baseMarkdownComponents}
+                    >
                       {editedContent || '*No content yet*'}
                     </Markdown>
                   </div>
@@ -237,7 +240,10 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
           ) : (
             // View mode — Read-only rendered markdown
             <div className="p-4 text-chatroom-text-primary text-sm leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:uppercase prose-headings:tracking-wider prose-headings:mt-4 prose-headings:mb-2 prose-headings:text-chatroom-text-primary prose-p:my-2 prose-p:text-chatroom-text-primary prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary prose-code:text-chatroom-text-primary prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-li:text-chatroom-text-primary prose-pre:bg-chatroom-bg-tertiary prose-pre:border prose-pre:border-chatroom-border prose-pre:rounded-none">
-              <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
+              <Markdown
+                remarkPlugins={[remarkGfm, remarkBreaks]}
+                components={baseMarkdownComponents}
+              >
                 {item.content}
               </Markdown>
             </div>
@@ -279,7 +285,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   disabled={isAttachedToContext || isLoading}
                   className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-transparent bg-chatroom-accent text-chatroom-bg-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Check size={12} className={isAttachedToContext ? 'opacity-100' : 'opacity-0'} />
+                  {isAttachedToContext ? <Check size={12} /> : <Link size={12} />}
                   {isAttachedToContext ? 'Attached ✓' : 'Attach to Context'}
                 </button>
               )}
@@ -360,7 +366,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                     disabled={isAttachedToContext}
                     className="flex items-center gap-2 cursor-pointer"
                   >
-                    <Check size={14} className={isAttachedToContext ? 'opacity-100' : 'opacity-0'} />
+                    {isAttachedToContext ? <Check size={14} /> : <Link size={14} />}
                     {isAttachedToContext ? 'Attached' : 'Attach to Context'}
                   </DropdownMenuItem>
 
