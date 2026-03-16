@@ -3,16 +3,12 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import {
   Check,
-  CheckCircle,
   Link,
   MoreHorizontal,
   Pencil,
-  Plus,
-  RotateCcw,
   StopCircle,
   Trash2,
   X,
-  XCircle,
 } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
@@ -20,7 +16,7 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 
 import { baseMarkdownComponents } from './markdown-utils';
-import { useAttachedTasks, MAX_ATTACHMENTS } from '../context/AttachedTasksContext';
+import { useAttachedTasks } from '../context/AttachedTasksContext';
 
 import {
   DropdownMenu,
@@ -40,7 +36,6 @@ type TaskStatus =
   | 'closed'
   | 'cancelled'; // deprecated
 type TaskOrigin = 'backlog' | 'chat';
-type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
 
 interface Task {
   _id: Id<'chatroom_tasks'>;
@@ -51,9 +46,6 @@ interface Task {
   updatedAt: number;
   queuePosition: number;
   assignedTo?: string;
-  backlog?: {
-    status: BacklogStatus;
-  };
 }
 
 interface TaskDetailModalProps {
@@ -63,9 +55,6 @@ interface TaskDetailModalProps {
   onEdit: (taskId: string, content: string) => Promise<void>;
   onDelete: (taskId: string) => Promise<void>;
   onForceComplete: (taskId: string) => Promise<void>;
-  onMarkBacklogComplete?: (taskId: string) => Promise<void>;
-  onCloseBacklog?: (taskId: string) => Promise<void>;
-  onReopenBacklog?: (taskId: string) => Promise<void>;
   isProtected?: boolean;
 }
 
@@ -136,9 +125,6 @@ export function TaskDetailModal({
   onEdit,
   onDelete,
   onForceComplete,
-  onMarkBacklogComplete,
-  onCloseBacklog,
-  onReopenBacklog,
   isProtected = false,
 }: TaskDetailModalProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -246,67 +232,9 @@ export function TaskDetailModal({
     }
   }, [task, onForceComplete, onClose]);
 
-  const handleMarkBacklogComplete = useCallback(async () => {
-    if (!task || !onMarkBacklogComplete) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      await onMarkBacklogComplete(task._id);
-      onClose();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to mark as complete';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [task, onMarkBacklogComplete, onClose]);
-
-  const handleCloseBacklog = useCallback(async () => {
-    if (!task || !onCloseBacklog) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      await onCloseBacklog(task._id);
-      onClose();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to close task';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [task, onCloseBacklog, onClose]);
-
-  const handleReopenBacklog = useCallback(async () => {
-    if (!task || !onReopenBacklog) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      await onReopenBacklog(task._id);
-      onClose();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to reopen task';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [task, onReopenBacklog, onClose]);
-
   if (!isOpen || !task) {
     return null;
   }
-
-  // Determine if this is a backlog-origin task
-  const isBacklogOrigin = task.origin === 'backlog';
-
-  // Determine backlog status for showing appropriate actions
-  // Task is archived if status is completed or closed
-  const isArchivedBacklog = task.status === 'completed' || task.status === 'closed';
-
-  // Active backlog: backlog-origin task that is not archived
-  const isActiveBacklog = isBacklogOrigin && !isArchivedBacklog;
-
-  // Pending review items: tasks in pending_user_review status
-  const isPendingReview = task.status === 'pending_user_review';
 
   const badge = getStatusBadge(task.status);
 
@@ -443,36 +371,6 @@ export function TaskDetailModal({
               </>
             ) : (
               <>
-                {/* Primary Actions - Always visible */}
-                {/* Add to chat for backlog items and pending review items */}
-                {(task.status === 'backlog' || task.status === 'pending_user_review') &&
-                  isBacklogOrigin && (
-                    <button
-                      onClick={() => {
-                        if (task) {
-                          const added = addTask({ _id: task._id, content: task.content });
-                          if (added) {
-                            onClose();
-                          }
-                        }
-                      }}
-                      disabled={isLoading || isTaskAttached(task._id) || !canAddMore}
-                      className="flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wide bg-chatroom-accent text-chatroom-bg-primary hover:bg-chatroom-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={
-                        isTaskAttached(task._id)
-                          ? 'Already added to chat'
-                          : !canAddMore
-                            ? `Maximum ${MAX_ATTACHMENTS} attachments`
-                            : isPendingReview
-                              ? 'Add to chat for re-review'
-                              : 'Add to chat'
-                      }
-                    >
-                      <Plus size={12} />
-                      {isTaskAttached(task._id) ? 'Added' : 'Add to Chat'}
-                    </button>
-                  )}
-
                 {/* Force complete for active tasks */}
                 {(task.status === 'in_progress' ||
                   task.status === 'pending' ||
@@ -529,41 +427,6 @@ export function TaskDetailModal({
                       <Link size={14} />
                       {isTaskAttached(task._id) ? 'Already Attached' : 'Attach to Context'}
                     </DropdownMenuItem>
-
-                    {/* Backlog lifecycle actions */}
-                    {isActiveBacklog && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={handleMarkBacklogComplete}
-                          className="flex items-center gap-2 cursor-pointer text-chatroom-status-success"
-                        >
-                          <CheckCircle size={14} />
-                          Mark Complete
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={handleCloseBacklog}
-                          className="flex items-center gap-2 cursor-pointer text-chatroom-text-muted"
-                        >
-                          <XCircle size={14} />
-                          Close
-                        </DropdownMenuItem>
-                      </>
-                    )}
-
-                    {/* Reopen for archived */}
-                    {isArchivedBacklog && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={handleReopenBacklog}
-                          className="flex items-center gap-2 cursor-pointer text-chatroom-status-info"
-                        >
-                          <RotateCcw size={14} />
-                          Reopen
-                        </DropdownMenuItem>
-                      </>
-                    )}
 
                     {/* Delete action - always at bottom, dangerous */}
                     <DropdownMenuSeparator />

@@ -241,9 +241,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
   const updateTask = useSessionMutation(api.tasks.updateTask);
   const cancelTask = useSessionMutation(api.tasks.cancelTask);
   const completeTaskById = useSessionMutation(api.tasks.completeTaskById);
-  const markBacklogComplete = useSessionMutation(api.tasks.markBacklogComplete);
-  const closeBacklogTask = useSessionMutation(api.tasks.closeBacklogTask);
-  const reopenBacklogTask = useSessionMutation(api.tasks.reopenBacklogTask);
 
   // Categorize tasks by status
   const categorizedTasks = useMemo(() => {
@@ -333,48 +330,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
       }
     },
     [completeTaskById]
-  );
-
-  const handleModalMarkBacklogComplete = useCallback(
-    async (taskId: string) => {
-      try {
-        await markBacklogComplete({
-          taskId: taskId as Id<'chatroom_tasks'>,
-        });
-      } catch (error) {
-        console.error('Failed to mark backlog complete:', error);
-        throw error;
-      }
-    },
-    [markBacklogComplete]
-  );
-
-  const handleModalCloseBacklog = useCallback(
-    async (taskId: string) => {
-      try {
-        await closeBacklogTask({
-          taskId: taskId as Id<'chatroom_tasks'>,
-        });
-      } catch (error) {
-        console.error('Failed to close backlog task:', error);
-        throw error;
-      }
-    },
-    [closeBacklogTask]
-  );
-
-  const handleModalReopenBacklog = useCallback(
-    async (taskId: string) => {
-      try {
-        await reopenBacklogTask({
-          taskId: taskId as Id<'chatroom_tasks'>,
-        });
-      } catch (error) {
-        console.error('Failed to reopen backlog task:', error);
-        throw error;
-      }
-    },
-    [reopenBacklogTask]
   );
 
   // Batch close all acknowledged tasks
@@ -586,9 +541,6 @@ export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
           onEdit={handleModalEdit}
           onDelete={handleModalDelete}
           onForceComplete={handleModalForceComplete}
-          onMarkBacklogComplete={handleModalMarkBacklogComplete}
-          onCloseBacklog={handleModalCloseBacklog}
-          onReopenBacklog={handleModalReopenBacklog}
         />
       )}
 
