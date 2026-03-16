@@ -489,6 +489,8 @@ async function _handoffHandler(
     for (const task of inProgressTasks) {
       if (task.sourceMessageId) {
         const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
+
+        // 5a. Legacy path: chatroom_tasks with origin:'backlog' attached via attachedTaskIds
         if (sourceMessage?.attachedTaskIds && sourceMessage.attachedTaskIds.length > 0) {
           for (const attachedTaskId of sourceMessage.attachedTaskIds) {
             const attachedTask = await ctx.db.get('chatroom_tasks', attachedTaskId);
@@ -507,6 +509,25 @@ async function _handoffHandler(
               console.warn(
                 `[Attached Task Update] chatroomId=${task.chatroomId} taskId=${attachedTaskId} ` +
                   `from=${attachedTask.status} to=pending_user_review`
+              );
+            }
+          }
+        }
+
+        // 5b. New path: chatroom_backlog items attached via "Attach to Context" (attachedBacklogItemIds)
+        if (sourceMessage?.attachedBacklogItemIds && sourceMessage.attachedBacklogItemIds.length > 0) {
+          const now = Date.now();
+          for (const backlogItemId of sourceMessage.attachedBacklogItemIds) {
+            const backlogItem = await ctx.db.get('chatroom_backlog', backlogItemId);
+            // Only transition items that are in 'backlog' status (not already reviewed/closed)
+            if (backlogItem && backlogItem.status === 'backlog') {
+              await ctx.db.patch('chatroom_backlog', backlogItemId, {
+                status: 'pending_user_review',
+                updatedAt: now,
+              });
+              console.warn(
+                `[Attached Backlog Item Update] chatroomId=${task.chatroomId} itemId=${backlogItemId} ` +
+                  `from=backlog to=pending_user_review`
               );
             }
           }
