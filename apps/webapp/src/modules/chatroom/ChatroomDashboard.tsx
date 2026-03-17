@@ -27,7 +27,7 @@ import { MessageFeed } from './components/MessageFeed';
 import { PromptModal } from './components/PromptModal';
 import { SendForm } from './components/SendForm';
 import { SetupChecklistModal } from './components/SetupChecklistModal';
-import { TaskQueue } from './components/TaskQueue';
+import { WorkQueue } from './components/WorkQueue';
 import { AttachmentsProvider } from './context/AttachmentsContext';
 import { useAgentStatuses } from './hooks/useAgentStatuses';
 import type { TeamLifecycle } from './types/readiness';
@@ -682,7 +682,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   lifecycle={lifecycle}
                   onConfigure={handleOpenSettings}
                 />
-                <TaskQueue chatroomId={chatroomId} lifecycle={lifecycle} />
+                <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} />
                 <WorkspaceSidebarSection workspaces={chatroomWorkspaces} chatroomId={chatroomId} />
               </div>
             </div>

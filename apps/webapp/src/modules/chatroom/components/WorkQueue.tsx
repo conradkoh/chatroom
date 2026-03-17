@@ -68,7 +68,7 @@ interface TaskCounts {
   completed: number;
 }
 
-interface TaskQueueProps {
+interface WorkQueueProps {
   chatroomId: string;
   /** Lifecycle data from the parent — used to derive needsPromotion without a separate checkQueueHealth subscription */
   lifecycle?: TeamLifecycle | null;
@@ -116,7 +116,7 @@ const PENDING_REVIEW_PREVIEW_LIMIT = 3;
 // Maximum number of current tasks to show in sidebar before "View More"
 const CURRENT_TASKS_PREVIEW_LIMIT = 3;
 
-export function TaskQueue({ chatroomId, lifecycle }: TaskQueueProps) {
+export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
   const [isBacklogCreateModalOpen, setIsBacklogCreateModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
