@@ -460,10 +460,9 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
         }}
       />
 
-      {/* Pending Review Modal - Note: shows backlog items only since pending_user_review status removed */}
+      {/* Pending Review Modal */}
       {isPendingReviewModalOpen && (
         <PendingReviewModal
-          tasks={[]}
           backlogItems={pendingReviewBacklogItems}
           onClose={() => setIsPendingReviewModalOpen(false)}
           onTaskClick={(task) => {
@@ -685,7 +684,7 @@ function formatRelativeTime(timestamp: number): string {
 
 // Pending Review Modal Component
 interface PendingReviewModalProps {
-  tasks: Task[];
+  tasks?: Task[];
   backlogItems: BacklogItem[];
   onClose: () => void;
   onTaskClick: (task: Task) => void;
@@ -693,7 +692,7 @@ interface PendingReviewModalProps {
 }
 
 function PendingReviewModal({
-  tasks,
+  tasks = [],
   backlogItems,
   onClose,
   onTaskClick,
