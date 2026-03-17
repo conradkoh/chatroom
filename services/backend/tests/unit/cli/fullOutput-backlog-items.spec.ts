@@ -160,3 +160,55 @@ describe('generateFullCliOutput — attached backlog items', () => {
     expect(output).not.toContain('[pending_user_review]');
   });
 });
+
+describe('generateFullCliOutput — task content is hidden', () => {
+  test('does not include task content in output', () => {
+    const params = baseParams();
+    const output = generateFullCliOutput(params);
+
+    // The task content must NOT appear in the CLI output
+    // Agents must use `task read` to fetch it
+    expect(output).not.toContain(params.task.content);
+  });
+
+  test('does not include message content in output', () => {
+    const params = {
+      ...baseParams(),
+      message: {
+        _id: 'msg-id-456',
+        senderRole: 'user',
+        content: 'Add a new feature with secret implementation details',
+      },
+    };
+    const output = generateFullCliOutput(params);
+
+    // Message content must NOT appear in CLI output
+    expect(output).not.toContain('Add a new feature with secret implementation details');
+  });
+
+  test('includes task read command with task ID', () => {
+    const params = baseParams();
+    const output = generateFullCliOutput(params);
+
+    // Must show how to fetch the task content
+    expect(output).toContain('chatroom task read');
+    expect(output).toContain(params.task._id);
+  });
+
+  test('includes task read command for handoff messages', () => {
+    const params = {
+      ...baseParams(),
+      message: {
+        _id: 'msg-id-789',
+        senderRole: 'builder',
+        content: 'Completed implementation of the feature. Changes: ...',
+      },
+    };
+    const output = generateFullCliOutput(params);
+
+    // Even for handoffs, content must be hidden and task read must be shown
+    expect(output).not.toContain('Completed implementation of the feature');
+    expect(output).toContain('chatroom task read');
+    expect(output).toContain(params.task._id);
+  });
+});
