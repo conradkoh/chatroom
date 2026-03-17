@@ -1,4 +1,4 @@
-/** Domain model for backlog item statuses and lifecycle transitions. */
+/** Enforces strict lifecycle state transitions for backlog items, ensuring only valid transitions are applied. */
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
@@ -8,52 +8,55 @@ import type { MutationCtx } from '../_generated/server';
 // ============================================================================
 
 /**
- * Backlog item status - single source of truth for backlog workflow state.
- *
- * Lifecycle:
- *   backlog → pending_user_review (agent marks work done)
- *   pending_user_review → closed (user confirms completion)
- *   pending_user_review → backlog (user sends back for rework)
- *   closed → backlog (user reopens)
+ * Backlog item status - single source of truth for backlog workflow state
  */
 export type BacklogItemStatus =
-  | 'backlog'              // Sitting in backlog, awaiting pickup
-  | 'pending_user_review'  // Agent completed work, awaiting user confirmation
-  | 'closed';              // User closed (with or without completing)
+  | 'backlog' // Sitting in backlog, awaiting pickup
+  | 'pending_user_review' // Agent completed work, awaiting user confirmation
+  | 'closed'; // User closed without completing
 
 export type BacklogItem = Doc<'chatroom_backlog'>;
 
 /**
- * FSM transition definition for backlog items
+ * FSM transition definition
  */
 export interface BacklogTransitionRule {
   from: BacklogItemStatus;
   to: BacklogItemStatus;
   trigger: string; // Mutation name that causes this transition
-  setFields?: Partial<Record<keyof BacklogItem, 'NOW' | 'CLEAR'>>; // Fields to set or clear
+  requiredFields?: (keyof BacklogItem)[]; // Fields that must be provided
+  setFields?: Partial<Record<keyof BacklogItem, 'NOW' | 'PROVIDED'>>; // Fields to auto-set
+  clearFields?: (keyof BacklogItem)[]; // Fields to clear (set to undefined)
+  validate?: (item: BacklogItem) => boolean; // Custom validation
 }
 
 /**
- * Structured error for invalid backlog transitions
+ * Structured error for invalid transitions
  */
 export interface BacklogTransitionError {
-  code: 'BACKLOG_INVALID_TRANSITION';
+  code:
+    | 'BACKLOG_INVALID_TRANSITION'
+    | 'BACKLOG_VALIDATION_FAILED'
+    | 'BACKLOG_MISSING_REQUIRED_FIELD';
   message: string;
   variables: {
-    itemId: string;
+    backlogItemId: string;
     currentStatus?: BacklogItemStatus;
     attemptedStatus?: BacklogItemStatus;
     trigger?: string;
     validTransitions?: {
       to: BacklogItemStatus;
       trigger: string;
+      requiredFields?: string[];
     }[];
+    missingField?: string;
+    validationReason?: string;
   };
   aiGuidance?: string;
 }
 
 /**
- * Error thrown when a backlog transition is invalid
+ * Error thrown when transition is invalid
  */
 export class InvalidBacklogTransitionError extends Error {
   constructor(public details: BacklogTransitionError) {
@@ -67,54 +70,66 @@ export class InvalidBacklogTransitionError extends Error {
 // ============================================================================
 
 /**
- * All valid state transitions for backlog items
+ * All valid state transitions:
+ * - backlog → pending_user_review (via markBacklogItemForReview)
+ * - pending_user_review → closed (via completeBacklogItem)
+ * - pending_user_review → backlog (via sendBacklogItemBackForRework)
+ * - closed → backlog (via reopenBacklogItem)
  */
-const BACKLOG_TRANSITIONS: BacklogTransitionRule[] = [
-  // backlog → pending_user_review (agent marks work done)
+const TRANSITIONS: BacklogTransitionRule[] = [
+  // ==========================================================================
+  // AGENT WORK FLOW: backlog → pending_user_review
+  // ==========================================================================
+
   {
     from: 'backlog',
     to: 'pending_user_review',
     trigger: 'markBacklogItemForReview',
+    setFields: {
+      updatedAt: 'NOW',
+    },
   },
 
-  // pending_user_review → closed (user confirms completion)
+  // ==========================================================================
+  // USER REVIEW FLOW: pending_user_review → closed
+  // ==========================================================================
+
   {
     from: 'pending_user_review',
     to: 'closed',
     trigger: 'completeBacklogItem',
     setFields: {
       completedAt: 'NOW',
+      updatedAt: 'NOW',
     },
   },
 
-  // pending_user_review → backlog (user sends back for rework)
+  // ==========================================================================
+  // REWORK FLOW: pending_user_review → backlog
+  // ==========================================================================
+
   {
     from: 'pending_user_review',
     to: 'backlog',
     trigger: 'sendBacklogItemBackForRework',
+    setFields: {
+      updatedAt: 'NOW',
+    },
+    clearFields: ['completedAt'],
   },
 
-  // closed → backlog (user reopens)
+  // ==========================================================================
+  // REOPEN FLOW: closed → backlog
+  // ==========================================================================
+
   {
     from: 'closed',
     to: 'backlog',
     trigger: 'reopenBacklogItem',
     setFields: {
-      completedAt: 'CLEAR',
+      updatedAt: 'NOW',
     },
-  },
-
-  // Any status → closed (user closes without completing)
-  {
-    from: 'backlog',
-    to: 'closed',
-    trigger: 'closeBacklogItem',
-  },
-
-  {
-    from: 'pending_user_review',
-    to: 'closed',
-    trigger: 'closeBacklogItem',
+    clearFields: ['completedAt'],
   },
 ];
 
@@ -123,38 +138,45 @@ const BACKLOG_TRANSITIONS: BacklogTransitionRule[] = [
 // ============================================================================
 
 /** Returns all valid transitions from a given backlog item status. */
-export function getValidBacklogTransitionsFrom(
-  status: BacklogItemStatus
-): BacklogTransitionRule[] {
-  return BACKLOG_TRANSITIONS.filter((t) => t.from === status);
+export function getValidTransitionsFrom(status: BacklogItemStatus): BacklogTransitionRule[] {
+  return TRANSITIONS.filter((t) => t.from === status);
 }
 
 /**
- * Check if a backlog transition is valid without executing it
+ * Check if a transition is valid without executing it
  */
-export function canTransitionBacklogItem(
-  item: BacklogItem,
-  newStatus: BacklogItemStatus
-): boolean {
-  const validTransitions = BACKLOG_TRANSITIONS.filter(
+export function canTransition(item: BacklogItem, newStatus: BacklogItemStatus): boolean {
+  const validTransitions = TRANSITIONS.filter(
     (t) => t.from === item.status && t.to === newStatus
   );
-  return validTransitions.length > 0;
+
+  if (validTransitions.length === 0) {
+    return false;
+  }
+
+  // Check custom validation — return true only if at least one transition passes
+  for (const transition of validTransitions) {
+    if (transition.validate && !transition.validate(item)) {
+      continue;
+    }
+    return true;
+  }
+
+  return false;
 }
 
-/**
- * Transitions a backlog item to a new status, enforcing FSM rules and applying
- * field updates atomically.
- */
+/** Transitions a backlog item to a new status, enforcing FSM rules and applying field updates atomically. */
 export async function transitionBacklogItem(
   ctx: MutationCtx,
-  itemId: Id<'chatroom_backlog'>,
+  backlogItemId: Id<'chatroom_backlog'>,
   newStatus: BacklogItemStatus,
-  trigger: string
+  trigger: string,
+  overrides?: Partial<BacklogItem>
 ): Promise<void> {
-  const item = await ctx.db.get('chatroom_backlog', itemId);
+  // Get current backlog item
+  const item = await ctx.db.get('chatroom_backlog', backlogItemId);
   if (!item) {
-    throw new Error(`Backlog item ${itemId} not found`);
+    throw new Error(`Backlog item ${backlogItemId} not found`);
   }
 
   const currentStatus = item.status as BacklogItemStatus;
@@ -165,36 +187,74 @@ export async function transitionBacklogItem(
   }
 
   // Find valid transition rule
-  const validTransitions = BACKLOG_TRANSITIONS.filter(
+  const validTransitions = TRANSITIONS.filter(
     (t) => t.from === currentStatus && t.to === newStatus && t.trigger === trigger
   );
 
   if (validTransitions.length === 0) {
-    const allValidTransitions = getValidBacklogTransitionsFrom(currentStatus);
+    // No valid transition found - throw structured error
+    const allValidTransitions = getValidTransitionsFrom(currentStatus);
     throw new InvalidBacklogTransitionError({
       code: 'BACKLOG_INVALID_TRANSITION',
-      message: `Cannot transition backlog item from '${currentStatus}' to '${newStatus}' via '${trigger}'`,
+      message: `Cannot transition backlog item from ${currentStatus} to ${newStatus} via ${trigger}`,
       variables: {
-        itemId,
+        backlogItemId,
         currentStatus,
         attemptedStatus: newStatus,
         trigger,
         validTransitions: allValidTransitions.map((t) => ({
           to: t.to,
           trigger: t.trigger,
+          requiredFields: t.requiredFields as string[] | undefined,
         })),
       },
-      aiGuidance: `Valid transitions from '${currentStatus}': ${allValidTransitions.map((t) => `'${t.to}' (via ${t.trigger})`).join(', ')}`,
+      aiGuidance: `Valid transitions from ${currentStatus}: ${allValidTransitions.map((t) => `${t.to} (via ${t.trigger})`).join(', ')}`,
     });
   }
 
   // Apply first matching transition rule
   const rule = validTransitions[0]!;
 
+  // Custom validation
+  if (rule.validate && !rule.validate(item)) {
+    throw new InvalidBacklogTransitionError({
+      code: 'BACKLOG_VALIDATION_FAILED',
+      message: `Transition validation failed for ${currentStatus} → ${newStatus}`,
+      variables: {
+        backlogItemId,
+        currentStatus,
+        attemptedStatus: newStatus,
+        trigger,
+        validationReason: 'Custom validation function returned false',
+      },
+      aiGuidance: 'Check backlog item constraints',
+    });
+  }
+
+  // Validate required fields
+  if (rule.requiredFields) {
+    for (const field of rule.requiredFields) {
+      if (!overrides || overrides[field] === undefined) {
+        throw new InvalidBacklogTransitionError({
+          code: 'BACKLOG_MISSING_REQUIRED_FIELD',
+          message: `Required field '${String(field)}' not provided for transition ${currentStatus} → ${newStatus}`,
+          variables: {
+            backlogItemId,
+            currentStatus,
+            attemptedStatus: newStatus,
+            trigger,
+            missingField: String(field),
+          },
+          aiGuidance: `This transition requires the following fields: ${rule.requiredFields.map(String).join(', ')}`,
+        });
+      }
+    }
+  }
+
   // Build patch object
   const now = Date.now();
-  const patch: Record<string, unknown> = {
-    status: newStatus,
+  const patch: Partial<BacklogItem> = {
+    status: newStatus as any,
     updatedAt: now,
   };
 
@@ -202,20 +262,39 @@ export async function transitionBacklogItem(
   if (rule.setFields) {
     for (const [field, value] of Object.entries(rule.setFields)) {
       if (value === 'NOW') {
-        patch[field] = now;
-      } else if (value === 'CLEAR') {
-        patch[field] = undefined;
+        (patch as any)[field] = now;
+      } else if (value === 'PROVIDED') {
+        // Field must come from overrides (already validated above)
+        if (overrides && overrides[field as keyof BacklogItem] !== undefined) {
+          (patch as any)[field] = overrides[field as keyof BacklogItem];
+        }
+      }
+    }
+  }
+
+  // Apply clearFields rules
+  if (rule.clearFields) {
+    for (const field of rule.clearFields) {
+      (patch as any)[field] = undefined;
+    }
+  }
+
+  // Apply overrides (don't override cleared fields)
+  if (overrides) {
+    for (const [field, value] of Object.entries(overrides)) {
+      if (!rule.clearFields || !rule.clearFields.includes(field as keyof BacklogItem)) {
+        (patch as any)[field] = value;
       }
     }
   }
 
   // Execute atomic update
-  await ctx.db.patch('chatroom_backlog', itemId, patch);
+  await ctx.db.patch('chatroom_backlog', backlogItemId, patch);
 
   // Log transition for auditing (suppress during testing)
   if (process.env.NODE_ENV !== 'test') {
     console.log(
-      `[FSM] Backlog item ${itemId} transitioned: ${currentStatus} → ${newStatus} (trigger: ${trigger})`
+      `[FSM] Backlog item ${backlogItemId} transitioned: ${currentStatus} → ${newStatus} (trigger: ${trigger})`
     );
   }
 }
