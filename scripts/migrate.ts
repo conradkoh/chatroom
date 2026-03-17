@@ -108,6 +108,10 @@ const MIGRATIONS: Migration[] = [
     name: 'migration:migrateBacklogItemsToBacklogTable',
     addedAt: '2026-03-17T14:00:00.000Z',
   },
+  {
+    name: 'migration:deleteBacklogOriginTasks',
+    addedAt: '2026-03-17T14:20:38.000Z',
+  },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

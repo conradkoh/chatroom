@@ -736,3 +736,63 @@ export const remapBacklogTaskIdsInMessages = internalMutation({
     };
   },
 });
+
+/**
+ * Migration: Delete legacy backlog tasks from chatroom_tasks.
+ *
+ * After migrateBacklogItemsToBacklogTable and remapBacklogTaskIdsInMessages have
+ * run, the old chatroom_tasks records with origin="backlog" are no longer needed.
+ * This migration cleans them up by deleting only those that have been successfully
+ * migrated (confirmed by presence of a chatroom_backlog record with matching
+ * legacyTaskId).
+ *
+ * Behavior:
+ *   - Queries all chatroom_tasks with origin === "backlog"
+ *   - For each, checks if a chatroom_backlog record exists with legacyTaskId === task._id
+ *   - If confirmed migrated → deletes the task record
+ *   - If NOT yet migrated → skips it (does not delete)
+ *
+ * Idempotent: tasks already deleted are simply not found on re-run.
+ *
+ * After running this migration in production:
+ *   1. Move this description to "Previously executed migrations" list above.
+ *   2. The `origin: "backlog"` literal can be removed from chatroom_tasks.status
+ *      in schema.ts (if no longer needed for other purposes).
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.deleteBacklogOriginTasks
+ */
+export const deleteBacklogOriginTasks = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    // Get all tasks with origin="backlog"
+    const allTasks = await ctx.db.query('chatroom_tasks').collect();
+    const backlogTasks = allTasks.filter((task) => task.origin === 'backlog');
+
+    let deleted = 0;
+    let skipped = 0;
+
+    for (const task of backlogTasks) {
+      // Check if a corresponding backlog item exists with this task's ID as legacyTaskId
+      const backlogItem = await ctx.db
+        .query('chatroom_backlog')
+        .withIndex('by_legacy_task_id', (q) => q.eq('legacyTaskId', task._id))
+        .first();
+
+      if (backlogItem) {
+        // Confirmed migrated — safe to delete
+        await ctx.db.delete(task._id);
+        deleted++;
+      } else {
+        // Not yet migrated — skip to preserve data
+        skipped++;
+      }
+    }
+
+    return {
+      total: backlogTasks.length,
+      deleted,
+      skipped,
+    };
+  },
+});
