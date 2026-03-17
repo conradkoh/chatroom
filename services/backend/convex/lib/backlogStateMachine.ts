@@ -131,6 +131,32 @@ const TRANSITIONS: BacklogTransitionRule[] = [
     },
     clearFields: ['completedAt'],
   },
+
+  // ==========================================================================
+  // CLOSE FLOW: backlog → closed
+  // ==========================================================================
+
+  {
+    from: 'backlog',
+    to: 'closed',
+    trigger: 'closeBacklogItem',
+    setFields: {
+      updatedAt: 'NOW',
+    },
+  },
+
+  // ==========================================================================
+  // CLOSE FLOW: pending_user_review → closed (without marking as complete)
+  // ==========================================================================
+
+  {
+    from: 'pending_user_review',
+    to: 'closed',
+    trigger: 'closeBacklogItem',
+    setFields: {
+      updatedAt: 'NOW',
+    },
+  },
 ];
 
 // ============================================================================
