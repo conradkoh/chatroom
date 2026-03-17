@@ -28,7 +28,7 @@ You receive handoffs from other agents containing work to review or validate.
 \`\`\`mermaid
 flowchart TD
     A([Start]) --> B[Receive handoff]
-    B -->|from builder or other agent| C[Run task-started]
+    B -->|from builder or other agent| C[Run task read]
     C --> D[Review code changes]
     D --> E{Meets requirements?}
     E -->|yes| F[Hand off to ${approvalTarget}]

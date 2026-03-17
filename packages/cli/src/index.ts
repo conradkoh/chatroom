@@ -457,6 +457,24 @@ backlogCommand
   });
 
 // ============================================================================
+// TASK COMMANDS (auth required)
+// ============================================================================
+
+const taskCommand = program.command('task').description('Manage tasks');
+
+taskCommand
+  .command('read')
+  .description('Read a task and mark it as in_progress')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role in the chatroom')
+  .requiredOption('--task-id <taskId>', 'Task ID to read')
+  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
+    await maybeRequireAuth();
+    const { taskRead } = await import('./commands/task/read/index.js');
+    await taskRead(options.chatroomId, { role: options.role, taskId: options.taskId });
+  });
+
+// ============================================================================
 // SKILL COMMANDS (auth required)
 // ============================================================================
 

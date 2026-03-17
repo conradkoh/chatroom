@@ -265,6 +265,83 @@ export const startTask = mutation({
   },
 });
 
+/**
+ * Marks a task as in_progress when an agent reads it.
+ * This is the primary way to transition a task from acknowledged → in_progress,
+ * replacing the legacy task-started CLI command.
+ */
+export const readTask = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+
+    // Fetch the task by ID
+    const task = await ctx.db.get('chatroom_tasks', args.taskId);
+    if (!task) {
+      throw new Error(`Task ${args.taskId} not found`);
+    }
+
+    // Validate task belongs to this chatroom
+    if (task.chatroomId !== args.chatroomId) {
+      throw new Error('Task does not belong to this chatroom');
+    }
+
+    // Validate task is assigned to this role
+    if (task.assignedTo !== args.role) {
+      throw new Error(`Task is assigned to ${task.assignedTo}, not ${args.role}`);
+    }
+
+    // IDEMPOTENCY: If task is already in_progress, accept it— this is a recovering agent
+    // picking up where a dead agent left off. Update assignedTo if needed and emit event.
+    if (task.status === 'in_progress') {
+      const now = Date.now();
+      if (task.assignedTo !== args.role) {
+        await ctx.db.patch('chatroom_tasks', task._id, {
+          assignedTo: args.role,
+          updatedAt: now,
+        });
+      }
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'task.inProgress',
+        chatroomId: args.chatroomId,
+        role: args.role,
+        taskId: task._id,
+        timestamp: now,
+      });
+      await patchParticipantStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
+      return { taskId: task._id, content: task.content, status: task.status };
+    }
+
+    // Task must be acknowledged to transition to in_progress
+    if (task.status !== 'acknowledged') {
+      throw new Error(
+        `Task must be acknowledged to read (current status: ${task.status})`
+      );
+    }
+
+    // Transition: acknowledged → in_progress using FSM
+    await transitionTask(ctx, task._id, 'in_progress', 'readTask');
+
+    // Emit task.inProgress event so UI can derive agent status from event stream
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'task.inProgress',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      taskId: task._id,
+      timestamp: Date.now(),
+    });
+    await patchParticipantStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
+
+    return { taskId: task._id, content: task.content, status: 'in_progress' };
+  },
+});
+
 /** Completes all in_progress tasks in the chatroom. */
 export const completeTask = mutation({
   args: {

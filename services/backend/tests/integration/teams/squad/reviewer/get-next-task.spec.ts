@@ -63,15 +63,17 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\`
 
       ## Task
-      Review the dark mode implementation
+      To read this task and mark it as in_progress, run:
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id"
+      \`\`\`
       </task>
 
       <next-steps>
+      ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
 
-      ⚠️  REQUIRED FIRST STEP: Run task-started IMMEDIATELY before any other work.
-         This marks the task as in_progress and prevents unnecessary agent restarts.
-
-      1. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id" --origin-message-classification=<type>\`
+      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id"\`
+      2. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id" --origin-message-classification=<type>\`
 
          new_feature example:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id" --origin-message-classification=new_feature << 'EOF'
@@ -82,7 +84,7 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       ---TECH_SPECS---
       <tech-specs>
       EOF
-      2. Hand off when complete:
+      3. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -132,20 +134,19 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="reviewer"\`
 
       ## Task
-      Review the dark mode implementation
+      To read this task and mark it as in_progress, run:
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id"
+      \`\`\`
 
       Classification: NEW_FEATURE
       </task>
 
       <next-steps>
+      ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
+         handed off from builder — start work immediately.
 
-      ⚠️  REQUIRED FIRST STEP: Run task-started IMMEDIATELY before any other work.
-         This marks the task as in_progress and prevents unnecessary agent restarts.
-
-      handed off from builder — start work immediately.
-
-      1. Run task-started to acknowledge:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id" --no-classify
+      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id"\`
       2. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'

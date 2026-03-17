@@ -22,9 +22,10 @@ export function getBuilderGuidance(params: BuilderGuidanceParams): string {
     ? `
 **Classification (Entry Point Role):**
 As the entry point, you receive user messages directly. When you receive a user message:
-1. First run \`${taskStartedExample}\` to classify the original message (question, new_feature, or follow_up)
-2. Then do your work
-3. Hand off to ${codeChangesTarget} for code changes, or directly to ${questionTarget} for questions`
+1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
+2. Then run \`${taskStartedExample}\` to classify the original message (question, new_feature, or follow_up)
+3. Then do your work
+4. Hand off to ${codeChangesTarget} for code changes, or directly to ${questionTarget} for questions`
     : '';
 
   return `
@@ -37,7 +38,7 @@ ${classificationNote}
 
 \`\`\`mermaid
 flowchart TD
-    A([Start]) --> B[Receive task]
+    A([Start]) --> B[Receive task\nThen read it]
     ${hasReviewer ? 'B -->|from user or reviewer| C[Implement changes]' : 'B -->|from planner| C[Implement changes]'}
     C --> D[Commit work]
     D --> E{Classification?}

@@ -244,7 +244,8 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive task]
+          A([Start]) --> B[Receive task
+      Then read it]
           B -->|from planner| C[Implement changes]
           C --> D[Commit work]
           D --> E{Classification?}

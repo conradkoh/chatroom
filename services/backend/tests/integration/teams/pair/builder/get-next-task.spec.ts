@@ -65,15 +65,17 @@ describe('Pair Team > Builder > Get Next Task', () => {
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="builder"\`
 
       ## Task
-      Implement the feature as described
+      To read this task and mark it as in_progress, run:
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id"
+      \`\`\`
       </task>
 
       <next-steps>
+      ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
 
-      ⚠️  REQUIRED FIRST STEP: Run task-started IMMEDIATELY before any other work.
-         This marks the task as in_progress and prevents unnecessary agent restarts.
-
-      1. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id" --origin-message-classification=<type>\`
+      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id"\`
+      2. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id" --origin-message-classification=<type>\`
 
          new_feature example:
          CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id" --origin-message-classification=new_feature << 'EOF'
@@ -85,10 +87,10 @@ describe('Pair Team > Builder > Get Next Task', () => {
       <tech-specs>
       EOF
 
-      2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
+      3. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
-      3. Hand off when complete:
+      4. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -138,20 +140,19 @@ describe('Pair Team > Builder > Get Next Task', () => {
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="test-chatroom-id" --role="builder"\`
 
       ## Task
-      Implement the feature as described
+      To read this task and mark it as in_progress, run:
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id"
+      \`\`\`
 
       Classification: NEW_FEATURE
       </task>
 
       <next-steps>
+      ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
+         handed off from reviewer — start work immediately.
 
-      ⚠️  REQUIRED FIRST STEP: Run task-started IMMEDIATELY before any other work.
-         This marks the task as in_progress and prevents unnecessary agent restarts.
-
-      handed off from reviewer — start work immediately.
-
-      1. Run task-started to acknowledge:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id" --no-classify
+      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="builder" --task-id="test-task-id"\`
       2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="test-chatroom-id" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`

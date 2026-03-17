@@ -30,20 +30,20 @@ export function getContextGainingGuidance(params: ContextGainingParams): string 
 flowchart LR
     A([Start]) --> B[register-agent]
     B --> C[get-next-task\nwaiting...]
-    C --> D[task-started\nIMMEDIATELY]
+    C --> D[task read\nmarks in_progress]
     D --> E[Do Work]
     E --> F[handoff]
     F --> C
 \`\`\`
 
-### ⚠️ CRITICAL: Run task-started Immediately
+### ⚠️ CRITICAL: Read the task immediately
 
-When you receive a task from \`get-next-task\`, you **MUST** run \`task-started\` immediately before doing any other work:
+When you receive a task from \`get-next-task\`, the task content is hidden. You **MUST** run \`task read\` immediately to:
 
-1. **Run task-started immediately** — This marks the task as \`in_progress\` and prevents restart loops
-2. **Then begin your work** — Only after task-started succeeds
+1. **Get the task content** — the full task description
+2. **Mark it as in_progress** — signals you're working on it
 
-Failure to run \`task-started\` promptly may trigger the system to restart you, causing unnecessary interruptions.
+Failure to run \`task read\` promptly may trigger the system to restart you.
 
 ### Context Recovery (after compaction/summarization)
 
