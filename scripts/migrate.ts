@@ -96,6 +96,14 @@ const MIGRATIONS: Migration[] = [
     name: 'migration:deduplicateTeamAgentConfigs',
     addedAt: '2026-03-10T15:00:00.000Z',
   },
+  {
+    name: 'migration:remapBacklogTaskIdsInMessages',
+    addedAt: '2026-03-16T09:24:06.000Z',
+  },
+  {
+    name: 'migration:purgeWorkspaceCommitDetails',
+    addedAt: '2026-03-17T00:00:00.000Z',
+  },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────
