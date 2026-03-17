@@ -2,39 +2,11 @@
 
 import React, { memo, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-
-// ─── Event type helpers ───────────────────────────────────────────────────────
-
-function formatEventType(type: string): string {
-  const labels: Record<string, string> = {
-    'agent.started': 'Agent Started',
-    'agent.exited': 'Agent Exited',
-    'agent.registered': 'Agent Registered',
-    'agent.waiting': 'Agent Waiting',
-    'agent.circuitOpen': 'Circuit Open',
-    'agent.requestStart': 'Agent Request Start',
-    'agent.requestStop': 'Agent Request Stop',
-    'task.activated': 'Task Activated',
-    'task.acknowledged': 'Task Acknowledged',
-    'task.inProgress': 'Task In Progress',
-    'task.completed': 'Task Completed',
-    'skill.activated': 'Skill Activated',
-    'daemon.ping': 'Daemon Ping',
-    'daemon.pong': 'Daemon Pong',
-    'config.requestRemoval': 'Config Request Removal',
-  };
-  return labels[type] ?? type;
-}
-
-function formatTimestamp(timestamp: number): string {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
-}
+import {
+  type EventStreamEvent,
+  formatEventType,
+  formatTimestamp,
+} from '../viewModels/eventStreamViewModel';
 
 // ─── Event type badge color mapping ──────────────────────────────────────────
 
@@ -57,12 +29,7 @@ function getBadgeStyle(type: string): string {
 // ─── Event row ────────────────────────────────────────────────────────────────
 
 interface EventRowProps {
-  event: {
-    type: string;
-    role?: string;
-    timestamp?: number;
-    _creationTime: number;
-  };
+  event: EventStreamEvent;
 }
 
 const EventRow = memo(function EventRow({ event }: EventRowProps) {
@@ -92,13 +59,7 @@ const EventRow = memo(function EventRow({ event }: EventRowProps) {
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 interface EventStreamPanelProps {
-  events: Array<{
-    _id: string;
-    _creationTime: number;
-    type: string;
-    role?: string;
-    timestamp?: number;
-  }>;
+  events: EventStreamEvent[];
   onClose: () => void;
 }
 
