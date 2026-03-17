@@ -1,7 +1,6 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   Plus,
@@ -24,8 +23,10 @@ import { baseMarkdownComponents, compactMarkdownComponents } from './markdown-ut
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
 import { type BacklogItem, getScoringBadge, getBacklogStatusBadge } from './backlog';
+import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
+import { getStatusBadge, formatRelativeTime } from './WorkQueue/utils';
 
-import type { TeamLifecycle } from '../types/readiness';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 import {
   DropdownMenu,
@@ -33,82 +34,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-type TaskStatus = 'pending' | 'acknowledged' | 'in_progress' | 'completed';
-
-type TaskOrigin = 'backlog' | 'chat';
-
-type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
-
-interface Task {
-  _id: Id<'chatroom_tasks'>;
-  content: string;
-  status: TaskStatus;
-  origin?: TaskOrigin;
-  createdAt: number;
-  updatedAt: number;
-  queuePosition: number;
-  assignedTo?: string;
-  backlog?: {
-    status: BacklogStatus;
-  };
-  // Scoring fields for prioritization
-  complexity?: 'low' | 'medium' | 'high';
-  value?: 'low' | 'medium' | 'high';
-  priority?: number;
-}
-
-interface TaskCounts {
-  pending: number;
-  acknowledged: number;
-  in_progress: number;
-  queued: number;
-  backlog: number;
-  pendingUserReview: number;
-  completed: number;
-}
-
-interface WorkQueueProps {
-  chatroomId: string;
-  /** Lifecycle data from the parent — used to derive needsPromotion without a separate checkQueueHealth subscription */
-  lifecycle?: TeamLifecycle | null;
-}
-
-// Status badge colors - using chatroom status variables for theme support
-const getStatusBadge = (status: TaskStatus) => {
-  switch (status) {
-    case 'pending':
-      return {
-        emoji: '🟢',
-        label: 'Pending',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'acknowledged':
-      return {
-        emoji: '🟢',
-        label: 'Acknowledged',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'in_progress':
-      return {
-        emoji: '🔵',
-        label: 'In Progress',
-        classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
-      };
-    case 'completed':
-      return {
-        emoji: '✅',
-        label: 'Completed',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    default:
-      return {
-        emoji: '⚫',
-        label: status,
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
-  }
-};
 
 // Maximum number of pending review items to show in sidebar before "View More"
 const PENDING_REVIEW_PREVIEW_LIMIT = 3;
@@ -664,22 +589,6 @@ function ViewMoreButton({ count, onClick }: ViewMoreButtonProps) {
       View More ({count} more items)
     </button>
   );
-}
-
-// Pending Review Item - for tasks awaiting user confirmation
-// Helper to format relative time
-function formatRelativeTime(timestamp: number): string {
-  const now = Date.now();
-  const diff = now - timestamp;
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-  return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 // Pending Review Modal Component
