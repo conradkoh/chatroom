@@ -207,11 +207,6 @@ export async function transitionBacklogItem(
 
   const currentStatus = item.status as BacklogItemStatus;
 
-  // If already in desired status, no-op
-  if (currentStatus === newStatus) {
-    return;
-  }
-
   // Find valid transition rule
   const validTransitions = TRANSITIONS.filter(
     (t) => t.from === currentStatus && t.to === newStatus && t.trigger === trigger
