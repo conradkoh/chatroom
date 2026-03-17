@@ -41,11 +41,27 @@ export const createTask = mutation({
     const { chatroom } = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Check active task limit
-    const activeTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .filter((q) => q.neq(q.field('status'), 'completed'))
-      .collect();
+    const [pendingTasks, acknowledgedTasks, inProgressTasks] = await Promise.all([
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+        )
+        .collect(),
+    ]);
+    const activeTasks = [...pendingTasks, ...acknowledgedTasks, ...inProgressTasks];
 
     if (activeTasks.length >= MAX_ACTIVE_TASKS) {
       throw new Error(
@@ -485,19 +501,28 @@ export const listActiveTasks = query({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Get all tasks for this chatroom
-    let tasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    // Filter for active tasks (not completed)
-    tasks = tasks.filter(
-      (t) =>
-        t.status === 'pending' ||
-        t.status === 'acknowledged' ||
-        t.status === 'in_progress'
-    );
+    // Get active tasks using the by_chatroom_status index to avoid full table scans
+    const [pendingTasks, acknowledgedTasks, inProgressTasks] = await Promise.all([
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+        )
+        .collect(),
+    ]);
+    let tasks = [...pendingTasks, ...acknowledgedTasks, ...inProgressTasks];
 
     // Sort by queuePosition for active queue items
     tasks.sort((a, b) => a.queuePosition - b.queuePosition);
@@ -522,14 +547,13 @@ export const listArchivedTasks = query({
     // Validate session and check chatroom access
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Get all tasks for this chatroom
+    // Get completed tasks using the by_chatroom_status index to avoid a full table scan
     let tasks = await ctx.db
       .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'completed')
+      )
       .collect();
-
-    // Filter for archived tasks (completed)
-    tasks = tasks.filter((t) => t.status === 'completed');
 
     // Sort by updatedAt descending (most recently updated first)
     tasks.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -668,14 +692,22 @@ export const checkQueueHealth = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    // Check for pending or in_progress tasks
-    const activeTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .filter((q) =>
-        q.or(q.eq(q.field('status'), 'pending'), q.eq(q.field('status'), 'in_progress'))
-      )
-      .collect();
+    // Check for pending or in_progress tasks using the by_chatroom_status index
+    const [pendingTasksForHealth, inProgressTasksForHealth] = await Promise.all([
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+        )
+        .collect(),
+    ]);
+    const activeTasks = [...pendingTasksForHealth, ...inProgressTasksForHealth];
 
     // Check for queued messages (from chatroom_messageQueue, not tasks)
     const queuedMessages = await ctx.db
@@ -710,10 +742,33 @@ export const getTaskCounts = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const tasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+    // Query each task status separately using the by_chatroom_status index to avoid full table scans
+    const [pendingTasks, acknowledgedTasks, inProgressTasks, completedTasks] = await Promise.all([
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'completed')
+        )
+        .collect(),
+    ]);
 
     // Queued messages are now in chatroom_messageQueue, not tasks
     const queuedMessages = await ctx.db
@@ -722,19 +777,30 @@ export const getTaskCounts = query({
       .collect();
 
     // Backlog items are now in chatroom_backlog, not chatroom_tasks
-    const backlogItems = await ctx.db
-      .query('chatroom_backlog')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+    // Query each backlog status separately using the by_chatroom_status index
+    const [backlogItems, pendingUserReviewItems] = await Promise.all([
+      ctx.db
+        .query('chatroom_backlog')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'backlog')
+        )
+        .collect(),
+      ctx.db
+        .query('chatroom_backlog')
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending_user_review')
+        )
+        .collect(),
+    ]);
 
     return {
-      pending: tasks.filter((t) => t.status === 'pending').length,
-      acknowledged: tasks.filter((t) => t.status === 'acknowledged').length,
-      in_progress: tasks.filter((t) => t.status === 'in_progress').length,
+      pending: pendingTasks.length,
+      acknowledged: acknowledgedTasks.length,
+      in_progress: inProgressTasks.length,
       queued: queuedMessages.length, // Count from chatroom_messageQueue
-      backlog: backlogItems.filter((i) => i.status === 'backlog').length,
-      pendingUserReview: backlogItems.filter((i) => i.status === 'pending_user_review').length,
-      completed: tasks.filter((t) => t.status === 'completed').length,
+      backlog: backlogItems.length,
+      pendingUserReview: pendingUserReviewItems.length,
+      completed: completedTasks.length,
     };
   },
 });
