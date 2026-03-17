@@ -101,7 +101,7 @@ export const EventDetails = memo(function EventDetails({
   children,
 }: EventDetailsProps) {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full w-full">
       {/* Header */}
       <div className="px-4 py-3 border-b border-chatroom-border bg-chatroom-bg-tertiary flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -114,7 +114,7 @@ export const EventDetails = memo(function EventDetails({
       </div>
       {/* Scrollable content area */}
       <div className="flex-1 overflow-y-auto">
-        <div className="py-2">{children}</div>
+        <div className="py-2 w-full">{children}</div>
       </div>
     </div>
   );

@@ -156,8 +156,10 @@ export const EventStreamModal = memo(function EventStreamModal({
             )}
           </div>
           {/* Right: Event Detail */}
-          <div className="hidden md:flex md:flex-1 overflow-hidden">
-            {renderEventDetails()}
+          <div className="hidden md:flex md:flex-1 overflow-hidden w-full">
+            <div className="flex flex-col h-full w-full overflow-hidden">
+              {renderEventDetails()}
+            </div>
           </div>
         </FixedModalBody>
       </FixedModalContent>
