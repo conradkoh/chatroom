@@ -988,6 +988,16 @@ export default defineSchema({
         machineId: v.string(),
         reason: v.string(),
         timestamp: v.number(),
+      }),
+      // A skill was activated for a role in this chatroom
+      v.object({
+        type: v.literal('skill.activated'),
+        chatroomId: v.id('chatroom_rooms'),
+        skillId: v.string(),
+        skillName: v.string(),
+        role: v.string(),
+        prompt: v.string(),
+        timestamp: v.number(),
       })
     )
   )

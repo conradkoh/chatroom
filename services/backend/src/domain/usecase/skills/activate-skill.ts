@@ -2,15 +2,13 @@
  * activate-skill use case
  *
  * Looks up skill from registry, injects cliEnvPrefix into prompt,
- * and creates a pending task with the skill prompt as content.
+ * and writes a `skill.activated` event to chatroom_eventStream.
  */
 
 import { ConvexError } from 'convex/values';
 
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { getAndIncrementQueuePosition } from '../../../../convex/auth/cliSessionAuth';
-import { createTask as createTaskUsecase } from '../task/create-task';
 import { getSkill } from './get-skill';
 
 export interface ActivateSkillArgs {
@@ -31,7 +29,7 @@ export interface ActivateSkillResult {
 
 export async function activateSkill(
   ctx: MutationCtx,
-  chatroom: Doc<'chatroom_rooms'>,
+  _chatroom: Doc<'chatroom_rooms'>,
   args: ActivateSkillArgs
 ): Promise<ActivateSkillResult> {
   const skill = getSkill(args.skillId, args.cliEnvPrefix);
@@ -40,14 +38,14 @@ export async function activateSkill(
     throw new ConvexError(`Skill "${args.skillId}" not found or is disabled.`);
   }
 
-  const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
-
-  await createTaskUsecase(ctx, {
+  await ctx.db.insert('chatroom_eventStream', {
+    type: 'skill.activated',
     chatroomId: args.chatroomId,
-    createdBy: args.role,
-    content: skill.prompt,
-    forceStatus: 'pending',
-    queuePosition,
+    skillId: skill.skillId,
+    skillName: skill.name,
+    role: args.role,
+    prompt: skill.prompt,
+    timestamp: Date.now(),
   });
 
   return {

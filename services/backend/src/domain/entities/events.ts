@@ -130,6 +130,16 @@ export type DaemonPongEvent = {
   timestamp: number;
 };
 
+export type SkillActivatedEvent = {
+  type: 'skill.activated';
+  chatroomId: Id<'chatroom_rooms'>;
+  skillId: string;
+  skillName: string;
+  role: string;
+  prompt: string;
+  timestamp: number;
+};
+
 export type ChatroomEvent =
   | AgentStartedEvent
   | AgentExitedEvent
@@ -143,4 +153,5 @@ export type ChatroomEvent =
   | TaskAcknowledgedEvent
   | TaskInProgressEvent
   | DaemonPingEvent
-  | DaemonPongEvent;
+  | DaemonPongEvent
+  | SkillActivatedEvent;
