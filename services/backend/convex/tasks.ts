@@ -733,6 +733,7 @@ export const getTaskCounts = query({
       in_progress: tasks.filter((t) => t.status === 'in_progress').length,
       queued: queuedMessages.length, // Count from chatroom_messageQueue
       backlog: backlogItems.filter((i) => i.status === 'backlog').length,
+      pendingUserReview: backlogItems.filter((i) => i.status === 'pending_user_review').length,
       completed: tasks.filter((t) => t.status === 'completed').length,
     };
   },

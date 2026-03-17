@@ -64,6 +64,7 @@ interface TaskCounts {
   in_progress: number;
   queued: number;
   backlog: number;
+  pendingUserReview: number;
   completed: number;
 }
 
