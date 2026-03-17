@@ -3,20 +3,212 @@
  * Used by both MessageFeed and EventStreamModal.
  */
 
-// ─── Canonical event type ─────────────────────────────────────────────────────
+// ─── Event Type Name Union ───────────────────────────────────────────────────
 
 /**
- * Canonical shape for a single chatroom event stream entry.
+ * Union of all event type strings used in the registry.
+ */
+export type EventTypeName =
+  | 'agent.started'
+  | 'agent.exited'
+  | 'agent.circuitOpen'
+  | 'agent.requestStart'
+  | 'agent.requestStop'
+  | 'agent.registered'
+  | 'agent.waiting'
+  | 'task.activated'
+  | 'task.acknowledged'
+  | 'task.inProgress'
+  | 'task.completed'
+  | 'skill.activated'
+  | 'daemon.ping'
+  | 'daemon.pong'
+  | 'daemon.gitRefresh'
+  | 'config.requestRemoval';
+
+// ─── Base Event Interface ─────────────────────────────────────────────────────
+
+/**
+ * Base shape for a single chatroom event stream entry.
  * Both `timestamp` and `_creationTime` are present — EventRow uses
  * `event.timestamp ?? event._creationTime` as the display time.
  */
-export interface EventStreamEvent {
+export interface EventStreamEventBase {
   _id: string;
   _creationTime: number;
-  type: string;
-  role?: string;
   timestamp: number;
 }
+
+// ─── Agent Event Types ────────────────────────────────────────────────────────
+
+export interface AgentStartedEvent extends EventStreamEventBase {
+  type: 'agent.started';
+  role: string;
+  machineId: string;
+  agentHarness: string;
+  model: string;
+  workingDir: string;
+  pid: number;
+  reason?: string;
+  chatroomId: string;
+}
+
+export interface AgentExitedEvent extends EventStreamEventBase {
+  type: 'agent.exited';
+  role: string;
+  machineId: string;
+  pid: number;
+  intentional: boolean;
+  stopReason?: string;
+  stopSignal?: string;
+  exitCode?: number;
+  signal?: string;
+  chatroomId: string;
+}
+
+export interface AgentCircuitOpenEvent extends EventStreamEventBase {
+  type: 'agent.circuitOpen';
+  role: string;
+  machineId: string;
+  reason: string;
+  chatroomId: string;
+}
+
+export interface AgentRequestStartEvent extends EventStreamEventBase {
+  type: 'agent.requestStart';
+  role: string;
+  machineId: string;
+  agentHarness: string;
+  model: string;
+  workingDir: string;
+  reason: string;
+  deadline: number;
+  chatroomId: string;
+}
+
+export interface AgentRequestStopEvent extends EventStreamEventBase {
+  type: 'agent.requestStop';
+  role: string;
+  machineId: string;
+  reason: string;
+  deadline: number;
+  chatroomId: string;
+}
+
+export interface AgentRegisteredEvent extends EventStreamEventBase {
+  type: 'agent.registered';
+  role: string;
+  agentType: string;
+  machineId?: string;
+  chatroomId: string;
+}
+
+export interface AgentWaitingEvent extends EventStreamEventBase {
+  type: 'agent.waiting';
+  role: string;
+  machineId?: string;
+  chatroomId: string;
+}
+
+// ─── Task Event Types ────────────────────────────────────────────────────────
+
+export interface TaskActivatedEvent extends EventStreamEventBase {
+  type: 'task.activated';
+  role: string;
+  taskId: string;
+  taskStatus: string;
+  taskContent: string;
+  machineId?: string;
+  chatroomId: string;
+}
+
+export interface TaskAcknowledgedEvent extends EventStreamEventBase {
+  type: 'task.acknowledged';
+  role: string;
+  taskId: string;
+  chatroomId: string;
+}
+
+export interface TaskInProgressEvent extends EventStreamEventBase {
+  type: 'task.inProgress';
+  role: string;
+  taskId: string;
+  chatroomId: string;
+}
+
+export interface TaskCompletedEvent extends EventStreamEventBase {
+  type: 'task.completed';
+  role: string;
+  taskId: string;
+  finalStatus: string;
+  machineId?: string;
+  skipAgentStatusUpdate?: boolean;
+  chatroomId: string;
+}
+
+// ─── Skill Event Types ───────────────────────────────────────────────────────
+
+export interface SkillActivatedEvent extends EventStreamEventBase {
+  type: 'skill.activated';
+  role: string;
+  skillId: string;
+  skillName: string;
+  chatroomId: string;
+  prompt: string;
+}
+
+// ─── Config Event Types ──────────────────────────────────────────────────────
+
+export interface ConfigRequestRemovalEvent extends EventStreamEventBase {
+  type: 'config.requestRemoval';
+  role: string;
+  machineId: string;
+  reason: string;
+  chatroomId: string;
+}
+
+// ─── Daemon Event Types ──────────────────────────────────────────────────────
+
+export interface DaemonPingEvent extends EventStreamEventBase {
+  type: 'daemon.ping';
+  machineId: string;
+}
+
+export interface DaemonPongEvent extends EventStreamEventBase {
+  type: 'daemon.pong';
+  machineId: string;
+  pingEventId: string;
+}
+
+export interface DaemonGitRefreshEvent extends EventStreamEventBase {
+  type: 'daemon.gitRefresh';
+  machineId: string;
+  workingDir: string;
+}
+
+// ─── Event Stream Event Union ────────────────────────────────────────────────
+
+/**
+ * Union of all event types. Use this as the canonical event type
+ * for event stream entries.
+ */
+export type EventStreamEvent =
+  | AgentStartedEvent
+  | AgentExitedEvent
+  | AgentCircuitOpenEvent
+  | AgentRequestStartEvent
+  | AgentRequestStopEvent
+  | AgentRegisteredEvent
+  | AgentWaitingEvent
+  | TaskActivatedEvent
+  | TaskAcknowledgedEvent
+  | TaskInProgressEvent
+  | TaskCompletedEvent
+  | SkillActivatedEvent
+  | ConfigRequestRemovalEvent
+  | DaemonPingEvent
+  | DaemonPongEvent
+  | DaemonGitRefreshEvent;
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -52,4 +244,21 @@ export function formatTimestamp(ms: number): string {
     second: '2-digit',
     hour12: false,
   });
+}
+
+/** Format a Unix millisecond timestamp with full date and time. */
+export function formatTimestampFull(ms: number): string {
+  const date = new Date(ms);
+  const dateStr = date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  return `${dateStr} ${timeStr}`;
 }

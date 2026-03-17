@@ -43,6 +43,7 @@ interface EventRowProps {
 
 const EventRow = memo(function EventRow({ event }: EventRowProps) {
   const timestamp = event.timestamp ?? event._creationTime;
+  const role = 'role' in event ? (event as { role?: string }).role : undefined;
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors">
       {/* Type badge */}
@@ -52,9 +53,9 @@ const EventRow = memo(function EventRow({ event }: EventRowProps) {
         {formatEventType(event.type)}
       </span>
       {/* Role */}
-      {event.role && (
+      {role && (
         <span className="flex-shrink-0 text-[10px] font-medium text-chatroom-text-secondary">
-          {event.role}
+          {role}
         </span>
       )}
       {/* Timestamp — pushed right */}
@@ -71,12 +72,16 @@ interface EventStreamModalProps {
   isOpen: boolean;
   onClose: () => void;
   events: EventStreamEvent[];
+  onLoadMore?: () => void;
+  hasMore?: boolean;
 }
 
 export const EventStreamModal = memo(function EventStreamModal({
   isOpen,
   onClose,
   events,
+  onLoadMore,
+  hasMore,
 }: EventStreamModalProps) {
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl">
@@ -100,6 +105,15 @@ export const EventStreamModal = memo(function EventStreamModal({
             </div>
           ) : (
             events.map((event) => <EventRow key={event._id} event={event} />)
+          )}
+          {/* Load more button */}
+          {hasMore && onLoadMore && (
+            <button
+              onClick={onLoadMore}
+              className="w-full py-2 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
+            >
+              Load more events
+            </button>
           )}
         </FixedModalBody>
       </FixedModalContent>
