@@ -57,7 +57,8 @@ function createMockContext(
       ],
     ]),
     activeWorkingDirs: new Set(),
-      lastPushedGitState: new Map(),
+    lastPushedGitState: new Map(),
+    agentEndedTurn: new Map(),
   };
 }
 

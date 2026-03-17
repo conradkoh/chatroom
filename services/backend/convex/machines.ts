@@ -1397,3 +1397,138 @@ export const listAgentOverview = query({
     });
   },
 });
+
+// ============================================================================
+// DAEMON TASK MONITOR
+// Used by the daemon to subscribe to all tasks assigned to roles on this machine.
+// ============================================================================
+
+/**
+ * Returns all active tasks for chatrooms where this machine has remote agent configs.
+ * Used by the daemon's task monitor to decide when to start/restart agents.
+ *
+ * For each active task, includes:
+ * - Task info (taskId, chatroomId, status, assignedTo, updatedAt, createdAt)
+ * - Relevant agent config (machineId, agentHarness, model, workingDir, spawnedAgentPid, desiredState, circuitState)
+ * - Participant lastSeenTokenAt (for idle detection)
+ */
+export const getAssignedTasks = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // 1. Auth check
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return { tasks: [] };
+
+    // 2. Verify machine ownership
+    const machine = await ctx.db
+      .query('chatroom_machines')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .first();
+    if (!machine || machine.userId !== auth.user._id) {
+      return { tasks: [] };
+    }
+
+    // 3. Get all agent configs for this machine (by machineId index)
+    const agentConfigs = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
+      .filter((q) => q.eq(q.field('type'), 'remote'))
+      .collect();
+
+    if (agentConfigs.length === 0) {
+      return { tasks: [] };
+    }
+
+    // 4. Build a set of chatroomIds we care about
+    const chatroomIds = new Set(agentConfigs.map((c) => c.chatroomId));
+
+    // 5. For each chatroom, fetch active tasks (pending, acknowledged, in_progress)
+    //    and build the result with participant info
+    const tasks: Array<{
+      taskId: Id<'chatroom_tasks'>;
+      chatroomId: Id<'chatroom_rooms'>;
+      status: string;
+      assignedTo: string | undefined;
+      updatedAt: number;
+      createdAt: number;
+      agentConfig: {
+        role: string;
+        machineId: string;
+        agentHarness: string;
+        model?: string;
+        workingDir?: string;
+        spawnedAgentPid?: number;
+        desiredState?: string;
+        circuitState?: string;
+      };
+      lastSeenTokenAt: number | null;
+    }> = [];
+
+    for (const chatroomId of chatroomIds) {
+      // Fetch active tasks for this chatroom
+      const activeTasks = await ctx.db
+        .query('chatroom_tasks')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .filter((q) =>
+          q.or(
+            q.eq(q.field('status'), 'pending'),
+            q.eq(q.field('status'), 'acknowledged'),
+            q.eq(q.field('status'), 'in_progress')
+          )
+        )
+        .collect();
+
+      // Get participant info for this chatroom (for lastSeenTokenAt)
+      const participants = await ctx.db
+        .query('chatroom_participants')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+      const participantByRole = new Map(participants.map((p) => [p.role.toLowerCase(), p]));
+
+      // Get agent configs for this chatroom
+      const configsForChatroom = agentConfigs.filter((c) => c.chatroomId === chatroomId);
+
+      // Build task info with agent config
+      for (const task of activeTasks) {
+        // Find the agent config responsible for this task
+        // If task.assignedTo is set, find config for that role; otherwise, use all configs
+        const responsibleConfigs =
+          task.assignedTo && task.assignedTo.toLowerCase() !== 'user'
+            ? configsForChatroom.filter(
+                (c) => c.role.toLowerCase() === task.assignedTo!.toLowerCase()
+              )
+            : configsForChatroom;
+
+        for (const config of responsibleConfigs) {
+          const roleLower = config.role.toLowerCase();
+          const participant = participantByRole.get(roleLower);
+
+          tasks.push({
+            taskId: task._id,
+            chatroomId: task.chatroomId,
+            status: task.status,
+            assignedTo: task.assignedTo,
+            updatedAt: task.updatedAt ?? task.createdAt ?? Date.now(),
+            createdAt: task.createdAt ?? Date.now(),
+            agentConfig: {
+              role: config.role,
+              machineId: config.machineId!,
+              agentHarness: config.agentHarness ?? 'opencode',
+              model: config.model,
+              workingDir: config.workingDir,
+              spawnedAgentPid: config.spawnedAgentPid,
+              desiredState: config.desiredState,
+              circuitState: config.circuitState,
+            },
+            lastSeenTokenAt: participant?.lastSeenTokenAt ?? null,
+          });
+        }
+      }
+    }
+
+    return { tasks };
+  },
+});

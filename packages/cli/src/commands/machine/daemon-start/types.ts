@@ -104,4 +104,11 @@ export interface DaemonContext {
    * Only push to backend when this hash changes.
    */
   lastPushedGitState: Map<string, string>;
+  /**
+   * Tracks whether the Pi agent has ended its turn for each (chatroomId, role).
+   * Key: `${chatroomId}:${role}` → true if agent_end was fired.
+   * Reset to false when a new agent is spawned for that chatroomId+role.
+   * Used by PiRestartPolicy to decide when to restart agents.
+   */
+  agentEndedTurn: Map<string, boolean>;
 }

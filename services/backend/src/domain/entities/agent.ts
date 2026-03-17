@@ -68,6 +68,7 @@ export type MachineCommandStatus = 'pending' | 'completed' | 'failed';
  * - `user.restart`: User explicitly restarted the agent via UI or CLI
  * - `platform.ensure_agent`: Auto-restart triggered by the ensure-agent scheduled check
  * - `platform.crash_recovery`: Eager restart after agent exit when desiredState is 'running' but no active task
+ * - `daemon.task_monitor`: Daemon's task monitor detected stuck/assigned task and started agent (harness-specific policy)
  * - `test`: Used in integration and unit tests only
  */
 export const AGENT_START_REASONS = [
@@ -75,6 +76,7 @@ export const AGENT_START_REASONS = [
   'user.restart',
   'platform.ensure_agent',
   'platform.crash_recovery',
+  'daemon.task_monitor',
   'test',
 ] as const;
 export type AgentStartReason = (typeof AGENT_START_REASONS)[number];

@@ -168,7 +168,8 @@ function createMockContext(options?: {
     events: new DaemonEventBus(),
     agentServices: new Map([['opencode', remoteAgentService]]),
     activeWorkingDirs: new Set(),
-      lastPushedGitState: new Map(),
+    lastPushedGitState: new Map(),
+    agentEndedTurn: new Map(),
   };
 
   // Attach for test convenience (not part of DaemonContext type)

@@ -103,6 +103,7 @@ describe('refreshModels', () => {
       agentServices,
       activeWorkingDirs: new Set(),
       lastPushedGitState: new Map(),
+      agentEndedTurn: new Map(),
     };
   }
 
