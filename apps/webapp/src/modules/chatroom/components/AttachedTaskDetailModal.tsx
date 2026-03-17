@@ -6,7 +6,7 @@ import React, { useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { baseMarkdownComponents } from './markdown-utils';
+import { baseMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
 import { getBacklogStatusBadge } from './backlog';
 
 interface AttachedTask {
@@ -114,7 +114,7 @@ export function AttachedTaskDetailModal({ isOpen, task, onClose }: AttachedTaskD
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
-          <div className="prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-pre:overflow-x-auto prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-ul:my-2 prose-ol:my-2 prose-li:my-0 text-chatroom-text-primary">
+          <div className={taskDetailProseClassNames}>
             <Markdown remarkPlugins={[remarkGfm]} components={baseMarkdownComponents}>
               {task.content}
             </Markdown>

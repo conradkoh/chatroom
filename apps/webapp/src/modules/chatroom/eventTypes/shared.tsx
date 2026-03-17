@@ -6,6 +6,7 @@ import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
 import { formatTimestamp, formatTimestampFull } from '../viewModels/eventStreamViewModel';
+import { fullMarkdownComponents, inlineEventProseClassNames } from '../components/markdown-utils';
 
 // ─── Badge Color Types ────────────────────────────────────────────────────────
 
@@ -167,11 +168,8 @@ export const MarkdownDetailBlock = memo(function MarkdownDetailBlock({
       <span className="text-[10px] font-medium text-chatroom-text-muted uppercase tracking-wide">
         {label}
       </span>
-      <div className="mt-1 text-[11px] text-chatroom-text-primary prose prose-sm dark:prose-invert max-w-none
-        prose-p:my-1 prose-headings:my-1 prose-li:my-0 prose-ul:my-1 prose-ol:my-1
-        prose-code:text-[10px] prose-code:bg-chatroom-bg-tertiary prose-code:rounded prose-code:px-1
-        prose-pre:bg-chatroom-bg-tertiary prose-pre:rounded prose-pre:p-2 prose-pre:text-[10px]">
-        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+      <div className={`mt-1 ${inlineEventProseClassNames}`}>
+        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={fullMarkdownComponents}>
           {content}
         </ReactMarkdown>
       </div>

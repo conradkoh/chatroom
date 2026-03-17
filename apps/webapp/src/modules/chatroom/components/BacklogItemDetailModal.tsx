@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { baseMarkdownComponents } from './markdown-utils';
+import { baseMarkdownComponents, backlogProseClassNames } from './markdown-utils';
 import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
 import { useAttachments } from '../context/AttachmentsContext';
 
@@ -212,7 +212,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                   />
                 ) : (
                   // Preview Tab — Read-only rendered markdown
-                  <div className="h-full overflow-y-auto p-4 text-chatroom-text-primary text-sm leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:uppercase prose-headings:tracking-wider prose-headings:mt-4 prose-headings:mb-2 prose-headings:text-chatroom-text-primary prose-p:my-2 prose-p:text-chatroom-text-primary prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary prose-code:text-chatroom-text-primary prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-li:text-chatroom-text-primary prose-pre:bg-chatroom-bg-tertiary prose-pre:border prose-pre:border-chatroom-border prose-pre:rounded-none">
+                  <div className={`h-full overflow-y-auto p-4 ${backlogProseClassNames}`}>
                     <Markdown
                       remarkPlugins={[remarkGfm, remarkBreaks]}
                       components={baseMarkdownComponents}
@@ -225,7 +225,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
             </div>
           ) : (
             // View mode — Read-only rendered markdown
-            <div className="p-4 text-chatroom-text-primary text-sm leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:uppercase prose-headings:tracking-wider prose-headings:mt-4 prose-headings:mb-2 prose-headings:text-chatroom-text-primary prose-p:my-2 prose-p:text-chatroom-text-primary prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent prose-table:border-collapse prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary prose-code:text-chatroom-text-primary prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-li:text-chatroom-text-primary prose-pre:bg-chatroom-bg-tertiary prose-pre:border prose-pre:border-chatroom-border prose-pre:rounded-none">
+            <div className={`p-4 ${backlogProseClassNames}`}>
               <Markdown
                 remarkPlugins={[remarkGfm, remarkBreaks]}
                 components={baseMarkdownComponents}

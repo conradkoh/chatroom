@@ -3,7 +3,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 
-import { baseMarkdownComponents } from '../markdown-utils';
+import { baseMarkdownComponents, compactProseClassNames } from '../markdown-utils';
 import { getStatusBadge } from './utils';
 import type { Task } from './types';
 
@@ -49,7 +49,7 @@ export function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskI
       </div>
 
       {/* Content - Rendered as Markdown */}
-      <div className="text-xs text-chatroom-text-primary line-clamp-3 mb-2 prose dark:prose-invert prose-xs max-w-none prose-p:my-0 prose-headings:my-0 prose-headings:text-xs prose-headings:font-bold prose-ul:my-0 prose-ol:my-0 prose-li:my-0 prose-code:text-[10px] prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-pre:bg-chatroom-bg-tertiary prose-pre:text-chatroom-text-primary prose-pre:p-2 prose-pre:my-1 prose-pre:overflow-x-auto">
+      <div className={`line-clamp-3 mb-2 ${compactProseClassNames}`}>
         <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
           {task.content}
         </Markdown>

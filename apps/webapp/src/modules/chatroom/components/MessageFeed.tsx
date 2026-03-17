@@ -45,11 +45,17 @@ import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
-import { compactMarkdownComponents, fullMarkdownComponents } from './markdown-utils';
+import {
+  compactMarkdownComponents,
+  fullMarkdownComponents,
+  messageFeedProseClassNames,
+  contextSummaryProseClassNames,
+} from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
 import {
   type EventStreamEvent,
   formatEventType,
+  getEventBadgeTextColor,
 } from '../viewModels/eventStreamViewModel';
 
 import {
@@ -119,8 +125,7 @@ const BADGE_BASE =
 const ICON_SIZE = 10;
 
 // Shared message content classes - used in MessageContent and QueuedMessageCard modal
-const MESSAGE_CONTENT_CLASSES =
-  'text-chatroom-text-primary text-[13px] leading-relaxed break-words overflow-x-hidden prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 hover:prose-a:decoration-chatroom-status-info prose-table:border-collapse prose-table:block prose-table:overflow-x-auto prose-table:w-fit prose-table:max-w-full prose-th:bg-chatroom-bg-tertiary prose-th:border-2 prose-th:border-chatroom-border prose-th:px-3 prose-th:py-2 prose-td:border-2 prose-td:border-chatroom-border prose-td:px-3 prose-td:py-2 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-tertiary prose-blockquote:text-chatroom-text-secondary';
+// (Imported from markdown-utils.tsx)
 
 // Message type badge styling - with icons for visual consistency
 const getMessageTypeBadge = (type: string) => {
@@ -744,7 +749,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
               </div>
             ) : (
               <div className="p-6">
-                <div className={MESSAGE_CONTENT_CLASSES}>
+                <div className={messageFeedProseClassNames}>
                   <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
                     {message.content}
                   </Markdown>
@@ -937,7 +942,7 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
           </FixedModalHeader>
           <FixedModalBody>
             <div className="p-6">
-              <div className="text-chatroom-text-primary text-[13px] leading-relaxed break-words prose dark:prose-invert prose-sm max-w-none prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-a:text-chatroom-status-info prose-a:underline prose-a:decoration-chatroom-status-info/50 prose-blockquote:border-l-2 prose-blockquote:border-chatroom-status-info prose-blockquote:bg-chatroom-bg-secondary prose-blockquote:text-chatroom-text-secondary">
+              <div className={contextSummaryProseClassNames}>
                 <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
                   {message.content}
                 </Markdown>
@@ -954,7 +959,7 @@ const SystemMessage = memo(function SystemMessage({ message }: { message: Messag
 
 const MessageContent = memo(function MessageContent({ content }: { content: string }) {
   return (
-    <div className={MESSAGE_CONTENT_CLASSES}>
+    <div className={messageFeedProseClassNames}>
       <Markdown remarkPlugins={REMARK_PLUGINS} components={fullMarkdownComponents}>
         {content}
       </Markdown>
@@ -1161,7 +1166,7 @@ const LatestEventTicker = memo(function LatestEventTicker({
       onClick={onClick}
       className="flex items-center gap-1.5 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors animate-in fade-in slide-in-from-bottom-1 duration-200 cursor-pointer px-2 py-1 rounded"
     >
-      <span className="font-bold uppercase tracking-wider text-chatroom-status-info">
+      <span className={`font-bold uppercase tracking-wider ${getEventBadgeTextColor(event.type)}`}>
         {formatEventType(event.type)}
       </span>
       {'role' in event && event.role && (

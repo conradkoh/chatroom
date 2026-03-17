@@ -15,7 +15,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 
-import { baseMarkdownComponents } from './markdown-utils';
+import { baseMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
 import { useAttachments } from '../context/AttachmentsContext';
 
 import {
@@ -289,7 +289,7 @@ export function TaskDetailModal({
                   />
                 ) : (
                   // Preview Tab - Read-only rendered markdown
-                  <div className="h-full overflow-y-auto p-4 text-sm text-chatroom-text-primary prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent">
+                  <div className={`h-full overflow-y-auto p-4 text-sm ${taskDetailProseClassNames}`}>
                     <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
                       {editedContent || '*No content yet*'}
                     </Markdown>
@@ -299,7 +299,7 @@ export function TaskDetailModal({
             </>
           ) : (
             // View mode - Read-only rendered markdown
-            <div className="h-full overflow-y-auto p-4 text-sm text-chatroom-text-primary prose dark:prose-invert prose-sm max-w-none prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2 prose-p:my-2 prose-code:bg-chatroom-bg-tertiary prose-code:px-1.5 prose-code:py-0.5 prose-code:text-chatroom-status-success prose-code:text-[0.9em] prose-pre:bg-chatroom-bg-tertiary prose-pre:border-2 prose-pre:border-chatroom-border prose-pre:my-3 prose-a:text-chatroom-status-info prose-a:no-underline hover:prose-a:text-chatroom-accent">
+            <div className={`h-full overflow-y-auto p-4 text-sm ${taskDetailProseClassNames}`}>
               <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
                 {task.content}
               </Markdown>
