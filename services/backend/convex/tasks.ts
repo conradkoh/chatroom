@@ -1052,11 +1052,10 @@ export const listHistoricalTasks = query({
 
     let tasks = await ctx.db
       .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'completed')
+      )
       .collect();
-
-    // Filter to completed
-    tasks = tasks.filter(t => t.status === 'completed');
 
     // Apply date range filter (use completedAt if available, fall back to updatedAt)
     tasks = tasks.filter(t => {
