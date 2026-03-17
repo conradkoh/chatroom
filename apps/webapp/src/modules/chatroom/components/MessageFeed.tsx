@@ -50,6 +50,8 @@ import { MessageDetailModal } from './MessageDetailModal';
 import { WorkingIndicator } from './WorkingIndicator';
 import {
   type EventStreamEvent,
+  formatEventType,
+  formatTimestamp,
 } from '../viewModels/eventStreamViewModel';
 
 import {
@@ -1136,6 +1138,43 @@ interface FeatureModalState {
   techSpecs?: string;
 }
 
+// ─── LatestEventTicker ────────────────────────────────────────────────────────
+
+const LatestEventTicker = memo(function LatestEventTicker({
+  event,
+  onClick,
+}: {
+  event: EventStreamEvent | null;
+  onClick: () => void;
+}) {
+  if (!event) {
+    return (
+      <button
+        onClick={onClick}
+        className="flex items-center gap-1.5 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+      >
+        <span className="uppercase tracking-wider font-bold">Event Stream</span>
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors animate-in fade-in slide-in-from-bottom-1 duration-200"
+    >
+      <span className="font-bold uppercase tracking-wider text-chatroom-status-info">
+        {formatEventType(event.type)}
+      </span>
+      {event.role && (
+        <span className="text-chatroom-text-secondary">{event.role}</span>
+      )}
+      <span className="tabular-nums font-mono">
+        {formatTimestamp(event.timestamp ?? event._creationTime)}
+      </span>
+    </button>
+  );
+});
+
 export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }: MessageFeedProps) {
   const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
     api.messages.listPaginated,
@@ -1175,13 +1214,21 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // Event stream panel state
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
 
-  // Fetch latest events when panel is open
+  // Always fetch just the latest 1 event for the ticker display
+  const latestEventTicker = useSessionQuery(api.events.listLatestEvents, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    limit: 1,
+  });
+
+  // Fetch all 20 events only when panel is open
   const latestEvents = useSessionQuery(
     api.events.listLatestEvents,
     isEventStreamOpen
       ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, limit: 20 }
       : 'skip'
   );
+
+  const latestEvent: EventStreamEvent | null = (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
 
   // Attached task detail modal state
   const [selectedAttachedTask, setSelectedAttachedTask] = useState<AttachedTask | null>(null);
@@ -1569,7 +1616,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
           </FixedModalBody>
         </FixedModalContent>
       </FixedModal>
-      {/* Status bar - fixed at bottom with working indicator (left) + message count (right) */}
+      {/* Status bar - fixed at bottom with event ticker (left) + working indicator (right) */}
       <div className="relative">
         {/* Event stream panel - floating above status bar */}
         {isEventStreamOpen && (
@@ -1578,19 +1625,18 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
             onClose={() => setIsEventStreamOpen(false)}
           />
         )}
-        {/* Status bar - clickable to toggle event stream panel */}
-        <div
-          className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong cursor-pointer hover:bg-chatroom-bg-hover transition-colors"
-          onClick={() => setIsEventStreamOpen((prev) => !prev)}
-        >
-          {/* Left: Working indicator (compact) - empty div maintains layout when no active agents */}
+        {/* Status bar */}
+        <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
+          {/* Left: Latest event ticker - clickable to toggle event stream panel */}
+          <LatestEventTicker
+            key={latestEvent?._id}
+            event={latestEvent}
+            onClick={() => setIsEventStreamOpen((prev) => !prev)}
+          />
+          {/* Right: Working indicator - only rendered when there's an active task */}
           <div className="flex-shrink-0">
             <WorkingIndicator activeTask={activeTask} compact />
           </div>
-          {/* Right: Message count */}
-          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted tabular-nums">
-            {displayMessages.length} messages
-          </span>
         </div>
       </div>
       {/* Feature Detail Modal */}
