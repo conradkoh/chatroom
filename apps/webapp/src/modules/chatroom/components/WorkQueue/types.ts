@@ -2,9 +2,9 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 import type { TeamLifecycle } from '../../types/readiness';
 
-export type TaskStatus = 'pending' | 'acknowledged' | 'in_progress' | 'completed';
+import type { TaskStatus, TaskOrigin } from '../../../../domain/entities/task';
 
-export type TaskOrigin = 'backlog' | 'chat';
+export type { TaskStatus, TaskOrigin };
 
 export type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
 

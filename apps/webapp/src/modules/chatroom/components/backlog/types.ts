@@ -1,4 +1,5 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
+import type { BacklogItemStatus } from '../../../../domain/entities/backlog-item';
 
 /**
  * Represents an item from the dedicated chatroom_backlog table.
@@ -9,7 +10,7 @@ export interface BacklogItem {
   chatroomId: Id<'chatroom_rooms'>;
   createdBy: string;
   content: string;
-  status: 'backlog' | 'pending_user_review' | 'closed';
+  status: BacklogItemStatus;
   assignedTo?: string;
   createdAt: number;
   updatedAt: number;

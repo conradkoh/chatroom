@@ -26,8 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type TaskStatus = 'pending' | 'acknowledged' | 'in_progress' | 'completed';
-type TaskOrigin = 'backlog' | 'chat';
+import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 
 interface Task {
   _id: Id<'chatroom_tasks'>;

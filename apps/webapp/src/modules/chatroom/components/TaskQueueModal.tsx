@@ -7,8 +7,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 
-type TaskStatus = 'pending' | 'acknowledged' | 'in_progress' | 'completed';
-type TaskOrigin = 'backlog' | 'chat';
+import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
 
 interface Task {
