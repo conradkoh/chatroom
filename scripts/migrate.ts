@@ -104,6 +104,10 @@ const MIGRATIONS: Migration[] = [
     name: 'migration:purgeWorkspaceCommitDetails',
     addedAt: '2026-03-17T00:00:00.000Z',
   },
+  {
+    name: 'migration:migrateBacklogItemsToBacklogTable',
+    addedAt: '2026-03-17T14:00:00.000Z',
+  },
 ];
 
 // ─── Runner ──────────────────────────────────────────────────────────────────

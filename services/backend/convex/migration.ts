@@ -539,6 +539,95 @@ export const purgeWorkspaceCommitDetails = internalMutation({
 });
 
 /**
+ * Migration: Move backlog items from chatroom_tasks to chatroom_backlog.
+ *
+ * The chatroom_tasks table has records with origin="backlog" that should
+ * have been migrated to the chatroom_backlog table. This migration moves
+ * them and preserves the old task ID in legacyTaskId for reference mapping.
+ *
+ * Status mapping (from chatroom_tasks to chatroom_backlog):
+ *   - "backlog" → "backlog"
+ *   - "pending_user_review" → "pending_user_review"
+ *   - "closed" → "closed"
+ *   - All other statuses (pending, acknowledged, in_progress, completed,
+ *     backlog_acknowledged) → "backlog" (safe default)
+ *
+ * After running this migration in production:
+ *   1. Move this description to "Previously executed migrations" list above.
+ *   2. Run remapBacklogTaskIdsInMessages migration to update message references.
+ *   3. legacyTaskId can then be safely removed from chatroom_backlog schema.
+ *
+ * Idempotent: records already migrated (legacyTaskId exists) are skipped.
+ *
+ * Run from the Convex dashboard:
+ *   internal.migration.migrateBacklogItemsToBacklogTable
+ */
+export const migrateBacklogItemsToBacklogTable = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    // Get all tasks with origin="backlog"
+    const allTasks = await ctx.db.query('chatroom_tasks').collect();
+    const backlogTasks = allTasks.filter(
+      (task) => task.origin === 'backlog'
+    );
+
+    let migrated = 0;
+    let skipped = 0;
+
+    for (const task of backlogTasks) {
+      // Check if already migrated (idempotent check)
+      const existing = await ctx.db
+        .query('chatroom_backlog')
+        .withIndex('by_legacy_task_id', (q) => q.eq('legacyTaskId', task._id))
+        .first();
+
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      // Map task status to backlog status
+      let backlogStatus: 'backlog' | 'pending_user_review' | 'closed';
+      if (task.status === 'backlog') {
+        backlogStatus = 'backlog';
+      } else if (task.status === 'pending_user_review') {
+        backlogStatus = 'pending_user_review';
+      } else if (task.status === 'closed') {
+        backlogStatus = 'closed';
+      } else {
+        // Default: 'backlog' for all other statuses (pending, acknowledged,
+        // in_progress, completed, backlog_acknowledged)
+        backlogStatus = 'backlog';
+      }
+
+      // Create backlog item
+      await ctx.db.insert('chatroom_backlog', {
+        chatroomId: task.chatroomId,
+        createdBy: task.createdBy,
+        content: task.content,
+        status: backlogStatus,
+        assignedTo: task.assignedTo,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+        completedAt: task.completedAt,
+        complexity: task.complexity,
+        value: task.value,
+        priority: task.priority,
+        legacyTaskId: task._id,
+      });
+
+      migrated++;
+    }
+
+    return {
+      total: backlogTasks.length,
+      migrated,
+      skipped,
+    };
+  },
+});
+
+/**
  * Migration: Remap legacy chatroom_tasks IDs in messages to chatroom_backlog IDs.
  *
  * When backlog items were migrated from chatroom_tasks to chatroom_backlog
