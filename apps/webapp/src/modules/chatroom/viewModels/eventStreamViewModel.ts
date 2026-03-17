@@ -1,6 +1,6 @@
 /**
  * Shared types and utilities for the event stream feature.
- * Used by both MessageFeed and EventStreamPanel.
+ * Used by both MessageFeed and EventStreamModal.
  */
 
 // ─── Canonical event type ─────────────────────────────────────────────────────

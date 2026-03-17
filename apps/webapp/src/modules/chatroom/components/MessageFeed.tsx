@@ -43,7 +43,7 @@ import remarkBreaks from 'remark-breaks';
 import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
-import { EventStreamPanel } from './EventStreamPanel';
+import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
 import { compactMarkdownComponents, fullMarkdownComponents } from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
@@ -1616,27 +1616,23 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
           </FixedModalBody>
         </FixedModalContent>
       </FixedModal>
+      {/* Event stream modal - rendered via portal at document.body level */}
+      <EventStreamModal
+        isOpen={isEventStreamOpen}
+        onClose={() => setIsEventStreamOpen(false)}
+        events={(latestEvents as EventStreamEvent[] | undefined) ?? []}
+      />
       {/* Status bar - fixed at bottom with event ticker (left) + working indicator (right) */}
-      <div className="relative">
-        {/* Event stream panel - floating above status bar */}
-        {isEventStreamOpen && (
-          <EventStreamPanel
-            events={(latestEvents as EventStreamEvent[] | undefined) ?? []}
-            onClose={() => setIsEventStreamOpen(false)}
-          />
-        )}
-        {/* Status bar */}
-        <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
-          {/* Left: Latest event ticker - clickable to toggle event stream panel */}
-          <LatestEventTicker
-            key={latestEvent?._id}
-            event={latestEvent}
-            onClick={() => setIsEventStreamOpen((prev) => !prev)}
-          />
-          {/* Right: Working indicator - only rendered when there's an active task */}
-          <div className="flex-shrink-0">
-            <WorkingIndicator activeTask={activeTask} compact />
-          </div>
+      <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
+        {/* Left: Latest event ticker - clickable to toggle event stream modal */}
+        <LatestEventTicker
+          key={latestEvent?._id}
+          event={latestEvent}
+          onClick={() => setIsEventStreamOpen((prev) => !prev)}
+        />
+        {/* Right: Working indicator - only rendered when there's an active task */}
+        <div className="flex-shrink-0">
+          <WorkingIndicator activeTask={activeTask} compact />
         </div>
       </div>
       {/* Feature Detail Modal */}
