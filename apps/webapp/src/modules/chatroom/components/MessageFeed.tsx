@@ -1132,6 +1132,130 @@ interface FeatureModalState {
   techSpecs?: string;
 }
 
+// ─── EventStreamPanel ────────────────────────────────────────────────────────
+
+/** Human-readable label for each event type. */
+function formatEventType(type: string): string {
+  const labels: Record<string, string> = {
+    'agent.started': 'Agent Started',
+    'agent.exited': 'Agent Exited',
+    'agent.registered': 'Agent Registered',
+    'agent.waiting': 'Agent Waiting',
+    'agent.circuitOpen': 'Circuit Open',
+    'agent.requestStart': 'Agent Request Start',
+    'agent.requestStop': 'Agent Request Stop',
+    'task.activated': 'Task Activated',
+    'task.acknowledged': 'Task Acknowledged',
+    'task.inProgress': 'Task In Progress',
+    'task.completed': 'Task Completed',
+    'skill.activated': 'Skill Activated',
+    'daemon.ping': 'Daemon Ping',
+    'daemon.pong': 'Daemon Pong',
+    'daemon.gitRefresh': 'Git Refresh',
+    'config.requestRemoval': 'Config Removal Requested',
+  };
+  return labels[type] ?? type;
+}
+
+/** Format a unix ms timestamp as HH:MM:SS */
+function formatTimestamp(ms: number): string {
+  const d = new Date(ms);
+  return [
+    d.getHours().toString().padStart(2, '0'),
+    d.getMinutes().toString().padStart(2, '0'),
+    d.getSeconds().toString().padStart(2, '0'),
+  ].join(':');
+}
+
+interface EventStreamEvent {
+  _id: string;
+  type: string;
+  role?: string;
+  timestamp: number;
+}
+
+interface EventStreamPanelProps {
+  events: EventStreamEvent[];
+  onClose: () => void;
+}
+
+const EventStreamPanel = memo(function EventStreamPanel({
+  events,
+  onClose,
+}: EventStreamPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Close on click outside
+  useEffect(() => {
+    function handleMouseDown(e: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={panelRef}
+      className="absolute bottom-full left-0 right-0 z-50 bg-chatroom-bg-surface border border-chatroom-border shadow-lg"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-chatroom-border">
+        <span className="text-xs font-bold uppercase tracking-wider text-chatroom-text-muted">
+          Event Stream
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-chatroom-text-muted hover:text-foreground transition-colors p-0.5 rounded"
+          aria-label="Close event stream"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="1" y1="1" x2="11" y2="11" />
+            <line x1="11" y1="1" x2="1" y2="11" />
+          </svg>
+        </button>
+      </div>
+      {/* Body */}
+      <div className="max-h-72 overflow-y-auto">
+        {events.length === 0 ? (
+          <div className="px-4 py-6 text-center text-xs text-chatroom-text-muted">
+            No events yet
+          </div>
+        ) : (
+          <ul>
+            {events.map((event) => (
+              <li
+                key={event._id}
+                className="flex items-center gap-2 px-4 py-1.5 border-b border-chatroom-border/50 last:border-b-0 hover:bg-accent/30 transition-colors"
+              >
+                {/* Event type badge */}
+                <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wider bg-chatroom-status-info/10 text-chatroom-status-info px-1.5 py-0.5 rounded">
+                  {formatEventType(event.type)}
+                </span>
+                {/* Role */}
+                {event.role && (
+                  <span className="flex-shrink-0 text-[10px] font-medium text-chatroom-text-muted uppercase tracking-wider">
+                    {event.role}
+                  </span>
+                )}
+                {/* Spacer */}
+                <span className="flex-1" />
+                {/* Timestamp */}
+                <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted tabular-nums font-mono">
+                  {formatTimestamp(event.timestamp)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }: MessageFeedProps) {
   const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
     api.messages.listPaginated,
@@ -1167,6 +1291,17 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     isOpen: false,
     title: '',
   });
+
+  // Event stream panel state
+  const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
+
+  // Fetch latest events when panel is open
+  const latestEvents = useSessionQuery(
+    api.events.listLatestEvents,
+    isEventStreamOpen
+      ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, limit: 20 }
+      : 'skip'
+  );
 
   // Attached task detail modal state
   const [selectedAttachedTask, setSelectedAttachedTask] = useState<AttachedTask | null>(null);
@@ -1555,15 +1690,28 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
         </FixedModalContent>
       </FixedModal>
       {/* Status bar - fixed at bottom with working indicator (left) + message count (right) */}
-      <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
-        {/* Left: Working indicator (compact) - empty div maintains layout when no active agents */}
-        <div className="flex-shrink-0">
-          <WorkingIndicator activeTask={activeTask} compact />
+      <div className="relative">
+        {/* Event stream panel - floating above status bar */}
+        {isEventStreamOpen && (
+          <EventStreamPanel
+            events={(latestEvents as EventStreamEvent[] | undefined) ?? []}
+            onClose={() => setIsEventStreamOpen(false)}
+          />
+        )}
+        {/* Status bar - clickable to toggle event stream panel */}
+        <div
+          className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong cursor-pointer hover:bg-chatroom-bg-hover transition-colors"
+          onClick={() => setIsEventStreamOpen((prev) => !prev)}
+        >
+          {/* Left: Working indicator (compact) - empty div maintains layout when no active agents */}
+          <div className="flex-shrink-0">
+            <WorkingIndicator activeTask={activeTask} compact />
+          </div>
+          {/* Right: Message count */}
+          <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted tabular-nums">
+            {displayMessages.length} messages
+          </span>
         </div>
-        {/* Right: Message count */}
-        <span className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-muted tabular-nums">
-          {displayMessages.length} messages
-        </span>
       </div>
       {/* Feature Detail Modal */}
       <FeatureDetailModal
