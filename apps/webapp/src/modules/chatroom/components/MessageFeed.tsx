@@ -37,8 +37,8 @@ import React, {
   useState,
 } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
 import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
@@ -47,11 +47,9 @@ import { EventStreamModal } from './EventStreamModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
 import { compactMarkdownComponents, fullMarkdownComponents } from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
-import { WorkingIndicator } from './WorkingIndicator';
 import {
   type EventStreamEvent,
   formatEventType,
-  formatTimestamp,
 } from '../viewModels/eventStreamViewModel';
 
 import {
@@ -1151,31 +1149,30 @@ const LatestEventTicker = memo(function LatestEventTicker({
     return (
       <button
         onClick={onClick}
-        className="flex items-center gap-1.5 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
+        className="flex items-center gap-1.5 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors cursor-pointer px-2 py-1 rounded"
       >
         <span className="uppercase tracking-wider font-bold">Event Stream</span>
+        <ChevronRight size={10} className="opacity-50" />
       </button>
     );
   }
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors animate-in fade-in slide-in-from-bottom-1 duration-200"
+      className="flex items-center gap-1.5 text-[10px] text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors animate-in fade-in slide-in-from-bottom-1 duration-200 cursor-pointer px-2 py-1 rounded"
     >
       <span className="font-bold uppercase tracking-wider text-chatroom-status-info">
         {formatEventType(event.type)}
       </span>
-      {event.role && (
-        <span className="text-chatroom-text-secondary">{event.role}</span>
+      {'role' in event && event.role && (
+        <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">{event.role}</span>
       )}
-      <span className="tabular-nums font-mono">
-        {formatTimestamp(event.timestamp ?? event._creationTime)}
-      </span>
+      <ChevronRight size={10} className="opacity-50 ml-0.5" />
     </button>
   );
 });
 
-export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }: MessageFeedProps) {
+export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _activeTask }: MessageFeedProps) {
   const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
     api.messages.listPaginated,
     { chatroomId: chatroomId as Id<'chatroom_rooms'> },
@@ -1213,6 +1210,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
 
   // Event stream panel state
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
+  const [eventStreamLimit, setEventStreamLimit] = useState(20);
 
   // Always fetch just the latest 1 event for the ticker display
   const latestEventTicker = useSessionQuery(api.events.listLatestEvents, {
@@ -1220,17 +1218,23 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
     limit: 1,
   });
 
-  // Fetch all 20 events only when panel is open
+  // Fetch events only when panel is open, using the dynamic limit
   const latestEvents = useSessionQuery(
     api.events.listLatestEvents,
     isEventStreamOpen
-      ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, limit: 20 }
+      ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, limit: eventStreamLimit }
       : 'skip'
   );
 
+  // Cast needed: useSessionQuery returns the raw Convex DB type; we cast to the typed discriminated union
   const latestEvent: EventStreamEvent | null = (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
 
-  // Attached task detail modal state
+  // Reset event limit when panel closes
+  useEffect(() => {
+    if (!isEventStreamOpen) {
+      setEventStreamLimit(20);
+    }
+  }, [isEventStreamOpen]);
   const [selectedAttachedTask, setSelectedAttachedTask] = useState<AttachedTask | null>(null);
 
   // Attached backlog item detail modal state (chatroom_backlog items clicked in MessageFeed)
@@ -1621,8 +1625,10 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
         isOpen={isEventStreamOpen}
         onClose={() => setIsEventStreamOpen(false)}
         events={(latestEvents as EventStreamEvent[] | undefined) ?? []}
+        onLoadMore={() => setEventStreamLimit((prev) => prev + 20)}
+        hasMore={(latestEvents as EventStreamEvent[] | undefined)?.length === eventStreamLimit}
       />
-      {/* Status bar - fixed at bottom with event ticker (left) + working indicator (right) */}
+      {/* Status bar - fixed at bottom with event ticker (left) + message count (right) */}
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
         {/* Left: Latest event ticker - clickable to toggle event stream modal */}
         <LatestEventTicker
@@ -1630,10 +1636,10 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
           event={latestEvent}
           onClick={() => setIsEventStreamOpen((prev) => !prev)}
         />
-        {/* Right: Working indicator - only rendered when there's an active task */}
-        <div className="flex-shrink-0">
-          <WorkingIndicator activeTask={activeTask} compact />
-        </div>
+        {/* Right: Message count */}
+        <span className="flex-shrink-0 text-[10px] text-chatroom-text-muted tabular-nums font-mono">
+          {displayMessages.length} MESSAGES
+        </span>
       </div>
       {/* Feature Detail Modal */}
       <FeatureDetailModal
