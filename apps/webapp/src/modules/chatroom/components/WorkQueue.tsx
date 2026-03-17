@@ -46,7 +46,7 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
   const [isPendingReviewModalOpen, setIsPendingReviewModalOpen] = useState(false);
   const [isCurrentTasksModalOpen, setIsCurrentTasksModalOpen] = useState(false);
-  const [selectedBacklogItem, setSelectedBacklogItem] = useState<BacklogItem | null>(null);
+  const [selectedBacklogItemId, setSelectedBacklogItemId] = useState<string | null>(null);
   const [isBacklogQueueModalOpen, setIsBacklogQueueModalOpen] = useState(false);
 
   // Query tasks
@@ -96,6 +96,16 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
     limit: 100,
   });
   const pendingReviewBacklogItems = (pendingReviewBacklogItemsRaw ?? []) as BacklogItem[];
+
+  // Derive selectedBacklogItem from live query data to avoid stale state after edits
+  const selectedBacklogItem = useMemo(() => {
+    if (!selectedBacklogItemId) return null;
+    return (
+      [...backlogItems, ...pendingReviewBacklogItems].find(
+        (item) => item._id === selectedBacklogItemId
+      ) ?? null
+    );
+  }, [selectedBacklogItemId, backlogItems, pendingReviewBacklogItems]);
 
   // Mutations
   const createBacklogItem = useSessionMutation(api.backlog.createBacklogItem);
@@ -308,7 +318,7 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
                 <PendingReviewBacklogItem
                   key={item._id}
                   item={item}
-                  onClick={() => setSelectedBacklogItem(item)}
+                  onClick={() => setSelectedBacklogItemId(item._id)}
                 />
               ))}
             {/* Show "View More" button when there are more items in total */}
@@ -339,7 +349,7 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
             <CompactBacklogItem
               key={item._id}
               item={item}
-              onClick={() => setSelectedBacklogItem(item)}
+              onClick={() => setSelectedBacklogItemId(item._id)}
             />
           ))}
 
@@ -393,7 +403,7 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
             handleOpenTaskDetail(task);
           }}
           onBacklogItemClick={(item) => {
-            setSelectedBacklogItem(item);
+            setSelectedBacklogItemId(item._id);
           }}
         />
       )}
@@ -421,7 +431,7 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
         <BacklogItemDetailModal
           isOpen={true}
           item={selectedBacklogItem}
-          onClose={() => setSelectedBacklogItem(null)}
+          onClose={() => setSelectedBacklogItemId(null)}
         />
       )}
 
@@ -431,7 +441,7 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
           items={categorizedTasks.backlog}
           onClose={() => setIsBacklogQueueModalOpen(false)}
           onItemClick={(item) => {
-            setSelectedBacklogItem(item);
+            setSelectedBacklogItemId(item._id);
           }}
         />
       )}
