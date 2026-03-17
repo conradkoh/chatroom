@@ -235,6 +235,29 @@ export function formatEventType(type: string): string {
   return labels[type] ?? type;
 }
 
+/** Returns the Tailwind text color class for an event type's badge. */
+export function getEventBadgeTextColor(type: string): string {
+  const colorMap: Record<string, string> = {
+    'agent.started': 'text-chatroom-status-success',
+    'agent.registered': 'text-chatroom-status-success',
+    'agent.exited': 'text-chatroom-status-error',
+    'agent.circuitOpen': 'text-chatroom-status-error',
+    'agent.waiting': 'text-chatroom-status-warning',
+    'agent.requestStart': 'text-chatroom-status-info',
+    'agent.requestStop': 'text-chatroom-status-warning',
+    'task.activated': 'text-chatroom-status-success',
+    'task.acknowledged': 'text-chatroom-status-success',
+    'task.inProgress': 'text-chatroom-status-info',
+    'task.completed': 'text-chatroom-status-success',
+    'skill.activated': 'text-chatroom-status-purple',
+    'daemon.ping': 'text-chatroom-text-muted',
+    'daemon.pong': 'text-chatroom-text-muted',
+    'daemon.gitRefresh': 'text-chatroom-text-muted',
+    'config.requestRemoval': 'text-chatroom-status-warning',
+  };
+  return colorMap[type] ?? 'text-chatroom-status-info';
+}
+
 /** Format a Unix millisecond timestamp as HH:MM:SS (24-hour). */
 export function formatTimestamp(ms: number): string {
   const date = new Date(ms);
