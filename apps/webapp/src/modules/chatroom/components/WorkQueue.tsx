@@ -4,7 +4,6 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
 import {
   Plus,
-  Trash2,
   X,
   Play,
   ChevronRight,
@@ -19,12 +18,15 @@ import remarkBreaks from 'remark-breaks';
 
 import { BacklogCreateModal } from './BacklogCreateModal';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
-import { baseMarkdownComponents, compactMarkdownComponents } from './markdown-utils';
+import { compactMarkdownComponents } from './markdown-utils';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
 import { type BacklogItem, getScoringBadge, getBacklogStatusBadge } from './backlog';
 import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
 import { getStatusBadge, formatRelativeTime } from './WorkQueue/utils';
+import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
+import { TaskItem } from './WorkQueue/TaskItem';
+import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
@@ -437,157 +439,6 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
         />
       )}
     </div>
-  );
-}
-
-interface TaskItemProps {
-  task: Task;
-  isProtected?: boolean;
-  onDelete?: () => void;
-  onClick?: () => void;
-}
-
-function TaskItem({ task, isProtected = false, onDelete, onClick }: TaskItemProps) {
-  const badge = getStatusBadge(task.status);
-
-  const isClickable = !!onClick;
-
-  return (
-    <div
-      className={`p-3 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors ${isClickable ? 'cursor-pointer' : ''}`}
-      onClick={onClick}
-      role={isClickable ? 'button' : undefined}
-      tabIndex={isClickable ? 0 : undefined}
-      onKeyDown={
-        isClickable
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onClick?.();
-              }
-            }
-          : undefined
-      }
-    >
-      {/* Status Badge */}
-      <div className="flex items-center gap-2 mb-1">
-        <span
-          className={`px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${badge.classes}`}
-        >
-          {badge.label}
-        </span>
-        {task.assignedTo && (
-          <span className="text-[9px] text-chatroom-text-muted">→ {task.assignedTo}</span>
-        )}
-      </div>
-
-      {/* Content - Rendered as Markdown */}
-      <div className="text-xs text-chatroom-text-primary line-clamp-3 mb-2 prose dark:prose-invert prose-xs max-w-none prose-p:my-0 prose-headings:my-0 prose-headings:text-xs prose-headings:font-bold prose-ul:my-0 prose-ol:my-0 prose-li:my-0 prose-code:text-[10px] prose-code:bg-chatroom-bg-tertiary prose-code:px-1 prose-pre:bg-chatroom-bg-tertiary prose-pre:text-chatroom-text-primary prose-pre:p-2 prose-pre:my-1 prose-pre:overflow-x-auto">
-        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
-          {task.content}
-        </Markdown>
-      </div>
-
-      {/* Actions for editable tasks */}
-      {!isProtected && (
-        <div className="flex items-center gap-1">
-          {onDelete && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              className="p-1 text-chatroom-text-muted hover:text-chatroom-status-error transition-colors"
-              title="Delete"
-            >
-              <Trash2 size={12} />
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Compact Backlog Item - for sidebar display
-interface CompactBacklogItemProps {
-  item: BacklogItem;
-  onClick: () => void;
-}
-
-// compactMarkdownComponents is imported from markdown-utils.tsx
-
-function CompactBacklogItem({ item, onClick }: CompactBacklogItemProps) {
-  const hasScoring = item.complexity || item.value || item.priority !== undefined;
-
-  return (
-    <div
-      className="flex items-center gap-2 p-2 border-b border-chatroom-border last:border-b-0 hover:bg-chatroom-bg-hover transition-colors cursor-pointer group"
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-    >
-      {/* Scoring badges */}
-      {hasScoring && (
-        <div className="flex-shrink-0 flex items-center gap-1">
-          {item.priority !== undefined && (
-            <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
-              P:{item.priority}
-            </span>
-          )}
-          {item.complexity && (
-            <span
-              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', item.complexity).classes}`}
-            >
-              {getScoringBadge('complexity', item.complexity).label}
-            </span>
-          )}
-          {item.value && (
-            <span
-              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', item.value).classes}`}
-            >
-              {getScoringBadge('value', item.value).label}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Content - 2 lines max, with simplified markdown */}
-      <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
-        <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={compactMarkdownComponents}>
-          {item.content}
-        </Markdown>
-      </div>
-
-      {/* Arrow to indicate clickable */}
-      <ChevronRight
-        size={14}
-        className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
-      />
-    </div>
-  );
-}
-
-// ViewMoreButton - shared component for expandable list sections
-interface ViewMoreButtonProps {
-  count: number;
-  onClick: () => void;
-}
-
-function ViewMoreButton({ count, onClick }: ViewMoreButtonProps) {
-  return (
-    <button
-      onClick={onClick}
-      className="w-full p-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors text-center"
-    >
-      View More ({count} more items)
-    </button>
   );
 }
 
