@@ -374,6 +374,7 @@ export default defineSchema({
     // Attached tasks remain in 'backlog' status until agent hands off to user,
     // at which point they transition to 'pending_user_review'
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
 
     // Attached artifacts for context
     // Agents can attach multiple artifacts to handoffs for reference
@@ -410,6 +411,8 @@ export default defineSchema({
     type: v.literal('message'),
     // Attached backlog tasks for context
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+    // Attached backlog items for context
+    attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
     // Attached artifacts
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
     // Queue ordering (lower = earlier in queue, older message)
@@ -419,13 +422,11 @@ export default defineSchema({
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
 
   /**
-   * Tasks in chatrooms for queue and backlog management.
+   * Tasks in chatrooms for queue management.
    * Tracks task lifecycle from creation through completion.
    * Only one task can be pending or in_progress at a time per chatroom.
    *
-   * Task workflows are determined by origin:
-   * - backlog: backlog → pending → in_progress → pending_user_review → completed/closed
-   * - chat: pending → in_progress → completed
+   * Task workflow: pending → acknowledged → in_progress → completed
    */
   chatroom_tasks: defineTable({
     chatroomId: v.id('chatroom_rooms'),
@@ -434,29 +435,18 @@ export default defineSchema({
     // Content (plain text only)
     content: v.string(),
 
-    // Origin - where this task came from (immutable after creation)
-    // Determines which workflow/state machine applies to this task
-    origin: v.optional(
-      v.union(
-        v.literal('backlog'), // Created in backlog tab
-        v.literal('chat') // Created from chat message
-      )
-    ),
-
     // Status tracking
-    // Note: available statuses depend on origin (see workflows above)
     status: v.union(
-      v.literal('backlog'), // Backlog origin: initial state, task is in backlog tab
       v.literal('pending'), // Ready for agent to pick up
       v.literal('acknowledged'), // Agent claimed task via get-next-task, not yet started
       v.literal('in_progress'), // Agent actively working on it
-      v.literal('backlog_acknowledged'), // Backlog task attached to message, visible to agent
-      v.literal('pending_user_review'), // Backlog only: agent done, user must confirm
       v.literal('completed'), // Finished successfully
-      v.literal('closed'), // Backlog only: user closed without completing
-      // MIGRATION ONLY: "queued" was removed in PR #23 but may still exist in the DB.
-      // Kept temporarily so deployment succeeds; remove after running migrateQueuedTasks.
-      v.literal('queued')
+
+      // @deprecated — legacy backlog-origin statuses; exist in old records, remove after cleanup migration
+      v.literal('closed'), // @deprecated — was terminal status for backlog tasks; now handled by chatroom_backlog
+      v.literal('backlog'), // @deprecated — was initial status for backlog items; now handled by chatroom_backlog
+      v.literal('pending_user_review'), // @deprecated — was intermediate backlog status; now handled by chatroom_backlog
+      v.literal('backlog_acknowledged') // @deprecated — transitional status, migrated via migrateBacklogAcknowledgedToBacklog
     ),
 
     // Assignment
@@ -465,9 +455,26 @@ export default defineSchema({
     // Link to source message (for auto-created tasks from user messages)
     sourceMessageId: v.optional(v.id('chatroom_messages')),
 
-    // Backlog attachment tracking (bidirectional)
+    // Backlog attachment tracking
+    // @deprecated — backlog-specific field; use chatroom_backlog references instead
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Backlog tasks attached to this task
-    parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Tasks this backlog item is attached to
+
+    // @deprecated — origin was used to distinguish backlog vs chat tasks; all backlog items
+    // are now in chatroom_backlog. Remove after running the reference cleanup migration.
+    origin: v.optional(
+      v.union(
+        v.literal('backlog'), // @deprecated — all backlog items are now in chatroom_backlog table
+        v.literal('chat') // Created from chat message
+      )
+    ),
+
+    // @deprecated — backlog scoring fields; now on chatroom_backlog. Remove after cleanup.
+    complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    priority: v.optional(v.number()),
+
+    // @deprecated — bidirectional link to parent backlog task. Remove after reference cleanup migration.
+    parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
 
     // Timestamps
     createdAt: v.number(),
@@ -478,19 +485,58 @@ export default defineSchema({
 
     // Queue ordering (lower = earlier in queue)
     queuePosition: v.number(),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_status', ['chatroomId', 'status'])
+    .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
 
-    // Scoring fields for backlog prioritization (set by agents or users)
+  /**
+   * Backlog items for chatroom planning.
+   * Long-lived planning items managed by the user, separate from active task queue.
+   *
+   * Lifecycle: backlog → pending_user_review → closed (or deleted)
+   *
+   * Items are promoted to chatroom_tasks when the user decides to execute them.
+   */
+  chatroom_backlog: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    createdBy: v.string(), // 'user' or role name that created the item
+
+    // Content (plain text only)
+    content: v.string(),
+
+    // Status lifecycle
+    status: v.union(
+      v.literal('backlog'), // Sitting in the backlog, awaiting pickup
+      v.literal('pending_user_review'), // Agent completed work, awaiting user confirmation
+      v.literal('closed') // User closed without completing
+    ),
+
+    // Assignment (when an agent is working on this item)
+    assignedTo: v.optional(v.string()),
+
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+
+    // Scoring fields for prioritization
     // Complexity: low = easy to implement, high = complex/risky
     complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
     // Value: low = nice-to-have, high = critical/high-impact
     value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
     // Priority: numeric priority for flexible ordering (higher = more important)
-    // Used as primary sort key for backlog tasks
     priority: v.optional(v.number()),
+
+    // Legacy reference — set during migration from chatroom_tasks
+    // Used to remap attachedTaskIds/parentTaskIds in messages and tasks
+    // @deprecated — migration reference from Phase 1; can be removed after Phase 5 (reference cleanup)
+    legacyTaskId: v.optional(v.id('chatroom_tasks')),
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])
-    .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
+    .index('by_chatroom_priority', ['chatroomId', 'priority'])
+    .index('by_legacy_task_id', ['legacyTaskId']),
 
   // ============================================================================
   // CLI AUTHENTICATION TABLES

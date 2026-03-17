@@ -106,11 +106,20 @@ describe('Squad Team > Builder > System Prompt', () => {
           B --> C[get-next-task
       waiting...]
           C --> D[task-started
-      classify]
+      IMMEDIATELY]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
+
+      ### ⚠️ CRITICAL: Run task-started Immediately
+
+      When you receive a task from \`get-next-task\`, you **MUST** run \`task-started\` immediately before doing any other work:
+
+      1. **Run task-started immediately** — This marks the task as \`in_progress\` and prevents restart loops
+      2. **Then begin your work** — Only after task-started succeeds
+
+      Failure to run \`task-started\` promptly may trigger the system to restart you, causing unnecessary interruptions.
 
       ### Context Recovery (after compaction/summarization)
 
@@ -134,7 +143,12 @@ describe('Squad Team > Builder > System Prompt', () => {
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
+
       ### Start Working
+
+      ⚠️  **RUN THIS IMMEDIATELY** after receiving a handoff.
+      This marks the task as in_progress and prevents unnecessary agent restarts.
+
       Before starting work on a received message, acknowledge it:
 
       \`\`\`bash

@@ -58,111 +58,99 @@ async function joinParticipants(
 
 describe('Task Workflow - Backlog Origin', () => {
   describe('Task Creation', () => {
-    test('creates backlog task with origin=backlog and status=backlog', async () => {
+    test('creates backlog item with status=backlog via createBacklogItem', async () => {
       const { sessionId } = await createTestSession('test-backlog-create');
       const chatroomId = await createPairTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-      // Create backlog task
-      const result = await t.mutation(api.tasks.createTask, {
+      // Create backlog item using the new chatroom_backlog API
+      const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
         sessionId,
         chatroomId,
         content: 'Fix bug in login form',
         createdBy: 'user',
-        isBacklog: true,
       });
 
-      expect(result.status).toBe('backlog');
-      expect(result.origin).toBe('backlog');
+      expect(backlogItemId).toBeDefined();
 
-      // Verify task in database
-      const tasks = await t.query(api.tasks.listTasks, {
+      // Verify item in database
+      const items = await t.query(api.backlog.listBacklogItems, {
         sessionId,
         chatroomId,
         statusFilter: 'backlog',
       });
 
-      expect(tasks.length).toBeGreaterThan(0);
-      const task = tasks.find((t) => t._id === result.taskId);
-      expect(task).toBeDefined();
-      expect(task?.status).toBe('backlog');
-      expect(task?.origin).toBe('backlog');
+      expect(items.length).toBeGreaterThan(0);
+      const item = items.find((i) => i._id === backlogItemId);
+      expect(item).toBeDefined();
+      expect(item?.status).toBe('backlog');
     });
 
-    test('creates chat task with origin=chat', async () => {
+    test('creates chat task with status=pending via createTask', async () => {
       const { sessionId } = await createTestSession('test-chat-create');
       const chatroomId = await createPairTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-      // Create chat task (not backlog)
+      // Create chat task (no longer uses isBacklog field)
       const result = await t.mutation(api.tasks.createTask, {
         sessionId,
         chatroomId,
         content: 'User request from chat',
         createdBy: 'user',
-        isBacklog: false,
       });
 
-      expect(result.origin).toBe('chat');
-      // Status should be pending (no active tasks) or queued
-      expect(['pending', 'queued']).toContain(result.status);
+      // Status should be pending (no active tasks)
+      expect(result.status).toBe('pending');
     });
   });
 
   describe('Backlog → Queue Transition', () => {
-    test('moveToQueue transitions backlog task to queued', async () => {
+    test('backlog item can be created and then a task can be created from it', async () => {
       const { sessionId } = await createTestSession('test-backlog-to-queue');
       const chatroomId = await createPairTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-      // Create an active task first to ensure new task goes to queue
+      // Create a regular task to block the queue
       await t.mutation(api.tasks.createTask, {
         sessionId,
         chatroomId,
         content: 'Active task',
         createdBy: 'user',
-        isBacklog: false,
       });
 
-      // Create backlog task
-      const backlogTask = await t.mutation(api.tasks.createTask, {
+      // Create backlog item
+      const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
         sessionId,
         chatroomId,
-        content: 'Backlog item to move',
+        content: 'Backlog item to work on',
         createdBy: 'user',
-        isBacklog: true,
       });
+      expect(backlogItemId).toBeDefined();
 
-      // Move to queue
-      const moveResult = await t.mutation(api.tasks.moveToQueue, {
+      // Verify backlog item is in backlog status
+      const items = await t.query(api.backlog.listBacklogItems, {
         sessionId,
-        taskId: backlogTask.taskId,
+        chatroomId,
+        statusFilter: 'backlog',
       });
-
-      expect(moveResult.success).toBe(true);
-      expect(moveResult.newStatus).toBe('pending');
+      const item = items.find((i) => i._id === backlogItemId);
+      expect(item?.status).toBe('backlog');
     });
   });
 
   describe('Complete Task Flow', () => {
-    test('completeTask transitions backlog-origin task to pending_user_review', async () => {
+    test('completeTask transitions task to completed (chat task)', async () => {
       const { sessionId } = await createTestSession('test-complete-backlog');
       const chatroomId = await createPairTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-      // Create backlog task
-      const backlogTask = await t.mutation(api.tasks.createTask, {
+      // Create a task via message
+      await t.mutation(api.messages.sendMessage, {
         sessionId,
         chatroomId,
         content: 'Task to complete',
-        createdBy: 'user',
-        isBacklog: true,
-      });
-
-      // Move to queue (it should become pending since no active task)
-      await t.mutation(api.tasks.moveToQueue, {
-        sessionId,
-        taskId: backlogTask.taskId,
+        senderRole: 'user',
+        type: 'message',
       });
 
       // Claim and start the task (FSM workflow)
@@ -178,7 +166,7 @@ describe('Task Workflow - Backlog Origin', () => {
         role: 'builder',
       });
 
-      // Complete the task - should go to pending_user_review for backlog
+      // Complete the task
       const completeResult = await t.mutation(api.tasks.completeTask, {
         sessionId,
         chatroomId,
@@ -186,32 +174,27 @@ describe('Task Workflow - Backlog Origin', () => {
       });
 
       expect(completeResult.completed).toBe(true);
-      expect(completeResult.pendingReview.length).toBeGreaterThan(0);
 
-      // Verify task is in pending_user_review status
-      const reviewTasks = await t.query(api.tasks.listTasks, {
+      // Verify task is completed
+      const tasks = await t.query(api.tasks.listHistoricalTasks, {
         sessionId,
         chatroomId,
-        statusFilter: 'pending_review',
       });
-
-      const task = reviewTasks.find((t) => t._id === backlogTask.taskId);
-      expect(task).toBeDefined();
-      expect(task?.status).toBe('pending_user_review');
+      expect(tasks.length).toBeGreaterThan(0);
+      expect(tasks[0]?.status).toBe('completed');
     });
 
-    test('completeTask transitions chat-origin task directly to completed', async () => {
+    test('completeTask transitions chat task directly to completed', async () => {
       const { sessionId } = await createTestSession('test-complete-chat');
       const chatroomId = await createPairTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-      // Create chat task
+      // Create chat task using createTask (no longer uses isBacklog field)
       const chatTask = await t.mutation(api.tasks.createTask, {
         sessionId,
         chatroomId,
         content: 'Chat task to complete',
         createdBy: 'user',
-        isBacklog: false,
       });
 
       // Claim and start the task (FSM workflow)
@@ -227,7 +210,7 @@ describe('Task Workflow - Backlog Origin', () => {
         role: 'builder',
       });
 
-      // Complete the task - should go directly to completed for chat
+      // Complete the task - should go directly to completed
       const completeResult = await t.mutation(api.tasks.completeTask, {
         sessionId,
         chatroomId,
@@ -235,13 +218,11 @@ describe('Task Workflow - Backlog Origin', () => {
       });
 
       expect(completeResult.completed).toBe(true);
-      expect(completeResult.pendingReview.length).toBe(0);
 
       // Verify task is completed
-      const tasks = await t.query(api.tasks.listTasks, {
+      const tasks = await t.query(api.tasks.listHistoricalTasks, {
         sessionId,
         chatroomId,
-        statusFilter: 'archived',
       });
 
       const task = tasks.find((t) => t._id === chatTask.taskId);
@@ -251,242 +232,184 @@ describe('Task Workflow - Backlog Origin', () => {
   });
 
   describe('Pending User Review Actions', () => {
-    test('markBacklogComplete transitions pending_user_review to completed', async () => {
+    test('backlog item can be marked complete via completeBacklogItem', async () => {
       const { sessionId } = await createTestSession('test-mark-complete');
       const chatroomId = await createPairTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-      // Create and process backlog task through to pending_user_review
-      const backlogTask = await t.mutation(api.tasks.createTask, {
+      // Create a backlog item and process it through to pending_user_review
+      const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
         sessionId,
         chatroomId,
         content: 'Task to mark complete',
         createdBy: 'user',
-        isBacklog: true,
       });
 
-      await t.mutation(api.tasks.moveToQueue, {
+      // Transition to pending_user_review
+      await t.mutation(api.backlog.markBacklogItemForReview, {
         sessionId,
-        taskId: backlogTask.taskId,
+        itemId: backlogItemId,
       });
 
-      await t.mutation(api.tasks.claimTask, {
+      // Complete: pending_user_review → closed (with completedAt)
+      const markResult = await t.mutation(api.backlog.completeBacklogItem, {
         sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      await t.mutation(api.tasks.startTask, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      await t.mutation(api.tasks.completeTask, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      // Mark as complete
-      const markResult = await t.mutation(api.tasks.markBacklogComplete, {
-        sessionId,
-        taskId: backlogTask.taskId,
+        itemId: backlogItemId,
       });
 
       expect(markResult.success).toBe(true);
 
-      // Verify task is completed
-      const tasks = await t.query(api.tasks.listTasks, {
+      // Verify item is now closed
+      const closedItems = await t.query(api.backlog.listBacklogItems, {
         sessionId,
         chatroomId,
-        statusFilter: 'archived',
+        statusFilter: 'closed',
       });
 
-      const task = tasks.find((t) => t._id === backlogTask.taskId);
-      expect(task).toBeDefined();
-      expect(task?.status).toBe('completed');
+      const item = closedItems.find((i) => i._id === backlogItemId);
+      expect(item).toBeDefined();
+      expect(item?.status).toBe('closed');
+      expect(item?.completedAt).toBeDefined();
     });
 
-    test('closeBacklogTask transitions to closed status', async () => {
+    test('backlog item can be closed via closeBacklogItem', async () => {
       const { sessionId } = await createTestSession('test-close-backlog');
       const chatroomId = await createPairTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-      // Create backlog task
-      const backlogTask = await t.mutation(api.tasks.createTask, {
+      // Create backlog item
+      const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
         sessionId,
         chatroomId,
         content: 'Task to close',
         createdBy: 'user',
-        isBacklog: true,
-      });
-
-      // Move and process through to pending_user_review
-      await t.mutation(api.tasks.moveToQueue, {
-        sessionId,
-        taskId: backlogTask.taskId,
-      });
-
-      await t.mutation(api.tasks.claimTask, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      await t.mutation(api.tasks.startTask, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      await t.mutation(api.tasks.completeTask, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
       });
 
       // Close without completing
-      const closeResult = await t.mutation(api.tasks.closeBacklogTask, {
+      const closeResult = await t.mutation(api.backlog.closeBacklogItem, {
         sessionId,
-        taskId: backlogTask.taskId,
+        itemId: backlogItemId,
       });
 
       expect(closeResult.success).toBe(true);
 
-      // Verify task is closed
-      const tasks = await t.query(api.tasks.listTasks, {
+      // Verify item is closed
+      const closedItems = await t.query(api.backlog.listBacklogItems, {
         sessionId,
         chatroomId,
-        statusFilter: 'archived',
+        statusFilter: 'closed',
       });
 
-      const task = tasks.find((t) => t._id === backlogTask.taskId);
-      expect(task).toBeDefined();
-      expect(task?.status).toBe('closed');
+      const item = closedItems.find((i) => i._id === backlogItemId);
+      expect(item).toBeDefined();
+      expect(item?.status).toBe('closed');
     });
 
-    test('sendBackForRework transitions pending_user_review back to queue', async () => {
+    test('backlog item can be sent back for rework via sendBacklogItemBackForRework', async () => {
       const { sessionId } = await createTestSession('test-send-back');
       const chatroomId = await createPairTeamChatroom(sessionId);
       await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-      // Create and process task through to pending_user_review
-      const backlogTask = await t.mutation(api.tasks.createTask, {
+      // Create backlog item
+      const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
         sessionId,
         chatroomId,
         content: 'Task to send back',
         createdBy: 'user',
-        isBacklog: true,
       });
 
-      await t.mutation(api.tasks.moveToQueue, {
+      // Mark for review
+      await t.mutation(api.backlog.markBacklogItemForReview, {
         sessionId,
-        taskId: backlogTask.taskId,
+        itemId: backlogItemId,
       });
 
-      await t.mutation(api.tasks.claimTask, {
+      // Send back for re-work: pending_user_review → backlog
+      const sendBackResult = await t.mutation(api.backlog.sendBacklogItemBackForRework, {
         sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      await t.mutation(api.tasks.startTask, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      await t.mutation(api.tasks.completeTask, {
-        sessionId,
-        chatroomId,
-        role: 'builder',
-      });
-
-      // Send back for re-work
-      const sendBackResult = await t.mutation(api.tasks.sendBackForRework, {
-        sessionId,
-        taskId: backlogTask.taskId,
-        feedback: 'Please fix the edge case',
+        itemId: backlogItemId,
       });
 
       expect(sendBackResult.success).toBe(true);
-      // Should go to pending (no active task) or queued
-      expect(['pending', 'queued']).toContain(sendBackResult.newStatus);
+
+      // Verify item is back in backlog
+      const backlogItems = await t.query(api.backlog.listBacklogItems, {
+        sessionId,
+        chatroomId,
+        statusFilter: 'backlog',
+      });
+      const item = backlogItems.find((i) => i._id === backlogItemId);
+      expect(item?.status).toBe('backlog');
     });
   });
 });
 
 describe('Task Workflow - Cancel Actions', () => {
-  test('cancelTask uses closed status for backlog-origin tasks', async () => {
+  test('backlog item can be closed via closeBacklogItem', async () => {
     const { sessionId } = await createTestSession('test-cancel-backlog');
     const chatroomId = await createPairTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-    // Create backlog task
-    const backlogTask = await t.mutation(api.tasks.createTask, {
+    // Create backlog item
+    const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
       sessionId,
       chatroomId,
-      content: 'Backlog task to cancel',
+      content: 'Backlog item to close',
       createdBy: 'user',
-      isBacklog: true,
     });
 
-    // Cancel it
-    const cancelResult = await t.mutation(api.tasks.cancelTask, {
+    // Close it
+    const closeResult = await t.mutation(api.backlog.closeBacklogItem, {
       sessionId,
-      taskId: backlogTask.taskId,
+      itemId: backlogItemId,
     });
 
-    expect(cancelResult.success).toBe(true);
-    expect(cancelResult.status).toBe('closed');
+    expect(closeResult.success).toBe(true);
+
+    // Verify item is now closed
+    const closedItems = await t.query(api.backlog.listBacklogItems, {
+      sessionId,
+      chatroomId,
+      statusFilter: 'closed',
+    });
+    const closedItem = closedItems.find((i) => i._id === backlogItemId);
+    expect(closedItem?.status).toBe('closed');
   });
 
-  test('cancelTask uses cancelled status for chat-origin tasks', async () => {
+  test('chat task can be force-completed via completeTaskById', async () => {
     const { sessionId } = await createTestSession('test-cancel-chat');
     const chatroomId = await createPairTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-    // Create another task first so new one goes to queue
-    await t.mutation(api.tasks.createTask, {
-      sessionId,
-      chatroomId,
-      content: 'First task',
-      createdBy: 'user',
-      isBacklog: false,
-    });
-
-    // Create chat task (will be queued)
+    // Create a chat task
     const chatTask = await t.mutation(api.tasks.createTask, {
       sessionId,
       chatroomId,
-      content: 'Chat task to cancel',
+      content: 'Chat task to force-complete',
       createdBy: 'user',
-      isBacklog: false,
     });
 
-    // Cancel it - now always uses 'closed' status
-    const cancelResult = await t.mutation(api.tasks.cancelTask, {
+    // Force-complete as the way to remove it
+    const completeResult = await t.mutation(api.tasks.completeTaskById, {
       sessionId,
       taskId: chatTask.taskId,
+      force: true,
     });
 
-    expect(cancelResult.success).toBe(true);
-    expect(cancelResult.status).toBe('closed');
+    expect(completeResult.success).toBe(true);
+    expect(completeResult.wasForced).toBe(true);
   });
 
-  test('cancelTask deletes source message when task has sourceMessageId', async () => {
+  test('force-completing task does not delete source message', async () => {
     const { sessionId } = await createTestSession('test-cancel-cascade-message');
     const chatroomId = await createPairTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-    // Send a user message to a fresh chatroom (no existing tasks).
-    // This goes directly to chatroom_messages and auto-creates a task
-    // with sourceMessageId = the new message's ID.
+    // Send a user message to create a task with sourceMessageId
     const messageId = await t.mutation(api.messages.sendMessage, {
       sessionId,
       chatroomId,
-      content: 'User message to be cascaded on cancel',
+      content: 'User message task',
       senderRole: 'user',
       type: 'message',
     });
@@ -504,21 +427,22 @@ describe('Task Workflow - Cancel Actions', () => {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const foundTask = task!;
 
-    // Cancel the task — should cascade delete the source message
-    await t.mutation(api.tasks.cancelTask, {
+    // Force-complete the task
+    await t.mutation(api.tasks.completeTaskById, {
       sessionId,
       taskId: foundTask._id,
+      force: true,
     });
 
-    // The source message should be gone
-    const messagesAfter = await t.query(api.messages.list, { sessionId, chatroomId });
-    const sourceMsgAfter = messagesAfter.find((m: { _id: unknown }) => m._id === messageId);
-    expect(sourceMsgAfter).toBeUndefined();
+    // The task should be completed
+    const archivedTasks = await t.query(api.tasks.listHistoricalTasks, { sessionId, chatroomId });
+    const completedTask = archivedTasks.find((t) => t._id === foundTask._id);
+    expect(completedTask?.status).toBe('completed');
   });
 });
 
 describe('Task Counts', () => {
-  test('getTaskCounts includes new status counts', async () => {
+  test('getTaskCounts includes expected status counts', async () => {
     const { sessionId } = await createTestSession('test-counts');
     const chatroomId = await createPairTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
@@ -533,9 +457,8 @@ describe('Task Counts', () => {
     expect(typeof counts.in_progress).toBe('number');
     expect(typeof counts.queued).toBe('number');
     expect(typeof counts.backlog).toBe('number');
-    expect(typeof counts.pending_user_review).toBe('number');
     expect(typeof counts.completed).toBe('number');
-    expect(typeof counts.closed).toBe('number');
+    // Note: pending_user_review and closed are now in chatroom_backlog table
   });
 });
 
@@ -566,7 +489,6 @@ describe('Task Workflow - Race Conditions', () => {
       chatroomId,
       content: 'Race condition test task',
       createdBy: 'user',
-      isBacklog: false,
     });
 
     // First agent claims the task

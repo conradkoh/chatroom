@@ -42,6 +42,7 @@ import remarkBreaks from 'remark-breaks';
 
 import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
+import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { FeatureDetailModal } from './FeatureDetailModal';
 import { compactMarkdownComponents, fullMarkdownComponents } from './markdown-utils';
 import { MessageDetailModal } from './MessageDetailModal';
@@ -82,6 +83,8 @@ interface Message {
   featureTechSpecs?: string;
   // Attached backlog tasks for context
   attachedTasks?: AttachedTask[];
+  // Attached chatroom_backlog items for context (from "Attach to Context" button)
+  attachedBacklogItems?: AttachedBacklogItem[];
   // Attached artifacts
   attachedArtifacts?: ArtifactMeta[];
   // Latest progress message for inline display
@@ -98,6 +101,12 @@ interface AttachedTask {
   _id: string;
   content: string;
   backlogStatus?: TaskStatus;
+}
+
+interface AttachedBacklogItem {
+  id: string;
+  content: string;
+  status: string;
 }
 
 // Shared badge styling constants
@@ -213,30 +222,18 @@ function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; class
       };
     case 'pending':
     case 'acknowledged':
-    case 'backlog_acknowledged':
       return {
         label: status === 'pending' ? 'Pending' : 'Acknowledged',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'pending_user_review':
-      return {
-        label: 'Pending Review',
-        classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
       };
     case 'completed':
       return {
         label: 'Completed',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
-    case 'closed':
-      return {
-        label: 'Closed',
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
-    case 'backlog':
     default:
       return {
-        label: 'Not Started',
+        label: 'Unknown',
         classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
       };
   }
@@ -884,6 +881,7 @@ interface MessageItemProps {
   message: Message;
   onFeatureClick?: (message: Message) => void;
   onAttachedTaskClick?: (task: AttachedTask) => void;
+  onAttachedBacklogItemClick?: (item: AttachedBacklogItem) => void;
 }
 
 // System notification message (e.g. context change)
@@ -965,6 +963,7 @@ const MessageItem = memo(function MessageItem({
   message,
   onFeatureClick,
   onAttachedTaskClick,
+  onAttachedBacklogItemClick,
 }: MessageItemProps) {
   // Check if this is a new_feature message with a title
   const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
@@ -1031,13 +1030,15 @@ const MessageItem = memo(function MessageItem({
       {/* Message Content */}
       {/* Message Content - unified renderer for all message types */}
       <MessageContent content={message.content} />
-      {/* Attached Backlog Tasks */}
-      {message.attachedTasks && message.attachedTasks.length > 0 && (
+      {/* Attached Backlog Tasks (legacy chatroom_tasks) + Backlog Items (chatroom_backlog) */}
+      {((message.attachedTasks && message.attachedTasks.length > 0) ||
+        (message.attachedBacklogItems && message.attachedBacklogItems.length > 0)) && (
         <div className="mt-3 pt-3 border-t border-chatroom-border">
           <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
-            Attached Backlog ({message.attachedTasks.length})
+            Attached Backlog (
+            {(message.attachedTasks?.length ?? 0) + (message.attachedBacklogItems?.length ?? 0)})
           </div>
-          {message.attachedTasks.map((task) => {
+          {message.attachedTasks?.map((task) => {
             const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
             return (
               <button
@@ -1049,6 +1050,33 @@ const MessageItem = memo(function MessageItem({
                   <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
                     <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
                       {task.content}
+                    </Markdown>
+                  </div>
+                  <span
+                    className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${statusBadge.classes}`}
+                  >
+                    {statusBadge.label}
+                  </span>
+                  <ChevronRight
+                    size={14}
+                    className="flex-shrink-0 text-chatroom-text-muted opacity-0 group-hover:opacity-100 transition-all"
+                  />
+                </div>
+              </button>
+            );
+          })}
+          {message.attachedBacklogItems?.map((item) => {
+            const statusBadge = getAttachedTaskStatusBadge(item.status as TaskStatus);
+            return (
+              <button
+                key={item.id}
+                onClick={() => onAttachedBacklogItemClick?.(item)}
+                className="w-full text-left border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0 hover:bg-chatroom-accent-subtle transition-colors cursor-pointer group"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
+                    <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
+                      {item.content}
                     </Markdown>
                   </div>
                   <span
@@ -1143,6 +1171,10 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // Attached task detail modal state
   const [selectedAttachedTask, setSelectedAttachedTask] = useState<AttachedTask | null>(null);
 
+  // Attached backlog item detail modal state (chatroom_backlog items clicked in MessageFeed)
+  const [selectedAttachedBacklogItem, setSelectedAttachedBacklogItem] =
+    useState<AttachedBacklogItem | null>(null);
+
   // Message detail modal state (for TaskHeader tap and message content tap)
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
 
@@ -1174,6 +1206,16 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
   // Close attached task modal
   const handleCloseAttachedTaskModal = useCallback(() => {
     setSelectedAttachedTask(null);
+  }, []);
+
+  // Handle attached backlog item click - open BacklogItemDetailModal
+  const handleAttachedBacklogItemClick = useCallback((item: AttachedBacklogItem) => {
+    setSelectedAttachedBacklogItem(item);
+  }, []);
+
+  // Close attached backlog item modal
+  const handleCloseAttachedBacklogItemModal = useCallback(() => {
+    setSelectedAttachedBacklogItem(null);
   }, []);
 
   // Handle TaskHeader tap or message content tap - open message detail modal
@@ -1436,6 +1478,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
               message={message}
               onFeatureClick={handleFeatureClick}
               onAttachedTaskClick={handleAttachedTaskClick}
+              onAttachedBacklogItemClick={handleAttachedBacklogItemClick}
             />
           </React.Fragment>
         ))}
@@ -1535,6 +1578,24 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask }:
         isOpen={selectedAttachedTask !== null}
         task={selectedAttachedTask}
         onClose={handleCloseAttachedTaskModal}
+      />
+      {/* Attached Backlog Item Detail Modal — opened when clicking chatroom_backlog items in MessageFeed */}
+      <BacklogItemDetailModal
+        isOpen={selectedAttachedBacklogItem !== null}
+        item={
+          selectedAttachedBacklogItem
+            ? {
+                _id: selectedAttachedBacklogItem.id as Id<'chatroom_backlog'>,
+                chatroomId: chatroomId as Id<'chatroom_rooms'>,
+                createdBy: 'unknown',
+                content: selectedAttachedBacklogItem.content,
+                status: selectedAttachedBacklogItem.status as 'backlog' | 'pending_user_review' | 'closed',
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+              }
+            : null
+        }
+        onClose={handleCloseAttachedBacklogItemModal}
       />
       {/* Message Detail Modal - for TaskHeader and message content taps */}
       <MessageDetailModal

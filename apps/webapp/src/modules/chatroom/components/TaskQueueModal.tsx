@@ -7,17 +7,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 
-type TaskStatus =
-  | 'pending'
-  | 'acknowledged'
-  | 'in_progress'
-  | 'backlog'
-  | 'backlog_acknowledged'
-  | 'pending_user_review'
-  | 'completed'
-  | 'closed'
-  | 'cancelled'; // deprecated
-type TaskOrigin = 'backlog' | 'chat';
+import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
 
 interface Task {
@@ -58,40 +48,15 @@ const getStatusBadge = (status: TaskStatus) => {
         label: 'Acknowledged',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
-    case 'backlog_acknowledged':
-      return {
-        label: 'Backlog Acknowledged',
-        classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
     case 'in_progress':
       return {
         label: 'In Progress',
         classes: 'bg-chatroom-status-info/15 text-chatroom-status-info',
       };
-    case 'backlog':
-      return {
-        label: 'Backlog',
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
-    case 'pending_user_review':
-      return {
-        label: 'Pending User Review',
-        classes: 'bg-violet-500/15 text-violet-500 dark:bg-violet-400/15 dark:text-violet-400',
-      };
     case 'completed':
       return {
         label: 'Completed',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
-      };
-    case 'closed':
-      return {
-        label: 'Closed',
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
-      };
-    case 'cancelled':
-      return {
-        label: 'Cancelled',
-        classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
       };
     default:
       return {
@@ -150,23 +115,20 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
   }, [tasks, searchQuery]);
 
   // Group tasks by status
-  // Backlog items sorted by createdAt descending (newest first) for better visibility
   const groupedTasks = useMemo(() => {
     const groups: Record<string, Task[]> = {
       current: [],
-      backlog: [],
     };
 
     for (const task of filteredTasks) {
-      if (task.status === 'pending' || task.status === 'in_progress') {
+      if (
+        task.status === 'pending' ||
+        task.status === 'acknowledged' ||
+        task.status === 'in_progress'
+      ) {
         groups.current.push(task);
-      } else if (task.status === 'backlog') {
-        groups.backlog.push(task);
       }
     }
-
-    // Sort backlog by createdAt descending (newest first)
-    groups.backlog.sort((a, b) => b.createdAt - a.createdAt);
 
     return groups;
   }, [filteredTasks]);
@@ -239,14 +201,7 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
                 />
               )}
 
-              {/* Backlog Tasks */}
-              {groupedTasks.backlog.length > 0 && (
-                <TaskGroup
-                  title={`Backlog (${groupedTasks.backlog.length})`}
-                  tasks={groupedTasks.backlog}
-                  onTaskClick={onTaskClick}
-                />
-              )}
+
             </>
           )}
         </div>
@@ -318,6 +273,8 @@ const compactMarkdownComponents = {
   ),
 };
 
+import { getScoringBadge } from './backlog';
+
 // Task List Item Component
 interface TaskListItemProps {
   task: Task;
@@ -325,23 +282,6 @@ interface TaskListItemProps {
   isProtected?: boolean;
   onStartEdit?: () => void;
   onDelete?: () => void;
-}
-
-// Scoring badge helper for complexity/value
-function getScoringBadge(type: 'complexity' | 'value', level: 'low' | 'medium' | 'high') {
-  const colors = {
-    low: 'bg-green-500/15 text-green-600 dark:text-green-400',
-    medium: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
-    high: 'bg-red-500/15 text-red-600 dark:text-red-400',
-  };
-  const labels = {
-    complexity: { low: 'C:L', medium: 'C:M', high: 'C:H' },
-    value: { low: 'V:L', medium: 'V:M', high: 'V:H' },
-  };
-  return {
-    label: labels[type][level],
-    classes: colors[level],
-  };
 }
 
 function TaskListItem({

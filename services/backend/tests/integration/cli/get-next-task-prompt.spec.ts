@@ -62,16 +62,14 @@ describe('Get-Next-Task Full Prompt', () => {
     const chatroomId = await createPairTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-    // Create a backlog task
-    const backlogResult = await t.mutation(api.tasks.createTask, {
+    // Create a backlog item using the new chatroom_backlog API
+    const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
       sessionId,
       chatroomId,
       content:
         'Fix: Agent lacks knowledge of backlog listing\n\nAdd backlog section to get-next-task',
       createdBy: 'user',
-      isBacklog: true,
     });
-    const backlogTaskId = backlogResult.taskId;
 
     // User sends message with backlog attachment
     const userMessageId = await t.mutation(api.messages.sendMessage, {
@@ -81,7 +79,7 @@ describe('Get-Next-Task Full Prompt', () => {
       content:
         'Can we add a backlog section to the available actions? Keep it concise and follow current format.',
       type: 'message',
-      attachedTaskIds: [backlogTaskId],
+      attachedBacklogItemIds: [backlogItemId],
     });
 
     // Builder claims and starts the task
@@ -196,11 +194,20 @@ ${taskDeliveryPrompt.fullCliOutput}
           B --> C[get-next-task
       waiting...]
           C --> D[task-started
-      classify]
+      IMMEDIATELY]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
+
+      ### ⚠️ CRITICAL: Run task-started Immediately
+
+      When you receive a task from \`get-next-task\`, you **MUST** run \`task-started\` immediately before doing any other work:
+
+      1. **Run task-started immediately** — This marks the task as \`in_progress\` and prevents restart loops
+      2. **Then begin your work** — Only after task-started succeeds
+
+      Failure to run \`task-started\` promptly may trigger the system to restart you, causing unnecessary interruptions.
 
       ### Context Recovery (after compaction/summarization)
 
@@ -224,7 +231,12 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
       \`\`\`
 
+
       ### Classify Task
+
+      ⚠️  **RUN THIS IMMEDIATELY** after receiving a task from get-next-task.
+      This marks the task as in_progress and prevents unnecessary agent restarts.
+
       Acknowledge and classify user messages before starting work.
 
       #### Question
@@ -387,17 +399,20 @@ ${taskDeliveryPrompt.fullCliOutput}
       Can we add a backlog section to the available actions? Keep it concise and follow current format.
 
       ## Attached Backlog (1)
-      - [BACKLOG_ACKNOWLEDGED] Fix: Agent lacks knowledge of backlog listing
+      - [BACKLOG] Fix: Agent lacks knowledge of backlog listing
 
       Add backlog section to get-next-task
       </task>
 
       <next-steps>
 
-      Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=<type>\`
+      ⚠️  REQUIRED FIRST STEP: Run task-started IMMEDIATELY before any other work.
+         This marks the task as in_progress and prevents unnecessary agent restarts.
 
-      new_feature example:
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=new_feature << 'EOF'
+      1. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=<type>\`
+
+         new_feature example:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       <title>
       ---DESCRIPTION---
@@ -487,17 +502,17 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(jsonContext.contextWindow.originMessage).toBeDefined();
     expect(jsonContext.contextWindow.originMessage?.content).toContain('backlog section');
 
-    // Should have attached backlog task in context
-    expect(jsonContext.contextWindow.originMessage?.attachedTaskIds).toBeDefined();
-    expect(jsonContext.contextWindow.originMessage?.attachedTaskIds?.length).toBeGreaterThan(0);
-    expect(jsonContext.contextWindow.originMessage?.attachedTasks).toBeDefined();
-    expect(jsonContext.contextWindow.originMessage?.attachedTasks?.length).toBeGreaterThan(0);
+    // Should have attached backlog item in context
+    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItemIds).toBeDefined();
+    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItemIds?.length).toBeGreaterThan(0);
+    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItems).toBeDefined();
+    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItems?.length).toBeGreaterThan(0);
 
-    // Verify backlog task details
-    const attachedTask = jsonContext.contextWindow.originMessage?.attachedTasks?.[0];
-    expect(attachedTask).toBeDefined();
-    expect(attachedTask?.content).toContain('Fix: Agent lacks knowledge');
-    expect(attachedTask?.status).toBe('backlog_acknowledged');
+    // Verify backlog item details
+    const attachedItem = jsonContext.contextWindow.originMessage?.attachedBacklogItems?.[0];
+    expect(attachedItem).toBeDefined();
+    expect(attachedItem?.content).toContain('Fix: Agent lacks knowledge');
+    expect(attachedItem?.status).toBe('backlog');
 
     // Should have role prompt context
     expect(jsonContext.rolePrompt).toBeDefined();
@@ -898,11 +913,20 @@ ${taskDeliveryPrompt.fullCliOutput}
           B --> C[get-next-task
       waiting...]
           C --> D[task-started
-      classify]
+      IMMEDIATELY]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
+
+      ### ⚠️ CRITICAL: Run task-started Immediately
+
+      When you receive a task from \`get-next-task\`, you **MUST** run \`task-started\` immediately before doing any other work:
+
+      1. **Run task-started immediately** — This marks the task as \`in_progress\` and prevents restart loops
+      2. **Then begin your work** — Only after task-started succeeds
+
+      Failure to run \`task-started\` promptly may trigger the system to restart you, causing unnecessary interruptions.
 
       ### Context Recovery (after compaction/summarization)
 
@@ -926,7 +950,12 @@ ${taskDeliveryPrompt.fullCliOutput}
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10048;chatroom_rooms" --role="reviewer"
       \`\`\`
 
+
       ### Start Working
+
+      ⚠️  **RUN THIS IMMEDIATELY** after receiving a handoff.
+      This marks the task as in_progress and prevents unnecessary agent restarts.
+
       Before starting work on a received message, acknowledge it:
 
       \`\`\`bash
@@ -1135,8 +1164,14 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       <next-steps>
 
+      ⚠️  REQUIRED FIRST STEP: Run task-started IMMEDIATELY before any other work.
+         This marks the task as in_progress and prevents unnecessary agent restarts.
+
       handed off from builder — start work immediately.
-      1. Hand off when complete:
+
+      1. Run task-started to acknowledge:
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10048;chatroom_rooms" --role="reviewer" --task-id="10063;chatroom_tasks" --no-classify
+      2. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10048;chatroom_rooms" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -1249,24 +1284,22 @@ describe('Get-Next-Task Recent Improvements', () => {
     const chatroomId = await createPairTeamChatroom(sessionId);
     await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
 
-    // Create a backlog task
-    const backlogResult = await t.mutation(api.tasks.createTask, {
+    // Create a backlog item using the new chatroom_backlog API
+    const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
       sessionId,
       chatroomId,
       content: 'Recovery of acknowledged tasks: implement 1-min grace period',
       createdBy: 'user',
-      isBacklog: true,
     });
-    const backlogTaskId = backlogResult.taskId;
 
-    // User sends message with the backlog task attached
+    // User sends message with the backlog item attached
     const userMessageId = await t.mutation(api.messages.sendMessage, {
       sessionId,
       chatroomId,
       senderRole: 'user',
       content: 'Can we work on this task?',
       type: 'message',
-      attachedTaskIds: [backlogTaskId],
+      attachedBacklogItemIds: [backlogItemId],
     });
 
     // Builder claims and starts the task
@@ -1292,17 +1325,17 @@ describe('Get-Next-Task Recent Improvements', () => {
       convexUrl: 'http://127.0.0.1:3210',
     });
 
-    // Verify attached backlog tasks appear in the prompt JSON
+    // Verify attached backlog items appear in the prompt JSON
     const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
     expect(originMessage).toBeDefined();
-    expect(originMessage?.attachedTasks).toBeDefined();
-    expect(originMessage?.attachedTasks?.length).toBe(1);
+    expect(originMessage?.attachedBacklogItems).toBeDefined();
+    expect(originMessage?.attachedBacklogItems?.length).toBe(1);
 
-    const attachedTask = originMessage?.attachedTasks?.[0];
-    expect(attachedTask?.content).toBe(
+    const attachedItem = originMessage?.attachedBacklogItems?.[0];
+    expect(attachedItem?.content).toBe(
       'Recovery of acknowledged tasks: implement 1-min grace period'
     );
-    expect(attachedTask?.status).toBeDefined();
+    expect(attachedItem?.status).toBeDefined();
 
     // Verify the full CLI output also exists
     expect(taskDeliveryPrompt.fullCliOutput).toBeDefined();
@@ -1476,5 +1509,73 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(gracePeriod.taskId).toBeDefined();
     expect(gracePeriod.remainingMs).toBeGreaterThan(0);
     expect(gracePeriod.remainingMs).toBeLessThanOrEqual(60_000);
+  });
+
+  test('attached chatroom_backlog items (Attach to Context) appear in CLI output and JSON', async () => {
+    // Regression test for: bb701b29
+    // Bug: backlog items attached via "Attach to Context" (using chatroom_backlog table, not
+    // chatroom_tasks) were stored correctly in attachedBacklogItemIds but were never passed to
+    // generateFullCliOutput — so agents never saw them in the task delivery output.
+
+    const { sessionId } = await createTestSession('test-backlog-item-attach-to-context');
+    const chatroomId = await createPairTeamChatroom(sessionId);
+    await joinParticipants(sessionId, chatroomId, ['builder', 'reviewer']);
+
+    // Create a chatroom_backlog item (created via the backlog tab, not via createTask)
+    const backlogItemId = await t.mutation(api.backlog.createBacklogItem, {
+      sessionId,
+      chatroomId,
+      content: 'Refactor: extract shared auth helpers into a utility module',
+      createdBy: 'user',
+    });
+
+    // User attaches the backlog item and sends a message — simulates clicking "Attach to Context"
+    // Note: this uses attachedBacklogItemIds (chatroom_backlog), NOT attachedTaskIds (chatroom_tasks)
+    const userMessageId = await t.mutation(api.messages.sendMessage, {
+      sessionId,
+      chatroomId,
+      senderRole: 'user',
+      content: 'Can you work on this backlog item?',
+      type: 'message',
+      attachedBacklogItemIds: [backlogItemId],
+    });
+
+    // Builder claims and starts the task
+    await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
+    const startResult = await t.mutation(api.tasks.startTask, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+    });
+
+    // Get task delivery prompt
+    const taskDeliveryPrompt = await t.query(api.messages.getTaskDeliveryPrompt, {
+      sessionId,
+      chatroomId,
+      role: 'builder',
+      taskId: startResult.taskId,
+      messageId: userMessageId,
+      convexUrl: 'http://127.0.0.1:3210',
+    });
+
+    // ── Verify JSON context has the attached backlog item ──────────────────────
+    const originMessage = taskDeliveryPrompt.json.contextWindow.originMessage;
+    expect(originMessage).toBeDefined();
+
+    // The backlog item ID should appear in attachedBacklogItemIds
+    expect(originMessage?.attachedBacklogItemIds).toBeDefined();
+    expect(originMessage?.attachedBacklogItemIds).toContain(backlogItemId);
+
+    // The resolved item should appear in attachedBacklogItems
+    expect(originMessage?.attachedBacklogItems).toBeDefined();
+    expect(originMessage?.attachedBacklogItems?.length).toBe(1);
+    const attachedItem = originMessage?.attachedBacklogItems?.[0];
+    expect(attachedItem?.content).toBe('Refactor: extract shared auth helpers into a utility module');
+    expect(attachedItem?.status).toBe('backlog');
+
+    // ── Verify CLI output contains the item in ## Attached Backlog ────────────
+    const fullOutput = taskDeliveryPrompt.fullCliOutput;
+    expect(fullOutput).toContain('## Attached Backlog (1)');
+    expect(fullOutput).toContain('- [BACKLOG] Refactor: extract shared auth helpers into a utility module');
   });
 });

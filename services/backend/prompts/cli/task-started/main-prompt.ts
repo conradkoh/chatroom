@@ -47,6 +47,10 @@ export function getTaskStartedPrompt(ctx: {
   });
 
   return `### Classify Task
+
+⚠️  **RUN THIS IMMEDIATELY** after receiving a task from get-next-task.
+This marks the task as in_progress and prevents unnecessary agent restarts.
+
 Acknowledge and classify user messages before starting work.
 
 #### Question
@@ -91,6 +95,10 @@ export function getTaskStartedPromptForHandoffRecipient(ctx: {
   const taskStartedCmd = `${cliEnvPrefix}chatroom task-started --chatroom-id="${ctx.chatroomId}" --role="${ctx.role}" --task-id=<task-id> --no-classify`;
 
   return `### Start Working
+
+⚠️  **RUN THIS IMMEDIATELY** after receiving a handoff.
+This marks the task as in_progress and prevents unnecessary agent restarts.
+
 Before starting work on a received message, acknowledge it:
 
 \`\`\`bash

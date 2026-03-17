@@ -10,7 +10,7 @@
  * Presence is derived from lastSeenAt; action context from lastSeenAction.
  *
  * Note: AgentPanel derives status from lastStatus (denormalized from event stream).
- * lastSeenAction is still used by ChatroomListingContext, TaskQueue, and ChatroomDashboard.
+ * lastSeenAction is still used by ChatroomListingContext, WorkQueue, and ChatroomDashboard.
  */
 export interface ParticipantInfo {
   role: string;

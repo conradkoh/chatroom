@@ -325,45 +325,28 @@ const backlogCommand = program.command('backlog').description('Manage task queue
 
 backlogCommand
   .command('list')
-  .description('List tasks in a chatroom')
+  .description('List active backlog items')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption(
-    '--status <status>',
-    'Filter by status (pending|in_progress|backlog|completed|cancelled|active|pending_review|archived|all)'
-  )
-  .option('--limit <n>', 'Maximum number of tasks to show (required for --status=all)')
-  .option('--full', 'Show full task content without truncation')
+  .option('--limit <n>', 'Maximum number of items to show')
   .action(
     async (options: {
       chatroomId: string;
       role: string;
-      status: string;
       limit?: string;
-      full?: boolean;
     }) => {
-      // Validate: --status=all requires --limit
-      if (options.status === 'all' && !options.limit) {
-        console.error('❌ When using --status=all, you must specify --limit=<n>');
-        console.error(
-          '   Example: chatroom backlog list --chatroom-id=<id> --role=builder --status=all --limit=50'
-        );
-        process.exit(1);
-      }
       await maybeRequireAuth();
       const { listBacklog } = await import('./commands/backlog/index.js');
       await listBacklog(options.chatroomId, {
         role: options.role,
-        status: options.status,
-        limit: options.limit ? parseInt(options.limit, 10) : 20,
-        full: options.full,
+        limit: options.limit ? parseInt(options.limit, 10) : undefined,
       });
     }
   );
 
 backlogCommand
   .command('add')
-  .description('Add a task to the backlog')
+  .description('Add a backlog item')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role (creator)')
   .requiredOption('--content-file <path>', 'Path to file containing task content')
@@ -393,13 +376,13 @@ backlogCommand
 
 backlogCommand
   .command('complete')
-  .description('Mark a task as complete. Use --force for stuck in_progress/pending tasks.')
+  .description('Mark a backlog item as complete. Use --force for stuck in_progress/pending tasks.')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--task-id <taskId>', 'Task ID to complete')
+  .requiredOption('--backlog-item-id <id>', 'Backlog item ID to complete')
   .option('-f, --force', 'Force complete a stuck in_progress or pending task')
   .action(
-    async (options: { chatroomId: string; role: string; taskId: string; force?: boolean }) => {
+    async (options: { chatroomId: string; role: string; backlogItemId: string; force?: boolean }) => {
       await maybeRequireAuth();
       const { completeBacklog } = await import('./commands/backlog/index.js');
       await completeBacklog(options.chatroomId, options);
@@ -408,46 +391,22 @@ backlogCommand
 
 backlogCommand
   .command('reopen')
-  .description('Reopen a completed backlog task, returning it to pending_user_review status.')
+  .description('Reopen a closed backlog item, returning it to backlog status.')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--task-id <taskId>', 'Task ID to reopen')
-  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
+  .requiredOption('--backlog-item-id <id>', 'Backlog item ID to reopen')
+  .action(async (options: { chatroomId: string; role: string; backlogItemId: string }) => {
     await maybeRequireAuth();
     const { reopenBacklog } = await import('./commands/backlog/index.js');
     await reopenBacklog(options.chatroomId, options);
   });
 
 backlogCommand
-  .command('patch-task')
-  .description('Update task scoring fields (complexity, value, priority)')
-  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
-  .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--task-id <taskId>', 'Task ID to patch')
-  .option('--complexity <level>', 'Complexity level (low|medium|high)')
-  .option('--value <level>', 'Value level (low|medium|high)')
-  .option('--priority <n>', 'Priority number (higher = more important)')
-  .action(
-    async (options: {
-      chatroomId: string;
-      role: string;
-      taskId: string;
-      complexity?: string;
-      value?: string;
-      priority?: string;
-    }) => {
-      await maybeRequireAuth();
-      const { patchBacklog } = await import('./commands/backlog/index.js');
-      await patchBacklog(options.chatroomId, options);
-    }
-  );
-
-backlogCommand
   .command('score')
-  .description('Score a backlog task by complexity, value, and priority')
+  .description('Score a backlog item by complexity, value, and priority')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--task-id <taskId>', 'Task ID to score')
+  .requiredOption('--backlog-item-id <id>', 'Backlog item ID to score')
   .option('--complexity <level>', 'Complexity level: low, medium, high')
   .option('--value <level>', 'Value level: low, medium, high')
   .option('--priority <n>', 'Priority number (higher = more important)')
@@ -455,7 +414,7 @@ backlogCommand
     async (options: {
       chatroomId: string;
       role: string;
-      taskId: string;
+      backlogItemId: string;
       complexity?: string;
       value?: string;
       priority?: string;
@@ -468,14 +427,33 @@ backlogCommand
 
 backlogCommand
   .command('mark-for-review')
-  .description('Mark a backlog task as ready for user review (backlog → pending_user_review)')
+  .description('Mark a backlog item as ready for user review (backlog → pending_user_review)')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
-  .requiredOption('--task-id <taskId>', 'Task ID to mark for review')
-  .action(async (options: { chatroomId: string; role: string; taskId: string }) => {
+  .requiredOption('--backlog-item-id <id>', 'Backlog item ID to mark for review')
+  .action(async (options: { chatroomId: string; role: string; backlogItemId: string }) => {
     await maybeRequireAuth();
     const { markForReviewBacklog } = await import('./commands/backlog/index.js');
     await markForReviewBacklog(options.chatroomId, options);
+  });
+
+backlogCommand
+  .command('history')
+  .description('View completed and closed backlog items by date range (all statuses)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--from <date>', 'Start date (YYYY-MM-DD), defaults to 30 days ago')
+  .option('--to <date>', 'End date (YYYY-MM-DD), defaults to today')
+  .option('--limit <n>', 'Maximum number of items to show')
+  .action(async (options: { chatroomId: string; role: string; from?: string; to?: string; limit?: string }) => {
+    await maybeRequireAuth();
+    const { historyBacklog } = await import('./commands/backlog/index.js');
+    await historyBacklog(options.chatroomId, {
+      role: options.role,
+      from: options.from,
+      to: options.to,
+      limit: options.limit ? parseInt(options.limit, 10) : undefined,
+    });
   });
 
 // ============================================================================

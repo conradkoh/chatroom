@@ -30,11 +30,20 @@ export function getContextGainingGuidance(params: ContextGainingParams): string 
 flowchart LR
     A([Start]) --> B[register-agent]
     B --> C[get-next-task\nwaiting...]
-    C --> D[task-started\nclassify]
+    C --> D[task-started\nIMMEDIATELY]
     D --> E[Do Work]
     E --> F[handoff]
     F --> C
 \`\`\`
+
+### ⚠️ CRITICAL: Run task-started Immediately
+
+When you receive a task from \`get-next-task\`, you **MUST** run \`task-started\` immediately before doing any other work:
+
+1. **Run task-started immediately** — This marks the task as \`in_progress\` and prevents restart loops
+2. **Then begin your work** — Only after task-started succeeds
+
+Failure to run \`task-started\` promptly may trigger the system to restart you, causing unnecessary interruptions.
 
 ### Context Recovery (after compaction/summarization)
 
@@ -52,5 +61,6 @@ Listen for incoming tasks assigned to your role.
 
 \`\`\`bash
 ${cliEnvPrefix}chatroom get-next-task --chatroom-id="${chatroomId}" --role="${role}"
-\`\`\``;
+\`\`\`
+`;
 }
