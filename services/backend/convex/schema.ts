@@ -453,6 +453,23 @@ export default defineSchema({
     // @deprecated — backlog-specific field; use chatroom_backlog references instead
     attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks'))), // Backlog tasks attached to this task
 
+    // @deprecated — origin was used to distinguish backlog vs chat tasks; all backlog items
+    // are now in chatroom_backlog. Remove after running the reference cleanup migration.
+    origin: v.optional(
+      v.union(
+        v.literal('backlog'), // @deprecated — all backlog items are now in chatroom_backlog table
+        v.literal('chat') // Created from chat message
+      )
+    ),
+
+    // @deprecated — backlog scoring fields; now on chatroom_backlog. Remove after cleanup.
+    complexity: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
+    priority: v.optional(v.number()),
+
+    // @deprecated — bidirectional link to parent backlog task. Remove after reference cleanup migration.
+    parentTaskIds: v.optional(v.array(v.id('chatroom_tasks'))),
+
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),

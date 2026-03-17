@@ -2,6 +2,8 @@
 
 > **Status**: Pending — run after `migrateBacklogItemsToBacklogTable` has been confirmed successful in production.
 
+> **⚠️ Note (2026-03-17):** The fields `origin`, `complexity`, `value`, `priority`, and `parentTaskIds` were temporarily removed from the `chatroom_tasks` schema, causing the local deployment to fail (Convex schema validator rejected existing DB records with `origin: "chat"`). These fields have been **restored** as `v.optional(...)` with `@deprecated` comments. They must remain in the schema until the Phase 3 reference cleanup migration runs and removes all records containing them.
+
 This document consolidates everything that must be removed or updated when cleaning up the old `chatroom_tasks`-based backlog code, now that backlog items live in the dedicated `chatroom_backlog` table.
 
 ---
@@ -23,15 +25,15 @@ Once confirmed successful in production, this cleanup PR can proceed.
 
 ### 1. Schema (`services/backend/convex/schema.ts`)
 
-- [ ] **Remove** `v.literal('backlog_acknowledged')` from `chatroom_tasks.status` union (and its `DEPRECATED` comment)
-- [ ] **Remove** `v.literal('backlog')` from `chatroom_tasks.status` union — no longer a valid task status
-- [ ] **Remove** `v.literal('pending_user_review')` from `chatroom_tasks.status` union — backlog-only, now on `chatroom_backlog`
-- [ ] **Remove** `v.literal('closed')` from `chatroom_tasks.status` union — backlog-only, now on `chatroom_backlog`
-- [ ] **Remove** `origin` field from `chatroom_tasks` schema (the `v.optional(v.union(...))` with `backlog` and `chat`)
-- [ ] **Remove** `complexity` field from `chatroom_tasks` schema (backlog prioritization, now on `chatroom_backlog`)
-- [ ] **Remove** `value` field from `chatroom_tasks` schema (backlog prioritization, now on `chatroom_backlog`)
-- [ ] **Remove** `priority` field from `chatroom_tasks` schema (backlog prioritization, now on `chatroom_backlog`)
-- [ ] **Remove** `parentTaskIds` field from `chatroom_tasks` schema (backlog-only bidirectional link)
+- [x] **Remove** `v.literal('backlog_acknowledged')` from `chatroom_tasks.status` union (and its `DEPRECATED` comment) — done in adfbddac
+- [x] **Remove** `v.literal('backlog')` from `chatroom_tasks.status` union — no longer a valid task status — done in adfbddac
+- [x] **Remove** `v.literal('pending_user_review')` from `chatroom_tasks.status` union — backlog-only, now on `chatroom_backlog` — done in adfbddac
+- [x] **Remove** `v.literal('closed')` from `chatroom_tasks.status` union — backlog-only, now on `chatroom_backlog` — done in adfbddac
+- [ ] **Remove** `origin` field from `chatroom_tasks` schema (the `v.optional(v.union(...))` with `backlog` and `chat`) — restored as deprecated, needs Phase 3 first
+- [ ] **Remove** `complexity` field from `chatroom_tasks` schema (backlog prioritization, now on `chatroom_backlog`) — restored as deprecated, needs Phase 3 first
+- [ ] **Remove** `value` field from `chatroom_tasks` schema (backlog prioritization, now on `chatroom_backlog`) — restored as deprecated, needs Phase 3 first
+- [ ] **Remove** `priority` field from `chatroom_tasks` schema (backlog prioritization, now on `chatroom_backlog`) — restored as deprecated, needs Phase 3 first
+- [ ] **Remove** `parentTaskIds` field from `chatroom_tasks` schema (backlog-only bidirectional link) — restored as deprecated, needs Phase 3 first
 - [ ] **Remove** `attachedTaskIds` field from `chatroom_tasks` schema (after reference migration — see Phase 3 below)
 - [ ] **Remove** `attachedTaskIds` from `chatroom_messages` schema (after reference migration)
 - [ ] **Remove** `attachedTaskIds` from `chatroom_messageQueue` schema (after reference migration)
@@ -55,14 +57,14 @@ Once confirmed successful in production, this cleanup PR can proceed.
 - [ ] **Remove** `| 'backlog'` from `TaskStatus` union (backlog items no longer use task status machine)
 - [ ] **Remove** `| 'pending_user_review'` from `TaskStatus` union (backlog-only)
 - [ ] **Remove** `| 'closed'` from `TaskStatus` union (backlog-only) — or keep if used by non-backlog flows
-- [ ] **Remove** all FSM transition rules that reference `from: 'backlog'`
-- [ ] **Remove** all `validate: (task) => task.origin === 'backlog'` guards
+- [x] **Remove** all FSM transition rules that reference `from: 'backlog'` — done in eed5444a
+- [x] **Remove** all `validate: (task) => task.origin === 'backlog'` guards — done in eed5444a
 - [ ] **Remove** `Task` type references to removed fields (`origin`, `complexity`, `value`, `priority`, `parentTaskIds`)
 
 ### 5. Task workflows (`services/backend/convex/lib/taskWorkflows.ts`)
 
-- [ ] **Remove** `'backlog'` from `TaskOrigin` type and `TASK_ORIGINS` constant
-- [ ] **Remove** the `BACKLOG_WORKFLOW` definition (or rename and relocate to backlog-specific module)
+- [x] **Remove** `'backlog'` from `TaskOrigin` type and `TASK_ORIGINS` constant — done in a9d9c88e
+- [x] **Remove** the `BACKLOG_WORKFLOW` definition (or rename and relocate to backlog-specific module) — done in eed5444a
 - [ ] **Remove** `getTaskSection()` handling for `status === 'backlog'`
 - [ ] **Update** `isBacklogStatusVisible()` — replace with `chatroom_backlog`-based logic
 
