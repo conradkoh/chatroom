@@ -25,10 +25,10 @@ Once confirmed successful in production, this cleanup PR can proceed.
 
 ### 1. Schema (`services/backend/convex/schema.ts`)
 
-- [x] **Remove** `v.literal('backlog_acknowledged')` from `chatroom_tasks.status` union (and its `DEPRECATED` comment) — done in adfbddac
-- [x] **Remove** `v.literal('backlog')` from `chatroom_tasks.status` union — no longer a valid task status — done in adfbddac
-- [x] **Remove** `v.literal('pending_user_review')` from `chatroom_tasks.status` union — backlog-only, now on `chatroom_backlog` — done in adfbddac
-- [x] **Remove** `v.literal('closed')` from `chatroom_tasks.status` union — backlog-only, now on `chatroom_backlog` — done in adfbddac
+- [ ] **Remove** `v.literal('backlog_acknowledged')` from `chatroom_tasks.status` union — ⚠️ temporarily restored as deprecated (old DB records still have this value); remove after cleanup migration
+- [ ] **Remove** `v.literal('backlog')` from `chatroom_tasks.status` union — ⚠️ temporarily restored as deprecated (old DB records still have this value); remove after cleanup migration
+- [ ] **Remove** `v.literal('pending_user_review')` from `chatroom_tasks.status` union — ⚠️ temporarily restored as deprecated (old DB records still have this value); remove after cleanup migration
+- [ ] **Remove** `v.literal('closed')` from `chatroom_tasks.status` union — ⚠️ temporarily restored as deprecated (old DB records still have this value); remove after cleanup migration
 - [ ] **Remove** `origin` field from `chatroom_tasks` schema (the `v.optional(v.union(...))` with `backlog` and `chat`) — restored as deprecated, needs Phase 3 first
 - [ ] **Remove** `complexity` field from `chatroom_tasks` schema (backlog prioritization, now on `chatroom_backlog`) — restored as deprecated, needs Phase 3 first
 - [ ] **Remove** `value` field from `chatroom_tasks` schema (backlog prioritization, now on `chatroom_backlog`) — restored as deprecated, needs Phase 3 first

@@ -440,7 +440,13 @@ export default defineSchema({
       v.literal('pending'), // Ready for agent to pick up
       v.literal('acknowledged'), // Agent claimed task via get-next-task, not yet started
       v.literal('in_progress'), // Agent actively working on it
-      v.literal('completed') // Finished successfully
+      v.literal('completed'), // Finished successfully
+
+      // @deprecated — legacy backlog-origin statuses; exist in old records, remove after cleanup migration
+      v.literal('closed'), // @deprecated — was terminal status for backlog tasks; now handled by chatroom_backlog
+      v.literal('backlog'), // @deprecated — was initial status for backlog items; now handled by chatroom_backlog
+      v.literal('pending_user_review'), // @deprecated — was intermediate backlog status; now handled by chatroom_backlog
+      v.literal('backlog_acknowledged') // @deprecated — transitional status, migrated via migrateBacklogAcknowledgedToBacklog
     ),
 
     // Assignment
