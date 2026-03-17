@@ -25,6 +25,7 @@ import type * as crypto from "../crypto.js";
 import type * as discussions from "../discussions.js";
 import type * as ensureAgentHandler from "../ensureAgentHandler.js";
 import type * as guidelines from "../guidelines.js";
+import type * as lib_backlogStateMachine from "../lib/backlogStateMachine.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
 import type * as lib_stdinDecoder from "../lib/stdinDecoder.js";
 import type * as lib_taskStateMachine from "../lib/taskStateMachine.js";
@@ -66,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   discussions: typeof discussions;
   ensureAgentHandler: typeof ensureAgentHandler;
   guidelines: typeof guidelines;
+  "lib/backlogStateMachine": typeof lib_backlogStateMachine;
   "lib/hierarchy": typeof lib_hierarchy;
   "lib/stdinDecoder": typeof lib_stdinDecoder;
   "lib/taskStateMachine": typeof lib_taskStateMachine;
