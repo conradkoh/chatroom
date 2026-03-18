@@ -2,7 +2,7 @@
  * HarnessRestartPolicy — per-harness logic for deciding when to restart an agent.
  *
  * Each harness (OpenCode, Pi) has different capabilities:
- * - OpenCode: No agent_end signal → use stuck detection (task timeout + idle)
+ * - OpenCode: No agent_end signal → use immediate-start logic
  * - Pi: Supports agent_end → only restart after the agent has ended its turn
  *
  * The daemon's task monitor uses these policies to decide when to spawn
@@ -39,8 +39,6 @@ export interface AgentConfigInfo {
 export interface ShouldStartAgentParams {
   task: TaskInfo;
   agentConfig: AgentConfigInfo;
-  lastTokenAt: number | null;
-  now: number;
 }
 
 /**
@@ -51,20 +49,6 @@ export interface AgentEndContext {
   /** Map of chatroomId:role → whether the agent has ended its turn. */
   agentEndedTurn: Map<string, boolean>;
 }
-
-// ─── Constants ──────────────────────────────────────────────────────────────
-
-/**
- * How long a task can be in pending/acknowledged before we consider it stuck.
- * Must be >= STUCK_TOKEN_THRESHOLD_MS (5 minutes) to align with backend logic.
- */
-const STUCK_TASK_THRESHOLD_MS = 300_000; // 5 minutes
-
-/**
- * How long an agent can go without producing tokens before we consider it idle.
- * OpenCode uses this to determine if the agent is truly stuck vs. just slow.
- */
-const IDLE_TOKEN_THRESHOLD_MS = 60_000; // 1 minute
 
 // ─── Interface ────────────────────────────────────────────────────────────────
 
@@ -79,7 +63,7 @@ export interface HarnessRestartPolicy {
   /**
    * Returns true if the daemon should start/restart the agent now.
    *
-   * @param params Task, config, and timing info for the decision
+   * @param params Task and config info for the decision
    * @param context Optional context for cross-call state (e.g., agent-ended-turn tracking)
    * @returns true if the agent should be started
    */
@@ -94,19 +78,17 @@ export interface HarnessRestartPolicy {
 /**
  * OpenCode restart policy.
  *
- * OpenCode doesn't have an agent_end signal, so we rely on stuck detection:
+ * OpenCode doesn't have an agent_end signal, so we use immediate-start logic:
  * - in_progress + dead agent (spawnedAgentPid == null):
  *   Restart immediately if desiredState='running' and circuitState != 'open'
  * - pending/acknowledged + no agent (spawnedAgentPid == null):
  *   Restart immediately if desiredState='running' and circuitState != 'open'
- * - pending/acknowledged + stuck (task old + agent idle):
- *   Restart if desiredState='running', circuitState != 'open', and idle
  */
 export class OpenCodeRestartPolicy implements HarnessRestartPolicy {
   readonly id = 'opencode';
 
   shouldStartAgent(params: ShouldStartAgentParams): boolean {
-    const { task, agentConfig, lastTokenAt, now } = params;
+    const { task, agentConfig } = params;
 
     // Skip if not desired to run
     if (agentConfig.desiredState !== 'running') {
@@ -122,40 +104,17 @@ export class OpenCodeRestartPolicy implements HarnessRestartPolicy {
     // The agent was working on this task but died (process crashed/exited)
     // Restart the agent to continue working
     if (task.status === 'in_progress') {
-      // Only restart if the agent is dead (no spawned PID)
-      // If spawnedAgentPid exists, the process might still be running
       return agentConfig.spawnedAgentPid == null;
     }
 
     // Case 2: pending/acknowledged task with no running agent
-    // No need to wait for the stuck threshold; if there's no PID, start right away.
+    // No need to wait; if there's no PID, start right away.
     if (task.status === 'pending' || task.status === 'acknowledged') {
-      if (agentConfig.spawnedAgentPid == null) {
-        return true; // immediate start
-      }
+      return agentConfig.spawnedAgentPid == null;
     }
 
-    // Case 3: pending/acknowledged with PID but stuck — use threshold detection
-    if (task.status !== 'pending' && task.status !== 'acknowledged') {
-      return false;
-    }
-
-    // Check if task has been stuck long enough
-    const taskAge = now - task.createdAt;
-    const timeSinceUpdate = now - task.updatedAt;
-
-    // Task must be older than threshold
-    if (taskAge < STUCK_TASK_THRESHOLD_MS && timeSinceUpdate < STUCK_TASK_THRESHOLD_MS) {
-      return false;
-    }
-
-    // Check if agent is idle (no tokens recently)
-    // If lastTokenAt is null, the agent has never produced output → idle
-    // If lastTokenAt is old, the agent stopped producing → idle
-    const isIdle =
-      lastTokenAt === null || now - lastTokenAt > IDLE_TOKEN_THRESHOLD_MS;
-
-    return isIdle;
+    // All other statuses: don't restart
+    return false;
   }
 }
 
@@ -199,8 +158,6 @@ export class PiRestartPolicy implements HarnessRestartPolicy {
     // The agent was working on this task but died (process crashed/exited)
     // Restart the agent to continue working
     if (task.status === 'in_progress') {
-      // Only restart if the agent is dead (no spawned PID)
-      // If spawnedAgentPid exists, the process might still be running
       return agentConfig.spawnedAgentPid == null;
     }
 

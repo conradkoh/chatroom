@@ -6,7 +6,6 @@ import { areAllAgentsWaiting, requireChatroomAccess } from './auth/cliSessionAut
 import { getRolePriority } from './lib/hierarchy';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
-import { STUCK_TOKEN_THRESHOLD_MS } from '../config/reliability';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { PARTICIPANT_EXITED_ACTION, isActiveParticipant, patchParticipantStatus } from '../src/domain/entities/participant';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
@@ -302,7 +301,7 @@ export const getConnectionId = query({
 
 // ─── Team Lifecycle (lastSeenAt-based) ──────────────────────────────────────
 
-/** Returns raw participant state (lastSeenAt, lastSeenAction, isStuck, agentType) for all team roles. */
+/** Returns raw participant state (lastSeenAt, lastSeenAction, agentType) for all team roles. */
 export const getTeamLifecycle = query({
   args: {
     ...SessionIdArg,
@@ -323,34 +322,6 @@ export const getTeamLifecycle = query({
 
     const participantByRole = new Map(participantRows.map((p) => [p.role.toLowerCase(), p]));
 
-    // Fetch acknowledged tasks for stuck-detection.
-    const acknowledgedTasks = await ctx.db
-      .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
-      )
-      .collect();
-
-    const stuckRoles = new Set<string>();
-    const now = Date.now();
-    for (const task of acknowledgedTasks) {
-      const role = task.assignedTo?.toLowerCase();
-      if (!role) continue;
-      const participant = participantByRole.get(role);
-      // Agent is stuck if it has an acknowledged task and either:
-      // 1. Has never been seen (lastSeenAt == null — never registered), OR
-      // 2. Has not produced a token in over STUCK_TOKEN_THRESHOLD_MS
-      //    (registered and seen but stopped producing output)
-      if (participant?.lastSeenAt == null) {
-        stuckRoles.add(role);
-      } else if (
-        participant.lastSeenTokenAt != null &&
-        now - participant.lastSeenTokenAt > STUCK_TOKEN_THRESHOLD_MS
-      ) {
-        stuckRoles.add(role);
-      }
-    }
-
     const expectedRoles = chatroom.teamRoles;
     const participants = expectedRoles.map((role) => {
       const participantRow = participantByRole.get(role.toLowerCase());
@@ -359,7 +330,6 @@ export const getTeamLifecycle = query({
         role,
         lastSeenAt: participantRow?.lastSeenAt ?? null,
         lastSeenAction: participantRow?.lastSeenAction ?? null,
-        isStuck: stuckRoles.has(role.toLowerCase()),
         agentType: participantRow?.agentType ?? ('remote' as const),
         lastStatus: participantRow?.lastStatus ?? null,
         lastDesiredState: participantRow?.lastDesiredState ?? null,

@@ -1410,7 +1410,6 @@ export const listAgentOverview = query({
  * For each active task, includes:
  * - Task info (taskId, chatroomId, status, assignedTo, updatedAt, createdAt)
  * - Relevant agent config (machineId, agentHarness, model, workingDir, spawnedAgentPid, desiredState, circuitState)
- * - Participant lastSeenTokenAt (for idle detection)
  */
 export const getAssignedTasks = query({
   args: {
@@ -1446,7 +1445,6 @@ export const getAssignedTasks = query({
     const chatroomIds = new Set(agentConfigs.map((c) => c.chatroomId));
 
     // 5. For each chatroom, fetch active tasks (pending, acknowledged, in_progress)
-    //    and build the result with participant info
     const tasks: Array<{
       taskId: Id<'chatroom_tasks'>;
       chatroomId: Id<'chatroom_rooms'>;
@@ -1464,7 +1462,6 @@ export const getAssignedTasks = query({
         desiredState?: string;
         circuitState?: string;
       };
-      lastSeenTokenAt: number | null;
     }> = [];
 
     for (const chatroomId of chatroomIds) {
@@ -1481,13 +1478,6 @@ export const getAssignedTasks = query({
         )
         .collect();
 
-      // Get participant info for this chatroom (for lastSeenTokenAt)
-      const participants = await ctx.db
-        .query('chatroom_participants')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .collect();
-      const participantByRole = new Map(participants.map((p) => [p.role.toLowerCase(), p]));
-
       // Get agent configs for this chatroom
       const configsForChatroom = agentConfigs.filter((c) => c.chatroomId === chatroomId);
 
@@ -1503,9 +1493,6 @@ export const getAssignedTasks = query({
             : configsForChatroom;
 
         for (const config of responsibleConfigs) {
-          const roleLower = config.role.toLowerCase();
-          const participant = participantByRole.get(roleLower);
-
           tasks.push({
             taskId: task._id,
             chatroomId: task.chatroomId,
@@ -1523,7 +1510,6 @@ export const getAssignedTasks = query({
               desiredState: config.desiredState,
               circuitState: config.circuitState,
             },
-            lastSeenTokenAt: participant?.lastSeenTokenAt ?? null,
           });
         }
       }

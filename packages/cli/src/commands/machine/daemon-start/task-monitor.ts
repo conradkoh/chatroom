@@ -87,7 +87,7 @@ export function startTaskMonitor(ctx: DaemonContext): { stop: () => void } {
           const now = Date.now();
 
           for (const taskInfo of result.tasks) {
-            const { task, agentConfig, lastTokenAt } = {
+            const { task, agentConfig } = {
               task: {
                 taskId: taskInfo.taskId,
                 chatroomId: taskInfo.chatroomId,
@@ -97,7 +97,6 @@ export function startTaskMonitor(ctx: DaemonContext): { stop: () => void } {
                 createdAt: taskInfo.createdAt,
               },
               agentConfig: taskInfo.agentConfig,
-              lastTokenAt: taskInfo.lastSeenTokenAt,
             };
 
             // Get the restart policy for this harness
@@ -105,7 +104,7 @@ export function startTaskMonitor(ctx: DaemonContext): { stop: () => void } {
 
             // Check if we should start an agent
             const shouldStart = policy.shouldStartAgent(
-              { task, agentConfig, lastTokenAt, now },
+              { task, agentConfig },
               agentEndContext
             );
 
