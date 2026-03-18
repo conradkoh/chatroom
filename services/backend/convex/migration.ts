@@ -437,7 +437,6 @@ export const migrateEventReasonsToActorPrefixed = internalMutation({
     const START_REASON_MAP: Record<string, string> = {
       'user-start': 'user.start',
       'user-restart': 'user.restart',
-      'ensure-agent-retry': 'platform.ensure_agent',
     };
 
     const allEvents = await ctx.db.query('chatroom_eventStream').collect();

@@ -51,26 +51,6 @@ export const DAEMON_HEARTBEAT_INTERVAL_MS = 30_000; // 30s
  *  starts/stops acting on stale intent. Set to 2 minutes. */
 export const AGENT_REQUEST_DEADLINE_MS = 120_000; // 2 minutes
 
-// ─── ensureAgentHandler Fallback Delay ──────────────────────────────────────
-
-/**
- * Delay (ms) for the ensureAgentHandler backend fallback after task creation.
- * This is the short delay used when a task is first created/transitioned.
- * Set to 60 seconds — frequent enough to ensure that if the daemon is offline
- * and reconnects within the deadline window (2 × 60s = 120s), the requestStart
- * event will still be valid.
- */
-export const ENSURE_AGENT_FALLBACK_DELAY_MS = 60_000; // 60 seconds
-
-/**
- * Longer delay (ms) for the backend fallback when the daemon is expected to
- * handle restarts. The daemon's task monitor runs the real restart logic;
- * this extended delay is a safety net for "daemon is completely dead" cases.
- * Set to 5 minutes to avoid redundant restart attempts while the daemon is
- * actively monitoring.
- */
-export const ENSURE_AGENT_BACKEND_FALLBACK_DELAY_MS = 300_000; // 5 minutes
-
 // ─── Circuit Breaker ─────────────────────────────────────────────────────────
 
 /** Max exits allowed in CIRCUIT_WINDOW_MS before circuit trips. */

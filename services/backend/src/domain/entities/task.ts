@@ -11,8 +11,8 @@ import { getTeamEntryPoint } from './team';
 
 /**
  * Task statuses that indicate an agent should be actively running.
- * Used by ensureAgentHandler, transition-task, on-agent-exited,
- * and create-task for active-task queries and guards.
+ * Used by on-agent-exited, transition-task, and create-task for
+ * active-task queries and guards.
  */
 export const ACTIVE_TASK_STATUSES: ReadonlySet<TaskStatus> = new Set([
   'pending',

@@ -384,14 +384,26 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
   expect(agentConfig?.spawnedAgentPid).toBeUndefined();
 });
 
-// ─── Test 7: Crash triggers immediate ensure-agent ────────────────────────────
+// ─── Test 7: Crash triggers agent.requestStart with crash_recovery ────────────
 
-test('recordAgentExited with intentional=false schedules ensure-agent when active task exists', async () => {
+test('recordAgentExited with intentional=false emits agent.requestStart when active task exists and desiredState=running', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-crash-1');
   const chatroomId = await createPairTeamChatroom(sessionId);
   const machineId = 'machine-es-crash-1';
   await registerMachineWithDaemon(sessionId, machineId);
+  await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
+
+  // Set desiredState=running so crash recovery triggers
+  await t.run(async (ctx) => {
+    const config = await ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+      )
+      .first();
+    if (config) await ctx.db.patch(config._id, { desiredState: 'running' });
+  });
 
   // Create a pending task via sendMessage (assigns it to entry point 'builder')
   await t.mutation(api.messages.sendMessage, {
@@ -413,20 +425,21 @@ test('recordAgentExited with intentional=false schedules ensure-agent when activ
   });
 
   // ===== VERIFY =====
-  // An ensure-agent scheduled function should exist for this chatroom
-  const scheduled = await t.run(async (ctx) => {
-    return ctx.db.system.query('_scheduled_functions').collect();
+  // An agent.requestStart event should be emitted with reason 'platform.crash_recovery'
+  const events = await t.run(async (ctx) => {
+    return ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect();
   });
 
-  // Find the crash-recovery scheduled function: snapshotUpdatedAt=0 for this chatroom
-  const ensureCheck = scheduled.find((s) => {
-    const argsArray = (s as { args?: unknown[] }).args;
-    const checkArgs = argsArray?.[0] as
-      | { snapshotUpdatedAt?: number; chatroomId?: string }
-      | undefined;
-    return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
-  });
-  expect(ensureCheck).toBeDefined();
+  const crashRecoveryEvents = events.filter(
+    (e) =>
+      e.type === 'agent.requestStart' &&
+      (e as { reason?: string }).reason === 'platform.crash_recovery'
+  );
+
+  expect(crashRecoveryEvents.length).toBe(1);
 });
 
 // ─── Test 8: Intentional stop does NOT schedule ensure-agent ─────────────────
@@ -911,7 +924,7 @@ describe('Eager crash recovery (idle agent restart)', () => {
     expect(crashRecoveryEvents.length).toBe(0);
   });
 
-  test('crash with active task prefers ensureAgentHandler over agent.requestStart', async () => {
+  test('crash with active task still emits agent.requestStart with crash_recovery reason', async () => {
     const { sessionId } = await createTestSession('test-eager-5');
     const chatroomId = await createPairTeamChatroom(sessionId);
     const machineId = 'machine-eager-5';
@@ -954,17 +967,9 @@ describe('Eager crash recovery (idle agent restart)', () => {
       stopReason: 'agent_process.crashed',
     });
 
-    const scheduled = await t.run(async (ctx) => {
-      return ctx.db.system.query('_scheduled_functions').collect();
-    });
-    const ensureCheck = scheduled.find((s) => {
-      const argsArray = (s as { args?: unknown[] }).args;
-      const checkArgs = argsArray?.[0] as
-        | { snapshotUpdatedAt?: number; chatroomId?: string }
-        | undefined;
-      return checkArgs?.snapshotUpdatedAt === 0 && checkArgs?.chatroomId === chatroomId;
-    });
-    expect(ensureCheck).toBeDefined();
+    // Note: The ensureAgentHandler has been removed (PR #98). Now when an agent
+    // crashes with an active task, onAgentExited directly emits agent.requestStart
+    // with reason 'platform.crash_recovery'.
 
     const events = await t.run(async (ctx) => {
       return ctx.db
@@ -977,7 +982,8 @@ describe('Eager crash recovery (idle agent restart)', () => {
         e.type === 'agent.requestStart' &&
         (e as { reason?: string }).reason === 'platform.crash_recovery'
     );
-    expect(crashRecoveryEvents.length).toBe(0);
+    // Now we expect a crash_recovery event to be emitted for active tasks too
+    expect(crashRecoveryEvents.length).toBe(1);
   });
 });
 
