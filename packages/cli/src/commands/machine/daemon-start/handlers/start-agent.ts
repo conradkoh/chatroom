@@ -157,6 +157,12 @@ export async function executeStartAgent(
   const msg = `Agent spawned (PID: ${pid})`;
   console.log(`   ✅ ${msg}`);
 
+  // Reset agent-ended-turn state for this (chatroomId, role).
+  // This ensures the PiRestartPolicy doesn't think the agent has ended its turn
+  // until we observe the next agent_end event.
+  const agentEndKey = `${chatroomId}:${role.toLowerCase()}`;
+  ctx.agentEndedTurn.delete(agentEndKey);
+
   // Track this new agent in the spawning service
   ctx.deps.spawning.recordSpawn(chatroomId);
 
@@ -215,6 +221,10 @@ export async function executeStartAgent(
   // schedule ensureAgentHandler.check → agent.requestStart → fresh spawn.
   if (spawnResult.onAgentEnd) {
     spawnResult.onAgentEnd(() => {
+      // Mark that the agent has ended its turn (for PiRestartPolicy).
+      // The daemon can now safely restart a fresh agent for the next task.
+      ctx.agentEndedTurn.set(agentEndKey, true);
+
       // Kill the process group (negative pid = entire process group).
       // Do NOT call stops.mark() — we want this to look like an unexpected exit
       // so the daemon's restart logic fires via agent:exited → ensureAgentHandler.

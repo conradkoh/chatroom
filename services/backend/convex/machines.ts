@@ -18,6 +18,7 @@ import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-ag
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
 import { patchParticipantStatus } from '../src/domain/entities/participant';
+import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -1393,6 +1394,35 @@ export const listAgentOverview = query({
     if (!auth.isAuthenticated) return [];
 
     return listChatroomAgentOverview(ctx, {
+      userId: auth.user._id,
+    });
+  },
+});
+
+// ============================================================================
+// DAEMON TASK MONITOR
+// Used by the daemon to subscribe to all tasks assigned to roles on this machine.
+// ============================================================================
+
+/**
+ * Returns all active tasks for chatrooms where this machine has remote agent configs.
+ * Used by the daemon's task monitor to decide when to start/restart agents.
+ *
+ * For each active task, includes:
+ * - Task info (taskId, chatroomId, status, assignedTo, updatedAt, createdAt)
+ * - Relevant agent config (machineId, agentHarness, model, workingDir, spawnedAgentPid, desiredState, circuitState)
+ */
+export const getAssignedTasks = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) return { tasks: [] };
+
+    return getAssignedTasksForMachine(ctx, {
+      machineId: args.machineId,
       userId: auth.user._id,
     });
   },

@@ -13,12 +13,13 @@
  *
  * Note: Queued messages (chatroom_messageQueue) no longer create tasks at send time.
  * Tasks for queued messages are created at promotion time in promote-queued-message.ts.
+ *
+ * Note: Agent restart for pending tasks is now handled by the daemon's task monitor
+ * instead of a backend ensure-agent handler.
  */
 
-import { internal } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { ENSURE_AGENT_FALLBACK_DELAY_MS } from '../../../../config/reliability';
 import { ACTIVE_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
 
 export interface CreateTaskArgs {
@@ -90,27 +91,21 @@ export async function createTask(
       }),
   });
 
-  // Schedule ensure-agent check for pending tasks
-  if (status === 'pending') {
-    await ctx.scheduler.runAfter(ENSURE_AGENT_FALLBACK_DELAY_MS, internal.ensureAgentHandler.check, {
-      taskId,
-      chatroomId: args.chatroomId,
-      snapshotUpdatedAt: now,
-    });
+  // Note: Agent restart for pending tasks is now handled by the daemon's task monitor.
+  // No backend scheduling needed here.
 
-    // Write task.activated event to stream
-    const chatroom = args.assignedTo ? null : await ctx.db.get('chatroom_rooms', args.chatroomId);
-    const role = resolveTaskRole(args.assignedTo, chatroom);
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'task.activated',
-      chatroomId: args.chatroomId,
-      taskId,
-      role,
-      taskStatus: 'pending',
-      taskContent: args.content,
-      timestamp: now,
-    });
-  }
+  // Write task.activated event to stream
+  const chatroom = args.assignedTo ? null : await ctx.db.get('chatroom_rooms', args.chatroomId);
+  const role = resolveTaskRole(args.assignedTo, chatroom);
+  await ctx.db.insert('chatroom_eventStream', {
+    type: 'task.activated',
+    chatroomId: args.chatroomId,
+    taskId,
+    role,
+    taskStatus: 'pending',
+    taskContent: args.content,
+    timestamp: now,
+  });
 
   return { taskId, status };
 }

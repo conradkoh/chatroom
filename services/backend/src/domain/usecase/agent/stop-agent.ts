@@ -69,7 +69,7 @@ export async function stopAgent(ctx: MutationCtx, input: StopAgentInput): Promis
   });
   await patchParticipantStatus(ctx, chatroomId, role, 'agent.requestStop', 'stopped');
 
-  // Mark the agent config as desired-stopped so ensureAgentHandler won't auto-restart it.
+  // Mark the agent config as desired-stopped so the daemon won't auto-restart it.
   const stopChatroom = await ctx.db.get('chatroom_rooms', chatroomId);
   let teamConfig = null;
   if (stopChatroom?.teamId) {

@@ -316,9 +316,9 @@ export default defineSchema({
     //   "get-next-task:started" — written when the loop begins
     //   "get-next-task:stopped" — written just before the loop exits
     lastSeenAction: v.optional(v.string()),
-    // Timestamp of the last token output observed from the agent.
-    // Written by the CLI whenever the agent produces output (throttled to once per 30s).
-    // Used to detect stuck agents that have stopped producing output mid-task.
+    // @deprecated No longer used for stuck detection. The daemon's task monitor now uses
+    // spawnedAgentPid to determine if an agent is running, not token timestamps.
+    // Kept for backward compatibility with existing documents.
     lastSeenTokenAt: v.optional(v.number()),
     // Denormalized mirror of the latest event stream event type for this participant.
     // Written alongside every event stream insert so the frontend can derive agent status

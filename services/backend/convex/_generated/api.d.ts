@@ -23,7 +23,6 @@ import type * as contexts from "../contexts.js";
 import type * as crons from "../crons.js";
 import type * as crypto from "../crypto.js";
 import type * as discussions from "../discussions.js";
-import type * as ensureAgentHandler from "../ensureAgentHandler.js";
 import type * as events from "../events.js";
 import type * as guidelines from "../guidelines.js";
 import type * as lib_backlogStateMachine from "../lib/backlogStateMachine.js";
@@ -67,7 +66,6 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   crypto: typeof crypto;
   discussions: typeof discussions;
-  ensureAgentHandler: typeof ensureAgentHandler;
   events: typeof events;
   guidelines: typeof guidelines;
   "lib/backlogStateMachine": typeof lib_backlogStateMachine;

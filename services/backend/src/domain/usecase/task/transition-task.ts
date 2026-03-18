@@ -22,15 +22,16 @@
  *
  * The FSM rules, type definitions, and helper functions remain in
  * lib/taskStateMachine.ts as the authoritative implementation.
+ *
+ * Note: Agent restart for active tasks is now handled by the daemon's task monitor
+ * instead of a backend ensure-agent handler.
  */
 
 import { promoteNextTask } from './promote-next-task';
 import { promoteQueuedMessage } from './promote-queued-message';
-import { internal } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { areAllAgentsWaiting } from '../../../../convex/auth/cliSessionAuth';
-import { ENSURE_AGENT_FALLBACK_DELAY_MS } from '../../../../config/reliability';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
@@ -151,20 +152,8 @@ export async function transitionTask(
     }
   }
 
-  // 4. After active-status transitions, schedule an ensure-agent check.
-  //    Re-fetch AFTER the FSM transition so updatedAt is the post-transition timestamp.
-  //    For in_progress tasks, the check itself handles the token-activity guard
-  //    (rescheduling if the agent is still producing output, restarting if stale).
-  if (ACTIVE_TASK_STATUSES.has(newStatus)) {
-    const activeTask = await ctx.db.get('chatroom_tasks', taskId);
-    if (activeTask) {
-      await ctx.scheduler.runAfter(ENSURE_AGENT_FALLBACK_DELAY_MS, internal.ensureAgentHandler.check, {
-        taskId,
-        chatroomId: activeTask.chatroomId,
-        snapshotUpdatedAt: activeTask.updatedAt,
-      });
-    }
-  }
+  // Note: Agent restart for active tasks is now handled by the daemon's task monitor.
+  // No backend scheduling needed here.
 }
 
 // Re-export the TaskStatus type so callers only need one import path

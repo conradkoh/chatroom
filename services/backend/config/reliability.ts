@@ -9,9 +9,6 @@
  *
  * All agents are always considered "present" (no time-based filtering).
  * An agent is considered "working" if `lastSeenAction !== 'get-next-task:started'`.
- * An agent is stuck if they have an acknowledged task AND either:
- *   - Have never been seen (lastSeenAt == null), OR
- *   - Have not produced a token in over STUCK_TOKEN_THRESHOLD_MS
  *
  * ## Daemon Heartbeat
  *
@@ -23,13 +20,6 @@
  * Changing these values affects system behavior across the CLI, daemon, and
  * backend cron jobs. Test timing changes end-to-end before deploying.
  */
-
-// ─── Stuck Agent Detection ───────────────────────────────────────────────────
-
-/** If an agent has an acknowledged task AND has not produced a token in over this
- *  threshold, it is considered stuck. Set to 5 minutes — long enough to tolerate
- *  slow LLM responses, short enough to detect genuinely hung agents. */
-export const STUCK_TOKEN_THRESHOLD_MS = 300_000; // 5 min
 
 // ─── Grace Period ────────────────────────────────────────────────────────────
 
@@ -50,17 +40,6 @@ export const DAEMON_HEARTBEAT_INTERVAL_MS = 30_000; // 30s
  *  After this deadline, daemons should ignore the request to avoid late-arriving
  *  starts/stops acting on stale intent. Set to 2 minutes. */
 export const AGENT_REQUEST_DEADLINE_MS = 120_000; // 2 minutes
-
-// ─── ensureAgentHandler Fallback Delay ──────────────────────────────────────
-
-/**
- * Delay (ms) for the ensureAgentHandler backend fallback.
- * Set to 60 seconds — frequent enough to ensure that if the daemon is offline
- * and reconnects within the deadline window (2 × 60s = 120s), the requestStart
- * event will still be valid. Shorter interval reduces the timing gap where a
- * daemon restart misses an expired requestStart.
- */
-export const ENSURE_AGENT_FALLBACK_DELAY_MS = 60_000; // 60 seconds
 
 // ─── Circuit Breaker ─────────────────────────────────────────────────────────
 
