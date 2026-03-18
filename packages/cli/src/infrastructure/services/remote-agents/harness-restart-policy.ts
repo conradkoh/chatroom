@@ -96,7 +96,9 @@ export interface HarnessRestartPolicy {
  *
  * OpenCode doesn't have an agent_end signal, so we rely on stuck detection:
  * - in_progress + dead agent (spawnedAgentPid == null):
- *   Restart if desiredState='running' and circuitState != 'open'
+ *   Restart immediately if desiredState='running' and circuitState != 'open'
+ * - pending/acknowledged + no agent (spawnedAgentPid == null):
+ *   Restart immediately if desiredState='running' and circuitState != 'open'
  * - pending/acknowledged + stuck (task old + agent idle):
  *   Restart if desiredState='running', circuitState != 'open', and idle
  */
@@ -125,8 +127,15 @@ export class OpenCodeRestartPolicy implements HarnessRestartPolicy {
       return agentConfig.spawnedAgentPid == null;
     }
 
-    // Case 2: pending or acknowledged task (waiting for agent)
-    // Check if stuck long enough and agent is idle
+    // Case 2: pending/acknowledged task with no running agent
+    // No need to wait for the stuck threshold; if there's no PID, start right away.
+    if (task.status === 'pending' || task.status === 'acknowledged') {
+      if (agentConfig.spawnedAgentPid == null) {
+        return true; // immediate start
+      }
+    }
+
+    // Case 3: pending/acknowledged with PID but stuck — use threshold detection
     if (task.status !== 'pending' && task.status !== 'acknowledged') {
       return false;
     }
@@ -159,7 +168,9 @@ export class OpenCodeRestartPolicy implements HarnessRestartPolicy {
  *
  * Restart conditions:
  * - in_progress + dead agent (spawnedAgentPid == null):
- *   Restart if desiredState='running', circuitState != 'open'
+ *   Restart immediately if desiredState='running', circuitState != 'open'
+ * - pending/acknowledged + no agent (spawnedAgentPid == null):
+ *   Restart immediately if desiredState='running', circuitState != 'open'
  * - pending/acknowledged + agent has ended turn:
  *   Restart if desiredState='running', circuitState != 'open'
  *
@@ -193,7 +204,15 @@ export class PiRestartPolicy implements HarnessRestartPolicy {
       return agentConfig.spawnedAgentPid == null;
     }
 
-    // Case 2: pending or acknowledged task (waiting for agent)
+    // Case 2: pending/acknowledged task with no running agent
+    // No need to wait for agent_end signal; if there's no PID, start right away.
+    if (task.status === 'pending' || task.status === 'acknowledged') {
+      if (agentConfig.spawnedAgentPid == null) {
+        return true; // immediate start
+      }
+    }
+
+    // Case 3: pending/acknowledged with PID — wait for agent_end signal
     if (task.status !== 'pending' && task.status !== 'acknowledged') {
       return false;
     }

@@ -113,6 +113,8 @@ describe('OpenCodeRestartPolicy', () => {
           createdAt: now - 60_000, // 1 minute ago
           updatedAt: now - 60_000,
         },
+        // Must have a PID to test stuck-task threshold logic
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: 12345 },
         now,
       });
       expect(policy.shouldStartAgent(params)).toBe(false);
@@ -155,9 +157,84 @@ describe('OpenCodeRestartPolicy', () => {
           createdAt: now - 300_000, // 5 minutes ago
           updatedAt: now - 300_000,
         },
+        // Must have a PID to test stuck-task threshold logic
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: 12345 },
         lastTokenAt: now - 30_000, // Last token 30 seconds ago (still active)
         now,
       });
+      expect(policy.shouldStartAgent(params)).toBe(false);
+    });
+
+    // ─── NEW: pending/acknowledged + no PID → immediate start ─────────────────
+
+    it('returns true when pending task has no spawnedAgentPid (immediate start)', () => {
+      const now = Date.now();
+      const params = makeParams({
+        task: {
+          ...makeParams().task,
+          status: 'pending',
+          createdAt: now - 10_000, // Only 10 seconds old — would normally wait
+          updatedAt: now - 10_000,
+        },
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: undefined },
+        now,
+      });
+      expect(policy.shouldStartAgent(params)).toBe(true);
+    });
+
+    it('returns true when acknowledged task has no spawnedAgentPid (immediate start)', () => {
+      const now = Date.now();
+      const params = makeParams({
+        task: {
+          ...makeParams().task,
+          status: 'acknowledged',
+          createdAt: now - 10_000, // Only 10 seconds old
+          updatedAt: now - 10_000,
+        },
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: undefined },
+        now,
+      });
+      expect(policy.shouldStartAgent(params)).toBe(true);
+    });
+
+    it('returns false when pending + no PID but desiredState is "stopped"', () => {
+      const params = makeParams({
+        task: { ...makeParams().task, status: 'pending' },
+        agentConfig: {
+          ...makeParams().agentConfig,
+          spawnedAgentPid: undefined,
+          desiredState: 'stopped',
+        },
+      });
+      expect(policy.shouldStartAgent(params)).toBe(false);
+    });
+
+    it('returns false when pending + no PID but circuitState is "open"', () => {
+      const params = makeParams({
+        task: { ...makeParams().task, status: 'pending' },
+        agentConfig: {
+          ...makeParams().agentConfig,
+          spawnedAgentPid: undefined,
+          circuitState: 'open',
+        },
+      });
+      expect(policy.shouldStartAgent(params)).toBe(false);
+    });
+
+    it('returns false when pending task has spawnedAgentPid (use stuck-task logic)', () => {
+      const now = Date.now();
+      const params = makeParams({
+        task: {
+          ...makeParams().task,
+          status: 'pending',
+          createdAt: now - 60_000, // 1 minute ago — too fresh for stuck detection
+          updatedAt: now - 60_000,
+        },
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: 12345 },
+        lastTokenAt: null,
+        now,
+      });
+      // Should fall through to stuck-task logic, which requires 5 min threshold
       expect(policy.shouldStartAgent(params)).toBe(false);
     });
   });
@@ -245,7 +322,10 @@ describe('PiRestartPolicy', () => {
     });
 
     it('returns false when agentEndedTurn context is missing', () => {
-      const params = makeParams();
+      const params = makeParams({
+        // Must have a PID to test agentEndedTurn logic
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: 12345 },
+      });
       expect(policy.shouldStartAgent(params)).toBe(false);
     });
 
@@ -253,7 +333,10 @@ describe('PiRestartPolicy', () => {
       const context = makeAgentEndContext();
       // Don't set agentEndedTurn for this chatroom+role
 
-      const params = makeParams();
+      const params = makeParams({
+        // Must have a PID to test agentEndedTurn logic
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: 12345 },
+      });
       expect(policy.shouldStartAgent(params, context)).toBe(false);
     });
 
@@ -261,7 +344,10 @@ describe('PiRestartPolicy', () => {
       const context = makeAgentEndContext();
       context.agentEndedTurn.set('test-chatroom-id:builder', false);
 
-      const params = makeParams();
+      const params = makeParams({
+        // Must have a PID to test agentEndedTurn logic
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: 12345 },
+      });
       expect(policy.shouldStartAgent(params, context)).toBe(false);
     });
 
@@ -282,11 +368,89 @@ describe('PiRestartPolicy', () => {
 
       const params = makeParams({
         task: { ...makeParams().task, assignedTo: 'Builder' }, // Uppercase
-        agentConfig: { ...makeParams().agentConfig, role: 'Builder' }, // Uppercase
+        agentConfig: { ...makeParams().agentConfig, role: 'Builder', spawnedAgentPid: 12345 }, // Uppercase, with PID
       });
       // The policy should use the lowercase role for the key lookup
       // But since the policy uses agentConfig.role (which is 'Builder'), this won't match
       // The daemon sets the key with lowercase role in start-agent.ts
+      expect(policy.shouldStartAgent(params, context)).toBe(false);
+    });
+
+    // ─── NEW: pending/acknowledged + no PID → immediate start ─────────────────
+
+    it('returns true when pending task has no spawnedAgentPid (immediate start)', () => {
+      const context = makeAgentEndContext();
+      // agentEndedTurn doesn't matter when spawnedAgentPid is null
+
+      const now = Date.now();
+      const params = makeParams({
+        task: {
+          ...makeParams().task,
+          status: 'pending',
+          createdAt: now - 10_000, // Only 10 seconds old
+          updatedAt: now - 10_000,
+        },
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: undefined },
+        now,
+      });
+      expect(policy.shouldStartAgent(params, context)).toBe(true);
+    });
+
+    it('returns true when acknowledged task has no spawnedAgentPid (immediate start)', () => {
+      const context = makeAgentEndContext();
+      // agentEndedTurn doesn't matter when spawnedAgentPid is null
+
+      const now = Date.now();
+      const params = makeParams({
+        task: {
+          ...makeParams().task,
+          status: 'acknowledged',
+          createdAt: now - 10_000, // Only 10 seconds old
+          updatedAt: now - 10_000,
+        },
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: undefined },
+        now,
+      });
+      expect(policy.shouldStartAgent(params, context)).toBe(true);
+    });
+
+    it('returns false when pending + no PID but desiredState is "stopped"', () => {
+      const context = makeAgentEndContext();
+
+      const params = makeParams({
+        task: { ...makeParams().task, status: 'pending' },
+        agentConfig: {
+          ...makeParams().agentConfig,
+          spawnedAgentPid: undefined,
+          desiredState: 'stopped',
+        },
+      });
+      expect(policy.shouldStartAgent(params, context)).toBe(false);
+    });
+
+    it('returns false when pending + no PID but circuitState is "open"', () => {
+      const context = makeAgentEndContext();
+
+      const params = makeParams({
+        task: { ...makeParams().task, status: 'pending' },
+        agentConfig: {
+          ...makeParams().agentConfig,
+          spawnedAgentPid: undefined,
+          circuitState: 'open',
+        },
+      });
+      expect(policy.shouldStartAgent(params, context)).toBe(false);
+    });
+
+    it('returns false when pending task has spawnedAgentPid (use agentEndedTurn logic)', () => {
+      const context = makeAgentEndContext();
+      // Don't set agentEndedTurn — should return false when PID exists
+
+      const params = makeParams({
+        task: { ...makeParams().task, status: 'pending' },
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: 12345 },
+      });
+      // Should fall through to agentEndedTurn logic, which requires it to be true
       expect(policy.shouldStartAgent(params, context)).toBe(false);
     });
   });
