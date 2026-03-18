@@ -58,7 +58,7 @@ export type MachineCommandStatus = 'pending' | 'completed' | 'failed';
 //
 // Actors:
 //   user      — human-initiated via UI or CLI
-//   platform  — server-side automation (ensure-agent, dedup, team switch)
+//   platform  — server-side automation (dedup, team switch, crash recovery)
 //   daemon    — machine daemon lifecycle (respawn)
 
 /**
@@ -66,7 +66,6 @@ export type MachineCommandStatus = 'pending' | 'completed' | 'failed';
  *
  * - `user.start`: User explicitly started the agent via UI or CLI
  * - `user.restart`: User explicitly restarted the agent via UI or CLI
- * - `platform.ensure_agent`: @deprecated Auto-restart triggered by the backend ensure-agent cron. This functionality has been moved to the daemon's task monitor (PR #98). Kept for historical event compatibility.
  * - `platform.crash_recovery`: Eager restart after agent exit when desiredState is 'running' but no active task
  * - `daemon.task_monitor`: Daemon's task monitor detected an unhandled task with no running agent and started a fresh agent
  * - `test`: Used in integration and unit tests only
@@ -74,7 +73,6 @@ export type MachineCommandStatus = 'pending' | 'completed' | 'failed';
 export const AGENT_START_REASONS = [
   'user.start',
   'user.restart',
-  'platform.ensure_agent', // @deprecated - functionality moved to daemon
   'platform.crash_recovery',
   'daemon.task_monitor',
   'test',

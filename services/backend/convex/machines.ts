@@ -18,6 +18,7 @@ import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-ag
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
 import { patchParticipantStatus } from '../src/domain/entities/participant';
+import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -1417,104 +1418,12 @@ export const getAssignedTasks = query({
     machineId: v.string(),
   },
   handler: async (ctx, args) => {
-    // 1. Auth check
     const auth = await getAuthenticatedUser(ctx, args.sessionId);
     if (!auth.isAuthenticated) return { tasks: [] };
 
-    // 2. Verify machine ownership
-    const machine = await ctx.db
-      .query('chatroom_machines')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .first();
-    if (!machine || machine.userId !== auth.user._id) {
-      return { tasks: [] };
-    }
-
-    // 3. Get all agent configs for this machine (by machineId index)
-    const agentConfigs = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_machineId', (q) => q.eq('machineId', args.machineId))
-      .filter((q) => q.eq(q.field('type'), 'remote'))
-      .collect();
-
-    if (agentConfigs.length === 0) {
-      return { tasks: [] };
-    }
-
-    // 4. Build a set of chatroomIds we care about
-    const chatroomIds = new Set(agentConfigs.map((c) => c.chatroomId));
-
-    // 5. For each chatroom, fetch active tasks (pending, acknowledged, in_progress)
-    const tasks: Array<{
-      taskId: Id<'chatroom_tasks'>;
-      chatroomId: Id<'chatroom_rooms'>;
-      status: string;
-      assignedTo: string | undefined;
-      updatedAt: number;
-      createdAt: number;
-      agentConfig: {
-        role: string;
-        machineId: string;
-        agentHarness: string;
-        model?: string;
-        workingDir?: string;
-        spawnedAgentPid?: number;
-        desiredState?: string;
-        circuitState?: string;
-      };
-    }> = [];
-
-    for (const chatroomId of chatroomIds) {
-      // Fetch active tasks for this chatroom
-      const activeTasks = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .filter((q) =>
-          q.or(
-            q.eq(q.field('status'), 'pending'),
-            q.eq(q.field('status'), 'acknowledged'),
-            q.eq(q.field('status'), 'in_progress')
-          )
-        )
-        .collect();
-
-      // Get agent configs for this chatroom
-      const configsForChatroom = agentConfigs.filter((c) => c.chatroomId === chatroomId);
-
-      // Build task info with agent config
-      for (const task of activeTasks) {
-        // Find the agent config responsible for this task
-        // If task.assignedTo is set, find config for that role; otherwise, use all configs
-        const responsibleConfigs =
-          task.assignedTo && task.assignedTo.toLowerCase() !== 'user'
-            ? configsForChatroom.filter(
-                (c) => c.role.toLowerCase() === task.assignedTo!.toLowerCase()
-              )
-            : configsForChatroom;
-
-        for (const config of responsibleConfigs) {
-          tasks.push({
-            taskId: task._id,
-            chatroomId: task.chatroomId,
-            status: task.status,
-            assignedTo: task.assignedTo,
-            updatedAt: task.updatedAt ?? task.createdAt ?? Date.now(),
-            createdAt: task.createdAt ?? Date.now(),
-            agentConfig: {
-              role: config.role,
-              machineId: config.machineId!,
-              agentHarness: config.agentHarness ?? 'opencode',
-              model: config.model,
-              workingDir: config.workingDir,
-              spawnedAgentPid: config.spawnedAgentPid,
-              desiredState: config.desiredState,
-              circuitState: config.circuitState,
-            },
-          });
-        }
-      }
-    }
-
-    return { tasks };
+    return getAssignedTasksForMachine(ctx, {
+      machineId: args.machineId,
+      userId: auth.user._id,
+    });
   },
 });
