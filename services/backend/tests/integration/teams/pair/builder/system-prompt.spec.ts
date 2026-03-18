@@ -207,12 +207,14 @@ describe('Pair Team > Builder > System Prompt', () => {
       \`\`\`mermaid
       flowchart TD
           A([Start]) --> B[Receive task
-      Then read it]
-          B -->|from user or reviewer| C[Implement changes]
-          C --> D[Commit work]
-          D --> E{Classification?}
-          E -->|new_feature or code changes| F[Hand off to **reviewer**]
-          E -->|question| G[Hand off to **user**]
+      notification]
+          B -->|from user or reviewer| C[Read task with
+      task read]
+          C --> D[Implement changes]
+          D --> E[Commit work]
+          E --> F{Classification?}
+          F -->|new_feature or code changes| G[Hand off to **reviewer**]
+          F -->|question| H[Hand off to **user**]
       \`\`\`
 
       **Handoff Rules:**

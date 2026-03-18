@@ -211,19 +211,22 @@ describe('Squad Team > Planner > System Prompt', () => {
       \`\`\`mermaid
       flowchart TD
           A([Start]) --> B[Receive task from user]
-          B --> C[Decompose into phases]
-          C --> D[Delegate ONE phase to builder]
-          D --> E[Builder completes phase]
-          E --> F[Builder hands off to reviewer]
-          F --> G[Reviewer validates]
-          G --> H[Reviewer hands off to planner]
-          H --> I{phase acceptable?}
-          I -->|no| J[Hand back to builder with feedback]
-          J --> D
-          I -->|yes| K{more phases?}
-          K -->|yes| D
-          K -->|no| L[Deliver final result to user]
-          L --> M([Stop])
+          B --> C[task read:
+      get content + mark in_progress]
+          C --> D[Classify with task-started]
+          D --> E[Decompose into phases]
+          E --> F[Delegate ONE phase to builder]
+          F --> G[Builder completes phase]
+          G --> H[Builder hands off to reviewer]
+          H --> I[Reviewer validates]
+          I --> J[Reviewer hands off to planner]
+          J --> K{phase acceptable?}
+          K -->|no| L[Hand back to builder with feedback]
+          L --> F
+          K -->|yes| M{more phases?}
+          M -->|yes| F
+          M -->|no| N[Deliver final result to user]
+          N --> O([Stop])
       \`\`\`
 
       **Core Responsibilities:**
