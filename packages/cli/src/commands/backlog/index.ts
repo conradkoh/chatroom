@@ -136,20 +136,20 @@ export async function listBacklog(
     const backlogItems = await d.backend.query(api.backlog.listBacklogItems, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      statusFilter: 'active',
+      statusFilter: 'backlog',
       limit,
     });
 
     // Display header
     console.log('');
     console.log('══════════════════════════════════════════════════');
-    console.log('📋 ACTIVE BACKLOG');
+    console.log('📋 BACKLOG');
     console.log('══════════════════════════════════════════════════');
     console.log(`Chatroom: ${chatroomId}`);
     console.log('');
 
     if (backlogItems.length === 0) {
-      console.log('No active backlog items.');
+      console.log('No backlog items.');
     } else {
       console.log('──────────────────────────────────────────────────');
 
