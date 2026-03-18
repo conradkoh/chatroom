@@ -198,7 +198,7 @@ Use React Context + CSS variables`,
       💡 ✅ Task acknowledged as QUESTION.
 
       **Next steps:**
-      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10017;chatroom_rooms" --role="builder" << 'EOF'
+      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="10014;chatroom_rooms" --role="builder" << 'EOF'
       ---MESSAGE---
       [Your progress message here]
       EOF\`
@@ -206,14 +206,14 @@ Use React Context + CSS variables`,
       3. When done, hand off directly to user:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10017;chatroom_rooms" --role="builder" --next-role="user" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10014;chatroom_rooms" --role="builder" --next-role="user" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
 
       💡 You're working on:
-      Task ID: 10021;chatroom_tasks"
+      Task ID: 10018;chatroom_tasks"
     `);
 
     // Verify reminder structure
@@ -287,7 +287,7 @@ Use React Context + CSS variables`,
          - If original was a NEW FEATURE → hand off to reviewer when done
 
       💡 You're working on:
-      Task ID: 10036;chatroom_tasks"
+      Task ID: 10030;chatroom_tasks"
     `);
 
     // Verify reminder structure

@@ -325,7 +325,7 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
             {pendingReviewBacklogItems.length > PENDING_REVIEW_PREVIEW_LIMIT && (
               <ViewMoreButton
                 count={pendingReviewBacklogItems.length - PENDING_REVIEW_PREVIEW_LIMIT}
-                onClick={() => setIsBacklogQueueModalOpen(true)}
+                onClick={() => setIsPendingReviewModalOpen(true)}
               />
             )}
           </div>

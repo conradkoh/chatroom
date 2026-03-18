@@ -7,7 +7,7 @@
  * Shared interfaces (BackendOps, ProcessOps, ClockOps, FsOps) are imported
  * from infrastructure/deps/ for reuse across other commands.
  *
- * Domain-specific interfaces (IntentionalStopOps, MachineStateOps)
+ * Domain-specific interfaces (MachineStateOps)
  * live here because they are specific to the daemon command module.
  */
 
@@ -18,23 +18,9 @@ import type {
   ProcessOps,
 } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
-import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
 import type { TryConsumeResult } from '../../../infrastructure/services/harness-spawning/index.js';
 
 // ─── Domain-Specific Interfaces ─────────────────────────────────────────────
-
-/**
- * Intentional stop tracking — marks/consumes stops to distinguish
- * intentional stops from crashes.
- */
-export interface IntentionalStopOps {
-  /** Mark an agent as being stopped with the given reason (default: user.stop) */
-  mark: (chatroomId: string, role: string, reason?: StopReason) => void;
-  /** Consume the pending stop reason. Returns reason if found, null if unexpected exit. */
-  consume: (chatroomId: string, role: string) => StopReason | null;
-  /** Clear the marker without consuming (on failure cleanup) */
-  clear: (chatroomId: string, role: string) => void;
-}
 
 /**
  * Local machine state operations — PID persistence, agent context.
@@ -67,7 +53,6 @@ export interface StartAgentDeps {
   backend: BackendOps;
   fs: FsOps;
   machine: Pick<MachineStateOps, 'persistAgentPid' | 'listAgentEntries'>;
-  stops: Pick<IntentionalStopOps, 'consume'>;
 }
 
 /** Dependencies for handleStopAgent */
@@ -75,7 +60,6 @@ export interface StopAgentDeps {
   backend: BackendOps;
   processes: ProcessOps;
   machine: Pick<MachineStateOps, 'clearAgentPid' | 'listAgentEntries'>;
-  stops: Pick<IntentionalStopOps, 'mark' | 'clear'>;
 }
 
 /** Dependencies for recoverAgentState */
@@ -112,7 +96,6 @@ export interface DaemonDeps {
   backend: BackendOps;
   processes: ProcessOps;
   fs: FsOps;
-  stops: IntentionalStopOps;
   machine: MachineStateOps;
   clock: ClockOps;
   spawning: SpawningOps;

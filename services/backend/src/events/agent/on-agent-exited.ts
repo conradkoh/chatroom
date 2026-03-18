@@ -7,8 +7,8 @@ import { patchParticipantStatus } from '../../domain/entities/participant';
 export interface OnAgentExitedArgs {
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
-  intentional: boolean;
   stopReason?: string;
+  agentHarness?: string;
 }
 
 /**
@@ -29,15 +29,16 @@ export interface OnAgentExitedArgs {
  * restarts agents as needed.
  */
 export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): Promise<void> {
-  const { chatroomId, role, intentional, stopReason } = args;
+  const { chatroomId, role, stopReason } = args;
 
   // Determine if this exit warrants crash recovery.
   // Restart on clean exits and unexpected crashes, including signal-terminated
   // processes (daemon kills idle agent after turn ends in RPC mode).
   // The desiredState guard below prevents restart when the user explicitly stops.
-  const shouldRestart = stopReason
-    ? stopReason !== 'user.stop' && stopReason !== 'platform.team_switch'
-    : !intentional;
+  // Excludes: user.stop, platform.team_switch, agent_process.turn_end, agent_process.turn_end_quick_fail
+  // If no stopReason is provided, default to restarting (safe fallback for legacy events).
+  const shouldRestart = !stopReason ||
+    !['user.stop', 'platform.team_switch', 'agent_process.turn_end', 'agent_process.turn_end_quick_fail'].includes(stopReason);
 
   if (!shouldRestart) {
     return;
@@ -73,6 +74,12 @@ export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): 
     teamConfig.model &&
     teamConfig.workingDir
   ) {
+    // Skip crash recovery for Pi harness — the daemon's task monitor owns restarts.
+    // The backend only handles crash recovery for OpenCode (and as a fallback when daemon is offline).
+    if (args.agentHarness === 'pi') {
+      return;
+    }
+
     const now = Date.now();
     await ctx.db.insert('chatroom_eventStream', {
       type: 'agent.requestStart',

@@ -13,12 +13,8 @@ import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
 import { discoverModels } from './init.js';
-import {
-  onRequestStartAgent,
-} from '../../../events/daemon/agent/on-request-start-agent.js';
-import {
-  onRequestStopAgent,
-} from '../../../events/daemon/agent/on-request-stop-agent.js';
+import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
+import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { handlePing } from './handlers/ping.js';
 import { startGitPollingLoop } from './git-polling.js';
@@ -250,8 +246,16 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
       for (const event of result.events) {
         try {
-          console.log(`[${formatTimestamp()}] 📡 Stream command event: ${event.type}`);
-          await dispatchCommandEvent(ctx, event, processedCommandIds, processedPingIds, processedGitRefreshIds);
+          console.log(
+            `[${formatTimestamp()}] 📡 Stream command event: ${event.type} (id: ${event._id})`
+          );
+          await dispatchCommandEvent(
+            ctx,
+            event,
+            processedCommandIds,
+            processedPingIds,
+            processedGitRefreshIds
+          );
         } catch (err) {
           console.error(
             `[${formatTimestamp()}] ❌ Stream command event failed: ${(err as Error).message}`

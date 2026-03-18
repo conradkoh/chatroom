@@ -68,7 +68,6 @@ describe('refreshModels', () => {
       },
       processes: { kill: vi.fn() },
       fs: { stat: vi.fn() as any },
-      stops: { mark: vi.fn(), consume: vi.fn().mockReturnValue(false), clear: vi.fn() },
       machine: {
         clearAgentPid: vi.fn(),
         persistAgentPid: vi.fn(),
@@ -103,7 +102,7 @@ describe('refreshModels', () => {
       agentServices,
       activeWorkingDirs: new Set(),
       lastPushedGitState: new Map(),
-      agentEndedTurn: new Map(),
+      pendingStops: new Map(),
     };
   }
 

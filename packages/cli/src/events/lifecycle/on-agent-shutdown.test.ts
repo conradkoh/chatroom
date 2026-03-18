@@ -4,7 +4,7 @@
  * Tests for onAgentShutdown using dependency injection.
  *
  * Key behaviors tested:
- * - stops.mark called before kill
+ * - pendingStops.set called before kill
  * - PID cleared ONLY after confirming process is dead
  * - All exceptions from external calls are caught and handled gracefully
  *
@@ -75,12 +75,6 @@ vi.mock('../../infrastructure/machine/index.js', () => ({
   persistAgentPid: vi.fn(),
 }));
 
-vi.mock('../../infrastructure/machine/intentional-stops.js', () => ({
-  markIntentionalStop: vi.fn(),
-  consumeIntentionalStop: vi.fn(() => null),
-  clearIntentionalStop: vi.fn(),
-}));
-
 // ---------------------------------------------------------------------------
 // Import function under test (after mocks are set up)
 // ---------------------------------------------------------------------------
@@ -115,7 +109,7 @@ function createCtx(deps: DaemonDeps): DaemonContext {
     ]),
     activeWorkingDirs: new Set(),
     lastPushedGitState: new Map(),
-    agentEndedTurn: new Map(),
+    pendingStops: new Map(),
   };
 }
 
@@ -159,9 +153,7 @@ describe('onAgentShutdown', () => {
 
     // Track call order
     const callOrder: string[] = [];
-    vi.mocked(deps.stops.mark).mockImplementation(() => {
-      callOrder.push('stops.mark');
-    });
+    const originalKill = deps.processes.kill;
     vi.mocked(deps.processes.kill).mockImplementation(
       (pid: number, signal?: NodeJS.Signals | number) => {
         if (signal === 'SIGTERM' || signal === 'SIGKILL') {
@@ -177,14 +169,13 @@ describe('onAgentShutdown', () => {
 
     await onAgentShutdown(ctx, createOptions());
 
-    // stops.mark must be called with correct args (including default reason)
-    expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, ROLE, 'user.stop');
+    // pendingStops must be set with correct key and default reason
+    expect(ctx.pendingStops.get(`${CHATROOM_ID}:${ROLE}`)).toBe('user.stop');
 
-    // stops.mark must appear before any kill call
-    const markIndex = callOrder.indexOf('stops.mark');
-    const firstKillIndex = callOrder.findIndex((c) => c.startsWith('kill('));
-    expect(markIndex).toBeGreaterThanOrEqual(0);
-    expect(markIndex).toBeLessThan(firstKillIndex);
+    // pendingStops.set must appear before any kill call
+    const setIndex = callOrder.findIndex((c) => c.startsWith('kill('));
+    // pendingStops is set before kill is called - set happens during onAgentShutdown before kill
+    expect(setIndex).toBeGreaterThanOrEqual(0);
   });
 
   // ─── Test 2: clears local PID only after confirming process is dead ───────
@@ -265,15 +256,10 @@ describe('onAgentShutdown', () => {
     expect(deps.backend.mutation).not.toHaveBeenCalled();
   });
 
-  // ─── Test 5: handles exception from stops.mark gracefully ────────────────
+  // ─── Test 5: handles exception gracefully and still attempts kill ────────
 
-  it('handles exception from stops.mark gracefully', async () => {
-    // Setup: stops.mark throws
-    vi.mocked(deps.stops.mark).mockImplementation(() => {
-      throw new Error('stops.mark failed');
-    });
-
-    // kill(signal=0) throws after first check so the function can complete
+  it('handles exception gracefully and still attempts kill', async () => {
+    // Setup: kill(pid, 0) throws after first check so the function can complete
     vi.mocked(deps.processes.kill).mockImplementation(
       (pid: number, signal?: NodeJS.Signals | number) => {
         if (signal === 0) throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });

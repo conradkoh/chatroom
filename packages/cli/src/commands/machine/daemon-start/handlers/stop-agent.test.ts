@@ -67,12 +67,6 @@ vi.mock('../../../../infrastructure/machine/index.js', () => ({
   persistAgentPid: vi.fn(),
 }));
 
-vi.mock('../../../../infrastructure/machine/intentional-stops.js', () => ({
-  markIntentionalStop: vi.fn(),
-  consumeIntentionalStop: vi.fn(() => null),
-  clearIntentionalStop: vi.fn(),
-}));
-
 vi.mock('../../../../utils/error-formatting.js', () => ({
   isNetworkError: vi.fn(() => false),
   formatConnectivityError: vi.fn(),
@@ -116,7 +110,7 @@ function createCtx(deps: DaemonDeps): DaemonContext {
     ]),
     activeWorkingDirs: new Set(),
     lastPushedGitState: new Map(),
-    agentEndedTurn: new Map(),
+    pendingStops: new Map(),
   };
 }
 
@@ -170,8 +164,8 @@ describe('handleStopAgent', () => {
     const result = await handleStopAgent(ctx, createStopCommand());
 
     expect(result.failed).toBe(false);
-    // onAgentShutdown calls stops.mark internally
-    expect(deps.stops.mark).toHaveBeenCalledWith(CHATROOM_ID, 'builder', 'test');
+    // onAgentShutdown sets pendingStops internally
+    expect(ctx.pendingStops.get(`${CHATROOM_ID}:builder`)).toBe('test');
   });
 
   it('clears local state via onAgentShutdown', async () => {
@@ -244,7 +238,7 @@ describe('handleStopAgent', () => {
 
     expect(result.failed).toBe(true);
     expect(result.result).toContain('No running agent found');
-    expect(deps.stops.mark).not.toHaveBeenCalled();
+    expect(ctx.pendingStops.size).toBe(0);
   });
 
   it('sends SIGTERM to negative PID (process group) via onAgentShutdown', async () => {
@@ -291,7 +285,7 @@ describe('handleStopAgent', () => {
 
     expect(result.failed).toBe(true);
     expect(result.result).toContain('stale');
-    expect(deps.stops.mark).not.toHaveBeenCalled();
+    expect(ctx.pendingStops.size).toBe(0);
     expect(deps.machine.clearAgentPid).toHaveBeenCalled();
   });
 
@@ -331,8 +325,8 @@ describe('handleStopAgent', () => {
     const result = await handleStopAgent(ctx, createStopCommand());
 
     expect(result.failed).toBe(false);
-    // Both PIDs were killed — stops.mark called for each
-    expect(deps.stops.mark).toHaveBeenCalledTimes(2);
+    // Both PIDs were killed — pendingStops has an entry for this chatroom+role
+    expect(ctx.pendingStops.has(`${CHATROOM_ID}:builder`)).toBe(true);
     // Both PIDs sent SIGTERM to their process groups
     expect(deps.processes.kill).toHaveBeenCalledWith(-1234, 'SIGTERM');
     expect(deps.processes.kill).toHaveBeenCalledWith(-5678, 'SIGTERM');

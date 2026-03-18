@@ -22,7 +22,7 @@ import type { DaemonDeps } from '../deps.js';
  * All methods are vi.fn() mocks with sensible defaults.
  *
  * @param overrides - Partial DaemonDeps to shallow-merge over the defaults.
- *   Use this to override entire sub-objects (e.g., `backend`, `stops`).
+ *   Use this to override entire sub-objects (e.g., `backend`).
  *   Individual method overrides should be done by mutating the returned object.
  */
 export function createMockDaemonDeps(overrides?: Partial<DaemonDeps>): DaemonDeps {
@@ -36,11 +36,6 @@ export function createMockDaemonDeps(overrides?: Partial<DaemonDeps>): DaemonDep
     },
     fs: {
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
-    },
-    stops: {
-      mark: vi.fn(),
-      consume: vi.fn().mockReturnValue(null),
-      clear: vi.fn(),
     },
     machine: {
       clearAgentPid: vi.fn(),

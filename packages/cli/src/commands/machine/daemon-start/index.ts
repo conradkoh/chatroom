@@ -38,6 +38,5 @@ export type {
   StartAgentDeps,
   StopAgentDeps,
   StateRecoveryDeps,
-  IntentionalStopOps,
   MachineStateOps,
 } from './deps.js';

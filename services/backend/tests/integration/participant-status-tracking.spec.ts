@@ -223,7 +223,6 @@ describe('Participant Status Tracking', () => {
       chatroomId,
       role: 'builder',
       pid: 12345,
-      intentional: true,
       stopReason: 'user.stop',
     });
 
@@ -362,7 +361,6 @@ describe('Participant Status Tracking', () => {
       chatroomId,
       role: 'builder',
       pid: 99999,
-      intentional: true,
       stopReason: 'user.stop',
     });
     expect((await getParticipantStatus(chatroomId, 'builder')).lastStatus).toBe('agent.exited');

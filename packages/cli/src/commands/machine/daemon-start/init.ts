@@ -18,11 +18,6 @@ import {
   loadEventCursor,
 } from '../../../infrastructure/machine/index.js';
 import {
-  markIntentionalStop,
-  consumeIntentionalStop,
-  clearIntentionalStop,
-} from '../../../infrastructure/machine/intentional-stops.js';
-import {
   initHarnessRegistry,
   getAllHarnesses,
 } from '../../../infrastructure/services/remote-agents/index.js';
@@ -83,11 +78,6 @@ export function createDefaultDeps(): DaemonDeps {
     },
     fs: {
       stat,
-    },
-    stops: {
-      mark: markIntentionalStop,
-      consume: consumeIntentionalStop,
-      clear: clearIntentionalStop,
     },
     machine: {
       clearAgentPid,
@@ -309,7 +299,7 @@ export async function initDaemon(): Promise<DaemonContext> {
     agentServices,
     activeWorkingDirs: new Set(),
     lastPushedGitState: new Map(),
-    agentEndedTurn: new Map(),
+    pendingStops: new Map(),
   };
 
   registerEventListeners(ctx);

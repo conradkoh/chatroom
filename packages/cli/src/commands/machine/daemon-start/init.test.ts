@@ -65,12 +65,6 @@ vi.mock('../../../infrastructure/machine/index.js', () => ({
   loadEventCursor: vi.fn().mockReturnValue(null),
 }));
 
-vi.mock('../../../infrastructure/machine/intentional-stops.js', () => ({
-  markIntentionalStop: vi.fn(),
-  consumeIntentionalStop: vi.fn().mockReturnValue(false),
-  clearIntentionalStop: vi.fn(),
-}));
-
 vi.mock('../../../utils/error-formatting.js', () => ({
   isNetworkError: vi.fn().mockReturnValue(false),
   formatConnectivityError: vi.fn(),

@@ -1,4 +1,5 @@
 import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
+import { agentKey } from '../../commands/machine/daemon-start/types.js';
 import type { StopReason } from '../../infrastructure/machine/stop-reason.js';
 
 export interface OnAgentShutdownOptions {
@@ -33,7 +34,7 @@ export interface OnAgentShutdownResult {
  * Key invariants:
  * - PID (local) is cleared ONLY after the process is confirmed dead
  * - All external calls are wrapped in try/catch so no exception propagates
- * - stops.mark is called BEFORE kill to prevent crash-detection race conditions
+ * - pendingStops.set is called BEFORE kill to prevent race conditions
  */
 export async function onAgentShutdown(
   ctx: DaemonContext,
@@ -45,7 +46,7 @@ export async function onAgentShutdown(
   // the process exits before the mark, causing onExit to treat it as an unexpected crash.
   // Wrapped in try/catch: if marking fails we still want to proceed with the kill.
   try {
-    ctx.deps.stops.mark(chatroomId, role, options.stopReason ?? 'user.stop');
+    ctx.pendingStops.set(agentKey(chatroomId, role), options.stopReason ?? 'user.stop');
   } catch (e) {
     console.log(`   ⚠️  Failed to mark intentional stop for ${role}: ${(e as Error).message}`);
   }

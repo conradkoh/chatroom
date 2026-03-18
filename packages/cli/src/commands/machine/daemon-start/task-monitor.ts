@@ -71,7 +71,7 @@ export function startTaskMonitor(ctx: DaemonContext): { stop: () => void } {
 
       // Agent end context for PiRestartPolicy
       const agentEndContext: AgentEndContext = {
-        agentEndedTurn: ctx.agentEndedTurn,
+        pendingStops: ctx.pendingStops,
       };
 
       // Subscribe to assigned tasks for this machine

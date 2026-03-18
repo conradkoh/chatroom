@@ -22,6 +22,8 @@ export type StopReason =
   | 'agent_process.exited_clean'   // Exit code 0 without prior stop request (unexpected clean exit)
   | 'agent_process.signal'         // Killed by external signal (SIGTERM, SIGKILL, etc.)
   | 'agent_process.crashed'        // Non-zero exit code, unknown cause
+  | 'agent_process.turn_end'       // Pi agent cleanly ended its turn after a healthy run
+  | 'agent_process.turn_end_quick_fail' // Pi agent ended its turn very quickly (likely provider issue)
   | 'test';                        // Used in integration and unit tests only
 
 /**

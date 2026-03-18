@@ -864,11 +864,12 @@ export default defineSchema({
         role: v.string(),
         machineId: v.string(),
         pid: v.number(),
-        intentional: v.boolean(),
         stopReason: v.optional(v.string()),
         stopSignal: v.optional(v.string()),
         exitCode: v.optional(v.number()),
         signal: v.optional(v.string()),
+        /** @deprecated Legacy field from before StopReason migration. Retained for schema compatibility with old documents. */
+        intentional: v.optional(v.boolean()),
         timestamp: v.number(),
       }),
       // Agent circuit breaker tripped

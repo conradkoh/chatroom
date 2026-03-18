@@ -346,7 +346,6 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
     chatroomId,
     role: 'builder',
     pid: 9999,
-    intentional: false,
     exitCode: 1,
   });
 
@@ -367,7 +366,6 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
     expect(exitedEvent.machineId).toBe(machineId);
     expect(exitedEvent.role).toBe('builder');
     expect(exitedEvent.pid).toBe(9999);
-    expect(exitedEvent.intentional).toBe(false);
     expect(exitedEvent.exitCode).toBe(1);
     expect(typeof exitedEvent.timestamp).toBe('number');
   }
@@ -386,7 +384,7 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
 
 // ─── Test 7: Crash triggers agent.requestStart with crash_recovery ────────────
 
-test('recordAgentExited with intentional=false emits agent.requestStart when active task exists and desiredState=running', async () => {
+test('recordAgentExited emits agent.requestStart when active task exists and desiredState=running', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-crash-1');
   const chatroomId = await createPairTeamChatroom(sessionId);
@@ -421,7 +419,7 @@ test('recordAgentExited with intentional=false emits agent.requestStart when act
     chatroomId,
     role: 'builder', // pair team entry point
     pid: 12345,
-    intentional: false,
+    stopReason: 'agent_process.crashed',
   });
 
   // ===== VERIFY =====
@@ -444,7 +442,7 @@ test('recordAgentExited with intentional=false emits agent.requestStart when act
 
 // ─── Test 8: Intentional stop does NOT schedule ensure-agent ─────────────────
 
-test('recordAgentExited with intentional=true does NOT schedule ensure-agent', async () => {
+test('recordAgentExited with stopReason=user.stop does NOT schedule ensure-agent', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-crash-2');
   const chatroomId = await createPairTeamChatroom(sessionId);
@@ -455,7 +453,7 @@ test('recordAgentExited with intentional=true does NOT schedule ensure-agent', a
   await t.mutation(api.messages.sendMessage, {
     sessionId,
     chatroomId,
-    content: 'test task for intentional stop',
+    content: 'test task for user stop',
     senderRole: 'user',
     type: 'message',
   });
@@ -467,7 +465,7 @@ test('recordAgentExited with intentional=true does NOT schedule ensure-agent', a
     chatroomId,
     role: 'builder',
     pid: 12345,
-    intentional: true, // intentional stop
+    stopReason: 'user.stop', // user stop — no restart
   });
 
   // ===== VERIFY =====
@@ -489,7 +487,7 @@ test('recordAgentExited with intentional=true does NOT schedule ensure-agent', a
 
 // ─── Test 9: No active task means no ensure-agent scheduled ──────────────────
 
-test('recordAgentExited with intentional=false but no active task does NOT schedule ensure-agent', async () => {
+test('recordAgentExited with crash but no active task does NOT schedule ensure-agent', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-crash-3');
   const chatroomId = await createPairTeamChatroom(sessionId);
@@ -505,7 +503,7 @@ test('recordAgentExited with intentional=false but no active task does NOT sched
     chatroomId,
     role: 'builder',
     pid: 12345,
-    intentional: false, // unintentional crash, but no task
+    stopReason: 'agent_process.crashed', // crash, but no task
   });
 
   // ===== VERIFY =====
@@ -772,7 +770,6 @@ describe('Eager crash recovery (idle agent restart)', () => {
       chatroomId,
       role: 'builder',
       pid: 12345,
-      intentional: false,
       stopReason: 'agent_process.crashed',
     });
 
@@ -824,7 +821,6 @@ describe('Eager crash recovery (idle agent restart)', () => {
       chatroomId,
       role: 'builder',
       pid: 12345,
-      intentional: false,
       stopReason: 'agent_process.crashed',
     });
 
@@ -865,7 +861,6 @@ describe('Eager crash recovery (idle agent restart)', () => {
       chatroomId,
       role: 'builder',
       pid: 12345,
-      intentional: false,
       stopReason: 'agent_process.crashed',
     });
 
@@ -906,7 +901,6 @@ describe('Eager crash recovery (idle agent restart)', () => {
       chatroomId,
       role: 'builder',
       pid: 12345,
-      intentional: false,
       stopReason: 'agent_process.crashed',
     });
 
@@ -963,7 +957,6 @@ describe('Eager crash recovery (idle agent restart)', () => {
       chatroomId,
       role: 'builder',
       pid: 12345,
-      intentional: false,
       stopReason: 'agent_process.crashed',
     });
 
@@ -1051,7 +1044,7 @@ describe('Deferred config removal', () => {
       chatroomId,
       role: 'builder',
       pid,
-      intentional: true,
+      stopReason: 'user.stop', // agent stopped by user
     });
 
     // ===== VERIFY =====
@@ -1092,7 +1085,7 @@ describe('Deferred config removal', () => {
       chatroomId,
       role: 'builder',
       pid,
-      intentional: false,
+      stopReason: 'agent_process.crashed', // crash
     });
 
     // ===== VERIFY =====

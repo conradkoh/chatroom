@@ -8,6 +8,7 @@ import type { Id } from '../../../api.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
 import type { AgentStartReason, AgentStopReason } from '@workspace/backend/src/domain/entities/agent';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
+import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────
 
 /**
@@ -83,6 +84,14 @@ export interface CommandResult {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ConvexClient = any;
 
+/**
+ * Build a unique key for an agent in a chatroom.
+ * Role is lowercased for case-insensitive matching.
+ */
+export function agentKey(chatroomId: string, role: string): string {
+  return `${chatroomId}:${role.toLowerCase()}`;
+}
+
 /** Shared context passed to all command handlers. */
 export interface DaemonContext {
   client: ConvexClient;
@@ -105,10 +114,9 @@ export interface DaemonContext {
    */
   lastPushedGitState: Map<string, string>;
   /**
-   * Tracks whether the Pi agent has ended its turn for each (chatroomId, role).
-   * Key: `${chatroomId}:${role}` → true if agent_end was fired.
-   * Reset to false when a new agent is spawned for that chatroomId+role.
-   * Used by PiRestartPolicy to decide when to restart agents.
+   * Tracks pending stop reasons for agents being intentionally stopped.
+   * Key: `${chatroomId}:${role}` → stop reason.
+   * Used to distinguish intentional stops from crashes in the onExit handler.
    */
-  agentEndedTurn: Map<string, boolean>;
+  pendingStops: Map<string, StopReason>;
 }

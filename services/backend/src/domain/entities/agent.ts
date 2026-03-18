@@ -88,6 +88,8 @@ export type AgentStartReason = (typeof AGENT_START_REASONS)[number];
  * - `platform.dedup`: Agent stopped to deduplicate roles (another agent took over)
  * - `platform.team_switch`: Agent stopped because the chatroom's team was changed (no auto-restart)
  * - `daemon.respawn`: Daemon killed agent to spawn a fresh instance
+ * - `agent_process.turn_end`: Pi agent cleanly ended its turn after a healthy run
+ * - `agent_process.turn_end_quick_fail`: Pi agent ended its turn very quickly (likely provider issue)
  * - `test`: Used in integration and unit tests only
  */
 export const AGENT_STOP_REASONS = [
@@ -95,6 +97,8 @@ export const AGENT_STOP_REASONS = [
   'platform.dedup',
   'platform.team_switch',
   'daemon.respawn',
+  'agent_process.turn_end',
+  'agent_process.turn_end_quick_fail',
   'test',
 ] as const;
 export type AgentStopReason = (typeof AGENT_STOP_REASONS)[number];

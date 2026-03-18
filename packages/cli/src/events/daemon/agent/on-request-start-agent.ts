@@ -13,6 +13,7 @@ import type {
 import { executeStartAgent } from '../../../commands/machine/daemon-start/handlers/start-agent.js';
 
 export interface AgentRequestStartEventPayload {
+  _id: Id<'chatroom_eventStream'>;
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
   agentHarness: AgentHarness;
@@ -26,9 +27,11 @@ export async function onRequestStartAgent(
   ctx: DaemonContext,
   event: AgentRequestStartEventPayload
 ): Promise<void> {
+  const eventId = event._id.toString();
+
   if (Date.now() > event.deadline) {
     console.log(
-      `[daemon] ⏰ Skipping expired agent.requestStart for role=${event.role} (deadline passed)`
+      `[daemon] ⏰ Skipping expired agent.requestStart for role=${event.role} (id: ${eventId}, deadline passed)`
     );
     return;
   }
@@ -38,10 +41,12 @@ export async function onRequestStartAgent(
   if (!spawnCheck.allowed) {
     const retryMsg = spawnCheck.retryAfterMs ? ` Retry after ${spawnCheck.retryAfterMs}ms.` : '';
     console.warn(
-      `[daemon] ⚠️  Spawn suppressed for chatroom=${event.chatroomId} role=${event.role} reason=${event.reason}.${retryMsg}`
+      `[daemon] ⚠️  Spawn suppressed for chatroom=${event.chatroomId} role=${event.role} reason=${event.reason} (id: ${eventId}).${retryMsg}`
     );
     return;
   }
+
+  console.log(`[daemon] Processing agent.requestStart (id: ${eventId})`);
 
   await executeStartAgent(ctx, {
     chatroomId: event.chatroomId,

@@ -42,12 +42,12 @@ export interface ShouldStartAgentParams {
 }
 
 /**
- * Context for agent-ended-turn tracking (used by Pi policy).
- * The daemon maintains this state in memory, keyed by `${chatroomId}:${role}`.
+ * Context for pending stop reasons (used by Pi policy).
+ * The daemon maintains this state in DaemonContext.pendingStops.
  */
 export interface AgentEndContext {
-  /** Map of chatroomId:role → whether the agent has ended its turn. */
-  agentEndedTurn: Map<string, boolean>;
+  /** Map of 'chatroomId:role' → pending stop reason. */
+  pendingStops: Map<string, string>;
 }
 
 // ─── Interface ────────────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ export interface HarnessRestartPolicy {
    * Returns true if the daemon should start/restart the agent now.
    *
    * @param params Task and config info for the decision
-   * @param context Optional context for cross-call state (e.g., agent-ended-turn tracking)
+   * @param context Optional context for cross-call state (e.g., pendingStops)
    * @returns true if the agent should be started
    */
   shouldStartAgent(
@@ -169,22 +169,24 @@ export class PiRestartPolicy implements HarnessRestartPolicy {
       }
     }
 
-    // Case 3: pending/acknowledged with PID — wait for agent_end signal
+    // Case 3: pending/acknowledged with PID — only restart if agent has cleanly ended its turn
+    // CRITICAL: Only restart if the agent has ended its turn with a healthy duration.
+    // This is tracked in pendingStops with 'agent_process.turn_end' (not 'agent_process.turn_end_quick_fail').
+    // Quick-fails (< 30s runtime) do NOT qualify for restart, preventing restart loops
+    // from transient provider issues.
     if (task.status !== 'pending' && task.status !== 'acknowledged') {
       return false;
     }
 
-    // CRITICAL: Only restart if the agent has ended its turn
-    // This is tracked in the daemon's memory via onAgentEnd callback
-    if (!context?.agentEndedTurn) {
+    if (!context?.pendingStops) {
       return false;
     }
 
-    const key = `${task.chatroomId}:${agentConfig.role}`;
-    const hasEndedTurn = context.agentEndedTurn.get(key);
+    const key = `${task.chatroomId}:${agentConfig.role.toLowerCase()}`;
+    const pendingReason = context.pendingStops.get(key);
 
-    // Only start if the agent has explicitly ended its turn
-    return hasEndedTurn === true;
+    // Only start if the agent cleanly ended its turn (healthy turn only)
+    return pendingReason === 'agent_process.turn_end';
   }
 }
 

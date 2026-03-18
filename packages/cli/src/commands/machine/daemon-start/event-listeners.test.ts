@@ -36,11 +36,6 @@ function createTestContext(): DaemonContext {
       fs: {
         stat: vi.fn(),
       },
-      stops: {
-        mark: vi.fn(),
-        consume: vi.fn().mockReturnValue(false),
-        clear: vi.fn(),
-      },
       machine: {
         clearAgentPid: vi.fn(),
         persistAgentPid: vi.fn(),
@@ -61,7 +56,7 @@ function createTestContext(): DaemonContext {
     },
     activeWorkingDirs: new Set(),
     lastPushedGitState: new Map(),
-    agentEndedTurn: new Map(),
+    pendingStops: new Map(),
   };
 }
 
@@ -77,7 +72,6 @@ describe('registerEventListeners', () => {
       code: 1,
       signal: null,
       stopReason: 'agent_process.crashed',
-      intentional: false,
     });
 
     // Allow microtasks to flush
@@ -88,7 +82,7 @@ describe('registerEventListeners', () => {
           chatroomId: CHATROOM_ID,
           role: 'builder',
           pid: 1234,
-          intentional: false,
+          stopReason: 'agent_process.crashed',
         })
       );
     });
@@ -100,7 +94,7 @@ describe('registerEventListeners', () => {
     );
   });
 
-  test('agent:exited passes intentional=true for intentional stops', async () => {
+  test('agent:exited passes stopReason=user.stop for intentional stops', async () => {
     const ctx = createTestContext();
     registerEventListeners(ctx);
 
@@ -111,14 +105,13 @@ describe('registerEventListeners', () => {
       code: 0,
       signal: null,
       stopReason: 'user.stop',
-      intentional: true,
     });
 
     await vi.waitFor(() => {
       const calls = (ctx.deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
       const recordCall = calls.find(
         (c) =>
-          c[1]?.role === 'builder' && c[1]?.chatroomId === CHATROOM_ID && c[1]?.intentional === true
+          c[1]?.role === 'builder' && c[1]?.chatroomId === CHATROOM_ID && c[1]?.stopReason === 'user.stop'
       );
       expect(recordCall).toBeDefined();
     });
@@ -137,7 +130,6 @@ describe('registerEventListeners', () => {
       code: 0,
       signal: null,
       stopReason: 'agent_process.exited_clean',
-      intentional: false,
     });
 
     expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
@@ -161,7 +153,6 @@ describe('registerEventListeners', () => {
       code: 1,
       signal: null,
       stopReason: 'agent_process.crashed',
-      intentional: false,
     });
 
     await vi.waitFor(() => {
@@ -173,10 +164,11 @@ describe('registerEventListeners', () => {
     warnSpy.mockRestore();
   });
 
-  test('natural process exit (code 0, no explicit stop) is treated as unintentional and triggers crash recovery', async () => {
+  test('natural process exit (code 0, no explicit stop) is treated as crash and triggers crash recovery', async () => {
     // DESIGN DECISION: The system does not distinguish between a natural completion
     // and an unexpected crash. Any process exit without a prior explicit stop command
-    // (via agent.requestStop) is treated as unintentional — intentional=false.
+    // (via agent.requestStop) is treated as a crash — stopReason is derived from
+    // exit code/signal.
     //
     // Known trade-off: if an agent finishes work and exits cleanly before the handoff
     // mutation completes, the ensure-agent handler may fire and attempt a restart.
@@ -194,8 +186,7 @@ describe('registerEventListeners', () => {
       pid: 9999,
       code: 0, // ← natural exit code (not a crash)
       signal: null,
-      stopReason: 'agent_process.exited_clean',
-      intentional: false, // ← no prior stops.mark() — treated as unintentional
+      stopReason: 'agent_process.exited_clean', // ← derived from code 0
     });
 
     await vi.waitFor(() => {
@@ -205,7 +196,7 @@ describe('registerEventListeners', () => {
           chatroomId: CHATROOM_ID,
           role: 'builder',
           pid: 9999,
-          intentional: false, // ← crash recovery will fire on backend
+          stopReason: 'agent_process.exited_clean',
         })
       );
     });

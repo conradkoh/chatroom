@@ -11,7 +11,7 @@ export interface AgentExitedPayload {
   code: number | null;
   signal: string | null;
   stopReason: StopReason;
-  intentional: boolean;
+  agentHarness?: string;
 }
 
 /**
@@ -23,15 +23,15 @@ export interface AgentExitedPayload {
  * 3. Untrack PID in all remote agent services
  */
 export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): void {
-  const { chatroomId, role, pid, code, signal, stopReason, intentional } = payload;
+  const { chatroomId, role, pid, code, signal, stopReason } = payload;
   const ts = formatTimestamp();
 
   console.log(`[${ts}] Agent stopped: ${stopReason} (${role})`);
 
   const isDaemonRespawn = stopReason === 'daemon.respawn';
-  const isIntentional = intentional && !isDaemonRespawn;
+  const isIntentional = stopReason === 'user.stop' || stopReason === 'platform.team_switch' || stopReason === 'agent_process.turn_end' || stopReason === 'agent_process.turn_end_quick_fail';
 
-  if (isIntentional) {
+  if (isIntentional && !isDaemonRespawn) {
     console.log(
       `[${ts}] ℹ️  Agent process exited after intentional stop ` +
         `(PID: ${pid}, role: ${role}, code: ${code}, signal: ${signal})`
@@ -42,7 +42,7 @@ export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): 
         `(PID: ${pid}, role: ${role}, code: ${code}, signal: ${signal})`
     );
   } else {
-    // DESIGN DECISION: intentional=false covers both crashes AND natural completions.
+    // DESIGN DECISION: stops without explicit stopReason are treated as crashes.
     // A process that exits cleanly (code 0) without a prior stops.mark() call is
     // treated identically to a crash — ensureAgentHandler fires immediately to restart.
     // Known trade-off: if an agent finishes work and exits before its handoff mutation
@@ -62,11 +62,11 @@ export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): 
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       role,
       pid,
-      intentional,
       stopReason,
       stopSignal: stopReason === 'agent_process.signal' ? (signal ?? undefined) : undefined,
       exitCode: code ?? undefined,
       signal: signal ?? undefined,
+      agentHarness: payload.agentHarness,
     })
     .catch((err: Error) => {
       console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);

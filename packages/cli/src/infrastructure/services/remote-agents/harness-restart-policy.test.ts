@@ -33,7 +33,7 @@ function makeParams(overrides?: Partial<ShouldStartAgentParams>): ShouldStartAge
 
 function makeAgentEndContext(): AgentEndContext {
   return {
-    agentEndedTurn: new Map(),
+    pendingStops: new Map(),
   };
 }
 
@@ -287,9 +287,9 @@ describe('PiRestartPolicy', () => {
       expect(policy.shouldStartAgent(params, context)).toBe(false);
     });
 
-    // ─── pending/acknowledged tasks with PID (require agentEndedTurn) ─────────
+    // ─── pending/acknowledged tasks with PID (require pendingStops) ─────────
 
-    it('returns false when pending task has spawnedAgentPid and no agentEndedTurn context', () => {
+    it('returns false when pending task has spawnedAgentPid and no pendingStops context', () => {
       const params = makeParams({
         task: { ...makeParams().task, status: 'pending' },
         agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: 12345 },
@@ -297,7 +297,7 @@ describe('PiRestartPolicy', () => {
       expect(policy.shouldStartAgent(params)).toBe(false);
     });
 
-    it('returns false when pending task has spawnedAgentPid and agentEndedTurn not set', () => {
+    it('returns false when pending task has spawnedAgentPid and pendingStops not set', () => {
       const context = makeAgentEndContext();
       const params = makeParams({
         task: { ...makeParams().task, status: 'pending' },
@@ -306,9 +306,9 @@ describe('PiRestartPolicy', () => {
       expect(policy.shouldStartAgent(params, context)).toBe(false);
     });
 
-    it('returns false when pending task has spawnedAgentPid and agentEndedTurn is false', () => {
+    it('returns false when pending task has spawnedAgentPid and pendingStops is agent_process.turn_end_quick_fail', () => {
       const context = makeAgentEndContext();
-      context.agentEndedTurn.set('test-chatroom-id:builder', false);
+      context.pendingStops.set('test-chatroom-id:builder', 'agent_process.turn_end_quick_fail');
       const params = makeParams({
         task: { ...makeParams().task, status: 'pending' },
         agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: 12345 },
@@ -316,9 +316,9 @@ describe('PiRestartPolicy', () => {
       expect(policy.shouldStartAgent(params, context)).toBe(false);
     });
 
-    it('returns true when pending task has spawnedAgentPid and agentEndedTurn is true', () => {
+    it('returns true when pending task has spawnedAgentPid and pendingStops is agent_process.turn_end', () => {
       const context = makeAgentEndContext();
-      context.agentEndedTurn.set('test-chatroom-id:builder', true);
+      context.pendingStops.set('test-chatroom-id:builder', 'agent_process.turn_end');
       const params = makeParams({
         task: { ...makeParams().task, status: 'pending' },
         agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: 12345 },
@@ -328,14 +328,14 @@ describe('PiRestartPolicy', () => {
 
     // ─── role key lookup ──────────────────────────────────────────────────────
 
-    it('uses role as-is for agentEndedTurn key lookup', () => {
+    it('uses lowercase role for pendingStops key lookup', () => {
       const context = makeAgentEndContext();
-      context.agentEndedTurn.set('test-chatroom-id:Builder', true);
+      context.pendingStops.set('test-chatroom-id:builder', 'agent_process.turn_end');
       const params = makeParams({
         task: { ...makeParams().task, status: 'pending' },
         agentConfig: { ...makeParams().agentConfig, role: 'Builder', spawnedAgentPid: 12345 },
       });
-      // Key is built using agentConfig.role as-is
+      // Key is built using role.toLowerCase()
       expect(policy.shouldStartAgent(params, context)).toBe(true);
     });
 

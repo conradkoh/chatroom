@@ -127,11 +127,6 @@ function createMockContext(options?: {
     fs: {
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
     },
-    stops: {
-      mark: vi.fn(),
-      consume: vi.fn().mockReturnValue(null),
-      clear: vi.fn(),
-    },
     machine: {
       clearAgentPid: vi.fn(),
       persistAgentPid: vi.fn(),
@@ -169,7 +164,7 @@ function createMockContext(options?: {
     agentServices: new Map([['opencode', remoteAgentService]]),
     activeWorkingDirs: new Set(),
     lastPushedGitState: new Map(),
-    agentEndedTurn: new Map(),
+    pendingStops: new Map(),
   };
 
   // Attach for test convenience (not part of DaemonContext type)
@@ -342,7 +337,7 @@ describe('handleStartAgent', () => {
         pid: 5678,
         code: 1,
         signal: 'SIGTERM',
-        intentional: false,
+        stopReason: 'agent_process.signal',
       })
     );
   });
@@ -534,7 +529,7 @@ describe('handleStartAgent', () => {
     });
   });
 
-  it('natural exit (code 0) without prior stop command emits intentional=false', async () => {
+  it('natural exit (code 0) without prior stop command emits stopReason=agent_process.exited_clean', async () => {
     // DESIGN DECISION: A process that exits with code 0 (normal completion) is
     // treated identically to a crash if no explicit stop was requested.
     // See on-agent-exited.ts for the reliability rationale.
@@ -551,7 +546,7 @@ describe('handleStartAgent', () => {
         onOutput: vi.fn(),
       },
     });
-    // stops.consume() already returns false by default (no prior stops.mark())
+    // stops.consume() already returns null by default (no prior stops.mark())
     const cmd = createCommand({ workingDir: '/tmp/test' });
 
     const listener = vi.fn();
@@ -570,8 +565,7 @@ describe('handleStartAgent', () => {
       expect.objectContaining({
         code: 0,
         signal: null,
-        intentional: false,  // ← the key assertion
-        stopReason: 'agent_process.exited_clean',  // ← new assertion
+        stopReason: 'agent_process.exited_clean',
       })
     );
   });
@@ -608,7 +602,6 @@ describe('handleStartAgent', () => {
       expect.objectContaining({
         code: null,
         signal: 'SIGTERM',
-        intentional: false,
         stopReason: 'agent_process.signal',
       })
     );
@@ -646,7 +639,6 @@ describe('handleStartAgent', () => {
       expect.objectContaining({
         code: null,
         signal: 'SIGKILL',
-        intentional: false,
         stopReason: 'agent_process.signal',
       })
     );
@@ -667,8 +659,8 @@ describe('handleStartAgent', () => {
       },
     });
 
-    // Mock the stops.consume to return 'user.stop' (simulating intentional stop)
-    (ctx.deps.stops.consume as ReturnType<typeof vi.fn>).mockReturnValueOnce('user.stop');
+    // Simulate an intentional stop by setting pendingStops
+    ctx.pendingStops.set(`${'test-chatroom-123'}:builder`, 'user.stop');
 
     const cmd = createCommand({ workingDir: '/tmp/test' });
     const listener = vi.fn();
@@ -687,13 +679,12 @@ describe('handleStartAgent', () => {
       expect.objectContaining({
         code: 0,
         signal: null,
-        intentional: true,
         stopReason: 'user.stop',
       })
     );
   });
 
-  it('kills process with SIGTERM (no intentional mark) when onAgentEnd fires', async () => {
+  it('kills process with SIGTERM and marks stop reason when onAgentEnd fires', async () => {
     let agentEndCallback: (() => void) | null = null;
 
     const ctx = createMockContext({
@@ -717,8 +708,9 @@ describe('handleStartAgent', () => {
 
     // Should kill the process group (negative pid)
     expect(ctx.deps.processes.kill).toHaveBeenCalledWith(-5678, 'SIGTERM');
-    // Must NOT mark as intentional — we want the restart lifecycle to fire
-    expect(ctx.deps.stops.mark).not.toHaveBeenCalled();
+    // Should mark with stop reason (turn_end or turn_end_quick_fail based on elapsed time)
+    // Since this test runs quickly, it will be turn_end_quick_fail
+    expect(ctx.pendingStops.get('test-chatroom-123:builder')).toBe('agent_process.turn_end_quick_fail');
   });
 
   it('does not register onAgentEnd handler when spawnResult does not provide it', async () => {

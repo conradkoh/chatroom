@@ -778,11 +778,11 @@ export const recordAgentExited = mutation({
     chatroomId: v.id('chatroom_rooms'),
     role: v.string(),
     pid: v.number(),
-    intentional: v.boolean(),
     stopReason: v.optional(v.string()),
     stopSignal: v.optional(v.string()),
     exitCode: v.optional(v.number()),
     signal: v.optional(v.string()),
+    agentHarness: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // 1. Auth + machine ownership check
@@ -797,7 +797,6 @@ export const recordAgentExited = mutation({
       role: args.role,
       machineId: args.machineId,
       pid: args.pid,
-      intentional: args.intentional,
       exitCode: args.exitCode,
       signal: args.signal,
       stopReason: args.stopReason,
@@ -816,8 +815,8 @@ export const recordAgentExited = mutation({
     await onAgentExited(ctx, {
       chatroomId: args.chatroomId,
       role: args.role,
-      intentional: args.intentional,
       stopReason: args.stopReason,
+      agentHarness: args.agentHarness,
     });
 
     return { success: true };

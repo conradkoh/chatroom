@@ -41,7 +41,6 @@ describe('DaemonEventBus', () => {
       code: 0,
       signal: null,
       stopReason: 'user.stop',
-      intentional: true,
     });
 
     expect(listener1).toHaveBeenCalledOnce();

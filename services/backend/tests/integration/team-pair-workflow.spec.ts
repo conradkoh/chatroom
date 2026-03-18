@@ -733,7 +733,7 @@ Test technical specifications`,
         **Complete task and hand off:**
 
         \`\`\`bash
-        chatroom handoff --chatroom-id="10045;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
+        chatroom handoff --chatroom-id="10036;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
         ---MESSAGE---
         [Your message here]
         EOF
@@ -747,7 +747,7 @@ Test technical specifications`,
         **Report progress on current task:**
 
         \`\`\`bash
-        chatroom report-progress --chatroom-id="10045;chatroom_rooms" --role="builder" << 'EOF'
+        chatroom report-progress --chatroom-id="10036;chatroom_rooms" --role="builder" << 'EOF'
         ---MESSAGE---
         [Your progress message here]
         EOF
@@ -757,18 +757,18 @@ Test technical specifications`,
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom get-next-task --chatroom-id="10045;chatroom_rooms" --role="builder"
+        chatroom get-next-task --chatroom-id="10036;chatroom_rooms" --role="builder"
         \`\`\`
 
         Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
 
         **Reference commands:**
-        - List recent messages: \`chatroom messages list --chatroom-id="10045;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
+        - List recent messages: \`chatroom messages list --chatroom-id="10036;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
         - Git log: \`git log --oneline -10\`
 
         **Recovery commands** (only needed after compaction/restart):
-        - Reload system prompt: \`chatroom get-system-prompt --chatroom-id="10045;chatroom_rooms" --role="builder"\`
-        - Read current task context: \`chatroom context read --chatroom-id="10045;chatroom_rooms" --role="builder"\`"
+        - Reload system prompt: \`chatroom get-system-prompt --chatroom-id="10036;chatroom_rooms" --role="builder"\`
+        - Read current task context: \`chatroom context read --chatroom-id="10036;chatroom_rooms" --role="builder"\`"
       `);
 
       // Builder hands off directly to user (should succeed)

@@ -11,6 +11,7 @@
  */
 
 import type { Id } from '../../api.js';
+import type { StopReason } from '../../infrastructure/machine/stop-reason.js';
 
 // ─── Event Definitions ──────────────────────────────────────────────────────
 
@@ -29,7 +30,6 @@ export interface DaemonEventMap {
 
   /**
    * Fired when an agent process exits (for any reason).
-   * The `intentional` flag distinguishes user-requested stops from crashes.
    * The `stopReason` provides granular classification of why the agent stopped.
    */
   'agent:exited': {
@@ -38,8 +38,8 @@ export interface DaemonEventMap {
     pid: number;
     code: number | null;
     signal: string | null;
-    stopReason: 'user.stop' | 'platform.dedup' | 'platform.team_switch' | 'daemon.respawn' | 'agent_process.exited_clean' | 'agent_process.signal' | 'agent_process.crashed' | 'test';
-    intentional: boolean;
+    stopReason: StopReason;
+    agentHarness?: string;
   };
 
   /**
