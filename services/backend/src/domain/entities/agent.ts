@@ -68,7 +68,7 @@ export type MachineCommandStatus = 'pending' | 'completed' | 'failed';
  * - `user.restart`: User explicitly restarted the agent via UI or CLI
  * - `platform.ensure_agent`: @deprecated Auto-restart triggered by the backend ensure-agent cron. This functionality has been moved to the daemon's task monitor (PR #98). Kept for historical event compatibility.
  * - `platform.crash_recovery`: Eager restart after agent exit when desiredState is 'running' but no active task
- * - `daemon.task_monitor`: Daemon's task monitor detected stuck/assigned task and started agent (harness-specific policy)
+ * - `daemon.task_monitor`: Daemon's task monitor detected an unhandled task with no running agent and started a fresh agent
  * - `test`: Used in integration and unit tests only
  */
 export const AGENT_START_REASONS = [
