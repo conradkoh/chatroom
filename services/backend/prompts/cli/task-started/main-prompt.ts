@@ -48,10 +48,9 @@ export function getTaskStartedPrompt(ctx: {
 
   return `### Classify Task
 
-⚠️  **RUN THIS IMMEDIATELY** after receiving a task from get-next-task.
-This marks the task as in_progress and prevents unnecessary agent restarts.
+Acknowledge and classify user messages after reading the task.
 
-Acknowledge and classify user messages before starting work.
+Run this after \`task read\` to classify the message type.
 
 #### Question
 User is asking for information or clarification.
@@ -96,14 +95,11 @@ export function getTaskStartedPromptForHandoffRecipient(ctx: {
 
   return `### Start Working
 
-⚠️  **RUN THIS IMMEDIATELY** after receiving a handoff.
-This marks the task as in_progress and prevents unnecessary agent restarts.
+After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
 
-Before starting work on a received message, acknowledge it:
+Then acknowledge the handoff (classification was already done):
 
 \`\`\`bash
 ${taskStartedCmd}
-\`\`\`
-
-This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.`;
+\`\`\``;
 }

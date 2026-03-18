@@ -57,9 +57,10 @@ describe('Pair Team > Builder > Custom Init Prompt', () => {
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      waiting...]
+      task notification]
           C --> D[task read
-      marks in_progress]
+      get content +
+      mark in_progress]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
@@ -99,10 +100,9 @@ describe('Pair Team > Builder > Custom Init Prompt', () => {
 
       ### Classify Task
 
-      ⚠️  **RUN THIS IMMEDIATELY** after receiving a task from get-next-task.
-      This marks the task as in_progress and prevents unnecessary agent restarts.
+      Acknowledge and classify user messages after reading the task.
 
-      Acknowledge and classify user messages before starting work.
+      Run this after \`task read\` to classify the message type.
 
       #### Question
       User is asking for information or clarification.

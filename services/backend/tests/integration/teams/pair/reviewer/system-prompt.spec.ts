@@ -102,9 +102,10 @@ describe('Pair Team > Reviewer > System Prompt', () => {
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      waiting...]
+      task notification]
           C --> D[task read
-      marks in_progress]
+      get content +
+      mark in_progress]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
@@ -144,16 +145,13 @@ describe('Pair Team > Reviewer > System Prompt', () => {
 
       ### Start Working
 
-      ⚠️  **RUN THIS IMMEDIATELY** after receiving a handoff.
-      This marks the task as in_progress and prevents unnecessary agent restarts.
+      After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
 
-      Before starting work on a received message, acknowledge it:
+      Then acknowledge the handoff (classification was already done):
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="reviewer" --task-id=<task-id> --no-classify
       \`\`\`
-
-      This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.
 
 
        **Pair Team Context:**

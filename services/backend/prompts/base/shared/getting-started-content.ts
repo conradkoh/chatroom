@@ -29,8 +29,8 @@ export function getContextGainingGuidance(params: ContextGainingParams): string 
 \`\`\`mermaid
 flowchart LR
     A([Start]) --> B[register-agent]
-    B --> C[get-next-task\nwaiting...]
-    C --> D[task read\nmarks in_progress]
+    B --> C[get-next-task\ntask notification]
+    C --> D[task read\nget content +\nmark in_progress]
     D --> E[Do Work]
     E --> F[handoff]
     F --> C
