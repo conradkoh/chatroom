@@ -2,11 +2,12 @@
  * Main CLI prompt for the task-started command.
  */
 
-import { taskStartedCommand } from './command';
+import { classifyCommand } from '../classify/command';
 import { contextNewCommand } from '../context/new';
 
 /**
  * Generate the main CLI prompt for task-started command (entry point roles)
+ * Uses the new `classify` command for entry-point classification.
  */
 export function getTaskStartedPrompt(ctx: {
   chatroomId: string;
@@ -15,8 +16,8 @@ export function getTaskStartedPrompt(ctx: {
 }): string {
   const cliEnvPrefix = ctx.cliEnvPrefix;
 
-  // Generate commands for each classification type
-  const questionCmd = taskStartedCommand({
+  // Generate commands for each classification type using the new classify command
+  const questionCmd = classifyCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -24,7 +25,7 @@ export function getTaskStartedPrompt(ctx: {
     cliEnvPrefix,
   });
 
-  const followUpCmd = taskStartedCommand({
+  const followUpCmd = classifyCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -32,7 +33,7 @@ export function getTaskStartedPrompt(ctx: {
     cliEnvPrefix,
   });
 
-  const newFeatureCmd = taskStartedCommand({
+  const newFeatureCmd = classifyCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',

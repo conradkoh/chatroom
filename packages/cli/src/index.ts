@@ -134,7 +134,9 @@ program
 
 program
   .command('task-started')
-  .description('Acknowledge a task and optionally classify the user message')
+  .description(
+    '[LEGACY] Acknowledge a task and optionally classify the user message. Use classify instead for entry-point roles.'
+  )
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .option(
@@ -154,6 +156,10 @@ program
       classify?: boolean; // Note: Commander.js sets this to false when --no-classify is used
       taskId: string;
     }) => {
+      console.error(
+        '⚠️  DEPRECATED: task-started is legacy. Use chatroom classify for entry-point roles.'
+      );
+
       await maybeRequireAuth();
 
       // Commander.js converts --no-classify to classify: false

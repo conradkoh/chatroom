@@ -168,7 +168,7 @@ Test technical specifications`,
         **Classification (Entry Point Role):**
         As the entry point, you receive user messages directly. When you receive a user message:
         1. First run \`chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
-        2. Then run \`chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+        2. Then run \`chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
         3. Then do your work
         4. Hand off to reviewer for code changes, or directly to user for questions
 
@@ -594,7 +594,7 @@ Test technical specifications`,
       expect(builderPromptBeforeClassification.prompt).toContain(
         'Classification (Entry Point Role)'
       );
-      expect(builderPromptBeforeClassification.prompt).toContain('task-started');
+      expect(builderPromptBeforeClassification.prompt).toContain('classify');
     });
   });
 
@@ -680,7 +680,7 @@ Test technical specifications`,
         **Classification (Entry Point Role):**
         As the entry point, you receive user messages directly. When you receive a user message:
         1. First run \`chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
-        2. Then run \`chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+        2. Then run \`chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
         3. Then do your work
         4. Hand off to reviewer for code changes, or directly to user for questions
 

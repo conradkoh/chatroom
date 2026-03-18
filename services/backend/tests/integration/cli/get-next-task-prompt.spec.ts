@@ -243,21 +243,21 @@ ${taskDeliveryPrompt.fullCliOutput}
       User is asking for information or clarification.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=question
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=question
       \`\`\`
 
       #### Follow Up
       User is responding to previous work or providing feedback.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=follow_up
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=follow_up
       \`\`\`
 
       #### New Feature
       User wants new functionality. Requires title, description, and tech specs.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       [Feature title]
       ---DESCRIPTION---
@@ -288,7 +288,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       **Classification (Entry Point Role):**
       As the entry point, you receive user messages directly. When you receive a user message:
       1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
-      2. Then run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+      2. Then run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
       3. Then do your work
       4. Hand off to reviewer for code changes, or directly to user for questions
 
@@ -415,10 +415,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
 
       1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks"\`
-      2. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=<type>\`
+      2. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=<type>\`
 
          new_feature example:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=new_feature << 'EOF'
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       <title>
       ---DESCRIPTION---

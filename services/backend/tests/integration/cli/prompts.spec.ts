@@ -189,7 +189,7 @@ describe('Task Classification Prompt', () => {
     });
 
     // All commands should have the env prefix
-    expect(prompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started');
+    expect(prompt).toContain('CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify');
   });
 
   test('new_feature command uses EOF format for metadata', () => {

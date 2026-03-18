@@ -14,7 +14,7 @@
 
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
 import { contextNewCommand } from '../context/new';
-import { taskStartedCommand } from '../task-started/command';
+import { classifyCommand } from '../classify/command';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -234,23 +234,20 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     );
 
     // Step 2: Classify
-    const baseCmd = taskStartedCommand({
+    const baseCmd = classifyCommand({
       chatroomId,
       role,
       taskId: task._id,
       classification: 'question',
       cliEnvPrefix,
-    }).replace(
-      '--origin-message-classification=question',
-      '--origin-message-classification=<type>'
-    );
+    }).replace('--origin-message-classification=question', '--origin-message-classification=<type>');
     lines.push(`2. Classify → \`${baseCmd}\``);
 
     // new_feature example
     lines.push('');
     lines.push('   new_feature example:');
     lines.push(
-      `   ${taskStartedCommand({
+      `   ${classifyCommand({
         chatroomId,
         role,
         taskId: task._id,

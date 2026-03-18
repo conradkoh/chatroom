@@ -13,7 +13,7 @@
 
 import type { PlannerGuidanceParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/env';
-import { taskStartedCommand } from '../task-started/command';
+import { classifyCommand } from '../classify/command';
 import {
   getCoreResponsibilitiesSection,
   getDelegationGuidelinesSection,
@@ -34,7 +34,7 @@ import {
 export function getPlannerGuidance(params: PlannerGuidanceParams): string {
   const { isEntryPoint, convexUrl, teamRoles, availableMembers } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
-  const taskStartedExample = taskStartedCommand({ cliEnvPrefix });
+  const classifyExample = classifyCommand({ cliEnvPrefix });
 
   const members = availableMembers ?? teamRoles;
   const hasBuilder = members.some((r) => r.toLowerCase() === 'builder');
@@ -46,7 +46,7 @@ export function getPlannerGuidance(params: PlannerGuidanceParams): string {
 **Classification (Entry Point Role):**
 As the entry point, you receive user messages directly. When you receive a user message:
 1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
-2. Then run \`${taskStartedExample}\` to classify the original message (question, new_feature, or follow_up)
+2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
 3. **If code changes or commits are expected**, create a new context before starting work (see Context Management in Available Actions)
 4. Decompose the task into actionable work items if needed
 5. Delegate to the appropriate team member or handle it yourself`

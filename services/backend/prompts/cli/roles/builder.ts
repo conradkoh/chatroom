@@ -4,7 +4,7 @@
 
 import type { BuilderGuidanceParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/env';
-import { taskStartedCommand } from '../task-started/command';
+import { classifyCommand } from '../classify/command';
 
 /**
  * Generate builder-specific guidance
@@ -16,14 +16,14 @@ export function getBuilderGuidance(params: BuilderGuidanceParams): string {
   const codeChangesTarget = codeChangesTargetParam ?? 'reviewer';
   const hasReviewer = codeChangesTarget === 'reviewer';
   // Use command generator with env prefix
-  const taskStartedExample = taskStartedCommand({ cliEnvPrefix });
+  const classifyExample = classifyCommand({ cliEnvPrefix });
 
   const classificationNote = isEntryPoint
     ? `
 **Classification (Entry Point Role):**
 As the entry point, you receive user messages directly. When you receive a user message:
 1. First run \`${cliEnvPrefix}chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
-2. Then run \`${taskStartedExample}\` to classify the original message (question, new_feature, or follow_up)
+2. Then run \`${classifyExample}\` to classify the original message (question, new_feature, or follow_up)
 3. Then do your work
 4. Hand off to ${codeChangesTarget} for code changes, or directly to ${questionTarget} for questions`
     : '';
