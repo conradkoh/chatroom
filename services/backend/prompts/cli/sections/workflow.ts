@@ -36,19 +36,21 @@ export function getFullTeamWorkflow(): string {
 \`\`\`mermaid
 flowchart TD
     A([Start]) --> B[Receive task from user]
-    B --> C[Decompose into phases]
-    C --> D[Delegate ONE phase to builder]
-    D --> E[Builder completes phase]
-    E --> F[Builder hands off to reviewer]
-    F --> G[Reviewer validates]
-    G --> H[Reviewer hands off to planner]
-    H --> I{phase acceptable?}
-    I -->|no| J[Hand back to builder with feedback]
-    J --> D
-    I -->|yes| K{more phases?}
-    K -->|yes| D
-    K -->|no| L[Deliver final result to user]
-    L --> M([Stop])
+    B --> C[task read:\nget content + mark in_progress]
+    C --> D[Classify with task-started]
+    D --> E[Decompose into phases]
+    E --> F[Delegate ONE phase to builder]
+    F --> G[Builder completes phase]
+    G --> H[Builder hands off to reviewer]
+    H --> I[Reviewer validates]
+    I --> J[Reviewer hands off to planner]
+    J --> K{phase acceptable?}
+    K -->|no| L[Hand back to builder with feedback]
+    L --> F
+    K -->|yes| M{more phases?}
+    M -->|yes| F
+    M -->|no| N[Deliver final result to user]
+    N --> O([Stop])
 \`\`\``;
 }
 
@@ -61,18 +63,20 @@ export function getPlannerPlusBuilderWorkflow(): string {
 \`\`\`mermaid
 flowchart TD
     A([Start]) --> B[Receive task from user]
-    B --> C[Decompose into phases]
-    C --> D[Delegate ONE phase to builder]
-    D --> E[Builder completes phase]
-    E --> F[Builder hands off to planner]
-    F --> G[Review work yourself acting as reviewer]
-    G --> H{phase acceptable?}
-    H -->|no| I[Hand back to builder with feedback]
-    I --> D
-    H -->|yes| J{more phases?}
-    J -->|yes| D
-    J -->|no| K[Deliver final result to user]
-    K --> L([Stop])
+    B --> C[task read:\nget content + mark in_progress]
+    C --> D[Classify with classify]
+    D --> E[Decompose into phases]
+    E --> F[Delegate ONE phase to builder]
+    F --> G[Builder completes phase]
+    G --> H[Builder hands off to planner]
+    H --> I[Review work yourself acting as reviewer]
+    I --> J{phase acceptable?}
+    J -->|no| K[Hand back to builder with feedback]
+    K --> F
+    J -->|yes| L{more phases?}
+    L -->|yes| F
+    L -->|no| M[Deliver final result to user]
+    M --> N([Stop])
 \`\`\``;
 }
 
@@ -85,17 +89,19 @@ export function getPlannerPlusReviewerWorkflow(): string {
 \`\`\`mermaid
 flowchart TD
     A([Start]) --> B[Receive task from user]
-    B --> C[Decompose into phases]
-    C --> D[Delegate ONE phase to reviewer acts as builder]
-    D --> E[Reviewer completes phase]
-    E --> F[Reviewer hands off to planner]
-    F --> G{phase acceptable?}
-    G -->|no| H[Hand back to reviewer with feedback]
-    H --> D
-    G -->|yes| I{more phases?}
-    I -->|yes| D
-    I -->|no| J[Deliver final result to user]
-    J --> K([Stop])
+    B --> C[task read:\nget content + mark in_progress]
+    C --> D[Classify with classify]
+    D --> E[Decompose into phases]
+    E --> F[Delegate ONE phase to reviewer acts as builder]
+    F --> G[Reviewer completes phase]
+    G --> H[Reviewer hands off to planner]
+    H --> I{phase acceptable?}
+    I -->|no| J[Hand back to reviewer with feedback]
+    J --> F
+    I -->|yes| K{more phases?}
+    K -->|yes| F
+    K -->|no| L[Deliver final result to user]
+    L --> M([Stop])
 \`\`\``;
 }
 
@@ -106,7 +112,9 @@ export function getPlannerSoloWorkflow(): string {
   return `**Current Workflow: Planner Solo**
 
 1. Receive task from user
-2. Implement the solution yourself
-3. Review your own work for quality
-4. Deliver to **user**`;
+2. Run task read (get content + mark in_progress)
+3. Classify with task-started
+4. Implement the solution yourself
+5. Review your own work for quality
+6. Deliver to **user**`;
 }

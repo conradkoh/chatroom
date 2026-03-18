@@ -167,20 +167,24 @@ Test technical specifications`,
 
         **Classification (Entry Point Role):**
         As the entry point, you receive user messages directly. When you receive a user message:
-        1. First run \`chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
-        2. Then do your work
-        3. Hand off to reviewer for code changes, or directly to user for questions
+        1. First run \`chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
+        2. Then run \`chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+        3. Then do your work
+        4. Hand off to reviewer for code changes, or directly to user for questions
 
         **Typical Flow:**
 
         \`\`\`mermaid
         flowchart TD
-            A([Start]) --> B[Receive task]
-            B -->|from user or reviewer| C[Implement changes]
-            C --> D[Commit work]
-            D --> E{Classification?}
-            E -->|new_feature or code changes| F[Hand off to **reviewer**]
-            E -->|question| G[Hand off to **user**]
+            A([Start]) --> B[Receive task
+        notification]
+            B -->|from user or reviewer| C[Read task with
+        task read]
+            C --> D[Implement changes]
+            D --> E[Commit work]
+            E --> F{Classification?}
+            F -->|new_feature or code changes| G[Hand off to **reviewer**]
+            F -->|question| H[Hand off to **user**]
         \`\`\`
 
         **Handoff Rules:**
@@ -363,7 +367,7 @@ Test technical specifications`,
         \`\`\`mermaid
         flowchart TD
             A([Start]) --> B[Receive handoff]
-            B -->|from builder or other agent| C[Run task-started]
+            B -->|from builder or other agent| C[Run task read]
             C --> D[Review code changes]
             D --> E{Meets requirements?}
             E -->|yes| F[Hand off to user]
@@ -590,7 +594,7 @@ Test technical specifications`,
       expect(builderPromptBeforeClassification.prompt).toContain(
         'Classification (Entry Point Role)'
       );
-      expect(builderPromptBeforeClassification.prompt).toContain('task-started');
+      expect(builderPromptBeforeClassification.prompt).toContain('classify');
     });
   });
 
@@ -675,20 +679,24 @@ Test technical specifications`,
 
         **Classification (Entry Point Role):**
         As the entry point, you receive user messages directly. When you receive a user message:
-        1. First run \`chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
-        2. Then do your work
-        3. Hand off to reviewer for code changes, or directly to user for questions
+        1. First run \`chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
+        2. Then run \`chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+        3. Then do your work
+        4. Hand off to reviewer for code changes, or directly to user for questions
 
         **Typical Flow:**
 
         \`\`\`mermaid
         flowchart TD
-            A([Start]) --> B[Receive task]
-            B -->|from user or reviewer| C[Implement changes]
-            C --> D[Commit work]
-            D --> E{Classification?}
-            E -->|new_feature or code changes| F[Hand off to **reviewer**]
-            E -->|question| G[Hand off to **user**]
+            A([Start]) --> B[Receive task
+        notification]
+            B -->|from user or reviewer| C[Read task with
+        task read]
+            C --> D[Implement changes]
+            D --> E[Commit work]
+            E --> F{Classification?}
+            F -->|new_feature or code changes| G[Hand off to **reviewer**]
+            F -->|question| H[Hand off to **user**]
         \`\`\`
 
         **Handoff Rules:**
@@ -1126,9 +1134,9 @@ Test technical specifications`,
         role: 'reviewer',
       });
 
-      // Reviewer should run task-started for all messages (instruction comes from base reviewer guidance)
-      // The reviewer role guidance mentions task-started (without classification requirement)
-      expect(reviewerPrompt.prompt).toContain('task-started');
+      // Reviewer should read tasks with task read (marks in_progress)
+      // The reviewer role guidance shows 'Run task read' in the workflow diagram
+      expect(reviewerPrompt.prompt).toContain('Run task read');
       expect(reviewerPrompt.prompt).not.toContain('Classify the task first');
       expect(reviewerPrompt.prompt).not.toContain('--origin-message-classification');
     });

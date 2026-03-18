@@ -51,8 +51,8 @@ describe('Duo Team > Planner > Get Next Task', () => {
     // User message should trigger classification flow
     expect(output).toContain('Classify');
     expect(output).toContain('targets: builder, user');
-    // Step 3 should be delegate to builder, not generic "hand off"
-    expect(output).toContain('3. Delegate phase 1 to builder:');
+    // Should have delegate to builder instruction
+    expect(output).toContain('Delegate phase 1 to builder:');
     expect(output).toContain('--next-role=builder');
     expect(output).not.toContain('Do the work → follow PROCESS above');
   });

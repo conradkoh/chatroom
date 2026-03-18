@@ -192,22 +192,23 @@ ${taskDeliveryPrompt.fullCliOutput}
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      waiting...]
-          C --> D[task-started
-      IMMEDIATELY]
+      task notification]
+          C --> D[task read
+      get content +
+      mark in_progress]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
 
-      ### ⚠️ CRITICAL: Run task-started Immediately
+      ### ⚠️ CRITICAL: Read the task immediately
 
-      When you receive a task from \`get-next-task\`, you **MUST** run \`task-started\` immediately before doing any other work:
+      When you receive a task from \`get-next-task\`, the task content is hidden. You **MUST** run \`task read\` immediately to:
 
-      1. **Run task-started immediately** — This marks the task as \`in_progress\` and prevents restart loops
-      2. **Then begin your work** — Only after task-started succeeds
+      1. **Get the task content** — the full task description
+      2. **Mark it as in_progress** — signals you're working on it
 
-      Failure to run \`task-started\` promptly may trigger the system to restart you, causing unnecessary interruptions.
+      Failure to run \`task read\` promptly may trigger the system to restart you.
 
       ### Context Recovery (after compaction/summarization)
 
@@ -234,30 +235,29 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ### Classify Task
 
-      ⚠️  **RUN THIS IMMEDIATELY** after receiving a task from get-next-task.
-      This marks the task as in_progress and prevents unnecessary agent restarts.
+      Acknowledge and classify user messages after reading the task.
 
-      Acknowledge and classify user messages before starting work.
+      Run this after \`task read\` to classify the message type.
 
       #### Question
       User is asking for information or clarification.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=question
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=question
       \`\`\`
 
       #### Follow Up
       User is responding to previous work or providing feedback.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=follow_up
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=follow_up
       \`\`\`
 
       #### New Feature
       User wants new functionality. Requires title, description, and tech specs.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       [Feature title]
       ---DESCRIPTION---
@@ -287,20 +287,24 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       **Classification (Entry Point Role):**
       As the entry point, you receive user messages directly. When you receive a user message:
-      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
-      2. Then do your work
-      3. Hand off to reviewer for code changes, or directly to user for questions
+      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
+      2. Then run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+      3. Then do your work
+      4. Hand off to reviewer for code changes, or directly to user for questions
 
       **Typical Flow:**
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive task]
-          B -->|from user or reviewer| C[Implement changes]
-          C --> D[Commit work]
-          D --> E{Classification?}
-          E -->|new_feature or code changes| F[Hand off to **reviewer**]
-          E -->|question| G[Hand off to **user**]
+          A([Start]) --> B[Receive task
+      notification]
+          B -->|from user or reviewer| C[Read task with
+      task read]
+          C --> D[Implement changes]
+          D --> E[Commit work]
+          E --> F{Classification?}
+          F -->|new_feature or code changes| G[Hand off to **reviewer**]
+          F -->|question| H[Hand off to **user**]
       \`\`\`
 
       **Handoff Rules:**
@@ -396,7 +400,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10002;chatroom_rooms" --role="builder"\`
 
       ## Task
-      Can we add a backlog section to the available actions? Keep it concise and follow current format.
+      To read this task and mark it as in_progress, run:
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks"
+      \`\`\`
 
       ## Attached Backlog (1)
       - [BACKLOG] Fix: Agent lacks knowledge of backlog listing
@@ -405,14 +412,13 @@ ${taskDeliveryPrompt.fullCliOutput}
       </task>
 
       <next-steps>
+      ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
 
-      ⚠️  REQUIRED FIRST STEP: Run task-started IMMEDIATELY before any other work.
-         This marks the task as in_progress and prevents unnecessary agent restarts.
-
-      1. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=<type>\`
+      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks"\`
+      2. Classify → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=<type>\`
 
          new_feature example:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=new_feature << 'EOF'
+         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="10007;chatroom_tasks" --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       <title>
       ---DESCRIPTION---
@@ -421,10 +427,10 @@ ${taskDeliveryPrompt.fullCliOutput}
       <tech-specs>
       EOF
 
-      2. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
+      3. Code changes expected? → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context new --chatroom-id="10002;chatroom_rooms" --role="builder" --trigger-message-id="<userMessageId>" << 'EOF'
       <summary of current focus>
       EOF\`
-      3. Hand off when complete:
+      4. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -911,22 +917,23 @@ ${taskDeliveryPrompt.fullCliOutput}
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      waiting...]
-          C --> D[task-started
-      IMMEDIATELY]
+      task notification]
+          C --> D[task read
+      get content +
+      mark in_progress]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
 
-      ### ⚠️ CRITICAL: Run task-started Immediately
+      ### ⚠️ CRITICAL: Read the task immediately
 
-      When you receive a task from \`get-next-task\`, you **MUST** run \`task-started\` immediately before doing any other work:
+      When you receive a task from \`get-next-task\`, the task content is hidden. You **MUST** run \`task read\` immediately to:
 
-      1. **Run task-started immediately** — This marks the task as \`in_progress\` and prevents restart loops
-      2. **Then begin your work** — Only after task-started succeeds
+      1. **Get the task content** — the full task description
+      2. **Mark it as in_progress** — signals you're working on it
 
-      Failure to run \`task-started\` promptly may trigger the system to restart you, causing unnecessary interruptions.
+      Failure to run \`task read\` promptly may trigger the system to restart you.
 
       ### Context Recovery (after compaction/summarization)
 
@@ -953,16 +960,13 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       ### Start Working
 
-      ⚠️  **RUN THIS IMMEDIATELY** after receiving a handoff.
-      This marks the task as in_progress and prevents unnecessary agent restarts.
+      After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
 
-      Before starting work on a received message, acknowledge it:
+      Then acknowledge the handoff (classification was already done):
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10048;chatroom_rooms" --role="reviewer" --task-id=<task-id> --no-classify
       \`\`\`
-
-      This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.
 
 
        **Pair Team Context:**
@@ -982,7 +986,7 @@ ${taskDeliveryPrompt.fullCliOutput}
       \`\`\`mermaid
       flowchart TD
           A([Start]) --> B[Receive handoff]
-          B -->|from builder or other agent| C[Run task-started]
+          B -->|from builder or other agent| C[Run task read]
           C --> D[Review code changes]
           D --> E{Meets requirements?}
           E -->|yes| F[Hand off to user]
@@ -1150,27 +1154,19 @@ ${taskDeliveryPrompt.fullCliOutput}
       (read if needed) → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom context read --chatroom-id="10048;chatroom_rooms" --role="reviewer"\`
 
       ## Task
-      Implemented dark mode toggle. Please review.
-
-      Changes:
-      - Added ThemeProvider context
-      - Created toggle component in Settings
-      - Applied CSS variables for theming
-
-      Testing: Toggle in settings switches between light/dark modes
+      To read this task and mark it as in_progress, run:
+      \`\`\`
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10048;chatroom_rooms" --role="reviewer" --task-id="10063;chatroom_tasks"
+      \`\`\`
 
       Classification: NEW_FEATURE
       </task>
 
       <next-steps>
+      ⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.
+         handed off from builder — start work immediately.
 
-      ⚠️  REQUIRED FIRST STEP: Run task-started IMMEDIATELY before any other work.
-         This marks the task as in_progress and prevents unnecessary agent restarts.
-
-      handed off from builder — start work immediately.
-
-      1. Run task-started to acknowledge:
-         CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10048;chatroom_rooms" --role="reviewer" --task-id="10063;chatroom_tasks" --no-classify
+      1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10048;chatroom_rooms" --role="reviewer" --task-id="10063;chatroom_tasks"\`
       2. Hand off when complete:
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10048;chatroom_rooms" --role="reviewer" --next-role=<target> << 'EOF'

@@ -103,6 +103,15 @@ const TRANSITIONS: TransitionRule[] = [
   },
 
   {
+    from: 'acknowledged',
+    to: 'in_progress',
+    trigger: 'readTask',
+    setFields: {
+      startedAt: 'NOW',
+    },
+  },
+
+  {
     from: 'in_progress',
     to: 'completed',
     trigger: 'completeTask',

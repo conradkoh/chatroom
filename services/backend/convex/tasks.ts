@@ -17,6 +17,7 @@ import {
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
 import { promoteNextTask as promoteNextTaskUsecase } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
+import { readTask as readTaskUsecase } from '../src/domain/usecase/task/read-task';
 import { transitionTask, type TransitionTaskOptions } from '../src/domain/usecase/task/transition-task';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { patchParticipantStatus } from '../src/domain/entities/participant';
@@ -262,6 +263,30 @@ export const startTask = mutation({
     await patchParticipantStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
 
     return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };
+  },
+});
+
+/**
+ * Marks a task as in_progress when an agent reads it.
+ * This is the primary way to transition a task from acknowledged → in_progress,
+ * replacing the legacy task-started CLI command.
+ *
+ * Business logic is delegated to the readTask usecase in src/domain/usecase/task/.
+ */
+export const readTask = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    taskId: v.id('chatroom_tasks'),
+  },
+  handler: async (ctx, args) => {
+    await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
+    return readTaskUsecase(ctx, {
+      chatroomId: args.chatroomId,
+      role: args.role,
+      taskId: args.taskId,
+    });
   },
 });
 

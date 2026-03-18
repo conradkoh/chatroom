@@ -14,7 +14,7 @@
 
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
 import { contextNewCommand } from '../context/new';
-import { taskStartedCommand } from '../task-started/command';
+import { classifyCommand } from '../classify/command';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -186,10 +186,15 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     }
   }
 
-  // Task content
+  // Task content — hidden; agent must call task read to get content (marks in_progress)
   lines.push('');
   lines.push('## Task');
-  lines.push(task.content);
+  lines.push(`To read this task and mark it as in_progress, run:`);
+  lines.push('```');
+  lines.push(
+    `${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"`
+  );
+  lines.push('```');
 
   // Attached items from origin message (legacy chatroom_tasks + backlog items)
   const allAttached = [
@@ -218,32 +223,31 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('');
   lines.push('<next-steps>');
 
-  // Mandatory first step warning - applies to ALL cases
-  lines.push('');
-  lines.push('⚠️  REQUIRED FIRST STEP: Run task-started IMMEDIATELY before any other work.');
-  lines.push('   This marks the task as in_progress and prevents unnecessary agent restarts.');
-  lines.push('');
-
   if (isUserMessage) {
-    // Classification command with placeholder
-    const baseCmd = taskStartedCommand({
+    // User message case: read task first, then classify
+    lines.push('⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.');
+    lines.push('');
+
+    // Step 1: Read task
+    lines.push(
+      `1. Read task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
+    );
+
+    // Step 2: Classify
+    const baseCmd = classifyCommand({
       chatroomId,
       role,
       taskId: task._id,
       classification: 'question',
       cliEnvPrefix,
-    }).replace(
-      '--origin-message-classification=question',
-      '--origin-message-classification=<type>'
-    );
-
-    lines.push(`1. Classify → \`${baseCmd}\``);
+    }).replace('--origin-message-classification=question', '--origin-message-classification=<type>');
+    lines.push(`2. Classify → \`${baseCmd}\``);
 
     // new_feature example
     lines.push('');
     lines.push('   new_feature example:');
     lines.push(
-      `   ${taskStartedCommand({
+      `   ${classifyCommand({
         chatroomId,
         role,
         taskId: task._id,
@@ -259,9 +263,9 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       // Planner role receiving a new user task
       lines.push('');
       lines.push(
-        `2. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
+        `3. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
       );
-      lines.push('3. Delegate phase 1 to builder:');
+      lines.push('4. Delegate phase 1 to builder:');
       lines.push('```');
       lines.push(
         `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=builder << 'EOF'`
@@ -275,7 +279,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       }
     } else {
       // Non-coordinator role receiving a user message
-      let nextStepNum = 2;
+      let nextStepNum = 3;
       if (isEntryPoint) {
         lines.push('');
         lines.push(
@@ -297,11 +301,14 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       }
     }
   } else if (message) {
-    lines.push(`handed off from ${message.senderRole} — start work immediately.`);
+    // Handoff case: read task first (marks in_progress), then work
+    lines.push('⚠️  REQUIRED FIRST STEP: Read the task to mark it as in_progress.');
+    lines.push(`   handed off from ${message.senderRole} — start work immediately.`);
     lines.push('');
-    lines.push('1. Run task-started to acknowledge:');
+
+    // Step 1: Read task
     lines.push(
-      `   ${cliEnvPrefix}chatroom task-started --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}" --no-classify`
+      `1. Read task → \`${cliEnvPrefix}chatroom task read --chatroom-id="${chatroomId}" --role="${role}" --task-id="${task._id}"\``
     );
 
     let nextStepNum = 2;

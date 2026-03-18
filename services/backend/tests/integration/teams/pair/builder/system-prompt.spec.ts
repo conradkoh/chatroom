@@ -102,22 +102,23 @@ describe('Pair Team > Builder > System Prompt', () => {
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      waiting...]
-          C --> D[task-started
-      IMMEDIATELY]
+      task notification]
+          C --> D[task read
+      get content +
+      mark in_progress]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
 
-      ### ⚠️ CRITICAL: Run task-started Immediately
+      ### ⚠️ CRITICAL: Read the task immediately
 
-      When you receive a task from \`get-next-task\`, you **MUST** run \`task-started\` immediately before doing any other work:
+      When you receive a task from \`get-next-task\`, the task content is hidden. You **MUST** run \`task read\` immediately to:
 
-      1. **Run task-started immediately** — This marks the task as \`in_progress\` and prevents restart loops
-      2. **Then begin your work** — Only after task-started succeeds
+      1. **Get the task content** — the full task description
+      2. **Mark it as in_progress** — signals you're working on it
 
-      Failure to run \`task-started\` promptly may trigger the system to restart you, causing unnecessary interruptions.
+      Failure to run \`task read\` promptly may trigger the system to restart you.
 
       ### Context Recovery (after compaction/summarization)
 
@@ -144,30 +145,29 @@ describe('Pair Team > Builder > System Prompt', () => {
 
       ### Classify Task
 
-      ⚠️  **RUN THIS IMMEDIATELY** after receiving a task from get-next-task.
-      This marks the task as in_progress and prevents unnecessary agent restarts.
+      Acknowledge and classify user messages after reading the task.
 
-      Acknowledge and classify user messages before starting work.
+      Run this after \`task read\` to classify the message type.
 
       #### Question
       User is asking for information or clarification.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=question
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=question
       \`\`\`
 
       #### Follow Up
       User is responding to previous work or providing feedback.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=follow_up
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=follow_up
       \`\`\`
 
       #### New Feature
       User wants new functionality. Requires title, description, and tech specs.
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id="<task-id>" --origin-message-classification=new_feature << 'EOF'
       ---TITLE---
       [Feature title]
       ---DESCRIPTION---
@@ -197,20 +197,24 @@ describe('Pair Team > Builder > System Prompt', () => {
 
       **Classification (Entry Point Role):**
       As the entry point, you receive user messages directly. When you receive a user message:
-      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
-      2. Then do your work
-      3. Hand off to reviewer for code changes, or directly to user for questions
+      1. First run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>"\` to get the task content (auto-marks as in_progress)
+      2. Then run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom classify --chatroom-id="<chatroom-id>" --role="<role>" --task-id="<task-id>" --origin-message-classification=<question|new_feature|follow_up>\` to classify the original message (question, new_feature, or follow_up)
+      3. Then do your work
+      4. Hand off to reviewer for code changes, or directly to user for questions
 
       **Typical Flow:**
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive task]
-          B -->|from user or reviewer| C[Implement changes]
-          C --> D[Commit work]
-          D --> E{Classification?}
-          E -->|new_feature or code changes| F[Hand off to **reviewer**]
-          E -->|question| G[Hand off to **user**]
+          A([Start]) --> B[Receive task
+      notification]
+          B -->|from user or reviewer| C[Read task with
+      task read]
+          C --> D[Implement changes]
+          D --> E[Commit work]
+          E --> F{Classification?}
+          F -->|new_feature or code changes| G[Hand off to **reviewer**]
+          F -->|question| H[Hand off to **user**]
       \`\`\`
 
       **Handoff Rules:**

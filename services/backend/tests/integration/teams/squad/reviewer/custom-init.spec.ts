@@ -57,22 +57,23 @@ describe('Squad Team > Reviewer > Custom Init Prompt', () => {
       flowchart LR
           A([Start]) --> B[register-agent]
           B --> C[get-next-task
-      waiting...]
-          C --> D[task-started
-      IMMEDIATELY]
+      task notification]
+          C --> D[task read
+      get content +
+      mark in_progress]
           D --> E[Do Work]
           E --> F[handoff]
           F --> C
       \`\`\`
 
-      ### ⚠️ CRITICAL: Run task-started Immediately
+      ### ⚠️ CRITICAL: Read the task immediately
 
-      When you receive a task from \`get-next-task\`, you **MUST** run \`task-started\` immediately before doing any other work:
+      When you receive a task from \`get-next-task\`, the task content is hidden. You **MUST** run \`task read\` immediately to:
 
-      1. **Run task-started immediately** — This marks the task as \`in_progress\` and prevents restart loops
-      2. **Then begin your work** — Only after task-started succeeds
+      1. **Get the task content** — the full task description
+      2. **Mark it as in_progress** — signals you're working on it
 
-      Failure to run \`task-started\` promptly may trigger the system to restart you, causing unnecessary interruptions.
+      Failure to run \`task read\` promptly may trigger the system to restart you.
 
       ### Context Recovery (after compaction/summarization)
 
@@ -99,16 +100,13 @@ describe('Squad Team > Reviewer > Custom Init Prompt', () => {
 
       ### Start Working
 
-      ⚠️  **RUN THIS IMMEDIATELY** after receiving a handoff.
-      This marks the task as in_progress and prevents unnecessary agent restarts.
+      After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
 
-      Before starting work on a received message, acknowledge it:
+      Then acknowledge the handoff (classification was already done):
 
       \`\`\`bash
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-squad-chatroom" --role="reviewer" --task-id=<task-id> --no-classify
       \`\`\`
-
-      This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.
 
 
        **Squad Team Context:**
@@ -131,7 +129,7 @@ describe('Squad Team > Reviewer > Custom Init Prompt', () => {
       \`\`\`mermaid
       flowchart TD
           A([Start]) --> B[Receive handoff]
-          B -->|from builder or other agent| C[Run task-started]
+          B -->|from builder or other agent| C[Run task read]
           C --> D[Review code changes]
           D --> E{Meets requirements?}
           E -->|yes| F[Hand off to planner]

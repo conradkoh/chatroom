@@ -244,12 +244,15 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
 
       \`\`\`mermaid
       flowchart TD
-          A([Start]) --> B[Receive task]
-          B -->|from planner| C[Implement changes]
-          C --> D[Commit work]
-          D --> E{Classification?}
-          E -->|new_feature or code changes| F[Hand off to **planner**]
-          E -->|question| G[Hand off to **planner**]
+          A([Start]) --> B[Receive task
+      notification]
+          B -->|from planner| C[Read task with
+      task read]
+          C --> D[Implement changes]
+          D --> E[Commit work]
+          E --> F{Classification?}
+          F -->|new_feature or code changes| G[Hand off to **planner**]
+          F -->|question| H[Hand off to **planner**]
       \`\`\`
 
       **Handoff Rules:**

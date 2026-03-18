@@ -2,11 +2,12 @@
  * Main CLI prompt for the task-started command.
  */
 
-import { taskStartedCommand } from './command';
+import { classifyCommand } from '../classify/command';
 import { contextNewCommand } from '../context/new';
 
 /**
  * Generate the main CLI prompt for task-started command (entry point roles)
+ * Uses the new `classify` command for entry-point classification.
  */
 export function getTaskStartedPrompt(ctx: {
   chatroomId: string;
@@ -15,8 +16,8 @@ export function getTaskStartedPrompt(ctx: {
 }): string {
   const cliEnvPrefix = ctx.cliEnvPrefix;
 
-  // Generate commands for each classification type
-  const questionCmd = taskStartedCommand({
+  // Generate commands for each classification type using the new classify command
+  const questionCmd = classifyCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -24,7 +25,7 @@ export function getTaskStartedPrompt(ctx: {
     cliEnvPrefix,
   });
 
-  const followUpCmd = taskStartedCommand({
+  const followUpCmd = classifyCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -32,7 +33,7 @@ export function getTaskStartedPrompt(ctx: {
     cliEnvPrefix,
   });
 
-  const newFeatureCmd = taskStartedCommand({
+  const newFeatureCmd = classifyCommand({
     chatroomId: ctx.chatroomId,
     role: ctx.role,
     taskId: '<task-id>',
@@ -48,10 +49,9 @@ export function getTaskStartedPrompt(ctx: {
 
   return `### Classify Task
 
-⚠️  **RUN THIS IMMEDIATELY** after receiving a task from get-next-task.
-This marks the task as in_progress and prevents unnecessary agent restarts.
+Acknowledge and classify user messages after reading the task.
 
-Acknowledge and classify user messages before starting work.
+Run this after \`task read\` to classify the message type.
 
 #### Question
 User is asking for information or clarification.
@@ -96,14 +96,11 @@ export function getTaskStartedPromptForHandoffRecipient(ctx: {
 
   return `### Start Working
 
-⚠️  **RUN THIS IMMEDIATELY** after receiving a handoff.
-This marks the task as in_progress and prevents unnecessary agent restarts.
+After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
 
-Before starting work on a received message, acknowledge it:
+Then acknowledge the handoff (classification was already done):
 
 \`\`\`bash
 ${taskStartedCmd}
-\`\`\`
-
-This transitions the task to \`in_progress\`. Classification was already done by the agent who received the original user message.`;
+\`\`\``;
 }

@@ -44,6 +44,21 @@ export interface TaskStartedParams extends CommandContext {
 }
 
 // ============================================================================
+// classify command types
+// ============================================================================
+
+export interface ClassifyParams extends CommandContext {
+  chatroomId?: string;
+  role?: string;
+  taskId?: string;
+  classification?: MessageClassification;
+  /** Required for new_feature classification */
+  title?: string;
+  description?: string;
+  techSpecs?: string;
+}
+
+// ============================================================================
 // handoff command types
 // ============================================================================
 
