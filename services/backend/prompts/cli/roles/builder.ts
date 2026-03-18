@@ -38,12 +38,13 @@ ${classificationNote}
 
 \`\`\`mermaid
 flowchart TD
-    A([Start]) --> B[Receive task\nThen read it]
-    ${hasReviewer ? 'B -->|from user or reviewer| C[Implement changes]' : 'B -->|from planner| C[Implement changes]'}
-    C --> D[Commit work]
-    D --> E{Classification?}
-    E -->|new_feature or code changes| F[Hand off to **${codeChangesTarget}**]
-    E -->|question| G[Hand off to **${questionTarget}**]
+    A([Start]) --> B[Receive task\nnotification]
+    ${hasReviewer ? 'B -->|from user or reviewer| C[Read task with\ntask read]' : 'B -->|from planner| C[Read task with\ntask read]'}
+    C --> D[Implement changes]
+    D --> E[Commit work]
+    E --> F{Classification?}
+    F -->|new_feature or code changes| G[Hand off to **${codeChangesTarget}**]
+    F -->|question| H[Hand off to **${questionTarget}**]
 \`\`\`
 
 **Handoff Rules:**
