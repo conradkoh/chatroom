@@ -110,7 +110,7 @@ export async function handoff(
 
   let result;
   try {
-    result = await d.backend.mutation(api.messages.sendHandoff, {
+    result = await d.backend.mutation(api.messages.handoff, {
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       senderRole: role,
