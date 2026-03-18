@@ -60,9 +60,47 @@ describe('OpenCodeRestartPolicy', () => {
       expect(policy.shouldStartAgent(params)).toBe(false);
     });
 
-    it('returns false when task status is "in_progress"', () => {
+    it('returns false when task status is "in_progress" and agent has spawnedAgentPid', () => {
       const params = makeParams({
         task: { ...makeParams().task, status: 'in_progress' },
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: 12345 },
+      });
+      expect(policy.shouldStartAgent(params)).toBe(false);
+    });
+
+    it('returns true when task status is "in_progress" but spawnedAgentPid is null (dead agent)', () => {
+      const now = Date.now();
+      const params = makeParams({
+        task: {
+          ...makeParams().task,
+          status: 'in_progress',
+          updatedAt: now - 300_000, // 5 minutes ago (agent was working)
+        },
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: undefined },
+      });
+      expect(policy.shouldStartAgent(params)).toBe(true);
+    });
+
+    it('returns false when in_progress + dead agent but desiredState is "stopped"', () => {
+      const params = makeParams({
+        task: { ...makeParams().task, status: 'in_progress' },
+        agentConfig: {
+          ...makeParams().agentConfig,
+          spawnedAgentPid: undefined,
+          desiredState: 'stopped',
+        },
+      });
+      expect(policy.shouldStartAgent(params)).toBe(false);
+    });
+
+    it('returns false when in_progress + dead agent but circuitState is "open"', () => {
+      const params = makeParams({
+        task: { ...makeParams().task, status: 'in_progress' },
+        agentConfig: {
+          ...makeParams().agentConfig,
+          spawnedAgentPid: undefined,
+          circuitState: 'open',
+        },
       });
       expect(policy.shouldStartAgent(params)).toBe(false);
     });
@@ -151,12 +189,57 @@ describe('PiRestartPolicy', () => {
       expect(policy.shouldStartAgent(params, context)).toBe(false);
     });
 
-    it('returns false when task status is "in_progress"', () => {
+    it('returns false when task status is "in_progress" and agent has spawnedAgentPid', () => {
       const context = makeAgentEndContext();
       context.agentEndedTurn.set('test-chatroom-id:builder', true);
 
       const params = makeParams({
         task: { ...makeParams().task, status: 'in_progress' },
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: 12345 },
+      });
+      expect(policy.shouldStartAgent(params, context)).toBe(false);
+    });
+
+    it('returns true when task status is "in_progress" but spawnedAgentPid is null (dead agent)', () => {
+      const context = makeAgentEndContext();
+      // agentEndedTurn doesn't matter for in_progress + dead agent
+
+      const now = Date.now();
+      const params = makeParams({
+        task: {
+          ...makeParams().task,
+          status: 'in_progress',
+          updatedAt: now - 300_000,
+        },
+        agentConfig: { ...makeParams().agentConfig, spawnedAgentPid: undefined },
+      });
+      expect(policy.shouldStartAgent(params, context)).toBe(true);
+    });
+
+    it('returns false when in_progress + dead agent but desiredState is "stopped"', () => {
+      const context = makeAgentEndContext();
+
+      const params = makeParams({
+        task: { ...makeParams().task, status: 'in_progress' },
+        agentConfig: {
+          ...makeParams().agentConfig,
+          spawnedAgentPid: undefined,
+          desiredState: 'stopped',
+        },
+      });
+      expect(policy.shouldStartAgent(params, context)).toBe(false);
+    });
+
+    it('returns false when in_progress + dead agent but circuitState is "open"', () => {
+      const context = makeAgentEndContext();
+
+      const params = makeParams({
+        task: { ...makeParams().task, status: 'in_progress' },
+        agentConfig: {
+          ...makeParams().agentConfig,
+          spawnedAgentPid: undefined,
+          circuitState: 'open',
+        },
       });
       expect(policy.shouldStartAgent(params, context)).toBe(false);
     });

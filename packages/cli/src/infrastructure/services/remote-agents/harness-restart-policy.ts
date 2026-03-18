@@ -95,10 +95,10 @@ export interface HarnessRestartPolicy {
  * OpenCode restart policy.
  *
  * OpenCode doesn't have an agent_end signal, so we rely on stuck detection:
- * - Task is in pending/acknowledged for > STUCK_TASK_THRESHOLD_MS
- * - AND the agent has not produced tokens in > IDLE_TOKEN_THRESHOLD_MS
- * - AND desiredState is 'running'
- * - AND circuit breaker is not 'open'
+ * - in_progress + dead agent (spawnedAgentPid == null):
+ *   Restart if desiredState='running' and circuitState != 'open'
+ * - pending/acknowledged + stuck (task old + agent idle):
+ *   Restart if desiredState='running', circuitState != 'open', and idle
  */
 export class OpenCodeRestartPolicy implements HarnessRestartPolicy {
   readonly id = 'opencode';
@@ -116,8 +116,17 @@ export class OpenCodeRestartPolicy implements HarnessRestartPolicy {
       return false;
     }
 
-    // Only restart for pending or acknowledged tasks
-    // (in_progress means the agent is actively working)
+    // Case 1: in_progress task with dead agent (no PID)
+    // The agent was working on this task but died (process crashed/exited)
+    // Restart the agent to continue working
+    if (task.status === 'in_progress') {
+      // Only restart if the agent is dead (no spawned PID)
+      // If spawnedAgentPid exists, the process might still be running
+      return agentConfig.spawnedAgentPid == null;
+    }
+
+    // Case 2: pending or acknowledged task (waiting for agent)
+    // Check if stuck long enough and agent is idle
     if (task.status !== 'pending' && task.status !== 'acknowledged') {
       return false;
     }
@@ -147,11 +156,12 @@ export class OpenCodeRestartPolicy implements HarnessRestartPolicy {
  * Pi restart policy.
  *
  * Pi agents signal when they've ended their turn (agent_end event).
- * We only restart when:
- * - Task is in pending/acknowledged
- * - desiredState is 'running'
- * - circuit breaker is not 'open'
- * - The agent has ended its turn (tracked in AgentEndContext)
+ *
+ * Restart conditions:
+ * - in_progress + dead agent (spawnedAgentPid == null):
+ *   Restart if desiredState='running', circuitState != 'open'
+ * - pending/acknowledged + agent has ended turn:
+ *   Restart if desiredState='running', circuitState != 'open'
  *
  * This prevents interrupting an active Pi agent mid-turn.
  */
@@ -174,7 +184,16 @@ export class PiRestartPolicy implements HarnessRestartPolicy {
       return false;
     }
 
-    // Only restart for pending or acknowledged tasks
+    // Case 1: in_progress task with dead agent (no PID)
+    // The agent was working on this task but died (process crashed/exited)
+    // Restart the agent to continue working
+    if (task.status === 'in_progress') {
+      // Only restart if the agent is dead (no spawned PID)
+      // If spawnedAgentPid exists, the process might still be running
+      return agentConfig.spawnedAgentPid == null;
+    }
+
+    // Case 2: pending or acknowledged task (waiting for agent)
     if (task.status !== 'pending' && task.status !== 'acknowledged') {
       return false;
     }

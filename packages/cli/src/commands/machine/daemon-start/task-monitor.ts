@@ -116,13 +116,6 @@ export function startTaskMonitor(ctx: DaemonContext): { stop: () => void } {
               continue;
             }
 
-            // Check if agent is already running (has a spawned PID)
-            if (agentConfig.spawnedAgentPid != null) {
-              // Agent might still be running, but hasn't produced tokens
-              // Let the process monitor handle it
-              continue;
-            }
-
             // Required fields for starting agent
             if (!agentConfig.workingDir) {
               console.warn(
