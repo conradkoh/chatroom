@@ -406,9 +406,16 @@ ${taskDeliveryPrompt.fullCliOutput}
       \`\`\`
 
       ## Attached Backlog (1)
+      <backlog-item>
       - [BACKLOG] Fix: Agent lacks knowledge of backlog listing
 
       Add backlog section to get-next-task
+        ID: 10005;chatroom_backlog
+      </backlog-item>
+      <system-info>
+      HINT: If you have completed work on a backlog item and it is ready for review, run:
+        CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom backlog mark-for-review --chatroom-id="10002;chatroom_rooms" --role="builder" --backlog-item-id=<id>
+      </system-info>
       </task>
 
       <next-steps>
