@@ -656,6 +656,42 @@ export async function historyBacklog(
   }
 }
 
+/**
+ * Close a backlog item (mark as closed/stale).
+ */
+export async function closeBacklog(
+  chatroomId: string,
+  options: { role: string; backlogItemId: string },
+  deps?: BacklogDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
+
+  if (!options.backlogItemId || options.backlogItemId.trim().length === 0) {
+    console.error(`❌ Backlog item ID is required`);
+    process.exit(1);
+    return;
+  }
+
+  try {
+    await d.backend.mutation(api.backlog.closeBacklogItem, {
+      sessionId,
+      itemId: options.backlogItemId as Id<'chatroom_backlog'>,
+    });
+
+    console.log('');
+    console.log('✅ Backlog item closed');
+    console.log(`   ID: ${options.backlogItemId}`);
+    console.log(`   Status: closed`);
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to close backlog item: ${(error as Error).message}`);
+    process.exit(1);
+    return;
+  }
+}
+
 function getStatusEmoji(status: TaskStatus | BacklogItemStatus): string {
   switch (status) {
     case 'pending':

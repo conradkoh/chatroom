@@ -115,5 +115,31 @@ flowchart TD
 \`\`\`
 
 Stale item = backlog task already present in the codebase. Mark immediately; skip implementation.
-ROI = low complexity × high value.`,
+ROI = low complexity × high value.
+
+### 4. Backlog Cleanup
+
+Follow these steps to clean up the backlog by identifying and closing stale items.
+
+1. List all backlog items:
+   \`\`\`
+   ${cliEnvPrefix}chatroom backlog list --chatroom-id=<id> --role=<role>
+   \`\`\`
+
+2. For each item, assess staleness:
+   - Read the content carefully
+   - Check if already implemented (look at recent commits, PRs, or existing code)
+   - Check if superseded by a newer backlog item
+
+3. For stale items, mark for review:
+   \`\`\`
+   ${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --backlog-item-id=<item-id>
+   \`\`\`
+   **Important:** Always mark for review — do NOT close directly. Let the user confirm.
+
+4. If you are the coordinator, delegate assessment to workers:
+   - Builder checks codebase to determine if items are stale
+   - Builder marks stale items for review and reports back
+
+5. Report summary: items reviewed, marked for review, kept, needs clarification`,
 };
