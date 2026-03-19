@@ -1023,6 +1023,58 @@ export const deleteQueuedMessage = mutation({
   },
 });
 
+/** Deletes a pending message from chatroom_messages and its associated pending task (user-triggered cancel).
+ *  Only messages with a linked task in 'pending' status can be deleted — messages that are already
+ *  being processed (acknowledged / in_progress) are protected.
+ */
+export const deletePendingMessage = mutation({
+  args: {
+    ...SessionIdArg,
+    messageId: v.id('chatroom_messages'),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get('chatroom_messages', args.messageId);
+    if (!message) {
+      // Already deleted — idempotent
+      return { success: true };
+    }
+
+    // Validate session and check chatroom access (also verifies ownership)
+    await requireChatroomAccess(ctx, args.sessionId, message.chatroomId);
+
+    // Guard: only allow deletion if the linked task is still pending
+    if (!message.taskId) {
+      throw new ConvexError({
+        code: 'INVALID_MESSAGE',
+        message: 'Message has no associated task and cannot be deleted.',
+      });
+    }
+
+    const task = await ctx.db.get('chatroom_tasks', message.taskId);
+    if (!task) {
+      throw new ConvexError({
+        code: 'TASK_NOT_FOUND',
+        message: 'Associated task not found.',
+      });
+    }
+
+    if (task.status !== 'pending') {
+      throw new ConvexError({
+        code: 'INVALID_TASK_STATUS',
+        message: `Cannot delete message: task is already ${task.status}. Only pending messages can be deleted.`,
+      });
+    }
+
+    // Delete the associated pending task first
+    await ctx.db.delete('chatroom_tasks', task._id);
+
+    // Delete the message itself (hard delete)
+    await ctx.db.delete('chatroom_messages', args.messageId);
+
+    return { success: true };
+  },
+});
+
 /** Updates the content of a queued (pending) message before it is dispatched. */
 export const updateQueuedMessage = mutation({
   args: {
