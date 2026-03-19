@@ -294,7 +294,7 @@ Use Convex subscriptions for real-time updates`,
       // Planner is the entry point — should have classification instructions
       expect(plannerPrompt.currentClassification).toBeNull();
       expect(plannerPrompt.prompt).toContain('Classification (Entry Point Role)');
-      expect(plannerPrompt.prompt).toContain('task-started');
+      expect(plannerPrompt.prompt).toContain('classify');
     });
 
     test('builder prompt does NOT show classification instructions (non-entry point)', async () => {

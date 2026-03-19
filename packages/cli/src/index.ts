@@ -232,7 +232,7 @@ program
 program
   .command('classify')
   .description(
-    "Classify a task's origin message (entry-point role only). Use task-started --no-classify for handoffs."
+    'Classify a task\'s origin message (entry-point role only).'
   )
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role (must be entry-point role)')
