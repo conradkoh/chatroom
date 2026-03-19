@@ -67,9 +67,22 @@ export async function executeStopAgent(
   const allPids = [...new Set([backendPid, localPid].filter((p): p is number => p !== undefined))];
 
   if (allPids.length === 0) {
-    const msg = 'No running agent found (no PID recorded)';
+    // Idempotent: no process found, but still ensure backend state is clean.
+    // Clear any stale PID/spawnedAt in chatroom_teamAgentConfigs and mark participant as exited.
+    const msg = 'No running agent found (no PID recorded) — ensuring clean state';
     console.log(`   ⚠️  ${msg}`);
-    return { result: msg, failed: true };
+    await clearAgentPidEverywhere(ctx, chatroomId, role);
+    try {
+      await ctx.deps.backend.mutation(api.participants.leave, {
+        sessionId: ctx.sessionId,
+        chatroomId,
+        role,
+      });
+      console.log(`   Removed participant record`);
+    } catch {
+      // Non-critical — participant may already be absent
+    }
+    return { result: msg, failed: false };
   }
 
   // Any service can check a PID (it's an OS-level check via kill(pid, 0))
@@ -130,10 +143,11 @@ export async function executeStopAgent(
   }
 
   if (!anyKilled) {
-    // All PIDs were stale
+    // All PIDs were stale — processes already exited. State was cleaned up in the loop above.
+    // This is a success from the user's perspective: the agent is stopped.
     return {
-      result: `All recorded PIDs appear stale (processes not found or belong to different programs)`,
-      failed: true,
+      result: `Agent stopped (all recorded PIDs were stale — processes already exited)`,
+      failed: false,
     };
   }
 
