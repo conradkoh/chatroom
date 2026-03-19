@@ -541,6 +541,18 @@ backlogCommand
     }
   );
 
+backlogCommand
+  .command('close')
+  .description('Close a backlog item (mark as stale/superseded)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--backlog-item-id <id>', 'Backlog item ID to close')
+  .action(async (options: { chatroomId: string; role: string; backlogItemId: string }) => {
+    await maybeRequireAuth();
+    const { closeBacklog } = await import('./commands/backlog/index.js');
+    await closeBacklog(options.chatroomId, options);
+  });
+
 // ============================================================================
 // TASK COMMANDS (auth required)
 // ============================================================================
