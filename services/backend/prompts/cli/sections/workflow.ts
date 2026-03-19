@@ -50,8 +50,9 @@ flowchart TD
     L --> F
     K -->|yes| M{more phases?}
     M -->|yes| F
-    M -->|no| N[Deliver final result to user]
-    N --> O([Stop])
+    M -->|no| N[Verify: pnpm typecheck && pnpm test]
+    N --> O[Deliver final result to user]
+    O --> P([Stop])
 \`\`\``;
 }
 
@@ -76,8 +77,9 @@ flowchart TD
     K --> F
     J -->|yes| L{more phases?}
     L -->|yes| F
-    L -->|no| M[Deliver final result to user]
-    M --> N([Stop])
+    L -->|no| M[Verify: pnpm typecheck && pnpm test]
+    M --> N[Deliver final result to user]
+    N --> O([Stop])
 \`\`\``;
 }
 
@@ -101,8 +103,9 @@ flowchart TD
     J --> F
     I -->|yes| K{more phases?}
     K -->|yes| F
-    K -->|no| L[Deliver final result to user]
-    L --> M([Stop])
+    K -->|no| L[Verify: pnpm typecheck && pnpm test]
+    L --> M[Deliver final result to user]
+    M --> N([Stop])
 \`\`\``;
 }
 
@@ -117,5 +120,6 @@ export function getPlannerSoloWorkflow(): string {
 3. Classify with classify
 4. Implement the solution yourself
 5. Review your own work for quality
-6. Deliver to **user**`;
+6. Verify: \`pnpm typecheck && pnpm test\`
+7. Deliver to **user**`;
 }
