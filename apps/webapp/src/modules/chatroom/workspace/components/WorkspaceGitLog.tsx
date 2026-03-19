@@ -1,10 +1,12 @@
 'use client';
 
-import { memo } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import type { GitCommit } from '../types/git';
+import { memo } from 'react';
+
 import { formatRelativeTime } from './shared';
+import type { GitCommit } from '../types/git';
+
+import { Button } from '@/components/ui/button';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,9 +71,7 @@ export const WorkspaceGitLog = memo(function WorkspaceGitLog({
   onLoadMore,
 }: WorkspaceGitLogProps) {
   if (commits.length === 0) {
-    return (
-      <div className="text-xs text-chatroom-text-muted px-3 py-2">No commits</div>
-    );
+    return <div className="text-xs text-chatroom-text-muted px-3 py-2">No commits</div>;
   }
 
   return (

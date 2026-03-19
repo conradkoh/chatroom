@@ -1,7 +1,7 @@
+import { AGENT_REQUEST_DEADLINE_MS } from '../../../config/reliability';
 import type { Id } from '../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../convex/utils/teamRoleKey';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../config/reliability';
 import { patchParticipantStatus } from '../../domain/entities/participant';
 
 export interface OnAgentExitedArgs {
@@ -37,8 +37,14 @@ export async function onAgentExited(ctx: MutationCtx, args: OnAgentExitedArgs): 
   // The desiredState guard below prevents restart when the user explicitly stops.
   // Excludes: user.stop, platform.team_switch, agent_process.turn_end, agent_process.turn_end_quick_fail
   // If no stopReason is provided, default to restarting (safe fallback for legacy events).
-  const shouldRestart = !stopReason ||
-    !['user.stop', 'platform.team_switch', 'agent_process.turn_end', 'agent_process.turn_end_quick_fail'].includes(stopReason);
+  const shouldRestart =
+    !stopReason ||
+    ![
+      'user.stop',
+      'platform.team_switch',
+      'agent_process.turn_end',
+      'agent_process.turn_end_quick_fail',
+    ].includes(stopReason);
 
   if (!shouldRestart) {
     return;

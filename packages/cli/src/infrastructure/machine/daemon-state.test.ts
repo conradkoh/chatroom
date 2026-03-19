@@ -7,7 +7,15 @@
  *   3. If no persisted cursor exists, loadEventCursor returns null (fallback to query)
  */
 
+import { existsSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// ---------------------------------------------------------------------------
+// Import after mocks
+// ---------------------------------------------------------------------------
+
+import { loadEventCursor, persistEventCursor } from './daemon-state.js';
 
 // ---------------------------------------------------------------------------
 // Mocks — must be defined before importing the module under test
@@ -44,13 +52,6 @@ vi.mock('node:path', async (importOriginal) => {
     join: actual.join,
   };
 });
-
-// ---------------------------------------------------------------------------
-// Import after mocks
-// ---------------------------------------------------------------------------
-
-import { loadEventCursor, persistEventCursor } from './daemon-state.js';
-import { existsSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 
 // ---------------------------------------------------------------------------
 // Tests

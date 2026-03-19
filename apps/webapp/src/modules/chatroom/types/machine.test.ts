@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { HARNESS_DISPLAY_NAMES, getHarnessDisplayName } from './machine';
 
 /**
@@ -9,15 +10,12 @@ import { HARNESS_DISPLAY_NAMES, getHarnessDisplayName } from './machine';
 const ALL_KNOWN_HARNESSES: string[] = ['opencode', 'pi', 'cursor'];
 
 describe('HARNESS_DISPLAY_NAMES', () => {
-  it.each(ALL_KNOWN_HARNESSES)(
-    'should have a display name for the "%s" harness',
-    (harness) => {
-      const displayName = HARNESS_DISPLAY_NAMES[harness];
-      expect(displayName).toBeDefined();
-      expect(typeof displayName).toBe('string');
-      expect(displayName.length).toBeGreaterThan(0);
-    }
-  );
+  it.each(ALL_KNOWN_HARNESSES)('should have a display name for the "%s" harness', (harness) => {
+    const displayName = HARNESS_DISPLAY_NAMES[harness];
+    expect(displayName).toBeDefined();
+    expect(typeof displayName).toBe('string');
+    expect(displayName.length).toBeGreaterThan(0);
+  });
 
   it('should have display names for every known harness (completeness check)', () => {
     const displayNameKeys = Object.keys(HARNESS_DISPLAY_NAMES);

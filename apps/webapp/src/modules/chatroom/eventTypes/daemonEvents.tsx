@@ -57,7 +57,10 @@ function renderDaemonPongDetails(event: DaemonPongEvent): React.ReactNode {
 
 // ─── Daemon Git Refresh ───────────────────────────────────────────────────────
 
-function renderDaemonGitRefreshCell(event: DaemonGitRefreshEvent, isSelected: boolean): React.ReactNode {
+function renderDaemonGitRefreshCell(
+  event: DaemonGitRefreshEvent,
+  isSelected: boolean
+): React.ReactNode {
   return (
     <EventRow
       type="daemon.gitRefresh"

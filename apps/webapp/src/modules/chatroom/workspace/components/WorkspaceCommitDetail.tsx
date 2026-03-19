@@ -1,11 +1,13 @@
 'use client';
 
-import { memo, useEffect } from 'react';
 import { AlertTriangle, AlertCircle } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import type { CommitDetailState, FullDiffState } from '../types/git';
-import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
+import { memo, useEffect } from 'react';
+
 import { InlineDiffStat } from './shared';
+import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
+import type { CommitDetailState, FullDiffState } from '../types/git';
+
+import { Skeleton } from '@/components/ui/skeleton';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

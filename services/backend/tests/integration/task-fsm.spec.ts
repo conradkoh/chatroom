@@ -212,11 +212,17 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
 
       // Create → send → claim → start → in_progress
       await t.mutation(api.messages.sendMessage, {
-        sessionId, chatroomId, content: 'test', senderRole: 'user', type: 'message',
+        sessionId,
+        chatroomId,
+        content: 'test',
+        senderRole: 'user',
+        type: 'message',
       });
       await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
       const allTasks = await t.query(api.tasks.listTasks, {
-        sessionId, chatroomId, statusFilter: 'active',
+        sessionId,
+        chatroomId,
+        statusFilter: 'active',
       });
       const taskId = allTasks.find((t) => t.status === 'acknowledged')?._id;
       expect(taskId).toBeDefined();
@@ -235,11 +241,17 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
 
       // Create → send → claim by builder → start → in_progress assigned to builder
       await t.mutation(api.messages.sendMessage, {
-        sessionId, chatroomId, content: 'test', senderRole: 'user', type: 'message',
+        sessionId,
+        chatroomId,
+        content: 'test',
+        senderRole: 'user',
+        type: 'message',
       });
       await t.mutation(api.tasks.claimTask, { sessionId, chatroomId, role: 'builder' });
       const allTasks = await t.query(api.tasks.listTasks, {
-        sessionId, chatroomId, statusFilter: 'active',
+        sessionId,
+        chatroomId,
+        statusFilter: 'active',
       });
       const taskId = allTasks.find((t) => t.status === 'acknowledged')?._id;
       expect(taskId).toBeDefined();
@@ -252,9 +264,13 @@ describe('FSM Phase 3: Split Acknowledgment from Work Start', () => {
 
       // Verify assignedTo was updated
       const inProgress = await t.query(api.tasks.listTasks, {
-        sessionId, chatroomId, statusFilter: 'in_progress',
+        sessionId,
+        chatroomId,
+        statusFilter: 'in_progress',
       });
-      const task = inProgress.find((t: { _id: unknown }) => t._id === taskId) as { assignedTo?: string } | undefined;
+      const task = inProgress.find((t: { _id: unknown }) => t._id === taskId) as
+        | { assignedTo?: string }
+        | undefined;
       expect(task?.assignedTo).toBe('planner');
     });
   });

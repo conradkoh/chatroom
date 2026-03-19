@@ -512,11 +512,16 @@ interface DeleteConfirmPopoverContentProps {
   onConfirmDelete: () => void;
 }
 
-function DeleteConfirmPopoverContent({ onCancel, onConfirmDelete }: DeleteConfirmPopoverContentProps) {
+function DeleteConfirmPopoverContent({
+  onCancel,
+  onConfirmDelete,
+}: DeleteConfirmPopoverContentProps) {
   return (
     <>
       <div className="border-b-2 border-border px-3 py-2">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground">Delete Message</p>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground">
+          Delete Message
+        </p>
       </div>
       <div className="px-3 py-2">
         <p className="text-xs text-muted-foreground mb-3">
@@ -684,11 +689,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             className="flex-shrink-0 flex items-center justify-center w-6 h-6 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Promote to active (bypass queue)"
           >
-            {isPromoting ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <ArrowUp size={12} />
-            )}
+            {isPromoting ? <Loader2 size={12} className="animate-spin" /> : <ArrowUp size={12} />}
           </button>
 
           {/* Delete button — icon only, with popover confirmation */}
@@ -699,11 +700,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 className="flex-shrink-0 flex items-center justify-center w-6 h-6 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="Delete queued message"
               >
-                {isDeleting ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Trash2 size={12} />
-                )}
+                {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
@@ -743,9 +740,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                   onChange={(e) => setEditContent(e.target.value)}
                   autoFocus
                 />
-                {editError && (
-                  <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>
-                )}
+                {editError && <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>}
               </div>
             ) : (
               <div className="p-6">
@@ -765,9 +760,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 <Timer size={12} className="flex-shrink-0" />
                 Queued
               </span>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {elapsed}
-              </span>
+              <span className="text-xs text-muted-foreground tabular-nums">{elapsed}</span>
             </div>
             {/* Right: action buttons (larger, thumb-friendly for mobile) */}
             {isEditing ? (
@@ -789,54 +782,54 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 </button>
               </div>
             ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handlePromoteAndClose}
-                disabled={isPromoting || isDeleting}
-                className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                title="Promote to active"
-              >
-                {isPromoting ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <ArrowUp size={14} />
-                )}
-                Promote
-              </button>
-              {/* Modal delete button with popover confirmation */}
-              <Popover open={isModalDeletePopoverOpen} onOpenChange={setIsModalDeletePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    disabled={isDeleting || isPromoting}
-                    className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                    title="Delete queued message"
-                  >
-                    {isDeleting ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={14} />
-                    )}
-                    Delete
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
-                  <DeleteConfirmPopoverContent
-                    onCancel={() => setIsModalDeletePopoverOpen(false)}
-                    onConfirmDelete={handleModalDelete}
-                  />
-                </PopoverContent>
-              </Popover>
-              {/* Edit button */}
-              <button
-                onClick={handleStartEdit}
-                disabled={isPromoting || isDeleting}
-                className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                title="Edit queued message"
-              >
-                <Pencil size={14} />
-                Edit
-              </button>
-            </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePromoteAndClose}
+                  disabled={isPromoting || isDeleting}
+                  className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                  title="Promote to active"
+                >
+                  {isPromoting ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <ArrowUp size={14} />
+                  )}
+                  Promote
+                </button>
+                {/* Modal delete button with popover confirmation */}
+                <Popover open={isModalDeletePopoverOpen} onOpenChange={setIsModalDeletePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      disabled={isDeleting || isPromoting}
+                      className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                      title="Delete queued message"
+                    >
+                      {isDeleting ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                      Delete
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
+                    <DeleteConfirmPopoverContent
+                      onCancel={() => setIsModalDeletePopoverOpen(false)}
+                      onConfirmDelete={handleModalDelete}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {/* Edit button */}
+                <button
+                  onClick={handleStartEdit}
+                  disabled={isPromoting || isDeleting}
+                  className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                  title="Edit queued message"
+                >
+                  <Pencil size={14} />
+                  Edit
+                </button>
+              </div>
             )}
           </div>
         </FixedModalContent>
@@ -877,11 +870,7 @@ const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { conte
       className="flex items-center justify-center w-6 h-6 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
       title="Copy as markdown"
     >
-      {copied ? (
-        <Check size={12} className="text-chatroom-status-success" />
-      ) : (
-        <Copy size={12} />
-      )}
+      {copied ? <Check size={12} className="text-chatroom-status-success" /> : <Copy size={12} />}
     </button>
   );
 });
@@ -1170,14 +1159,19 @@ const LatestEventTicker = memo(function LatestEventTicker({
         {formatEventType(event.type)}
       </span>
       {'role' in event && event.role && (
-        <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">{event.role}</span>
+        <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">
+          {event.role}
+        </span>
       )}
       <ChevronRight size={10} className="opacity-50 ml-0.5" />
     </button>
   );
 });
 
-export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _activeTask }: MessageFeedProps) {
+export const MessageFeed = memo(function MessageFeed({
+  chatroomId,
+  activeTask: _activeTask,
+}: MessageFeedProps) {
   const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
     api.messages.listPaginated,
     { chatroomId: chatroomId as Id<'chatroom_rooms'> },
@@ -1232,7 +1226,8 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
   );
 
   // Cast needed: useSessionQuery returns the raw Convex DB type; we cast to the typed discriminated union
-  const latestEvent: EventStreamEvent | null = (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
+  const latestEvent: EventStreamEvent | null =
+    (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
 
   // Reset event limit when panel closes
   useEffect(() => {
@@ -1569,9 +1564,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
       {/* Always rendered — animated to height 0 when empty, slides in when a message is queued */}
       <div
         className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          displayQueuedMessages.length > 0
-            ? 'max-h-[600px] opacity-100'
-            : 'max-h-0 opacity-0'
+          displayQueuedMessages.length > 0 ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
         }`}
       >
         <div className="border-t border-border">
@@ -1607,7 +1600,11 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
         </div>
       </div>
       {/* Queue list modal — shows all queued messages */}
-      <FixedModal isOpen={isQueueModalOpen} onClose={() => setIsQueueModalOpen(false)} maxWidth="max-w-2xl">
+      <FixedModal
+        isOpen={isQueueModalOpen}
+        onClose={() => setIsQueueModalOpen(false)}
+        maxWidth="max-w-2xl"
+      >
         <FixedModalContent>
           <FixedModalHeader onClose={() => setIsQueueModalOpen(false)}>
             <FixedModalTitle>Queue ({displayQueuedMessages.length})</FixedModalTitle>
@@ -1670,7 +1667,10 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
                 chatroomId: chatroomId as Id<'chatroom_rooms'>,
                 createdBy: 'unknown',
                 content: selectedAttachedBacklogItem.content,
-                status: selectedAttachedBacklogItem.status as 'backlog' | 'pending_user_review' | 'closed',
+                status: selectedAttachedBacklogItem.status as
+                  | 'backlog'
+                  | 'pending_user_review'
+                  | 'closed',
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
               }

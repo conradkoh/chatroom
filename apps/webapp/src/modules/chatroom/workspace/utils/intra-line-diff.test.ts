@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { computeIntraLineDiff, tokenize } from './intra-line-diff';
 import type { DiffSegment } from './intra-line-diff';
 

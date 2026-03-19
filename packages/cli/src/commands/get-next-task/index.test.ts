@@ -101,7 +101,12 @@ describe('get-next-task — agent config ownership', () => {
 
     mockQuery.mockImplementation(async (queryFn: string) => {
       if (queryFn === 'chatrooms:get') {
-        return { _id: TEST_CHATROOM_ID, teamName: 'Test', teamRoles: ['builder'], teamEntryPoint: 'builder' };
+        return {
+          _id: TEST_CHATROOM_ID,
+          teamName: 'Test',
+          teamRoles: ['builder'],
+          teamEntryPoint: 'builder',
+        };
       }
       if (queryFn === 'machines:getTeamAgentConfigs') return [];
       if (queryFn === 'messages:getInitPrompt') {

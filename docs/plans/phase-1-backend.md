@@ -7,6 +7,7 @@ Migrate the chatroom backend from `chatroom-cli/convex/` to `chatroom/services/b
 ## Source Files
 
 From `chatroom-cli/convex/`:
+
 - `schema.ts` - Database schema (chatrooms, participants, messages)
 - `chatrooms.ts` - Chatroom mutations and queries
 - `messages.ts` - Message mutations and queries with routing logic
@@ -16,17 +17,21 @@ From `chatroom-cli/convex/`:
 ## Tasks
 
 ### 1.1 Extend Schema
+
 Add chatroom-related tables to the existing schema in `services/backend/convex/schema.ts`:
 
 **New Tables:**
+
 - `chatrooms` - Chatroom state and team configuration
 - `chatroom_participants` - Participant status per chatroom (prefixed to avoid conflicts)
 - `chatroom_messages` - Messages with routing metadata
 
 ### 1.2 Create Chatroom Module
+
 Create new files in `services/backend/convex/chatroom/`:
 
 **Files to Create:**
+
 - `chatrooms.ts` - Chatroom CRUD operations
 - `messages.ts` - Message operations with routing logic
 - `participants.ts` - Participant operations
@@ -35,6 +40,7 @@ Create new files in `services/backend/convex/chatroom/`:
 ### 1.3 Adapt Convex Functions
 
 **Mutations:**
+
 - `chatroom.chatrooms.create` - Create new chatroom with team info
 - `chatroom.chatrooms.updateStatus` - Update chatroom status
 - `chatroom.chatrooms.interrupt` - Interrupt chatroom and reset participants
@@ -44,6 +50,7 @@ Create new files in `services/backend/convex/chatroom/`:
 - `chatroom.messages.claimMessage` - Claim broadcast message
 
 **Queries:**
+
 - `chatroom.chatrooms.get` - Get chatroom by ID
 - `chatroom.chatrooms.getTeamReadiness` - Check if team is ready
 - `chatroom.participants.list` - List participants
@@ -99,6 +106,7 @@ chatroom_messages: defineTable({
 ## File Structure
 
 After migration:
+
 ```
 services/backend/convex/
 ├── chatroom/

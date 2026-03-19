@@ -4,11 +4,10 @@ import { memo, useState, useEffect, useMemo, useCallback, useContext } from 'rea
 
 import { WorkspaceAgentList } from './WorkspaceAgentList';
 import { WorkspaceSidebar } from './WorkspaceSidebar';
-import { useWorkspaces } from '../../hooks/useWorkspaces';
 import { useAgentPanelData } from '../../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../../hooks/useAgentStatuses';
+import { useWorkspaces } from '../../hooks/useWorkspaces';
 import type { StatusVariant } from '../../utils/agentStatusLabel';
-import { PromptsContext } from '@/contexts/PromptsContext';
 
 import {
   FixedModal,
@@ -17,6 +16,7 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
+import { PromptsContext } from '@/contexts/PromptsContext';
 
 export interface AgentWithStatus {
   role: string;

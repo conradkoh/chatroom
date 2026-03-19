@@ -11,15 +11,15 @@
  * the daemon is completely offline.
  */
 
+import { executeStartAgent } from './handlers/start-agent.js';
+import type { DaemonContext } from './types.js';
+import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
 import {
   getRestartPolicyForHarness,
   type AgentEndContext,
 } from '../../../infrastructure/services/remote-agents/harness-restart-policy.js';
-import { executeStartAgent } from './handlers/start-agent.js';
-import type { DaemonContext } from './types.js';
-import { formatTimestamp } from './utils.js';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -103,10 +103,7 @@ export function startTaskMonitor(ctx: DaemonContext): { stop: () => void } {
             const policy = getRestartPolicyForHarness(agentConfig.agentHarness);
 
             // Check if we should start an agent
-            const shouldStart = policy.shouldStartAgent(
-              { task, agentConfig },
-              agentEndContext
-            );
+            const shouldStart = policy.shouldStartAgent({ task, agentConfig }, agentEndContext);
 
             if (!shouldStart) continue;
 
@@ -155,9 +152,7 @@ export function startTaskMonitor(ctx: DaemonContext): { stop: () => void } {
       console.log(`[${formatTimestamp()}] 🔍 Task monitor started`);
     } catch (err) {
       if (isRunning) {
-        console.error(
-          `[${formatTimestamp()}] ❌ Task monitor error: ${(err as Error).message}`
-        );
+        console.error(`[${formatTimestamp()}] ❌ Task monitor error: ${(err as Error).message}`);
         // Retry after a delay
         setTimeout(startMonitoring, 5000);
       }

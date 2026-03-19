@@ -7,14 +7,11 @@
 
 'use client';
 
-import { useState, useCallback, useMemo, useRef } from 'react';
-import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { api } from '@workspace/backend/convex/_generated/api';
-import type {
-  WorkspaceGitState,
-  FullDiffState,
-  CommitDetailState,
-} from '../types/git';
+import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
+import { useState, useCallback, useMemo, useRef } from 'react';
+
+import type { WorkspaceGitState, FullDiffState, CommitDetailState } from '../types/git';
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -46,7 +43,7 @@ export function useWorkspaceGit(machineId: string, workingDir: string): Workspac
  */
 export function useFullDiff(
   machineId: string,
-  workingDir: string,
+  workingDir: string
 ): { state: FullDiffState; request: () => void } {
   const result = useSessionQuery(api.workspaces.getFullDiff, { machineId, workingDir });
   const requestMutation = useSessionMutation(api.workspaces.requestFullDiff);
@@ -80,7 +77,7 @@ export function useFullDiff(
  */
 export function useCommitDetail(
   machineId: string,
-  workingDir: string,
+  workingDir: string
 ): { state: CommitDetailState; request: (sha: string) => void; clear: () => void } {
   const [activeSha, setActiveSha] = useState<string | null>(null);
   const requestMutation = useSessionMutation(api.workspaces.requestCommitDetail);
@@ -88,7 +85,7 @@ export function useCommitDetail(
   // Only subscribe when we have a sha to fetch
   const result = useSessionQuery(
     api.workspaces.getCommitDetail,
-    activeSha ? { machineId, workingDir, sha: activeSha } : 'skip',
+    activeSha ? { machineId, workingDir, sha: activeSha } : 'skip'
   );
 
   const request = useCallback(
@@ -96,7 +93,7 @@ export function useCommitDetail(
       setActiveSha(sha);
       requestMutation({ machineId, workingDir, sha });
     },
-    [requestMutation, machineId, workingDir],
+    [requestMutation, machineId, workingDir]
   );
 
   const clear = useCallback(() => {
@@ -119,7 +116,12 @@ export function useCommitDetail(
       };
     }
     if (result.status === 'too_large') {
-      return { status: 'too_large', message: result.message, author: result.author, date: result.date };
+      return {
+        status: 'too_large',
+        message: result.message,
+        author: result.author,
+        date: result.date,
+      };
     }
     if (result.status === 'not_found') {
       return { status: 'not_found' };
@@ -139,7 +141,7 @@ export function useCommitDetail(
  */
 export function useLoadMoreCommits(
   machineId: string,
-  workingDir: string,
+  workingDir: string
 ): { loading: boolean; loadMore: () => void } {
   const [loading, setLoading] = useState(false);
   const requestMutation = useSessionMutation(api.workspaces.requestMoreCommits);
@@ -150,7 +152,7 @@ export function useLoadMoreCommits(
       gitState?.status === 'available' ? (gitState.recentCommits?.length ?? 0) : 0;
     setLoading(true);
     requestMutation({ machineId, workingDir, offset: currentCount }).finally(() =>
-      setLoading(false),
+      setLoading(false)
     );
   }, [requestMutation, machineId, workingDir, gitState]);
 
@@ -166,7 +168,7 @@ export function useLoadMoreCommits(
  */
 export function useGitRefresh(
   machineId: string,
-  workingDir: string,
+  workingDir: string
 ): { refresh: () => void; isRefreshing: boolean } {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const requestMutation = useSessionMutation(api.machines.requestGitRefresh);

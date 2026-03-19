@@ -255,7 +255,9 @@ describe('Context Read Command Output', () => {
 
     // Verify both items have content
     expect(userMessage!.attachedBacklogItems?.[0].content).toContain('Task 1: Fix login bug');
-    expect(userMessage!.attachedBacklogItems?.[1].content).toContain('Task 2: Update documentation');
+    expect(userMessage!.attachedBacklogItems?.[1].content).toContain(
+      'Task 2: Update documentation'
+    );
   });
 
   test('snapshot baseline: full getContextForRole return value', async () => {

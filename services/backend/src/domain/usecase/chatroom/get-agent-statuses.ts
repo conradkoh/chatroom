@@ -7,10 +7,10 @@
  * raw table records.
  */
 
+import { getTeamRolesFromChatroom } from './get-team-roles';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness, AgentType } from '../../entities/agent';
-import { getTeamRolesFromChatroom } from './get-team-roles';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -87,9 +87,7 @@ export async function getAgentStatusForChatroom(
       };
     }
 
-    const machine = teamConfig.machineId
-      ? userMachineMap.get(teamConfig.machineId)
-      : undefined;
+    const machine = teamConfig.machineId ? userMachineMap.get(teamConfig.machineId) : undefined;
 
     // Determine state
     let state: AgentRoleView['state'] = 'stopped';

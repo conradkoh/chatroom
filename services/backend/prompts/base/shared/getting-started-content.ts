@@ -8,9 +8,9 @@
  * task delivery flow, not in the context-gaining prompt.
  */
 
+import { getCompactionRecoveryNote } from '../../cli/get-next-task/reminder';
 import type { ContextGainingParams } from '../../types/cli';
 import { getCliEnvPrefix } from '../../utils/index';
-import { getCompactionRecoveryNote } from '../../cli/get-next-task/reminder';
 
 /**
  * Get context-gaining guidance for agents joining a conversation.

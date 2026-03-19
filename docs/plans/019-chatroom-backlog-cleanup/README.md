@@ -97,6 +97,7 @@ Once confirmed successful in production, this cleanup PR can proceed.
 Before removing `attachedTaskIds` from messages and `parentTaskIds`/`attachedTaskIds` from tasks, a follow-up migration is needed:
 
 **`migrateBacklogTaskReferences`** (to add in a future PR):
+
 - Scan `chatroom_messages` for `attachedTaskIds` entries that pointed to old backlog task IDs
 - Use `legacyTaskId` index on `chatroom_backlog` to find the new `chatroom_backlog` ID
 - Write to a new `attachedBacklogIds: v.optional(v.array(v.id('chatroom_backlog')))` field
@@ -121,15 +122,15 @@ Before removing `attachedTaskIds` from messages and `parentTaskIds`/`attachedTas
 
 ## Files Touched in Cleanup PR
 
-| File | Change |
-|------|--------|
-| `services/backend/convex/schema.ts` | Remove deprecated fields/statuses from `chatroom_tasks`, remove `legacyTaskId` from `chatroom_backlog` |
-| `services/backend/convex/migration.ts` | Remove completed migration exports |
-| `scripts/migrate.ts` | Remove completed migration entries |
-| `services/backend/convex/lib/taskStateMachine.ts` | Remove backlog-only statuses and transitions |
-| `services/backend/convex/lib/taskWorkflows.ts` | Remove backlog origin handling |
-| `services/backend/convex/tasks.ts` | Remove backlog-specific mutations and parameters |
-| `services/backend/convex/messages.ts` | Remove `attachedTaskIds` / `parentTaskIds` handling |
-| `apps/webapp/src/modules/chatroom/components/TaskDetailModal.tsx` | Update to use `chatroom_backlog` |
-| `apps/webapp/src/modules/chatroom/components/TaskQueue.tsx` | Update to use `chatroom_backlog` |
-| `apps/webapp/src/modules/chatroom/components/SendForm.tsx` | Replace `attachedTaskIds` with `attachedBacklogIds` |
+| File                                                              | Change                                                                                                 |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `services/backend/convex/schema.ts`                               | Remove deprecated fields/statuses from `chatroom_tasks`, remove `legacyTaskId` from `chatroom_backlog` |
+| `services/backend/convex/migration.ts`                            | Remove completed migration exports                                                                     |
+| `scripts/migrate.ts`                                              | Remove completed migration entries                                                                     |
+| `services/backend/convex/lib/taskStateMachine.ts`                 | Remove backlog-only statuses and transitions                                                           |
+| `services/backend/convex/lib/taskWorkflows.ts`                    | Remove backlog origin handling                                                                         |
+| `services/backend/convex/tasks.ts`                                | Remove backlog-specific mutations and parameters                                                       |
+| `services/backend/convex/messages.ts`                             | Remove `attachedTaskIds` / `parentTaskIds` handling                                                    |
+| `apps/webapp/src/modules/chatroom/components/TaskDetailModal.tsx` | Update to use `chatroom_backlog`                                                                       |
+| `apps/webapp/src/modules/chatroom/components/TaskQueue.tsx`       | Update to use `chatroom_backlog`                                                                       |
+| `apps/webapp/src/modules/chatroom/components/SendForm.tsx`        | Replace `attachedTaskIds` with `attachedBacklogIds`                                                    |

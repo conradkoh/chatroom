@@ -104,7 +104,10 @@ export const SetupChecklist = memo(function SetupChecklist({
   } = useAgentPanelData(chatroomId);
 
   // ── Agent statuses (event stream) ─────────────────────────────────
-  const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(chatroomId, teamRoles);
+  const { agents: agentStatuses, isLoading: isLoadingStatuses } = useAgentStatuses(
+    chatroomId,
+    teamRoles
+  );
 
   // Combined loading flag — wait for both machine data and agent statuses before rendering
   const isAllLoading = isLoading || isLoadingStatuses;

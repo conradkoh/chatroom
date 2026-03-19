@@ -8,12 +8,12 @@
  * knows its own command and how to check installation / version.
  */
 
+import type { AgentHarness, HarnessVersionInfo } from './types.js';
 import {
   initHarnessRegistry,
   getAllHarnesses,
   getHarness,
 } from '../services/remote-agents/index.js';
-import type { AgentHarness, HarnessVersionInfo } from './types.js';
 
 /**
  * Detect the version of a specific agent harness.

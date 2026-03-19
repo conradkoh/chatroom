@@ -5,8 +5,8 @@ import React, { useCallback } from 'react';
 
 import type { BacklogItem } from '../../backlog';
 import type { Task } from '../types';
-import { PendingReviewModalItem } from './PendingReviewModalItem';
 import { PendingReviewBacklogModalItem } from './PendingReviewBacklogModalItem';
+import { PendingReviewModalItem } from './PendingReviewModalItem';
 
 export interface PendingReviewModalProps {
   tasks?: Task[];

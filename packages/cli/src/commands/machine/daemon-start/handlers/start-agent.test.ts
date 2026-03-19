@@ -9,9 +9,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import type { RemoteAgentService } from '../../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import type { DaemonDeps } from '../deps.js';
-import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import type { DaemonContext, StartAgentCommand } from '../types.js';
 import { handleStartAgent } from './start-agent.js';
 
@@ -533,16 +533,20 @@ describe('handleStartAgent', () => {
     // DESIGN DECISION: A process that exits with code 0 (normal completion) is
     // treated identically to a crash if no explicit stop was requested.
     // See on-agent-exited.ts for the reliability rationale.
-    let onExitCallback: ((info: {
-      code: number | null;
-      signal: string | null;
-      context: { machineId: string; chatroomId: string; role: string };
-    }) => void) | null = null;
+    let onExitCallback:
+      | ((info: {
+          code: number | null;
+          signal: string | null;
+          context: { machineId: string; chatroomId: string; role: string };
+        }) => void)
+      | null = null;
 
     const ctx = createMockContext({
       spawnResult: {
         pid: 5678,
-        onExit: (cb) => { onExitCallback = cb; },
+        onExit: (cb) => {
+          onExitCallback = cb;
+        },
         onOutput: vi.fn(),
       },
     });
@@ -571,16 +575,20 @@ describe('handleStartAgent', () => {
   });
 
   it('emits stopReason=agent_process.signal for SIGTERM exit', async () => {
-    let onExitCallback: ((info: {
-      code: number | null;
-      signal: string | null;
-      context: { machineId: string; chatroomId: string; role: string };
-    }) => void) | null = null;
+    let onExitCallback:
+      | ((info: {
+          code: number | null;
+          signal: string | null;
+          context: { machineId: string; chatroomId: string; role: string };
+        }) => void)
+      | null = null;
 
     const ctx = createMockContext({
       spawnResult: {
         pid: 5678,
-        onExit: (cb) => { onExitCallback = cb; },
+        onExit: (cb) => {
+          onExitCallback = cb;
+        },
         onOutput: vi.fn(),
       },
     });
@@ -608,16 +616,20 @@ describe('handleStartAgent', () => {
   });
 
   it('emits stopReason=agent_process.signal for SIGKILL exit', async () => {
-    let onExitCallback: ((info: {
-      code: number | null;
-      signal: string | null;
-      context: { machineId: string; chatroomId: string; role: string };
-    }) => void) | null = null;
+    let onExitCallback:
+      | ((info: {
+          code: number | null;
+          signal: string | null;
+          context: { machineId: string; chatroomId: string; role: string };
+        }) => void)
+      | null = null;
 
     const ctx = createMockContext({
       spawnResult: {
         pid: 5678,
-        onExit: (cb) => { onExitCallback = cb; },
+        onExit: (cb) => {
+          onExitCallback = cb;
+        },
         onOutput: vi.fn(),
       },
     });
@@ -645,16 +657,20 @@ describe('handleStartAgent', () => {
   });
 
   it('emits stopReason=user.stop when process exits after explicit stop', async () => {
-    let onExitCallback: ((info: {
-      code: number | null;
-      signal: string | null;
-      context: { machineId: string; chatroomId: string; role: string };
-    }) => void) | null = null;
+    let onExitCallback:
+      | ((info: {
+          code: number | null;
+          signal: string | null;
+          context: { machineId: string; chatroomId: string; role: string };
+        }) => void)
+      | null = null;
 
     const ctx = createMockContext({
       spawnResult: {
         pid: 5678,
-        onExit: (cb) => { onExitCallback = cb; },
+        onExit: (cb) => {
+          onExitCallback = cb;
+        },
         onOutput: vi.fn(),
       },
     });
@@ -710,7 +726,9 @@ describe('handleStartAgent', () => {
     expect(ctx.deps.processes.kill).toHaveBeenCalledWith(-5678, 'SIGTERM');
     // Should mark with stop reason (turn_end or turn_end_quick_fail based on elapsed time)
     // Since this test runs quickly, it will be turn_end_quick_fail
-    expect(ctx.pendingStops.get('test-chatroom-123:builder')).toBe('agent_process.turn_end_quick_fail');
+    expect(ctx.pendingStops.get('test-chatroom-123:builder')).toBe(
+      'agent_process.turn_end_quick_fail'
+    );
   });
 
   it('does not register onAgentEnd handler when spawnResult does not provide it', async () => {

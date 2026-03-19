@@ -14,12 +14,15 @@ Mobile UX is acceptable, but desktop users need more space.
 ## User Stories
 
 ### As a user editing a long backlog item:
+
 > I want a larger editing area with live preview so I can write detailed markdown requirements comfortably
 
 ### As a user reviewing backlog content:
+
 > I want to see the full content without excessive scrolling in a narrow modal
 
 ### As a power user on desktop:
+
 > I want to use my large screen effectively, not be constrained to a mobile-sized modal
 
 ## Requirements
@@ -50,7 +53,7 @@ Mobile UX is acceptable, but desktop users need more space.
 
 ### Desktop Editing Mode (≥1024px)
 
-```
+````
 ┌────────────────────────────────────────────────────────────────────┐
 │ Backlog Item                                                  [X]  │
 ├────────────────────────────────────────────────────────────────────┤
@@ -72,30 +75,31 @@ Mobile UX is acceptable, but desktop users need more space.
 ├────────────────────────────────────────────────────────────────────┤
 │ [Save] [Cancel]                                 [Move to Queue]    │
 └────────────────────────────────────────────────────────────────────┘
-```
+````
 
 ### Mobile/Tablet View Mode (< 1024px)
 
 Current behavior unchanged:
+
 - Single-panel modal
 - Toggle between edit and view
 
 ## Success Metrics
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Modal width (desktop) | 512px | 1024px |
-| Modal height (desktop) | 85vh | 90vh |
-| Preview while editing | No | Yes (desktop) |
-| Click to toggle edit/preview | N/A | 0 (always visible) |
+| Metric                       | Current | Target             |
+| ---------------------------- | ------- | ------------------ |
+| Modal width (desktop)        | 512px   | 1024px             |
+| Modal height (desktop)       | 85vh    | 90vh               |
+| Preview while editing        | No      | Yes (desktop)      |
+| Click to toggle edit/preview | N/A     | 0 (always visible) |
 
 ## Risks
 
-| Risk | Mitigation |
-|------|------------|
-| Performance with large content | Debounce preview updates if needed |
-| Layout shift at breakpoint | Test transition thoroughly |
-| Existing flows broken | Preserve all existing functionality |
+| Risk                           | Mitigation                          |
+| ------------------------------ | ----------------------------------- |
+| Performance with large content | Debounce preview updates if needed  |
+| Layout shift at breakpoint     | Test transition thoroughly          |
+| Existing flows broken          | Preserve all existing functionality |
 
 ## Out of Scope
 

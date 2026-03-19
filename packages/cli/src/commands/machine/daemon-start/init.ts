@@ -4,8 +4,15 @@
 
 import { stat } from 'node:fs/promises';
 
+import type { ConvexHttpClient } from 'convex/browser';
+
+import type { DaemonDeps } from './deps.js';
 import { recoverAgentState } from './handlers/state-recovery.js';
+import type { DaemonContext, SessionId } from './types.js';
+import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
+import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
 import {
@@ -17,23 +24,22 @@ import {
   persistEventCursor,
   loadEventCursor,
 } from '../../../infrastructure/machine/index.js';
-import {
-  initHarnessRegistry,
-  getAllHarnesses,
-} from '../../../infrastructure/services/remote-agents/index.js';
+import type { MachineConfig } from '../../../infrastructure/machine/types.js';
 import {
   SpawnRateLimiter,
   HarnessSpawningService,
 } from '../../../infrastructure/services/harness-spawning/index.js';
+import {
+  initHarnessRegistry,
+  getAllHarnesses,
+} from '../../../infrastructure/services/remote-agents/index.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { getVersion } from '../../../version.js';
 import { acquireLock, releaseLock } from '../pid.js';
-import type { DaemonDeps } from './deps.js';
-import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
-import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
-import type { DaemonContext, SessionId } from './types.js';
-import { formatTimestamp } from './utils.js';
+
+// ─── Private Helpers ────────────────────────────────────────────────────────
+
 // ─── Model Discovery ────────────────────────────────────────────────────────
 
 /**
@@ -93,11 +99,6 @@ export function createDefaultDeps(): DaemonDeps {
     spawning: new HarnessSpawningService({ rateLimiter: new SpawnRateLimiter() }),
   };
 }
-
-// ─── Private Helpers ────────────────────────────────────────────────────────
-
-import type { ConvexHttpClient } from 'convex/browser';
-import type { MachineConfig } from '../../../infrastructure/machine/types.js';
 
 /**
  * Validate that the user is authenticated for the current Convex deployment.

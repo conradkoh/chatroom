@@ -1,10 +1,10 @@
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
 import { compactMarkdownComponents } from '../../markdown-utils';
-import { formatRelativeTime } from '../utils';
 import type { Task } from '../types';
+import { formatRelativeTime } from '../utils';
 
 export interface PendingReviewModalItemProps {
   task: Task;

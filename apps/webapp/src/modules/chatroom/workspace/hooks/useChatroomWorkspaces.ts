@@ -27,7 +27,7 @@ export function useChatroomWorkspaces(chatroomId: string): {
 
   const backendWorkspaces = useMemo<WorkspaceView[]>(
     () => statusResult?.workspaces ?? [],
-    [statusResult?.workspaces],
+    [statusResult?.workspaces]
   );
 
   const { allWorkspaces } = useWorkspaces({
@@ -38,7 +38,7 @@ export function useChatroomWorkspaces(chatroomId: string): {
   // Filter out unassigned and workspaces without workingDir / machineId
   const workspaces = useMemo(
     () => allWorkspaces.filter((w) => w.workingDir && w.machineId),
-    [allWorkspaces],
+    [allWorkspaces]
   );
 
   return { workspaces, isLoading: statusResult === undefined };

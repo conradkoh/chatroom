@@ -15,11 +15,14 @@
  * any mutation handler without being coupled to a specific Convex wrapper.
  */
 
+import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
+import {
+  buildTeamRoleKey,
+  deleteStaleTeamAgentConfigs,
+} from '../../../../convex/utils/teamRoleKey';
 import type { AgentHarness, AgentStartReason, AgentType } from '../../entities/agent';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
-import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from '../../../../convex/utils/teamRoleKey';
 import { patchParticipantStatus } from '../../entities/participant';
 
 // ─── Types ───────────────────────────────────────────────────────────────────

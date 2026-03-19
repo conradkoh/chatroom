@@ -1052,31 +1052,33 @@ export default defineSchema({
     workingDir: v.string(),
 
     // Discriminated union status
-    status: v.union(
-      v.literal('available'),
-      v.literal('not_found'),
-      v.literal('error')
-    ),
+    status: v.union(v.literal('available'), v.literal('not_found'), v.literal('error')),
 
     // Branch info (only when status === 'available')
     branch: v.optional(v.string()),
     isDirty: v.optional(v.boolean()),
 
     // Diff summary: git diff HEAD --stat (only when status === 'available')
-    diffStat: v.optional(v.object({
-      filesChanged: v.number(),
-      insertions: v.number(),
-      deletions: v.number(),
-    })),
+    diffStat: v.optional(
+      v.object({
+        filesChanged: v.number(),
+        insertions: v.number(),
+        deletions: v.number(),
+      })
+    ),
 
     // Recent commits (only when status === 'available')
-    recentCommits: v.optional(v.array(v.object({
-      sha: v.string(),
-      shortSha: v.string(),
-      message: v.string(),
-      author: v.string(),
-      date: v.string(),
-    }))),
+    recentCommits: v.optional(
+      v.array(
+        v.object({
+          sha: v.string(),
+          shortSha: v.string(),
+          message: v.string(),
+          author: v.string(),
+          date: v.string(),
+        })
+      )
+    ),
 
     // Pagination
     hasMoreCommits: v.optional(v.boolean()),
@@ -1086,8 +1088,7 @@ export default defineSchema({
 
     // Timestamp
     updatedAt: v.number(),
-  })
-    .index('by_machine_workingDir', ['machineId', 'workingDir']),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
    * On-demand full diff content for a workspace.
@@ -1110,8 +1111,7 @@ export default defineSchema({
     }),
 
     updatedAt: v.number(),
-  })
-    .index('by_machine_workingDir', ['machineId', 'workingDir']),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
    * Request queue for on-demand workspace operations.
@@ -1158,17 +1158,19 @@ export default defineSchema({
       v.literal('available'),
       v.literal('too_large'),
       v.literal('error'),
-      v.literal('not_found'),
+      v.literal('not_found')
     ),
 
     // Only when status === 'available'
     diffContent: v.optional(v.string()),
     truncated: v.optional(v.boolean()),
-    diffStat: v.optional(v.object({
-      filesChanged: v.number(),
-      insertions: v.number(),
-      deletions: v.number(),
-    })),
+    diffStat: v.optional(
+      v.object({
+        filesChanged: v.number(),
+        insertions: v.number(),
+        deletions: v.number(),
+      })
+    ),
 
     // Commit metadata (available when status === 'available' or 'too_large')
     message: v.optional(v.string()),
@@ -1179,6 +1181,5 @@ export default defineSchema({
     errorMessage: v.optional(v.string()),
 
     updatedAt: v.number(),
-  })
-    .index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha']),
+  }).index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha']),
 });

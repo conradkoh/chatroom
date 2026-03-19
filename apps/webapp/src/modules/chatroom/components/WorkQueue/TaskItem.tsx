@@ -1,11 +1,11 @@
 import { Trash2 } from 'lucide-react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
 import { baseMarkdownComponents, compactProseClassNames } from '../markdown-utils';
-import { getStatusBadge } from './utils';
 import type { Task } from './types';
+import { getStatusBadge } from './utils';
 
 export interface TaskItemProps {
   task: Task;

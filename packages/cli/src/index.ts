@@ -232,7 +232,7 @@ program
 program
   .command('classify')
   .description(
-    'Classify a task\'s origin message (entry-point role only). Use task-started --no-classify for handoffs.'
+    "Classify a task's origin message (entry-point role only). Use task-started --no-classify for handoffs."
   )
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role (must be entry-point role)')
@@ -454,7 +454,12 @@ backlogCommand
   .requiredOption('--backlog-item-id <id>', 'Backlog item ID to complete')
   .option('-f, --force', 'Force complete a stuck in_progress or pending task')
   .action(
-    async (options: { chatroomId: string; role: string; backlogItemId: string; force?: boolean }) => {
+    async (options: {
+      chatroomId: string;
+      role: string;
+      backlogItemId: string;
+      force?: boolean;
+    }) => {
       await maybeRequireAuth();
       const { completeBacklog } = await import('./commands/backlog/index.js');
       await completeBacklog(options.chatroomId, options);
@@ -517,16 +522,24 @@ backlogCommand
   .option('--from <date>', 'Start date (YYYY-MM-DD), defaults to 30 days ago')
   .option('--to <date>', 'End date (YYYY-MM-DD), defaults to today')
   .option('--limit <n>', 'Maximum number of items to show')
-  .action(async (options: { chatroomId: string; role: string; from?: string; to?: string; limit?: string }) => {
-    await maybeRequireAuth();
-    const { historyBacklog } = await import('./commands/backlog/index.js');
-    await historyBacklog(options.chatroomId, {
-      role: options.role,
-      from: options.from,
-      to: options.to,
-      limit: options.limit ? parseInt(options.limit, 10) : undefined,
-    });
-  });
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      from?: string;
+      to?: string;
+      limit?: string;
+    }) => {
+      await maybeRequireAuth();
+      const { historyBacklog } = await import('./commands/backlog/index.js');
+      await historyBacklog(options.chatroomId, {
+        role: options.role,
+        from: options.from,
+        to: options.to,
+        limit: options.limit ? parseInt(options.limit, 10) : undefined,
+      });
+    }
+  );
 
 // ============================================================================
 // TASK COMMANDS (auth required)

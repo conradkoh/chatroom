@@ -6,8 +6,8 @@ import React, { useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { baseMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
 import { getBacklogStatusBadge } from './backlog';
+import { baseMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
 
 interface AttachedTask {
   _id: string;

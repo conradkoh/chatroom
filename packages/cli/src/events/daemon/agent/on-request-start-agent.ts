@@ -5,12 +5,12 @@
  */
 
 import type { Id } from '../../../api.js';
+import { executeStartAgent } from '../../../commands/machine/daemon-start/handlers/start-agent.js';
 import type {
   AgentHarness,
   DaemonContext,
   StartAgentReason,
 } from '../../../commands/machine/daemon-start/types.js';
-import { executeStartAgent } from '../../../commands/machine/daemon-start/handlers/start-agent.js';
 
 export interface AgentRequestStartEventPayload {
   _id: Id<'chatroom_eventStream'>;

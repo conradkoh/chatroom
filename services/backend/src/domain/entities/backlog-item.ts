@@ -41,10 +41,7 @@ export function canEditBacklogContent(status: string): boolean {
 /**
  * Checks if a transition from `current` to `target` is valid according to the FSM.
  */
-export function canTransitionTo(
-  current: BacklogItemStatus,
-  target: BacklogItemStatus
-): boolean {
+export function canTransitionTo(current: BacklogItemStatus, target: BacklogItemStatus): boolean {
   // The FSM's canTransition requires a full BacklogItem Doc, but only uses .status for the check
   return fsmCanTransition({ status: current } as any, target);
 }

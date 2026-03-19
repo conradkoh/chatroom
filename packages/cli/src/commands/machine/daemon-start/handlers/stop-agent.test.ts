@@ -8,11 +8,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '../../../../api.js';
+import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import { OpenCodeAgentService } from '../../../../infrastructure/services/remote-agents/opencode/index.js';
 import type { DaemonDeps } from '../deps.js';
-import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
-import type { DaemonContext, StopAgentCommand } from '../types.js';
 import { createMockDaemonDeps } from '../testing/index.js';
+import type { DaemonContext, StopAgentCommand } from '../types.js';
 
 // ---------------------------------------------------------------------------
 // Mock module-level imports used by handler files
@@ -61,8 +61,8 @@ vi.mock('../../../../infrastructure/machine/index.js', () => ({
   clearAgentPid: vi.fn(),
   getMachineId: vi.fn(() => 'test-machine'),
   listAgentEntries: vi.fn(() => []),
-      persistEventCursor: vi.fn(),
-      loadEventCursor: vi.fn().mockReturnValue(null),
+  persistEventCursor: vi.fn(),
+  loadEventCursor: vi.fn().mockReturnValue(null),
   loadMachineConfig: vi.fn(() => null),
   persistAgentPid: vi.fn(),
 }));

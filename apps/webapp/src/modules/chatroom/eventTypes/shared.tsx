@@ -5,8 +5,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
-import { formatTimestamp, formatTimestampFull } from '../viewModels/eventStreamViewModel';
 import { fullMarkdownComponents, inlineEventProseClassNames } from '../components/markdown-utils';
+import { formatTimestamp, formatTimestampFull } from '../viewModels/eventStreamViewModel';
 
 // ─── Badge Color Types ────────────────────────────────────────────────────────
 
@@ -169,7 +169,10 @@ export const MarkdownDetailBlock = memo(function MarkdownDetailBlock({
         {label}
       </span>
       <div className={`mt-1 ${inlineEventProseClassNames}`}>
-        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={fullMarkdownComponents}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkBreaks]}
+          components={fullMarkdownComponents}
+        >
           {content}
         </ReactMarkdown>
       </div>

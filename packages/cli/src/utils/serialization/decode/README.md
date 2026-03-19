@@ -19,6 +19,7 @@
 - Delimiter with spaces like `  ---TITLE---  ` is treated as content
 
 **Example that works**:
+
 ```
 ---DESCRIPTION---
 The old code had this pattern:
@@ -27,6 +28,7 @@ Which was confusing but works fine here
 ```
 
 **Example that causes error**:
+
 ```
 ---DESCRIPTION---
 The old code had:
@@ -39,20 +41,24 @@ The old code had:
 ### 2. Two Modes of Operation
 
 #### Single Parameter Mode
+
 ```typescript
-decode(input, { singleParam: 'message' })
+decode(input, { singleParam: 'message' });
 ```
+
 - Entire input is one parameter
 - No delimiter parsing
 - Perfect for simple commands like `handoff`
 
 #### Multi Parameter Mode
+
 ```typescript
 decode(input, {
   expectedParams: ['TITLE', 'DESCRIPTION', 'TECH_SPECS'],
-  requiredParams: ['TITLE']
-})
+  requiredParams: ['TITLE'],
+});
 ```
+
 - Parses delimited structure
 - Validates parameter names
 - Checks for required parameters
@@ -67,6 +73,7 @@ decode(input, {
 ### 4. Error Handling
 
 Errors include:
+
 - `UNKNOWN_PARAM` - Parameter not in expected list
 - `MISSING_PARAM` - Required parameter not provided
 - `DUPLICATE_PARAM` - Same parameter appears twice
@@ -74,6 +81,7 @@ Errors include:
 - `COLLISION` - Reserved for future delimiter collision detection
 
 All errors include:
+
 - User-friendly message
 - Line number (when applicable)
 - Parameter name (when applicable)
@@ -82,6 +90,7 @@ All errors include:
 ## Next Steps
 
 ### Phase 1: Implement decoder (Current)
+
 - ✅ Specification written
 - ✅ Decoder implemented
 - ✅ Tests written
@@ -89,17 +98,20 @@ All errors include:
 - ⏳ Fix any issues
 
 ### Phase 2: Integrate with handoff command
+
 - Update `handoff` command to accept stdin
 - Add `--message` flag as alternative to `--message-file`
 - When neither provided, read from stdin
 - Update prompts to use new format
 
 ### Phase 3: Integrate with task-started command
+
 - Update `task-started` to accept stdin for multi-param mode
 - Support both file-based and stdin-based input
 - Update prompts to use structured format
 
 ### Phase 4: Update all generated prompts
+
 - Remove file variable complexity
 - Use simple HERE documents
 - Update examples in all role prompts
@@ -107,6 +119,7 @@ All errors include:
 ## Usage Examples
 
 ### Handoff (Simple)
+
 ```bash
 chatroom handoff abc123 --role=builder --next-role=user << 'EOF'
 ## Summary
@@ -118,6 +131,7 @@ EOF
 ```
 
 ### Task Started (Structured)
+
 ```bash
 chatroom task-started abc123 --role=builder --task-id=xyz --classification=new_feature << 'PARAMS'
 ---TITLE---

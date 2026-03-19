@@ -2,10 +2,10 @@
 
 import { ConvexError } from 'convex/values';
 
+import { isActiveParticipant } from '../../src/domain/entities/participant';
+import { getTeamEntryPoint } from '../../src/domain/entities/team';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
-import { getTeamEntryPoint } from '../../src/domain/entities/team';
-import { isActiveParticipant } from '../../src/domain/entities/participant';
 
 export interface ValidatedSession {
   sessionId: string;

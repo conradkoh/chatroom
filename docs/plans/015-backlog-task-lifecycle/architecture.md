@@ -21,7 +21,7 @@ backlog: v.optional(
       v.literal('closed')
     ),
   })
-)
+);
 ```
 
 **Migration Strategy**: Existing backlog tasks without `backlog` are treated as if they have `not_started` status. The code handles `undefined` as `not_started` for backward compatibility.
@@ -86,25 +86,22 @@ export const listTasks = query({
     // ... existing args
     backlogStatusFilter: v.optional(
       v.union(
-        v.literal('active'),    // not_started + started
-        v.literal('archived')   // complete + closed
+        v.literal('active'), // not_started + started
+        v.literal('archived') // complete + closed
       )
     ),
   },
   handler: async (ctx, args) => {
     // ... existing logic
-    
+
     // Apply backlog status filter
     if (args.backlogStatusFilter === 'active') {
-      tasks = tasks.filter(t => 
-        !t.backlog || 
-        t.backlog.status === 'not_started' || 
-        t.backlog.status === 'started'
+      tasks = tasks.filter(
+        (t) => !t.backlog || t.backlog.status === 'not_started' || t.backlog.status === 'started'
       );
     } else if (args.backlogStatusFilter === 'archived') {
-      tasks = tasks.filter(t => 
-        t.backlog?.status === 'complete' || 
-        t.backlog?.status === 'closed'
+      tasks = tasks.filter(
+        (t) => t.backlog?.status === 'complete' || t.backlog?.status === 'closed'
       );
     }
   },
@@ -121,7 +118,7 @@ export const moveToQueue = mutation({
   // ... existing args
   handler: async (ctx, args) => {
     // ... existing logic
-    
+
     // NEW: If task was a backlog task, set backlog.status to 'started'
     if (task.status === 'backlog') {
       await ctx.db.patch('chatroom_tasks', args.taskId, {
@@ -218,10 +215,10 @@ Task moves from Archived back to Active Backlog
 
 ## UI States Summary
 
-| Task Status | backlog.status | Appears In |
-|-------------|----------------|------------|
-| `backlog` | `not_started` | Active Backlog only |
-| `pending/in_progress/queued` | `started` | Queue AND Active Backlog |
-| `completed` | `started` | Completed Tasks, Active Backlog |
-| `*` | `complete` | Archived Backlog |
-| `*` | `closed` | Archived Backlog |
+| Task Status                  | backlog.status | Appears In                      |
+| ---------------------------- | -------------- | ------------------------------- |
+| `backlog`                    | `not_started`  | Active Backlog only             |
+| `pending/in_progress/queued` | `started`      | Queue AND Active Backlog        |
+| `completed`                  | `started`      | Completed Tasks, Active Backlog |
+| `*`                          | `complete`     | Archived Backlog                |
+| `*`                          | `closed`       | Archived Backlog                |

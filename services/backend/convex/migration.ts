@@ -69,7 +69,7 @@ export const migrateAvailableModelsToPerHarness = internalMutation({
       }
 
       // Convert flat string[] → { opencode: string[] }
-      await ctx.db.patch(machine._id, {
+      await ctx.db.patch('chatroom_machines', machine._id, {
         availableModels: { opencode: raw as string[] },
       });
       patched++;
@@ -128,10 +128,8 @@ export const stripParticipantStaleFields = internalMutation({
       // Unset only the stale fields — preserves all valid fields including
       // optional ones (connectionId, agentType, lastSeenAt, lastSeenAction,
       // lastSeenTokenAt) without needing to enumerate them explicitly.
-      const unsetPatch = Object.fromEntries(
-        staleFieldsPresent.map((f) => [f, undefined])
-      );
-      await ctx.db.patch(participant._id, unsetPatch);
+      const unsetPatch = Object.fromEntries(staleFieldsPresent.map((f) => [f, undefined]));
+      await ctx.db.patch('chatroom_participants', participant._id, unsetPatch);
       patched++;
     }
 
@@ -225,7 +223,7 @@ export const deleteLegacyMessageQueueDocuments = internalMutation({
       const raw = msg as Record<string, unknown>;
       // Old format: has taskId (pre-refactor back-reference to chatroom_tasks)
       if (raw.taskId !== undefined) {
-        await ctx.db.delete(msg._id);
+        await ctx.db.delete('chatroom_messageQueue', msg._id);
         deleted++;
       } else {
         skipped++;
@@ -260,7 +258,7 @@ export const migrateQueuedTasks = internalMutation({
     for (const task of allTasks) {
       const raw = task as Record<string, unknown>;
       if (raw.status === 'queued') {
-        await ctx.db.patch(task._id, { status: 'pending' });
+        await ctx.db.patch('chatroom_tasks', task._id, { status: 'pending' });
         migrated++;
       }
     }
@@ -312,7 +310,7 @@ export const migrateTeamRoleKeyAddTeamId = internalMutation({
         continue;
       }
 
-      const chatroom = await ctx.db.get(config.chatroomId);
+      const chatroom = await ctx.db.get('chatroom_rooms', config.chatroomId);
 
       if (!chatroom || !chatroom.teamId) {
         await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
@@ -397,7 +395,7 @@ export const migrateStopReasonToActorPrefixed = internalMutation({
         continue;
       }
 
-      await ctx.db.patch(event._id, { stopReason: RENAME_MAP[oldReason] });
+      await ctx.db.patch('chatroom_eventStream', event._id, { stopReason: RENAME_MAP[oldReason] });
       migrated++;
     }
 
@@ -450,7 +448,9 @@ export const migrateEventReasonsToActorPrefixed = internalMutation({
       if (raw.type === 'agent.requestStop') {
         const oldReason = raw.reason as string | undefined;
         if (oldReason && oldReason in STOP_REASON_MAP) {
-          await ctx.db.patch(event._id, { reason: STOP_REASON_MAP[oldReason] } as never);
+          await ctx.db.patch('chatroom_eventStream', event._id, {
+            reason: STOP_REASON_MAP[oldReason],
+          } as never);
           migrated++;
           continue;
         }
@@ -459,7 +459,9 @@ export const migrateEventReasonsToActorPrefixed = internalMutation({
       if (raw.type === 'agent.requestStart') {
         const oldReason = raw.reason as string | undefined;
         if (oldReason && oldReason in START_REASON_MAP) {
-          await ctx.db.patch(event._id, { reason: START_REASON_MAP[oldReason] } as never);
+          await ctx.db.patch('chatroom_eventStream', event._id, {
+            reason: START_REASON_MAP[oldReason],
+          } as never);
           migrated++;
           continue;
         }
@@ -566,9 +568,7 @@ export const migrateBacklogItemsToBacklogTable = internalMutation({
   handler: async (ctx) => {
     // Get all tasks with origin="backlog"
     const allTasks = await ctx.db.query('chatroom_tasks').collect();
-    const backlogTasks = allTasks.filter(
-      (task) => task.origin === 'backlog'
-    );
+    const backlogTasks = allTasks.filter((task) => task.origin === 'backlog');
 
     let migrated = 0;
     let skipped = 0;
@@ -653,9 +653,7 @@ export const remapBacklogTaskIdsInMessages = internalMutation({
   args: {},
   handler: async (ctx) => {
     // Get all backlog items that have a legacyTaskId
-    const backlogItems = await ctx.db
-      .query('chatroom_backlog')
-      .collect();
+    const backlogItems = await ctx.db.query('chatroom_backlog').collect();
 
     const legacyItems = backlogItems.filter((item) => item.legacyTaskId != null);
 
@@ -673,7 +671,9 @@ export const remapBacklogTaskIdsInMessages = internalMutation({
       if (!msg.attachedTaskIds || msg.attachedTaskIds.length === 0) continue;
 
       const remainingTaskIds: typeof msg.attachedTaskIds = [];
-      const newBacklogIds: typeof msg.attachedBacklogItemIds = [...(msg.attachedBacklogItemIds ?? [])];
+      const newBacklogIds: typeof msg.attachedBacklogItemIds = [
+        ...(msg.attachedBacklogItemIds ?? []),
+      ];
       let changed = false;
 
       for (const taskId of msg.attachedTaskIds) {
@@ -690,7 +690,7 @@ export const remapBacklogTaskIdsInMessages = internalMutation({
       }
 
       if (changed) {
-        await ctx.db.patch(msg._id, {
+        await ctx.db.patch('chatroom_messages', msg._id, {
           attachedTaskIds: remainingTaskIds.length > 0 ? remainingTaskIds : undefined,
           attachedBacklogItemIds: newBacklogIds.length > 0 ? newBacklogIds : undefined,
         });
@@ -704,7 +704,9 @@ export const remapBacklogTaskIdsInMessages = internalMutation({
       if (!item.attachedTaskIds || item.attachedTaskIds.length === 0) continue;
 
       const remainingTaskIds: typeof item.attachedTaskIds = [];
-      const newBacklogIds: typeof item.attachedBacklogItemIds = [...(item.attachedBacklogItemIds ?? [])];
+      const newBacklogIds: typeof item.attachedBacklogItemIds = [
+        ...(item.attachedBacklogItemIds ?? []),
+      ];
       let changed = false;
 
       for (const taskId of item.attachedTaskIds) {
@@ -720,7 +722,7 @@ export const remapBacklogTaskIdsInMessages = internalMutation({
       }
 
       if (changed) {
-        await ctx.db.patch(item._id, {
+        await ctx.db.patch('chatroom_messageQueue', item._id, {
           attachedTaskIds: remainingTaskIds.length > 0 ? remainingTaskIds : undefined,
           attachedBacklogItemIds: newBacklogIds.length > 0 ? newBacklogIds : undefined,
         });
@@ -780,7 +782,7 @@ export const deleteBacklogOriginTasks = internalMutation({
 
       if (backlogItem) {
         // Confirmed migrated — safe to delete
-        await ctx.db.delete(task._id);
+        await ctx.db.delete('chatroom_tasks', task._id);
         deleted++;
       } else {
         // Not yet migrated — skip to preserve data

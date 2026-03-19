@@ -49,11 +49,11 @@ As a user managing a development team chatroom, I want to attach multiple relate
 
 ### Button States
 
-| State | "Add to Chat" Button |
-|-------|---------------------|
-| Normal | Enabled, shows icon + text |
-| At limit (10) | Disabled, shows tooltip "Maximum 10 attachments" |
-| Already attached | Disabled, shows "Already added" |
+| State            | "Add to Chat" Button                             |
+| ---------------- | ------------------------------------------------ |
+| Normal           | Enabled, shows icon + text                       |
+| At limit (10)    | Disabled, shows tooltip "Maximum 10 attachments" |
+| Already attached | Disabled, shows "Already added"                  |
 
 ## Acceptance Criteria
 

@@ -16,7 +16,11 @@ describe('SpawnRateLimiter', () => {
 
   describe('token bucket depletion', () => {
     it('allows spawns up to maxTokens and then rejects', () => {
-      const limiter = new SpawnRateLimiter({ maxTokens: 3, initialTokens: 3, refillRateMs: 60_000 });
+      const limiter = new SpawnRateLimiter({
+        maxTokens: 3,
+        initialTokens: 3,
+        refillRateMs: 60_000,
+      });
       const chatroomId = 'room-1';
       const reason = 'platform.crash_recovery';
 
@@ -32,7 +36,11 @@ describe('SpawnRateLimiter', () => {
     });
 
     it('rejects subsequent calls when tokens are exhausted', () => {
-      const limiter = new SpawnRateLimiter({ maxTokens: 1, initialTokens: 1, refillRateMs: 60_000 });
+      const limiter = new SpawnRateLimiter({
+        maxTokens: 1,
+        initialTokens: 1,
+        refillRateMs: 60_000,
+      });
       limiter.tryConsume('room-A', 'platform.crash_recovery');
 
       const result = limiter.tryConsume('room-A', 'platform.crash_recovery');
@@ -44,7 +52,11 @@ describe('SpawnRateLimiter', () => {
 
   describe('user-initiated bypass', () => {
     it('always allows spawns with a reason starting with "user."', () => {
-      const limiter = new SpawnRateLimiter({ maxTokens: 0, initialTokens: 0, refillRateMs: 60_000 });
+      const limiter = new SpawnRateLimiter({
+        maxTokens: 0,
+        initialTokens: 0,
+        refillRateMs: 60_000,
+      });
 
       // Even with 0 tokens, user-initiated must be allowed
       expect(limiter.tryConsume('room-1', 'user.manual')).toEqual({ allowed: true });
@@ -52,7 +64,11 @@ describe('SpawnRateLimiter', () => {
     });
 
     it('does NOT bypass for reasons that do not start with "user."', () => {
-      const limiter = new SpawnRateLimiter({ maxTokens: 0, initialTokens: 0, refillRateMs: 60_000 });
+      const limiter = new SpawnRateLimiter({
+        maxTokens: 0,
+        initialTokens: 0,
+        refillRateMs: 60_000,
+      });
 
       expect(limiter.tryConsume('room-1', 'platform.crash_recovery').allowed).toBe(false);
       expect(limiter.tryConsume('room-1', 'system.restart').allowed).toBe(false);
@@ -63,7 +79,11 @@ describe('SpawnRateLimiter', () => {
 
   describe('token refill over time', () => {
     it('refills tokens after the refill interval', () => {
-      const limiter = new SpawnRateLimiter({ maxTokens: 5, initialTokens: 1, refillRateMs: 60_000 });
+      const limiter = new SpawnRateLimiter({
+        maxTokens: 5,
+        initialTokens: 1,
+        refillRateMs: 60_000,
+      });
       const chatroomId = 'room-refill';
       const reason = 'platform.restart';
 
@@ -80,7 +100,11 @@ describe('SpawnRateLimiter', () => {
     });
 
     it('refills multiple tokens after multiple intervals', () => {
-      const limiter = new SpawnRateLimiter({ maxTokens: 5, initialTokens: 0, refillRateMs: 10_000 });
+      const limiter = new SpawnRateLimiter({
+        maxTokens: 5,
+        initialTokens: 0,
+        refillRateMs: 10_000,
+      });
       const chatroomId = 'room-multi-refill';
       const reason = 'platform.restart';
 
@@ -98,7 +122,11 @@ describe('SpawnRateLimiter', () => {
     });
 
     it('does not exceed maxTokens when refilling', () => {
-      const limiter = new SpawnRateLimiter({ maxTokens: 3, initialTokens: 2, refillRateMs: 10_000 });
+      const limiter = new SpawnRateLimiter({
+        maxTokens: 3,
+        initialTokens: 2,
+        refillRateMs: 10_000,
+      });
       const chatroomId = 'room-cap';
       const reason = 'platform.restart';
 
@@ -119,7 +147,11 @@ describe('SpawnRateLimiter', () => {
   describe('low token warning', () => {
     it('logs a warning when tokens drop to the threshold (≤ 1)', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const limiter = new SpawnRateLimiter({ maxTokens: 3, initialTokens: 3, refillRateMs: 60_000 });
+      const limiter = new SpawnRateLimiter({
+        maxTokens: 3,
+        initialTokens: 3,
+        refillRateMs: 60_000,
+      });
       const chatroomId = 'room-warn';
       const reason = 'platform.restart';
 
@@ -133,7 +165,11 @@ describe('SpawnRateLimiter', () => {
 
     it('logs a rate-limit warning when bucket is exhausted', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const limiter = new SpawnRateLimiter({ maxTokens: 1, initialTokens: 1, refillRateMs: 60_000 });
+      const limiter = new SpawnRateLimiter({
+        maxTokens: 1,
+        initialTokens: 1,
+        refillRateMs: 60_000,
+      });
 
       limiter.tryConsume('room-x', 'platform.restart'); // consume
       limiter.tryConsume('room-x', 'platform.restart'); // rate-limited
@@ -146,7 +182,11 @@ describe('SpawnRateLimiter', () => {
 
   describe('independent buckets per chatroom', () => {
     it('tracks tokens independently for different chatrooms', () => {
-      const limiter = new SpawnRateLimiter({ maxTokens: 2, initialTokens: 2, refillRateMs: 60_000 });
+      const limiter = new SpawnRateLimiter({
+        maxTokens: 2,
+        initialTokens: 2,
+        refillRateMs: 60_000,
+      });
       const reason = 'platform.restart';
 
       // Exhaust room-A
@@ -161,7 +201,11 @@ describe('SpawnRateLimiter', () => {
     });
 
     it('getStatus returns independent status per chatroom', () => {
-      const limiter = new SpawnRateLimiter({ maxTokens: 5, initialTokens: 5, refillRateMs: 60_000 });
+      const limiter = new SpawnRateLimiter({
+        maxTokens: 5,
+        initialTokens: 5,
+        refillRateMs: 60_000,
+      });
 
       limiter.tryConsume('room-1', 'platform.restart');
       limiter.tryConsume('room-1', 'platform.restart');

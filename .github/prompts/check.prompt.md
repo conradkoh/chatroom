@@ -52,9 +52,9 @@ After running all checks:
 ## Usage
 
 Execute this command whenever you need to verify code quality:
+
 - Before committing changes
 - After making code modifications
 - Before creating pull requests
 - After merging branches
 - As part of a pre-deployment verification
-

@@ -3,6 +3,10 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+import { SendForm } from './SendForm';
+
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 // Mock useSessionMutation
@@ -22,7 +26,7 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 }));
 
 // Attachment mock state (mutable so tests can control it)
-let mockAttachments = {
+const mockAttachments = {
   remove: vi.fn(),
   clearAll: vi.fn(),
   tasks: [] as { id: string; content: string }[],
@@ -51,10 +55,6 @@ vi.mock('./AttachedBacklogItemChip', () => ({
     <div data-testid={`backlog-chip-${itemId}`}>{content}</div>
   ),
 }));
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-import { SendForm } from './SendForm';
 
 const CHATROOM_ID = 'room1';
 const DRAFT_KEY = `chatroom-draft:${CHATROOM_ID}`;
@@ -116,7 +116,10 @@ describe('SendForm', () => {
       await user.type(textarea, 'Hello world');
 
       // Set the draft key in localStorage to simulate it being there
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ content: 'Hello world', updatedAt: Date.now() }));
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ content: 'Hello world', updatedAt: Date.now() })
+      );
 
       const sendButton = screen.getByRole('button', { name: /send/i });
       await user.click(sendButton);

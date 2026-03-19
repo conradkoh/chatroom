@@ -37,13 +37,13 @@ The initial motivation is to replace one-off CLI operations (e.g., manual backlo
 
 ### 1.5 User Stories
 
-| # | As a… | I want to… | So that… |
-|---|-------|-----------|---------|
-| 1 | User | Run `chatroom skill activate backlog-score` | Agents automatically score all unscored backlog items without me manually triggering each one |
-| 2 | User | Run `chatroom skill list` | I can discover which skills are available to me |
-| 3 | User | See skill status feedback in the CLI | I know the skill was accepted and is running |
-| 4 | Developer | Add built-in skills without releasing a new CLI version | Built-ins can be improved over time centrally |
-| 5 | Future user | Create custom skills via the web UI | I can define organization-specific workflows |
+| #   | As a…       | I want to…                                              | So that…                                                                                      |
+| --- | ----------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 1   | User        | Run `chatroom skill activate backlog-score`             | Agents automatically score all unscored backlog items without me manually triggering each one |
+| 2   | User        | Run `chatroom skill list`                               | I can discover which skills are available to me                                               |
+| 3   | User        | See skill status feedback in the CLI                    | I know the skill was accepted and is running                                                  |
+| 4   | Developer   | Add built-in skills without releasing a new CLI version | Built-ins can be improved over time centrally                                                 |
+| 5   | Future user | Create custom skills via the web UI                     | I can define organization-specific workflows                                                  |
 
 ### 1.6 UX & CLI Interface
 
@@ -56,12 +56,14 @@ chatroom skill activate backlog-score --chatroom-id=<id> --role=<role>
 ```
 
 **Expected output (activate):**
+
 ```
 ✅ Skill "backlog-score" activated.
    The agent will now score all unscored backlog items.
 ```
 
 **Expected output (list):**
+
 ```
 Available skills:
   backlog-score  Score all unscored backlog items by complexity, value, and priority
@@ -83,19 +85,20 @@ Stored in Convex. Each row defines one skill available to a chatroom.
 
 ```ts
 chatroom_skills: {
-  chatroomId: Id<'chatroom_rooms'>    // Scope: chatroom-level
-  skillId: string                      // Stable identifier, e.g. "backlog-score"
-  name: string                         // Human-readable name
-  description: string                  // What the skill does
-  type: 'builtin' | 'custom'          // Source of skill
-  isEnabled: boolean                   // Can be disabled
-  prompt: string                       // Instruction injected into the task when activated
-  createdAt: number
-  updatedAt: number
+  chatroomId: Id<'chatroom_rooms'>; // Scope: chatroom-level
+  skillId: string; // Stable identifier, e.g. "backlog-score"
+  name: string; // Human-readable name
+  description: string; // What the skill does
+  type: 'builtin' | 'custom'; // Source of skill
+  isEnabled: boolean; // Can be disabled
+  prompt: string; // Instruction injected into the task when activated
+  createdAt: number;
+  updatedAt: number;
 }
 ```
 
 **Indexes:**
+
 - `by_chatroom`: `['chatroomId']`
 - `by_chatroom_skillId`: `['chatroomId', 'skillId']`
 
@@ -109,17 +112,17 @@ Built-in skills are seeded into each chatroom at creation time (or on first use 
 
 ### 3.1 Queries
 
-| Function | Description |
-|----------|-------------|
+| Function      | Description                            |
+| ------------- | -------------------------------------- |
 | `skills.list` | List all enabled skills for a chatroom |
-| `skills.get` | Get a skill by skillId for a chatroom |
+| `skills.get`  | Get a skill by skillId for a chatroom  |
 
 ### 3.2 Mutations
 
-| Function | Description |
-|----------|-------------|
+| Function          | Description                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------ |
 | `skills.activate` | Activate a skill — validates skill exists, creates a task with skill prompt injected |
-| `skills.seed` | Upsert built-in skills for a chatroom (called internally) |
+| `skills.seed`     | Upsert built-in skills for a chatroom (called internally)                            |
 
 ---
 
@@ -151,6 +154,7 @@ chatroom skill activate <skill-name> --chatroom-id=<id> --role=<role>
 ## 5. Implementation Plan
 
 ### Phase 1: Domain Model & Schema
+
 **Goal:** Define the `chatroom_skills` table in the Convex schema and the domain entities.
 
 - Add `chatroom_skills` table to `schema.ts`
@@ -158,12 +162,14 @@ chatroom skill activate <skill-name> --chatroom-id=<id> --role=<role>
 - No behavior yet — just the data shape
 
 **Acceptance Criteria:**
+
 - `schema.ts` compiles with the new table and indexes
 - `pnpm typecheck` passes
 
 ---
 
 ### Phase 2: Backend — Seed & Query
+
 **Goal:** Backend can seed built-in skills and list them.
 
 - Add `services/backend/convex/skills.ts` with:
@@ -174,6 +180,7 @@ chatroom skill activate <skill-name> --chatroom-id=<id> --role=<role>
 - Export from `_generated/api` (automatic via Convex)
 
 **Acceptance Criteria:**
+
 - Queries return correct results
 - Seed is idempotent
 - `pnpm typecheck` passes
@@ -181,6 +188,7 @@ chatroom skill activate <skill-name> --chatroom-id=<id> --role=<role>
 ---
 
 ### Phase 3: Backend — Activate Mutation
+
 **Goal:** Activating a skill creates a task with the skill's prompt.
 
 - Add `skills.activate` mutation in `skills.ts`:
@@ -191,6 +199,7 @@ chatroom skill activate <skill-name> --chatroom-id=<id> --role=<role>
   - Returns `{ success: true, skill: { name, description } }`
 
 **Acceptance Criteria:**
+
 - Mutation creates a task visible to the agent
 - Invalid skill name returns a clear error
 - `pnpm typecheck` passes
@@ -198,6 +207,7 @@ chatroom skill activate <skill-name> --chatroom-id=<id> --role=<role>
 ---
 
 ### Phase 4: CLI — `skill list` Command
+
 **Goal:** Users can discover available skills via CLI.
 
 - Create `packages/cli/src/commands/skill/` directory
@@ -205,6 +215,7 @@ chatroom skill activate <skill-name> --chatroom-id=<id> --role=<role>
 - Register `chatroom skill list` in `index.ts`
 
 **Acceptance Criteria:**
+
 - `chatroom skill list --chatroom-id=<id> --role=<role>` prints available skills
 - Shows name, description for each skill
 - Empty state message if none available
@@ -212,6 +223,7 @@ chatroom skill activate <skill-name> --chatroom-id=<id> --role=<role>
 ---
 
 ### Phase 5: CLI — `skill activate` Command
+
 **Goal:** Users can activate a skill from the CLI.
 
 - Implement `activate` subcommand that calls `skills.activate` mutation
@@ -219,6 +231,7 @@ chatroom skill activate <skill-name> --chatroom-id=<id> --role=<role>
 - Print success feedback
 
 **Acceptance Criteria:**
+
 - `chatroom skill activate backlog-score --chatroom-id=<id> --role=<role>` succeeds
 - Error message for unknown skill name
 - `pnpm typecheck` and `pnpm test` pass
@@ -226,6 +239,7 @@ chatroom skill activate <skill-name> --chatroom-id=<id> --role=<role>
 ---
 
 ### Phase 6: Integration Test & PR
+
 **Goal:** End-to-end test, cleanup, and raise PR.
 
 - Write a unit test for `skills.activate` (verify task created with correct content)
@@ -246,12 +260,12 @@ chatroom skill activate <skill-name> --chatroom-id=<id> --role=<role>
 
 ## 7. Related Files
 
-| Area | File |
-|------|------|
-| Schema | `services/backend/convex/schema.ts` |
-| Backend | `services/backend/convex/skills.ts` (new) |
-| CLI entry | `packages/cli/src/index.ts` |
-| CLI commands | `packages/cli/src/commands/skill/` (new) |
+| Area         | File                                      |
+| ------------ | ----------------------------------------- |
+| Schema       | `services/backend/convex/schema.ts`       |
+| Backend      | `services/backend/convex/skills.ts` (new) |
+| CLI entry    | `packages/cli/src/index.ts`               |
+| CLI commands | `packages/cli/src/commands/skill/` (new)  |
 
 ---
 
@@ -259,12 +273,12 @@ chatroom skill activate <skill-name> --chatroom-id=<id> --role=<role>
 
 All phases implemented in branch `fix/force-complete-working-status`. Commits:
 
-| Commit | Description |
-|--------|-------------|
-| `ee5d844c` | feat: add chatroom_skills table to Convex schema |
+| Commit     | Description                                                                                  |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| `ee5d844c` | feat: add chatroom_skills table to Convex schema                                             |
 | `5852e23c` | feat: add skills.ts with built-in skill definitions, seedBuiltinSkills, list and get queries |
-| `dac32e32` | feat: add activate mutation to skills.ts |
-| `a999e43f` | feat: add CLI skill commands (list and activate) |
+| `dac32e32` | feat: add activate mutation to skills.ts                                                     |
+| `a999e43f` | feat: add CLI skill commands (list and activate)                                             |
 
 ### Usage
 

@@ -1,8 +1,12 @@
 'use client';
 
-import { memo, useState, useCallback, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { memo, useState, useCallback, useEffect } from 'react';
+
+import { WorkspaceCommitDetail } from './WorkspaceCommitDetail';
+import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
+import { WorkspaceGitBranch } from './WorkspaceGitBranch';
+import { WorkspaceGitLog } from './WorkspaceGitLog';
 import {
   useWorkspaceGit,
   useFullDiff,
@@ -10,10 +14,8 @@ import {
   useLoadMoreCommits,
   useGitRefresh,
 } from '../hooks/useWorkspaceGit';
-import { WorkspaceGitBranch } from './WorkspaceGitBranch';
-import { WorkspaceDiffViewer } from './WorkspaceDiffViewer';
-import { WorkspaceGitLog } from './WorkspaceGitLog';
-import { WorkspaceCommitDetail } from './WorkspaceCommitDetail';
+
+import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,7 +67,7 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
       clearCommitDetail(); // reset so it loads fresh
       setSelectedCommitSha(sha);
     },
-    [clearCommitDetail],
+    [clearCommitDetail]
   );
 
   const handleCloseCommitDetail = useCallback(() => {
@@ -136,15 +138,13 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
               'w-full text-left px-3 py-2 flex items-center gap-1.5 transition-colors',
               activeTab === tab.id
                 ? 'bg-chatroom-bg-hover border-l-2 border-chatroom-accent'
-                : 'border-l-2 border-transparent hover:bg-chatroom-bg-hover/50',
+                : 'border-l-2 border-transparent hover:bg-chatroom-bg-hover/50'
             )}
           >
             <span
               className={cn(
                 'text-[11px] font-medium',
-                activeTab === tab.id
-                  ? 'text-chatroom-text-primary'
-                  : 'text-chatroom-text-secondary',
+                activeTab === tab.id ? 'text-chatroom-text-primary' : 'text-chatroom-text-secondary'
               )}
             >
               {tab.label}
@@ -166,7 +166,12 @@ export const WorkspaceGitPanel = memo(function WorkspaceGitPanel({
       </div>
 
       {/* Content area */}
-      <div className={cn('flex-1 overflow-y-auto', activeTab === 'diff' || activeTab === 'log' ? 'p-0' : 'p-4')}>
+      <div
+        className={cn(
+          'flex-1 overflow-y-auto',
+          activeTab === 'diff' || activeTab === 'log' ? 'p-0' : 'p-4'
+        )}
+      >
         {activeTab === 'diff' && (
           <WorkspaceDiffViewer state={fullDiffState} onRequest={requestDiff} />
         )}

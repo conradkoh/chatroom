@@ -5,18 +5,10 @@
  * No actual git commands are run — all responses are simulated via mocks.
  */
 
+import { exec } from 'node:child_process';
+
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 
-// Mock the node built-ins before importing the module under test
-vi.mock('node:child_process', () => ({
-  exec: vi.fn(),
-}));
-
-vi.mock('node:util', () => ({
-  promisify: (fn: Function) => fn,
-}));
-
-import { exec } from 'node:child_process';
 import {
   isGitRepo,
   getBranch,
@@ -28,6 +20,15 @@ import {
   parseDiffStatLine,
 } from './git-reader.js';
 import { FULL_DIFF_MAX_BYTES } from './types.js';
+
+// Mock the node built-ins before importing the module under test
+vi.mock('node:child_process', () => ({
+  exec: vi.fn(),
+}));
+
+vi.mock('node:util', () => ({
+  promisify: (fn: Function) => fn,
+}));
 
 const mockExec = vi.mocked(exec);
 
@@ -129,7 +130,9 @@ describe('getBranch', () => {
   });
 
   test('returns available with HEAD for empty repo (unknown revision)', async () => {
-    mockFailure("fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree");
+    mockFailure(
+      "fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree"
+    );
     const result = await getBranch('/repo');
     expect(result).toEqual({ status: 'available', branch: 'HEAD' });
   });
@@ -306,19 +309,13 @@ describe('getRecentCommits', () => {
   test('defaults to 20 commits', async () => {
     mockSuccess('');
     await getRecentCommits('/repo');
-    expect(mockExec).toHaveBeenCalledWith(
-      expect.stringContaining('log -20'),
-      expect.any(Object)
-    );
+    expect(mockExec).toHaveBeenCalledWith(expect.stringContaining('log -20'), expect.any(Object));
   });
 
   test('passes custom count to git log', async () => {
     mockSuccess('');
     await getRecentCommits('/repo', 5);
-    expect(mockExec).toHaveBeenCalledWith(
-      expect.stringContaining('log -5'),
-      expect.any(Object)
-    );
+    expect(mockExec).toHaveBeenCalledWith(expect.stringContaining('log -5'), expect.any(Object));
   });
 });
 

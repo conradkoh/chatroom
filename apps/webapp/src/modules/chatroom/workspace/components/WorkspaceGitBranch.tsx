@@ -1,10 +1,12 @@
 'use client';
 
-import { memo } from 'react';
 import { AlertCircle, AlertTriangle, GitBranch } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import type { WorkspaceGitState } from '../types/git';
+import { memo } from 'react';
+
 import { InlineDiffStat, formatRelativeTime } from './shared';
+import type { WorkspaceGitState } from '../types/git';
+
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface WorkspaceGitBranchProps {
   state: WorkspaceGitState;
@@ -70,7 +72,10 @@ export const WorkspaceGitBranch = memo(function WorkspaceGitBranch({
 
       {/* Last updated */}
       {state.updatedAt && (
-        <span className="text-[10px] text-chatroom-text-muted shrink-0" title={new Date(state.updatedAt).toLocaleString()}>
+        <span
+          className="text-[10px] text-chatroom-text-muted shrink-0"
+          title={new Date(state.updatedAt).toLocaleString()}
+        >
           {formatRelativeTime(state.updatedAt)}
         </span>
       )}

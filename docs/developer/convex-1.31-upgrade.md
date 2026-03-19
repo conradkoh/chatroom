@@ -63,7 +63,7 @@ const record = await ctx.db.get(args.recordId);
 **✅ New API (with table name):**
 
 ```typescript
-const record = await ctx.db.get("attendanceRecords", args.recordId);
+const record = await ctx.db.get('attendanceRecords', args.recordId);
 ```
 
 #### Real Example from Our Codebase
@@ -79,9 +79,9 @@ if (!record) {
 
 ```typescript
 // Get the record to check permissions
-const record = await ctx.db.get("attendanceRecords", args.recordId);
+const record = await ctx.db.get('attendanceRecords', args.recordId);
 if (!record) {
-  throw new ConvexError("Attendance record not found");
+  throw new ConvexError('Attendance record not found');
 }
 ```
 
@@ -96,7 +96,7 @@ await ctx.db.delete(record._id);
 **✅ New API (with table name):**
 
 ```typescript
-await ctx.db.delete("attendanceRecords", record._id);
+await ctx.db.delete('attendanceRecords', record._id);
 ```
 
 #### Real Example from Our Codebase
@@ -108,11 +108,7 @@ await Promise.all(existingRecords.map((record) => ctx.db.delete(record._id)));
 **Should become:**
 
 ```typescript
-await Promise.all(
-  existingRecords.map((record) =>
-    ctx.db.delete("attendanceRecords", record._id)
-  )
-);
+await Promise.all(existingRecords.map((record) => ctx.db.delete('attendanceRecords', record._id)));
 ```
 
 Another example:
@@ -124,7 +120,7 @@ await ctx.db.delete(args.recordId);
 **Should become:**
 
 ```typescript
-await ctx.db.delete("attendanceRecords", args.recordId);
+await ctx.db.delete('attendanceRecords', args.recordId);
 ```
 
 ### 3. `db.patch()` - Partially Updating a Document
@@ -138,7 +134,7 @@ await ctx.db.patch(args.itemId, updateData);
 **✅ New API (with table name):**
 
 ```typescript
-await ctx.db.patch("checklistItems", args.itemId, updateData);
+await ctx.db.patch('checklistItems', args.itemId, updateData);
 ```
 
 #### Real Example from Our Codebase
@@ -150,7 +146,7 @@ return await ctx.db.patch(args.itemId, updateData);
 **Should become:**
 
 ```typescript
-return await ctx.db.patch("checklistItems", args.itemId, updateData);
+return await ctx.db.patch('checklistItems', args.itemId, updateData);
 ```
 
 Another example with nested object updates:
@@ -164,7 +160,7 @@ await ctx.db.patch(user._id, {
 **Should become:**
 
 ```typescript
-await ctx.db.patch("users", user._id, {
+await ctx.db.patch('users', user._id, {
   google: undefined,
 });
 ```
@@ -175,17 +171,17 @@ await ctx.db.patch("users", user._id, {
 
 ```typescript
 await ctx.db.replace(id, {
-  author: "Nicolas",
-  message: "New message",
+  author: 'Nicolas',
+  message: 'New message',
 });
 ```
 
 **✅ New API (with table name):**
 
 ```typescript
-await ctx.db.replace("messages", id, {
-  author: "Nicolas",
-  message: "New message",
+await ctx.db.replace('messages', id, {
+  author: 'Nicolas',
+  message: 'New message',
 });
 ```
 
@@ -214,9 +210,7 @@ Use this checklist to ensure you've covered all the changes:
 await Promise.all(records.map((record) => ctx.db.delete(record._id)));
 
 // After
-await Promise.all(
-  records.map((record) => ctx.db.delete("attendanceRecords", record._id))
-);
+await Promise.all(records.map((record) => ctx.db.delete('attendanceRecords', record._id)));
 ```
 
 ### Pattern 2: Get Then Patch
@@ -224,13 +218,13 @@ await Promise.all(
 ```typescript
 // Before
 const item = await ctx.db.get(args.itemId);
-if (!item) throw new Error("Not found");
+if (!item) throw new Error('Not found');
 await ctx.db.patch(args.itemId, updateData);
 
 // After
-const item = await ctx.db.get("checklistItems", args.itemId);
-if (!item) throw new Error("Not found");
-await ctx.db.patch("checklistItems", args.itemId, updateData);
+const item = await ctx.db.get('checklistItems', args.itemId);
+if (!item) throw new Error('Not found');
+await ctx.db.patch('checklistItems', args.itemId, updateData);
 ```
 
 ### Pattern 3: Get Then Delete
@@ -238,13 +232,13 @@ await ctx.db.patch("checklistItems", args.itemId, updateData);
 ```typescript
 // Before
 const record = await ctx.db.get(args.recordId);
-if (!record) throw new Error("Not found");
+if (!record) throw new Error('Not found');
 await ctx.db.delete(args.recordId);
 
 // After
-const record = await ctx.db.get("attendanceRecords", args.recordId);
-if (!record) throw new Error("Not found");
-await ctx.db.delete("attendanceRecords", args.recordId);
+const record = await ctx.db.get('attendanceRecords', args.recordId);
+if (!record) throw new Error('Not found');
+await ctx.db.delete('attendanceRecords', args.recordId);
 ```
 
 ## Troubleshooting

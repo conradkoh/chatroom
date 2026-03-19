@@ -67,10 +67,7 @@ export interface HarnessRestartPolicy {
    * @param context Optional context for cross-call state (e.g., pendingStops)
    * @returns true if the agent should be started
    */
-  shouldStartAgent(
-    params: ShouldStartAgentParams,
-    context?: AgentEndContext
-  ): boolean;
+  shouldStartAgent(params: ShouldStartAgentParams, context?: AgentEndContext): boolean;
 }
 
 // ─── OpenCode Policy ──────────────────────────────────────────────────────────
@@ -138,10 +135,7 @@ export class OpenCodeRestartPolicy implements HarnessRestartPolicy {
 export class PiRestartPolicy implements HarnessRestartPolicy {
   readonly id = 'pi';
 
-  shouldStartAgent(
-    params: ShouldStartAgentParams,
-    context?: AgentEndContext
-  ): boolean {
+  shouldStartAgent(params: ShouldStartAgentParams, context?: AgentEndContext): boolean {
     const { task, agentConfig } = params;
 
     // Skip if not desired to run

@@ -1,5 +1,1 @@
-export {
-  HeaderPortalProvider,
-  useHeaderPortal,
-  useSetHeaderPortal,
-} from './HeaderPortalProvider';
+export { HeaderPortalProvider, useHeaderPortal, useSetHeaderPortal } from './HeaderPortalProvider';

@@ -34,8 +34,8 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { areAllAgentsWaiting } from '../../../../convex/auth/cliSessionAuth';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
-import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
 import { patchParticipantStatus } from '../../entities/participant';
+import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
 
 // ============================================================================
 // TYPES
@@ -92,7 +92,9 @@ export async function transitionTask(
   const eventTask = await ctx.db.get('chatroom_tasks', taskId);
   if (eventTask) {
     if (ACTIVE_TASK_STATUSES.has(newStatus)) {
-      const chatroom = eventTask.assignedTo ? null : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
+      const chatroom = eventTask.assignedTo
+        ? null
+        : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
       const role = resolveTaskRole(eventTask.assignedTo, chatroom);
       await ctx.db.insert('chatroom_eventStream', {
         type: 'task.activated',
@@ -126,7 +128,12 @@ export async function transitionTask(
       // rather than the externally-forced completion.
       if (!options?.skipAgentStatusUpdate) {
         if (eventTask.assignedTo) {
-          await patchParticipantStatus(ctx, eventTask.chatroomId, eventTask.assignedTo, 'task.completed');
+          await patchParticipantStatus(
+            ctx,
+            eventTask.chatroomId,
+            eventTask.assignedTo,
+            'task.completed'
+          );
         }
       }
     }

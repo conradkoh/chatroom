@@ -1,6 +1,7 @@
 'use client';
 
 import { memo } from 'react';
+
 import type { DiffStat } from '../types/git';
 
 // ─── InlineDiffStat ──────────────────────────────────────────────────────────

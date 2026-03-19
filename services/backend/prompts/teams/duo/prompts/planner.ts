@@ -12,9 +12,6 @@
  * members are currently online.
  */
 
-import type { PlannerGuidanceParams } from '../../../types/cli';
-import { getCliEnvPrefix } from '../../../utils/env';
-
 import { classifyCommand } from '../../../cli/classify/command';
 import {
   getCoreResponsibilitiesSection,
@@ -25,6 +22,8 @@ import {
   getPlannerPlusBuilderWorkflow,
   getPlannerSoloWorkflow,
 } from '../../../cli/sections';
+import type { PlannerGuidanceParams } from '../../../types/cli';
+import { getCliEnvPrefix } from '../../../utils/env';
 
 /** Duo team always has a builder and no reviewer (fixed team composition) */
 const DUO_TEAM_CONFIG = { hasBuilder: true, hasReviewer: false } as const;

@@ -1,7 +1,7 @@
-import type { Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
 import { AGENT_REQUEST_DEADLINE_MS } from '../../config/reliability';
 import { emitConfigRemoval } from '../../src/domain/usecase/agent/config-removal';
+import type { Id } from '../_generated/dataModel';
+import type { MutationCtx } from '../_generated/server';
 
 /**
  * Builds a unique key scoped to a chatroom+team+role for use in chatroom_teamAgentConfigs.

@@ -422,9 +422,11 @@ describe('Task Workflow - Cancel Actions', () => {
 
     // Find the auto-created task with this sourceMessageId
     const allTasks = await t.query(api.tasks.listTasks, { sessionId, chatroomId });
-    const task = allTasks.find((t: { sourceMessageId?: unknown }) => t.sourceMessageId === messageId);
+    const task = allTasks.find(
+      (t: { sourceMessageId?: unknown }) => t.sourceMessageId === messageId
+    );
     expect(task).toBeDefined();
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
     const foundTask = task!;
 
     // Force-complete the task

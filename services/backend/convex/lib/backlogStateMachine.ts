@@ -172,9 +172,7 @@ export function getValidTransitionsFrom(status: BacklogItemStatus): BacklogTrans
  * Check if a transition is valid without executing it
  */
 export function canTransition(item: BacklogItem, newStatus: BacklogItemStatus): boolean {
-  const validTransitions = TRANSITIONS.filter(
-    (t) => t.from === item.status && t.to === newStatus
-  );
+  const validTransitions = TRANSITIONS.filter((t) => t.from === item.status && t.to === newStatus);
 
   if (validTransitions.length === 0) {
     return false;

@@ -10,9 +10,9 @@
  * the start form and remain useful if the user switches back.
  */
 
+import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { AGENT_REQUEST_DEADLINE_MS } from '../../../../config/reliability';
 import { emitConfigRemoval } from '../agent/config-removal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────

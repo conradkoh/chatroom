@@ -7,8 +7,8 @@ import { describe, expect, test } from 'vitest';
 
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
-import { t } from '../../../../test.setup';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { t } from '../../../../test.setup';
 
 // ---------------------------------------------------------------------------
 // Helpers

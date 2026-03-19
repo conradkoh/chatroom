@@ -90,9 +90,7 @@ const ChatroomSidebarItem = memo(function ChatroomSidebarItem({
           <span className="text-xs font-bold uppercase tracking-wide truncate text-chatroom-text-primary">
             {displayName}
           </span>
-          {chatroom.hasUnread && (
-            <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />
-          )}
+          {chatroom.hasUnread && <span className="w-1.5 h-1.5 bg-chatroom-accent flex-shrink-0" />}
         </span>
 
         {/* Favorite star indicator */}

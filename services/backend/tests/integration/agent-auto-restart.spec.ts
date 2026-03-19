@@ -11,6 +11,7 @@
 import { expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
   createPairTeamChatroom,
@@ -18,7 +19,6 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
-import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 
 // ---------------------------------------------------------------------------
 // Helper: find an agent.requestStart event with crash_recovery reason
@@ -73,7 +73,10 @@ test('recordAgentExited with stopReason=agent_process.crashed emits agent.reques
 
   // VERIFY — agent.requestStart IS emitted with crash_recovery reason
   const crashRecoveryEvent = await findCrashRecoveryEvent(chatroomId);
-  expect(crashRecoveryEvent, 'agent.requestStart should be emitted when stopReason=agent_process.crashed').toBeDefined();
+  expect(
+    crashRecoveryEvent,
+    'agent.requestStart should be emitted when stopReason=agent_process.crashed'
+  ).toBeDefined();
 });
 
 // ---------------------------------------------------------------------------
@@ -111,7 +114,10 @@ test('recordAgentExited with stopReason=agent_process.exited_clean emits agent.r
 
   // VERIFY — agent.requestStart IS emitted
   const crashRecoveryEvent = await findCrashRecoveryEvent(chatroomId);
-  expect(crashRecoveryEvent, 'agent.requestStart should be emitted when stopReason=agent_process.exited_clean').toBeDefined();
+  expect(
+    crashRecoveryEvent,
+    'agent.requestStart should be emitted when stopReason=agent_process.exited_clean'
+  ).toBeDefined();
 });
 
 // ---------------------------------------------------------------------------
@@ -149,5 +155,8 @@ test('recordAgentExited with desiredState=stopped does NOT emit agent.requestSta
 
   // VERIFY — NO agent.requestStart emitted (user intent respected)
   const crashRecoveryEvent = await findCrashRecoveryEvent(chatroomId);
-  expect(crashRecoveryEvent, 'agent.requestStart should NOT be emitted when desiredState=stopped').toBeUndefined();
+  expect(
+    crashRecoveryEvent,
+    'agent.requestStart should NOT be emitted when desiredState=stopped'
+  ).toBeUndefined();
 });

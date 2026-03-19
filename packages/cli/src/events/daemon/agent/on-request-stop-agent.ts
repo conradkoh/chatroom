@@ -5,11 +5,11 @@
  */
 
 import type { Id } from '../../../api.js';
+import { executeStopAgent } from '../../../commands/machine/daemon-start/handlers/stop-agent.js';
 import type {
   DaemonContext,
   StopAgentReason,
 } from '../../../commands/machine/daemon-start/types.js';
-import { executeStopAgent } from '../../../commands/machine/daemon-start/handlers/stop-agent.js';
 
 export interface AgentRequestStopEventPayload {
   chatroomId: Id<'chatroom_rooms'>;

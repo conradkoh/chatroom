@@ -14,8 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { refreshModels } from './command-loop.js';
 import type { DaemonDeps } from './deps.js';
-import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import type { DaemonContext, AgentHarness } from './types.js';
+import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 
 // ---------------------------------------------------------------------------
@@ -46,7 +46,7 @@ afterEach(() => {
 
 describe('refreshModels', () => {
   function createContextWithServices(
-    services: Array<{ harness: AgentHarness; isInstalled: boolean; models: string[] | Error }>
+    services: { harness: AgentHarness; isInstalled: boolean; models: string[] | Error }[]
   ): DaemonContext {
     const agentServices = new Map<AgentHarness, RemoteAgentService>(
       services.map(({ harness, isInstalled: installed, models }) => [
@@ -75,7 +75,10 @@ describe('refreshModels', () => {
         persistEventCursor: vi.fn(),
         loadEventCursor: vi.fn().mockReturnValue(null),
       },
-      clock: { now: vi.fn().mockReturnValue(Date.now()), delay: vi.fn().mockResolvedValue(undefined) },
+      clock: {
+        now: vi.fn().mockReturnValue(Date.now()),
+        delay: vi.fn().mockResolvedValue(undefined),
+      },
       spawning: {
         shouldAllowSpawn: vi.fn().mockReturnValue({ allowed: true }),
         recordSpawn: vi.fn(),

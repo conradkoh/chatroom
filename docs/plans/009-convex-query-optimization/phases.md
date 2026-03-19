@@ -3,13 +3,16 @@
 ## Phase Breakdown
 
 ### Phase 1: Enhanced Auth Helper
+
 **Goal:** Make `requireChatroomAccess` return the chatroom object to eliminate duplicate fetches.
 
 **Changes:**
+
 1. Modify `requireChatroomAccess` in `lib/cliSessionAuth.ts` to return `Doc<'chatroom_rooms'>`
 2. Update all call sites to use the returned chatroom instead of re-fetching
 
 **Files Modified:**
+
 - `services/backend/convex/lib/cliSessionAuth.ts`
 - `services/backend/convex/messages.ts`
 - `services/backend/convex/tasks.ts`
@@ -17,6 +20,7 @@
 - `services/backend/convex/chatrooms.ts`
 
 **Success Criteria:**
+
 - [x] `requireChatroomAccess` returns chatroom object
 - [x] No function calls `ctx.db.get('chatroom_rooms')` after calling `requireChatroomAccess`
 - [x] All tests pass
@@ -26,20 +30,24 @@
 ---
 
 ### Phase 2: Atomic Queue Position Counter
+
 **Goal:** Eliminate queue position race conditions using an atomic counter.
 
 **Changes:**
+
 1. Add `nextQueuePosition` field to schema
 2. Update task creation in `messages.ts` to use atomic counter
 3. Update task creation in `tasks.ts` to use atomic counter
 4. Handle migration for existing chatrooms (read max position on first use)
 
 **Files Modified:**
+
 - `services/backend/convex/schema.ts`
 - `services/backend/convex/messages.ts`
 - `services/backend/convex/tasks.ts`
 
 **Success Criteria:**
+
 - [x] Schema includes `nextQueuePosition` field
 - [x] Task creation uses atomic counter pattern
 - [ ] Concurrent task creation test passes (no duplicate positions) - Note: No explicit concurrent test added, relies on Convex OCC
@@ -50,15 +58,18 @@
 ---
 
 ### Phase 3: Handoff Optimization (Optional)
+
 **Goal:** Further reduce operations in the handoff mutation.
 
 **Changes:**
+
 1. Combine participant status check into handoff flow
 2. Consider batching task queries where possible
 
 **Note:** This phase is optional and may be deferred based on performance gains from phases 1-2.
 
 **Success Criteria:**
+
 - [ ] Handoff operations reduced to ~10 or fewer
 - [ ] No regressions in handoff functionality
 - [ ] Performance improvement measurable

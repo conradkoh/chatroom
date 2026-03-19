@@ -7,13 +7,13 @@
 
 import { createHash } from 'node:crypto';
 
+import { extractDiffStatFromShowOutput } from './git-polling.js';
+import type { DaemonContext } from './types.js';
+import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { makeGitStateKey, COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import type { GitCommit } from '../../../infrastructure/git/types.js';
-import { extractDiffStatFromShowOutput } from './git-polling.js';
-import type { DaemonContext } from './types.js';
-import { formatTimestamp } from './utils.js';
 
 /**
  * Collect git state for all tracked working directories and push to backend.
@@ -38,10 +38,7 @@ export async function pushGitState(ctx: DaemonContext): Promise<void> {
   }
 }
 
-async function pushSingleWorkspaceGitState(
-  ctx: DaemonContext,
-  workingDir: string
-): Promise<void> {
+async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: string): Promise<void> {
   const stateKey = makeGitStateKey(ctx.machineId, workingDir);
 
   // Check if it's a git repo first
