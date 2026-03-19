@@ -1,24 +1,31 @@
 'use client';
 
 import { api } from '@workspace/backend/convex/_generated/api';
-import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Plus, Play, ClipboardCheck, MoreHorizontal, XCircle } from 'lucide-react';
+import {
+  Plus,
+  Play,
+  ClipboardCheck,
+  MoreHorizontal,
+  XCircle,
+} from 'lucide-react';
 import React, { useState, useCallback, useMemo } from 'react';
 
-import { type BacklogItem } from './backlog';
 import { BacklogCreateModal } from './BacklogCreateModal';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
 import { TaskDetailModal } from './TaskDetailModal';
 import { TaskQueueModal } from './TaskQueueModal';
-import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
-import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
-import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
-import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
-import { PendingReviewModal } from './WorkQueue/PendingReviewModal/PendingReviewModal';
-import { TaskItem } from './WorkQueue/TaskItem';
+import { type BacklogItem } from './backlog';
 import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
 import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
+import { TaskItem } from './WorkQueue/TaskItem';
+import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
+import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
+import { ReviewPanel } from './ReviewPanel';
+import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
+import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
+
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
 import {
   DropdownMenu,
@@ -300,16 +307,20 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
           <div className="border-b border-chatroom-border">
             <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center gap-2">
               <ClipboardCheck size={12} className="text-violet-500 dark:text-violet-400" />
-              <span>Pending Review ({pendingReviewBacklogItems.length})</span>
+              <span>
+                Pending Review ({pendingReviewBacklogItems.length})
+              </span>
             </div>
             {/* Show backlog pending review items */}
-            {pendingReviewBacklogItems.slice(0, PENDING_REVIEW_PREVIEW_LIMIT).map((item) => (
-              <PendingReviewBacklogItem
-                key={item._id}
-                item={item}
-                onClick={() => setSelectedBacklogItemId(item._id)}
-              />
-            ))}
+            {pendingReviewBacklogItems
+              .slice(0, PENDING_REVIEW_PREVIEW_LIMIT)
+              .map((item) => (
+                <PendingReviewBacklogItem
+                  key={item._id}
+                  item={item}
+                  onClick={() => setSelectedBacklogItemId(item._id)}
+                />
+              ))}
             {/* Show "View More" button when there are more items in total */}
             {pendingReviewBacklogItems.length > PENDING_REVIEW_PREVIEW_LIMIT && (
               <ViewMoreButton
@@ -351,7 +362,9 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
           )}
 
           {categorizedTasks.backlog.length === 0 && (
-            <div className="p-3 text-center text-chatroom-text-muted text-xs">No backlog items</div>
+            <div className="p-3 text-center text-chatroom-text-muted text-xs">
+              No backlog items
+            </div>
           )}
         </div>
         {/* End of Backlog Tasks */}
@@ -381,19 +394,12 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
         }}
       />
 
-      {/* Pending Review Modal */}
-      {isPendingReviewModalOpen && (
-        <PendingReviewModal
-          backlogItems={pendingReviewBacklogItems}
-          onClose={() => setIsPendingReviewModalOpen(false)}
-          onTaskClick={(task) => {
-            handleOpenTaskDetail(task);
-          }}
-          onBacklogItemClick={(item) => {
-            setSelectedBacklogItemId(item._id);
-          }}
-        />
-      )}
+      {/* Review Panel — Split-pane layout for pending review items */}
+      <ReviewPanel
+        isOpen={isPendingReviewModalOpen}
+        onClose={() => setIsPendingReviewModalOpen(false)}
+        chatroomId={chatroomId as Id<'chatroom_rooms'>}
+      />
 
       {/* Current Tasks Modal */}
       {isCurrentTasksModalOpen && (
@@ -435,3 +441,5 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
     </div>
   );
 }
+
+
