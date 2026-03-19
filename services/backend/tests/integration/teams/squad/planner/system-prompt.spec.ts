@@ -213,7 +213,7 @@ describe('Squad Team > Planner > System Prompt', () => {
           A([Start]) --> B[Receive task from user]
           B --> C[task read:
       get content + mark in_progress]
-          C --> D[Classify with task-started]
+          C --> D[Classify with classify]
           D --> E[Decompose into phases]
           E --> F[Delegate ONE phase to builder]
           F --> G[Builder completes phase]

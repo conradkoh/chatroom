@@ -38,7 +38,7 @@ export function getFullTeamWorkflow(): string {
 flowchart TD
     A([Start]) --> B[Receive task from user]
     B --> C[task read:\nget content + mark in_progress]
-    C --> D[Classify with task-started]
+    C --> D[Classify with classify]
     D --> E[Decompose into phases]
     E --> F[Delegate ONE phase to builder]
     F --> G[Builder completes phase]
@@ -114,7 +114,7 @@ export function getPlannerSoloWorkflow(): string {
 
 1. Receive task from user
 2. Run task read (get content + mark in_progress)
-3. Classify with task-started
+3. Classify with classify
 4. Implement the solution yourself
 5. Review your own work for quality
 6. Deliver to **user**`;

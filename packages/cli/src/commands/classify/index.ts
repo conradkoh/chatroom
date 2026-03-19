@@ -2,11 +2,10 @@
  * Classify command — classify a task's origin message (entry-point role only)
  *
  * This command is reserved for the entry-point role. It performs
- * the same classification logic as `task-started --origin-message-classification`
- * but without the --no-classify option (which is for handoff recipients).
+ * the classification logic for the origin message.
  *
  * Entry-point roles: Use this when you receive a user message and need to classify it.
- * Other roles: Use `task-started --no-classify` when receiving handoffs.
+ * Other roles: Classification is not needed — use `task read` to mark in_progress.
  */
 
 import { classifyCommand } from '@workspace/backend/prompts/cli/classify/command.js';
@@ -118,10 +117,7 @@ export async function classify(
     );
     console.error('');
     console.error('   Entry point roles receive user messages and must classify them.');
-    console.error('   Other roles receive handoffs and should use:');
-    console.error(
-      `   ${cliEnvPrefix}chatroom task-started --chatroom-id=${chatroomId} --role=${role} --task-id=<task-id> --no-classify`
-    );
+    console.error('   Other roles receive handoffs — use `task read` to mark in_progress.');
     process.exit(1);
   }
 
