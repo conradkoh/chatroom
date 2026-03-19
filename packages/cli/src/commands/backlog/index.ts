@@ -118,7 +118,7 @@ function validateChatroomId(chatroomId: string): void {
 // ─── Commands ──────────────────────────────────────────────────────────────
 
 /**
- * List active backlog items
+ * List backlog items (excludes pending_user_review)
  */
 export async function listBacklog(
   chatroomId: string,

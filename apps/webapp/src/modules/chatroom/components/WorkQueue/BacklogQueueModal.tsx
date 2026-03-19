@@ -57,7 +57,7 @@ export function BacklogQueueModal({ items, onClose, onItemClick }: BacklogQueueM
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b-2 border-chatroom-border-strong bg-chatroom-bg-surface flex-shrink-0">
           <span className="text-sm font-bold uppercase tracking-wide text-chatroom-text-primary">
-            Active Backlog ({items.length} items)
+            Backlog ({items.length} items)
           </span>
           <button
             className="bg-transparent border-2 border-chatroom-border text-chatroom-text-secondary w-9 h-9 flex items-center justify-center cursor-pointer transition-all duration-100 hover:bg-chatroom-bg-hover hover:border-chatroom-border-strong hover:text-chatroom-text-primary"
@@ -72,7 +72,7 @@ export function BacklogQueueModal({ items, onClose, onItemClick }: BacklogQueueM
         <div className="flex-1 overflow-y-auto min-h-0">
           {items.length === 0 ? (
             <div className="p-8 text-center text-chatroom-text-muted text-sm">
-              No active backlog items
+              No backlog items
             </div>
           ) : (
             items.map((item) => (

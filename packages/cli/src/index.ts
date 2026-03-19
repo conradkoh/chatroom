@@ -391,7 +391,7 @@ const backlogCommand = program.command('backlog').description('Manage task queue
 
 backlogCommand
   .command('list')
-  .description('List active backlog items')
+  .description('List backlog items')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .option('--limit <n>', 'Maximum number of items to show')

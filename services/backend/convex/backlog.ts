@@ -13,7 +13,7 @@ import { updateBacklogItem as updateBacklogItemUseCase } from '../src/domain/use
 import { getBacklogItemsByIds as getBacklogItemsByIdsUseCase } from '../src/domain/usecase/backlog/get-backlog-items-by-ids';
 import { patchBacklogItem as patchBacklogItemUseCase } from '../src/domain/usecase/backlog/patch-backlog-item';
 
-/** Lists all active backlog items for a chatroom (status: backlog or pending_user_review). */
+/** Lists backlog items for a chatroom. statusFilter defaults to 'backlog' (excludes pending_user_review). */
 export const listBacklogItems = query({
   args: {
     ...SessionIdArg,

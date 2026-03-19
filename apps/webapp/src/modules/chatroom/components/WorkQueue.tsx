@@ -334,7 +334,7 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
         {/* Backlog Tasks */}
         <div className="border-b border-chatroom-border">
           <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted bg-chatroom-bg-tertiary flex items-center justify-between">
-            <span>Active Backlog ({categorizedTasks.backlog.length})</span>
+            <span>Backlog ({categorizedTasks.backlog.length})</span>
             <button
               onClick={() => setIsBacklogCreateModalOpen(true)}
               className="text-chatroom-accent hover:text-chatroom-text-primary transition-colors"
@@ -363,7 +363,7 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
 
           {categorizedTasks.backlog.length === 0 && (
             <div className="p-3 text-center text-chatroom-text-muted text-xs">
-              No active backlog items
+              No backlog items
             </div>
           )}
         </div>
