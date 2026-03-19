@@ -275,9 +275,18 @@ interface TaskHeaderProps {
   onTap?: (message: Message) => void;
   onDelete?: (message: Message) => void;
   isDeleting?: boolean;
+  onStartEdit?: (message: Message) => void;
+  isEditing?: boolean;
 }
 
-const TaskHeader = memo(function TaskHeader({ message, onTap, onDelete, isDeleting }: TaskHeaderProps) {
+const TaskHeader = memo(function TaskHeader({
+  message,
+  onTap,
+  onDelete,
+  isDeleting,
+  onStartEdit,
+  isEditing,
+}: TaskHeaderProps) {
   const [isDeletePopoverOpen, setIsDeletePopoverOpen] = useState(false);
 
   // useCallback must be called before any conditional returns (React hooks rules)
@@ -294,6 +303,12 @@ const TaskHeader = memo(function TaskHeader({ message, onTap, onDelete, isDeleti
     }
   }, [onDelete, message]);
 
+  const handleStartEdit = useCallback(() => {
+    if (onStartEdit) {
+      onStartEdit(message);
+    }
+  }, [onStartEdit, message]);
+
   // Only show for user messages
   if (message.senderRole.toLowerCase() !== 'user') {
     return null;
@@ -309,6 +324,9 @@ const TaskHeader = memo(function TaskHeader({ message, onTap, onDelete, isDeleti
 
   // Show delete button only for pending messages (not yet picked up by agent)
   const canDelete = message.taskStatus === 'pending' && onDelete;
+
+  // Show edit button only for pending messages
+  const canEdit = message.taskStatus === 'pending' && onStartEdit;
 
   // Determine what to display:
   // - No classification yet AND task not finished: shimmer (waiting for classification)
@@ -365,6 +383,18 @@ const TaskHeader = memo(function TaskHeader({ message, onTap, onDelete, isDeleti
             )}
           </div>
         </button>
+
+        {/* Edit button for pending messages */}
+        {canEdit && (
+          <button
+            onClick={handleStartEdit}
+            disabled={isEditing}
+            className="flex-shrink-0 flex items-center justify-center w-6 h-6 ml-1 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Edit pending message"
+          >
+            <Pencil size={12} />
+          </button>
+        )}
 
         {/* Delete button for pending messages — with popover confirmation */}
         {canDelete && (
@@ -938,6 +968,9 @@ interface MessageItemProps {
   onAttachedBacklogItemClick?: (item: AttachedBacklogItem) => void;
   onAddToContext?: (message: Message) => void;
   isAddedToContext?: boolean;
+  isEditing?: boolean;
+  onSaveEdit?: (messageId: string, newContent: string) => Promise<void>;
+  onCancelEdit?: () => void;
 }
 
 // System notification message (e.g. context change)
@@ -1022,7 +1055,61 @@ const MessageItem = memo(function MessageItem({
   onAttachedBacklogItemClick,
   onAddToContext,
   isAddedToContext,
+  isEditing,
+  onSaveEdit,
+  onCancelEdit,
 }: MessageItemProps) {
+  // Inline edit state
+  const [editContent, setEditContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // When editing starts, initialize edit content and focus textarea
+  useEffect(() => {
+    if (isEditing) {
+      setEditContent(message.content);
+      setEditError(null);
+      // Focus with slight delay to let the textarea render
+      setTimeout(() => editTextareaRef.current?.focus(), 50);
+    }
+  }, [isEditing, message.content]);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (isSaving || !onSaveEdit) return;
+    const trimmed = editContent.trim();
+    if (!trimmed) {
+      setEditError('Message cannot be empty');
+      return;
+    }
+    setIsSaving(true);
+    setEditError(null);
+    try {
+      await onSaveEdit(message._id, trimmed);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [message._id, editContent, onSaveEdit, isSaving]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditError(null);
+    onCancelEdit?.();
+  }, [onCancelEdit]);
+
+  const handleEditKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Escape') {
+        handleCancelEdit();
+      } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        handleSaveEdit();
+      }
+    },
+    [handleCancelEdit, handleSaveEdit]
+  );
+
   // Check if this is a new_feature message with a title
   const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
 
@@ -1085,9 +1172,43 @@ const MessageItem = memo(function MessageItem({
           )}
         </button>
       )}
-      {/* Message Content */}
-      {/* Message Content - unified renderer for all message types */}
-      <MessageContent content={message.content} />
+      {/* Message Content — inline edit mode for pending user messages */}
+      {isEditing ? (
+        <div className="space-y-2">
+          <textarea
+            ref={editTextareaRef}
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            onKeyDown={handleEditKeyDown}
+            className="w-full min-h-[80px] p-2 text-sm bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-primary focus:outline-none focus:border-chatroom-accent resize-y"
+            placeholder="Edit message content..."
+          />
+          {editError && (
+            <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>
+          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSaveEdit}
+              disabled={isSaving}
+              className="px-3 py-1 text-xs font-medium bg-chatroom-accent text-white hover:bg-chatroom-accent/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              onClick={handleCancelEdit}
+              disabled={isSaving}
+              className="px-3 py-1 text-xs font-medium text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <span className="text-[10px] text-chatroom-text-muted ml-auto">
+              ⌘+Enter to save · Esc to cancel
+            </span>
+          </div>
+        </div>
+      ) : (
+        <MessageContent content={message.content} />
+      )}
       {/* Attached Backlog Tasks (legacy chatroom_tasks) + Backlog Items (chatroom_backlog) */}
       {((message.attachedTasks && message.attachedTasks.length > 0) ||
         (message.attachedBacklogItems && message.attachedBacklogItems.length > 0)) && (
@@ -1299,6 +1420,7 @@ export const MessageFeed = memo(function MessageFeed({
   const deleteQueuedMessage = useSessionMutation(api.messages.deleteQueuedMessage);
   const updateQueuedMessage = useSessionMutation(api.messages.updateQueuedMessage);
   const deletePendingMessage = useSessionMutation(api.messages.deletePendingMessage);
+  const updatePendingMessage = useSessionMutation(api.messages.updatePendingMessage);
 
   const feedRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
@@ -1413,6 +1535,31 @@ export const MessageFeed = memo(function MessageFeed({
     },
     [deletePendingMessage, deletingMessageId]
   );
+
+  // Edit pending message state — tracks which message is being edited
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+
+  // Handle starting edit of a pending message
+  const handleStartEditPendingMessage = useCallback((message: Message) => {
+    setEditingMessageId(message._id);
+  }, []);
+
+  // Handle saving edit of a pending message
+  const handleSaveEditPendingMessage = useCallback(
+    async (messageId: string, newContent: string) => {
+      await updatePendingMessage({
+        messageId: messageId as Id<'chatroom_messages'>,
+        content: newContent,
+      });
+      setEditingMessageId(null);
+    },
+    [updatePendingMessage]
+  );
+
+  // Handle canceling edit
+  const handleCancelEditPendingMessage = useCallback(() => {
+    setEditingMessageId(null);
+  }, []);
 
   // Attachments context for "Add to Context" feature
   const { add: addAttachment, isAttached } = useAttachments();
@@ -1678,6 +1825,8 @@ export const MessageFeed = memo(function MessageFeed({
               onTap={handleMessageDetailClick}
               onDelete={handleDeletePendingMessage}
               isDeleting={deletingMessageId === message._id}
+              onStartEdit={handleStartEditPendingMessage}
+              isEditing={editingMessageId === message._id}
             />
             {/* Task Progress - inline progress updates below task header */}
             <TaskProgress message={message} chatroomId={chatroomId} />
@@ -1688,6 +1837,9 @@ export const MessageFeed = memo(function MessageFeed({
               onAttachedBacklogItemClick={handleAttachedBacklogItemClick}
               onAddToContext={handleAddToContext}
               isAddedToContext={isAttached('message', message._id)}
+              isEditing={editingMessageId === message._id}
+              onSaveEdit={handleSaveEditPendingMessage}
+              onCancelEdit={handleCancelEditPendingMessage}
             />
           </React.Fragment>
         ))}
