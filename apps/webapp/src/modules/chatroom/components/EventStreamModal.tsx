@@ -1,7 +1,7 @@
 'use client';
 
 import { Activity } from 'lucide-react';
-import { memo, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   FixedModal,
@@ -42,6 +42,11 @@ export const EventStreamModal = memo(function EventStreamModal({
   // Track selected event for detail view
   const [selectedEvent, setSelectedEvent] = useState<EventStreamEvent | null>(null);
 
+  // Ref for the scrollable event list container
+  const eventListRef = useRef<HTMLDivElement>(null);
+  // Snapshot of scrollHeight before loading more, used to restore scroll position
+  const prevScrollHeightRef = useRef<number | null>(null);
+
   // Auto-select first event when events change
   useEffect(() => {
     if (events.length > 0 && !selectedEvent) {
@@ -71,6 +76,28 @@ export const EventStreamModal = memo(function EventStreamModal({
       setSelectedEvent(null);
     }
   }, [events]);
+
+  // Restore scroll position after new events are appended (load more)
+  useEffect(() => {
+    const container = eventListRef.current;
+    const prevHeight = prevScrollHeightRef.current;
+    if (container && prevHeight !== null) {
+      // New items were appended at the bottom; adjust scrollTop by the height difference
+      const heightDelta = container.scrollHeight - prevHeight;
+      container.scrollTop += heightDelta;
+      prevScrollHeightRef.current = null;
+    }
+  }, [events]);
+
+  // Wrap onLoadMore to snapshot scroll state before triggering load
+  const handleLoadMore = useCallback(() => {
+    if (!onLoadMore) return;
+    const container = eventListRef.current;
+    if (container) {
+      prevScrollHeightRef.current = container.scrollHeight;
+    }
+    onLoadMore();
+  }, [onLoadMore]);
 
   // Render event row using the registry
   const renderEventRow = (event: EventStreamEvent) => {
@@ -136,7 +163,7 @@ export const EventStreamModal = memo(function EventStreamModal({
               </span>
             </div>
             {/* Event list */}
-            <div className="flex-1 overflow-y-auto">
+            <div ref={eventListRef} className="flex-1 overflow-y-auto">
               {events.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 text-chatroom-text-muted">
                   <span className="text-xs">No events yet</span>
@@ -148,7 +175,7 @@ export const EventStreamModal = memo(function EventStreamModal({
             {/* Load more button */}
             {hasMore && onLoadMore && (
               <button
-                onClick={onLoadMore}
+                onClick={handleLoadMore}
                 className="flex-shrink-0 w-full py-2 text-xs text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors border-t border-chatroom-border"
               >
                 Load more events

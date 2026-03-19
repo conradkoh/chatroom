@@ -1231,13 +1231,25 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
       : 'skip'
   );
 
+  // Keep previous events data while the query re-runs with a new limit (prevents empty flash)
+  const prevEventsRef = useRef<EventStreamEvent[]>([]);
+  useEffect(() => {
+    if (latestEvents && Array.isArray(latestEvents) && latestEvents.length > 0) {
+      prevEventsRef.current = latestEvents as EventStreamEvent[];
+    }
+  }, [latestEvents]);
+  // Use current data if available, otherwise fall back to previous data to avoid scroll reset
+  const stableEvents: EventStreamEvent[] =
+    (latestEvents as EventStreamEvent[] | undefined) ?? prevEventsRef.current;
+
   // Cast needed: useSessionQuery returns the raw Convex DB type; we cast to the typed discriminated union
   const latestEvent: EventStreamEvent | null = (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
 
-  // Reset event limit when panel closes
+  // Reset event limit and cached events when panel closes
   useEffect(() => {
     if (!isEventStreamOpen) {
       setEventStreamLimit(20);
+      prevEventsRef.current = [];
     }
   }, [isEventStreamOpen]);
   const [selectedAttachedTask, setSelectedAttachedTask] = useState<AttachedTask | null>(null);
@@ -1629,9 +1641,9 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
       <EventStreamModal
         isOpen={isEventStreamOpen}
         onClose={() => setIsEventStreamOpen(false)}
-        events={(latestEvents as EventStreamEvent[] | undefined) ?? []}
+        events={stableEvents}
         onLoadMore={() => setEventStreamLimit((prev) => prev + 20)}
-        hasMore={(latestEvents as EventStreamEvent[] | undefined)?.length === eventStreamLimit}
+        hasMore={stableEvents.length === eventStreamLimit}
       />
       {/* Status bar - fixed at bottom with event ticker (left) + message count (right) */}
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
