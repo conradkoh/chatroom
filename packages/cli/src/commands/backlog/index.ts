@@ -26,6 +26,8 @@ type BacklogItemStatus = 'backlog' | 'pending_user_review' | 'closed';
 export interface ListBacklogOptions {
   role: string;
   limit?: number;
+  sort?: 'date:desc' | 'priority:desc';
+  filter?: 'unscored';
 }
 
 export interface AddBacklogOptions {
@@ -137,6 +139,8 @@ export async function listBacklog(
       sessionId,
       chatroomId: chatroomId as Id<'chatroom_rooms'>,
       statusFilter: 'backlog',
+      sort: options.sort,
+      filter: options.filter,
       limit,
     });
 

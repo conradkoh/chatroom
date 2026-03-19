@@ -395,17 +395,23 @@ backlogCommand
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .option('--limit <n>', 'Maximum number of items to show')
+  .option('--sort <sort>', 'Sort order: date:desc (default) | priority:desc')
+  .option('--filter <filter>', 'Filter: unscored (only items without priority score)')
   .action(
     async (options: {
       chatroomId: string;
       role: string;
       limit?: string;
+      sort?: string;
+      filter?: string;
     }) => {
       await maybeRequireAuth();
       const { listBacklog } = await import('./commands/backlog/index.js');
       await listBacklog(options.chatroomId, {
         role: options.role,
         limit: options.limit ? parseInt(options.limit, 10) : undefined,
+        sort: options.sort as 'date:desc' | 'priority:desc' | undefined,
+        filter: options.filter as 'unscored' | undefined,
       });
     }
   );

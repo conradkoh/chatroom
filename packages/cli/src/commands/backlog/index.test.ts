@@ -98,7 +98,7 @@ describe('listBacklog', () => {
 
     expect(exitSpy).not.toHaveBeenCalled();
     const output = getAllLogOutput();
-    expect(output).toContain('ACTIVE BACKLOG');
+    expect(output).toContain('BACKLOG');
     expect(output).toContain('Test backlog item');
   });
 

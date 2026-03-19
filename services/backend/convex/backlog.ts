@@ -26,6 +26,8 @@ export const listBacklogItems = query({
         v.literal('active'), // backlog + pending_user_review
       )
     ),
+    sort: v.optional(v.union(v.literal('date:desc'), v.literal('priority:desc'))),
+    filter: v.optional(v.literal('unscored')),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -33,6 +35,8 @@ export const listBacklogItems = query({
     return await listBacklogItemsUseCase(ctx, {
       chatroomId: args.chatroomId,
       statusFilter: args.statusFilter,
+      sort: args.sort,
+      filter: args.filter,
       limit: args.limit,
     });
   },
