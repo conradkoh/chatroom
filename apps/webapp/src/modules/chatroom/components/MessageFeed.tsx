@@ -1646,6 +1646,7 @@ export const MessageFeed = memo(function MessageFeed({
         isOpen={isEventStreamOpen}
         onClose={() => setIsEventStreamOpen(false)}
         events={stableEvents}
+        isLoading={isEventStreamOpen && latestEvents === undefined}
         onLoadMore={() => setEventStreamLimit((prev) => prev + 20)}
         hasMore={stableEvents.length === eventStreamLimit}
       />
