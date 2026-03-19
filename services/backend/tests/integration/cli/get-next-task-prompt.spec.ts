@@ -439,9 +439,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       EOF\`
       4. Hand off when complete:
 
-      ⚠️ Before handoff: Commit all changes and ensure the working directory is clean.
-         Run: git add -A && git commit -m "<descriptive message>" && git status
-
+      ⚠️ Before delivering to user: Verify the codebase is in a good state.
+         Run: pnpm typecheck && pnpm test
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10002;chatroom_rooms" --role="builder" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -1183,9 +1182,8 @@ ${taskDeliveryPrompt.fullCliOutput}
       1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="10039;chatroom_rooms" --role="reviewer" --task-id="10051;chatroom_tasks"\`
       2. Hand off when complete:
 
-      ⚠️ Before handoff: Commit all changes and ensure the working directory is clean.
-         Run: git add -A && git commit -m "<descriptive message>" && git status
-
+      ⚠️ Before delivering to user: Verify the codebase is in a good state.
+         Run: pnpm typecheck && pnpm test
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="10039;chatroom_rooms" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---

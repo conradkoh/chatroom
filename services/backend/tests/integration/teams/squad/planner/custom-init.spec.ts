@@ -180,8 +180,9 @@ describe('Squad Team > Planner > Custom Init Prompt', () => {
           L --> F
           K -->|yes| M{more phases?}
           M -->|yes| F
-          M -->|no| N[Deliver final result to user]
-          N --> O([Stop])
+          M -->|no| N[Verify: pnpm typecheck && pnpm test]
+          N --> O[Deliver final result to user]
+          O --> P([Stop])
       \`\`\`
 
       **Core Responsibilities:**

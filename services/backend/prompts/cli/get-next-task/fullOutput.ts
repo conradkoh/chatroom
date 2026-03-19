@@ -72,6 +72,24 @@ export interface FullCliOutputParams {
   availableHandoffTargets: string[];
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * If `user` is among the available handoff targets, add a verification
+ * reminder before the handoff command so the planner/coordinator verifies
+ * the codebase before delivering to the user.
+ */
+function maybeAddVerificationReminder(
+  lines: string[],
+  availableHandoffTargets: string[]
+): void {
+  if (availableHandoffTargets.includes('user')) {
+    lines.push('');
+    lines.push('⚠️ Before delivering to user: Verify the codebase is in a good state.');
+    lines.push('   Run: pnpm typecheck && pnpm test');
+  }
+}
+
 // ─── Generator ────────────────────────────────────────────────────────────────
 
 /**
@@ -292,14 +310,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         `3. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
       );
       lines.push('4. Delegate phase 1 to builder:');
-      lines.push('');
-      lines.push(
-        '⚠️ Before handoff: Commit all changes and ensure the working directory is clean.'
-      );
-      lines.push(
-        '   Run: git add -A && git commit -m "<descriptive message>" && git status'
-      );
-      lines.push('');
+      maybeAddVerificationReminder(lines, availableHandoffTargets);
       lines.push('```');
       lines.push(
         `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=builder << 'EOF'`
@@ -322,14 +333,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         nextStepNum++;
       }
       lines.push(`${nextStepNum}. Hand off when complete:`);
-      lines.push('');
-      lines.push(
-        '⚠️ Before handoff: Commit all changes and ensure the working directory is clean.'
-      );
-      lines.push(
-        '   Run: git add -A && git commit -m "<descriptive message>" && git status'
-      );
-      lines.push('');
+      maybeAddVerificationReminder(lines, availableHandoffTargets);
       lines.push('```');
       lines.push(
         `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
@@ -362,14 +366,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     }
 
     lines.push(`${nextStepNum}. Hand off when complete:`);
-    lines.push('');
-    lines.push(
-      '⚠️ Before handoff: Commit all changes and ensure the working directory is clean.'
-    );
-    lines.push(
-      '   Run: git add -A && git commit -m "<descriptive message>" && git status'
-    );
-    lines.push('');
+    maybeAddVerificationReminder(lines, availableHandoffTargets);
     lines.push('```');
     lines.push(
       `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
