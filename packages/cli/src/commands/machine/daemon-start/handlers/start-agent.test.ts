@@ -165,6 +165,7 @@ function createMockContext(options?: {
     activeWorkingDirs: new Set(),
     lastPushedGitState: new Map(),
     pendingStops: new Map(),
+    spawnLocks: new Map(),
   };
 
   // Attach for test convenience (not part of DaemonContext type)

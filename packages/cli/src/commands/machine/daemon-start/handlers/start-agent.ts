@@ -15,7 +15,7 @@ import type {
   StartAgentCommand,
   StartAgentReason,
 } from '../types.js';
-import { agentKey } from '../types.js';
+import { agentKey, withSpawnLock } from '../types.js';
 
 /**
  * Minimum duration for a healthy turn.
@@ -30,8 +30,33 @@ const MIN_HEALTHY_TURN_MS = 30_000; // 30 seconds
  * This is the canonical implementation — `handleStartAgent` is a thin wrapper
  * that maps a command envelope to these args. Stream-based callers can invoke
  * this directly without constructing a full command object.
+ *
+ * Acquires a per-agent spawn lock to prevent the race condition where both
+ * the command loop and task monitor try to spawn an agent for the same
+ * (chatroomId, role) concurrently. The lock serializes concurrent callers
+ * so only one spawn completes at a time.
  */
 export async function executeStartAgent(
+  ctx: DaemonContext,
+  args: {
+    chatroomId: Id<'chatroom_rooms'>;
+    role: string;
+    agentHarness: AgentHarness;
+    model?: string;
+    workingDir?: string;
+    reason: StartAgentReason;
+  }
+): Promise<CommandResult> {
+  return withSpawnLock(ctx, args.chatroomId, args.role, () =>
+    executeStartAgentImpl(ctx, args)
+  );
+}
+
+/**
+ * Internal implementation of start-agent logic.
+ * Must only be called within a spawn lock (via executeStartAgent).
+ */
+async function executeStartAgentImpl(
   ctx: DaemonContext,
   args: {
     chatroomId: Id<'chatroom_rooms'>;

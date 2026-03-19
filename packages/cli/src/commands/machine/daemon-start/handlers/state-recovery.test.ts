@@ -59,6 +59,7 @@ function createMockContext(
     activeWorkingDirs: new Set(),
     lastPushedGitState: new Map(),
     pendingStops: new Map(),
+    spawnLocks: new Map(),
   };
 }
 

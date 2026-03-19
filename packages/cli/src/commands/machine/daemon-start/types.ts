@@ -96,6 +96,55 @@ export function agentKey(chatroomId: string, role: string): string {
   return `${chatroomId}:${role.toLowerCase()}`;
 }
 
+/**
+ * Serialize an async operation through the per-agent spawn lock.
+ *
+ * Ensures that only one spawn/start operation runs at a time for a given
+ * (chatroomId, role). Concurrent callers (e.g., command loop and task monitor)
+ * are chained — the second caller waits for the first to complete before running.
+ *
+ * The lock is automatically cleaned up after the chain resolves to prevent memory leaks.
+ */
+export async function withSpawnLock<T>(
+  ctx: DaemonContext,
+  chatroomId: string,
+  role: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const key = agentKey(chatroomId, role);
+  const prev = ctx.spawnLocks.get(key) ?? Promise.resolve();
+
+  let resolve!: () => void;
+  // Create a new promise that the chain tracks. This decouples the chain's
+  // promise (void) from the fn's return value (T).
+  const gate = new Promise<void>((r) => {
+    resolve = r;
+  });
+
+  // Chain the gate onto the previous lock entry so subsequent callers wait.
+  ctx.spawnLocks.set(key, prev.then(() => gate, () => gate));
+
+  // Wait for the previous operation to complete before running ours.
+  await prev.catch(() => {});
+
+  try {
+    return await fn();
+  } finally {
+    resolve();
+    // Clean up the lock entry if we're at the end of the chain
+    // (no other operations have been chained after us)
+    const current = ctx.spawnLocks.get(key);
+    if (current) {
+      // Check if the chain has settled (no new operations chained)
+      current.then(() => {
+        if (ctx.spawnLocks.get(key) === current) {
+          ctx.spawnLocks.delete(key);
+        }
+      }).catch(() => {});
+    }
+  }
+}
+
 /** Shared context passed to all command handlers. */
 export interface DaemonContext {
   client: ConvexClient;
@@ -123,4 +172,16 @@ export interface DaemonContext {
    * Used to distinguish intentional stops from crashes in the onExit handler.
    */
   pendingStops: Map<string, StopReason>;
+  /**
+   * Per-agent spawn lock — serializes `executeStartAgent()` calls for the same
+   * (chatroomId, role) to prevent the race condition where both the command loop
+   * and task monitor spawn an agent concurrently.
+   *
+   * Key: `${chatroomId}:${role}` (via agentKey()).
+   * Value: Promise chain — each new spawn attempt chains onto the previous one.
+   *
+   * When a spawn is in progress, the task monitor and command loop both go through
+   * this lock, ensuring only one spawn completes for a given agent at a time.
+   */
+  spawnLocks: Map<string, Promise<void>>;
 }
