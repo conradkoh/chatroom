@@ -225,6 +225,21 @@ export async function getTaskDeliveryPromptData(
     }
   }
 
+  // Fetch attached messages if any exist in origin message
+  const attachedMessagesMap = new Map<string, { id: string; content: string; senderRole: string }>();
+  if (originMessage?.attachedMessageIds && originMessage.attachedMessageIds.length > 0) {
+    for (const msgId of originMessage.attachedMessageIds) {
+      const msg = await ctx.db.get('chatroom_messages', msgId);
+      if (msg) {
+        attachedMessagesMap.set(msgId, {
+          id: msg._id,
+          content: msg.content,
+          senderRole: msg.senderRole,
+        });
+      }
+    }
+  }
+
   // Build CLI env prefix
   const cliEnvPrefix = getCliEnvPrefix(config.getConvexURLWithFallback(convexUrl));
 
@@ -268,6 +283,14 @@ export async function getTaskDeliveryPromptData(
               _id: i!.id,
               status: i!.status,
               content: i!.content,
+            })),
+          attachedMessages: originMessage.attachedMessageIds
+            ?.map((id) => attachedMessagesMap.get(id))
+            .filter(Boolean)
+            .map((m) => ({
+              _id: m!.id,
+              content: m!.content,
+              senderRole: m!.senderRole,
             })),
         }
       : null,

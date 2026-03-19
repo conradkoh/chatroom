@@ -27,6 +27,7 @@ import {
   Pencil,
   Check,
   Copy,
+  Pin,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -59,6 +60,7 @@ import {
   formatEventType,
   getEventBadgeTextColor,
 } from '../viewModels/eventStreamViewModel';
+import { useAttachments } from '../context/AttachmentsContext';
 
 import {
   FixedModal,
@@ -99,6 +101,8 @@ interface Message {
   attachedBacklogItems?: AttachedBacklogItem[];
   // Attached artifacts
   attachedArtifacts?: ArtifactMeta[];
+  // Attached chatroom messages for context
+  attachedMessages?: AttachedMessage[];
   // Latest progress message for inline display
   latestProgress?: {
     content: string;
@@ -119,6 +123,13 @@ interface AttachedBacklogItem {
   id: string;
   content: string;
   status: string;
+}
+
+interface AttachedMessage {
+  _id: string;
+  content: string;
+  senderRole: string;
+  _creationTime: number;
 }
 
 // Shared badge styling constants
@@ -888,6 +899,8 @@ interface MessageItemProps {
   onFeatureClick?: (message: Message) => void;
   onAttachedTaskClick?: (task: AttachedTask) => void;
   onAttachedBacklogItemClick?: (item: AttachedBacklogItem) => void;
+  onAddToContext?: (message: Message) => void;
+  isAddedToContext?: boolean;
 }
 
 // System notification message (e.g. context change)
@@ -970,6 +983,8 @@ const MessageItem = memo(function MessageItem({
   onFeatureClick,
   onAttachedTaskClick,
   onAttachedBacklogItemClick,
+  onAddToContext,
+  isAddedToContext,
 }: MessageItemProps) {
   // Check if this is a new_feature message with a title
   const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
@@ -1104,11 +1119,53 @@ const MessageItem = memo(function MessageItem({
       {message.attachedArtifacts && message.attachedArtifacts.length > 0 && (
         <AttachedArtifacts artifacts={message.attachedArtifacts} />
       )}
+      {/* Attached Messages */}
+      {message.attachedMessages && message.attachedMessages.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-chatroom-border">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
+            Attached Messages ({message.attachedMessages.length})
+          </div>
+          {message.attachedMessages.map((attachedMsg) => (
+            <div
+              key={attachedMsg._id}
+              className="border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <MessageSquare size={10} className="text-chatroom-text-muted flex-shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+                  {attachedMsg.senderRole}
+                </span>
+                <span className="text-[10px] font-mono tabular-nums text-chatroom-text-muted">
+                  {formatTime(attachedMsg._creationTime)}
+                </span>
+              </div>
+              <div className="text-xs text-chatroom-text-primary line-clamp-3">
+                <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
+                  {attachedMsg.content}
+                </Markdown>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* Message Footer */}
       <div className="flex justify-between items-center mt-2 pt-1.5">
-        {/* Left: Copy button — appears on hover */}
-        <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity">
+        {/* Left: Copy button + Add to Context — appears on hover */}
+        <div className="flex items-center gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
           <CopyMarkdownButton content={message.content} />
+          {onAddToContext && (
+            <button
+              onClick={() => onAddToContext(message)}
+              className={`flex items-center justify-center w-6 h-6 transition-colors ${
+                isAddedToContext
+                  ? 'text-chatroom-accent'
+                  : 'text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover'
+              }`}
+              title={isAddedToContext ? 'Added to context' : 'Add to context'}
+            >
+              <Pin size={12} className={isAddedToContext ? 'fill-current' : ''} />
+            </button>
+          )}
         </div>
         {/* Right: Timestamp (non-user messages only; user message status/time is in TaskHeader) */}
         {!isUserMessage && (
@@ -1297,6 +1354,22 @@ export const MessageFeed = memo(function MessageFeed({
   const handleCloseMessageDetailModal = useCallback(() => {
     setSelectedMessage(null);
   }, []);
+
+  // Attachments context for "Add to Context" feature
+  const { add: addAttachment, isAttached } = useAttachments();
+
+  // Handle "Add to Context" — adds a message to the attachments context
+  const handleAddToContext = useCallback(
+    (message: Message) => {
+      addAttachment({
+        type: 'message',
+        id: message._id as Id<'chatroom_messages'>,
+        content: message.content,
+        senderRole: message.senderRole,
+      });
+    },
+    [addAttachment]
+  );
 
   // Handle queued message Promote — calls promoteSpecificTask mutation
   const handleQueuedPromote = useCallback(
@@ -1549,6 +1622,8 @@ export const MessageFeed = memo(function MessageFeed({
               onFeatureClick={handleFeatureClick}
               onAttachedTaskClick={handleAttachedTaskClick}
               onAttachedBacklogItemClick={handleAttachedBacklogItemClick}
+              onAddToContext={handleAddToContext}
+              isAddedToContext={isAttached('message', message._id)}
             />
           </React.Fragment>
         ))}

@@ -31,6 +31,7 @@ const mockAttachments = {
   clearAll: vi.fn(),
   tasks: [] as { id: string; content: string }[],
   backlogItems: [] as { id: string; content: string }[],
+  messages: [] as { id: string; content: string; senderRole: string }[],
 };
 
 vi.mock('../context/AttachmentsContext', () => ({
@@ -40,6 +41,7 @@ vi.mock('../context/AttachmentsContext', () => ({
   }),
   useTaskAttachments: () => mockAttachments.tasks,
   useBacklogAttachments: () => mockAttachments.backlogItems,
+  useMessageAttachments: () => mockAttachments.messages,
 }));
 
 // Mock AttachedTaskChip as a simple div with test-id
@@ -55,6 +57,15 @@ vi.mock('./AttachedBacklogItemChip', () => ({
     <div data-testid={`backlog-chip-${itemId}`}>{content}</div>
   ),
 }));
+
+// Mock AttachedMessageChip as a simple div with test-id
+vi.mock('./AttachedMessageChip', () => ({
+  AttachedMessageChip: ({ messageId, content }: { messageId: string; content: string }) => (
+    <div data-testid={`message-chip-${messageId}`}>{content}</div>
+  ),
+}));
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 const CHATROOM_ID = 'room1';
 const DRAFT_KEY = `chatroom-draft:${CHATROOM_ID}`;
@@ -74,6 +85,7 @@ describe('SendForm', () => {
     mockAttachments.clearAll.mockReset();
     mockAttachments.tasks = [];
     mockAttachments.backlogItems = [];
+    mockAttachments.messages = [];
 
     // Clear localStorage
     localStorage.clear();

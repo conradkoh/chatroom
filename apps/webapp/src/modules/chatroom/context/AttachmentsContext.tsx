@@ -23,8 +23,15 @@ export type BacklogAttachment = {
   content: string;
 };
 
+export type MessageAttachment = {
+  type: 'message';
+  id: Id<'chatroom_messages'>;
+  content: string;
+  senderRole: string;
+};
+
 /** Discriminated union of all supported attachment types. */
-export type Attachment = TaskAttachment | BacklogAttachment;
+export type Attachment = TaskAttachment | BacklogAttachment | MessageAttachment;
 
 // ── Context interface ──────────────────────────────────────────────────────
 
@@ -140,4 +147,13 @@ export function useTaskAttachments(): TaskAttachment[] {
 export function useBacklogAttachments(): BacklogAttachment[] {
   const { attachments } = useAttachments();
   return attachments.filter((a): a is BacklogAttachment => a.type === 'backlog');
+}
+
+/**
+ * Selector hook — returns only the message attachments from the registry.
+ * Pure derived state; does not add to the context interface.
+ */
+export function useMessageAttachments(): MessageAttachment[] {
+  const { attachments } = useAttachments();
+  return attachments.filter((a): a is MessageAttachment => a.type === 'message');
 }
