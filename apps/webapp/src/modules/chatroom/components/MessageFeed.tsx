@@ -273,15 +273,26 @@ function getAttachedTaskStatusBadge(status?: TaskStatus | string): { label: stri
 interface TaskHeaderProps {
   message: Message;
   onTap?: (message: Message) => void;
+  onDelete?: (message: Message) => void;
+  isDeleting?: boolean;
 }
 
-const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps) {
+const TaskHeader = memo(function TaskHeader({ message, onTap, onDelete, isDeleting }: TaskHeaderProps) {
+  const [isDeletePopoverOpen, setIsDeletePopoverOpen] = useState(false);
+
   // useCallback must be called before any conditional returns (React hooks rules)
   const handleClick = useCallback(() => {
     if (onTap) {
       onTap(message);
     }
   }, [onTap, message]);
+
+  const handleConfirmDelete = useCallback(() => {
+    setIsDeletePopoverOpen(false);
+    if (onDelete) {
+      onDelete(message);
+    }
+  }, [onDelete, message]);
 
   // Only show for user messages
   if (message.senderRole.toLowerCase() !== 'user') {
@@ -295,6 +306,9 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
 
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
+
+  // Show delete button only for pending messages (not yet picked up by agent)
+  const canDelete = message.taskStatus === 'pending' && onDelete;
 
   // Determine what to display:
   // - No classification yet AND task not finished: shimmer (waiting for classification)
@@ -314,42 +328,65 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
   return (
     <div className="w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong">
       {/* Main header row - clickable */}
-      <button
-        onClick={handleClick}
-        className="w-full text-left h-8 px-3 flex items-center cursor-pointer hover:bg-chatroom-bg-hover transition-colors"
-      >
-        <div className="flex items-center gap-2 w-full min-w-0">
-          {/* Left: Classification badge or shimmer */}
-          {isAwaitingClassification ? (
-            // Shimmer state - waiting for classification
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
-              <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
-            </div>
-          ) : (
-            // Classified state - show badge and single-line truncated content
-            <>
-              {classificationBadge && (
-                <span className={`${classificationBadge.className} flex-shrink-0`}>
-                  {classificationBadge.icon}
-                  {classificationBadge.label}
+      <div className="flex items-center h-8 px-3">
+        <button
+          onClick={handleClick}
+          className="flex-1 text-left flex items-center cursor-pointer hover:bg-chatroom-bg-hover transition-colors h-full min-w-0"
+        >
+          <div className="flex items-center gap-2 w-full min-w-0">
+            {/* Left: Classification badge or shimmer */}
+            {isAwaitingClassification ? (
+              // Shimmer state - waiting for classification
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
+                <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
+              </div>
+            ) : (
+              // Classified state - show badge and single-line truncated content
+              <>
+                {classificationBadge && (
+                  <span className={`${classificationBadge.className} flex-shrink-0`}>
+                    {classificationBadge.icon}
+                    {classificationBadge.label}
+                  </span>
+                )}
+                <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
+                  {getDisplayText()}
                 </span>
-              )}
-              <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
-                {getDisplayText()}
-              </span>
-            </>
-          )}
+              </>
+            )}
 
-          {/* Right: Status badge */}
-          {taskStatusBadge && (
-            <span className={`${taskStatusBadge.className} flex-shrink-0`}>
-              {taskStatusBadge.icon}
-              {taskStatusBadge.label}
-            </span>
-          )}
-        </div>
-      </button>
+            {/* Right: Status badge */}
+            {taskStatusBadge && (
+              <span className={`${taskStatusBadge.className} flex-shrink-0`}>
+                {taskStatusBadge.icon}
+                {taskStatusBadge.label}
+              </span>
+            )}
+          </div>
+        </button>
+
+        {/* Delete button for pending messages — with popover confirmation */}
+        {canDelete && (
+          <Popover open={isDeletePopoverOpen} onOpenChange={setIsDeletePopoverOpen}>
+            <PopoverTrigger asChild>
+              <button
+                disabled={isDeleting}
+                className="flex-shrink-0 flex items-center justify-center w-6 h-6 ml-1 text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400 hover:bg-chatroom-bg-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Delete pending message"
+              >
+                {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-0 rounded-none" side="bottom" align="end">
+              <DeleteConfirmPopoverContent
+                onCancel={() => setIsDeletePopoverOpen(false)}
+                onConfirmDelete={handleConfirmDelete}
+              />
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
     </div>
   );
 });
@@ -1261,6 +1298,7 @@ export const MessageFeed = memo(function MessageFeed({
   const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
   const deleteQueuedMessage = useSessionMutation(api.messages.deleteQueuedMessage);
   const updateQueuedMessage = useSessionMutation(api.messages.updateQueuedMessage);
+  const deletePendingMessage = useSessionMutation(api.messages.deletePendingMessage);
 
   const feedRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
@@ -1354,6 +1392,27 @@ export const MessageFeed = memo(function MessageFeed({
   const handleCloseMessageDetailModal = useCallback(() => {
     setSelectedMessage(null);
   }, []);
+
+  // Delete pending message state — tracks which message is being deleted
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+
+  // Handle delete of a pending message — hard deletes message + associated task
+  const handleDeletePendingMessage = useCallback(
+    async (message: Message) => {
+      if (deletingMessageId) return; // Already deleting
+      setDeletingMessageId(message._id);
+      try {
+        await deletePendingMessage({
+          messageId: message._id as Id<'chatroom_messages'>,
+        });
+      } catch (error) {
+        console.error('Failed to delete pending message:', error);
+      } finally {
+        setDeletingMessageId(null);
+      }
+    },
+    [deletePendingMessage, deletingMessageId]
+  );
 
   // Attachments context for "Add to Context" feature
   const { add: addAttachment, isAttached } = useAttachments();
@@ -1614,7 +1673,12 @@ export const MessageFeed = memo(function MessageFeed({
         {displayMessages.map((message) => (
           <React.Fragment key={message._id}>
             {/* Task Header - sticky section header for user messages, tappable */}
-            <TaskHeader message={message} onTap={handleMessageDetailClick} />
+            <TaskHeader
+              message={message}
+              onTap={handleMessageDetailClick}
+              onDelete={handleDeletePendingMessage}
+              isDeleting={deletingMessageId === message._id}
+            />
             {/* Task Progress - inline progress updates below task header */}
             <TaskProgress message={message} chatroomId={chatroomId} />
             <MessageItem
