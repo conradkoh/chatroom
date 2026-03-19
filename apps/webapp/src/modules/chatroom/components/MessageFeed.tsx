@@ -3,7 +3,8 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
-import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
+import { useSessionQuery, useSessionMutation, useSessionId } from 'convex-helpers/react/sessions';
+import { usePaginatedQuery } from 'convex/react';
 import {
   ChevronUp,
   ChevronDown,
@@ -1216,7 +1217,6 @@ export const MessageFeed = memo(function MessageFeed({
 
   // Event stream panel state
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
-  const [eventStreamLimit, setEventStreamLimit] = useState(20);
 
   // Always fetch just the latest 1 event for the ticker display
   const latestEventTicker = useSessionQuery(api.events.listLatestEvents, {
@@ -1224,36 +1224,21 @@ export const MessageFeed = memo(function MessageFeed({
     limit: 1,
   });
 
-  // Fetch events only when panel is open, using the dynamic limit
-  const latestEvents = useSessionQuery(
-    api.events.listLatestEvents,
-    isEventStreamOpen
-      ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, limit: eventStreamLimit }
-      : 'skip'
+  // Fetch events only when panel is open, using paginated query
+  const [eventSessionId] = useSessionId();
+  const eventsPaginated = usePaginatedQuery(
+    api.events.listLatestEventsPaginated,
+    isEventStreamOpen && eventSessionId
+      ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, sessionId: eventSessionId }
+      : 'skip',
+    { initialNumItems: 20 }
   );
-
-  // Keep previous events data while the query re-runs with a new limit (prevents empty flash)
-  const prevEventsRef = useRef<EventStreamEvent[]>([]);
-  useEffect(() => {
-    if (latestEvents && Array.isArray(latestEvents) && latestEvents.length > 0) {
-      prevEventsRef.current = latestEvents as EventStreamEvent[];
-    }
-  }, [latestEvents]);
-  // Use current data if available, otherwise fall back to previous data to avoid scroll reset
-  const stableEvents: EventStreamEvent[] =
-    (latestEvents as EventStreamEvent[] | undefined) ?? prevEventsRef.current;
+  const paginatedEvents = eventsPaginated.results;
+  const eventsPaginationStatus = eventsPaginated.status;
+  const loadMoreEvents = eventsPaginated.loadMore;
 
   // Cast needed: useSessionQuery returns the raw Convex DB type; we cast to the typed discriminated union
-  const latestEvent: EventStreamEvent | null =
-    (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
-
-  // Reset event limit and cached events when panel closes
-  useEffect(() => {
-    if (!isEventStreamOpen) {
-      setEventStreamLimit(20);
-      prevEventsRef.current = [];
-    }
-  }, [isEventStreamOpen]);
+  const latestEvent: EventStreamEvent | null = (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
   const [selectedAttachedTask, setSelectedAttachedTask] = useState<AttachedTask | null>(null);
 
   // Attached backlog item detail modal state (chatroom_backlog items clicked in MessageFeed)
@@ -1645,10 +1630,10 @@ export const MessageFeed = memo(function MessageFeed({
       <EventStreamModal
         isOpen={isEventStreamOpen}
         onClose={() => setIsEventStreamOpen(false)}
-        events={stableEvents}
-        isLoading={isEventStreamOpen && latestEvents === undefined}
-        onLoadMore={() => setEventStreamLimit((prev) => prev + 20)}
-        hasMore={stableEvents.length === eventStreamLimit}
+        events={(paginatedEvents as EventStreamEvent[] | undefined) ?? []}
+        isLoading={isEventStreamOpen && paginatedEvents === undefined}
+        onLoadMore={() => loadMoreEvents(20)}
+        hasMore={eventsPaginationStatus === 'CanLoadMore'}
       />
       {/* Status bar - fixed at bottom with event ticker (left) + message count (right) */}
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
