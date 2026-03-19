@@ -73,7 +73,7 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
     <div
       style={{
         backgroundColor: 'var(--chatroom-bg-primary)',
-        border: '1px solid var(--chatroom-border-strong)',
+        border: '2px solid var(--chatroom-border-strong)',
         borderRadius: '0px',
         padding: '6px 8px',
       }}
@@ -109,11 +109,11 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
                 width: '6px',
                 height: '6px',
                 backgroundColor: entry.color,
-                borderRadius: '1px',
+                borderRadius: '0px',
                 flexShrink: 0,
               }}
             />
-            <span style={{ flex: 1 }}>{entry.name}</span>
+            <span style={{ flex: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{entry.name}</span>
             <span style={{ fontWeight: 600 }}>{entry.value}</span>
           </div>
         ) : null
@@ -121,7 +121,7 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
       {/* Total row */}
       <div
         style={{
-          borderTop: '1px solid var(--chatroom-border)',
+          borderTop: '2px solid var(--chatroom-border)',
           marginTop: '3px',
           paddingTop: '3px',
           fontSize: '10px',
@@ -131,7 +131,7 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
           justifyContent: 'space-between',
         }}
       >
-        <span>Total</span>
+        <span style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
         <span>{total}</span>
       </div>
     </div>
@@ -254,7 +254,7 @@ export function AgentRestartChart({
             <button
               key={preset}
               onClick={() => handlePreset(preset)}
-              className={`text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors ${
+              className={`text-[10px] font-medium px-1.5 py-0.5 transition-colors ${
                 selectedPreset === preset
                   ? 'bg-accent/50 text-accent-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-accent/30'
@@ -269,14 +269,14 @@ export function AgentRestartChart({
             type="date"
             value={formatDateInput(dateRange.start)}
             onChange={handleStartChange}
-            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground rounded px-1 py-0.5"
+            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground px-1 py-0.5"
           />
           <span className="text-[9px] text-muted-foreground">–</span>
           <input
             type="date"
             value={formatDateInput(dateRange.end)}
             onChange={handleEndChange}
-            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground rounded px-1 py-0.5"
+            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground px-1 py-0.5"
           />
         </div>
       </div>
@@ -346,7 +346,7 @@ export function AgentRestartChart({
                     dataKey={model}
                     stackId="a"
                     fill={getModelColor(idx)}
-                    radius={isTop ? [2, 2, 0, 0] : [0, 0, 0, 0]}
+                    radius={[0, 0, 0, 0]}
                   >
                     <LabelList
                       dataKey={model}
@@ -385,7 +385,7 @@ export function AgentRestartChart({
           {modelKeys.map((model, idx) => (
             <div key={model} className="flex items-center gap-1">
               <div
-                className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                className="w-2.5 h-2.5 flex-shrink-0"
                 style={{ backgroundColor: getModelColor(idx) }}
               />
               <span className="text-[9px] text-chatroom-text-muted truncate max-w-[160px]" title={model}>
