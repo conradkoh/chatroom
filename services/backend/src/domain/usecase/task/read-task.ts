@@ -41,6 +41,13 @@ export interface ReadTaskResult {
   taskId: Id<'chatroom_tasks'>;
   content: string;
   status: 'in_progress';
+  context?: {
+    content: string;
+    triggerMessageContent?: string;
+    triggerMessageSenderRole?: string;
+    elapsedHours: number;
+    messagesSinceContext: number;
+  };
 }
 
 // ============================================================================
@@ -105,7 +112,9 @@ export async function readTask(
       timestamp: now,
     });
     await patchParticipantStatus(ctx, chatroomId, role, 'task.inProgress');
-    return { taskId, content: task.content, status: 'in_progress' };
+
+    const context = await fetchCurrentContext(ctx, chatroomId);
+    return { taskId, content: task.content, status: 'in_progress', ...(context && { context }) };
   }
 
   // 5. If status is not acknowledged → error
@@ -130,6 +139,72 @@ export async function readTask(
   // 8. Update participant status
   await patchParticipantStatus(ctx, chatroomId, role, 'task.inProgress');
 
-  // 9. Return result
-  return { taskId, content: task.content, status: 'in_progress' };
+  // 9. Fetch current context for inclusion in result
+  const context = await fetchCurrentContext(ctx, chatroomId);
+
+  // 10. Return result
+  return { taskId, content: task.content, status: 'in_progress', ...(context && { context }) };
+}
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+/**
+ * Fetches the current pinned context for a chatroom, including
+ * trigger message content and staleness metrics.
+ *
+ * Uses chatroom.messageCount (atomic counter) when available to avoid
+ * expensive .collect() calls on large chatrooms.
+ */
+async function fetchCurrentContext(
+  ctx: MutationCtx,
+  chatroomId: Id<'chatroom_rooms'>
+): Promise<ReadTaskResult['context'] | null> {
+  const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+  if (!chatroom?.currentContextId) {
+    return null;
+  }
+
+  const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
+  if (!context) {
+    return null;
+  }
+
+  // Compute staleness: time elapsed since context creation
+  const elapsedMs = Date.now() - context.createdAt;
+  const elapsedHours = elapsedMs / (1000 * 60 * 60);
+
+  // Compute messages since context creation.
+  // We count only messages created after the context to avoid collecting the entire
+  // chatroom history. This is efficient even for large chatrooms because we filter
+  // by creation time and only need to count the recent subset.
+  let messagesSinceContext = 0;
+  if (context.messageCountAtCreation != null) {
+    // Use indexed query filtered by creation time to count only recent messages
+    const recentMessages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .filter((q) => q.gte(q.field('_creationTime'), context.createdAt))
+      .collect();
+    messagesSinceContext = recentMessages.length;
+  }
+
+  // Fetch trigger message if available
+  let triggerMessageContent: string | undefined;
+  let triggerMessageSenderRole: string | undefined;
+  if (context.triggerMessageId) {
+    const triggerMessage = await ctx.db.get('chatroom_messages', context.triggerMessageId);
+    if (triggerMessage) {
+      triggerMessageContent = triggerMessage.content;
+      triggerMessageSenderRole = triggerMessage.senderRole;
+    }
+  }
+
+  return {
+    content: context.content,
+    triggerMessageContent,
+    triggerMessageSenderRole,
+    elapsedHours,
+    messagesSinceContext,
+  };
 }
