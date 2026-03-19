@@ -88,7 +88,7 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
       )}
 
       {/* Open pull requests (when available) */}
-      {isAvailable && gitState.openPullRequests.length > 0 && (
+      {isAvailable && (gitState.openPullRequests?.length ?? 0) > 0 && (
         <>
           <span className="text-[11px] text-chatroom-text-muted">·</span>
           {gitState.openPullRequests.map((pr) => (
@@ -184,7 +184,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
               {statContent}
             </>
           )}
-          {gitState.status === 'available' && gitState.openPullRequests.length > 0 && (
+          {gitState.status === 'available' && (gitState.openPullRequests?.length ?? 0) > 0 && (
             <>
               <span className="text-[10px] text-chatroom-text-muted">·</span>
               {gitState.openPullRequests.map((pr) => (
