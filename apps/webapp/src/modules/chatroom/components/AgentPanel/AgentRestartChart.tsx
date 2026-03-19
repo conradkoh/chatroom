@@ -9,11 +9,11 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } 
 // ─── Color palette for model bars ───────────────────────────────────────────
 
 const MODEL_COLORS = [
-  'var(--chatroom-status-info)', // blue — adapts per mode
-  'var(--chatroom-status-success)', // green — adapts per mode
-  'var(--chatroom-status-warning)', // amber — adapts per mode
-  'var(--chatroom-status-purple)', // purple — adapts per mode
-  'var(--chatroom-status-error)', // red — adapts per mode
+  'var(--chatroom-status-info)',      // blue — adapts per mode
+  'var(--chatroom-status-success)',   // green — adapts per mode
+  'var(--chatroom-status-warning)',   // amber — adapts per mode
+  'var(--chatroom-status-purple)',    // purple — adapts per mode
+  'var(--chatroom-status-error)',     // red — adapts per mode
 ];
 
 function getModelColor(index: number): string {
@@ -22,8 +22,11 @@ function getModelColor(index: number): string {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+type ScopeMode = 'workspace' | 'chatroom' | 'machine';
+
 interface AgentRestartChartProps {
   machineId: string;
+  workingDir: string;
   chatroomId: string;
   roles: string[];
 }
@@ -45,18 +48,8 @@ function formatDateInput(date: Date): string {
 }
 
 const SHORT_MONTH = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
 function formatDayLabel(date: Date): string {
@@ -67,7 +60,7 @@ function formatDayLabel(date: Date): string {
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: { name: string; value: number; color: string }[];
+  payload?: Array<{ name: string; value: number; color: string }>;
   label?: string;
 }
 
@@ -80,7 +73,7 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
     <div
       style={{
         backgroundColor: 'var(--chatroom-bg-primary)',
-        border: '2px solid var(--chatroom-border-strong)',
+        border: '1px solid var(--chatroom-border-strong)',
         borderRadius: '0px',
         padding: '6px 8px',
       }}
@@ -97,7 +90,6 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
       >
         {label}
       </div>
-      {/* Per-model breakdown */}
       {payload.map((entry) =>
         entry.value > 0 ? (
           <div
@@ -116,21 +108,18 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
                 width: '6px',
                 height: '6px',
                 backgroundColor: entry.color,
-                borderRadius: '0px',
+                borderRadius: '1px',
                 flexShrink: 0,
               }}
             />
-            <span style={{ flex: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {entry.name}
-            </span>
+            <span style={{ flex: 1 }}>{entry.name}</span>
             <span style={{ fontWeight: 600 }}>{entry.value}</span>
           </div>
         ) : null
       )}
-      {/* Total row */}
       <div
         style={{
-          borderTop: '2px solid var(--chatroom-border)',
+          borderTop: '1px solid var(--chatroom-border)',
           marginTop: '3px',
           paddingTop: '3px',
           fontSize: '10px',
@@ -140,7 +129,7 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
           justifyContent: 'space-between',
         }}
       >
-        <span style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
+        <span>Total</span>
         <span>{total}</span>
       </div>
     </div>
@@ -149,36 +138,48 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function AgentRestartChart({ machineId, chatroomId, roles }: AgentRestartChartProps) {
+export function AgentRestartChart({
+  machineId,
+  workingDir,
+  chatroomId,
+  roles,
+}: AgentRestartChartProps) {
+  const [scopeMode, setScopeMode] = useState<ScopeMode>('workspace');
   const [selectedRole, setSelectedRole] = useState<string>(roles[0] ?? '');
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
-    start: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
     end: new Date(),
   });
-  const [selectedPreset, setSelectedPreset] = useState<'3d' | '7d' | '30d' | 'custom'>('3d');
+  const [selectedPreset, setSelectedPreset] = useState<'7d' | '30d' | 'custom'>('7d');
 
-  const handlePreset = useCallback((preset: '3d' | '7d' | '30d') => {
-    const days = preset === '3d' ? 3 : preset === '7d' ? 7 : 30;
+  const handlePreset = useCallback((preset: '7d' | '30d') => {
+    const days = preset === '7d' ? 7 : 30;
     const now = new Date();
     setDateRange({ start: new Date(now.getTime() - days * 24 * 60 * 60 * 1000), end: now });
     setSelectedPreset(preset);
   }, []);
 
-  const handleStartChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const parsed = new Date(e.target.value + 'T00:00:00');
-    if (!isNaN(parsed.getTime())) {
-      setDateRange((prev) => ({ ...prev, start: parsed }));
-      setSelectedPreset('custom');
-    }
-  }, []);
+  const handleStartChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const parsed = new Date(e.target.value + 'T00:00:00');
+      if (!isNaN(parsed.getTime())) {
+        setDateRange((prev) => ({ ...prev, start: parsed }));
+        setSelectedPreset('custom');
+      }
+    },
+    []
+  );
 
-  const handleEndChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const parsed = new Date(e.target.value + 'T23:59:59');
-    if (!isNaN(parsed.getTime())) {
-      setDateRange((prev) => ({ ...prev, end: parsed }));
-      setSelectedPreset('custom');
-    }
-  }, []);
+  const handleEndChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const parsed = new Date(e.target.value + 'T23:59:59');
+      if (!isNaN(parsed.getTime())) {
+        setDateRange((prev) => ({ ...prev, end: parsed }));
+        setSelectedPreset('custom');
+      }
+    },
+    []
+  );
 
   const data = useSessionQuery(
     api.machines.getAgentRestartMetrics,
@@ -186,7 +187,9 @@ export function AgentRestartChart({ machineId, chatroomId, roles }: AgentRestart
       ? {
           machineId,
           role: selectedRole,
-          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          workingDir: scopeMode === 'workspace' ? workingDir : undefined,
+          chatroomId:
+            scopeMode === 'chatroom' ? (chatroomId as Id<'chatroom_rooms'>) : undefined,
           startTime: dateRange.start.getTime(),
           endTime: dateRange.end.getTime(),
         }
@@ -235,7 +238,7 @@ export function AgentRestartChart({ machineId, chatroomId, roles }: AgentRestart
     return { chartData, modelKeys };
   }, [data]);
 
-  const isEmpty = !data || data.length === 0 || chartData.length === 0;
+  const isEmpty = !data || data.length === 0;
 
   return (
     <div className="mt-2 space-y-1.5">
@@ -245,11 +248,11 @@ export function AgentRestartChart({ machineId, chatroomId, roles }: AgentRestart
           <span className="text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted mr-1">
             Restarts
           </span>
-          {(['3d', '7d', '30d'] as const).map((preset) => (
+          {(['7d', '30d'] as const).map((preset) => (
             <button
               key={preset}
               onClick={() => handlePreset(preset)}
-              className={`text-[10px] font-medium px-1.5 py-0.5 transition-colors ${
+              className={`text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors ${
                 selectedPreset === preset
                   ? 'bg-accent/50 text-accent-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-accent/30'
@@ -264,29 +267,46 @@ export function AgentRestartChart({ machineId, chatroomId, roles }: AgentRestart
             type="date"
             value={formatDateInput(dateRange.start)}
             onChange={handleStartChange}
-            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground px-1 py-0.5"
+            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground rounded px-1 py-0.5"
           />
           <span className="text-[9px] text-muted-foreground">–</span>
           <input
             type="date"
             value={formatDateInput(dateRange.end)}
             onChange={handleEndChange}
-            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground px-1 py-0.5"
+            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground rounded px-1 py-0.5"
           />
         </div>
       </div>
 
-      {/* Role tabs */}
+      {/* Unified tab row: scope tabs + optional role tabs */}
       <div className="flex items-center gap-3">
-        {roles.map((role) => (
+        {/* Scope tabs */}
+        {(['workspace', 'chatroom', 'machine'] as const).map((mode) => (
           <button
-            key={role}
-            onClick={() => setSelectedRole(role)}
-            className={`${TAB_BASE} ${selectedRole === role ? TAB_ACTIVE : TAB_INACTIVE}`}
+            key={mode}
+            onClick={() => setScopeMode(mode)}
+            className={`${TAB_BASE} ${scopeMode === mode ? TAB_ACTIVE : TAB_INACTIVE}`}
           >
-            {role}
+            {mode === 'workspace' ? 'Workspace' : mode === 'chatroom' ? 'Room' : 'Machine'}
           </button>
         ))}
+
+        {/* Divider + role tabs (only when multiple roles) */}
+        {roles.length > 1 && (
+          <>
+            <span className="h-3 w-px bg-chatroom-border flex-shrink-0" />
+            {roles.map((role) => (
+              <button
+                key={role}
+                onClick={() => setSelectedRole(role)}
+                className={`${TAB_BASE} ${selectedRole === role ? TAB_ACTIVE : TAB_INACTIVE}`}
+              >
+                {role}
+              </button>
+            ))}
+          </>
+        )}
       </div>
 
       {/* Chart area */}
@@ -324,7 +344,7 @@ export function AgentRestartChart({ machineId, chatroomId, roles }: AgentRestart
                     dataKey={model}
                     stackId="a"
                     fill={getModelColor(idx)}
-                    radius={[0, 0, 0, 0]}
+                    radius={isTop ? [2, 2, 0, 0] : [0, 0, 0, 0]}
                   >
                     <LabelList
                       dataKey={model}
@@ -363,13 +383,10 @@ export function AgentRestartChart({ machineId, chatroomId, roles }: AgentRestart
           {modelKeys.map((model, idx) => (
             <div key={model} className="flex items-center gap-1">
               <div
-                className="w-2.5 h-2.5 flex-shrink-0"
+                className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
                 style={{ backgroundColor: getModelColor(idx) }}
               />
-              <span
-                className="text-[9px] text-chatroom-text-muted truncate max-w-[160px]"
-                title={model}
-              >
+              <span className="text-[9px] text-chatroom-text-muted truncate max-w-[160px]" title={model}>
                 {model}
               </span>
             </div>
