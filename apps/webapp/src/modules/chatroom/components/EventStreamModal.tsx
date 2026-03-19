@@ -44,8 +44,10 @@ export const EventStreamModal = memo(function EventStreamModal({
 
   // Ref for the scrollable event list container
   const eventListRef = useRef<HTMLDivElement>(null);
-  // Snapshot of scrollHeight before loading more, used to restore scroll position
-  const prevScrollHeightRef = useRef<number | null>(null);
+  // Snapshot of scrollTop before loading more, used to restore scroll position
+  const prevScrollTopRef = useRef<number | null>(null);
+  // Track the event count when load-more was triggered to detect the actual data change
+  const prevEventCountRef = useRef<number | null>(null);
 
   // Auto-select first event when events change
   useEffect(() => {
@@ -77,15 +79,21 @@ export const EventStreamModal = memo(function EventStreamModal({
     }
   }, [events]);
 
-  // Restore scroll position after new events are appended (load more)
+  // Restore scroll position after new events are appended (load more).
+  // Events are sorted newest-first, so "load more" appends older events at the bottom.
+  // We save scrollTop before the load and restore it once the new data actually arrives
+  // (detected by the event count changing), preventing any React re-render scroll reset.
   useEffect(() => {
     const container = eventListRef.current;
-    const prevHeight = prevScrollHeightRef.current;
-    if (container && prevHeight !== null) {
-      // New items were appended at the bottom; adjust scrollTop by the height difference
-      const heightDelta = container.scrollHeight - prevHeight;
-      container.scrollTop += heightDelta;
-      prevScrollHeightRef.current = null;
+    const savedScrollTop = prevScrollTopRef.current;
+    const savedEventCount = prevEventCountRef.current;
+    if (container && savedScrollTop !== null && savedEventCount !== null) {
+      // Only restore once the event count has actually changed (new data arrived)
+      if (events.length !== savedEventCount) {
+        container.scrollTop = savedScrollTop;
+        prevScrollTopRef.current = null;
+        prevEventCountRef.current = null;
+      }
     }
   }, [events]);
 
@@ -94,10 +102,11 @@ export const EventStreamModal = memo(function EventStreamModal({
     if (!onLoadMore) return;
     const container = eventListRef.current;
     if (container) {
-      prevScrollHeightRef.current = container.scrollHeight;
+      prevScrollTopRef.current = container.scrollTop;
+      prevEventCountRef.current = events.length;
     }
     onLoadMore();
-  }, [onLoadMore]);
+  }, [onLoadMore, events.length]);
 
   // Render event row using the registry
   const renderEventRow = (event: EventStreamEvent) => {
