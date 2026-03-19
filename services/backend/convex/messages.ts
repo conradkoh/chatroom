@@ -186,8 +186,7 @@ async function _sendMessageHandler(
         content: args.content,
         targetRole,
         type: args.type,
-        ...(args.attachedTaskIds &&
-          args.attachedTaskIds.length > 0 && { attachedTaskIds: args.attachedTaskIds }),
+        ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
         ...(args.attachedBacklogItemIds?.length && { attachedBacklogItemIds: args.attachedBacklogItemIds }),
         ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
       });
@@ -218,8 +217,7 @@ async function _sendMessageHandler(
       content: args.content,
       targetRole,
       type: args.type,
-      ...(args.attachedTaskIds &&
-        args.attachedTaskIds.length > 0 && { attachedTaskIds: args.attachedTaskIds }),
+      ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
       ...(args.attachedBacklogItemIds?.length && { attachedBacklogItemIds: args.attachedBacklogItemIds }),
       ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
     });
@@ -250,8 +248,7 @@ async function _sendMessageHandler(
     content: args.content,
     targetRole,
     type: args.type,
-    ...(args.attachedTaskIds &&
-      args.attachedTaskIds.length > 0 && { attachedTaskIds: args.attachedTaskIds }),
+    ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
     ...(args.attachedBacklogItemIds?.length && {
       attachedBacklogItemIds: args.attachedBacklogItemIds,
     }),
