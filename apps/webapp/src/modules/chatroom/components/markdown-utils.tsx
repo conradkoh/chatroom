@@ -1,7 +1,12 @@
 'use client';
 
 import { Check, Copy } from 'lucide-react';
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, lazy, Suspense } from 'react';
+
+// Lazy load MermaidBlock to avoid bundling mermaid in the main chunk
+const MermaidBlock = lazy(() =>
+  import('./MermaidBlock').then((m) => ({ default: m.MermaidBlock }))
+);
 
 // ============================================================================
 // Prose className Constants
@@ -270,11 +275,26 @@ export const baseMarkdownComponents = {
 export const fullMarkdownComponents = {
   // Links: always open in a new window
   a: MarkdownLink,
-  // Wrap pre elements with CodeBlock for copy functionality
+  // Wrap pre elements with CodeBlock for copy functionality, or MermaidBlock for diagrams
   pre: ({ children }: { children?: React.ReactNode }) => {
     // The children of pre is usually a code element
     if (React.isValidElement(children)) {
       const codeProps = children.props as { children?: React.ReactNode; className?: string };
+      // Mermaid diagram rendering
+      if (codeProps.className === 'language-mermaid') {
+        const chart = extractTextContent(codeProps.children);
+        return (
+          <Suspense
+            fallback={
+              <div className="my-3 flex justify-center p-4 bg-chatroom-bg-tertiary border-2 border-chatroom-border">
+                <span className="text-xs text-chatroom-text-muted">Loading diagram...</span>
+              </div>
+            }
+          >
+            <MermaidBlock chart={chart} />
+          </Suspense>
+        );
+      }
       return <CodeBlock className={codeProps.className}>{codeProps.children}</CodeBlock>;
     }
     // Fallback for non-code pre content
