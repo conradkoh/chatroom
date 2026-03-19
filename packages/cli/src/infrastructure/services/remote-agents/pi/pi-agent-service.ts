@@ -145,9 +145,7 @@ export class PiAgentService extends BaseCLIAgentService {
     // Build a log prefix from spawn context for easier debugging.
     // Format: [pi:role] or [pi:role@short-id] when chatroomId is available.
     const roleTag = context.role ?? 'unknown';
-    const chatroomSuffix = context.chatroomId
-      ? `@${context.chatroomId.slice(-6)}`
-      : '';
+    const chatroomSuffix = context.chatroomId ? `@${context.chatroomId.slice(-6)}` : '';
     const logPrefix = `[pi:${roleTag}${chatroomSuffix}`;
 
     // Output tracking callbacks (for external consumers) + internal timestamp update

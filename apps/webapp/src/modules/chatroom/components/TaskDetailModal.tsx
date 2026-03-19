@@ -1,21 +1,14 @@
 'use client';
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import {
-  Check,
-  Link,
-  MoreHorizontal,
-  Pencil,
-  StopCircle,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { Check, Link, MoreHorizontal, Pencil, StopCircle, Trash2, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
 import { baseMarkdownComponents, taskDetailProseClassNames } from './markdown-utils';
+import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 import { useAttachments } from '../context/AttachmentsContext';
 
 import {
@@ -25,8 +18,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
 
 interface Task {
   _id: Id<'chatroom_tasks'>;
@@ -289,8 +280,13 @@ export function TaskDetailModal({
                   />
                 ) : (
                   // Preview Tab - Read-only rendered markdown
-                  <div className={`h-full overflow-y-auto p-4 text-sm ${taskDetailProseClassNames}`}>
-                    <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
+                  <div
+                    className={`h-full overflow-y-auto p-4 text-sm ${taskDetailProseClassNames}`}
+                  >
+                    <Markdown
+                      remarkPlugins={[remarkGfm, remarkBreaks]}
+                      components={baseMarkdownComponents}
+                    >
                       {editedContent || '*No content yet*'}
                     </Markdown>
                   </div>
@@ -300,7 +296,10 @@ export function TaskDetailModal({
           ) : (
             // View mode - Read-only rendered markdown
             <div className={`h-full overflow-y-auto p-4 text-sm ${taskDetailProseClassNames}`}>
-              <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={baseMarkdownComponents}>
+              <Markdown
+                remarkPlugins={[remarkGfm, remarkBreaks]}
+                components={baseMarkdownComponents}
+              >
                 {task.content}
               </Markdown>
             </div>

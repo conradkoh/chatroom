@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isLocalEnvironment, getAppTitle, getDaemonStartCommand, getAuthLoginCommand } from './environment';
+
+import {
+  isLocalEnvironment,
+  getAppTitle,
+  getDaemonStartCommand,
+  getAuthLoginCommand,
+} from './environment';
 
 const PRODUCTION_CONVEX_URL = 'https://chatroom-cloud.duskfare.com';
 const LOCAL_CONVEX_URL = 'http://127.0.0.1:3210';

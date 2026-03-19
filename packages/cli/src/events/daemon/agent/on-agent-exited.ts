@@ -29,7 +29,11 @@ export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): 
   console.log(`[${ts}] Agent stopped: ${stopReason} (${role})`);
 
   const isDaemonRespawn = stopReason === 'daemon.respawn';
-  const isIntentional = stopReason === 'user.stop' || stopReason === 'platform.team_switch' || stopReason === 'agent_process.turn_end' || stopReason === 'agent_process.turn_end_quick_fail';
+  const isIntentional =
+    stopReason === 'user.stop' ||
+    stopReason === 'platform.team_switch' ||
+    stopReason === 'agent_process.turn_end' ||
+    stopReason === 'agent_process.turn_end_quick_fail';
 
   if (isIntentional && !isDaemonRespawn) {
     console.log(

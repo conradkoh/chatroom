@@ -44,16 +44,14 @@ export interface UseAgentStatusesResult {
 }
 
 /** Centralizes agent status derivation from lastStatus on participant records. */
-export function useAgentStatuses(
-  chatroomId: string,
-  roles: string[]
-): UseAgentStatusesResult {
+export function useAgentStatuses(chatroomId: string, roles: string[]): UseAgentStatusesResult {
   const lifecycle = useSessionQuery(api.participants.getTeamLifecycle, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   }) as TeamLifecycle | null | undefined;
 
   const participantMap = useMemo(() => {
-    if (!lifecycle?.participants) return new Map<string, NonNullable<typeof lifecycle>['participants'][number]>();
+    if (!lifecycle?.participants)
+      return new Map<string, NonNullable<typeof lifecycle>['participants'][number]>();
     return new Map(lifecycle.participants.map((p) => [p.role.toLowerCase(), p]));
   }, [lifecycle?.participants]);
 

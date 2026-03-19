@@ -1,7 +1,7 @@
+import { onAgentShutdown } from './on-agent-shutdown.js';
 import { api } from '../../api.js';
 import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
 import { formatTimestamp } from '../../commands/machine/daemon-start/utils.js';
-import { onAgentShutdown } from './on-agent-shutdown.js';
 
 const AGENT_SHUTDOWN_TIMEOUT_MS = 5_000;
 

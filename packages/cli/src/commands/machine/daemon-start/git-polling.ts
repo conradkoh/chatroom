@@ -12,11 +12,11 @@
  * This fast loop is only for on-demand requests that require low latency.
  */
 
+import type { DaemonContext } from './types.js';
+import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
-import type { DaemonContext } from './types.js';
-import { formatTimestamp } from './utils.js';
 
 /** How often the git polling loop checks for pending requests (ms). */
 export const GIT_POLLING_INTERVAL_MS = 5_000; // 5 seconds
@@ -38,9 +38,7 @@ export interface GitPollingHandle {
 export function startGitPollingLoop(ctx: DaemonContext): GitPollingHandle {
   const timer = setInterval(() => {
     runPollingTick(ctx).catch((err: Error) => {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Git polling tick failed: ${err.message}`
-      );
+      console.warn(`[${formatTimestamp()}] ⚠️  Git polling tick failed: ${err.message}`);
     });
   }, GIT_POLLING_INTERVAL_MS);
 
@@ -99,10 +97,7 @@ type PendingRequest = {
  * Process a `full_diff` request:
  * Run `git diff HEAD`, parse stats, push via `upsertFullDiff`.
  */
-async function processFullDiff(
-  ctx: DaemonContext,
-  req: PendingRequest
-): Promise<void> {
+async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise<void> {
   const result = await gitReader.getFullDiff(req.workingDir);
 
   if (result.status === 'available' || result.status === 'truncated') {
@@ -146,10 +141,7 @@ async function processFullDiff(
  * Process a `commit_detail` request:
  * Run `git show <sha>`, get commit metadata, push via `upsertCommitDetail`.
  */
-async function processCommitDetail(
-  ctx: DaemonContext,
-  req: PendingRequest
-): Promise<void> {
+async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Promise<void> {
   if (!req.sha) {
     throw new Error('commit_detail request missing sha');
   }
@@ -214,10 +206,7 @@ async function processCommitDetail(
  * Process a `more_commits` request:
  * Run `git log` with skip offset, push via `appendMoreCommits`.
  */
-async function processMoreCommits(
-  ctx: DaemonContext,
-  req: PendingRequest
-): Promise<void> {
+async function processMoreCommits(ctx: DaemonContext, req: PendingRequest): Promise<void> {
   const offset = req.offset ?? 0;
   const commits = await gitReader.getRecentCommits(req.workingDir, COMMITS_PER_PAGE, offset);
   const hasMoreCommits = commits.length >= COMMITS_PER_PAGE;

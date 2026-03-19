@@ -1,6 +1,6 @@
+import type { WorkspaceView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { useMemo } from 'react';
 
-import type { WorkspaceView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import type { Workspace, WorkspaceGroup } from '../types/workspace';
 
 /** Minimal agent shape required for workspace derivation. */

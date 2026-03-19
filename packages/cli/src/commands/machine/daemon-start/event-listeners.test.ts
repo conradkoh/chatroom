@@ -1,9 +1,9 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
-import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import type { DaemonContext } from './types.js';
 import type { Id } from '../../../api.js';
+import { DaemonEventBus } from '../../../events/daemon/event-bus.js';
+import { registerEventListeners } from '../../../events/daemon/register-listeners.js';
 import { OpenCodeAgentService } from '../../../infrastructure/services/remote-agents/opencode/index.js';
 
 const CHATROOM_ID = 'test-chatroom' as Id<'chatroom_rooms'>;
@@ -111,7 +111,9 @@ describe('registerEventListeners', () => {
       const calls = (ctx.deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
       const recordCall = calls.find(
         (c) =>
-          c[1]?.role === 'builder' && c[1]?.chatroomId === CHATROOM_ID && c[1]?.stopReason === 'user.stop'
+          c[1]?.role === 'builder' &&
+          c[1]?.chatroomId === CHATROOM_ID &&
+          c[1]?.stopReason === 'user.stop'
       );
       expect(recordCall).toBeDefined();
     });

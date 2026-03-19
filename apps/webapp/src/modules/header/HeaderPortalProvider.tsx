@@ -50,11 +50,7 @@ export function HeaderPortalProvider({ children }: { children: ReactNode }) {
     [content, setContent, clearContent]
   );
 
-  return (
-    <HeaderPortalContext.Provider value={value}>
-      {children}
-    </HeaderPortalContext.Provider>
-  );
+  return <HeaderPortalContext.Provider value={value}>{children}</HeaderPortalContext.Provider>;
 }
 
 /**

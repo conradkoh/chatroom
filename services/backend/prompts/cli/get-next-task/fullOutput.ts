@@ -13,8 +13,8 @@
  */
 
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
-import { contextNewCommand } from '../context/new';
 import { classifyCommand } from '../classify/command';
+import { contextNewCommand } from '../context/new';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -263,7 +263,10 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       taskId: task._id,
       classification: 'question',
       cliEnvPrefix,
-    }).replace('--origin-message-classification=question', '--origin-message-classification=<type>');
+    }).replace(
+      '--origin-message-classification=question',
+      '--origin-message-classification=<type>'
+    );
     lines.push(`2. Classify → \`${baseCmd}\``);
 
     // new_feature example

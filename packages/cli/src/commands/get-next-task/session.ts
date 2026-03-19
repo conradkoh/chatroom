@@ -218,10 +218,7 @@ export class GetNextTaskSession {
       });
     } catch (error) {
       // Best-effort — subscription is already running; liveness will catch up
-      console.warn(
-        '[get-next-task] Failed to emit agent.waiting after subscription start:',
-        error
-      );
+      console.warn('[get-next-task] Failed to emit agent.waiting after subscription start:', error);
     }
   }
 

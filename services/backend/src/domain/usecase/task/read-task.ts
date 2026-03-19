@@ -22,9 +22,9 @@
  * wrappers that handle auth and delegate to the usecase.
  */
 
+import { transitionTask } from './transition-task';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { transitionTask } from './transition-task';
 import { patchParticipantStatus } from '../../entities/participant';
 
 // ============================================================================
@@ -70,10 +70,7 @@ export interface ReadTaskResult {
  * @returns Task ID, content, and status
  * @throws Error if task not found, wrong chatroom, or wrong assignment
  */
-export async function readTask(
-  ctx: MutationCtx,
-  args: ReadTaskArgs
-): Promise<ReadTaskResult> {
+export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<ReadTaskResult> {
   const { chatroomId, role, taskId } = args;
 
   // 1. Fetch the task by ID
@@ -99,7 +96,7 @@ export async function readTask(
   //    Update assignedTo if needed, emit event, patch participant status.
   if (task.status === 'in_progress') {
     if (task.assignedTo !== role) {
-      await ctx.db.patch(taskId, {
+      await ctx.db.patch('chatroom_tasks', taskId, {
         assignedTo: role,
         updatedAt: now,
       });
@@ -119,9 +116,7 @@ export async function readTask(
 
   // 5. If status is not acknowledged → error
   if (task.status !== 'acknowledged') {
-    throw new Error(
-      `Task must be acknowledged to read (current status: ${task.status})`
-    );
+    throw new Error(`Task must be acknowledged to read (current status: ${task.status})`);
   }
 
   // 6. Transition: acknowledged → in_progress via FSM

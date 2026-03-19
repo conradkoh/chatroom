@@ -18,13 +18,14 @@ import type { TeamCompositionConfig } from './team-composition';
 export function getWorkflowSection(config: TeamCompositionConfig): string {
   if (config.hasBuilder && config.hasReviewer) {
     return getFullTeamWorkflow();
-  } else if (config.hasBuilder && !config.hasReviewer) {
-    return getPlannerPlusBuilderWorkflow();
-  } else if (!config.hasBuilder && config.hasReviewer) {
-    return getPlannerPlusReviewerWorkflow();
-  } else {
-    return getPlannerSoloWorkflow();
   }
+  if (config.hasBuilder && !config.hasReviewer) {
+    return getPlannerPlusBuilderWorkflow();
+  }
+  if (!config.hasBuilder && config.hasReviewer) {
+    return getPlannerPlusReviewerWorkflow();
+  }
+  return getPlannerSoloWorkflow();
 }
 
 /**

@@ -5,9 +5,13 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 
-import { AttachedTaskChip } from './AttachedTaskChip';
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
-import { useAttachments, useTaskAttachments, useBacklogAttachments } from '../context/AttachmentsContext';
+import { AttachedTaskChip } from './AttachedTaskChip';
+import {
+  useAttachments,
+  useTaskAttachments,
+  useBacklogAttachments,
+} from '../context/AttachmentsContext';
 
 interface SendFormProps {
   chatroomId: string;
@@ -174,7 +178,16 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
     } finally {
       setSending(false);
     }
-  }, [message, sending, sendMessage, chatroomId, attachedTasks, attachedBacklogItems, clearAll, draftKey]);
+  }, [
+    message,
+    sending,
+    sendMessage,
+    chatroomId,
+    attachedTasks,
+    attachedBacklogItems,
+    clearAll,
+    draftKey,
+  ]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

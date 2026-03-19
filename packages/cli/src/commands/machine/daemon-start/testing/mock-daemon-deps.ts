@@ -15,6 +15,7 @@
  */
 
 import { vi } from 'vitest';
+
 import type { DaemonDeps } from '../deps.js';
 
 /**

@@ -7,9 +7,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import { OpenCodeAgentService } from '../../../../infrastructure/services/remote-agents/opencode/index.js';
 import type { DaemonDeps } from '../deps.js';
-import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import type { DaemonContext } from '../types.js';
 import { recoverAgentState } from './state-recovery.js';
 import { createMockDaemonDeps } from '../testing/index.js';

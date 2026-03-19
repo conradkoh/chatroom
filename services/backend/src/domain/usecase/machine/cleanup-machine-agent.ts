@@ -15,8 +15,8 @@
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
-import { processConfigRemoval } from '../agent/config-removal';
 import { PARTICIPANT_EXITED_ACTION } from '../../entities/participant';
+import { processConfigRemoval } from '../agent/config-removal';
 
 export interface CleanupMachineAgentInput {
   chatroomId: Id<'chatroom_rooms'>;
@@ -34,7 +34,7 @@ export async function clearAgentSpawnState(
   now: number
 ): Promise<void> {
   if (config.spawnedAgentPid == null) return;
-  await ctx.db.patch(config._id, {
+  await ctx.db.patch('chatroom_teamAgentConfigs', config._id, {
     spawnedAgentPid: undefined,
     spawnedAt: undefined,
     updatedAt: now,
@@ -59,7 +59,7 @@ export async function cleanupMachineAgent(
   const now = Date.now();
 
   // 1. Clear PID from chatroom_teamAgentConfigs
-  const chatroom = await ctx.db.get(input.chatroomId);
+  const chatroom = await ctx.db.get('chatroom_rooms', input.chatroomId);
   if (chatroom?.teamId) {
     const teamRoleKey = buildTeamRoleKey(chatroom._id, chatroom.teamId, input.role);
     const config = await ctx.db
@@ -87,7 +87,7 @@ export async function cleanupMachineAgent(
     )
     .unique();
   if (participant) {
-    await ctx.db.patch(participant._id, {
+    await ctx.db.patch('chatroom_participants', participant._id, {
       lastSeenAction: PARTICIPANT_EXITED_ACTION,
       connectionId: undefined,
       lastStatus: 'agent.exited',

@@ -17,10 +17,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '../../api.js';
 import type { DaemonDeps } from '../../commands/machine/daemon-start/deps.js';
-import { DaemonEventBus } from '../daemon/event-bus.js';
+import { createMockDaemonDeps } from '../../commands/machine/daemon-start/testing/index.js';
 import type { DaemonContext } from '../../commands/machine/daemon-start/types.js';
 import { OpenCodeAgentService } from '../../infrastructure/services/remote-agents/opencode/index.js';
-import { createMockDaemonDeps } from '../../commands/machine/daemon-start/testing/index.js';
+import { DaemonEventBus } from '../daemon/event-bus.js';
 
 // ---------------------------------------------------------------------------
 // Mock module-level imports (same pattern as stop-agent.test.ts)
@@ -69,8 +69,8 @@ vi.mock('../../infrastructure/machine/index.js', () => ({
   clearAgentPid: vi.fn(),
   getMachineId: vi.fn(() => 'test-machine'),
   listAgentEntries: vi.fn(() => []),
-      persistEventCursor: vi.fn(),
-      loadEventCursor: vi.fn().mockReturnValue(null),
+  persistEventCursor: vi.fn(),
+  loadEventCursor: vi.fn().mockReturnValue(null),
   loadMachineConfig: vi.fn(() => null),
   persistAgentPid: vi.fn(),
 }));

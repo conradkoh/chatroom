@@ -15,7 +15,10 @@ import { recoverAgentState } from './handlers/state-recovery.js';
 import { initDaemon, discoverModels } from './init.js';
 import { getSessionId, getOtherSessionUrls } from '../../../infrastructure/auth/storage.js';
 import { getConvexUrl, getConvexClient } from '../../../infrastructure/convex/client.js';
-import { ensureMachineRegistered, loadMachineConfig } from '../../../infrastructure/machine/index.js';
+import {
+  ensureMachineRegistered,
+  loadMachineConfig,
+} from '../../../infrastructure/machine/index.js';
 import { isNetworkError, formatConnectivityError } from '../../../utils/error-formatting.js';
 import { acquireLock, releaseLock } from '../pid.js';
 
@@ -209,7 +212,9 @@ describe('discoverModels', () => {
     } as any;
     const piService = {
       isInstalled: vi.fn().mockReturnValue(true),
-      listModels: vi.fn().mockResolvedValue(['github-copilot/claude-sonnet-4.5', 'github-copilot/gpt-4o']),
+      listModels: vi
+        .fn()
+        .mockResolvedValue(['github-copilot/claude-sonnet-4.5', 'github-copilot/gpt-4o']),
     } as any;
 
     const agentServices = new Map([
@@ -262,7 +267,7 @@ describe('discoverModels', () => {
     const models = await discoverModels(agentServices);
 
     expect(models).toEqual({
-      opencode: [],   // failed → empty array fallback
+      opencode: [], // failed → empty array fallback
       pi: ['github-copilot/gpt-4o'],
     });
   });

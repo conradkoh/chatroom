@@ -74,9 +74,7 @@ describe('Participant Routing with Exited Participants', () => {
     const room = chatrooms.find((c: { _id: string }) => c._id === chatroomId);
 
     expect(room).toBeDefined();
-    expect(
-      room!.agents.some((a: { role: string }) => a.role === 'builder')
-    ).toBe(false);
+    expect(room!.agents.some((a: { role: string }) => a.role === 'builder')).toBe(false);
   });
 
   test('listByUserWithStatus includes active participants in agents array', async () => {
@@ -89,8 +87,6 @@ describe('Participant Routing with Exited Participants', () => {
     const room = chatrooms.find((c: { _id: string }) => c._id === chatroomId);
 
     expect(room).toBeDefined();
-    expect(
-      room!.agents.some((a: { role: string }) => a.role === 'builder')
-    ).toBe(true);
+    expect(room!.agents.some((a: { role: string }) => a.role === 'builder')).toBe(true);
   });
 });

@@ -54,7 +54,9 @@ function renderAgentExitedCell(event: AgentExitedEvent, isSelected: boolean): Re
       badgeText={status}
       badgeColor="error"
       primaryInfo={event.role}
-      secondaryInfo={event.intentional ? `exit(${event.exitCode ?? 0})` : `signal ${event.signal ?? 'unknown'}`}
+      secondaryInfo={
+        event.intentional ? `exit(${event.exitCode ?? 0})` : `signal ${event.signal ?? 'unknown'}`
+      }
       timestamp={event.timestamp}
       isSelected={isSelected}
     />
@@ -70,7 +72,9 @@ function renderAgentExitedDetails(event: AgentExitedEvent): React.ReactNode {
       <DetailRow label="Intentional" value={event.intentional ? 'Yes' : 'No'} />
       {event.stopReason && <DetailRow label="Stop Reason" value={event.stopReason} />}
       {event.stopSignal && <DetailRow label="Stop Signal" value={event.stopSignal} />}
-      {event.exitCode !== undefined && <DetailRow label="Exit Code" value={String(event.exitCode)} mono />}
+      {event.exitCode !== undefined && (
+        <DetailRow label="Exit Code" value={String(event.exitCode)} mono />
+      )}
       {event.signal && <DetailRow label="Signal" value={event.signal} mono />}
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
@@ -79,7 +83,10 @@ function renderAgentExitedDetails(event: AgentExitedEvent): React.ReactNode {
 
 // ─── Agent Circuit Open ───────────────────────────────────────────────────────
 
-function renderAgentCircuitOpenCell(event: AgentCircuitOpenEvent, isSelected: boolean): React.ReactNode {
+function renderAgentCircuitOpenCell(
+  event: AgentCircuitOpenEvent,
+  isSelected: boolean
+): React.ReactNode {
   return (
     <EventRow
       type="agent.circuitOpen"
@@ -105,7 +112,10 @@ function renderAgentCircuitOpenDetails(event: AgentCircuitOpenEvent): React.Reac
 
 // ─── Agent Request Start ──────────────────────────────────────────────────────
 
-function renderAgentRequestStartCell(event: AgentRequestStartEvent, isSelected: boolean): React.ReactNode {
+function renderAgentRequestStartCell(
+  event: AgentRequestStartEvent,
+  isSelected: boolean
+): React.ReactNode {
   return (
     <EventRow
       type="agent.requestStart"
@@ -121,7 +131,11 @@ function renderAgentRequestStartCell(event: AgentRequestStartEvent, isSelected: 
 
 function renderAgentRequestStartDetails(event: AgentRequestStartEvent): React.ReactNode {
   return (
-    <EventDetails title="Agent Start Requested" timestamp={event.timestamp} type="agent.requestStart">
+    <EventDetails
+      title="Agent Start Requested"
+      timestamp={event.timestamp}
+      type="agent.requestStart"
+    >
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Machine ID" value={event.machineId} mono />
       <DetailRow label="Harness" value={event.agentHarness} />
@@ -136,7 +150,10 @@ function renderAgentRequestStartDetails(event: AgentRequestStartEvent): React.Re
 
 // ─── Agent Request Stop ───────────────────────────────────────────────────────
 
-function renderAgentRequestStopCell(event: AgentRequestStopEvent, isSelected: boolean): React.ReactNode {
+function renderAgentRequestStopCell(
+  event: AgentRequestStopEvent,
+  isSelected: boolean
+): React.ReactNode {
   return (
     <EventRow
       type="agent.requestStop"
@@ -164,7 +181,10 @@ function renderAgentRequestStopDetails(event: AgentRequestStopEvent): React.Reac
 
 // ─── Agent Registered ─────────────────────────────────────────────────────────-
 
-function renderAgentRegisteredCell(event: AgentRegisteredEvent, isSelected: boolean): React.ReactNode {
+function renderAgentRegisteredCell(
+  event: AgentRegisteredEvent,
+  isSelected: boolean
+): React.ReactNode {
   return (
     <EventRow
       type="agent.registered"

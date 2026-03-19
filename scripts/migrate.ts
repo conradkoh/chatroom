@@ -16,9 +16,10 @@
  *   CONVEX_DEPLOY_KEY  — when set, targets production; otherwise targets local dev
  */
 
-import { $ } from 'bun';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+import { $ } from 'bun';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_DIR = path.resolve(__dirname, '../services/backend');
@@ -126,9 +127,10 @@ let failed = 0;
 for (const migration of MIGRATIONS) {
   process.stdout.write(`  ▶ ${migration.name} (added ${migration.addedAt}) ... `);
   try {
-    const cmd = convexArgs.length > 0
-      ? $`npx convex run ${migration.name} ${convexArgs[0]}`.cwd(BACKEND_DIR).quiet()
-      : $`npx convex run ${migration.name}`.cwd(BACKEND_DIR).quiet();
+    const cmd =
+      convexArgs.length > 0
+        ? $`npx convex run ${migration.name} ${convexArgs[0]}`.cwd(BACKEND_DIR).quiet()
+        : $`npx convex run ${migration.name}`.cwd(BACKEND_DIR).quiet();
     const result = await cmd;
     const output = result.stdout.toString().trim();
     console.log(`✅`);
@@ -145,7 +147,9 @@ for (const migration of MIGRATIONS) {
   }
 }
 
-console.log(`\n${failed === 0 ? '✅' : '❌'} ${passed}/${MIGRATIONS.length} migrations succeeded.\n`);
+console.log(
+  `\n${failed === 0 ? '✅' : '❌'} ${passed}/${MIGRATIONS.length} migrations succeeded.\n`
+);
 
 if (failed > 0) {
   process.exit(1);

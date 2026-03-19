@@ -3,8 +3,8 @@
 import { ChevronRight, X } from 'lucide-react';
 import React, { useCallback } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
 import { type BacklogItem, getScoringBadge, getBacklogStatusBadge } from '../backlog';
 import { compactMarkdownComponents } from '../markdown-utils';
@@ -71,9 +71,7 @@ export function BacklogQueueModal({ items, onClose, onItemClick }: BacklogQueueM
         {/* Backlog Item List */}
         <div className="flex-1 overflow-y-auto min-h-0">
           {items.length === 0 ? (
-            <div className="p-8 text-center text-chatroom-text-muted text-sm">
-              No backlog items
-            </div>
+            <div className="p-8 text-center text-chatroom-text-muted text-sm">No backlog items</div>
           ) : (
             items.map((item) => (
               <div

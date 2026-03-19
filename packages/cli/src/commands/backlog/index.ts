@@ -70,7 +70,7 @@ export interface MarkForReviewBacklogOptions {
 export interface HistoryBacklogOptions {
   role: string;
   from?: string; // ISO date string e.g. "2026-03-01"
-  to?: string;   // ISO date string e.g. "2026-03-16"
+  to?: string; // ISO date string e.g. "2026-03-16"
   // status removed - always shows both completed and closed
   limit?: number;
 }
@@ -174,7 +174,11 @@ export async function listBacklog(
           `   Created: ${date}${item.assignedTo ? ` | Assigned: ${item.assignedTo}` : ''}`
         );
         // Show scoring info if available
-        if (item.complexity !== undefined || item.value !== undefined || item.priority !== undefined) {
+        if (
+          item.complexity !== undefined ||
+          item.value !== undefined ||
+          item.priority !== undefined
+        ) {
           const parts: string[] = [];
           if (item.complexity) parts.push(`complexity=${item.complexity}`);
           if (item.value) parts.push(`value=${item.value}`);
@@ -634,8 +638,14 @@ export async function historyBacklog(
 
         console.log(`#${i + 1} [${statusEmoji} ${task.status.toUpperCase()}] ${task.content}`);
         console.log(`   ID: ${task._id}`);
-        console.log(`   Completed: ${date}${task.assignedTo ? ` | Assigned: ${task.assignedTo}` : ''}`);
-        if (task.complexity !== undefined || task.value !== undefined || task.priority !== undefined) {
+        console.log(
+          `   Completed: ${date}${task.assignedTo ? ` | Assigned: ${task.assignedTo}` : ''}`
+        );
+        if (
+          task.complexity !== undefined ||
+          task.value !== undefined ||
+          task.priority !== undefined
+        ) {
           const parts: string[] = [];
           if (task.complexity) parts.push(`complexity=${task.complexity}`);
           if (task.value) parts.push(`value=${task.value}`);

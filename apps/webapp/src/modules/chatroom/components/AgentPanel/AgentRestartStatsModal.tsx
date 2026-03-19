@@ -2,6 +2,8 @@
 
 import { memo } from 'react';
 
+import { AgentRestartChart } from './AgentRestartChart';
+
 import {
   FixedModal,
   FixedModalContent,
@@ -9,7 +11,6 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
-import { AgentRestartChart } from './AgentRestartChart';
 
 interface AgentRestartStatsModalProps {
   isOpen: boolean;
@@ -34,11 +35,7 @@ export const AgentRestartStatsModal = memo(function AgentRestartStatsModal({
         </FixedModalHeader>
         <FixedModalBody>
           <div className="p-4">
-            <AgentRestartChart
-              machineId={machineId}
-              chatroomId={chatroomId}
-              roles={[role]}
-            />
+            <AgentRestartChart machineId={machineId} chatroomId={chatroomId} roles={[role]} />
           </div>
         </FixedModalBody>
       </FixedModalContent>

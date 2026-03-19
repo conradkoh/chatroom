@@ -3,8 +3,8 @@
 import { X } from 'lucide-react';
 import React, { useEffect, useCallback, useState, memo } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
 import { CopyButton } from './CopyButton';
 import { fullMarkdownComponents, proseClassNames } from './markdown-utils';
@@ -123,7 +123,10 @@ export const PromptModal = memo(function PromptModal({ isOpen, onClose, role }: 
         <div className="flex-1 overflow-y-auto p-6">
           {viewMode === 'preview' ? (
             <div className={proseClassNames}>
-              <Markdown remarkPlugins={[remarkGfm, remarkBreaks]} components={fullMarkdownComponents}>
+              <Markdown
+                remarkPlugins={[remarkGfm, remarkBreaks]}
+                components={fullMarkdownComponents}
+              >
                 {prompt}
               </Markdown>
             </div>

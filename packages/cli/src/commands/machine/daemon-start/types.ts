@@ -2,13 +2,17 @@
  * Daemon Types — shared type definitions for the daemon command module.
  */
 
+import type {
+  AgentStartReason,
+  AgentStopReason,
+} from '@workspace/backend/src/domain/entities/agent';
+
 import type { DaemonDeps } from './deps.js';
-import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import type { Id } from '../../../api.js';
-import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
-import type { AgentStartReason, AgentStopReason } from '@workspace/backend/src/domain/entities/agent';
-import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
+import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
 import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
+import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
+import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────
 
 /**

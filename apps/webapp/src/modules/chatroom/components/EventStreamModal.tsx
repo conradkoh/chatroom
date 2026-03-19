@@ -4,20 +4,20 @@ import { Activity } from 'lucide-react';
 import { memo, useEffect, useState } from 'react';
 
 import {
-  FixedModal,
-  FixedModalBody,
-  FixedModalContent,
-  FixedModalHeader,
-  FixedModalTitle,
-} from '@/components/ui/fixed-modal';
-
-import {
   getEventTypeDefinition,
   initializeEventTypes,
   PlaceholderEventDetails,
   PlaceholderEventRow,
 } from '../eventTypes';
 import type { EventStreamEvent } from '../viewModels/eventStreamViewModel';
+
+import {
+  FixedModal,
+  FixedModalBody,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+} from '@/components/ui/fixed-modal';
 
 // Initialize event type registry once at module load
 initializeEventTypes();
@@ -126,7 +126,10 @@ export const EventStreamModal = memo(function EventStreamModal({
             Event Stream
           </FixedModalTitle>
         </FixedModalHeader>
-        <FixedModalBody className="flex flex-col md:flex-row p-0 overflow-hidden" style={{ height: '70vh' }}>
+        <FixedModalBody
+          className="flex flex-col md:flex-row p-0 overflow-hidden"
+          style={{ height: '70vh' }}
+        >
           {/* Left: Event List */}
           <div className="md:w-2/5 border-r border-chatroom-border overflow-y-auto flex-shrink-0 flex flex-col">
             {/* Section header */}

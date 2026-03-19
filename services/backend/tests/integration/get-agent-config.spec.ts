@@ -8,6 +8,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { getAgentConfig } from '../../src/domain/usecase/agent/get-agent-config';
 import { t } from '../../test.setup';
 import {
@@ -16,7 +17,6 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
-import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 

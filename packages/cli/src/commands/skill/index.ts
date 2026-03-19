@@ -76,7 +76,12 @@ export async function listSkills(
     }
 
     // Calculate column width for aligned output
-    const maxSkillIdLen = Math.max(...skills.map((s: { skillId: string; name: string; description: string; type: string }) => s.skillId.length));
+    const maxSkillIdLen = Math.max(
+      ...skills.map(
+        (s: { skillId: string; name: string; description: string; type: string }) =>
+          s.skillId.length
+      )
+    );
 
     console.log('Available skills:');
     for (const skill of skills) {
@@ -85,7 +90,10 @@ export async function listSkills(
     }
   } catch (error) {
     if (error instanceof ConvexError) {
-      const msg = typeof error.data === 'string' ? error.data : (error.data as { message?: string }).message ?? String(error.data);
+      const msg =
+        typeof error.data === 'string'
+          ? error.data
+          : ((error.data as { message?: string }).message ?? String(error.data));
       console.error(`❌ ${msg}`);
     } else {
       console.error(`❌ Failed to list skills: ${(error as Error).message}`);
@@ -123,7 +131,10 @@ export async function activateSkill(
     console.log('');
   } catch (error) {
     if (error instanceof ConvexError) {
-      const msg = typeof error.data === 'string' ? error.data : (error.data as { message?: string }).message ?? String(error.data);
+      const msg =
+        typeof error.data === 'string'
+          ? error.data
+          : ((error.data as { message?: string }).message ?? String(error.data));
       console.error(`❌ ${msg}`);
     } else {
       console.error(`❌ Failed to activate skill: ${(error as Error).message}`);

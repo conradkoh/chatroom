@@ -173,7 +173,7 @@ describe('registerAgent', () => {
       expect(mutationCalls).toHaveLength(1);
 
       // The call should not be saveTeamAgentConfig
-      for (const [endpoint] of mutationCalls as Array<[{ _name?: string } | string, unknown]>) {
+      for (const [endpoint] of mutationCalls as [{ _name?: string } | string, unknown][]) {
         const endpointStr = typeof endpoint === 'string' ? endpoint : JSON.stringify(endpoint);
         expect(endpointStr).not.toContain('saveTeamAgentConfig');
       }

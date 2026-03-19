@@ -5,6 +5,8 @@ import { Paperclip, X } from 'lucide-react';
 import React, { useState } from 'react';
 import Markdown from 'react-markdown';
 
+import { compactMarkdownComponents, backlogProseClassNames } from './markdown-utils';
+
 import {
   FixedModal,
   FixedModalBody,
@@ -12,8 +14,6 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
-
-import { compactMarkdownComponents, backlogProseClassNames } from './markdown-utils';
 
 interface AttachedTaskChipProps {
   taskId: Id<'chatroom_tasks'>;

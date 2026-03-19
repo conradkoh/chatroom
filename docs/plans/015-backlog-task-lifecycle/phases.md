@@ -85,11 +85,11 @@ None - this is the foundation phase.
 
 ## Phase Summary
 
-| Phase | Description | Estimated Complexity |
-|-------|-------------|---------------------|
-| 1 | Schema & Backend Mutations | Medium |
-| 2 | Frontend Integration | Medium |
-| 3 | Polish & Edge Cases | Low |
+| Phase | Description                | Estimated Complexity |
+| ----- | -------------------------- | -------------------- |
+| 1     | Schema & Backend Mutations | Medium               |
+| 2     | Frontend Integration       | Medium               |
+| 3     | Polish & Edge Cases        | Low                  |
 
 ## Notes
 

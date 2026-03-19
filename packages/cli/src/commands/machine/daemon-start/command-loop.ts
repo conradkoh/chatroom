@@ -6,23 +6,23 @@ import {
   AGENT_REQUEST_DEADLINE_MS,
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
-
-import { api } from '../../../api.js';
 import type { FunctionReturnType } from 'convex/server';
-import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
-import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
-import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
-import { discoverModels } from './init.js';
+
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
-import { handlePing } from './handlers/ping.js';
-import { startGitPollingLoop } from './git-polling.js';
 import { pushGitState } from './git-heartbeat.js';
+import { startGitPollingLoop } from './git-polling.js';
+import { handlePing } from './handlers/ping.js';
+import { discoverModels } from './init.js';
 import { startTaskMonitor } from './task-monitor.js';
-import { makeGitStateKey } from '../../../infrastructure/git/types.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
+import { api } from '../../../api.js';
+import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
+import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { makeGitStateKey } from '../../../infrastructure/git/types.js';
+import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 

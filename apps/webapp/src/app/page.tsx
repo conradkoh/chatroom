@@ -173,7 +173,9 @@ function StepCard({
           {step}
         </span>
         <div>
-          <h3 className="text-sm font-bold text-zinc-100 mb-1.5 uppercase tracking-wider">{title}</h3>
+          <h3 className="text-sm font-bold text-zinc-100 mb-1.5 uppercase tracking-wider">
+            {title}
+          </h3>
           <p className="text-zinc-500 text-xs leading-relaxed">{description}</p>
         </div>
       </div>
@@ -315,20 +317,16 @@ export default function Home() {
               <div className="space-y-6">
                 <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight">
                   <span className="text-zinc-400 font-mono text-xl sm:text-2xl block mb-2">$</span>
-                  <TypewriterText
-                    text="chatroom"
-                    delay={60}
-                    className="text-zinc-100"
-                  />
+                  <TypewriterText text="chatroom" delay={60} className="text-zinc-100" />
                 </h1>
 
                 <p
                   className="text-lg sm:text-xl text-zinc-400 max-w-2xl leading-relaxed opacity-0 animate-fadeIn"
                   style={{ animationDelay: '1200ms' }}
                 >
-                  Orchestrate AI agent teams that plan, build, and review code together.
-                  Define roles, queue tasks, and let agents collaborate with structured handoffs
-                  and quality gates.
+                  Orchestrate AI agent teams that plan, build, and review code together. Define
+                  roles, queue tasks, and let agents collaborate with structured handoffs and
+                  quality gates.
                 </p>
               </div>
 
@@ -337,9 +335,17 @@ export default function Home() {
                 className="space-y-2 py-4 border-l-2 border-zinc-800 pl-4 opacity-0 animate-fadeIn"
                 style={{ animationDelay: '1800ms' }}
               >
-                <AgentStatusLine agent="planner" status="decomposing task into phases" delay={2000} />
+                <AgentStatusLine
+                  agent="planner"
+                  status="decomposing task into phases"
+                  delay={2000}
+                />
                 <AgentStatusLine agent="builder" status="implementing phase 2 of 3" delay={2400} />
-                <AgentStatusLine agent="reviewer" status="approved — merging to main" delay={2800} />
+                <AgentStatusLine
+                  agent="reviewer"
+                  status="approved — merging to main"
+                  delay={2800}
+                />
               </div>
 
               {/* CTA */}

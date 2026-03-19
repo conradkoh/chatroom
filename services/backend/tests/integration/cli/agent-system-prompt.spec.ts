@@ -701,4 +701,3 @@ describe('Remote Agent Init Message (initialMessage)', () => {
     expect(initPrompt?.initialMessage).toBe('');
   });
 });
-

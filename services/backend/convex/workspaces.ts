@@ -121,10 +121,7 @@ export const getCommitDetail = query({
     const row = await ctx.db
       .query('chatroom_workspaceCommitDetail')
       .withIndex('by_machine_workingDir_sha', (q) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('sha', args.sha)
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('sha', args.sha)
       )
       .first();
 
@@ -204,11 +201,7 @@ export const upsertWorkspaceGitState = mutation({
     machineId: v.string(),
     workingDir: v.string(),
     // Discriminated union status
-    status: v.union(
-      v.literal('available'),
-      v.literal('not_found'),
-      v.literal('error')
-    ),
+    status: v.union(v.literal('available'), v.literal('not_found'), v.literal('error')),
     // Fields present when status === 'available'
     branch: v.optional(v.string()),
     isDirty: v.optional(v.boolean()),
@@ -335,16 +328,18 @@ export const upsertCommitDetail = mutation({
       v.literal('available'),
       v.literal('too_large'),
       v.literal('error'),
-      v.literal('not_found'),
+      v.literal('not_found')
     ),
     // Available when status === 'available'
     diffContent: v.optional(v.string()),
     truncated: v.optional(v.boolean()),
-    diffStat: v.optional(v.object({
-      filesChanged: v.number(),
-      insertions: v.number(),
-      deletions: v.number(),
-    })),
+    diffStat: v.optional(
+      v.object({
+        filesChanged: v.number(),
+        insertions: v.number(),
+        deletions: v.number(),
+      })
+    ),
     // Available when status === 'available' or 'too_large'
     message: v.optional(v.string()),
     author: v.optional(v.string()),
@@ -363,10 +358,7 @@ export const upsertCommitDetail = mutation({
     const existing = await ctx.db
       .query('chatroom_workspaceCommitDetail')
       .withIndex('by_machine_workingDir_sha', (q) =>
-        q
-          .eq('machineId', args.machineId)
-          .eq('workingDir', args.workingDir)
-          .eq('sha', args.sha)
+        q.eq('machineId', args.machineId).eq('workingDir', args.workingDir).eq('sha', args.sha)
       )
       .first();
 
@@ -555,9 +547,7 @@ export const requestCommitDetail = mutation({
           .eq('workingDir', args.workingDir)
           .eq('requestType', 'commit_detail')
       )
-      .filter((q) =>
-        q.and(q.eq(q.field('status'), 'pending'), q.eq(q.field('sha'), args.sha))
-      )
+      .filter((q) => q.and(q.eq(q.field('status'), 'pending'), q.eq(q.field('sha'), args.sha)))
       .first();
 
     if (existing) {

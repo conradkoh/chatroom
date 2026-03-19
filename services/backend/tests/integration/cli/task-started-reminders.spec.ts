@@ -298,4 +298,3 @@ Use React Context + CSS variables`,
     expect(result.reminder).toContain('inherits the workflow rules');
   });
 });
-

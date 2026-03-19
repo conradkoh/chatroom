@@ -4,12 +4,16 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { areAllAgentsWaiting, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
+import { buildTeamRoleKey } from './utils/teamRoleKey';
+import {
+  PARTICIPANT_EXITED_ACTION,
+  isActiveParticipant,
+  patchParticipantStatus,
+} from '../src/domain/entities/participant';
+import { getTeamEntryPoint } from '../src/domain/entities/team';
+import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
 import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
-import { getTeamEntryPoint } from '../src/domain/entities/team';
-import { PARTICIPANT_EXITED_ACTION, isActiveParticipant, patchParticipantStatus } from '../src/domain/entities/participant';
-import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
-import { buildTeamRoleKey } from './utils/teamRoleKey';
 
 /** Upserts a chatroom participant record.
  * Emits agent.waiting and enables queue promotion only when action is 'get-next-task:started',
@@ -136,7 +140,7 @@ export const join = mutation({
       teamConfig.circuitState &&
       teamConfig.circuitState !== 'closed'
     ) {
-      await ctx.db.patch(teamConfig._id, {
+      await ctx.db.patch('chatroom_teamAgentConfigs', teamConfig._id, {
         circuitState: 'closed',
         circuitOpenedAt: undefined,
       });

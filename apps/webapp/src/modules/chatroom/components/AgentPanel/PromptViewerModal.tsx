@@ -2,6 +2,8 @@
 
 import { memo } from 'react';
 
+import { CopyButton } from '../CopyButton';
+
 import {
   FixedModal,
   FixedModalBody,
@@ -9,8 +11,6 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
-
-import { CopyButton } from '../CopyButton';
 
 interface PromptViewerModalProps {
   open: boolean;

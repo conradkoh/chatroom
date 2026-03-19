@@ -4,8 +4,8 @@
 
 import { api } from '../../../../api.js';
 import type { Id } from '../../../../api.js';
-import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
 import { onAgentShutdown } from '../../../../events/lifecycle/on-agent-shutdown.js';
+import { getConvexUrl } from '../../../../infrastructure/convex/client.js';
 import { resolveStopReason } from '../../../../infrastructure/machine/stop-reason.js';
 import type { StopReason } from '../../../../infrastructure/machine/stop-reason.js';
 import type { AgentHarness } from '../../../../infrastructure/machine/types.js';

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { AGENT_START_REASONS } from './agent';
 
 describe('agent entity', () => {

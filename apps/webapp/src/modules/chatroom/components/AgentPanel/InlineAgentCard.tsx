@@ -1,20 +1,20 @@
 'use client';
 
-import React, { memo, useState, useMemo } from 'react';
-
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
+import React, { memo, useState, useMemo } from 'react';
 
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import { useAgentControls } from '../AgentConfigTabs';
 import type { AgentPreference } from '../AgentConfigTabs';
-import { AgentStatusRow } from './AgentStatusRow';
-import { AgentRestartStatsModal } from './AgentRestartStatsModal';
 import { AgentControlsSection } from './AgentControlsSection';
-import { getDaemonStartCommand } from '@/lib/environment';
+import { AgentRestartStatsModal } from './AgentRestartStatsModal';
+import { AgentStatusRow } from './AgentStatusRow';
 import { resolveAgentStatus, type StatusVariant } from '../../utils/agentStatusLabel';
+
+import { getDaemonStartCommand } from '@/lib/environment';
 
 // Re-export helpers that are still imported from this file elsewhere
 export { formatLastSeen } from './AgentStatusRow';
@@ -145,10 +145,14 @@ export const InlineAgentCard = memo(function InlineAgentCard({
                 Restarts
               </span>
               <span className="text-[10px] text-chatroom-text-secondary">
-                <span className="font-bold text-chatroom-text-primary">{restartSummary.count1h}</span>
+                <span className="font-bold text-chatroom-text-primary">
+                  {restartSummary.count1h}
+                </span>
                 <span className="text-chatroom-text-muted"> in 1h</span>
                 <span className="mx-1.5 text-chatroom-border-strong">·</span>
-                <span className="font-bold text-chatroom-text-primary">{restartSummary.count24h}</span>
+                <span className="font-bold text-chatroom-text-primary">
+                  {restartSummary.count24h}
+                </span>
                 <span className="text-chatroom-text-muted"> in 24h</span>
               </span>
               {statsMachineId && (

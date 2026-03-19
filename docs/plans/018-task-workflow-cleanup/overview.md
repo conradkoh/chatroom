@@ -23,7 +23,7 @@ Cleanup of legacy code and technical debt introduced during the task workflow re
 
 ## Risk Assessment
 
-| Phase | Risk Level | Impact if Skipped |
-|-------|------------|-------------------|
-| Phase 1 (Pre-Migration) | Low | Code quality only |
-| Phase 2 (Post-Migration) | High | Breaking change if migration not run |
+| Phase                    | Risk Level | Impact if Skipped                    |
+| ------------------------ | ---------- | ------------------------------------ |
+| Phase 1 (Pre-Migration)  | Low        | Code quality only                    |
+| Phase 2 (Post-Migration) | High       | Breaking change if migration not run |

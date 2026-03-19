@@ -166,7 +166,9 @@ export async function handoff(
       for (const target of result.error.suggestedTargets) {
         console.error(`   • ${target}`);
       }
-      console.error(`\n💡 Check your team's workflow in the system prompt for valid handoff paths.`);
+      console.error(
+        `\n💡 Check your team's workflow in the system prompt for valid handoff paths.`
+      );
     } else if (result.error.suggestedTarget) {
       console.error(`\n💡 Try this instead:`);
       console.error('```');

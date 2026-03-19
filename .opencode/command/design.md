@@ -156,11 +156,11 @@ For complex features that require multiple steps, break down the implementation 
 
 For backend services and CLI tools, follow Clean Architecture with clear layer boundaries:
 
-| Layer                  | Responsibility                                                 | Dependencies      |
-| ---------------------- | -------------------------------------------------------------- | ----------------- |
-| **Presentation**       | API endpoints, CLI commands, input/output handling             | Domain            |
-| **Domain/Business**    | Entities, use cases, business rules, repository/service interfaces | None (pure)       |
-| **Infrastructure**     | Database access, external APIs, file systems, third-party services | Domain interfaces |
+| Layer               | Responsibility                                                     | Dependencies      |
+| ------------------- | ------------------------------------------------------------------ | ----------------- |
+| **Presentation**    | API endpoints, CLI commands, input/output handling                 | Domain            |
+| **Domain/Business** | Entities, use cases, business rules, repository/service interfaces | None (pure)       |
+| **Infrastructure**  | Database access, external APIs, file systems, third-party services | Domain interfaces |
 
 Key principle: **Domain layer has NO external dependencies**. All external concerns are abstracted via interfaces. Business logic lives in the Domain layer and orchestrates through dependency injection.
 
@@ -168,14 +168,15 @@ Key principle: **Domain layer has NO external dependencies**. All external conce
 
 For frontend/UI changes, follow Component-Driven Architecture with separation of concerns:
 
-| Layer              | Responsibility                                       | Dependencies        |
-| ------------------ | ---------------------------------------------------- | ------------------- |
-| **Components**     | Presentational UI components (pure, reusable)        | None (props only)   |
-| **Containers**     | State management, business logic, data fetching      | Components, Services|
-| **Services**       | API calls, external integrations, data transformation| None (injected)     |
-| **State**          | Global state management (if needed)                  | Services            |
+| Layer          | Responsibility                                        | Dependencies         |
+| -------------- | ----------------------------------------------------- | -------------------- |
+| **Components** | Presentational UI components (pure, reusable)         | None (props only)    |
+| **Containers** | State management, business logic, data fetching       | Components, Services |
+| **Services**   | API calls, external integrations, data transformation | None (injected)      |
+| **State**      | Global state management (if needed)                   | Services             |
 
 **Key Principles:**
+
 - **Smart vs Dumb Components**: Containers (smart) handle logic, Components (dumb) handle presentation
 - **Single Responsibility**: Each component does one thing well
 - **Props-based Communication**: Components receive data via props, emit events via callbacks
@@ -200,17 +201,17 @@ For frontend/UI changes, follow Component-Driven Architecture with separation of
 
 #### Frontend Projects
 
-| Folder                           | Purpose                                                      |
-| -------------------------------- | ------------------------------------------------------------ |
-| `src/components/atoms/`          | Basic UI building blocks (buttons, inputs, labels)           |
-| `src/components/molecules/`      | Combinations of atoms (form fields, cards, search bars)      |
-| `src/components/organisms/`      | Complex UI sections (headers, sidebars, forms)               |
-| `src/containers/`                | Smart components with business logic and state               |
-| `src/services/`                  | API clients, data transformation services                    |
-| `src/hooks/`                     | Custom React hooks (or composables for Vue)                  |
-| `src/store/`                     | Global state management (Redux, Zustand, Pinia, etc.)        |
-| `src/types/`                     | TypeScript interfaces and types                              |
-| `src/utils/`                     | Helper functions and utilities                               |
+| Folder                      | Purpose                                                 |
+| --------------------------- | ------------------------------------------------------- |
+| `src/components/atoms/`     | Basic UI building blocks (buttons, inputs, labels)      |
+| `src/components/molecules/` | Combinations of atoms (form fields, cards, search bars) |
+| `src/components/organisms/` | Complex UI sections (headers, sidebars, forms)          |
+| `src/containers/`           | Smart components with business logic and state          |
+| `src/services/`             | API clients, data transformation services               |
+| `src/hooks/`                | Custom React hooks (or composables for Vue)             |
+| `src/store/`                | Global state management (Redux, Zustand, Pinia, etc.)   |
+| `src/types/`                | TypeScript interfaces and types                         |
+| `src/utils/`                | Helper functions and utilities                          |
 
 **Complex Component Structure** (for components with multiple variants and composition needs):
 
@@ -232,12 +233,14 @@ component-name/
 ```
 
 **When to use complex component structure:**
+
 - Component has 3+ variants for different use cases
 - Components need to share state via context
 - Consumers may need to build custom compositions
 - The component has significant complexity
 
 **Don't use for:**
+
 - Simple, single-purpose components
 - Components with only 1-2 variants
 - Basic UI elements (atoms)
@@ -268,7 +271,7 @@ Only define contracts that are specific to the requirements.
 
 ### Autonomous Operation
 
-You are expected to work autonomously and make decisions that prioritize system extensibility and maintainability. 
+You are expected to work autonomously and make decisions that prioritize system extensibility and maintainability.
 
 **Decision-Making Process:**
 
@@ -279,7 +282,6 @@ You are expected to work autonomously and make decisions that prioritize system 
 ### Workflow
 
 1. **Determine context first** - Check if `docs/overview.md` and `docs/architecture.md` exist
-
    - If they don't exist → Scenario 1 (New Project)
    - If they exist → Scenario 2 (Adding a Feature)
 
@@ -351,8 +353,8 @@ You are expected to work autonomously and make decisions that prioritize system 
 └─────────────────────────────────────────────┘
 ```
 
-**Dependency Rule**: Components are pure and receive everything via props. Containers orchestrate state and logic. Services abstract external data sources.
----
+## **Dependency Rule**: Components are pure and receive everything via props. Containers orchestrate state and logic. Services abstract external data sources.
+
 <!-- Ignore section if arguments are not replaced -->
 <userinput>
 $ARGUMENTS

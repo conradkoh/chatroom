@@ -9,11 +9,7 @@
 export type { AgentHarness, HarnessVersionInfo } from './types.js';
 
 // Storage (static machine config)
-export {
-  ensureMachineRegistered,
-  getMachineId,
-  loadMachineConfig,
-} from './storage.js';
+export { ensureMachineRegistered, getMachineId, loadMachineConfig } from './storage.js';
 
 // Daemon state (runtime PID tracking — separate from machine.json)
 export {

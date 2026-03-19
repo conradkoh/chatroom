@@ -17,12 +17,12 @@
  * - No stopReason → restart (safe default fallback for legacy events)
  */
 
+import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import type { SessionId } from 'convex-helpers/server/sessions';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { t } from '../../../test.setup';
 import { buildTeamRoleKey } from '../../../convex/utils/teamRoleKey';
+import { t } from '../../../test.setup';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -83,9 +83,7 @@ async function registerMachineAndConfig(
   });
 }
 
-async function seedPendingTask(
-  chatroomId: Id<'chatroom_rooms'>
-): Promise<Id<'chatroom_tasks'>> {
+async function seedPendingTask(chatroomId: Id<'chatroom_rooms'>): Promise<Id<'chatroom_tasks'>> {
   return await t.run(async (ctx) => {
     const now = Date.now();
     return await ctx.db.insert('chatroom_tasks', {
@@ -126,9 +124,7 @@ async function countAgentRequestStartEvents(chatroomId: Id<'chatroom_rooms'>) {
   return await t.run(async (ctx) => {
     const events = await ctx.db
       .query('chatroom_eventStream')
-      .withIndex('by_chatroomId_role', (q) =>
-        q.eq('chatroomId', chatroomId).eq('role', 'builder')
-      )
+      .withIndex('by_chatroomId_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
       .collect();
     return events.filter((e) => e.type === 'agent.requestStart').length;
   });
@@ -138,9 +134,7 @@ async function countAgentExitedEvents(chatroomId: Id<'chatroom_rooms'>) {
   return await t.run(async (ctx) => {
     const events = await ctx.db
       .query('chatroom_eventStream')
-      .withIndex('by_chatroomId_role', (q) =>
-        q.eq('chatroomId', chatroomId).eq('role', 'builder')
-      )
+      .withIndex('by_chatroomId_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
       .collect();
     return events.filter((e) => e.type === 'agent.exited').length;
   });

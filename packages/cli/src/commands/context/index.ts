@@ -144,7 +144,12 @@ export async function readContext(
           const safeTaskContent = sanitizeForTerminal(message.taskContent);
           console.log(`      Content:`);
           console.log(`      <task-content>`);
-          console.log(safeTaskContent.split('\n').map((l) => `      ${l}`).join('\n'));
+          console.log(
+            safeTaskContent
+              .split('\n')
+              .map((l) => `      ${l}`)
+              .join('\n')
+          );
           console.log(`      </task-content>`);
         }
       }
@@ -169,7 +174,12 @@ export async function readContext(
       console.log(`   Content:`);
       console.log(`   <message-content>`);
       const safeMessageContent = sanitizeForTerminal(message.content);
-      console.log(safeMessageContent.split('\n').map((l) => `      ${l}`).join('\n'));
+      console.log(
+        safeMessageContent
+          .split('\n')
+          .map((l) => `      ${l}`)
+          .join('\n')
+      );
       console.log(`   </message-content>`);
       console.log(`</message>`);
     }

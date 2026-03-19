@@ -40,7 +40,10 @@ function renderTaskActivatedDetails(event: TaskActivatedEvent): React.ReactNode 
 
 // ─── Task Acknowledged ───────────────────────────────────────────────────────
 
-function renderTaskAcknowledgedCell(event: TaskAcknowledgedEvent, isSelected: boolean): React.ReactNode {
+function renderTaskAcknowledgedCell(
+  event: TaskAcknowledgedEvent,
+  isSelected: boolean
+): React.ReactNode {
   return (
     <EventRow
       type="task.acknowledged"
@@ -65,7 +68,10 @@ function renderTaskAcknowledgedDetails(event: TaskAcknowledgedEvent): React.Reac
 
 // ─── Task In Progress ────────────────────────────────────────────────────────
 
-function renderTaskInProgressCell(event: TaskInProgressEvent, isSelected: boolean): React.ReactNode {
+function renderTaskInProgressCell(
+  event: TaskInProgressEvent,
+  isSelected: boolean
+): React.ReactNode {
   return (
     <EventRow
       type="task.inProgress"
@@ -112,9 +118,7 @@ function renderTaskCompletedDetails(event: TaskCompletedEvent): React.ReactNode 
       <DetailRow label="Task ID" value={event.taskId} mono />
       <DetailRow label="Final Status" value={event.finalStatus} />
       {event.machineId && <DetailRow label="Machine ID" value={event.machineId} mono />}
-      {event.skipAgentStatusUpdate && (
-        <DetailRow label="Skip Status Update" value="Yes" />
-      )}
+      {event.skipAgentStatusUpdate && <DetailRow label="Skip Status Update" value="Yes" />}
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
   );

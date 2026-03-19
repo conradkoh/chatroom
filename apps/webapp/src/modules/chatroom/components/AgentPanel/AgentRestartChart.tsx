@@ -9,11 +9,11 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } 
 // ─── Color palette for model bars ───────────────────────────────────────────
 
 const MODEL_COLORS = [
-  'var(--chatroom-status-info)',      // blue — adapts per mode
-  'var(--chatroom-status-success)',   // green — adapts per mode
-  'var(--chatroom-status-warning)',   // amber — adapts per mode
-  'var(--chatroom-status-purple)',    // purple — adapts per mode
-  'var(--chatroom-status-error)',     // red — adapts per mode
+  'var(--chatroom-status-info)', // blue — adapts per mode
+  'var(--chatroom-status-success)', // green — adapts per mode
+  'var(--chatroom-status-warning)', // amber — adapts per mode
+  'var(--chatroom-status-purple)', // purple — adapts per mode
+  'var(--chatroom-status-error)', // red — adapts per mode
 ];
 
 function getModelColor(index: number): string {
@@ -45,8 +45,18 @@ function formatDateInput(date: Date): string {
 }
 
 const SHORT_MONTH = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 function formatDayLabel(date: Date): string {
@@ -57,7 +67,7 @@ function formatDayLabel(date: Date): string {
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string }>;
+  payload?: { name: string; value: number; color: string }[];
   label?: string;
 }
 
@@ -110,7 +120,9 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
                 flexShrink: 0,
               }}
             />
-            <span style={{ flex: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{entry.name}</span>
+            <span style={{ flex: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {entry.name}
+            </span>
             <span style={{ fontWeight: 600 }}>{entry.value}</span>
           </div>
         ) : null
@@ -137,11 +149,7 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function AgentRestartChart({
-  machineId,
-  chatroomId,
-  roles,
-}: AgentRestartChartProps) {
+export function AgentRestartChart({ machineId, chatroomId, roles }: AgentRestartChartProps) {
   const [selectedRole, setSelectedRole] = useState<string>(roles[0] ?? '');
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
     start: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
@@ -156,27 +164,21 @@ export function AgentRestartChart({
     setSelectedPreset(preset);
   }, []);
 
-  const handleStartChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const parsed = new Date(e.target.value + 'T00:00:00');
-      if (!isNaN(parsed.getTime())) {
-        setDateRange((prev) => ({ ...prev, start: parsed }));
-        setSelectedPreset('custom');
-      }
-    },
-    []
-  );
+  const handleStartChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const parsed = new Date(e.target.value + 'T00:00:00');
+    if (!isNaN(parsed.getTime())) {
+      setDateRange((prev) => ({ ...prev, start: parsed }));
+      setSelectedPreset('custom');
+    }
+  }, []);
 
-  const handleEndChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const parsed = new Date(e.target.value + 'T23:59:59');
-      if (!isNaN(parsed.getTime())) {
-        setDateRange((prev) => ({ ...prev, end: parsed }));
-        setSelectedPreset('custom');
-      }
-    },
-    []
-  );
+  const handleEndChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const parsed = new Date(e.target.value + 'T23:59:59');
+    if (!isNaN(parsed.getTime())) {
+      setDateRange((prev) => ({ ...prev, end: parsed }));
+      setSelectedPreset('custom');
+    }
+  }, []);
 
   const data = useSessionQuery(
     api.machines.getAgentRestartMetrics,
@@ -364,7 +366,10 @@ export function AgentRestartChart({
                 className="w-2.5 h-2.5 flex-shrink-0"
                 style={{ backgroundColor: getModelColor(idx) }}
               />
-              <span className="text-[9px] text-chatroom-text-muted truncate max-w-[160px]" title={model}>
+              <span
+                className="text-[9px] text-chatroom-text-muted truncate max-w-[160px]"
+                title={model}
+              >
                 {model}
               </span>
             </div>

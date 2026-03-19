@@ -11,8 +11,6 @@
  * members are currently online.
  */
 
-import type { PlannerGuidanceParams } from '../../../types/cli';
-import { getCliEnvPrefix } from '../../../utils/env';
 import { classifyCommand } from '../../../cli/classify/command';
 import {
   getCoreResponsibilitiesSection,
@@ -25,6 +23,8 @@ import {
   getPlannerPlusReviewerWorkflow,
   getPlannerSoloWorkflow,
 } from '../../../cli/sections';
+import type { PlannerGuidanceParams } from '../../../types/cli';
+import { getCliEnvPrefix } from '../../../utils/env';
 
 /** Squad team always has a builder and reviewer (fixed team composition) */
 const SQUAD_TEAM_CONFIG = { hasBuilder: true, hasReviewer: true } as const;

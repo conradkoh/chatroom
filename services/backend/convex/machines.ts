@@ -2,23 +2,23 @@
 
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
-import { agentHarnessValidator } from './schema';
 
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
+import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
-import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
-import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
+import { patchParticipantStatus } from '../src/domain/entities/participant';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
-import { cleanupMachineAgent } from '../src/domain/usecase/machine/cleanup-machine-agent';
-import { onAgentExited } from '../src/events/agent/on-agent-exited';
-import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
-import { patchParticipantStatus } from '../src/domain/entities/participant';
+import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
+import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
+import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
+import { cleanupMachineAgent } from '../src/domain/usecase/machine/cleanup-machine-agent';
 import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
+import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -538,7 +538,6 @@ export const updateDaemonStatus = mutation({
   },
 });
 
-
 /** Updates lastSeenAt for liveness detection; sets daemonConnected to true. */
 export const daemonHeartbeat = mutation({
   args: {
@@ -603,7 +602,11 @@ export const sendCommand = mutation({
       const cmdChatroom = await ctx.db.get('chatroom_rooms', args.payload.chatroomId);
       let existingConfig: Doc<'chatroom_teamAgentConfigs'> | null = null;
       if (cmdChatroom?.teamId) {
-        const teamRoleKey = buildTeamRoleKey(cmdChatroom._id, cmdChatroom.teamId, args.payload.role);
+        const teamRoleKey = buildTeamRoleKey(
+          cmdChatroom._id,
+          cmdChatroom.teamId,
+          args.payload.role
+        );
         existingConfig = await ctx.db
           .query('chatroom_teamAgentConfigs')
           .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
@@ -611,7 +614,8 @@ export const sendCommand = mutation({
       }
 
       const resolvedModel =
-        args.payload.model ?? (existingConfig?.type === 'remote' ? existingConfig.model : undefined);
+        args.payload.model ??
+        (existingConfig?.type === 'remote' ? existingConfig.model : undefined);
       const resolvedHarness =
         args.payload.agentHarness ??
         (existingConfig?.type === 'remote' ? existingConfig.agentHarness : undefined);
@@ -751,7 +755,9 @@ export const updateSpawnedAgent = mutation({
         .first();
 
       if (existingMetric) {
-        await ctx.db.patch(existingMetric._id, { count: existingMetric.count + 1 });
+        await ctx.db.patch('chatroom_agentRestartMetrics', existingMetric._id, {
+          count: existingMetric.count + 1,
+        });
       } else {
         await ctx.db.insert('chatroom_agentRestartMetrics', {
           machineId: args.machineId,

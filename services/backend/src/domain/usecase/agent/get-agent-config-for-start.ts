@@ -12,8 +12,8 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
-import type { AgentHarness } from '../../entities/agent';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import type { AgentHarness } from '../../entities/agent';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

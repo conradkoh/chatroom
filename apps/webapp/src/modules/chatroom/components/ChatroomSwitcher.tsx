@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Star } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-
-import { cn } from '@/lib/utils';
+import { Star } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 import {
   Command,
@@ -16,6 +14,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import {
   useChatroomListing,
   type ChatroomWithStatus,
@@ -128,7 +127,11 @@ export function ChatroomSwitcher() {
 
                       {/* Favourite star */}
                       {chatroom.isFavorite && (
-                        <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
+                        <Star
+                          size={10}
+                          className="text-yellow-500 flex-shrink-0"
+                          fill="currentColor"
+                        />
                       )}
 
                       {/* Unread dot */}

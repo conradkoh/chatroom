@@ -1,16 +1,17 @@
 'use client';
 
+import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { FolderOpen, ChevronRight } from 'lucide-react';
 import { memo, useState } from 'react';
-import { cn } from '@/lib/utils';
-import { WorkspaceGitPanel } from '../../workspace/components/WorkspaceGitPanel';
 
-import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
-import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
-import type { Workspace } from '../../types/workspace';
-import type { AgentPreference } from '../AgentConfigTabs';
 import { InlineAgentCard } from './InlineAgentCard';
 import type { AgentWithStatus } from './UnifiedAgentListModal';
+import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
+import type { Workspace } from '../../types/workspace';
+import { WorkspaceGitPanel } from '../../workspace/components/WorkspaceGitPanel';
+import type { AgentPreference } from '../AgentConfigTabs';
+
+import { cn } from '@/lib/utils';
 
 interface WorkspaceAgentListProps {
   workspace: Workspace | null;
@@ -118,7 +119,7 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
               size={12}
               className={cn(
                 'text-chatroom-text-muted transition-transform',
-                gitExpanded && 'rotate-90',
+                gitExpanded && 'rotate-90'
               )}
             />
           </button>
@@ -151,26 +152,28 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
-          {workspaceAgents.map(({ role, online, lastSeenAt, latestEventType, desiredState, statusVariant }) => (
-            <InlineAgentCard
-              key={role}
-              role={role}
-              online={online}
-              lastSeenAt={lastSeenAt}
-              latestEventType={latestEventType}
-              desiredState={desiredState}
-              statusVariant={statusVariant}
-              prompt={generatePrompt(role)}
-              chatroomId={chatroomId}
-              connectedMachines={connectedMachines}
-              isLoadingMachines={isLoadingMachines}
-              agentConfigs={agentConfigs}
-              sendCommand={sendCommand}
-              agentRoleView={agentRoleViewMap.get(role.toLowerCase())}
-              agentPreference={agentPreferenceMap.get(role.toLowerCase())}
-              onSavePreference={onSavePreference}
-            />
-          ))}
+          {workspaceAgents.map(
+            ({ role, online, lastSeenAt, latestEventType, desiredState, statusVariant }) => (
+              <InlineAgentCard
+                key={role}
+                role={role}
+                online={online}
+                lastSeenAt={lastSeenAt}
+                latestEventType={latestEventType}
+                desiredState={desiredState}
+                statusVariant={statusVariant}
+                prompt={generatePrompt(role)}
+                chatroomId={chatroomId}
+                connectedMachines={connectedMachines}
+                isLoadingMachines={isLoadingMachines}
+                agentConfigs={agentConfigs}
+                sendCommand={sendCommand}
+                agentRoleView={agentRoleViewMap.get(role.toLowerCase())}
+                agentPreference={agentPreferenceMap.get(role.toLowerCase())}
+                onSavePreference={onSavePreference}
+              />
+            )
+          )}
         </div>
       )}
     </div>

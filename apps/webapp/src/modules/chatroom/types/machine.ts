@@ -12,7 +12,10 @@
  */
 
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { AgentHarness, HarnessVersionInfo } from '@workspace/backend/src/domain/entities/agent';
+import type {
+  AgentHarness,
+  HarnessVersionInfo,
+} from '@workspace/backend/src/domain/entities/agent';
 
 export type { AgentHarness, HarnessVersionInfo };
 

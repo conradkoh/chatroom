@@ -17,6 +17,9 @@
  * A harness is the execution environment that hosts the AI agent.
  * Supported harnesses: 'opencode', 'pi', 'cursor'.
  */
+// Convex validator exports for use in schema.ts
+import { v } from 'convex/values';
+
 export type AgentHarness = 'opencode' | 'pi' | 'cursor';
 
 /**
@@ -103,16 +106,9 @@ export const AGENT_STOP_REASONS = [
 ] as const;
 export type AgentStopReason = (typeof AGENT_STOP_REASONS)[number];
 
-// Convex validator exports for use in schema.ts
-import { v } from 'convex/values';
+export const agentStartReasonValidator = v.union(...AGENT_START_REASONS.map((r) => v.literal(r)));
 
-export const agentStartReasonValidator = v.union(
-  ...AGENT_START_REASONS.map((r) => v.literal(r))
-);
-
-export const agentStopReasonValidator = v.union(
-  ...AGENT_STOP_REASONS.map((r) => v.literal(r))
-);
+export const agentStopReasonValidator = v.union(...AGENT_STOP_REASONS.map((r) => v.literal(r)));
 
 /**
  * Where the agent's AI model was resolved from.

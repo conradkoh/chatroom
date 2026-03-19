@@ -10,9 +10,9 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { expect, test } from 'vitest';
 
+import { t } from '../test.setup';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { t } from '../test.setup';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -63,17 +63,16 @@ async function insertCommandEvent(
         deadline: Date.now() + 120_000,
         timestamp: Date.now(),
       });
-    } else {
-      return await ctx.db.insert('chatroom_eventStream', {
-        type: 'agent.requestStop',
-        chatroomId,
-        machineId,
-        role: 'builder',
-        reason: 'test',
-        deadline: Date.now() + 120_000,
-        timestamp: Date.now(),
-      });
     }
+    return await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.requestStop',
+      chatroomId,
+      machineId,
+      role: 'builder',
+      reason: 'test',
+      deadline: Date.now() + 120_000,
+      timestamp: Date.now(),
+    });
   });
 }
 

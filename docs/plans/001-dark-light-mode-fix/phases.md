@@ -12,14 +12,17 @@ This plan is broken into 6 phases, ordered by priority and dependency. Each phas
 Add the light mode variant of chatroom CSS variables to `globals.css`. This is the foundation that enables all other fixes.
 
 **Files Modified:**
+
 - `apps/webapp/src/app/globals.css`
 
 **Tasks:**
+
 1. Restructure the `.chatroom-root` CSS variables to be scoped under `.dark .chatroom-root` for dark mode
 2. Add new `:root:not(.dark) .chatroom-root` selector with light mode color values per the "Neutral Glass" theme specification
 3. Ensure the base `.chatroom-root` class still applies non-color properties (font-family, border-radius, box-sizing reset)
 
 **Success Criteria:**
+
 - [ ] Light mode variables are defined with correct values from design spec
 - [ ] Dark mode variables continue to work as before
 - [ ] CSS specificity is correct (both selectors have equal precedence)
@@ -33,9 +36,11 @@ Add the light mode variant of chatroom CSS variables to `globals.css`. This is t
 Update the Navigation header to use semantic tokens instead of hardcoded dark colors.
 
 **Files Modified:**
+
 - `apps/webapp/src/components/Navigation.tsx`
 
 **Tasks:**
+
 1. Replace `bg-zinc-950/95` with appropriate semantic or theme-aware class
 2. Replace `text-zinc-100` with `text-foreground`
 3. Replace `text-zinc-300` with `text-muted-foreground`
@@ -43,6 +48,7 @@ Update the Navigation header to use semantic tokens instead of hardcoded dark co
 5. Ensure login button and user menu adapt to theme
 
 **Success Criteria:**
+
 - [ ] Navigation background adapts to theme
 - [ ] Navigation text is readable in both modes
 - [ ] Login button is visible in both modes
@@ -56,9 +62,11 @@ Update the Navigation header to use semantic tokens instead of hardcoded dark co
 Update the header portal content injected by ChatroomDashboard to use chatroom CSS variables instead of hardcoded zinc colors.
 
 **Files Modified:**
+
 - `apps/webapp/src/modules/chatroom/ChatroomDashboard.tsx`
 
 **Tasks:**
+
 1. Replace all hardcoded `border-zinc-*` classes with `border-chatroom-border` or `border-chatroom-border-strong`
 2. Replace all hardcoded `text-zinc-*` classes with appropriate `text-chatroom-text-*` variants
 3. Replace all hardcoded `bg-zinc-*` classes with appropriate `bg-chatroom-bg-*` variants
@@ -67,6 +75,7 @@ Update the header portal content injected by ChatroomDashboard to use chatroom C
 6. Ensure action buttons (back, sidebar toggle, menu) adapt to theme
 
 **Success Criteria:**
+
 - [ ] Back button is visible in both modes
 - [ ] Chatroom name text is readable in both modes
 - [ ] Team badge is visible in both modes
@@ -82,10 +91,12 @@ Update the header portal content injected by ChatroomDashboard to use chatroom C
 Make the markdown/prose content in MessageFeed and PromptModal theme-aware.
 
 **Files Modified:**
+
 - `apps/webapp/src/modules/chatroom/components/MessageFeed.tsx`
 - `apps/webapp/src/modules/chatroom/components/PromptModal.tsx`
 
 **Tasks:**
+
 1. Change `prose prose-invert` to `prose dark:prose-invert` in MessageFeed
 2. Change `prose prose-invert` to `prose dark:prose-invert` in PromptModal
 3. Review prose-specific color overrides (code blocks, links, tables, blockquotes)
@@ -93,6 +104,7 @@ Make the markdown/prose content in MessageFeed and PromptModal theme-aware.
 5. Ensure code blocks have appropriate background contrast in both modes
 
 **Success Criteria:**
+
 - [ ] Message content is readable in light mode
 - [ ] Prompt preview is readable in light mode
 - [ ] Code blocks have visible backgrounds in both modes
@@ -108,6 +120,7 @@ Make the markdown/prose content in MessageFeed and PromptModal theme-aware.
 Review all other chatroom components for any remaining hardcoded colors that may have been missed.
 
 **Files to Audit:**
+
 - `apps/webapp/src/modules/chatroom/components/ChatroomSelector.tsx`
 - `apps/webapp/src/modules/chatroom/components/SendForm.tsx`
 - `apps/webapp/src/modules/chatroom/components/AgentPanel.tsx`
@@ -120,12 +133,14 @@ Review all other chatroom components for any remaining hardcoded colors that may
 - `apps/webapp/src/modules/chatroom/components/WorkingIndicator.tsx`
 
 **Tasks:**
-1. Search for any hardcoded color classes (zinc-*, emerald-*, blue-*, etc.) that aren't status colors
+
+1. Search for any hardcoded color classes (zinc-_, emerald-_, blue-\*, etc.) that aren't status colors
 2. Replace non-status hardcoded colors with chatroom CSS variables
 3. Verify status colors use the appropriate chatroom status variables
 4. Test each component in both light and dark modes
 
 **Success Criteria:**
+
 - [ ] All chatroom components render correctly in light mode
 - [ ] All chatroom components render correctly in dark mode
 - [ ] Status indicators remain distinguishable in both modes
@@ -139,11 +154,13 @@ Review all other chatroom components for any remaining hardcoded colors that may
 Optionally improve the theme support for callback success/error cards and authentication-related UI.
 
 **Files Modified:**
+
 - `apps/webapp/src/components/CallbackSuccessCard.tsx`
 - `apps/webapp/src/components/CallbackErrorCard.tsx`
 - `apps/webapp/src/app/recover/page.tsx` (error state styling)
 
 **Tasks:**
+
 1. Review success card green background (`bg-green-100`, `bg-green-600`, etc.)
 2. Review error card red background styling
 3. Consider using semantic tokens for card backgrounds while keeping status colors for icons/text
@@ -151,8 +168,9 @@ Optionally improve the theme support for callback success/error cards and authen
 5. Test the recovery page error state in both modes
 
 **Success Criteria:**
+
 - [ ] Success cards are readable in both modes
-- [ ] Error cards are readable in both modes  
+- [ ] Error cards are readable in both modes
 - [ ] Status colors remain meaningful (green = success, red = error)
 - [ ] Recovery page error messages are visible in both modes
 

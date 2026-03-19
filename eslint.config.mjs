@@ -315,8 +315,7 @@ export default [
           patterns: [
             {
               group: ['./*.js', '../*.js', '**/*.js'],
-              message:
-                'Do not use .js extensions in import paths. Use extensionless imports.',
+              message: 'Do not use .js extensions in import paths. Use extensionless imports.',
             },
           ],
         },

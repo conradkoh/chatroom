@@ -5,8 +5,8 @@
  * after receiving an event.
  */
 
-import type { Id } from '../../../convex/_generated/dataModel';
 import type { AgentHarness } from './agent.js';
+import type { Id } from '../../../convex/_generated/dataModel';
 
 export type AgentStartedEvent = {
   type: 'agent.started';

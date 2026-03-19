@@ -9,10 +9,10 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
+import { promoteQueuedMessage } from './promote-queued-message';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import { t } from '../../../../test.setup';
-import { promoteQueuedMessage } from './promote-queued-message';
 
 // ---------------------------------------------------------------------------
 // Helpers

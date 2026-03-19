@@ -105,15 +105,15 @@ describe('listSkills', () => {
     expect(exitSpy).not.toHaveBeenCalled();
     const output = getAllLogOutput();
     expect(output).toContain('backlog');
-    expect(output).toContain('Score all unscored backlog items by complexity, value, and priority.');
+    expect(output).toContain(
+      'Score all unscored backlog items by complexity, value, and priority.'
+    );
     expect(output).toContain('Available skills:');
   });
 
   it('exits with code 1 when query throws a generic error', async () => {
     const deps = createMockDeps();
-    (deps.backend.query as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('Network error')
-    );
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
 
     await listSkills(TEST_CHATROOM_ID, { role: 'builder' }, deps);
 

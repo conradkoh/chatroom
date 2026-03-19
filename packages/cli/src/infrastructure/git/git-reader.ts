@@ -58,10 +58,7 @@ function isGitNotInstalled(message: string): boolean {
 
 /** Returns true if the error message indicates this is not a git repository. */
 function isNotAGitRepo(message: string): boolean {
-  return (
-    message.includes('not a git repository') ||
-    message.includes('Not a git repository')
-  );
+  return message.includes('not a git repository') || message.includes('Not a git repository');
 }
 
 /** Returns true if the error message indicates permission was denied. */
@@ -281,7 +278,13 @@ export async function getRecentCommits(
     if (!trimmed) continue;
     const parts = trimmed.split('\x00');
     if (parts.length !== 5) continue;
-    const [sha, shortSha, message, author, date] = parts as [string, string, string, string, string];
+    const [sha, shortSha, message, author, date] = parts as [
+      string,
+      string,
+      string,
+      string,
+      string,
+    ];
     commits.push({ sha, shortSha, message, author, date });
   }
 

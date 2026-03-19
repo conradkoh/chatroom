@@ -18,6 +18,7 @@ The complexity of crafting bash commands with correct escape sequences is too ha
 **Remove inline content options entirely. Only support file-based input.**
 
 Instead of:
+
 ```bash
 # Hard for AI models - escape sequences are complex
 chatroom handoff <id> --role=builder --message="Complex \"quoted\" content with
@@ -25,6 +26,7 @@ newlines and $variables" --next-role=reviewer
 ```
 
 Require:
+
 ```bash
 # Easy for AI models - just write to a file with unique ID
 mkdir -p tmp/chatroom
@@ -35,12 +37,12 @@ chatroom handoff <id> --role=builder --message-file="$MSG_FILE" --next-role=revi
 
 ### Affected Commands
 
-| Command | Old Options | New Options |
-|---------|-------------|-------------|
-| `handoff` | `--message`, `--message-file` | `--message-file` only |
+| Command        | Old Options                           | New Options               |
+| -------------- | ------------------------------------- | ------------------------- |
+| `handoff`      | `--message`, `--message-file`         | `--message-file` only     |
 | `task-started` | `--description`, `--description-file` | `--description-file` only |
-| `task-started` | `--tech-specs`, `--tech-specs-file` | `--tech-specs-file` only |
-| `backlog add` | `--content`, `--content-file` | `--content-file` only |
+| `task-started` | `--tech-specs`, `--tech-specs-file`   | `--tech-specs-file` only  |
+| `backlog add`  | `--content`, `--content-file`         | `--content-file` only     |
 
 ### Design Principles
 
@@ -60,6 +62,7 @@ chatroom handoff <id> --role=builder --message-file="$MSG_FILE" --next-role=revi
 ### File Location
 
 Files are written to `tmp/chatroom/` in the working directory. This location:
+
 - Avoids system permission prompts that occur when writing to `/tmp/`
 - Avoids "dot file protection" that some systems have for dotfiles/dotfolders
 

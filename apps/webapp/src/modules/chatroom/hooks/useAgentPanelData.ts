@@ -6,8 +6,9 @@ import type {
 } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useMemo, useCallback } from 'react';
-import type { MachineInfo, AgentConfig } from '../types/machine';
+
 import type { AgentPreference } from '../components/AgentConfigTabs';
+import type { MachineInfo, AgentConfig } from '../types/machine';
 
 export type { AgentRoleView, WorkspaceView };
 
@@ -37,10 +38,7 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
   const sendCommand = useSessionMutation(api.machines.sendCommand);
   const saveAgentPreference = useSessionMutation(api.machines.saveAgentPreference);
 
-  const agents = useMemo<AgentRoleView[]>(
-    () => statusResult?.agents ?? [],
-    [statusResult?.agents]
-  );
+  const agents = useMemo<AgentRoleView[]>(() => statusResult?.agents ?? [], [statusResult?.agents]);
 
   const teamRoles = useMemo<string[]>(
     () => statusResult?.teamRoles ?? [],
@@ -67,9 +65,7 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
   }, []);
 
   const isLoading =
-    statusResult === undefined ||
-    machineResult === undefined ||
-    machineConfigResult === undefined;
+    statusResult === undefined || machineResult === undefined || machineConfigResult === undefined;
 
   const savePreference = useCallback(
     (pref: AgentPreference) => {

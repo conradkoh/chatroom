@@ -63,11 +63,11 @@ touch src/content/intro.mdx
 #### Option A: Full Page Template (with layout)
 
 ```mdx
-import MdxLayout from "../../../components/MdxLayout";
+import MdxLayout from '../../../components/MdxLayout';
 
 export const metadata = {
-  title: "Your Page Title",
-  description: "A brief description of your content",
+  title: 'Your Page Title',
+  description: 'A brief description of your content',
 };
 
 # Your Page Title
@@ -122,8 +122,8 @@ const example = "embedded content";
 
 ```tsx
 // Import MDX as a component
-import IntroContent from "../content/intro.mdx";
-import FeaturesContent from "../content/features.mdx";
+import IntroContent from '../content/intro.mdx';
+import FeaturesContent from '../content/features.mdx';
 
 export default function MyPage() {
   return (
@@ -310,13 +310,11 @@ src/app/guide/page.mdx        # Correct - creates /guide route
 You can import and use React components:
 
 ```mdx
-import CustomCard from "../components/CustomCard";
+import CustomCard from '../components/CustomCard';
 
 # My Guide
 
-<CustomCard title="Important Note">
-  This is a custom component within MDX content.
-</CustomCard>
+<CustomCard title="Important Note">This is a custom component within MDX content.</CustomCard>
 ```
 
 ### Conditional Content
@@ -324,7 +322,7 @@ import CustomCard from "../components/CustomCard";
 Use JavaScript expressions for dynamic content:
 
 ```mdx
-export const isProduction = process.env.NODE_ENV === "production";
+export const isProduction = process.env.NODE_ENV === 'production';
 
 # My Guide
 
@@ -343,7 +341,7 @@ export const isProduction = process.env.NODE_ENV === "production";
 Create different layouts for different content types:
 
 ```mdx
-import BlogLayout from "../../../components/BlogLayout"; // Different layout
+import BlogLayout from '../../../components/BlogLayout'; // Different layout
 
 # Blog Post Title
 

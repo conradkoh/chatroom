@@ -1,5 +1,5 @@
 ---
-applyTo: "**"
+applyTo: '**'
 ---
 
 # Backend Development Guidelines
@@ -13,7 +13,7 @@ This document provides backend-specific context and coding guidelines for the Co
 All Convex backend queries, mutations, and actions that require authentication must use `SessionIdArg` from convex-helpers:
 
 ```ts
-import { SessionIdArg } from "convex-helpers/server/sessions";
+import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 export const myQuery = query({
   args: {

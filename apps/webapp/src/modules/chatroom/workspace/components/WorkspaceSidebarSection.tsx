@@ -1,8 +1,13 @@
 'use client';
 
-import { memo, useState, useCallback } from 'react';
 import { FolderOpen, GitBranch } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { memo, useState, useCallback } from 'react';
+
+import { InlineDiffStat } from './shared';
+import { WorkspaceGitPanel } from './WorkspaceGitPanel';
+import type { Workspace } from '../../types/workspace';
+import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
+
 import {
   FixedModal,
   FixedModalContent,
@@ -10,10 +15,7 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
-import type { Workspace } from '../../types/workspace';
-import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
-import { WorkspaceGitPanel } from './WorkspaceGitPanel';
-import { InlineDiffStat } from './shared';
+import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -61,7 +63,9 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
 
       {/* Hostname */}
       <span className="text-[11px] text-chatroom-text-muted">·</span>
-      <span className="text-[11px] text-chatroom-text-muted uppercase tracking-wider">{workspace.hostname}</span>
+      <span className="text-[11px] text-chatroom-text-muted uppercase tracking-wider">
+        {workspace.hostname}
+      </span>
 
       {/* Branch name (when available) */}
       {isAvailable && (
@@ -108,9 +112,12 @@ const WorkspaceRow = memo(function WorkspaceRow({
     statContent = <InlineDiffStat diffStat={gitState.diffStat} showFileCount={false} />;
   }
 
-  const branchName = gitState.status === 'available'
-    ? (gitState.branch === 'HEAD' ? 'detached' : gitState.branch)
-    : null;
+  const branchName =
+    gitState.status === 'available'
+      ? gitState.branch === 'HEAD'
+        ? 'detached'
+        : gitState.branch
+      : null;
 
   return (
     <button
@@ -120,21 +127,21 @@ const WorkspaceRow = memo(function WorkspaceRow({
         'w-full text-left px-3 py-2 flex items-center gap-2 transition-colors',
         isActive
           ? 'bg-chatroom-bg-hover border-l-2 border-chatroom-accent'
-          : 'border-l-2 border-transparent hover:bg-chatroom-bg-hover/50',
+          : 'border-l-2 border-transparent hover:bg-chatroom-bg-hover/50'
       )}
     >
       <FolderOpen
         size={12}
         className={cn(
           'shrink-0',
-          isActive ? 'text-chatroom-text-primary' : 'text-chatroom-text-muted',
+          isActive ? 'text-chatroom-text-primary' : 'text-chatroom-text-muted'
         )}
       />
       <div className="flex flex-col items-start min-w-0">
         <span
           className={cn(
             'text-[10px] font-bold uppercase tracking-wider truncate w-full',
-            isActive ? 'text-chatroom-text-primary' : 'text-chatroom-text-secondary',
+            isActive ? 'text-chatroom-text-primary' : 'text-chatroom-text-secondary'
           )}
         >
           {getWorkspaceName(workspace.workingDir)}
@@ -193,9 +200,7 @@ export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
           Workspaces
         </div>
-        <div className="text-[11px] text-chatroom-text-muted mb-2">
-          No workspaces available
-        </div>
+        <div className="text-[11px] text-chatroom-text-muted mb-2">No workspaces available</div>
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted mb-1">
           Chatroom ID
         </div>

@@ -5,12 +5,12 @@
  * across all three scope modes: machine-wide, per-chatroom, and per-workspace.
  */
 
+import type { SessionId } from 'convex-helpers/server/sessions';
 import { expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { startAgent } from '../../src/domain/usecase/agent/start-agent';
-import type { SessionId } from 'convex-helpers/server/sessions';
 import { t } from '../../test.setup';
 import {
   createPairTeamChatroom,
@@ -101,7 +101,7 @@ test('getAgentRestartMetrics machine-wide scope returns hourly restart counts', 
 
 // ─── Test 2: per-chatroom scope filters correctly ─────────────────────────────
 
-test('getAgentRestartMetrics chatroomId scope returns only that chatroom\'s data', async () => {
+test("getAgentRestartMetrics chatroomId scope returns only that chatroom's data", async () => {
   const { sessionId } = await createTestSession('metrics-q-chatroom-1');
   const chatroomId = await createPairTeamChatroom(sessionId);
   const chatroomId2 = await createPairTeamChatroom(sessionId);

@@ -4,10 +4,12 @@ import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { Search, X, Pencil, Trash2 } from 'lucide-react';
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
+import { getScoringBadge } from './backlog';
 import type { TaskStatus, TaskOrigin } from '../../../domain/entities/task';
+
 type BacklogStatus = 'not_started' | 'started' | 'complete' | 'closed';
 
 interface Task {
@@ -200,8 +202,6 @@ export function TaskQueueModal({ isOpen, tasks, onClose, onTaskClick }: TaskQueu
                   isProtected
                 />
               )}
-
-
             </>
           )}
         </div>
@@ -272,8 +272,6 @@ const compactMarkdownComponents = {
     <span className="underline">{children}</span>
   ),
 };
-
-import { getScoringBadge } from './backlog';
 
 // Task List Item Component
 interface TaskListItemProps {

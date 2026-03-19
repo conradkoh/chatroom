@@ -135,9 +135,7 @@ describe('CursorStreamReader', () => {
 
     it('does not fire for non-result event types', async () => {
       let called = 0;
-      const reader = makeReader([
-        JSON.stringify({ type: 'system', subtype: 'init' }),
-      ]);
+      const reader = makeReader([JSON.stringify({ type: 'system', subtype: 'init' })]);
       reader.onAgentEnd(() => called++);
       await flush();
       expect(called).toBe(0);

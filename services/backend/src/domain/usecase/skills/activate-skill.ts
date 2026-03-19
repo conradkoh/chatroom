@@ -7,9 +7,9 @@
 
 import { ConvexError } from 'convex/values';
 
+import { getSkill } from './get-skill';
 import type { Doc, Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { getSkill } from './get-skill';
 
 export interface ActivateSkillArgs {
   chatroomId: Id<'chatroom_rooms'>;

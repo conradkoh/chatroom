@@ -56,9 +56,10 @@ export function useDiscussionSync({ key, title }: { key: string; title: string }
   ) as DiscussionState | undefined;
 
   // Get discussion messages from backend
-  const messages = useSessionQuery(api.discussions.getDiscussionMessages, key ? { key } : 'skip') as
-    | DiscussionMessage[]
-    | undefined;
+  const messages = useSessionQuery(
+    api.discussions.getDiscussionMessages,
+    key ? { key } : 'skip'
+  ) as DiscussionMessage[] | undefined;
 
   // Get discussion conclusion from backend
   const conclusion = useSessionQuery(

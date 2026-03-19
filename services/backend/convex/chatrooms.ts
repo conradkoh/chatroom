@@ -3,8 +3,8 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess, validateSession } from './auth/cliSessionAuth';
-import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 import { isActiveParticipant } from '../src/domain/entities/participant';
+import { updateTeam as updateTeamUseCase } from '../src/domain/usecase/team/update-team';
 
 /** Creates a new chatroom with the given team configuration. */
 export const create = mutation({

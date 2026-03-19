@@ -22,7 +22,6 @@
  * duplication.
  */
 
-import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
 import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
 import { handoffCommand } from './cli/handoff/command';
@@ -48,6 +47,7 @@ import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromConte
 import type { SelectorContext, PromptSection } from './types/sections';
 import { composeSections } from './types/sections';
 import { getCliEnvPrefix } from './utils/index';
+import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed

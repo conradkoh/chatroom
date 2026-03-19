@@ -10,10 +10,7 @@ import { expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
 import { t } from '../../test.setup';
-import {
-  createPairTeamChatroom,
-  createTestSession,
-} from '../helpers/integration';
+import { createPairTeamChatroom, createTestSession } from '../helpers/integration';
 
 // ─── Test 1: Returns null when no events exist ────────────────────────────────
 

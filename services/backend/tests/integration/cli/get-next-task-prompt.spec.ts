@@ -517,9 +517,13 @@ ${taskDeliveryPrompt.fullCliOutput}
 
     // Should have attached backlog item in context
     expect(jsonContext.contextWindow.originMessage?.attachedBacklogItemIds).toBeDefined();
-    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItemIds?.length).toBeGreaterThan(0);
+    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItemIds?.length).toBeGreaterThan(
+      0
+    );
     expect(jsonContext.contextWindow.originMessage?.attachedBacklogItems).toBeDefined();
-    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItems?.length).toBeGreaterThan(0);
+    expect(jsonContext.contextWindow.originMessage?.attachedBacklogItems?.length).toBeGreaterThan(
+      0
+    );
 
     // Verify backlog item details
     const attachedItem = jsonContext.contextWindow.originMessage?.attachedBacklogItems?.[0];
@@ -664,7 +668,6 @@ Use JWT tokens, bcrypt for passwords`,
     expect(updatedPrompt.json.rolePrompt.currentClassification).toBe('new_feature');
   });
 });
-
 
 describe('Get-Next-Task Error Prompts', () => {
   test('materializes complete interrupt signal reconnection prompt', () => {
@@ -1573,12 +1576,16 @@ describe('Get-Next-Task Recent Improvements', () => {
     expect(originMessage?.attachedBacklogItems).toBeDefined();
     expect(originMessage?.attachedBacklogItems?.length).toBe(1);
     const attachedItem = originMessage?.attachedBacklogItems?.[0];
-    expect(attachedItem?.content).toBe('Refactor: extract shared auth helpers into a utility module');
+    expect(attachedItem?.content).toBe(
+      'Refactor: extract shared auth helpers into a utility module'
+    );
     expect(attachedItem?.status).toBe('backlog');
 
     // ── Verify CLI output contains the item in ## Attached Backlog ────────────
     const fullOutput = taskDeliveryPrompt.fullCliOutput;
     expect(fullOutput).toContain('## Attached Backlog (1)');
-    expect(fullOutput).toContain('- [BACKLOG] Refactor: extract shared auth helpers into a utility module');
+    expect(fullOutput).toContain(
+      '- [BACKLOG] Refactor: extract shared auth helpers into a utility module'
+    );
   });
 });
