@@ -22,11 +22,8 @@ function getModelColor(index: number): string {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ScopeMode = 'workspace' | 'chatroom' | 'machine';
-
 interface AgentRestartChartProps {
   machineId: string;
-  workingDir: string;
   chatroomId: string;
   roles: string[];
 }
@@ -142,11 +139,9 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
 
 export function AgentRestartChart({
   machineId,
-  workingDir,
   chatroomId,
   roles,
 }: AgentRestartChartProps) {
-  const [scopeMode, setScopeMode] = useState<ScopeMode>('workspace');
   const [selectedRole, setSelectedRole] = useState<string>(roles[0] ?? '');
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
     start: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
@@ -189,9 +184,7 @@ export function AgentRestartChart({
       ? {
           machineId,
           role: selectedRole,
-          workingDir: scopeMode === 'workspace' ? workingDir : undefined,
-          chatroomId:
-            scopeMode === 'chatroom' ? (chatroomId as Id<'chatroom_rooms'>) : undefined,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
           startTime: dateRange.start.getTime(),
           endTime: dateRange.end.getTime(),
         }
@@ -281,34 +274,17 @@ export function AgentRestartChart({
         </div>
       </div>
 
-      {/* Unified tab row: scope tabs + optional role tabs */}
+      {/* Role tabs */}
       <div className="flex items-center gap-3">
-        {/* Scope tabs */}
-        {(['workspace', 'chatroom', 'machine'] as const).map((mode) => (
+        {roles.map((role) => (
           <button
-            key={mode}
-            onClick={() => setScopeMode(mode)}
-            className={`${TAB_BASE} ${scopeMode === mode ? TAB_ACTIVE : TAB_INACTIVE}`}
+            key={role}
+            onClick={() => setSelectedRole(role)}
+            className={`${TAB_BASE} ${selectedRole === role ? TAB_ACTIVE : TAB_INACTIVE}`}
           >
-            {mode === 'workspace' ? 'Workspace' : mode === 'chatroom' ? 'Room' : 'Machine'}
+            {role}
           </button>
         ))}
-
-        {/* Divider + role tabs (only when multiple roles) */}
-        {roles.length > 1 && (
-          <>
-            <span className="h-3 w-px bg-chatroom-border flex-shrink-0" />
-            {roles.map((role) => (
-              <button
-                key={role}
-                onClick={() => setSelectedRole(role)}
-                className={`${TAB_BASE} ${selectedRole === role ? TAB_ACTIVE : TAB_INACTIVE}`}
-              >
-                {role}
-              </button>
-            ))}
-          </>
-        )}
       </div>
 
       {/* Chart area */}
