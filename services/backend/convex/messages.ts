@@ -1075,6 +1075,72 @@ export const deletePendingMessage = mutation({
   },
 });
 
+/** Updates the content of a pending message (task still pending — not yet picked up by an agent).
+ *  Also updates the associated task content to stay in sync.
+ */
+export const updatePendingMessage = mutation({
+  args: {
+    ...SessionIdArg,
+    messageId: v.id('chatroom_messages'),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get('chatroom_messages', args.messageId);
+    if (!message) {
+      throw new ConvexError({
+        code: 'MESSAGE_NOT_FOUND',
+        message: 'Message not found.',
+      });
+    }
+
+    // Validate session and check chatroom access
+    await requireChatroomAccess(ctx, args.sessionId, message.chatroomId);
+
+    // Validate non-empty content
+    const trimmed = args.content.trim();
+    if (!trimmed) {
+      throw new ConvexError({
+        code: 'INVALID_CONTENT',
+        message: 'Message content cannot be empty.',
+      });
+    }
+
+    // Guard: only allow edit if the linked task is still pending
+    if (!message.taskId) {
+      throw new ConvexError({
+        code: 'INVALID_MESSAGE',
+        message: 'Message has no associated task and cannot be edited.',
+      });
+    }
+
+    const task = await ctx.db.get('chatroom_tasks', message.taskId);
+    if (!task) {
+      throw new ConvexError({
+        code: 'TASK_NOT_FOUND',
+        message: 'Associated task not found.',
+      });
+    }
+
+    if (task.status !== 'pending') {
+      throw new ConvexError({
+        code: 'INVALID_TASK_STATUS',
+        message: `Cannot edit message: task is already ${task.status}. Only pending messages can be edited.`,
+      });
+    }
+
+    // Update the message content
+    await ctx.db.patch('chatroom_messages', args.messageId, { content: trimmed });
+
+    // Update the associated task content to stay in sync
+    await ctx.db.patch('chatroom_tasks', task._id, {
+      content: trimmed,
+      updatedAt: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
 /** Updates the content of a queued (pending) message before it is dispatched. */
 export const updateQueuedMessage = mutation({
   args: {
