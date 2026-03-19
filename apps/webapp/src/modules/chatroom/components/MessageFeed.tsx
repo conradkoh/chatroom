@@ -40,6 +40,7 @@ import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
+import { getBacklogStatusBadge } from './backlog/presenters';
 import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
@@ -222,8 +223,9 @@ const getClassificationBadge = (classification: Message['classification']) => {
 };
 
 // Map task status to display label and CSS classes for attached task badges
-function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; classes: string } {
+function getAttachedTaskStatusBadge(status?: TaskStatus | string): { label: string; classes: string } {
   switch (status) {
+    // Task-specific statuses
     case 'in_progress':
       return {
         label: 'In Progress',
@@ -240,9 +242,14 @@ function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; class
         label: 'Completed',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
+    // Backlog-specific statuses
+    case 'backlog':
+    case 'pending_user_review':
+    case 'closed':
+      return getBacklogStatusBadge(status);
     default:
       return {
-        label: 'Unknown',
+        label: status ?? 'Unknown',
         classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
       };
   }
@@ -1064,7 +1071,7 @@ const MessageItem = memo(function MessageItem({
             );
           })}
           {message.attachedBacklogItems?.map((item) => {
-            const statusBadge = getAttachedTaskStatusBadge(item.status as TaskStatus);
+            const statusBadge = getAttachedTaskStatusBadge(item.status);
             return (
               <button
                 key={item.id}
