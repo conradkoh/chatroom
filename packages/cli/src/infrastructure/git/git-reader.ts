@@ -16,6 +16,7 @@ import type {
   GitDiffStat,
   GitDiffStatResult,
   GitFullDiffResult,
+  GitPullRequest,
 } from './types.js';
 import { FULL_DIFF_MAX_BYTES } from './types.js';
 
@@ -355,4 +356,81 @@ export async function getCommitMetadata(
   const parts = output.split('\x00');
   if (parts.length !== 3) return null;
   return { message: parts[0]!, author: parts[1]!, date: parts[2]! };
+}
+
+// ─── GitHub CLI Integration ──────────────────────────────────────────────────
+
+/**
+ * Run an arbitrary command in `cwd`.
+ * Returns `{ stdout, stderr }` on success, `{ error }` on failure.
+ * Never throws.
+ */
+async function runCommand(
+  command: string,
+  cwd: string
+): Promise<{ stdout: string; stderr: string } | { error: Error & { code?: number } }> {
+  try {
+    const result = await execAsync(command, {
+      cwd,
+      env: { ...process.env, NO_COLOR: '1' },
+      timeout: 15_000, // 15s timeout for gh commands
+    });
+    return result;
+  } catch (err) {
+    return { error: err as Error & { code?: number } };
+  }
+}
+
+/**
+ * Get open pull requests for the given branch using `gh pr list`.
+ *
+ * Returns an empty array if:
+ * - The `gh` CLI is not installed
+ * - The user is not authenticated with `gh`
+ * - There are no open PRs for the branch
+ * - Any error occurs (graceful degradation)
+ */
+export async function getOpenPRsForBranch(
+  cwd: string,
+  branch: string
+): Promise<GitPullRequest[]> {
+  const result = await runCommand(
+    `gh pr list --head ${JSON.stringify(branch)} --state open --json number,title,url,headRefName,state --limit 5`,
+    cwd
+  );
+
+  if ('error' in result) {
+    // gh not installed, not authenticated, or other failure — degrade gracefully
+    return [];
+  }
+
+  const output = result.stdout.trim();
+  if (!output) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(output);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter(
+        (item: unknown): item is { number: number; title: string; url: string; headRefName: string; state: string } =>
+          typeof item === 'object' &&
+          item !== null &&
+          typeof (item as Record<string, unknown>).number === 'number' &&
+          typeof (item as Record<string, unknown>).title === 'string' &&
+          typeof (item as Record<string, unknown>).url === 'string' &&
+          typeof (item as Record<string, unknown>).headRefName === 'string' &&
+          typeof (item as Record<string, unknown>).state === 'string'
+      )
+      .map((item) => ({
+        number: item.number,
+        title: item.title,
+        url: item.url,
+        headRefName: item.headRefName,
+        state: item.state,
+      }));
+  } catch {
+    // JSON parse failure — degrade gracefully
+    return [];
+  }
 }

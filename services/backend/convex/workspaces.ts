@@ -55,6 +55,7 @@ export const getWorkspaceGitState = query({
         diffStat: row.diffStat ?? { filesChanged: 0, insertions: 0, deletions: 0 },
         recentCommits: row.recentCommits ?? [],
         hasMoreCommits: row.hasMoreCommits ?? false,
+        openPullRequests: row.openPullRequests ?? [],
         updatedAt: row.updatedAt,
       };
     }
@@ -224,6 +225,18 @@ export const upsertWorkspaceGitState = mutation({
       )
     ),
     hasMoreCommits: v.optional(v.boolean()),
+    // Open pull requests for the current branch
+    openPullRequests: v.optional(
+      v.array(
+        v.object({
+          number: v.number(),
+          title: v.string(),
+          url: v.string(),
+          headRefName: v.string(),
+          state: v.string(),
+        })
+      )
+    ),
     // Field present when status === 'error'
     errorMessage: v.optional(v.string()),
   },
@@ -244,6 +257,7 @@ export const upsertWorkspaceGitState = mutation({
       diffStat: args.diffStat,
       recentCommits: args.recentCommits,
       hasMoreCommits: args.hasMoreCommits,
+      openPullRequests: args.openPullRequests,
       errorMessage: args.errorMessage,
       updatedAt: now,
     };

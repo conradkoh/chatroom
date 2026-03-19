@@ -14,6 +14,20 @@ export interface DiffStat {
   deletions: number;
 }
 
+/** An open GitHub pull request for the current branch. */
+export interface GitPullRequest {
+  /** PR number (e.g. 42). */
+  number: number;
+  /** PR title. */
+  title: string;
+  /** Full URL to the PR on GitHub. */
+  url: string;
+  /** The head branch name that the PR was opened from. */
+  headRefName: string;
+  /** PR state (e.g. 'OPEN'). */
+  state: string;
+}
+
 /** A single commit entry from the git log. */
 export interface GitCommit {
   /** Full 40-character SHA. */
@@ -51,6 +65,8 @@ export type WorkspaceGitState =
       recentCommits: GitCommit[];
       /** True if there are more commits beyond the current page. */
       hasMoreCommits: boolean;
+      /** Open pull requests for the current branch. Empty if none or gh unavailable. */
+      openPullRequests: GitPullRequest[];
       /** Unix timestamp (ms) when this state was last pushed by the daemon. */
       updatedAt: number;
     }

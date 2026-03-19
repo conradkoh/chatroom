@@ -1,13 +1,12 @@
 'use client';
 
-import { FolderOpen, GitBranch } from 'lucide-react';
+import { FolderOpen, GitBranch, GitPullRequest as GitPullRequestIcon } from 'lucide-react';
 import { memo, useState, useCallback } from 'react';
 
 import { InlineDiffStat } from './shared';
 import { WorkspaceGitPanel } from './WorkspaceGitPanel';
 import type { Workspace } from '../../types/workspace';
 import { useWorkspaceGit } from '../hooks/useWorkspaceGit';
-
 import {
   FixedModal,
   FixedModalContent,
@@ -87,6 +86,26 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
           <InlineDiffStat diffStat={gitState.diffStat} showFileCount={false} />
         </>
       )}
+
+      {/* Open pull requests (when available) */}
+      {isAvailable && gitState.openPullRequests.length > 0 && (
+        <>
+          <span className="text-[11px] text-chatroom-text-muted">·</span>
+          {gitState.openPullRequests.map((pr) => (
+            <a
+              key={pr.number}
+              href={pr.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-0.5 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors"
+              title={pr.title}
+            >
+              <GitPullRequestIcon size={10} className="shrink-0" />
+              <span className="font-mono">#{pr.number}</span>
+            </a>
+          ))}
+        </>
+      )}
     </div>
   );
 });
@@ -163,6 +182,25 @@ const WorkspaceRow = memo(function WorkspaceRow({
             <>
               <span className="text-[10px] text-chatroom-text-muted">·</span>
               {statContent}
+            </>
+          )}
+          {gitState.status === 'available' && gitState.openPullRequests.length > 0 && (
+            <>
+              <span className="text-[10px] text-chatroom-text-muted">·</span>
+              {gitState.openPullRequests.map((pr) => (
+                <a
+                  key={pr.number}
+                  href={pr.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-0.5 text-[10px] text-chatroom-status-info hover:text-chatroom-accent transition-colors"
+                  title={pr.title}
+                >
+                  <GitPullRequestIcon size={9} className="shrink-0" />
+                  <span className="font-mono">#{pr.number}</span>
+                </a>
+              ))}
             </>
           )}
         </div>
