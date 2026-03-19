@@ -91,6 +91,10 @@ describe('Pair Team > Builder > Get Next Task', () => {
       <summary of current focus>
       EOF\`
       4. Hand off when complete:
+
+      ⚠️ Before handoff: Commit all changes and ensure the working directory is clean.
+         Run: git add -A && git commit -m "<descriptive message>" && git status
+
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -157,6 +161,10 @@ describe('Pair Team > Builder > Get Next Task', () => {
       <summary of current focus>
       EOF\`
       3. Hand off when complete:
+
+      ⚠️ Before handoff: Commit all changes and ensure the working directory is clean.
+         Run: git add -A && git commit -m "<descriptive message>" && git status
+
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role=<target> << 'EOF'
       ---MESSAGE---
