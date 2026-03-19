@@ -35,6 +35,8 @@ export function resolveMachineHostname(
 
 export interface InlineAgentCardProps {
   role: string;
+  /** All agent roles in the workspace (for shared restart stats modal). */
+  allRoles: string[];
   online: boolean;
   lastSeenAt?: number | null;
   latestEventType?: string | null;
@@ -58,6 +60,7 @@ export interface InlineAgentCardProps {
 /** Compact always-visible agent row with tabs for inline remote config editing. */
 export const InlineAgentCard = memo(function InlineAgentCard({
   role,
+  allRoles,
   online,
   lastSeenAt,
   latestEventType,
@@ -170,7 +173,8 @@ export const InlineAgentCard = memo(function InlineAgentCard({
               <AgentRestartStatsModal
                 isOpen={statsOpen}
                 onClose={() => setStatsOpen(false)}
-                role={role}
+                roles={allRoles}
+                defaultRole={role}
                 machineId={statsMachineId}
                 chatroomId={chatroomId}
               />

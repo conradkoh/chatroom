@@ -294,6 +294,7 @@ export const SetupChecklist = memo(function SetupChecklist({
                   <InlineAgentCard
                     key={role}
                     role={role}
+                    allRoles={teamRoles}
                     online={agentStatus?.online ?? false}
                     lastSeenAt={agentStatus?.lastSeenAt ?? null}
                     latestEventType={agentStatus?.latestEventType ?? null}
