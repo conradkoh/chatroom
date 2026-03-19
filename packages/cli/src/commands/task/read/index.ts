@@ -113,10 +113,6 @@ export async function taskRead(
 
     // Display pinned context if available
     if (result.context) {
-      const cliEnvPrefix = `CHATROOM_CONVEX_URL=${d.session.getConvexUrl()}`;
-      const contextNewCmd = `${cliEnvPrefix} chatroom context new --chatroom-id="${chatroomId}" --role="${role}"`;
-      const contextReadCmd = `${cliEnvPrefix} chatroom context read --chatroom-id="${chatroomId}" --role="${role}"`;
-
       console.log('');
       console.log('PINNED CONTEXT');
       console.log('---');
@@ -137,8 +133,14 @@ export async function taskRead(
       const msgsSince = result.context.messagesSinceContext;
       const isStale = hoursAgo >= 24 || msgsSince >= 50;
       if (isStale) {
+        const ageLabel =
+          hoursAgo >= 48
+            ? `${Math.round(hoursAgo / 24)}d old`
+            : hoursAgo >= 24
+              ? `${hoursAgo}h old`
+              : `${msgsSince} messages old`;
         console.log(`<system-notice>`);
-        console.log(`⚠️ Context is ${hoursAgo >= 24 ? `${hoursAgo >= 48 ? Math.round(hoursAgo / 24) + 'd' : hoursAgo + 'h'} old` : `${msgsSince} messages old`}.`);
+        console.log(`⚠️ Context is ${ageLabel}.`);
         console.log(`   Entry point role will update when needed.`);
         console.log(`</system-notice>`);
       }
