@@ -22,11 +22,8 @@ function getModelColor(index: number): string {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ScopeMode = 'workspace' | 'chatroom' | 'machine';
-
 interface AgentRestartChartProps {
   machineId: string;
-  workingDir: string;
   chatroomId: string;
   roles: string[];
 }
@@ -56,24 +53,104 @@ function formatDayLabel(date: Date): string {
   return `${SHORT_MONTH[date.getMonth()]} ${date.getDate()}`;
 }
 
+// ─── Custom Tooltip ──────────────────────────────────────────────────────────
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{ name: string; value: number; color: string }>;
+  label?: string;
+}
+
+function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const total = payload.reduce((sum, entry) => sum + (entry.value ?? 0), 0);
+
+  return (
+    <div
+      style={{
+        backgroundColor: 'var(--chatroom-bg-primary)',
+        border: '2px solid var(--chatroom-border-strong)',
+        borderRadius: '0px',
+        padding: '6px 8px',
+      }}
+    >
+      <div
+        style={{
+          fontWeight: 'bold',
+          fontSize: '9px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          color: 'var(--chatroom-text-muted)',
+          marginBottom: '4px',
+        }}
+      >
+        {label}
+      </div>
+      {/* Per-model breakdown */}
+      {payload.map((entry) =>
+        entry.value > 0 ? (
+          <div
+            key={entry.name}
+            style={{
+              fontSize: '10px',
+              color: 'var(--chatroom-text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              marginBottom: '1px',
+            }}
+          >
+            <div
+              style={{
+                width: '6px',
+                height: '6px',
+                backgroundColor: entry.color,
+                borderRadius: '0px',
+                flexShrink: 0,
+              }}
+            />
+            <span style={{ flex: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{entry.name}</span>
+            <span style={{ fontWeight: 600 }}>{entry.value}</span>
+          </div>
+        ) : null
+      )}
+      {/* Total row */}
+      <div
+        style={{
+          borderTop: '2px solid var(--chatroom-border)',
+          marginTop: '3px',
+          paddingTop: '3px',
+          fontSize: '10px',
+          fontWeight: 'bold',
+          color: 'var(--chatroom-text-primary)',
+          display: 'flex',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
+        <span>{total}</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function AgentRestartChart({
   machineId,
-  workingDir,
   chatroomId,
   roles,
 }: AgentRestartChartProps) {
-  const [scopeMode, setScopeMode] = useState<ScopeMode>('workspace');
   const [selectedRole, setSelectedRole] = useState<string>(roles[0] ?? '');
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
-    start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+    start: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
     end: new Date(),
   });
-  const [selectedPreset, setSelectedPreset] = useState<'7d' | '30d' | 'custom'>('7d');
+  const [selectedPreset, setSelectedPreset] = useState<'3d' | '7d' | '30d' | 'custom'>('3d');
 
-  const handlePreset = useCallback((preset: '7d' | '30d') => {
-    const days = preset === '7d' ? 7 : 30;
+  const handlePreset = useCallback((preset: '3d' | '7d' | '30d') => {
+    const days = preset === '3d' ? 3 : preset === '7d' ? 7 : 30;
     const now = new Date();
     setDateRange({ start: new Date(now.getTime() - days * 24 * 60 * 60 * 1000), end: now });
     setSelectedPreset(preset);
@@ -107,9 +184,7 @@ export function AgentRestartChart({
       ? {
           machineId,
           role: selectedRole,
-          workingDir: scopeMode === 'workspace' ? workingDir : undefined,
-          chatroomId:
-            scopeMode === 'chatroom' ? (chatroomId as Id<'chatroom_rooms'>) : undefined,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
           startTime: dateRange.start.getTime(),
           endTime: dateRange.end.getTime(),
         }
@@ -146,15 +221,19 @@ export function AgentRestartChart({
 
     const chartData = Array.from(dayMap.entries())
       .sort(([, a], [, b]) => a.ts - b.ts)
-      .map(([, { ts, byModel }]) => ({
-        day: formatDayLabel(new Date(ts)),
-        ...byModel,
-      }));
+      .map(([, { ts, byModel }]) => {
+        const _total = Object.values(byModel).reduce((sum, n) => sum + n, 0);
+        return {
+          day: formatDayLabel(new Date(ts)),
+          _total,
+          ...byModel,
+        };
+      });
 
     return { chartData, modelKeys };
   }, [data]);
 
-  const isEmpty = !data || data.length === 0;
+  const isEmpty = !data || data.length === 0 || chartData.length === 0;
 
   return (
     <div className="mt-2 space-y-1.5">
@@ -164,11 +243,11 @@ export function AgentRestartChart({
           <span className="text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted mr-1">
             Restarts
           </span>
-          {(['7d', '30d'] as const).map((preset) => (
+          {(['3d', '7d', '30d'] as const).map((preset) => (
             <button
               key={preset}
               onClick={() => handlePreset(preset)}
-              className={`text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors ${
+              className={`text-[10px] font-medium px-1.5 py-0.5 transition-colors ${
                 selectedPreset === preset
                   ? 'bg-accent/50 text-accent-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-accent/30'
@@ -183,46 +262,29 @@ export function AgentRestartChart({
             type="date"
             value={formatDateInput(dateRange.start)}
             onChange={handleStartChange}
-            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground rounded px-1 py-0.5"
+            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground px-1 py-0.5"
           />
           <span className="text-[9px] text-muted-foreground">–</span>
           <input
             type="date"
             value={formatDateInput(dateRange.end)}
             onChange={handleEndChange}
-            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground rounded px-1 py-0.5"
+            className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground px-1 py-0.5"
           />
         </div>
       </div>
 
-      {/* Unified tab row: scope tabs + optional role tabs */}
+      {/* Role tabs */}
       <div className="flex items-center gap-3">
-        {/* Scope tabs */}
-        {(['workspace', 'chatroom', 'machine'] as const).map((mode) => (
+        {roles.map((role) => (
           <button
-            key={mode}
-            onClick={() => setScopeMode(mode)}
-            className={`${TAB_BASE} ${scopeMode === mode ? TAB_ACTIVE : TAB_INACTIVE}`}
+            key={role}
+            onClick={() => setSelectedRole(role)}
+            className={`${TAB_BASE} ${selectedRole === role ? TAB_ACTIVE : TAB_INACTIVE}`}
           >
-            {mode === 'workspace' ? 'Workspace' : mode === 'chatroom' ? 'Room' : 'Machine'}
+            {role}
           </button>
         ))}
-
-        {/* Divider + role tabs (only when multiple roles) */}
-        {roles.length > 1 && (
-          <>
-            <span className="h-3 w-px bg-chatroom-border flex-shrink-0" />
-            {roles.map((role) => (
-              <button
-                key={role}
-                onClick={() => setSelectedRole(role)}
-                className={`${TAB_BASE} ${selectedRole === role ? TAB_ACTIVE : TAB_INACTIVE}`}
-              >
-                {role}
-              </button>
-            ))}
-          </>
-        )}
       </div>
 
       {/* Chart area */}
@@ -233,7 +295,7 @@ export function AgentRestartChart({
       ) : (
         <div className="h-[120px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 2, right: 4, left: -24, bottom: 0 }}>
+            <BarChart data={chartData} margin={{ top: 14, right: 4, left: -24, bottom: 0 }}>
               <XAxis
                 dataKey="day"
                 tick={{ fontSize: 9, fill: 'var(--chatroom-text-muted)' }}
@@ -249,48 +311,45 @@ export function AgentRestartChart({
                 width={32}
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--chatroom-bg-primary)',
-                  border: '1px solid var(--chatroom-border-strong)',
-                  borderRadius: '0px',
-                  fontSize: '10px',
-                  color: 'var(--chatroom-text-primary)',
-                  padding: '6px 8px',
-                }}
-                labelStyle={{
-                  fontWeight: 'bold',
-                  fontSize: '9px',
-                  textTransform: 'uppercase' as const,
-                  letterSpacing: '0.05em',
-                  color: 'var(--chatroom-text-muted)',
-                  marginBottom: '4px',
-                }}
-                itemStyle={{
-                  color: 'var(--chatroom-text-secondary)',
-                  fontSize: '10px',
-                }}
+                content={<RestartTooltip />}
                 cursor={{ fill: 'var(--chatroom-bg-hover)', opacity: 0.4 }}
               />
-              {modelKeys.map((model, idx) => (
-                <Bar
-                  key={model}
-                  dataKey={model}
-                  stackId="a"
-                  fill={getModelColor(idx)}
-                  radius={idx === modelKeys.length - 1 ? [2, 2, 0, 0] : [0, 0, 0, 0]}
-                >
-                  <LabelList
+              {modelKeys.map((model, idx) => {
+                const isTop = idx === modelKeys.length - 1;
+                return (
+                  <Bar
+                    key={model}
                     dataKey={model}
-                    position="inside"
-                    style={{
-                      fontSize: '8px',
-                      fontWeight: 'bold',
-                      fill: 'var(--chatroom-bg-primary)',
-                    }}
-                    formatter={(value: unknown) => (Number(value) > 0 ? String(value) : '')}
-                  />
-                </Bar>
-              ))}
+                    stackId="a"
+                    fill={getModelColor(idx)}
+                    radius={[0, 0, 0, 0]}
+                  >
+                    <LabelList
+                      dataKey={model}
+                      position="inside"
+                      style={{
+                        fontSize: '8px',
+                        fontWeight: 'bold',
+                        fill: 'var(--chatroom-bg-primary)',
+                      }}
+                      formatter={(value: unknown) => (Number(value) > 0 ? String(value) : '')}
+                    />
+                    {/* Show total count above the topmost bar segment */}
+                    {isTop && (
+                      <LabelList
+                        dataKey="_total"
+                        position="top"
+                        style={{
+                          fontSize: '8px',
+                          fontWeight: 'bold',
+                          fill: 'var(--chatroom-text-muted)',
+                        }}
+                        formatter={(value: unknown) => (Number(value) > 0 ? String(value) : '')}
+                      />
+                    )}
+                  </Bar>
+                );
+              })}
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -302,7 +361,7 @@ export function AgentRestartChart({
           {modelKeys.map((model, idx) => (
             <div key={model} className="flex items-center gap-1">
               <div
-                className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                className="w-2.5 h-2.5 flex-shrink-0"
                 style={{ backgroundColor: getModelColor(idx) }}
               />
               <span className="text-[9px] text-chatroom-text-muted truncate max-w-[160px]" title={model}>

@@ -16,7 +16,6 @@ interface AgentRestartStatsModalProps {
   onClose: () => void;
   role: string;
   machineId: string;
-  workingDir: string;
   chatroomId: string;
 }
 
@@ -25,7 +24,6 @@ export const AgentRestartStatsModal = memo(function AgentRestartStatsModal({
   onClose,
   role,
   machineId,
-  workingDir,
   chatroomId,
 }: AgentRestartStatsModalProps) {
   return (
@@ -38,7 +36,6 @@ export const AgentRestartStatsModal = memo(function AgentRestartStatsModal({
           <div className="p-4">
             <AgentRestartChart
               machineId={machineId}
-              workingDir={workingDir}
               chatroomId={chatroomId}
               roles={[role]}
             />

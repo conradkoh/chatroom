@@ -168,7 +168,6 @@ export const InlineAgentCard = memo(function InlineAgentCard({
                 onClose={() => setStatsOpen(false)}
                 role={role}
                 machineId={statsMachineId}
-                workingDir={agentRoleView?.workingDir ?? ''}
                 chatroomId={chatroomId}
               />
             )}
