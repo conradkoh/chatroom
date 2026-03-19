@@ -60,14 +60,18 @@ function formatDayLabel(date: Date): string {
 
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: Array<{ name: string; value: number; color: string }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload?: Array<{ payload: any; value: number }>;
   label?: string;
 }
 
 function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
 
-  const total = payload.reduce((sum, entry) => sum + (entry.value ?? 0), 0);
+  const entry = payload[0];
+  const total = entry?.value ?? 0;
+  const byModel: Record<string, number> = entry?.payload?._byModel ?? {};
+  const modelEntries = Object.entries(byModel).filter(([, count]) => count > 0);
 
   return (
     <div
@@ -90,33 +94,33 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
       >
         {label}
       </div>
-      {payload.map((entry) =>
-        entry.value > 0 ? (
+      {/* Per-model breakdown */}
+      {modelEntries.map(([model, count], idx) => (
+        <div
+          key={model}
+          style={{
+            fontSize: '10px',
+            color: 'var(--chatroom-text-secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            marginBottom: '1px',
+          }}
+        >
           <div
-            key={entry.name}
             style={{
-              fontSize: '10px',
-              color: 'var(--chatroom-text-secondary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              marginBottom: '1px',
+              width: '6px',
+              height: '6px',
+              backgroundColor: getModelColor(idx),
+              borderRadius: '1px',
+              flexShrink: 0,
             }}
-          >
-            <div
-              style={{
-                width: '6px',
-                height: '6px',
-                backgroundColor: entry.color,
-                borderRadius: '1px',
-                flexShrink: 0,
-              }}
-            />
-            <span style={{ flex: 1 }}>{entry.name}</span>
-            <span style={{ fontWeight: 600 }}>{entry.value}</span>
-          </div>
-        ) : null
-      )}
+          />
+          <span style={{ flex: 1 }}>{model}</span>
+          <span style={{ fontWeight: 600 }}>{count}</span>
+        </div>
+      ))}
+      {/* Total row */}
       <div
         style={{
           borderTop: '1px solid var(--chatroom-border)',
@@ -197,19 +201,14 @@ export function AgentRestartChart({
   );
 
   // Aggregate hourly rows into daily buckets
-  const { chartData, modelKeys } = useMemo(() => {
-    if (!data || data.length === 0) return { chartData: [], modelKeys: [] };
+  const chartData = useMemo(() => {
+    if (!data || data.length === 0) return [];
 
-    const modelSet = new Set<string>();
     const dayMap = new Map<string, { ts: number; byModel: Record<string, number> }>();
 
     for (const { hourBucket, byHarnessModel } of data) {
       const d = new Date(hourBucket);
       const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-
-      for (const key of Object.keys(byHarnessModel)) {
-        modelSet.add(key);
-      }
 
       const existing = dayMap.get(dayKey);
       if (existing) {
@@ -222,23 +221,20 @@ export function AgentRestartChart({
       }
     }
 
-    const modelKeys = Array.from(modelSet);
-
-    const chartData = Array.from(dayMap.entries())
+    return Array.from(dayMap.entries())
       .sort(([, a], [, b]) => a.ts - b.ts)
       .map(([, { ts, byModel }]) => {
-        const _total = Object.values(byModel).reduce((sum, n) => sum + n, 0);
+        const total = Object.values(byModel).reduce((sum, n) => sum + n, 0);
         return {
           day: formatDayLabel(new Date(ts)),
-          _total,
-          ...byModel,
+          total,
+          // Keep per-model data for tooltip detail
+          _byModel: byModel,
         };
       });
-
-    return { chartData, modelKeys };
   }, [data]);
 
-  const isEmpty = !data || data.length === 0;
+  const isEmpty = !data || data.length === 0 || chartData.length === 0;
 
   return (
     <div className="mt-2 space-y-1.5">
@@ -336,63 +332,39 @@ export function AgentRestartChart({
                 content={<RestartTooltip />}
                 cursor={{ fill: 'var(--chatroom-bg-hover)', opacity: 0.4 }}
               />
-              {modelKeys.map((model, idx) => {
-                const isTop = idx === modelKeys.length - 1;
-                return (
-                  <Bar
-                    key={model}
-                    dataKey={model}
-                    stackId="a"
-                    fill={getModelColor(idx)}
-                    radius={isTop ? [2, 2, 0, 0] : [0, 0, 0, 0]}
-                  >
-                    <LabelList
-                      dataKey={model}
-                      position="inside"
-                      style={{
-                        fontSize: '8px',
-                        fontWeight: 'bold',
-                        fill: 'var(--chatroom-bg-primary)',
-                      }}
-                      formatter={(value: unknown) => (Number(value) > 0 ? String(value) : '')}
-                    />
-                    {/* Show total count above the topmost bar segment */}
-                    {isTop && (
-                      <LabelList
-                        dataKey="_total"
-                        position="top"
-                        style={{
-                          fontSize: '8px',
-                          fontWeight: 'bold',
-                          fill: 'var(--chatroom-text-muted)',
-                        }}
-                        formatter={(value: unknown) => (Number(value) > 0 ? String(value) : '')}
-                      />
-                    )}
-                  </Bar>
-                );
-              })}
+              <Bar
+                dataKey="total"
+                fill="var(--chatroom-status-info)"
+                radius={[2, 2, 0, 0]}
+              >
+                {/* Total count inside bar */}
+                <LabelList
+                  dataKey="total"
+                  position="inside"
+                  style={{
+                    fontSize: '8px',
+                    fontWeight: 'bold',
+                    fill: 'var(--chatroom-bg-primary)',
+                  }}
+                  formatter={(value: unknown) => (Number(value) > 0 ? String(value) : '')}
+                />
+                {/* Total count above bar */}
+                <LabelList
+                  dataKey="total"
+                  position="top"
+                  style={{
+                    fontSize: '8px',
+                    fontWeight: 'bold',
+                    fill: 'var(--chatroom-text-muted)',
+                  }}
+                  formatter={(value: unknown) => (Number(value) > 0 ? String(value) : '')}
+                />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
       )}
 
-      {/* Model legend */}
-      {!isEmpty && modelKeys.length > 0 && (
-        <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-          {modelKeys.map((model, idx) => (
-            <div key={model} className="flex items-center gap-1">
-              <div
-                className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                style={{ backgroundColor: getModelColor(idx) }}
-              />
-              <span className="text-[9px] text-chatroom-text-muted truncate max-w-[160px]" title={model}>
-                {model}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
