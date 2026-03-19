@@ -85,6 +85,10 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
       <tech-specs>
       EOF
       3. Hand off when complete:
+
+      ⚠️ Before handoff: Commit all changes and ensure the working directory is clean.
+         Run: git add -A && git commit -m "<descriptive message>" && git status
+
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -148,6 +152,10 @@ describe('Squad Team > Reviewer > Get Next Task', () => {
 
       1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id"\`
       2. Hand off when complete:
+
+      ⚠️ Before handoff: Commit all changes and ensure the working directory is clean.
+         Run: git add -A && git commit -m "<descriptive message>" && git status
+
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
