@@ -1,17 +1,14 @@
 'use client';
 
 import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
-import { FolderOpen, ChevronRight } from 'lucide-react';
-import { memo, useState } from 'react';
+import { FolderOpen } from 'lucide-react';
+import { memo } from 'react';
 
 import { InlineAgentCard } from './InlineAgentCard';
 import type { AgentWithStatus } from './UnifiedAgentListModal';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import type { Workspace } from '../../types/workspace';
-import { WorkspaceGitPanel } from '../../workspace/components/WorkspaceGitPanel';
 import type { AgentPreference } from '../AgentConfigTabs';
-
-import { cn } from '@/lib/utils';
 
 interface WorkspaceAgentListProps {
   workspace: Workspace | null;
@@ -41,7 +38,6 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
   agentPreferenceMap,
   onSavePreference,
 }: WorkspaceAgentListProps) {
-  const [gitExpanded, setGitExpanded] = useState(false);
   if (!workspace) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
@@ -103,36 +99,6 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
           </div>
         </div>
       </div>
-
-      {/* Git panel — collapsible */}
-      {workspace.machineId && workspace.workingDir && (
-        <div className="border-b border-chatroom-border flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => setGitExpanded((v) => !v)}
-            className="w-full flex items-center justify-between px-4 py-1.5 hover:bg-chatroom-bg-hover transition-colors"
-          >
-            <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
-              Git
-            </span>
-            <ChevronRight
-              size={12}
-              className={cn(
-                'text-chatroom-text-muted transition-transform',
-                gitExpanded && 'rotate-90'
-              )}
-            />
-          </button>
-          {gitExpanded && (
-            <div className="px-4 pb-3">
-              <WorkspaceGitPanel
-                machineId={workspace.machineId}
-                workingDir={workspace.workingDir}
-              />
-            </div>
-          )}
-        </div>
-      )}
 
       {/* "AGENTS" section label — pinned, does not scroll */}
       {workspaceAgents.length > 0 && (
