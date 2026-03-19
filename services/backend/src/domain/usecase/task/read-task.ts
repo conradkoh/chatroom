@@ -174,14 +174,20 @@ async function fetchCurrentContext(
   const elapsedMs = Date.now() - context.createdAt;
   const elapsedHours = elapsedMs / (1000 * 60 * 60);
 
-  // Compute messages since context creation
-  // Use message count from DB query (same approach as taskDelivery.ts)
-  const allMessages = await ctx.db
-    .query('chatroom_messages')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .collect();
-  const currentMessageCount = allMessages.length;
-  const messagesSinceContext = currentMessageCount - (context.messageCountAtCreation ?? 0);
+  // Compute messages since context creation.
+  // We count only messages created after the context to avoid collecting the entire
+  // chatroom history. This is efficient even for large chatrooms because we filter
+  // by creation time and only need to count the recent subset.
+  let messagesSinceContext = 0;
+  if (context.messageCountAtCreation != null) {
+    // Use indexed query filtered by creation time to count only recent messages
+    const recentMessages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .filter((q) => q.gte(q.field('_creationTime'), context.createdAt))
+      .collect();
+    messagesSinceContext = recentMessages.length;
+  }
 
   // Fetch trigger message if available
   let triggerMessageContent: string | undefined;
