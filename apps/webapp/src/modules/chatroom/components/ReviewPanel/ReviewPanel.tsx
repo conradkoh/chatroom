@@ -3,8 +3,8 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Check, ClipboardCheck, CornerUpLeft, Inbox } from 'lucide-react';
-import React, { useState, useCallback, useMemo, useEffect, memo } from 'react';
+import { Check, ClipboardCheck, CornerUpLeft, Inbox, Undo2 } from 'lucide-react';
+import React, { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -22,12 +22,23 @@ import { type BacklogItem, getScoringBadge } from '../backlog';
 import { baseMarkdownComponents, backlogProseClassNames } from '../markdown-utils';
 import { formatRelativeTime } from '../WorkQueue/utils';
 
-// ─── Props ──────────────────────────────────────────────────────────────
+// ─── Constants ──────────────────────────────────────────────────────────
+
+const MAX_UNDO_ENTRIES = 5;
+const UNDO_TIMEOUT_MS = 30_000;
+
+// ─── Types ──────────────────────────────────────────────────────────────
 
 export interface ReviewPanelProps {
   isOpen: boolean;
   onClose: () => void;
   chatroomId: Id<'chatroom_rooms'>;
+}
+
+interface UndoEntry {
+  item: BacklogItem;
+  action: 'completed' | 'sent_back';
+  timestamp: number;
 }
 
 // ─── ReviewListItem ─────────────────────────────────────────────────────
@@ -156,7 +167,7 @@ const ReviewDetail = memo(function ReviewDetail({
           className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide border-2 border-chatroom-status-success text-chatroom-status-success hover:bg-chatroom-status-success hover:text-chatroom-bg-primary transition-all duration-100 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Check size={12} />
-          {isLoading ? 'Working...' : 'Mark Complete'}
+          Mark Complete
         </button>
         <button
           type="button"
@@ -168,6 +179,60 @@ const ReviewDetail = memo(function ReviewDetail({
           Back to Backlog
         </button>
       </div>
+    </div>
+  );
+});
+
+// ─── UndoBar ────────────────────────────────────────────────────────────
+
+interface UndoBarProps {
+  entries: UndoEntry[];
+  onUndo: (entry: UndoEntry) => void;
+}
+
+const UndoBar = memo(function UndoBar({ entries, onUndo }: UndoBarProps) {
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="border-t-2 border-chatroom-border-strong bg-chatroom-bg-tertiary flex-shrink-0">
+      {/* Header */}
+      <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+        Recently Dismissed ({entries.length})
+      </div>
+
+      {/* Entries */}
+      {entries.map((entry) => (
+        <div
+          key={entry.item._id}
+          className="flex items-center gap-2 px-3 py-1.5 border-t border-chatroom-border"
+        >
+          {/* Action indicator */}
+          <span
+            className={`flex-shrink-0 px-1 py-0.5 text-[7px] font-bold uppercase tracking-wide ${
+              entry.action === 'completed'
+                ? 'bg-chatroom-status-success/15 text-chatroom-status-success'
+                : 'bg-chatroom-text-muted/15 text-chatroom-text-muted'
+            }`}
+          >
+            {entry.action === 'completed' ? 'Done' : 'Sent Back'}
+          </span>
+
+          {/* Content preview */}
+          <span className="flex-1 min-w-0 text-[10px] text-chatroom-text-secondary line-clamp-1">
+            {entry.item.content}
+          </span>
+
+          {/* Undo button */}
+          <button
+            type="button"
+            onClick={() => onUndo(entry)}
+            className="flex-shrink-0 flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-chatroom-text-muted hover:text-chatroom-accent transition-colors"
+          >
+            <Undo2 size={10} />
+            Undo
+          </button>
+        </div>
+      ))}
     </div>
   );
 });
@@ -203,7 +268,9 @@ export const ReviewPanel = memo(function ReviewPanel({
   chatroomId,
 }: ReviewPanelProps) {
   const [selectedId, setSelectedId] = useState<Id<'chatroom_backlog'> | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
+  const undoTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Fetch pending review backlog items
   const pendingReviewItemsRaw = useSessionQuery(api.backlog.listBacklogItems, {
@@ -211,90 +278,193 @@ export const ReviewPanel = memo(function ReviewPanel({
     statusFilter: 'pending_user_review',
     limit: 100,
   });
-  const items = useMemo(
+  const allItems = useMemo(
     () => (pendingReviewItemsRaw ?? []) as BacklogItem[],
     [pendingReviewItemsRaw]
+  );
+
+  // Filter out optimistically dismissed items
+  const visibleItems = useMemo(
+    () => allItems.filter((i) => !dismissedIds.has(i._id)),
+    [allItems, dismissedIds]
   );
 
   // Mutations
   const completeItem = useSessionMutation(api.backlog.completeBacklogItem);
   const sendBackForRework = useSessionMutation(api.backlog.sendBacklogItemBackForRework);
+  const reopenItem = useSessionMutation(api.backlog.reopenBacklogItem);
+  const markForReview = useSessionMutation(api.backlog.markBacklogItemForReview);
 
-  // Auto-select first item when panel opens or items change
+  // Auto-select first visible item when panel opens or visible items change
   useEffect(() => {
-    if (isOpen && items.length > 0) {
-      // If no selection or selected item no longer exists, select first
-      const selectionStillValid = selectedId && items.some((i) => i._id === selectedId);
+    if (isOpen && visibleItems.length > 0) {
+      const selectionStillValid =
+        selectedId && visibleItems.some((i) => i._id === selectedId);
       if (!selectionStillValid) {
-        setSelectedId(items[0]._id);
+        setSelectedId(visibleItems[0]._id);
       }
     }
-  }, [isOpen, items, selectedId]);
+  }, [isOpen, visibleItems, selectedId]);
 
-  // Reset selection when modal closes
+  // Reset all state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setSelectedId(null);
+      setDismissedIds(new Set());
+      setUndoStack([]);
+      // Clear all undo timers
+      for (const timer of undoTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      undoTimersRef.current.clear();
     }
   }, [isOpen]);
 
-  // Find selected item from live data
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      for (const timer of undoTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+    };
+  }, []);
+
+  // Find selected item from visible data
   const selectedItem = useMemo(
-    () => items.find((i) => i._id === selectedId) ?? null,
-    [items, selectedId]
+    () => visibleItems.find((i) => i._id === selectedId) ?? null,
+    [visibleItems, selectedId]
   );
 
-  // Handle complete — auto-select next item
+  // ── Helper: select next item after dismissal ───────────────────────────
+
+  const selectNextItem = useCallback(
+    (dismissedItemId: string) => {
+      const currentIndex = visibleItems.findIndex((i) => i._id === dismissedItemId);
+      const remainingItems = visibleItems.filter((i) => i._id !== dismissedItemId);
+      if (remainingItems.length > 0) {
+        const nextIndex = Math.min(currentIndex, remainingItems.length - 1);
+        setSelectedId(remainingItems[nextIndex]._id);
+      } else {
+        setSelectedId(null);
+      }
+    },
+    [visibleItems]
+  );
+
+  // ── Helper: add to undo stack with auto-expiry ─────────────────────────
+
+  const addToUndoStack = useCallback((entry: UndoEntry) => {
+    setUndoStack((prev) => {
+      const updated = [entry, ...prev].slice(0, MAX_UNDO_ENTRIES);
+      return updated;
+    });
+
+    // Set auto-expiry timer
+    const timer = setTimeout(() => {
+      setUndoStack((prev) => prev.filter((e) => e.item._id !== entry.item._id));
+      // Also clean up dismissedIds — the server mutation should be done by now,
+      // and the reactive query will have removed the item from allItems
+      setDismissedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(entry.item._id);
+        return next;
+      });
+      undoTimersRef.current.delete(entry.item._id);
+    }, UNDO_TIMEOUT_MS);
+
+    undoTimersRef.current.set(entry.item._id, timer);
+  }, []);
+
+  // ── Helper: revert optimistic dismissal ────────────────────────────────
+
+  const revertDismissal = useCallback((itemId: string) => {
+    setDismissedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(itemId);
+      return next;
+    });
+    setUndoStack((prev) => prev.filter((e) => e.item._id !== itemId));
+    // Clear timer
+    const timer = undoTimersRef.current.get(itemId);
+    if (timer) {
+      clearTimeout(timer);
+      undoTimersRef.current.delete(itemId);
+    }
+  }, []);
+
+  // ── Handle complete — optimistic ───────────────────────────────────────
+
   const handleComplete = useCallback(
-    async (itemId: Id<'chatroom_backlog'>) => {
-      setIsLoading(true);
-      try {
-        // Find current index to determine next item
-        const currentIndex = items.findIndex((i) => i._id === itemId);
-        await completeItem({ itemId });
+    (itemId: Id<'chatroom_backlog'>) => {
+      const item = visibleItems.find((i) => i._id === itemId);
+      if (!item) return;
 
-        // Auto-select next item after completion
-        // The item will be removed from the list by the reactive query
-        // Select the next item in the list, or the previous if we were at the end
-        const remainingItems = items.filter((i) => i._id !== itemId);
-        if (remainingItems.length > 0) {
-          const nextIndex = Math.min(currentIndex, remainingItems.length - 1);
-          setSelectedId(remainingItems[nextIndex]._id);
-        } else {
-          setSelectedId(null);
-        }
-      } catch (error) {
+      // Optimistic: dismiss immediately
+      setDismissedIds((prev) => new Set(prev).add(itemId));
+      selectNextItem(itemId);
+
+      // Add to undo stack
+      addToUndoStack({ item, action: 'completed', timestamp: Date.now() });
+
+      // Fire mutation in background
+      completeItem({ itemId }).catch((error) => {
         console.error('Failed to complete item:', error);
-      } finally {
-        setIsLoading(false);
-      }
+        // Revert optimistic update on failure
+        revertDismissal(itemId);
+      });
     },
-    [completeItem, items]
+    [visibleItems, completeItem, selectNextItem, addToUndoStack, revertDismissal]
   );
 
-  // Handle send back to backlog
-  const handleSendBack = useCallback(
-    async (itemId: Id<'chatroom_backlog'>) => {
-      setIsLoading(true);
-      try {
-        const currentIndex = items.findIndex((i) => i._id === itemId);
-        await sendBackForRework({ itemId });
+  // ── Handle send back — optimistic ──────────────────────────────────────
 
-        // Auto-select next item
-        const remainingItems = items.filter((i) => i._id !== itemId);
-        if (remainingItems.length > 0) {
-          const nextIndex = Math.min(currentIndex, remainingItems.length - 1);
-          setSelectedId(remainingItems[nextIndex]._id);
-        } else {
-          setSelectedId(null);
-        }
-      } catch (error) {
+  const handleSendBack = useCallback(
+    (itemId: Id<'chatroom_backlog'>) => {
+      const item = visibleItems.find((i) => i._id === itemId);
+      if (!item) return;
+
+      // Optimistic: dismiss immediately
+      setDismissedIds((prev) => new Set(prev).add(itemId));
+      selectNextItem(itemId);
+
+      // Add to undo stack
+      addToUndoStack({ item, action: 'sent_back', timestamp: Date.now() });
+
+      // Fire mutation in background
+      sendBackForRework({ itemId }).catch((error) => {
         console.error('Failed to send item back:', error);
-      } finally {
-        setIsLoading(false);
+        // Revert optimistic update on failure
+        revertDismissal(itemId);
+      });
+    },
+    [visibleItems, sendBackForRework, selectNextItem, addToUndoStack, revertDismissal]
+  );
+
+  // ── Handle undo ────────────────────────────────────────────────────────
+
+  const handleUndo = useCallback(
+    (entry: UndoEntry) => {
+      const itemId = entry.item._id;
+
+      // Remove from undo stack + dismissed set immediately
+      revertDismissal(itemId);
+
+      // Fire the reversal mutation in background
+      // For completed items: reopenBacklogItem (closed → backlog) then markForReview (backlog → pending_user_review)
+      // For sent_back items: markForReview (backlog → pending_user_review)
+      if (entry.action === 'completed') {
+        reopenItem({ itemId })
+          .then(() => markForReview({ itemId }))
+          .catch((error) => {
+            console.error('Failed to undo completion:', error);
+          });
+      } else {
+        markForReview({ itemId }).catch((error) => {
+          console.error('Failed to undo send-back:', error);
+        });
       }
     },
-    [sendBackForRework, items]
+    [reopenItem, markForReview, revertDismissal]
   );
 
   return (
@@ -307,14 +477,14 @@ export const ReviewPanel = memo(function ReviewPanel({
               size={16}
               className="text-violet-500 dark:text-violet-400 flex-shrink-0"
             />
-            <FixedModalTitle>Review ({items.length})</FixedModalTitle>
+            <FixedModalTitle>Review ({visibleItems.length})</FixedModalTitle>
           </div>
         </FixedModalHeader>
         <FixedModalBody>
-          {items.length === 0 ? (
+          {visibleItems.length === 0 && undoStack.length === 0 ? (
             <NoItemsState />
           ) : (
-            items.map((item) => (
+            visibleItems.map((item) => (
               <ReviewListItem
                 key={item._id}
                 item={item}
@@ -324,6 +494,9 @@ export const ReviewPanel = memo(function ReviewPanel({
             ))
           )}
         </FixedModalBody>
+
+        {/* Undo Bar — at bottom of sidebar */}
+        <UndoBar entries={undoStack} onUndo={handleUndo} />
       </FixedModalSidebar>
 
       {/* Right Panel — Detail View */}
@@ -337,7 +510,7 @@ export const ReviewPanel = memo(function ReviewPanel({
               item={selectedItem}
               onComplete={handleComplete}
               onSendBack={handleSendBack}
-              isLoading={isLoading}
+              isLoading={false}
             />
           ) : (
             <EmptyState />
