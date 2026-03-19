@@ -57,6 +57,11 @@ export interface FullCliOutputParams {
       status: string;
       content: string;
     }[];
+    attachedMessages?: {
+      _id: string;
+      content: string;
+      senderRole: string;
+    }[];
   } | null;
 
   /** Number of follow-up messages since origin */
@@ -247,6 +252,21 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         `  ${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --backlog-item-id=<id>`
       );
       lines.push('</system-info>');
+    }
+  }
+
+  // Attached messages from origin message (user-pinned messages as context)
+  const attachedMessages = originMessage?.attachedMessages ?? [];
+  if (attachedMessages.length > 0) {
+    lines.push('');
+    lines.push(`## Attached Messages (${attachedMessages.length})`);
+    for (const attached of attachedMessages) {
+      lines.push('<attached-message>');
+      lines.push(`From: ${attached.senderRole}`);
+      lines.push(`ID: ${attached._id}`);
+      lines.push('---');
+      lines.push(attached.content);
+      lines.push('</attached-message>');
     }
   }
 

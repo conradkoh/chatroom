@@ -6,12 +6,9 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 
 import { AttachedBacklogItemChip } from './AttachedBacklogItemChip';
+import { AttachedMessageChip } from './AttachedMessageChip';
 import { AttachedTaskChip } from './AttachedTaskChip';
-import {
-  useAttachments,
-  useTaskAttachments,
-  useBacklogAttachments,
-} from '../context/AttachmentsContext';
+import { useAttachments, useTaskAttachments, useBacklogAttachments, useMessageAttachments } from '../context/AttachmentsContext';
 
 interface SendFormProps {
   chatroomId: string;
@@ -123,6 +120,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
   const { remove, clearAll } = useAttachments();
   const attachedTasks = useTaskAttachments();
   const attachedBacklogItems = useBacklogAttachments();
+  const attachedMessages = useMessageAttachments();
 
   const sendMessage = useSessionMutation(api.messages.send);
 
@@ -161,11 +159,15 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
         ...(attachedBacklogItems.length > 0 && {
           attachedBacklogItemIds: attachedBacklogItems.map((item) => item.id),
         }),
+        // Include attached message IDs if any
+        ...(attachedMessages.length > 0 && {
+          attachedMessageIds: attachedMessages.map((msg) => msg.id),
+        }),
       });
       setMessage('');
       localStorage.removeItem(draftKey);
       // Clear all attachments after successful send
-      if (attachedTasks.length > 0 || attachedBacklogItems.length > 0) {
+      if (attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0) {
         clearAll();
       }
       // Refocus the textarea after successful send
@@ -178,16 +180,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
     } finally {
       setSending(false);
     }
-  }, [
-    message,
-    sending,
-    sendMessage,
-    chatroomId,
-    attachedTasks,
-    attachedBacklogItems,
-    clearAll,
-    draftKey,
-  ]);
+  }, [message, sending, sendMessage, chatroomId, attachedTasks, attachedBacklogItems, attachedMessages, clearAll, draftKey]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -223,7 +216,7 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
   return (
     <div className="bg-chatroom-bg-surface backdrop-blur-xl border-t-2 border-chatroom-border-strong">
       {/* Attached Tasks Row */}
-      {(attachedTasks.length > 0 || attachedBacklogItems.length > 0) && (
+      {(attachedTasks.length > 0 || attachedBacklogItems.length > 0 || attachedMessages.length > 0) && (
         <div className="flex flex-wrap gap-2 px-4 pt-3 pb-1">
           {attachedTasks.map((task) => (
             <AttachedTaskChip
@@ -239,6 +232,15 @@ export const SendForm = memo(function SendForm({ chatroomId }: SendFormProps) {
               itemId={item.id}
               content={item.content}
               onRemove={() => remove('backlog', item.id)}
+            />
+          ))}
+          {attachedMessages.map((msg) => (
+            <AttachedMessageChip
+              key={msg.id}
+              messageId={msg.id}
+              content={msg.content}
+              senderRole={msg.senderRole}
+              onRemove={() => remove('message', msg.id)}
             />
           ))}
         </div>

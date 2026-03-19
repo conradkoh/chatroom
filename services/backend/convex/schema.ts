@@ -380,6 +380,10 @@ export default defineSchema({
     // Agents can attach multiple artifacts to handoffs for reference
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
 
+    // Attached chatroom messages for context
+    // User can attach existing messages as context for a new message
+    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+
     // Message lifecycle tracking
     // acknowledgedAt: When an agent received and started working on this message
     acknowledgedAt: v.optional(v.number()),
@@ -415,6 +419,8 @@ export default defineSchema({
     attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
     // Attached artifacts
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+    // Attached chatroom messages for context
+    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
     // Queue ordering (lower = earlier in queue, older message)
     queuePosition: v.number(),
   })
