@@ -289,6 +289,14 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         `3. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
       );
       lines.push('4. Delegate phase 1 to builder:');
+      lines.push('');
+      lines.push(
+        '⚠️ Before handoff: Commit all changes and ensure the working directory is clean.'
+      );
+      lines.push(
+        '   Run: git add -A && git commit -m "<descriptive message>" && git status'
+      );
+      lines.push('');
       lines.push('```');
       lines.push(
         `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=builder << 'EOF'`
@@ -311,6 +319,14 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         nextStepNum++;
       }
       lines.push(`${nextStepNum}. Hand off when complete:`);
+      lines.push('');
+      lines.push(
+        '⚠️ Before handoff: Commit all changes and ensure the working directory is clean.'
+      );
+      lines.push(
+        '   Run: git add -A && git commit -m "<descriptive message>" && git status'
+      );
+      lines.push('');
       lines.push('```');
       lines.push(
         `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
@@ -343,6 +359,14 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     }
 
     lines.push(`${nextStepNum}. Hand off when complete:`);
+    lines.push('');
+    lines.push(
+      '⚠️ Before handoff: Commit all changes and ensure the working directory is clean.'
+    );
+    lines.push(
+      '   Run: git add -A && git commit -m "<descriptive message>" && git status'
+    );
+    lines.push('');
     lines.push('```');
     lines.push(
       `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
