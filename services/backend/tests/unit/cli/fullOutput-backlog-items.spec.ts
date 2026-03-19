@@ -56,7 +56,11 @@ describe('generateFullCliOutput — attached backlog items', () => {
         content: 'Fix the dark mode toggle',
         classification: null,
         attachedBacklogItems: [
-          { status: 'backlog', content: 'Implement dark mode toggle component' },
+          {
+            _id: 'backlog-item-id-001',
+            status: 'backlog',
+            content: 'Implement dark mode toggle component',
+          },
         ],
       },
     };
@@ -75,8 +79,12 @@ describe('generateFullCliOutput — attached backlog items', () => {
         content: 'Fix multiple things',
         classification: null,
         attachedBacklogItems: [
-          { status: 'backlog', content: 'Item A' },
-          { status: 'pending_user_review', content: 'Item B under review' },
+          { _id: 'backlog-item-id-001', status: 'backlog', content: 'Item A' },
+          {
+            _id: 'backlog-item-id-002',
+            status: 'pending_user_review',
+            content: 'Item B under review',
+          },
         ],
       },
     };
@@ -96,7 +104,9 @@ describe('generateFullCliOutput — attached backlog items', () => {
         content: 'Fix things',
         classification: null,
         attachedTasks: [{ status: 'backlog', content: 'Legacy task item' }],
-        attachedBacklogItems: [{ status: 'backlog', content: 'New backlog item' }],
+        attachedBacklogItems: [
+          { _id: 'backlog-item-id-001', status: 'backlog', content: 'New backlog item' },
+        ],
       },
     };
 
@@ -149,7 +159,13 @@ describe('generateFullCliOutput — attached backlog items', () => {
         senderRole: 'user',
         content: 'Work on this',
         classification: null,
-        attachedBacklogItems: [{ status: 'pending_user_review', content: 'Review this item' }],
+        attachedBacklogItems: [
+          {
+            _id: 'backlog-item-id-001',
+            status: 'pending_user_review',
+            content: 'Review this item',
+          },
+        ],
       },
     };
 
@@ -158,6 +174,174 @@ describe('generateFullCliOutput — attached backlog items', () => {
     expect(output).toContain('[PENDING_USER_REVIEW]');
     // Should NOT contain lowercase status
     expect(output).not.toContain('[pending_user_review]');
+  });
+});
+
+describe('generateFullCliOutput — backlog item tags and guidance', () => {
+  test('wraps each backlog item in <backlog-item> tags', () => {
+    const params = {
+      ...baseParams(),
+      originMessage: {
+        senderRole: 'user',
+        content: 'Work on this',
+        classification: null,
+        attachedBacklogItems: [
+          {
+            _id: 'backlog-item-id-001',
+            status: 'backlog',
+            content: 'Implement dark mode toggle component',
+          },
+        ],
+      },
+    };
+
+    const output = generateFullCliOutput(params);
+
+    expect(output).toContain('<backlog-item>');
+    expect(output).toContain('</backlog-item>');
+  });
+
+  test('includes item ID in each backlog item block', () => {
+    const params = {
+      ...baseParams(),
+      originMessage: {
+        senderRole: 'user',
+        content: 'Work on this',
+        classification: null,
+        attachedBacklogItems: [
+          {
+            _id: 'qn78yc33r4zfp7v7z153qa3rwn837cp7',
+            status: 'backlog',
+            content: 'Implement dark mode toggle component',
+          },
+        ],
+      },
+    };
+
+    const output = generateFullCliOutput(params);
+
+    expect(output).toContain('ID: qn78yc33r4zfp7v7z153qa3rwn837cp7');
+  });
+
+  test('renders <system-info> section with mark-for-review hint after backlog items', () => {
+    const params = {
+      ...baseParams(),
+      originMessage: {
+        senderRole: 'user',
+        content: 'Work on this',
+        classification: null,
+        attachedBacklogItems: [
+          {
+            _id: 'backlog-item-id-001',
+            status: 'backlog',
+            content: 'Implement dark mode toggle component',
+          },
+        ],
+      },
+    };
+
+    const output = generateFullCliOutput(params);
+
+    expect(output).toContain('<system-info>');
+    expect(output).toContain('</system-info>');
+    expect(output).toContain('mark-for-review');
+    expect(output).toContain('--backlog-item-id=');
+  });
+
+  test('system-info hint includes correct env prefix and chatroom ID', () => {
+    const params = {
+      ...baseParams(),
+      originMessage: {
+        senderRole: 'user',
+        content: 'Work on this',
+        classification: null,
+        attachedBacklogItems: [
+          {
+            _id: 'backlog-item-id-001',
+            status: 'backlog',
+            content: 'Implement feature X',
+          },
+        ],
+      },
+    };
+
+    const output = generateFullCliOutput(params);
+
+    expect(output).toContain(CLI_ENV_PREFIX);
+    expect(output).toContain(`--chatroom-id="${CHATROOM_ID}"`);
+  });
+
+  test('system-info hint includes role parameter', () => {
+    const params = {
+      ...baseParams(),
+      originMessage: {
+        senderRole: 'user',
+        content: 'Work on this',
+        classification: null,
+        attachedBacklogItems: [
+          {
+            _id: 'backlog-item-id-001',
+            status: 'backlog',
+            content: 'Implement feature X',
+          },
+        ],
+      },
+    };
+
+    const output = generateFullCliOutput(params);
+
+    expect(output).toContain(`--role="${ROLE}"`);
+  });
+
+  test('does not render system-info when no backlog items attached', () => {
+    const output = generateFullCliOutput(baseParams());
+
+    expect(output).not.toContain('<system-info>');
+  });
+
+  test('wraps multiple backlog items each in their own <backlog-item> tags', () => {
+    const params = {
+      ...baseParams(),
+      originMessage: {
+        senderRole: 'user',
+        content: 'Work on these',
+        classification: null,
+        attachedBacklogItems: [
+          { _id: 'id-aaa', status: 'backlog', content: 'Item A' },
+          { _id: 'id-bbb', status: 'backlog', content: 'Item B' },
+        ],
+      },
+    };
+
+    const output = generateFullCliOutput(params);
+
+    // Should have 2 opening and 2 closing tags
+    const openTags = (output.match(/<backlog-item>/g) || []).length;
+    const closeTags = (output.match(/<\/backlog-item>/g) || []).length;
+    expect(openTags).toBe(2);
+    expect(closeTags).toBe(2);
+
+    expect(output).toContain('ID: id-aaa');
+    expect(output).toContain('ID: id-bbb');
+  });
+
+  test('legacy attachedTasks do not get <backlog-item> tags (no ID available)', () => {
+    const params = {
+      ...baseParams(),
+      originMessage: {
+        senderRole: 'user',
+        content: 'Fix things',
+        classification: null,
+        attachedTasks: [{ status: 'backlog', content: 'Legacy task item' }],
+      },
+    };
+
+    const output = generateFullCliOutput(params);
+
+    // Legacy tasks should still render in the section but without <backlog-item> tags
+    expect(output).toContain('- [BACKLOG] Legacy task item');
+    expect(output).not.toContain('<backlog-item>');
+    expect(output).not.toContain('<system-info>');
   });
 });
 

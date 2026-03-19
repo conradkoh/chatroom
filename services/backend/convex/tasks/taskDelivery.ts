@@ -262,6 +262,7 @@ export async function getTaskDeliveryPromptData(
             ?.map((id) => attachedBacklogItemsMap.get(id))
             .filter(Boolean)
             .map((i) => ({
+              _id: i!.id,
               status: i!.status,
               content: i!.content,
             })),
