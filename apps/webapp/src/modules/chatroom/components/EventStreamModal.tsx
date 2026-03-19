@@ -1,7 +1,7 @@
 'use client';
 
 import { Activity } from 'lucide-react';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import {
   FixedModal,
@@ -46,8 +46,10 @@ export const EventStreamModal = memo(function EventStreamModal({
   const eventListRef = useRef<HTMLDivElement>(null);
   // Snapshot of scrollTop before loading more, used to restore scroll position
   const prevScrollTopRef = useRef<number | null>(null);
-  // Track the event count when load-more was triggered to detect the actual data change
+  // Track the event count when load-more was triggered to detect when new data has arrived
   const prevEventCountRef = useRef<number | null>(null);
+  // Flag to track whether a load-more is pending (prevents real-time events from consuming saved state)
+  const loadMorePendingRef = useRef(false);
 
   // Auto-select first event when events change
   useEffect(() => {
@@ -81,18 +83,28 @@ export const EventStreamModal = memo(function EventStreamModal({
 
   // Restore scroll position after new events are appended (load more).
   // Events are sorted newest-first, so "load more" appends older events at the bottom.
-  // We save scrollTop before the load and restore it once the new data actually arrives
-  // (detected by the event count changing), preventing any React re-render scroll reset.
-  useEffect(() => {
+  // We use useLayoutEffect (runs before browser paint) to prevent visible scroll jumps.
+  // The loadMorePending flag ensures we only restore scroll when the user explicitly
+  // clicked "load more". We wait until more events have actually arrived (count increased)
+  // before restoring, so intermediate renders with stale data don't consume the saved state.
+  useLayoutEffect(() => {
     const container = eventListRef.current;
     const savedScrollTop = prevScrollTopRef.current;
     const savedEventCount = prevEventCountRef.current;
-    if (container && savedScrollTop !== null && savedEventCount !== null) {
-      // Only restore once the event count has actually changed (new data arrived)
-      if (events.length !== savedEventCount) {
+    if (
+      container &&
+      savedScrollTop !== null &&
+      savedEventCount !== null &&
+      loadMorePendingRef.current
+    ) {
+      // Only restore once the event count has actually grown (new data arrived).
+      // This prevents intermediate renders (same data, new array ref) from
+      // consuming the saved scroll state before the real load-more data arrives.
+      if (events.length > savedEventCount) {
         container.scrollTop = savedScrollTop;
         prevScrollTopRef.current = null;
         prevEventCountRef.current = null;
+        loadMorePendingRef.current = false;
       }
     }
   }, [events]);
@@ -104,6 +116,7 @@ export const EventStreamModal = memo(function EventStreamModal({
     if (container) {
       prevScrollTopRef.current = container.scrollTop;
       prevEventCountRef.current = events.length;
+      loadMorePendingRef.current = true;
     }
     onLoadMore();
   }, [onLoadMore, events.length]);
