@@ -1083,6 +1083,15 @@ export default defineSchema({
     // Pagination
     hasMoreCommits: v.optional(v.boolean()),
 
+    // Open pull requests for the current branch (only when status === 'available')
+    openPullRequests: v.optional(v.array(v.object({
+      number: v.number(),
+      title: v.string(),
+      url: v.string(),
+      headRefName: v.string(),
+      state: v.string(),
+    }))),
+
     // Error message (only when status === 'error')
     errorMessage: v.optional(v.string()),
 

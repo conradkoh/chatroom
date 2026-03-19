@@ -14,6 +14,7 @@ import type { DiffStat } from '@workspace/backend/src/domain/types/workspace-git
 export type {
   DiffStat,
   GitCommit,
+  GitPullRequest,
   WorkspaceGitState,
 } from '@workspace/backend/src/domain/types/workspace-git';
 

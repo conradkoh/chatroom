@@ -17,6 +17,7 @@ import {
   getFullDiff,
   getRecentCommits,
   getCommitDetail,
+  getOpenPRsForBranch,
   parseDiffStatLine,
 } from './git-reader.js';
 import { FULL_DIFF_MAX_BYTES } from './types.js';
@@ -364,5 +365,110 @@ describe('getCommitDetail', () => {
     mockFailure('Permission denied');
     const result = await getCommitDetail('/restricted', 'abc1234');
     expect(result.status).toBe('error');
+  });
+});
+
+// ─── getOpenPRsForBranch ─────────────────────────────────────────────────────
+
+describe('getOpenPRsForBranch', () => {
+  test('parses valid PR JSON output', async () => {
+    const prJson = JSON.stringify([
+      {
+        number: 42,
+        title: 'Add feature X',
+        url: 'https://github.com/user/repo/pull/42',
+        headRefName: 'feat/feature-x',
+        state: 'OPEN',
+      },
+    ]);
+    mockSuccess(prJson);
+    const result = await getOpenPRsForBranch('/repo', 'feat/feature-x');
+    expect(result).toEqual([
+      {
+        number: 42,
+        title: 'Add feature X',
+        url: 'https://github.com/user/repo/pull/42',
+        headRefName: 'feat/feature-x',
+        state: 'OPEN',
+      },
+    ]);
+  });
+
+  test('returns empty array for empty JSON array output', async () => {
+    mockSuccess('[]');
+    const result = await getOpenPRsForBranch('/repo', 'main');
+    expect(result).toEqual([]);
+  });
+
+  test('returns empty array when gh is not installed', async () => {
+    mockFailure('command not found: gh');
+    const result = await getOpenPRsForBranch('/repo', 'main');
+    expect(result).toEqual([]);
+  });
+
+  test('returns empty array when gh auth fails', async () => {
+    mockFailure('gh: not logged in');
+    const result = await getOpenPRsForBranch('/repo', 'main');
+    expect(result).toEqual([]);
+  });
+
+  test('returns empty array for non-JSON output', async () => {
+    mockSuccess('not valid json');
+    const result = await getOpenPRsForBranch('/repo', 'main');
+    expect(result).toEqual([]);
+  });
+
+  test('returns empty array for empty output', async () => {
+    mockSuccess('');
+    const result = await getOpenPRsForBranch('/repo', 'main');
+    expect(result).toEqual([]);
+  });
+
+  test('filters out invalid PR objects', async () => {
+    const prJson = JSON.stringify([
+      {
+        number: 42,
+        title: 'Valid PR',
+        url: 'https://github.com/user/repo/pull/42',
+        headRefName: 'feat/x',
+        state: 'OPEN',
+      },
+      { number: 'not-a-number', title: 'Invalid PR' }, // invalid
+      null, // invalid
+    ]);
+    mockSuccess(prJson);
+    const result = await getOpenPRsForBranch('/repo', 'feat/x');
+    expect(result).toHaveLength(1);
+    expect(result[0]!.number).toBe(42);
+  });
+
+  test('parses multiple PRs', async () => {
+    const prJson = JSON.stringify([
+      {
+        number: 1,
+        title: 'PR 1',
+        url: 'https://github.com/user/repo/pull/1',
+        headRefName: 'feat/a',
+        state: 'OPEN',
+      },
+      {
+        number: 2,
+        title: 'PR 2',
+        url: 'https://github.com/user/repo/pull/2',
+        headRefName: 'feat/a',
+        state: 'OPEN',
+      },
+    ]);
+    mockSuccess(prJson);
+    const result = await getOpenPRsForBranch('/repo', 'feat/a');
+    expect(result).toHaveLength(2);
+    expect(result[0]!.number).toBe(1);
+    expect(result[1]!.number).toBe(2);
+  });
+
+  test('returns empty array when output is not an array', async () => {
+    mockSuccess('{"number": 42}');
+    const result = await getOpenPRsForBranch('/repo', 'main');
+    expect(result).toEqual([]);
   });
 });
