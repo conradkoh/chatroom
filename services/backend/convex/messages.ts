@@ -167,7 +167,9 @@ async function _sendMessageHandler(
         type: 'message' as const,
         queuePosition,
         ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
-        ...(args.attachedBacklogItemIds?.length && { attachedBacklogItemIds: args.attachedBacklogItemIds }),
+        ...(args.attachedBacklogItemIds?.length && {
+          attachedBacklogItemIds: args.attachedBacklogItemIds,
+        }),
         ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
       });
 
@@ -186,7 +188,9 @@ async function _sendMessageHandler(
         targetRole,
         type: args.type,
         ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
-        ...(args.attachedBacklogItemIds?.length && { attachedBacklogItemIds: args.attachedBacklogItemIds }),
+        ...(args.attachedBacklogItemIds?.length && {
+          attachedBacklogItemIds: args.attachedBacklogItemIds,
+        }),
         ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
       });
 
@@ -217,7 +221,9 @@ async function _sendMessageHandler(
       targetRole,
       type: args.type,
       ...(args.attachedTaskIds?.length && { attachedTaskIds: args.attachedTaskIds }),
-      ...(args.attachedBacklogItemIds?.length && { attachedBacklogItemIds: args.attachedBacklogItemIds }),
+      ...(args.attachedBacklogItemIds?.length && {
+        attachedBacklogItemIds: args.attachedBacklogItemIds,
+      }),
       ...(args.attachedMessageIds?.length && { attachedMessageIds: args.attachedMessageIds }),
     });
 
@@ -1473,7 +1479,7 @@ export const getContextWindow = query({
             // messages from the origin's creation time onward (avoids loading ALL messages)
             const contextMessages = await ctx.db
               .query('chatroom_messages')
-              .withIndex('by_chatroom_creationTime', (q) =>
+              .withIndex('by_chatroom', (q) =>
                 q
                   .eq('chatroomId', args.chatroomId)
                   .gte('_creationTime', originMessage._creationTime)
@@ -1754,10 +1760,8 @@ export const inspectFeature = query({
     // instead of loading ALL messages in the chatroom
     const messagesFromFeature = await ctx.db
       .query('chatroom_messages')
-      .withIndex('by_chatroom_creationTime', (q) =>
-        q
-          .eq('chatroomId', args.chatroomId)
-          .gte('_creationTime', regularMsg._creationTime)
+      .withIndex('by_chatroom', (q) =>
+        q.eq('chatroomId', args.chatroomId).gte('_creationTime', regularMsg._creationTime)
       )
       .take(500); // Reasonable upper bound for a feature thread
 
@@ -1990,7 +1994,7 @@ export const getTaskDeliveryPrompt = query({
         // Uses compound index for an indexed range scan (no full table scan).
         const recentMessages = await ctx.db
           .query('chatroom_messages')
-          .withIndex('by_chatroom_creationTime', (q) =>
+          .withIndex('by_chatroom', (q) =>
             q.eq('chatroomId', args.chatroomId).gte('_creationTime', context.createdAt)
           )
           .collect();
@@ -2216,7 +2220,10 @@ export const getTaskDeliveryPrompt = query({
     }
 
     // Fetch attached messages if any exist in origin message
-    const attachedMessagesMap = new Map<string, { id: string; content: string; senderRole: string }>();
+    const attachedMessagesMap = new Map<
+      string,
+      { id: string; content: string; senderRole: string }
+    >();
     if (originMessage?.attachedMessageIds && originMessage.attachedMessageIds.length > 0) {
       for (const msgId of originMessage.attachedMessageIds) {
         const msg = await ctx.db.get('chatroom_messages', msgId);
@@ -2469,10 +2476,8 @@ export const listSinceMessage = query({
     // for an indexed range scan (avoids scanning all older messages)
     const messages = await ctx.db
       .query('chatroom_messages')
-      .withIndex('by_chatroom_creationTime', (q) =>
-        q
-          .eq('chatroomId', args.chatroomId)
-          .gte('_creationTime', referenceMessage._creationTime)
+      .withIndex('by_chatroom', (q) =>
+        q.eq('chatroomId', args.chatroomId).gte('_creationTime', referenceMessage._creationTime)
       )
       .order('asc')
       .take(Math.min(limit, maxLimit));

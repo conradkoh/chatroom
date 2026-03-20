@@ -101,7 +101,7 @@ export async function getTaskDeliveryPromptData(
       // Uses compound index for an indexed range scan (no full table scan).
       const recentMessages = await ctx.db
         .query('chatroom_messages')
-        .withIndex('by_chatroom_creationTime', (q) =>
+        .withIndex('by_chatroom', (q) =>
           q.eq('chatroomId', chatroomId).gte('_creationTime', context.createdAt)
         )
         .collect();
@@ -228,7 +228,10 @@ export async function getTaskDeliveryPromptData(
   }
 
   // Fetch attached messages if any exist in origin message
-  const attachedMessagesMap = new Map<string, { id: string; content: string; senderRole: string }>();
+  const attachedMessagesMap = new Map<
+    string,
+    { id: string; content: string; senderRole: string }
+  >();
   if (originMessage?.attachedMessageIds && originMessage.attachedMessageIds.length > 0) {
     for (const msgId of originMessage.attachedMessageIds) {
       const msg = await ctx.db.get('chatroom_messages', msgId);

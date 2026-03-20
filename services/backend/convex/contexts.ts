@@ -9,9 +9,9 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
 
 /**
  * Count messages in a chatroom created after a given timestamp.
- * Uses the compound `by_chatroom_creationTime` index to perform an indexed
- * range scan starting from `sinceTimestamp`, avoiding a full table scan
- * that would exceed Convex's 16MB per-function read limit.
+ * Uses the `by_chatroom` index to perform an indexed range scan starting
+ * from `sinceTimestamp`, avoiding a full table scan that would exceed
+ * Convex's 16MB per-function read limit.
  */
 async function countMessagesSince(
   ctx: { db: QueryCtx['db'] },
@@ -20,7 +20,7 @@ async function countMessagesSince(
 ): Promise<number> {
   const messages = await ctx.db
     .query('chatroom_messages')
-    .withIndex('by_chatroom_creationTime', (q) =>
+    .withIndex('by_chatroom', (q) =>
       q.eq('chatroomId', chatroomId).gte('_creationTime', sinceTimestamp)
     )
     .collect();
@@ -153,7 +153,11 @@ export const getContext = query({
     // Get message count since context creation to compute staleness.
     // Only reads recent messages (after context.createdAt) instead of ALL messages
     // to avoid exceeding Convex's 16MB per-function read limit.
-    const messagesSinceContext = await countMessagesSince(ctx, context.chatroomId, context.createdAt);
+    const messagesSinceContext = await countMessagesSince(
+      ctx,
+      context.chatroomId,
+      context.createdAt
+    );
 
     // Compute time elapsed since context creation
     const elapsedMs = Date.now() - context.createdAt;
