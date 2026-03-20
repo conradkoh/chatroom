@@ -266,6 +266,7 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
       - Document complex logic
       - Follow existing code patterns and conventions
       - Consider edge cases and error handling
+      - **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
 
       **Git Workflow:**
       - Use descriptive commit messages
