@@ -120,24 +120,16 @@ export async function readTask(ctx: MutationCtx, args: ReadTaskArgs): Promise<Re
   }
 
   // 6. Transition: acknowledged → in_progress via FSM
+  // Note: transitionTask now emits task.inProgress directly, so no duplicate needed here.
   await transitionTask(ctx, taskId, 'in_progress', 'readTask');
 
-  // 7. Emit task.inProgress event to chatroom_eventStream
-  await ctx.db.insert('chatroom_eventStream', {
-    type: 'task.inProgress',
-    chatroomId,
-    role,
-    taskId,
-    timestamp: now,
-  });
-
-  // 8. Update participant status
+  // 7. Update participant status
   await patchParticipantStatus(ctx, chatroomId, role, 'task.inProgress');
 
-  // 9. Fetch current context for inclusion in result
+  // 8. Fetch current context for inclusion in result
   const context = await fetchCurrentContext(ctx, chatroomId);
 
-  // 10. Return result
+  // 9. Return result
   return { taskId, content: task.content, status: 'in_progress', ...(context && { context }) };
 }
 // ============================================================================

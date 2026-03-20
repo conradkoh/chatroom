@@ -254,17 +254,10 @@ export const startTask = mutation({
     }
 
     // Transition: acknowledged → in_progress using FSM
-
+    // Note: transitionTask now emits task.inProgress directly, so no duplicate needed here.
     await transitionTask(ctx, acknowledgedTask._id, 'in_progress', 'startTask');
 
-    // Emit task.inProgress event so UI can derive agent status from event stream
-    await ctx.db.insert('chatroom_eventStream', {
-      type: 'task.inProgress',
-      chatroomId: args.chatroomId,
-      role: args.role,
-      taskId: acknowledgedTask._id,
-      timestamp: Date.now(),
-    });
+    // Patch participant status after transition
     await patchParticipantStatus(ctx, args.chatroomId, args.role, 'task.inProgress');
 
     return { taskId: acknowledgedTask._id, content: acknowledgedTask.content };

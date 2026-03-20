@@ -88,10 +88,27 @@ export async function transitionTask(
   await fsmTransitionTask(ctx, taskId, newStatus, trigger, overrides);
 
   // 2. Write event to chatroom_eventStream based on new status.
-  //    Re-fetch the task to get current fields (assignedTo, content, chatroomId).
+  //    Re-fetch the task to get current fields (assignedTo, chatroomId).
   const eventTask = await ctx.db.get('chatroom_tasks', taskId);
   if (eventTask) {
-    if (ACTIVE_TASK_STATUSES.has(newStatus)) {
+    if (newStatus === 'in_progress') {
+      // Emit task.inProgress for in_progress status — this is the event type
+      // that the UI uses to show "WORKING" status (agentStatusLabel.ts maps it).
+      // Note: task.activated is intentionally NOT mapped to UI status.
+      const chatroom = eventTask.assignedTo
+        ? null
+        : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
+      const role = resolveTaskRole(eventTask.assignedTo, chatroom);
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'task.inProgress',
+        chatroomId: eventTask.chatroomId,
+        taskId,
+        role,
+        timestamp: Date.now(),
+      });
+    } else if (ACTIVE_TASK_STATUSES.has(newStatus)) {
+      // Emit task.activated for other active statuses (pending, acknowledged).
+      // Note: This event is NOT mapped to UI status — it's only for the event stream.
       const chatroom = eventTask.assignedTo
         ? null
         : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);

@@ -336,6 +336,50 @@ describe('AgentProcessManager', () => {
       expect(r1).toEqual({ success: true });
       expect(r2).toEqual({ success: true });
     });
+
+    test('stop + onExit callback does NOT produce duplicate exit events', async () => {
+      // This tests the fix for the double agent.exited bug:
+      // When stop() kills a process, the onExit callback also fires.
+      // Only ONE recordAgentExited call should be made (from doStop), not two.
+      await manager.ensureRunning(createOpts());
+
+      // Capture the onExit callback registered during spawn
+      const service = deps.agentServices.get('opencode')!;
+      const spawnMockResult = (service.spawn as ReturnType<typeof vi.fn>).mock.results[0].value;
+      const resolvedSpawn = await spawnMockResult;
+      const registeredOnExit = (resolvedSpawn.onExit as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+
+      // Reset the backend mutation mock to track calls from here
+      (deps.backend.mutation as ReturnType<typeof vi.fn>).mockClear();
+
+      // Mock process.kill: process dies on SIGTERM, then signal 0 throws
+      let killed = false;
+      (deps.processes.kill as ReturnType<typeof vi.fn>).mockImplementation(
+        (pid: number, sig: string | number) => {
+          if (sig === 0 && killed) throw new Error('ESRCH');
+          if (sig === 'SIGTERM') {
+            killed = true;
+            // Simulate: the onExit callback fires when the process dies
+            // This happens asynchronously in real life, but we call it here
+            // to simulate the race condition
+            if (registeredOnExit) {
+              registeredOnExit({ code: null, signal: 'SIGTERM' });
+            }
+          }
+        }
+      );
+
+      await manager.stop({
+        chatroomId: CHATROOM_ID,
+        role: ROLE,
+        reason: 'user.stop',
+      });
+
+      // Count all backend.mutation calls — should be exactly 1 (from doStop only)
+      // Before the fix, handleExit would also fire, producing 2 calls
+      const mutationCalls = (deps.backend.mutation as ReturnType<typeof vi.fn>).mock.calls;
+      expect(mutationCalls).toHaveLength(1);
+    });
   });
 
   // ── handleExit ────────────────────────────────────────────────────────
