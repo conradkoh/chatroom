@@ -1955,13 +1955,14 @@ export const getTaskDeliveryPrompt = query({
     if (chatroom.currentContextId) {
       const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
       if (context) {
-        // Get current message count to compute staleness
-        const allMessages = await ctx.db
+        // Count only messages since context creation to compute staleness.
+        // Avoids loading ALL messages which would exceed Convex's 16MB read limit.
+        const recentMessages = await ctx.db
           .query('chatroom_messages')
           .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+          .filter((q) => q.gte(q.field('_creationTime'), context.createdAt))
           .collect();
-        const currentMessageCount = allMessages.length;
-        const messagesSinceContext = currentMessageCount - (context.messageCountAtCreation ?? 0);
+        const messagesSinceContext = recentMessages.length;
 
         // Compute time elapsed since context creation
         const elapsedMs = Date.now() - context.createdAt;
