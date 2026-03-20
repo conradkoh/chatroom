@@ -27,7 +27,9 @@ export type AgentExitedEvent = {
   role: string;
   machineId: string;
   pid: number;
-  intentional: boolean;
+  intentional?: boolean;
+  stopReason?: string;
+  stopSignal?: string;
   exitCode?: number;
   signal?: string;
   timestamp: number;
