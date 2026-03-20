@@ -55,6 +55,11 @@ export interface InlineAgentCardProps {
   agentPreference?: AgentPreference;
   /** Called when user starts an agent — persists preference to backend */
   onSavePreference?: (pref: AgentPreference) => void;
+  /** Pre-fetched restart summary from parent batch query.
+   * When provided, InlineAgentCard skips its own per-card subscription.
+   * This enables batching at the parent level to reduce N subscriptions to 1.
+   */
+  restartSummary?: { count1h: number; count24h: number } | null;
 }
 
 /** Compact always-visible agent row with tabs for inline remote config editing. */
@@ -75,6 +80,7 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   agentRoleView,
   agentPreference,
   onSavePreference,
+  restartSummary: restartSummaryProp,
 }: InlineAgentCardProps) {
   const controls = useAgentControls({
     role,
@@ -107,12 +113,14 @@ export const InlineAgentCard = memo(function InlineAgentCard({
 
   const [statsOpen, setStatsOpen] = useState(false);
 
-  // Always fetch restart stats by chatroom+role (aggregated across all machines) so the
-  // metrics section is always visible regardless of whether a machine config exists.
-  const restartSummary = useSessionQuery(api.machines.getAgentRestartSummaryByRole, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    role,
-  });
+  // Use pre-fetched restart summary from parent batch query if provided,
+  // otherwise fall back to per-card query for standalone usage.
+  const restartSummary =
+    restartSummaryProp ??
+    useSessionQuery(api.machines.getAgentRestartSummaryByRole, {
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+    });
 
   return (
     <div className="border-b border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3">

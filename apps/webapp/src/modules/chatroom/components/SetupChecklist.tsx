@@ -1,6 +1,9 @@
 'use client';
 
 import { Rocket, Check } from 'lucide-react';
+import { api } from '@workspace/backend/convex/_generated/api';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import React, { useMemo, memo } from 'react';
 
 import { InlineAgentCard } from './AgentPanel/InlineAgentCard';
@@ -121,6 +124,27 @@ export const SetupChecklist = memo(function SetupChecklist({
     () => new Map(agentRoleViews.map((a) => [a.role.toLowerCase(), a])),
     [agentRoleViews]
   );
+
+  // ── Restart summaries (batch query) ────────────────────────────────
+  // Batch query all restart summaries for team roles in a single subscription
+  const restartSummaries = useSessionQuery(api.machines.getAgentRestartSummariesByRoles, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    roles: teamRoles,
+  });
+
+  // Build a map of role -> restart summary for efficient lookup
+  const restartSummaryMap = useMemo(() => {
+    const map = new Map<string, { count1h: number; count24h: number }>();
+    if (restartSummaries) {
+      for (const summary of restartSummaries) {
+        map.set(summary.role.toLowerCase(), {
+          count1h: summary.count1h,
+          count24h: summary.count24h,
+        });
+      }
+    }
+    return map;
+  }, [restartSummaries]);
 
   // ── Prerequisites ─────────────────────────────────────────────────
   const prereqs = useMemo<Prerequisites>(() => {
@@ -308,6 +332,7 @@ export const SetupChecklist = memo(function SetupChecklist({
                     agentRoleView={agentRoleView}
                     agentPreference={agentPreferenceMap.get(role.toLowerCase())}
                     onSavePreference={savePreference}
+                    restartSummary={restartSummaryMap.get(role.toLowerCase())}
                   />
                 );
               })}

@@ -1349,6 +1349,57 @@ export const getAgentRestartSummaryByRole = query({
   },
 });
 
+/** Returns restart summaries for multiple agent roles within a chatroom, aggregated across all machines.
+ * This batch query allows parent components to fetch all restart stats in a single subscription
+ * instead of N subscriptions for N visible InlineAgentCard components.
+ */
+export const getAgentRestartSummariesByRoles = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    roles: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      return args.roles.map((role) => ({ role, count1h: 0, count24h: 0 }));
+    }
+
+    const now = Date.now();
+    const since1h = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
+    const since24h = Math.floor((now - 24 * 3_600_000) / 3_600_000) * 3_600_000;
+
+    // Query each role individually and aggregate (parallel queries are automatic in Convex)
+    // This is more efficient than N separate useSessionQuery calls in the frontend.
+    const roleCounts = new Map<string, { count1h: number; count24h: number }>();
+
+    for (const role of args.roles) {
+      const rows = await ctx.db
+        .query('chatroom_agentRestartMetrics')
+        .withIndex('by_chatroom_role_hour', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('role', role).gte('hourBucket', since24h)
+        )
+        .collect();
+
+      let count1h = 0;
+      let count24h = 0;
+      for (const row of rows) {
+        count24h += row.count;
+        if (row.hourBucket >= since1h) {
+          count1h += row.count;
+        }
+      }
+      roleCounts.set(role, { count1h, count24h });
+    }
+
+    // Return summaries for all requested roles (missing roles get 0 counts)
+    return args.roles.map((role) => ({
+      role,
+      ...(roleCounts.get(role) ?? { count1h: 0, count24h: 0 }),
+    }));
+  },
+});
+
 // ============================================================================
 // NEW QUERIES — Phase 3 (use-case wrappers)
 // ============================================================================

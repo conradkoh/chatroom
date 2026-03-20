@@ -1,11 +1,14 @@
 'use client';
 
 import { FolderOpen, ChevronRight } from 'lucide-react';
-import { memo, useState } from 'react';
+import { api } from '@workspace/backend/convex/_generated/api';
+import { useSessionQuery } from 'convex-helpers/react/sessions';
+import { memo, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { WorkspaceGitPanel } from '../../workspace/components/WorkspaceGitPanel';
 
 import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
+import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
 import type { Workspace } from '../../types/workspace';
 import type { AgentPreference } from '../AgentConfigTabs';
@@ -53,6 +56,26 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
 
   // Filter agents to only those in the selected workspace
   const workspaceAgents = agents.filter((a) => workspace.agentRoles.includes(a.role));
+
+  // Batch query all restart summaries for workspace roles in a single subscription
+  const restartSummaries = useSessionQuery(api.machines.getAgentRestartSummariesByRoles, {
+    chatroomId: chatroomId as Id<'chatroom_rooms'>,
+    roles: workspace.agentRoles,
+  });
+
+  // Build a map of role -> restart summary for efficient lookup
+  const restartSummaryMap = useMemo(() => {
+    const map = new Map<string, { count1h: number; count24h: number }>();
+    if (restartSummaries) {
+      for (const summary of restartSummaries) {
+        map.set(summary.role.toLowerCase(), {
+          count1h: summary.count1h,
+          count24h: summary.count24h,
+        });
+      }
+    }
+    return map;
+  }, [restartSummaries]);
 
   const dirLabel = workspace.workingDir
     ? (workspace.workingDir.split('/').filter(Boolean).pop() ?? workspace.workingDir)
@@ -118,7 +141,7 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
               size={12}
               className={cn(
                 'text-chatroom-text-muted transition-transform',
-                gitExpanded && 'rotate-90',
+                gitExpanded && 'rotate-90'
               )}
             />
           </button>
@@ -151,27 +174,30 @@ export const WorkspaceAgentList = memo(function WorkspaceAgentList({
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
-          {workspaceAgents.map(({ role, online, lastSeenAt, latestEventType, desiredState, statusVariant }) => (
-            <InlineAgentCard
-              key={role}
-              role={role}
-              allRoles={workspace.agentRoles}
-              online={online}
-              lastSeenAt={lastSeenAt}
-              latestEventType={latestEventType}
-              desiredState={desiredState}
-              statusVariant={statusVariant}
-              prompt={generatePrompt(role)}
-              chatroomId={chatroomId}
-              connectedMachines={connectedMachines}
-              isLoadingMachines={isLoadingMachines}
-              agentConfigs={agentConfigs}
-              sendCommand={sendCommand}
-              agentRoleView={agentRoleViewMap.get(role.toLowerCase())}
-              agentPreference={agentPreferenceMap.get(role.toLowerCase())}
-              onSavePreference={onSavePreference}
-            />
-          ))}
+          {workspaceAgents.map(
+            ({ role, online, lastSeenAt, latestEventType, desiredState, statusVariant }) => (
+              <InlineAgentCard
+                key={role}
+                role={role}
+                allRoles={workspace.agentRoles}
+                online={online}
+                lastSeenAt={lastSeenAt}
+                latestEventType={latestEventType}
+                desiredState={desiredState}
+                statusVariant={statusVariant}
+                prompt={generatePrompt(role)}
+                chatroomId={chatroomId}
+                connectedMachines={connectedMachines}
+                isLoadingMachines={isLoadingMachines}
+                agentConfigs={agentConfigs}
+                sendCommand={sendCommand}
+                agentRoleView={agentRoleViewMap.get(role.toLowerCase())}
+                agentPreference={agentPreferenceMap.get(role.toLowerCase())}
+                onSavePreference={onSavePreference}
+                restartSummary={restartSummaryMap.get(role.toLowerCase())}
+              />
+            )
+          )}
         </div>
       )}
     </div>
