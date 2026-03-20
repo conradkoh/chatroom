@@ -9,6 +9,7 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AgentRestartChart } from './AgentRestartChart';
 
 interface AgentRestartStatsModalProps {
@@ -19,11 +20,6 @@ interface AgentRestartStatsModalProps {
   machineId: string;
   chatroomId: string;
 }
-
-const TAB_BASE = 'text-[11px] font-bold uppercase tracking-wide px-3 py-1.5 transition-colors';
-const TAB_ACTIVE = 'border-b-2 border-chatroom-accent text-chatroom-text-primary';
-const TAB_INACTIVE =
-  'border-b-2 border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary';
 
 export const AgentRestartStatsModal = memo(function AgentRestartStatsModal({
   isOpen,
@@ -49,26 +45,33 @@ export const AgentRestartStatsModal = memo(function AgentRestartStatsModal({
           <FixedModalTitle>Agent Restart Metrics</FixedModalTitle>
         </FixedModalHeader>
         <FixedModalBody>
-          <div className="p-4 space-y-3">
-            {/* Role tabs */}
-            {roles.length > 1 && (
-              <div className="flex items-center gap-1 border-b border-chatroom-border">
+          <div className="p-4">
+            {roles.length > 1 ? (
+              <Tabs value={selectedRole} onValueChange={setSelectedRole}>
+                <TabsList>
+                  {roles.map((role) => (
+                    <TabsTrigger key={role} value={role} className="uppercase text-xs">
+                      {role}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
                 {roles.map((role) => (
-                  <button
-                    key={role}
-                    onClick={() => setSelectedRole(role)}
-                    className={`${TAB_BASE} ${selectedRole === role ? TAB_ACTIVE : TAB_INACTIVE}`}
-                  >
-                    {role}
-                  </button>
+                  <TabsContent key={role} value={role}>
+                    <AgentRestartChart
+                      machineId={machineId}
+                      chatroomId={chatroomId}
+                      role={role}
+                    />
+                  </TabsContent>
                 ))}
-              </div>
+              </Tabs>
+            ) : (
+              <AgentRestartChart
+                machineId={machineId}
+                chatroomId={chatroomId}
+                role={selectedRole}
+              />
             )}
-            <AgentRestartChart
-              machineId={machineId}
-              chatroomId={chatroomId}
-              role={selectedRole}
-            />
           </div>
         </FixedModalBody>
       </FixedModalContent>
