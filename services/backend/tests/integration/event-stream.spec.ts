@@ -158,9 +158,9 @@ test('task creation writes task.activated event for pending tasks', async () => 
   }
 });
 
-// ─── Test 4: task.activated event on transition to in_progress ───────────────
+// ─── Test 4: task.inProgress event on transition to in_progress ───────────────
 
-test('transitionTask to in_progress writes task.activated event', async () => {
+test('transitionTask to in_progress writes task.inProgress event', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-trans-inprog-1');
   const chatroomId = await createPairTeamChatroom(sessionId);
@@ -210,15 +210,14 @@ test('transitionTask to in_progress writes task.activated event', async () => {
   // There should be at least one new event
   expect(eventsAfter.length).toBeGreaterThan(countBefore);
 
-  // Find the in_progress activated event
-  const inProgressEvent = eventsAfter.find(
-    (e) => e.type === 'task.activated' && (e as { taskStatus: string }).taskStatus === 'in_progress'
-  );
+  // Find the task.inProgress event (not task.activated with taskStatus: 'in_progress')
+  // Note: transitionTask now emits task.inProgress for in_progress status to avoid
+  // double events and ensure the UI correctly shows "WORKING" status.
+  const inProgressEvent = eventsAfter.find((e) => e.type === 'task.inProgress');
   expect(inProgressEvent).toBeDefined();
-  if (inProgressEvent && inProgressEvent.type === 'task.activated') {
+  if (inProgressEvent && inProgressEvent.type === 'task.inProgress') {
     expect(inProgressEvent.chatroomId).toBe(chatroomId);
     expect(inProgressEvent.taskId).toBe(taskId);
-    expect(inProgressEvent.taskStatus).toBe('in_progress');
   }
 });
 

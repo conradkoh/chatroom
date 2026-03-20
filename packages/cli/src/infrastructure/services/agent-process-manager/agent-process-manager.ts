@@ -82,9 +82,7 @@ export interface AgentProcessManagerDeps {
       harness: 'opencode' | 'pi' | 'cursor'
     ) => void;
     clearAgentPid: (machineId: string, chatroomId: string, role: string) => void;
-    listAgentEntries: (
-      machineId: string
-    ) => Array<{
+    listAgentEntries: (machineId: string) => Array<{
       chatroomId: string;
       role: string;
       entry: { pid: number; harness: 'opencode' | 'pi' | 'cursor' };
@@ -166,6 +164,11 @@ export class AgentProcessManager {
     // Store pending stop reason for when exit handler fires
     this.pendingStopReasons.set(key, opts.reason);
 
+    // CRITICAL: Set stopping state BEFORE any async operations to prevent
+    // race condition where onExit callback fires before the guard can check.
+    // This ensures handleExit() will see state === 'stopping' and return early.
+    slot.state = 'stopping';
+
     const operation = this.doStop(key, slot, pid, opts);
     slot.pendingOperation = operation;
 
@@ -179,6 +182,13 @@ export class AgentProcessManager {
 
     // Ignore stale exits — PID must match
     if (!slot || slot.pid !== opts.pid) {
+      return;
+    }
+
+    // If the slot is in 'stopping' state, doStop() owns the lifecycle —
+    // it will handle cleanup and emit the exit event. Skip here to avoid
+    // duplicate agent.exited events.
+    if (slot.state === 'stopping') {
       return;
     }
 
@@ -318,9 +328,7 @@ export class AgentProcessManager {
       }
     }
 
-    console.log(
-      `[AgentProcessManager] Recovery: ${recovered} alive, ${cleaned} cleaned up`
-    );
+    console.log(`[AgentProcessManager] Recovery: ${recovered} alive, ${cleaned} cleaned up`);
   }
 
   // ── Private ─────────────────────────────────────────────────────────────
@@ -381,7 +389,10 @@ export class AgentProcessManager {
         if (!dirStat.isDirectory()) {
           slot.state = 'idle';
           slot.pendingOperation = undefined;
-          return { success: false, error: `Working directory is not a directory: ${opts.workingDir}` };
+          return {
+            success: false,
+            error: `Working directory is not a directory: ${opts.workingDir}`,
+          };
         }
       } catch {
         slot.state = 'idle';
@@ -542,7 +553,8 @@ export class AgentProcessManager {
     pid: number,
     opts: StopOpts
   ): Promise<OperationResult> {
-    slot.state = 'stopping';
+    // Note: slot.state is already set to 'stopping' by stop() before calling doStop().
+    // This ensures handleExit() will see the correct state and return early.
 
     try {
       // SIGTERM to process group
