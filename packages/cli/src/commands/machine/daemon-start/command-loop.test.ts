@@ -85,6 +85,10 @@ describe('refreshModels', () => {
         recordExit: vi.fn(),
         getConcurrentCount: vi.fn().mockReturnValue(0),
       },
+      spawnGate: {
+        requestSpawn: vi.fn().mockResolvedValue({ spawned: true, reason: 'ok' }),
+        clearCrashLoop: vi.fn(),
+      } as any,
     };
 
     return {

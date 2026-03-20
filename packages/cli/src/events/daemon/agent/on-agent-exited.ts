@@ -2,9 +2,7 @@ import type { Id } from '../../../api.js';
 import { api } from '../../../api.js';
 import type { DaemonContext } from '../../../commands/machine/daemon-start/types.js';
 import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
-import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
 import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
-import { executeStartAgent } from '../../../commands/machine/daemon-start/handlers/start-agent.js';
 
 export interface AgentExitedPayload {
   chatroomId: Id<'chatroom_rooms'>;
@@ -19,19 +17,11 @@ export interface AgentExitedPayload {
 }
 
 /**
- * Singleton crash-loop tracker shared across all agent exits in this daemon process.
- * Exported for testing.
- */
-export const crashLoopTracker = new CrashLoopTracker();
-
-/**
  * Handles the `agent:exited` DaemonEvent.
  *
  * Simplified restart model:
  *   - On ANY exit, restart immediately — unless it was an intentional user stop.
- *   - Crash loop protection: if the agent restarts more than CRASH_LOOP_MAX_RESTARTS
- *     times within CRASH_LOOP_WINDOW_MS, stop restarting and emit an
- *     agent.restartLimitReached event to the backend event stream.
+ *   - Crash loop protection is handled by SpawnGateService.
  *   - On a clean user stop, clear the crash loop history so a fresh user-initiated
  *     start gets a clean slate.
  *
@@ -64,7 +54,7 @@ export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): 
         `(PID: ${pid}, role: ${role}, code: ${code}, signal: ${signal})`
     );
     // Clear crash loop history so a fresh user-initiated start gets a clean slate.
-    crashLoopTracker.clear(chatroomId, role);
+    ctx.deps.spawnGate.clearCrashLoop(chatroomId, role);
   } else {
     console.log(
       `[${ts}] ⚠️  Agent process exited ` +
@@ -117,58 +107,39 @@ export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): 
     return;
   }
 
-  // Crash loop check — record this restart attempt.
-  const loopCheck = crashLoopTracker.record(chatroomId, role);
-  if (!loopCheck.allowed) {
-    const windowSec = Math.round(loopCheck.windowMs / 1000);
-    console.log(
-      `[${ts}] 🚫  Crash loop detected for ${role} — ` +
-        `${loopCheck.restartCount} restarts within ${windowSec}s window. Halting restarts.`
-    );
+  // ── Step 4: Restart via SpawnGateService ─────────────────────────────────
 
-    // Emit observability event to the backend event stream.
-    ctx.deps.backend
-      .mutation(api.machines.emitRestartLimitReached, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        restartCount: loopCheck.restartCount,
-        windowMs: loopCheck.windowMs,
-      })
-      .catch((err: Error) => {
-        console.log(`   ⚠️  Failed to emit restartLimitReached event: ${err.message}`);
-      });
+  console.log(`[${ts}] 🔁  Attempting restart (${role})`);
 
-    return;
-  }
+  ctx.deps.spawnGate
+    .requestSpawn(ctx, {
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      role,
+      agentHarness: agentHarness as 'opencode' | 'pi' | 'cursor',
+      model,
+      workingDir,
+      reason: 'platform.crash_recovery',
+    })
+    .then((result) => {
+      if (!result.spawned) {
+        console.log(`[${ts}] ⚠️  Spawn rejected: ${result.reason}`);
+      }
+    })
+    .catch((err: Error) => {
+      const errMsg = err.message;
+      console.log(`   ⚠️  Failed to restart agent: ${errMsg}`);
 
-  // ── Step 4: Restart ──────────────────────────────────────────────────────
-
-  console.log(`[${ts}] 🔁  Restarting agent (${role}, restart #${loopCheck.restartCount})`);
-
-  executeStartAgent(ctx, {
-    chatroomId: chatroomId as Id<'chatroom_rooms'>,
-    role,
-    agentHarness: agentHarness as 'opencode' | 'pi' | 'cursor',
-    model,
-    workingDir,
-    reason: 'platform.crash_recovery',
-  }).catch((err: Error) => {
-    const errMsg = (err as Error).message;
-    console.log(`   ⚠️  Failed to restart agent: ${errMsg}`);
-
-    // Emit start-failed event so users can observe the failure.
-    ctx.deps.backend
-      .mutation(api.machines.emitAgentStartFailed, {
-        sessionId: ctx.sessionId,
-        machineId: ctx.machineId,
-        chatroomId: chatroomId as Id<'chatroom_rooms'>,
-        role,
-        error: errMsg,
-      })
-      .catch((emitErr: Error) => {
-        console.log(`   ⚠️  Failed to emit startFailed event: ${emitErr.message}`);
-      });
-  });
+      // Emit start-failed event so users can observe the failure.
+      ctx.deps.backend
+        .mutation(api.machines.emitAgentStartFailed, {
+          sessionId: ctx.sessionId,
+          machineId: ctx.machineId,
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+          error: errMsg,
+        })
+        .catch((emitErr: Error) => {
+          console.log(`   ⚠️  Failed to emit startFailed event: ${emitErr.message}`);
+        });
+    });
 }

@@ -29,6 +29,8 @@ import {
   SpawnRateLimiter,
   HarnessSpawningService,
 } from '../../../infrastructure/services/harness-spawning/index.js';
+import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
+import { SpawnGateService } from '../../../infrastructure/services/spawn-gate/spawn-gate-service.js';
 import {
   initHarnessRegistry,
   getAllHarnesses,
@@ -69,6 +71,9 @@ export async function discoverModels(
  * This factory uses the module-level imports already available in this file.
  */
 export function createDefaultDeps(): DaemonDeps {
+  const spawning = new HarnessSpawningService({ rateLimiter: new SpawnRateLimiter() });
+  const crashLoop = new CrashLoopTracker();
+  const spawnGate = new SpawnGateService({ spawning, crashLoop });
   return {
     backend: {
       // Placeholder — initDaemon() binds the real client after connecting.
@@ -96,7 +101,8 @@ export function createDefaultDeps(): DaemonDeps {
       now: () => Date.now(),
       delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     },
-    spawning: new HarnessSpawningService({ rateLimiter: new SpawnRateLimiter() }),
+    spawning,
+    spawnGate,
   };
 }
 

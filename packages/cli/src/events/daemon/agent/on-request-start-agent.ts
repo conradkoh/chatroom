@@ -1,13 +1,10 @@
 /**
  * Handles an agent.requestStart event from chatroom_eventStream.
- * Checks deadline before executing — expired requests are skipped.
- * Calls executeStartAgent directly — no synthetic command ID needed.
+ * Delegates all policy checks and spawning to SpawnGateService.
  */
 
 import type { Id } from '../../../api.js';
-import { executeStartAgent } from '../../../commands/machine/daemon-start/handlers/start-agent.js';
 import type {
-  AgentHarness,
   DaemonContext,
   StartAgentReason,
 } from '../../../commands/machine/daemon-start/types.js';
@@ -16,7 +13,7 @@ export interface AgentRequestStartEventPayload {
   _id: Id<'chatroom_eventStream'>;
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
-  agentHarness: AgentHarness;
+  agentHarness: 'opencode' | 'pi' | 'cursor';
   model: string;
   workingDir: string;
   reason: string;
@@ -29,31 +26,19 @@ export async function onRequestStartAgent(
 ): Promise<void> {
   const eventId = event._id.toString();
 
-  if (Date.now() > event.deadline) {
-    console.log(
-      `[daemon] ⏰ Skipping expired agent.requestStart for role=${event.role} (id: ${eventId}, deadline passed)`
-    );
-    return;
-  }
-
-  // Gate the spawn through the HarnessSpawningService rate limiter
-  const spawnCheck = ctx.deps.spawning.shouldAllowSpawn(event.chatroomId, event.reason);
-  if (!spawnCheck.allowed) {
-    const retryMsg = spawnCheck.retryAfterMs ? ` Retry after ${spawnCheck.retryAfterMs}ms.` : '';
-    console.warn(
-      `[daemon] ⚠️  Spawn suppressed for chatroom=${event.chatroomId} role=${event.role} reason=${event.reason} (id: ${eventId}).${retryMsg}`
-    );
-    return;
-  }
-
   console.log(`[daemon] Processing agent.requestStart (id: ${eventId})`);
 
-  await executeStartAgent(ctx, {
+  const result = await ctx.deps.spawnGate.requestSpawn(ctx, {
     chatroomId: event.chatroomId,
     role: event.role,
     agentHarness: event.agentHarness,
     model: event.model,
     workingDir: event.workingDir,
     reason: event.reason as StartAgentReason,
+    deadline: event.deadline,
   });
+
+  if (!result.spawned) {
+    console.log(`[daemon] Spawn rejected for role=${event.role}: ${result.reason}`);
+  }
 }

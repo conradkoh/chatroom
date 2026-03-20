@@ -53,6 +53,10 @@ function createTestContext(): DaemonContext {
         recordExit: vi.fn(),
         getConcurrentCount: vi.fn().mockReturnValue(0),
       },
+      spawnGate: {
+        requestSpawn: vi.fn().mockResolvedValue({ spawned: true, reason: 'ok' }),
+        clearCrashLoop: vi.fn(),
+      } as any,
     },
     activeWorkingDirs: new Set(),
     lastPushedGitState: new Map(),
