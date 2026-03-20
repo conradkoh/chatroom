@@ -6,8 +6,16 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { BacklogDeps } from './deps.js';
-import { listBacklog, addBacklog, completeBacklog } from './index.js';
+import type { BacklogDeps, BacklogFsOps } from './deps.js';
+import {
+  listBacklog,
+  addBacklog,
+  completeBacklog,
+  exportBacklog,
+  importBacklog,
+  computeContentHash,
+  type BacklogExportFile,
+} from './index.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -16,6 +24,15 @@ import { listBacklog, addBacklog, completeBacklog } from './index.js';
 const TEST_CHATROOM_ID = 'test_chatroom_id_12345678';
 const TEST_SESSION_ID = 'test-session-id';
 const TEST_TASK_ID = 'task_abc123_test_task_id_1';
+
+function createMockFsOps(overrides?: Partial<BacklogFsOps>): BacklogFsOps {
+  return {
+    writeFile: vi.fn().mockResolvedValue(undefined),
+    readFile: vi.fn().mockResolvedValue(''),
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
 
 function createMockDeps(overrides?: Partial<BacklogDeps>): BacklogDeps {
   return {
@@ -28,6 +45,7 @@ function createMockDeps(overrides?: Partial<BacklogDeps>): BacklogDeps {
       getConvexUrl: vi.fn().mockReturnValue('http://test:3210'),
       getOtherSessionUrls: vi.fn().mockReturnValue([]),
     },
+    fs: createMockFsOps(),
     ...overrides,
   };
 }
@@ -162,5 +180,300 @@ describe('completeBacklog', () => {
 
     expect(exitSpy).not.toHaveBeenCalled();
     expect(getAllLogOutput()).toContain('Next task promoted');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Export / Import Tests
+// ---------------------------------------------------------------------------
+
+describe('computeContentHash', () => {
+  it('returns consistent SHA-256 hash for the same content', () => {
+    const hash1 = computeContentHash('Hello World');
+    const hash2 = computeContentHash('Hello World');
+    expect(hash1).toBe(hash2);
+    expect(hash1).toHaveLength(64); // SHA-256 hex is 64 chars
+  });
+
+  it('returns different hashes for different content', () => {
+    const hash1 = computeContentHash('Hello');
+    const hash2 = computeContentHash('World');
+    expect(hash1).not.toBe(hash2);
+  });
+});
+
+describe('exportBacklog', () => {
+  it('creates directory and writes JSON with correct structure', async () => {
+    const mockItems = [
+      {
+        _id: 'item1',
+        content: 'Fix login bug',
+        status: 'backlog',
+        createdBy: 'planner',
+        createdAt: 1700000000000,
+        complexity: 'low',
+        value: 'high',
+        priority: 10,
+      },
+      {
+        _id: 'item2',
+        content: 'Add dark mode',
+        status: 'backlog',
+        createdBy: 'user',
+        createdAt: 1700001000000,
+      },
+    ];
+
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockItems);
+
+    await exportBacklog(TEST_CHATROOM_ID, { role: 'planner', path: '/tmp/export' }, deps);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+
+    // Should create directory
+    expect(deps.fs!.mkdir).toHaveBeenCalledWith('/tmp/export', { recursive: true });
+
+    // Should write file
+    expect(deps.fs!.writeFile).toHaveBeenCalledTimes(1);
+    const writeCall = (deps.fs!.writeFile as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(writeCall[0]).toContain('backlog-export.json');
+
+    // Parse written JSON to verify structure
+    const written: BacklogExportFile = JSON.parse(writeCall[1]);
+    expect(written.chatroomId).toBe(TEST_CHATROOM_ID);
+    expect(written.exportedAt).toBeGreaterThan(0);
+    expect(written.items).toHaveLength(2);
+
+    // First item should have all fields
+    expect(written.items[0].content).toBe('Fix login bug');
+    expect(written.items[0].contentHash).toBe(computeContentHash('Fix login bug'));
+    expect(written.items[0].status).toBe('backlog');
+    expect(written.items[0].createdBy).toBe('planner');
+    expect(written.items[0].createdAt).toBe(1700000000000);
+    expect(written.items[0].complexity).toBe('low');
+    expect(written.items[0].value).toBe('high');
+    expect(written.items[0].priority).toBe(10);
+
+    // Second item should omit optional fields
+    expect(written.items[1].content).toBe('Add dark mode');
+    expect(written.items[1].complexity).toBeUndefined();
+    expect(written.items[1].value).toBeUndefined();
+    expect(written.items[1].priority).toBeUndefined();
+
+    // Console output
+    const output = getAllLogOutput();
+    expect(output).toContain('Exported 2 backlog item(s)');
+  });
+
+  it('exports empty backlog successfully', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+
+    await exportBacklog(TEST_CHATROOM_ID, { role: 'planner', path: '/tmp/export' }, deps);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    const output = getAllLogOutput();
+    expect(output).toContain('Exported 0 backlog item(s)');
+  });
+
+  it('exits with code 1 when backend query fails', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('Network error')
+    );
+
+    await exportBacklog(TEST_CHATROOM_ID, { role: 'planner', path: '/tmp/export' }, deps);
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(getAllErrorOutput()).toContain('Failed to export backlog items');
+  });
+});
+
+describe('importBacklog', () => {
+  const makeExportFile = (
+    items: Array<{ content: string; createdBy?: string; createdAt?: number }>,
+    overrides?: Partial<BacklogExportFile>
+  ): BacklogExportFile => ({
+    exportedAt: Date.now(),
+    chatroomId: TEST_CHATROOM_ID,
+    items: items.map((item) => ({
+      contentHash: computeContentHash(item.content),
+      content: item.content,
+      status: 'backlog',
+      createdBy: item.createdBy ?? 'planner',
+      createdAt: item.createdAt ?? Date.now(),
+    })),
+    ...overrides,
+  });
+
+  it('reads file, creates new items, and reports counts', async () => {
+    const exportData = makeExportFile([
+      { content: 'Task A' },
+      { content: 'Task B' },
+    ]);
+
+    const deps = createMockDeps({
+      fs: createMockFsOps({
+        readFile: vi.fn().mockResolvedValue(JSON.stringify(exportData)),
+      }),
+    });
+    // No existing items
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue('new-id');
+
+    await importBacklog(TEST_CHATROOM_ID, { role: 'planner', path: '/tmp/export' }, deps);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(deps.backend.mutation).toHaveBeenCalledTimes(2);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('Import complete');
+    expect(output).toContain('Total items in file: 2');
+    expect(output).toContain('Imported: 2');
+    expect(output).toContain('Skipped (duplicate): 0');
+  });
+
+  it('skips duplicate items based on content hash', async () => {
+    const exportData = makeExportFile([
+      { content: 'Already exists' },
+      { content: 'New task' },
+    ]);
+
+    const deps = createMockDeps({
+      fs: createMockFsOps({
+        readFile: vi.fn().mockResolvedValue(JSON.stringify(exportData)),
+      }),
+    });
+    // Existing item with same content
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { _id: 'existing1', content: 'Already exists', status: 'backlog', createdAt: Date.now() },
+    ]);
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue('new-id');
+
+    await importBacklog(TEST_CHATROOM_ID, { role: 'planner', path: '/tmp/export' }, deps);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    // Only 1 mutation call (skipped the duplicate)
+    expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('Imported: 1');
+    expect(output).toContain('Skipped (duplicate): 1');
+  });
+
+  it('shows staleness warning for old exports', async () => {
+    const eightDaysAgo = Date.now() - 8 * 24 * 60 * 60 * 1000;
+    const exportData = makeExportFile([{ content: 'Old task' }], {
+      exportedAt: eightDaysAgo,
+    });
+
+    const deps = createMockDeps({
+      fs: createMockFsOps({
+        readFile: vi.fn().mockResolvedValue(JSON.stringify(exportData)),
+      }),
+    });
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue('new-id');
+
+    await importBacklog(TEST_CHATROOM_ID, { role: 'planner', path: '/tmp/export' }, deps);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    const output = getAllLogOutput();
+    expect(output).toContain('days old and may be stale');
+  });
+
+  it('does not show staleness warning for recent exports', async () => {
+    const exportData = makeExportFile([{ content: 'Recent task' }], {
+      exportedAt: Date.now() - 1000, // 1 second ago
+    });
+
+    const deps = createMockDeps({
+      fs: createMockFsOps({
+        readFile: vi.fn().mockResolvedValue(JSON.stringify(exportData)),
+      }),
+    });
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue('new-id');
+
+    await importBacklog(TEST_CHATROOM_ID, { role: 'planner', path: '/tmp/export' }, deps);
+
+    const output = getAllLogOutput();
+    expect(output).not.toContain('stale');
+  });
+
+  it('idempotent: importing same file twice creates items only once', async () => {
+    const exportData = makeExportFile([
+      { content: 'Task X' },
+      { content: 'Task Y' },
+    ]);
+
+    // First import — no existing items
+    const deps1 = createMockDeps({
+      fs: createMockFsOps({
+        readFile: vi.fn().mockResolvedValue(JSON.stringify(exportData)),
+      }),
+    });
+    (deps1.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    (deps1.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue('new-id');
+
+    await importBacklog(TEST_CHATROOM_ID, { role: 'planner', path: '/tmp/export' }, deps1);
+    expect(deps1.backend.mutation).toHaveBeenCalledTimes(2);
+
+    // Second import — existing items match
+    const deps2 = createMockDeps({
+      fs: createMockFsOps({
+        readFile: vi.fn().mockResolvedValue(JSON.stringify(exportData)),
+      }),
+    });
+    (deps2.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { _id: 'x1', content: 'Task X', status: 'backlog', createdAt: Date.now() },
+      { _id: 'x2', content: 'Task Y', status: 'backlog', createdAt: Date.now() },
+    ]);
+
+    await importBacklog(TEST_CHATROOM_ID, { role: 'planner', path: '/tmp/export' }, deps2);
+
+    // No mutations on second import
+    expect(deps2.backend.mutation).not.toHaveBeenCalled();
+
+    const output = getAllLogOutput();
+    expect(output).toContain('Skipped (duplicate): 2');
+  });
+
+  it('handles duplicate items within the same export file', async () => {
+    const exportData = makeExportFile([
+      { content: 'Same content' },
+      { content: 'Same content' },
+    ]);
+
+    const deps = createMockDeps({
+      fs: createMockFsOps({
+        readFile: vi.fn().mockResolvedValue(JSON.stringify(exportData)),
+      }),
+    });
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue('new-id');
+
+    await importBacklog(TEST_CHATROOM_ID, { role: 'planner', path: '/tmp/export' }, deps);
+
+    // Should only create one item — second is a duplicate within the same file
+    expect(deps.backend.mutation).toHaveBeenCalledTimes(1);
+
+    const output = getAllLogOutput();
+    expect(output).toContain('Imported: 1');
+    expect(output).toContain('Skipped (duplicate): 1');
+  });
+
+  it('exits with code 1 when file read fails', async () => {
+    const deps = createMockDeps({
+      fs: createMockFsOps({
+        readFile: vi.fn().mockRejectedValue(new Error('ENOENT: no such file')),
+      }),
+    });
+
+    await importBacklog(TEST_CHATROOM_ID, { role: 'planner', path: '/tmp/nonexistent' }, deps);
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(getAllErrorOutput()).toContain('Failed to import backlog items');
   });
 });

@@ -2,14 +2,16 @@
  * Backlog commands for managing task queue and backlog
  */
 
-import type { BacklogDeps } from './deps.js';
+import type { BacklogDeps, BacklogFsOps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { createHash } from 'node:crypto';
+import * as nodePath from 'node:path';
 
 // ─── Re-exports ────────────────────────────────────────────────────────────
 
-export type { BacklogDeps } from './deps.js';
+export type { BacklogDeps, BacklogFsOps } from './deps.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -75,10 +77,46 @@ export interface HistoryBacklogOptions {
   limit?: number;
 }
 
+export interface ExportBacklogOptions {
+  role: string;
+  path: string;
+}
+
+export interface ImportBacklogOptions {
+  role: string;
+  path: string;
+}
+
+/** Shape of a single item in the export JSON */
+export interface BacklogExportItem {
+  contentHash: string;
+  content: string;
+  status: string;
+  createdBy: string;
+  createdAt: number;
+  complexity?: string;
+  value?: string;
+  priority?: number;
+}
+
+/** Shape of the export JSON file */
+export interface BacklogExportFile {
+  exportedAt: number;
+  chatroomId: string;
+  items: BacklogExportItem[];
+}
+
+/** Export file name constant */
+const BACKLOG_EXPORT_FILENAME = 'backlog-export.json';
+
+/** Staleness threshold: 7 days in milliseconds */
+const STALENESS_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
 async function createDefaultDeps(): Promise<BacklogDeps> {
   const client = await getConvexClient();
+  const fs = await import('node:fs/promises');
   return {
     backend: {
       mutation: (endpoint, args) => client.mutation(endpoint, args),
@@ -88,6 +126,11 @@ async function createDefaultDeps(): Promise<BacklogDeps> {
       getSessionId,
       getConvexUrl,
       getOtherSessionUrls,
+    },
+    fs: {
+      writeFile: (path, data) => fs.writeFile(path, data, 'utf-8'),
+      readFile: (path, encoding) => fs.readFile(path, { encoding }),
+      mkdir: (path, options) => fs.mkdir(path, options),
     },
   };
 }
@@ -720,5 +763,174 @@ function getStatusEmoji(status: TaskStatus | BacklogItemStatus): string {
       return '🔒';
     default:
       return '⚫';
+  }
+}
+
+// ─── Content Hash Helper ───────────────────────────────────────────────────
+
+/**
+ * Compute a SHA-256 content hash for idempotent import.
+ */
+export function computeContentHash(content: string): string {
+  return createHash('sha256').update(content).digest('hex');
+}
+
+// ─── Export / Import Commands ──────────────────────────────────────────────
+
+/**
+ * Export all backlog items to a JSON file.
+ */
+export async function exportBacklog(
+  chatroomId: string,
+  options: ExportBacklogOptions,
+  deps?: BacklogDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
+
+  if (!d.fs) {
+    console.error('❌ File system operations not available');
+    process.exit(1);
+    return;
+  }
+
+  try {
+    // Fetch all backlog items
+    const backlogItems = await d.backend.query(api.backlog.listBacklogItems, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      statusFilter: 'backlog',
+    });
+
+    // Build export structure
+    const exportData: BacklogExportFile = {
+      exportedAt: Date.now(),
+      chatroomId,
+      items: backlogItems.map(
+        (item: {
+          content: string;
+          status: string;
+          createdBy?: string;
+          createdAt: number;
+          complexity?: string;
+          value?: string;
+          priority?: number;
+        }) => {
+          const exportItem: BacklogExportItem = {
+            contentHash: computeContentHash(item.content),
+            content: item.content,
+            status: item.status,
+            createdBy: item.createdBy ?? 'unknown',
+            createdAt: item.createdAt,
+          };
+          if (item.complexity) exportItem.complexity = item.complexity;
+          if (item.value) exportItem.value = item.value;
+          if (item.priority !== undefined) exportItem.priority = item.priority;
+          return exportItem;
+        }
+      ),
+    };
+
+    // Ensure output directory exists
+    await d.fs.mkdir(options.path, { recursive: true });
+
+    // Write JSON file
+    const filePath = nodePath.join(options.path, BACKLOG_EXPORT_FILENAME);
+    await d.fs.writeFile(filePath, JSON.stringify(exportData, null, 2));
+
+    console.log('');
+    console.log(`✅ Exported ${exportData.items.length} backlog item(s)`);
+    console.log(`   File: ${filePath}`);
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to export backlog items: ${(error as Error).message}`);
+    process.exit(1);
+    return;
+  }
+}
+
+/**
+ * Import backlog items from a JSON export file.
+ * Idempotent — skips items whose content hash matches an existing item.
+ */
+export async function importBacklog(
+  chatroomId: string,
+  options: ImportBacklogOptions,
+  deps?: BacklogDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
+
+  if (!d.fs) {
+    console.error('❌ File system operations not available');
+    process.exit(1);
+    return;
+  }
+
+  try {
+    // Read the export file
+    const filePath = nodePath.join(options.path, BACKLOG_EXPORT_FILENAME);
+    const raw = await d.fs.readFile(filePath, 'utf-8');
+    const exportData: BacklogExportFile = JSON.parse(raw);
+
+    // Staleness warning
+    const ageMs = Date.now() - exportData.exportedAt;
+    if (ageMs > STALENESS_THRESHOLD_MS) {
+      const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+      console.log(`⚠️  This export is ${ageDays} days old and may be stale.`);
+    }
+
+    // Fetch existing backlog items to check for duplicates
+    const existingItems = await d.backend.query(api.backlog.listBacklogItems, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      statusFilter: 'backlog',
+    });
+
+    // Build set of existing content hashes
+    const existingHashes = new Set<string>(
+      existingItems.map((item: { content: string }) => computeContentHash(item.content))
+    );
+
+    let imported = 0;
+    let skipped = 0;
+
+    for (const item of exportData.items) {
+      // Recompute hash from content for verification
+      const hash = computeContentHash(item.content);
+
+      if (existingHashes.has(hash)) {
+        skipped++;
+        continue;
+      }
+
+      // Create the backlog item
+      await d.backend.mutation(api.backlog.createBacklogItem, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        content: item.content,
+        createdBy: item.createdBy,
+        priority: item.priority,
+        complexity: item.complexity as 'low' | 'medium' | 'high' | undefined,
+        value: item.value as 'low' | 'medium' | 'high' | undefined,
+      });
+
+      // Add hash to set so subsequent duplicates in same file are also skipped
+      existingHashes.add(hash);
+      imported++;
+    }
+
+    console.log('');
+    console.log(`✅ Import complete`);
+    console.log(`   Total items in file: ${exportData.items.length}`);
+    console.log(`   Imported: ${imported}`);
+    console.log(`   Skipped (duplicate): ${skipped}`);
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to import backlog items: ${(error as Error).message}`);
+    process.exit(1);
+    return;
   }
 }

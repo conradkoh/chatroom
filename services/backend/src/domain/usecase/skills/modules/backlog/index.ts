@@ -57,6 +57,21 @@ ${cliEnvPrefix}chatroom backlog reopen --chatroom-id=<id> --role=<role> --task-i
 ${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --task-id=<id>
 \`\`\`
 
+### Export
+\`\`\`
+${cliEnvPrefix}chatroom backlog export --chatroom-id=<id> --role=<role> --path=<directory>
+\`\`\`
+Exports all backlog items (status=\`backlog\`) to a \`backlog-export.json\` file in the specified directory.
+Creates the directory if it doesn't exist.
+
+### Import
+\`\`\`
+${cliEnvPrefix}chatroom backlog import --chatroom-id=<id> --role=<role> --path=<directory>
+\`\`\`
+Imports backlog items from a \`backlog-export.json\` file in the specified directory.
+- **Idempotent**: skips items whose content already exists (matched by SHA-256 content hash)
+- **Staleness warning**: warns if the export is older than 7 days
+
 ---
 
 ## Workflows
@@ -141,5 +156,36 @@ Follow these steps to clean up the backlog by identifying and closing stale item
    - Builder checks codebase to determine if items are stale
    - Builder marks stale items for review and reports back
 
-5. Report summary: items reviewed, marked for review, kept, needs clarification`,
+5. Report summary: items reviewed, marked for review, kept, needs clarification
+
+### 5. Export / Import Backlog
+
+Use export/import to transfer backlog items between workspaces or for backup.
+
+**Export workflow:**
+\`\`\`mermaid
+flowchart TD
+  A([Start]) --> B["Export backlog to directory"]
+  B --> C["chatroom backlog export --path=<dir>"]
+  C --> D["File written: <dir>/backlog-export.json"]
+  D --> E([Done — report file path to user])
+\`\`\`
+
+**Import workflow:**
+\`\`\`mermaid
+flowchart TD
+  A([Start]) --> B["Import from directory"]
+  B --> C["chatroom backlog import --path=<dir>"]
+  C --> D{Staleness warning?}
+  D -->|Yes — export > 7 days old| E["Warn user: export may be stale"]
+  D -->|No| F["Import items (skip duplicates)"]
+  E --> F
+  F --> G["Report: total / imported / skipped"]
+  G --> H([Done])
+\`\`\`
+
+**Key points:**
+- The user provides the export/import directory path
+- Imports are idempotent — running import twice with the same file won't create duplicates
+- Each item is identified by a SHA-256 hash of its content`,
 };
