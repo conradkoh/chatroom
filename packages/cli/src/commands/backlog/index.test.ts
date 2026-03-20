@@ -288,6 +288,26 @@ describe('exportBacklog', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getAllErrorOutput()).toContain('Failed to export backlog items');
   });
+
+  it('uses default path when --path is not provided', async () => {
+    const deps = createMockDeps();
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+
+    await exportBacklog(TEST_CHATROOM_ID, { role: 'planner' }, deps);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+
+    // Should create directory under cwd/.chatroom/exports
+    const mkdirCall = (deps.fs!.mkdir as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(mkdirCall[0]).toContain('.chatroom');
+    expect(mkdirCall[0]).toContain('exports');
+
+    // Should write file to that default directory
+    const writeCall = (deps.fs!.writeFile as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(writeCall[0]).toContain('.chatroom');
+    expect(writeCall[0]).toContain('exports');
+    expect(writeCall[0]).toContain('backlog-export.json');
+  });
 });
 
 describe('importBacklog', () => {
@@ -475,5 +495,27 @@ describe('importBacklog', () => {
 
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(getAllErrorOutput()).toContain('Failed to import backlog items');
+  });
+
+  it('uses default path when --path is not provided', async () => {
+    const exportData = makeExportFile([{ content: 'Default path task' }]);
+
+    const deps = createMockDeps({
+      fs: createMockFsOps({
+        readFile: vi.fn().mockResolvedValue(JSON.stringify(exportData)),
+      }),
+    });
+    (deps.backend.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    (deps.backend.mutation as ReturnType<typeof vi.fn>).mockResolvedValue('new-id');
+
+    await importBacklog(TEST_CHATROOM_ID, { role: 'planner' }, deps);
+
+    expect(exitSpy).not.toHaveBeenCalled();
+
+    // Should read from cwd/.chatroom/exports/backlog-export.json
+    const readCall = (deps.fs!.readFile as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(readCall[0]).toContain('.chatroom');
+    expect(readCall[0]).toContain('exports');
+    expect(readCall[0]).toContain('backlog-export.json');
   });
 });

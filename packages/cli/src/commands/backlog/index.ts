@@ -79,12 +79,12 @@ export interface HistoryBacklogOptions {
 
 export interface ExportBacklogOptions {
   role: string;
-  path: string;
+  path?: string;
 }
 
 export interface ImportBacklogOptions {
   role: string;
-  path: string;
+  path?: string;
 }
 
 /** Shape of a single item in the export JSON */
@@ -111,6 +111,9 @@ const BACKLOG_EXPORT_FILENAME = 'backlog-export.json';
 
 /** Staleness threshold: 7 days in milliseconds */
 const STALENESS_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Default export/import directory relative to cwd */
+const DEFAULT_EXPORT_DIR = '.chatroom/exports';
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
@@ -833,10 +836,11 @@ export async function exportBacklog(
     };
 
     // Ensure output directory exists
-    await d.fs.mkdir(options.path, { recursive: true });
+    const exportDir = options.path ?? nodePath.join(process.cwd(), DEFAULT_EXPORT_DIR);
+    await d.fs.mkdir(exportDir, { recursive: true });
 
     // Write JSON file
-    const filePath = nodePath.join(options.path, BACKLOG_EXPORT_FILENAME);
+    const filePath = nodePath.join(exportDir, BACKLOG_EXPORT_FILENAME);
     await d.fs.writeFile(filePath, JSON.stringify(exportData, null, 2));
 
     console.log('');
@@ -871,7 +875,8 @@ export async function importBacklog(
 
   try {
     // Read the export file
-    const filePath = nodePath.join(options.path, BACKLOG_EXPORT_FILENAME);
+    const importDir = options.path ?? nodePath.join(process.cwd(), DEFAULT_EXPORT_DIR);
+    const filePath = nodePath.join(importDir, BACKLOG_EXPORT_FILENAME);
     const raw = await d.fs.readFile(filePath, 'utf-8');
     const exportData: BacklogExportFile = JSON.parse(raw);
 

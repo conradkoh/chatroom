@@ -59,18 +59,20 @@ ${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=<id> --role=<role>
 
 ### Export
 \`\`\`
-${cliEnvPrefix}chatroom backlog export --chatroom-id=<id> --role=<role> --path=<directory>
+${cliEnvPrefix}chatroom backlog export --chatroom-id=<id> --role=<role> [--path=<directory>]
 \`\`\`
 Exports all backlog items (status=\`backlog\`) to a \`backlog-export.json\` file in the specified directory.
 Creates the directory if it doesn't exist.
+Default path (if \`--path\` is omitted): \`<cwd>/.chatroom/exports/\`
 
 ### Import
 \`\`\`
-${cliEnvPrefix}chatroom backlog import --chatroom-id=<id> --role=<role> --path=<directory>
+${cliEnvPrefix}chatroom backlog import --chatroom-id=<id> --role=<role> [--path=<directory>]
 \`\`\`
 Imports backlog items from a \`backlog-export.json\` file in the specified directory.
 - **Idempotent**: skips items whose content already exists (matched by SHA-256 content hash)
 - **Staleness warning**: warns if the export is older than 7 days
+Default path (if \`--path\` is omitted): \`<cwd>/.chatroom/exports/\`
 
 ---
 
