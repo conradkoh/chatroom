@@ -223,7 +223,7 @@ describe('handleStopAgent', () => {
     expect(leaveCalls).toHaveLength(0);
   });
 
-  it('returns failed when no PID is recorded', async () => {
+  it('succeeds idempotently when no PID is recorded and cleans up state', async () => {
     vi.mocked(deps.backend.query).mockResolvedValue({
       configs: [
         {
@@ -236,9 +236,23 @@ describe('handleStopAgent', () => {
 
     const result = await handleStopAgent(ctx, createStopCommand());
 
-    expect(result.failed).toBe(true);
+    // Idempotent: no process found, but stop succeeds and state is cleaned
+    expect(result.failed).toBe(false);
     expect(result.result).toContain('No running agent found');
     expect(ctx.pendingStops.size).toBe(0);
+    // Backend state is cleaned up (clearAgentPidEverywhere + participants.leave)
+    expect(deps.backend.mutation).toHaveBeenCalledWith('machines.updateSpawnedAgent', {
+      sessionId: 'test-session',
+      machineId: 'test-machine',
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+      pid: undefined,
+    });
+    expect(deps.backend.mutation).toHaveBeenCalledWith('participants.leave', {
+      sessionId: 'test-session',
+      chatroomId: CHATROOM_ID,
+      role: 'builder',
+    });
   });
 
   it('sends SIGTERM to negative PID (process group) via onAgentShutdown', async () => {
@@ -266,7 +280,7 @@ describe('handleStopAgent', () => {
     expect(deps.processes.kill).toHaveBeenCalledWith(-1234, 'SIGTERM');
   });
 
-  it('handles stale PID (process not alive)', async () => {
+  it('succeeds when PID is stale (process not alive) and cleans up state', async () => {
     const openCodeService = ctx.agentServices.get('opencode')!;
     vi.spyOn(openCodeService, 'isAlive').mockReturnValue(false);
 
@@ -283,7 +297,8 @@ describe('handleStopAgent', () => {
 
     const result = await handleStopAgent(ctx, createStopCommand());
 
-    expect(result.failed).toBe(true);
+    // Stale PIDs are a success: the agent is effectively stopped
+    expect(result.failed).toBe(false);
     expect(result.result).toContain('stale');
     expect(ctx.pendingStops.size).toBe(0);
     expect(deps.machine.clearAgentPid).toHaveBeenCalled();
