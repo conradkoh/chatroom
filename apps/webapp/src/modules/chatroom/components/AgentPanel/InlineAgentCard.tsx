@@ -177,6 +177,11 @@ export const InlineAgentCard = memo(function InlineAgentCard({
                 defaultRole={role}
                 machineId={statsMachineId}
                 chatroomId={chatroomId}
+                defaultModel={
+                  agentRoleView?.agentHarness && agentRoleView?.model
+                    ? `${agentRoleView.agentHarness}/${agentRoleView.model}`
+                    : undefined
+                }
               />
             )}
           </>
