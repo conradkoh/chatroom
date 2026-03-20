@@ -25,15 +25,9 @@ function getModelColor(index: number): string {
 interface AgentRestartChartProps {
   machineId: string;
   chatroomId: string;
-  roles: string[];
+  /** The active role to display metrics for */
+  role: string;
 }
-
-// ─── Underline tab classes ────────────────────────────────────────────────────
-
-const TAB_BASE = 'text-[11px] font-bold uppercase tracking-wide pb-0.5 transition-colors';
-const TAB_ACTIVE = 'border-b-2 border-chatroom-accent text-chatroom-text-primary';
-const TAB_INACTIVE =
-  'border-b-2 border-transparent text-chatroom-text-muted hover:text-chatroom-text-secondary';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -140,9 +134,8 @@ function RestartTooltip({ active, payload, label }: CustomTooltipProps) {
 export function AgentRestartChart({
   machineId,
   chatroomId,
-  roles,
+  role,
 }: AgentRestartChartProps) {
-  const [selectedRole, setSelectedRole] = useState<string>(roles[0] ?? '');
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
     start: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
     end: new Date(),
@@ -180,10 +173,10 @@ export function AgentRestartChart({
 
   const data = useSessionQuery(
     api.machines.getAgentRestartMetrics,
-    selectedRole
+    role
       ? {
           machineId,
-          role: selectedRole,
+          role,
           chatroomId: chatroomId as Id<'chatroom_rooms'>,
           startTime: dateRange.start.getTime(),
           endTime: dateRange.end.getTime(),
@@ -272,19 +265,6 @@ export function AgentRestartChart({
             className="bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-foreground px-1 py-0.5"
           />
         </div>
-      </div>
-
-      {/* Role tabs */}
-      <div className="flex items-center gap-3">
-        {roles.map((role) => (
-          <button
-            key={role}
-            onClick={() => setSelectedRole(role)}
-            className={`${TAB_BASE} ${selectedRole === role ? TAB_ACTIVE : TAB_INACTIVE}`}
-          >
-            {role}
-          </button>
-        ))}
       </div>
 
       {/* Chart area */}

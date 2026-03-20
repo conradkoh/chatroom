@@ -67,7 +67,7 @@ export const AgentRestartStatsModal = memo(function AgentRestartStatsModal({
             <AgentRestartChart
               machineId={machineId}
               chatroomId={chatroomId}
-              roles={[selectedRole]}
+              role={selectedRole}
             />
           </div>
         </FixedModalBody>
