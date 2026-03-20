@@ -9,8 +9,9 @@ import { getTeamEntryPoint } from '../src/domain/entities/team';
 
 /**
  * Count messages in a chatroom created after a given timestamp.
- * Uses the `by_chatroom` index + `_creationTime` filter to avoid loading
- * the entire chatroom history, which would exceed Convex's 16MB read limit.
+ * Uses the compound `by_chatroom_creationTime` index to perform an indexed
+ * range scan starting from `sinceTimestamp`, avoiding a full table scan
+ * that would exceed Convex's 16MB per-function read limit.
  */
 async function countMessagesSince(
   ctx: { db: QueryCtx['db'] },
@@ -19,8 +20,9 @@ async function countMessagesSince(
 ): Promise<number> {
   const messages = await ctx.db
     .query('chatroom_messages')
-    .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-    .filter((q) => q.gte(q.field('_creationTime'), sinceTimestamp))
+    .withIndex('by_chatroom_creationTime', (q) =>
+      q.eq('chatroomId', chatroomId).gte('_creationTime', sinceTimestamp)
+    )
     .collect();
   return messages.length;
 }

@@ -98,11 +98,12 @@ export async function getTaskDeliveryPromptData(
     const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
     if (context) {
       // Count only messages since context creation to compute staleness.
-      // Avoids loading ALL messages which would exceed Convex's 16MB read limit.
+      // Uses compound index for an indexed range scan (no full table scan).
       const recentMessages = await ctx.db
         .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
-        .filter((q) => q.gte(q.field('_creationTime'), context.createdAt))
+        .withIndex('by_chatroom_creationTime', (q) =>
+          q.eq('chatroomId', chatroomId).gte('_creationTime', context.createdAt)
+        )
         .collect();
       const messagesSinceContext = recentMessages.length;
 
