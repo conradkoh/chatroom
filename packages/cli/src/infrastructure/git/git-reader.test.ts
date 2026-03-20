@@ -19,6 +19,8 @@ import {
   getCommitDetail,
   getOpenPRsForBranch,
   parseDiffStatLine,
+  parseRepoSlug,
+  getOriginRepoSlug,
 } from './git-reader.js';
 import { FULL_DIFF_MAX_BYTES } from './types.js';
 
@@ -368,10 +370,83 @@ describe('getCommitDetail', () => {
   });
 });
 
+// ─── parseRepoSlug ───────────────────────────────────────────────────────────
+
+describe('parseRepoSlug', () => {
+  test('parses HTTPS URL with .git suffix', () => {
+    expect(parseRepoSlug('https://github.com/owner/repo.git')).toBe('owner/repo');
+  });
+
+  test('parses HTTPS URL without .git suffix', () => {
+    expect(parseRepoSlug('https://github.com/owner/repo')).toBe('owner/repo');
+  });
+
+  test('parses SSH URL with .git suffix', () => {
+    expect(parseRepoSlug('git@github.com:owner/repo.git')).toBe('owner/repo');
+  });
+
+  test('parses SSH URL without .git suffix', () => {
+    expect(parseRepoSlug('git@github.com:owner/repo')).toBe('owner/repo');
+  });
+
+  test('handles trailing whitespace', () => {
+    expect(parseRepoSlug('https://github.com/owner/repo.git\n')).toBe('owner/repo');
+  });
+
+  test('returns null for invalid URL', () => {
+    expect(parseRepoSlug('not-a-url')).toBeNull();
+  });
+
+  test('returns null for empty string', () => {
+    expect(parseRepoSlug('')).toBeNull();
+  });
+
+  test('parses URL with hyphens in owner and repo', () => {
+    expect(parseRepoSlug('https://github.com/my-org/my-repo.git')).toBe('my-org/my-repo');
+  });
+});
+
+// ─── getOriginRepoSlug ──────────────────────────────────────────────────────
+
+describe('getOriginRepoSlug', () => {
+  test('returns slug for HTTPS remote', async () => {
+    mockSuccess('https://github.com/owner/repo.git\n');
+    const result = await getOriginRepoSlug('/repo');
+    expect(result).toBe('owner/repo');
+  });
+
+  test('returns slug for SSH remote', async () => {
+    mockSuccess('git@github.com:owner/repo.git\n');
+    const result = await getOriginRepoSlug('/repo');
+    expect(result).toBe('owner/repo');
+  });
+
+  test('returns null when origin remote does not exist', async () => {
+    mockFailure('fatal: No such remote \'origin\'');
+    const result = await getOriginRepoSlug('/repo');
+    expect(result).toBeNull();
+  });
+
+  test('returns null when git command fails', async () => {
+    mockFailure('fatal: not a git repository');
+    const result = await getOriginRepoSlug('/not/a/repo');
+    expect(result).toBeNull();
+  });
+
+  test('returns null for empty output', async () => {
+    mockSuccess('');
+    const result = await getOriginRepoSlug('/repo');
+    expect(result).toBeNull();
+  });
+});
+
 // ─── getOpenPRsForBranch ─────────────────────────────────────────────────────
 
 describe('getOpenPRsForBranch', () => {
   test('parses valid PR JSON output', async () => {
+    // First call: git remote get-url origin
+    mockSuccess('https://github.com/user/repo.git\n');
+    // Second call: gh pr list
     const prJson = JSON.stringify([
       {
         number: 42,
@@ -394,37 +469,72 @@ describe('getOpenPRsForBranch', () => {
     ]);
   });
 
+  test('includes --repo flag when origin slug is available', async () => {
+    // First call: git remote get-url origin
+    mockSuccess('https://github.com/myuser/myrepo.git\n');
+    // Second call: gh pr list
+    mockSuccess('[]');
+
+    await getOpenPRsForBranch('/repo', 'feat/x');
+
+    // Second call should include --repo
+    expect(mockExec).toHaveBeenCalledTimes(2);
+    const ghCall = mockExec.mock.calls[1]![0] as string;
+    expect(ghCall).toContain('--repo');
+    expect(ghCall).toContain('myuser/myrepo');
+  });
+
+  test('falls back to no --repo when origin slug cannot be resolved', async () => {
+    // First call: git remote get-url origin fails
+    mockFailure('fatal: No such remote \'origin\'');
+    // Second call: gh pr list
+    mockSuccess('[]');
+
+    await getOpenPRsForBranch('/repo', 'feat/x');
+
+    // Second call should NOT include --repo
+    expect(mockExec).toHaveBeenCalledTimes(2);
+    const ghCall = mockExec.mock.calls[1]![0] as string;
+    expect(ghCall).not.toContain('--repo');
+  });
+
   test('returns empty array for empty JSON array output', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
     mockSuccess('[]');
     const result = await getOpenPRsForBranch('/repo', 'main');
     expect(result).toEqual([]);
   });
 
   test('returns empty array when gh is not installed', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
     mockFailure('command not found: gh');
     const result = await getOpenPRsForBranch('/repo', 'main');
     expect(result).toEqual([]);
   });
 
   test('returns empty array when gh auth fails', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
     mockFailure('gh: not logged in');
     const result = await getOpenPRsForBranch('/repo', 'main');
     expect(result).toEqual([]);
   });
 
   test('returns empty array for non-JSON output', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
     mockSuccess('not valid json');
     const result = await getOpenPRsForBranch('/repo', 'main');
     expect(result).toEqual([]);
   });
 
   test('returns empty array for empty output', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
     mockSuccess('');
     const result = await getOpenPRsForBranch('/repo', 'main');
     expect(result).toEqual([]);
   });
 
   test('filters out invalid PR objects', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
     const prJson = JSON.stringify([
       {
         number: 42,
@@ -443,6 +553,7 @@ describe('getOpenPRsForBranch', () => {
   });
 
   test('parses multiple PRs', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
     const prJson = JSON.stringify([
       {
         number: 1,
@@ -467,6 +578,7 @@ describe('getOpenPRsForBranch', () => {
   });
 
   test('returns empty array when output is not an array', async () => {
+    mockSuccess('https://github.com/user/repo.git\n');
     mockSuccess('{"number": 42}');
     const result = await getOpenPRsForBranch('/repo', 'main');
     expect(result).toEqual([]);

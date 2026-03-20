@@ -382,6 +382,58 @@ async function runCommand(
 }
 
 /**
+ * Parse a git remote URL into an `owner/repo` slug.
+ * Handles both HTTPS and SSH URL formats, with or without `.git` suffix.
+ *
+ * Examples:
+ *   https://github.com/owner/repo.git → owner/repo
+ *   https://github.com/owner/repo     → owner/repo
+ *   git@github.com:owner/repo.git     → owner/repo
+ *   git@github.com:owner/repo         → owner/repo
+ *
+ * Returns `null` if the URL cannot be parsed.
+ *
+ * Exported for unit testing.
+ */
+export function parseRepoSlug(remoteUrl: string): string | null {
+  const trimmed = remoteUrl.trim();
+
+  // HTTPS format: https://github.com/owner/repo.git or https://github.com/owner/repo
+  const httpsMatch = trimmed.match(/https?:\/\/[^/]+\/([^/]+)\/([^/]+?)(?:\.git)?$/);
+  if (httpsMatch && httpsMatch[1] && httpsMatch[2]) {
+    return `${httpsMatch[1]}/${httpsMatch[2]}`;
+  }
+
+  // SSH format: git@github.com:owner/repo.git or git@github.com:owner/repo
+  const sshMatch = trimmed.match(/git@[^:]+:([^/]+)\/([^/]+?)(?:\.git)?$/);
+  if (sshMatch && sshMatch[1] && sshMatch[2]) {
+    return `${sshMatch[1]}/${sshMatch[2]}`;
+  }
+
+  return null;
+}
+
+/**
+ * Get the `owner/repo` slug for the `origin` remote of the repository at `cwd`.
+ *
+ * Returns `null` if:
+ * - The `origin` remote does not exist
+ * - The URL cannot be parsed
+ * - Any error occurs (graceful degradation)
+ *
+ * Exported for unit testing.
+ */
+export async function getOriginRepoSlug(cwd: string): Promise<string | null> {
+  const result = await runGit('remote get-url origin', cwd);
+  if ('error' in result) return null;
+
+  const url = result.stdout.trim();
+  if (!url) return null;
+
+  return parseRepoSlug(url);
+}
+
+/**
  * Get open pull requests for the given branch using `gh pr list`.
  *
  * Returns an empty array if:
@@ -394,8 +446,12 @@ export async function getOpenPRsForBranch(
   cwd: string,
   branch: string
 ): Promise<GitPullRequest[]> {
+  // Resolve the origin repo slug to target the correct repository
+  const repoSlug = await getOriginRepoSlug(cwd);
+  const repoFlag = repoSlug ? ` --repo ${JSON.stringify(repoSlug)}` : '';
+
   const result = await runCommand(
-    `gh pr list --head ${JSON.stringify(branch)} --state open --json number,title,url,headRefName,state --limit 5`,
+    `gh pr list --head ${JSON.stringify(branch)} --state open --json number,title,url,headRefName,state --limit 5${repoFlag}`,
     cwd
   );
 
