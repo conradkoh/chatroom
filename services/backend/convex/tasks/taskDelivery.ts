@@ -97,13 +97,15 @@ export async function getTaskDeliveryPromptData(
   if (chatroom.currentContextId) {
     const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
     if (context) {
-      // Get current message count to compute staleness
-      const allMessages = await ctx.db
+      // Count only messages since context creation to compute staleness.
+      // Uses compound index for an indexed range scan (no full table scan).
+      const recentMessages = await ctx.db
         .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .withIndex('by_chatroom_creationTime', (q) =>
+          q.eq('chatroomId', chatroomId).gte('_creationTime', context.createdAt)
+        )
         .collect();
-      const currentMessageCount = allMessages.length;
-      const messagesSinceContext = currentMessageCount - (context.messageCountAtCreation ?? 0);
+      const messagesSinceContext = recentMessages.length;
 
       // Compute time elapsed since context creation
       const elapsedMs = Date.now() - context.createdAt;

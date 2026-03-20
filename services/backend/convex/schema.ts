@@ -394,6 +394,10 @@ export default defineSchema({
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_taskId', ['taskId'])
+    // Compound index for efficient time-range queries within a chatroom.
+    // Enables indexed range scans on _creationTime instead of post-scan .filter(),
+    // which avoids loading all messages and hitting Convex's 16MB read limit.
+    .index('by_chatroom_creationTime', ['chatroomId', '_creationTime'])
     // Index for efficient origin message lookup (non-follow-up user messages)
     // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
     .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type']),

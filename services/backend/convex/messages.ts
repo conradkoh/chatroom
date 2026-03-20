@@ -975,7 +975,7 @@ export const getAllowedHandoffRoles = query({
   },
 });
 
-/** Returns all messages in a chatroom up to an optional limit. */
+/** Returns recent messages in a chatroom up to an optional limit. */
 export const list = query({
   args: {
     ...SessionIdArg,
@@ -986,17 +986,18 @@ export const list = query({
     // Validate session and check chatroom access (chatroom not needed)
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
-    const query = ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId));
-
-    const messages = await query.collect();
-
     // Enforce maximum limit to prevent unbounded queries
     const MAX_LIMIT = 1000;
     const limit = args.limit ? Math.min(args.limit, MAX_LIMIT) : MAX_LIMIT;
 
-    return messages.slice(-limit);
+    // Fetch the most recent N messages (desc order) then reverse for chronological
+    const recentMessages = await ctx.db
+      .query('chatroom_messages')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+      .order('desc')
+      .take(limit);
+
+    return recentMessages.reverse();
   },
 });
 
@@ -1446,15 +1447,16 @@ export const getContextWindow = query({
                 classification: originMessage.classification || null,
               };
             }
-            // Origin is older than our recent window - fetch all messages from origin
-            // This is rare but handles edge case
-            const allMessages = await ctx.db
+            // Origin is older than our recent window — use compound index to fetch
+            // messages from the origin's creation time onward (avoids loading ALL messages)
+            const contextMessages = await ctx.db
               .query('chatroom_messages')
-              .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+              .withIndex('by_chatroom_creationTime', (q) =>
+                q
+                  .eq('chatroomId', args.chatroomId)
+                  .gte('_creationTime', originMessage._creationTime)
+              )
               .collect();
-            const fullOriginIndex = allMessages.findIndex((m) => m._id === originMessage._id);
-            const contextMessages =
-              fullOriginIndex !== -1 ? allMessages.slice(fullOriginIndex) : allMessages;
             return {
               originMessage,
               contextMessages,
@@ -1641,16 +1643,20 @@ export const listFeatures = query({
     const MAX_LIMIT = 50;
     const effectiveLimit = Math.min(limit, MAX_LIMIT);
 
-    // Get all messages in the chatroom
-    const messages = await ctx.db
+    // Use the senderRole+type compound index to narrow to user messages,
+    // then filter for new_feature classification. Scan desc to get newest first.
+    // Over-fetch to compensate for post-filter on classification.
+    const candidateMessages = await ctx.db
       .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+      .withIndex('by_chatroom_senderRole_type_createdAt', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('senderRole', 'user').eq('type', 'message')
+      )
+      .order('desc')
+      .take(effectiveLimit * 10); // Over-fetch since not all user messages are new_feature
 
     // Filter to new_feature messages with feature title
-    const features = messages
+    const features = candidateMessages
       .filter((msg) => msg.classification === 'new_feature' && msg.featureTitle)
-      .reverse() // Most recent first
       .slice(0, effectiveLimit)
       .map((msg) => ({
         id: msg._id,
@@ -1722,20 +1728,16 @@ export const inspectFeature = query({
       });
     }
 
-    // Get all messages in the chatroom to find the thread
-    const allMessages = await ctx.db
+    // Use compound index to fetch messages from this message's creation time onward
+    // instead of loading ALL messages in the chatroom
+    const messagesFromFeature = await ctx.db
       .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-
-    // Find the index of this message
-    const messageIndex = allMessages.findIndex((m) => m._id === args.messageId);
-    if (messageIndex === -1) {
-      throw new ConvexError({
-        code: 'MESSAGE_NOT_FOUND',
-        message: 'Message not found in chatroom',
-      });
-    }
+      .withIndex('by_chatroom_creationTime', (q) =>
+        q
+          .eq('chatroomId', args.chatroomId)
+          .gte('_creationTime', regularMsg._creationTime)
+      )
+      .take(500); // Reasonable upper bound for a feature thread
 
     // Get all messages after this one until the next non-follow-up user message
     const thread: {
@@ -1746,8 +1748,15 @@ export const inspectFeature = query({
       createdAt: number;
     }[] = [];
 
-    for (let i = messageIndex + 1; i < allMessages.length; i++) {
-      const msg = allMessages[i];
+    // Skip past the feature message itself, then collect thread
+    let foundFeatureMsg = false;
+    for (const msg of messagesFromFeature) {
+      if (!foundFeatureMsg) {
+        if (msg._id === args.messageId) {
+          foundFeatureMsg = true;
+        }
+        continue;
+      }
 
       // Stop at the next non-follow-up user message
       if (
@@ -1955,13 +1964,15 @@ export const getTaskDeliveryPrompt = query({
     if (chatroom.currentContextId) {
       const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
       if (context) {
-        // Get current message count to compute staleness
-        const allMessages = await ctx.db
+        // Count only messages since context creation to compute staleness.
+        // Uses compound index for an indexed range scan (no full table scan).
+        const recentMessages = await ctx.db
           .query('chatroom_messages')
-          .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+          .withIndex('by_chatroom_creationTime', (q) =>
+            q.eq('chatroomId', args.chatroomId).gte('_creationTime', context.createdAt)
+          )
           .collect();
-        const currentMessageCount = allMessages.length;
-        const messagesSinceContext = currentMessageCount - (context.messageCountAtCreation ?? 0);
+        const messagesSinceContext = recentMessages.length;
 
         // Compute time elapsed since context creation
         const elapsedMs = Date.now() - context.createdAt;
@@ -2432,12 +2443,15 @@ export const listSinceMessage = query({
     const limit = args.limit || 100;
     const maxLimit = 500;
 
-    // Fetch all messages from reference onwards (inclusive)
-    // Using filter on _creationTime since we need >= comparison
+    // Fetch messages from reference creation time onward using compound index
+    // for an indexed range scan (avoids scanning all older messages)
     const messages = await ctx.db
       .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .filter((q) => q.gte(q.field('_creationTime'), referenceMessage._creationTime))
+      .withIndex('by_chatroom_creationTime', (q) =>
+        q
+          .eq('chatroomId', args.chatroomId)
+          .gte('_creationTime', referenceMessage._creationTime)
+      )
       .order('asc')
       .take(Math.min(limit, maxLimit));
 

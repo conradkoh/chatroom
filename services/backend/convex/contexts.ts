@@ -1,9 +1,31 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
+import type { QueryCtx } from './_generated/server';
+import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/cliSessionAuth';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
+
+/**
+ * Count messages in a chatroom created after a given timestamp.
+ * Uses the compound `by_chatroom_creationTime` index to perform an indexed
+ * range scan starting from `sinceTimestamp`, avoiding a full table scan
+ * that would exceed Convex's 16MB per-function read limit.
+ */
+async function countMessagesSince(
+  ctx: { db: QueryCtx['db'] },
+  chatroomId: Id<'chatroom_rooms'>,
+  sinceTimestamp: number
+): Promise<number> {
+  const messages = await ctx.db
+    .query('chatroom_messages')
+    .withIndex('by_chatroom_creationTime', (q) =>
+      q.eq('chatroomId', chatroomId).gte('_creationTime', sinceTimestamp)
+    )
+    .collect();
+  return messages.length;
+}
 
 /** Creates a new context for a chatroom and sets it as the current pinned context. */
 export const createContext = mutation({
@@ -55,12 +77,12 @@ export const createContext = mutation({
       }
     }
 
-    // Get current message count in chatroom for staleness detection
-    const messages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-    const messageCount = messages.length;
+    // Note: We intentionally do NOT count all messages here (it would exceed
+    // Convex's 16MB read limit for large chatrooms). Instead, the read paths
+    // (getContext, getCurrentContext) count messages since context.createdAt.
+    // messageCountAtCreation is set to 0 as a sentinel; staleness is computed
+    // from the creation timestamp, not from absolute counts.
+    const messageCountAtCreation = 0;
 
     // Create context record
     const contextId = await ctx.db.insert('chatroom_contexts', {
@@ -69,7 +91,7 @@ export const createContext = mutation({
       createdBy: args.role,
       createdAt: Date.now(),
       triggerMessageId: args.triggerMessageId,
-      messageCountAtCreation: messageCount,
+      messageCountAtCreation,
     });
 
     // Update chatroom with current context
@@ -128,13 +150,10 @@ export const getContext = query({
     // Validate access to the chatroom this context belongs to
     await requireChatroomAccess(ctx, args.sessionId, context.chatroomId);
 
-    // Get current message count to compute staleness
-    const messages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', context.chatroomId))
-      .collect();
-    const currentMessageCount = messages.length;
-    const messagesSinceContext = currentMessageCount - (context.messageCountAtCreation ?? 0);
+    // Get message count since context creation to compute staleness.
+    // Only reads recent messages (after context.createdAt) instead of ALL messages
+    // to avoid exceeding Convex's 16MB per-function read limit.
+    const messagesSinceContext = await countMessagesSince(ctx, context.chatroomId, context.createdAt);
 
     // Compute time elapsed since context creation
     const elapsedMs = Date.now() - context.createdAt;
@@ -167,13 +186,10 @@ export const getCurrentContext = query({
       return null;
     }
 
-    // Get current message count to compute staleness
-    const messages = await ctx.db
-      .query('chatroom_messages')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-    const currentMessageCount = messages.length;
-    const messagesSinceContext = currentMessageCount - (context.messageCountAtCreation ?? 0);
+    // Get message count since context creation to compute staleness.
+    // Only reads recent messages (after context.createdAt) instead of ALL messages
+    // to avoid exceeding Convex's 16MB per-function read limit.
+    const messagesSinceContext = await countMessagesSince(ctx, args.chatroomId, context.createdAt);
 
     // Compute time elapsed since context creation
     const elapsedMs = Date.now() - context.createdAt;
