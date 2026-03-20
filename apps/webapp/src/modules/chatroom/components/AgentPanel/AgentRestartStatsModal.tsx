@@ -19,6 +19,8 @@ interface AgentRestartStatsModalProps {
   defaultRole: string;
   machineId: string;
   chatroomId: string;
+  /** The active agent's harness/model combo (e.g. "pi/claude-sonnet-4-20250514") for default model selection */
+  defaultModel?: string;
 }
 
 export const AgentRestartStatsModal = memo(function AgentRestartStatsModal({
@@ -28,6 +30,7 @@ export const AgentRestartStatsModal = memo(function AgentRestartStatsModal({
   defaultRole,
   machineId,
   chatroomId,
+  defaultModel,
 }: AgentRestartStatsModalProps) {
   const [selectedRole, setSelectedRole] = useState(defaultRole);
 
@@ -61,6 +64,7 @@ export const AgentRestartStatsModal = memo(function AgentRestartStatsModal({
                       machineId={machineId}
                       chatroomId={chatroomId}
                       role={role}
+                      defaultModel={role === defaultRole ? defaultModel : undefined}
                     />
                   </TabsContent>
                 ))}
@@ -70,6 +74,7 @@ export const AgentRestartStatsModal = memo(function AgentRestartStatsModal({
                 machineId={machineId}
                 chatroomId={chatroomId}
                 role={selectedRole}
+                defaultModel={defaultModel}
               />
             )}
           </div>

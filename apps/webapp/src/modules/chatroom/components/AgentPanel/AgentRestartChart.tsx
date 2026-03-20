@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 
 // ─── Color palette for model bars ───────────────────────────────────────────
@@ -27,6 +27,8 @@ interface AgentRestartChartProps {
   chatroomId: string;
   /** The active role to display metrics for */
   role: string;
+  /** Default model to pre-select (harness/model format, e.g. "pi/claude-sonnet-4-20250514") */
+  defaultModel?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -135,7 +137,10 @@ export function AgentRestartChart({
   machineId,
   chatroomId,
   role,
+  defaultModel,
 }: AgentRestartChartProps) {
+  const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set());
+  const initializedRef = useRef(false);
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
     start: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
     end: new Date(),
@@ -226,6 +231,65 @@ export function AgentRestartChart({
     return { chartData, modelKeys };
   }, [data]);
 
+  // Initialize selectedModels when data first loads
+  useEffect(() => {
+    if (modelKeys.length > 0 && !initializedRef.current) {
+      initializedRef.current = true;
+      if (defaultModel && modelKeys.includes(defaultModel)) {
+        setSelectedModels(new Set([defaultModel]));
+      } else {
+        setSelectedModels(new Set(modelKeys));
+      }
+    }
+  }, [modelKeys, defaultModel]);
+
+  // Toggle a model in the selection
+  const toggleModel = useCallback((model: string) => {
+    setSelectedModels((prev) => {
+      const next = new Set(prev);
+      if (next.has(model)) {
+        // Don't allow deselecting the last one
+        if (next.size > 1) next.delete(model);
+      } else {
+        next.add(model);
+      }
+      return next;
+    });
+  }, []);
+
+  // Select/deselect all models
+  const toggleAll = useCallback(() => {
+    setSelectedModels((prev) => {
+      if (prev.size === modelKeys.length) {
+        // All selected → select only default or first
+        return new Set([defaultModel && modelKeys.includes(defaultModel) ? defaultModel : modelKeys[0]]);
+      }
+      return new Set(modelKeys);
+    });
+  }, [modelKeys, defaultModel]);
+
+  // Filter chart data to only include selected models
+  const filteredModelKeys = useMemo(
+    () => modelKeys.filter((m) => selectedModels.has(m)),
+    [modelKeys, selectedModels]
+  );
+
+  const filteredChartData = useMemo(
+    () =>
+      chartData.map((day) => {
+        const filtered: Record<string, unknown> = { day: day.day };
+        let total = 0;
+        for (const model of filteredModelKeys) {
+          const val = (day as Record<string, unknown>)[model] as number ?? 0;
+          filtered[model] = val;
+          total += val;
+        }
+        filtered._total = total;
+        return filtered;
+      }),
+    [chartData, filteredModelKeys]
+  );
+
   const isEmpty = !data || data.length === 0 || chartData.length === 0;
 
   return (
@@ -275,7 +339,7 @@ export function AgentRestartChart({
       ) : (
         <div className="h-[120px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 14, right: 4, left: -24, bottom: 0 }}>
+            <BarChart data={filteredChartData} margin={{ top: 14, right: 4, left: -24, bottom: 0 }}>
               <XAxis
                 dataKey="day"
                 tick={{ fontSize: 9, fill: 'var(--chatroom-text-muted)' }}
@@ -294,8 +358,8 @@ export function AgentRestartChart({
                 content={<RestartTooltip />}
                 cursor={{ fill: 'var(--chatroom-bg-hover)', opacity: 0.4 }}
               />
-              {modelKeys.map((model, idx) => {
-                const isTop = idx === modelKeys.length - 1;
+              {filteredModelKeys.map((model, idx) => {
+                const isTop = idx === filteredModelKeys.length - 1;
                 return (
                   <Bar
                     key={model}
@@ -335,20 +399,38 @@ export function AgentRestartChart({
         </div>
       )}
 
-      {/* Model legend */}
+      {/* Model selector — clickable toggles */}
       {!isEmpty && modelKeys.length > 0 && (
-        <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-          {modelKeys.map((model, idx) => (
-            <div key={model} className="flex items-center gap-1">
-              <div
-                className="w-2.5 h-2.5 flex-shrink-0"
-                style={{ backgroundColor: getModelColor(idx) }}
-              />
-              <span className="text-[9px] text-chatroom-text-muted truncate max-w-[160px]" title={model}>
-                {model}
-              </span>
-            </div>
-          ))}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          {modelKeys.length > 1 && (
+            <button
+              onClick={toggleAll}
+              className="text-[9px] font-medium text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors mr-1"
+            >
+              {selectedModels.size === modelKeys.length ? 'Deselect all' : 'Select all'}
+            </button>
+          )}
+          {modelKeys.map((model, idx) => {
+            const isSelected = selectedModels.has(model);
+            return (
+              <button
+                key={model}
+                onClick={() => toggleModel(model)}
+                className={`flex items-center gap-1 transition-opacity ${
+                  isSelected ? 'opacity-100' : 'opacity-40'
+                }`}
+                title={isSelected ? `Hide ${model}` : `Show ${model}`}
+              >
+                <div
+                  className="w-2.5 h-2.5 flex-shrink-0"
+                  style={{ backgroundColor: getModelColor(idx) }}
+                />
+                <span className="text-[9px] text-chatroom-text-muted truncate max-w-[160px]">
+                  {model}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
