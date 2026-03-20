@@ -163,21 +163,22 @@ Follow these steps to clean up the backlog by identifying and closing stale item
 ### 5. Export / Import Backlog
 
 Use export/import to transfer backlog items between workspaces or for backup.
+Default path: \`<cwd>/.chatroom/exports/\` — omit \`--path\` to use this.
 
 **Export workflow:**
 \`\`\`mermaid
 flowchart TD
-  A([Start]) --> B["Export backlog to directory"]
-  B --> C["chatroom backlog export --path=<dir>"]
-  C --> D["File written: <dir>/backlog-export.json"]
+  A([Start]) --> B["Export backlog"]
+  B --> C["chatroom backlog export\\n(writes to <cwd>/.chatroom/exports/ by default)"]
+  C --> D["File written: backlog-export.json"]
   D --> E([Done — report file path to user])
 \`\`\`
 
 **Import workflow:**
 \`\`\`mermaid
 flowchart TD
-  A([Start]) --> B["Import from directory"]
-  B --> C["chatroom backlog import --path=<dir>"]
+  A([Start]) --> B["Import backlog"]
+  B --> C["chatroom backlog import\\n(reads from <cwd>/.chatroom/exports/ by default)"]
   C --> D{Staleness warning?}
   D -->|Yes — export > 7 days old| E["Warn user: export may be stale"]
   D -->|No| F["Import items (skip duplicates)"]
@@ -187,7 +188,8 @@ flowchart TD
 \`\`\`
 
 **Key points:**
-- The user provides the export/import directory path
+- Default path is \`<cwd>/.chatroom/exports/\` — no \`--path\` needed for standard usage
+- Use \`--path=<dir>\` to override with a custom directory
 - Imports are idempotent — running import twice with the same file won't create duplicates
 - Each item is identified by a SHA-256 hash of its content`,
 };
