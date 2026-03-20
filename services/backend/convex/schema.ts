@@ -500,6 +500,7 @@ export default defineSchema({
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])
+    .index('by_chatroom_status_assignedTo', ['chatroomId', 'status', 'assignedTo'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
 
   /**

@@ -14,7 +14,6 @@ import { generateFullCliOutput } from '../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../prompts/config/index';
 import { getCliEnvPrefix } from '../prompts/utils/index';
 import { isActiveParticipant } from '../src/domain/entities/participant';
-import { ACTIVE_TASK_STATUSES } from '../src/domain/entities/task';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getAgentConfig } from '../src/domain/usecase/agent/get-agent-config';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
@@ -542,11 +541,32 @@ async function _handoffHandler(
     // 'acknowledged' must be included: a claimed task is actively being worked on.
     // Promoting a queued message while an acknowledged task exists would create a
     // race condition where two tasks compete for agent attention simultaneously.
-    const allTasks = await ctx.db
+    // Check if any active task exists using indexed lookups instead of
+    // loading all tasks. Short-circuit: stop as soon as one is found.
+    const pendingTask = await ctx.db
       .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
-    const hasActiveTask = allTasks.some((t) => ACTIVE_TASK_STATUSES.has(t.status));
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+      )
+      .first();
+    const acknowledgedTask = pendingTask
+      ? null
+      : await ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom_status', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+          )
+          .first();
+    const inProgressTask =
+      pendingTask || acknowledgedTask
+        ? null
+        : await ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+            )
+            .first();
+    const hasActiveTask = !!(pendingTask || acknowledgedTask || inProgressTask);
 
     if (!hasActiveTask) {
       // No active tasks — find oldest queued message and promote it
@@ -656,10 +676,12 @@ export const reportProgress = mutation({
     // Find the current in-progress task for this role to link the progress message
     const inProgressTask = await ctx.db
       .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+      .withIndex('by_chatroom_status_assignedTo', (q) =>
+        q
+          .eq('chatroomId', args.chatroomId)
+          .eq('status', 'in_progress')
+          .eq('assignedTo', args.senderRole)
       )
-      .filter((q) => q.eq(q.field('assignedTo'), args.senderRole))
       .first();
 
     // Create the progress message linked to the task (if found)

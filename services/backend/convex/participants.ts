@@ -98,19 +98,33 @@ export const join = mutation({
       // Promotion is only attempted when no active task exists — this guard is
       // unique to the join scenario (no task transition fires here, so the
       // transitionTask usecase's auto-promotion won't trigger).
-      const activeTasks = await ctx.db
+      // Use indexed .first() queries per status to avoid loading all tasks.
+      const pendingTask = await ctx.db
         .query('chatroom_tasks')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-        .filter((q) =>
-          q.or(
-            q.eq(q.field('status'), 'pending'),
-            q.eq(q.field('status'), 'acknowledged'),
-            q.eq(q.field('status'), 'in_progress')
-          )
+        .withIndex('by_chatroom_status', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
         )
-        .collect();
+        .first();
+      const acknowledgedTask = pendingTask
+        ? null
+        : await ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+            )
+            .first();
+      const inProgressTask =
+        pendingTask || acknowledgedTask
+          ? null
+          : await ctx.db
+              .query('chatroom_tasks')
+              .withIndex('by_chatroom_status', (q) =>
+                q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+              )
+              .first();
+      const hasActiveTask = !!(pendingTask || acknowledgedTask || inProgressTask);
 
-      if (activeTasks.length === 0) {
+      if (!hasActiveTask) {
         await promoteNextTask(args.chatroomId, {
           areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
           getOldestQueuedMessage: async (chatroomId) => {

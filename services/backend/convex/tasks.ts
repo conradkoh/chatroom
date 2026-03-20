@@ -240,10 +240,12 @@ export const startTask = mutation({
       // Find any acknowledged task for this role (legacy behavior)
       acknowledgedTask = await ctx.db
         .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+        .withIndex('by_chatroom_status_assignedTo', (q) =>
+          q
+            .eq('chatroomId', args.chatroomId)
+            .eq('status', 'acknowledged')
+            .eq('assignedTo', args.role)
         )
-        .filter((q) => q.eq(q.field('assignedTo'), args.role))
         .first();
 
       if (!acknowledgedTask) {
@@ -458,9 +460,7 @@ export const listTasks = query({
 
     let tasks;
 
-    // Use by_chatroom_status index for single-status filters to avoid full table scans.
-    // Fall back to by_chatroom (full scan) for multi-status filters (active, all)
-    // or when no filter is specified.
+    // Use by_chatroom_status index for all filters to avoid full table scans.
     if (args.statusFilter && args.statusFilter !== 'active' && args.statusFilter !== 'all') {
       // Single concrete statuses (pending, in_progress)
       tasks = await ctx.db
@@ -475,21 +475,94 @@ export const listTasks = query({
           )
         )
         .collect();
+    } else if (args.statusFilter === 'active') {
+      // Active = pending + acknowledged + in_progress (3 indexed queries)
+      const [pending, acknowledged, inProgress] = await Promise.all([
+        ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom_status', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+          )
+          .collect(),
+        ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom_status', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+          )
+          .collect(),
+        ctx.db
+          .query('chatroom_tasks')
+          .withIndex('by_chatroom_status', (q) =>
+            q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+          )
+          .collect(),
+      ]);
+      tasks = [...pending, ...acknowledged, ...inProgress];
+    } else if (args.statusFilter === 'all') {
+      // 'all' = everything except completed
+      // Include active statuses + deprecated statuses that may exist in old records
+      const [pending, acknowledged, inProgress, closed, backlog, pendingReview, backlogAck] =
+        await Promise.all([
+          ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
+            )
+            .collect(),
+          ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+            )
+            .collect(),
+          ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+            )
+            .collect(),
+          // Deprecated statuses — include for backward compatibility
+          ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', args.chatroomId).eq('status', 'closed')
+            )
+            .collect(),
+          ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', args.chatroomId).eq('status', 'backlog')
+            )
+            .collect(),
+          ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', args.chatroomId).eq('status', 'pending_user_review')
+            )
+            .collect(),
+          ctx.db
+            .query('chatroom_tasks')
+            .withIndex('by_chatroom_status', (q) =>
+              q.eq('chatroomId', args.chatroomId).eq('status', 'backlog_acknowledged')
+            )
+            .collect(),
+        ]);
+      tasks = [
+        ...pending,
+        ...acknowledged,
+        ...inProgress,
+        ...closed,
+        ...backlog,
+        ...pendingReview,
+        ...backlogAck,
+      ];
     } else {
+      // No filter specified — return ALL tasks including completed.
+      // Use by_chatroom_queue for ordered scan (bounded by limit below).
       tasks = await ctx.db
         .query('chatroom_tasks')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
+        .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', args.chatroomId))
         .collect();
-
-      // Apply in-memory filter for multi-status cases
-      if (args.statusFilter === 'active') {
-        tasks = tasks.filter(
-          (t) => t.status === 'pending' || t.status === 'acknowledged' || t.status === 'in_progress'
-        );
-      } else if (args.statusFilter === 'all') {
-        // All active (not historical): exclude completed
-        tasks = tasks.filter((t) => t.status !== 'completed');
-      }
     }
 
     // Sort by queuePosition for all task types
@@ -724,22 +797,23 @@ export const checkQueueHealth = query({
     const activeTasks = [...pendingTasksForHealth, ...inProgressTasksForHealth];
 
     // Check for queued messages (from chatroom_messageQueue, not tasks)
-    const queuedMessages = await ctx.db
+    // Only need to know if any exist, so use .first() instead of .collect()
+    const firstQueuedMessage = await ctx.db
       .query('chatroom_messageQueue')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', args.chatroomId))
-      .collect();
+      .first();
 
     // Check if all agents are waiting for a task
     const allAgentsWaiting = await areAllAgentsWaiting(ctx, args.chatroomId);
 
     const hasActiveTask = activeTasks.length > 0;
-    const hasQueuedTasks = queuedMessages.length > 0;
+    const hasQueuedTasks = firstQueuedMessage !== null;
     // Promotion is possible only if no active tasks, there are queued messages, AND all agents are waiting
     const needsPromotion = !hasActiveTask && hasQueuedTasks && allAgentsWaiting;
 
     return {
       hasActiveTask,
-      queuedCount: queuedMessages.length,
+      queuedCount: firstQueuedMessage ? 1 : 0, // Approximate — exact count not needed for health check
       allAgentsReady: allAgentsWaiting,
       needsPromotion,
     };
