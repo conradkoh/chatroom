@@ -66,16 +66,34 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
         {workspace.hostname}
       </span>
 
-      {/* Branch name (when available) */}
+      {/* Branch name (when available) — links to first PR if one exists */}
       {isAvailable && (
         <>
           <span className="text-[11px] text-chatroom-text-muted">·</span>
-          <div className="flex items-center gap-0.5">
-            <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
-            <span className="text-[11px] font-mono text-chatroom-text-secondary uppercase tracking-wider">
-              {gitState.branch === 'HEAD' ? 'detached HEAD' : gitState.branch}
-            </span>
-          </div>
+          {(gitState.openPullRequests?.length ?? 0) > 0 ? (
+            <a
+              href={gitState.openPullRequests[0]!.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-0.5 text-chatroom-status-info hover:text-chatroom-accent transition-colors"
+              title={gitState.openPullRequests[0]!.title}
+            >
+              <GitPullRequestIcon size={10} className="shrink-0" />
+              <span className="text-[11px] font-mono uppercase tracking-wider">
+                {gitState.branch === 'HEAD' ? 'detached HEAD' : gitState.branch}
+              </span>
+              <span className="text-[11px] font-mono">
+                (#{gitState.openPullRequests[0]!.number})
+              </span>
+            </a>
+          ) : (
+            <div className="flex items-center gap-0.5">
+              <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
+              <span className="text-[11px] font-mono text-chatroom-text-secondary uppercase tracking-wider">
+                {gitState.branch === 'HEAD' ? 'detached HEAD' : gitState.branch}
+              </span>
+            </div>
+          )}
         </>
       )}
 
@@ -84,26 +102,6 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
         <>
           <span className="text-[11px] text-chatroom-text-muted">·</span>
           <InlineDiffStat diffStat={gitState.diffStat} showFileCount={false} />
-        </>
-      )}
-
-      {/* Open pull requests (when available) */}
-      {isAvailable && (gitState.openPullRequests?.length ?? 0) > 0 && (
-        <>
-          <span className="text-[11px] text-chatroom-text-muted">·</span>
-          {gitState.openPullRequests.map((pr) => (
-            <a
-              key={pr.number}
-              href={pr.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-0.5 text-[11px] text-chatroom-status-info hover:text-chatroom-accent transition-colors"
-              title={pr.title}
-            >
-              <GitPullRequestIcon size={10} className="shrink-0" />
-              <span className="font-mono">#{pr.number}</span>
-            </a>
-          ))}
         </>
       )}
     </div>
@@ -167,43 +165,43 @@ const WorkspaceRow = memo(function WorkspaceRow({
         </span>
         <div className="flex items-center gap-1 mt-0.5 flex-wrap">
           <span className="text-[10px] text-chatroom-text-muted">{workspace.hostname}</span>
-          {branchName && (
-            <>
-              <span className="text-[10px] text-chatroom-text-muted">·</span>
-              <span className="flex items-center gap-0.5">
-                <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
-                <span className="text-[10px] font-mono text-chatroom-text-muted truncate max-w-[80px]">
-                  {branchName}
-                </span>
-              </span>
-            </>
-          )}
           {statContent && (
             <>
               <span className="text-[10px] text-chatroom-text-muted">·</span>
               {statContent}
             </>
           )}
-          {gitState.status === 'available' && (gitState.openPullRequests?.length ?? 0) > 0 && (
-            <>
-              <span className="text-[10px] text-chatroom-text-muted">·</span>
-              {gitState.openPullRequests.map((pr) => (
-                <a
-                  key={pr.number}
-                  href={pr.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex items-center gap-0.5 text-[10px] text-chatroom-status-info hover:text-chatroom-accent transition-colors"
-                  title={pr.title}
-                >
-                  <GitPullRequestIcon size={9} className="shrink-0" />
-                  <span className="font-mono">#{pr.number}</span>
-                </a>
-              ))}
-            </>
-          )}
         </div>
+        {branchName && (
+          <div className="flex items-center gap-0.5 mt-0.5">
+            {gitState.status === 'available' &&
+            (gitState.openPullRequests?.length ?? 0) > 0 ? (
+              <a
+                href={gitState.openPullRequests[0]!.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-0.5 text-chatroom-status-info hover:text-chatroom-accent transition-colors"
+                title={gitState.openPullRequests[0]!.title}
+              >
+                <GitPullRequestIcon size={9} className="shrink-0" />
+                <span className="text-[10px] font-mono truncate max-w-[120px]">
+                  {branchName}
+                </span>
+                <span className="text-[10px] font-mono">
+                  (#{gitState.openPullRequests[0]!.number})
+                </span>
+              </a>
+            ) : (
+              <>
+                <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
+                <span className="text-[10px] font-mono text-chatroom-text-muted truncate max-w-[120px]">
+                  {branchName}
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </button>
   );
