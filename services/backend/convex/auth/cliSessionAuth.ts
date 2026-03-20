@@ -201,11 +201,13 @@ export async function getAndIncrementQueuePosition(
 
   if (currentPosition === undefined) {
     // Migration path: initialize from max existing task position
-    const allTasks = await ctx.db
+    // Use by_chatroom_queue index with desc order to find the highest position efficiently
+    const lastTask = await ctx.db
       .query('chatroom_tasks')
-      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroom._id))
-      .collect();
-    const maxPosition = allTasks.reduce((max, t) => Math.max(max, t.queuePosition), 0);
+      .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', chatroom._id))
+      .order('desc')
+      .first();
+    const maxPosition = lastTask ? lastTask.queuePosition : 0;
     const nextPosition = maxPosition + 1;
 
     // Initialize the counter (next task will get nextPosition + 1)
