@@ -240,10 +240,12 @@ export const startTask = mutation({
       // Find any acknowledged task for this role (legacy behavior)
       acknowledgedTask = await ctx.db
         .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
+        .withIndex('by_chatroom_status_assignedTo', (q) =>
+          q
+            .eq('chatroomId', args.chatroomId)
+            .eq('status', 'acknowledged')
+            .eq('assignedTo', args.role)
         )
-        .filter((q) => q.eq(q.field('assignedTo'), args.role))
         .first();
 
       if (!acknowledgedTask) {

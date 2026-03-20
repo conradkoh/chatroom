@@ -676,10 +676,12 @@ export const reportProgress = mutation({
     // Find the current in-progress task for this role to link the progress message
     const inProgressTask = await ctx.db
       .query('chatroom_tasks')
-      .withIndex('by_chatroom_status', (q) =>
-        q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
+      .withIndex('by_chatroom_status_assignedTo', (q) =>
+        q
+          .eq('chatroomId', args.chatroomId)
+          .eq('status', 'in_progress')
+          .eq('assignedTo', args.senderRole)
       )
-      .filter((q) => q.eq(q.field('assignedTo'), args.senderRole))
       .first();
 
     // Create the progress message linked to the task (if found)
