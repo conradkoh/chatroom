@@ -113,14 +113,18 @@ export const InlineAgentCard = memo(function InlineAgentCard({
 
   const [statsOpen, setStatsOpen] = useState(false);
 
-  // Use pre-fetched restart summary from parent batch query if provided,
-  // otherwise fall back to per-card query for standalone usage.
-  const restartSummary =
-    restartSummaryProp ??
-    useSessionQuery(api.machines.getAgentRestartSummaryByRole, {
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-    });
+  // Always call the hook (Rules of Hooks), but skip the subscription when
+  // a pre-fetched restart summary is provided by the parent batch query.
+  const ownRestartSummary = useSessionQuery(
+    api.machines.getAgentRestartSummaryByRole,
+    restartSummaryProp != null
+      ? 'skip'
+      : {
+          chatroomId: chatroomId as Id<'chatroom_rooms'>,
+          role,
+        }
+  );
+  const restartSummary = restartSummaryProp ?? ownRestartSummary;
 
   return (
     <div className="border-b border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3">
