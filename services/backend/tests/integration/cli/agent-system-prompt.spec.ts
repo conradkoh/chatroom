@@ -310,6 +310,8 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
+      **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
+
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
@@ -609,6 +611,8 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       \`\`\`
 
       Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+
+      **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
