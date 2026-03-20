@@ -1,0 +1,619 @@
+/**
+ * AgentProcessManager — single authority for agent lifecycle management.
+ *
+ * Owns all state transitions, PID tracking, process spawning/killing,
+ * crash loop protection, rate limiting, and backend event emission.
+ *
+ * State model per (chatroomId, role):
+ *   idle → spawning → running → idle (on exit)
+ *                  ↘ idle (on failure)
+ *   running → stopping → idle (on stop)
+ *
+ * Phase 1: standalone, no caller changes. Built and tested in isolation.
+ */
+
+import { api } from '../../../api.js';
+import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
+import { resolveStopReason } from '../../machine/stop-reason.js';
+import type { StopReason } from '../../machine/stop-reason.js';
+import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-agent-service.js';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
+
+export interface AgentSlot {
+  state: AgentSlotState;
+  pid?: number;
+  harness?: string;
+  model?: string;
+  workingDir?: string;
+  startedAt?: number;
+  /** Promise that resolves when a pending spawn or stop completes */
+  pendingOperation?: Promise<OperationResult>;
+}
+
+export interface OperationResult {
+  success: boolean;
+  pid?: number;
+  error?: string;
+}
+
+export interface EnsureRunningOpts {
+  chatroomId: string;
+  role: string;
+  agentHarness: string;
+  model?: string;
+  workingDir: string;
+  reason: string;
+}
+
+export interface StopOpts {
+  chatroomId: string;
+  role: string;
+  reason: StopReason;
+}
+
+export interface HandleExitOpts {
+  chatroomId: string;
+  role: string;
+  pid: number;
+  code: number | null;
+  signal: string | null;
+}
+
+export interface AgentProcessManagerDeps {
+  agentServices: Map<string, RemoteAgentService>;
+  backend: {
+    query: (fn: any, args: any) => Promise<any>;
+    mutation: (fn: any, args: any) => Promise<any>;
+  };
+  sessionId: string;
+  machineId: string;
+  processes: { kill: (pid: number, signal: string | number) => void };
+  clock: { delay: (ms: number) => Promise<void>; now: () => number };
+  fs: { stat: (path: string) => Promise<{ isDirectory: () => boolean }> };
+  persistence: {
+    persistAgentPid: (
+      machineId: string,
+      chatroomId: string,
+      role: string,
+      pid: number,
+      harness: string
+    ) => void;
+    clearAgentPid: (machineId: string, chatroomId: string, role: string) => void;
+    listAgentEntries: (
+      machineId: string
+    ) => Array<{ chatroomId: string; role: string; entry: { pid: number; harness: string } }>;
+  };
+  spawning: {
+    shouldAllowSpawn: (
+      chatroomId: string,
+      reason: string
+    ) => { allowed: boolean; retryAfterMs?: number };
+    recordSpawn: (chatroomId: string) => void;
+    recordExit: (chatroomId: string) => void;
+  };
+  crashLoop: CrashLoopTracker;
+  convexUrl: string;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function agentKey(chatroomId: string, role: string): string {
+  return `${chatroomId}:${role.toLowerCase()}`;
+}
+
+// ─── Manager ──────────────────────────────────────────────────────────────────
+
+export class AgentProcessManager {
+  private readonly deps: AgentProcessManagerDeps;
+  private readonly slots = new Map<string, AgentSlot>();
+  private readonly pendingStopReasons = new Map<string, StopReason>();
+
+  constructor(deps: AgentProcessManagerDeps) {
+    this.deps = deps;
+  }
+
+  // ── Public API ──────────────────────────────────────────────────────────
+
+  async ensureRunning(opts: EnsureRunningOpts): Promise<OperationResult> {
+    const key = agentKey(opts.chatroomId, opts.role);
+    const slot = this.getOrCreateSlot(key);
+
+    // Check current state
+    if (slot.state === 'running') {
+      return { success: true, pid: slot.pid };
+    }
+    if (slot.state === 'spawning' && slot.pendingOperation) {
+      return slot.pendingOperation;
+    }
+    if (slot.state === 'stopping' && slot.pendingOperation) {
+      await slot.pendingOperation;
+      // After stopping completes, proceed to spawn
+    }
+
+    // Create the spawn operation promise
+    const operation = this.doEnsureRunning(key, slot, opts);
+    slot.pendingOperation = operation;
+
+    return operation;
+  }
+
+  async stop(opts: StopOpts): Promise<{ success: boolean }> {
+    const key = agentKey(opts.chatroomId, opts.role);
+    const slot = this.slots.get(key);
+
+    if (!slot || slot.state === 'idle') {
+      return { success: true };
+    }
+    if (slot.state === 'stopping' && slot.pendingOperation) {
+      await slot.pendingOperation;
+      return { success: true };
+    }
+
+    const pid = slot.pid;
+    if (!pid) {
+      slot.state = 'idle';
+      slot.pendingOperation = undefined;
+      return { success: true };
+    }
+
+    // Store pending stop reason for when exit handler fires
+    this.pendingStopReasons.set(key, opts.reason);
+
+    const operation = this.doStop(key, slot, pid, opts);
+    slot.pendingOperation = operation;
+
+    await operation;
+    return { success: true };
+  }
+
+  handleExit(opts: HandleExitOpts): void {
+    const key = agentKey(opts.chatroomId, opts.role);
+    const slot = this.slots.get(key);
+
+    // Ignore stale exits — PID must match
+    if (!slot || slot.pid !== opts.pid) {
+      return;
+    }
+
+    // Derive stop reason
+    const intentionalReason = this.pendingStopReasons.get(key);
+    this.pendingStopReasons.delete(key);
+    const stopReason: StopReason =
+      intentionalReason ?? resolveStopReason(opts.code, opts.signal, false);
+
+    // Record exit in spawning service
+    this.deps.spawning.recordExit(opts.chatroomId);
+
+    // Capture slot info before clearing
+    const harness = slot.harness;
+    const model = slot.model;
+    const workingDir = slot.workingDir;
+
+    // Transition: running → idle
+    slot.state = 'idle';
+    slot.pid = undefined;
+    slot.startedAt = undefined;
+    slot.pendingOperation = undefined;
+
+    // Emit agent.exited to backend (fire-and-forget)
+    this.deps.backend
+      .mutation(api.machines.recordAgentExited, {
+        sessionId: this.deps.sessionId,
+        machineId: this.deps.machineId,
+        chatroomId: opts.chatroomId,
+        role: opts.role,
+        pid: opts.pid,
+        stopReason,
+        stopSignal: stopReason === 'agent_process.signal' ? (opts.signal ?? undefined) : undefined,
+        exitCode: opts.code ?? undefined,
+        signal: opts.signal ?? undefined,
+        agentHarness: harness,
+      })
+      .catch((err: Error) => {
+        console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
+      });
+
+    // Clear from disk
+    this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
+
+    // Untrack in agent services
+    for (const service of this.deps.agentServices.values()) {
+      service.untrack(opts.pid);
+    }
+
+    // Restart decision
+    const isIntentionalStop = stopReason === 'user.stop' || stopReason === 'platform.team_switch';
+    const isDaemonRespawn = stopReason === 'daemon.respawn';
+
+    if (isIntentionalStop) {
+      this.deps.crashLoop.clear(opts.chatroomId, opts.role);
+      return; // No restart
+    }
+
+    if (isDaemonRespawn) {
+      return; // Caller will ensureRunning
+    }
+
+    // Auto-restart (if we have enough info)
+    if (!harness || !workingDir) {
+      console.log(
+        `[AgentProcessManager] ⚠️  Cannot restart — missing harness or workingDir ` +
+          `(role: ${opts.role}, harness: ${harness ?? 'none'}, workingDir: ${workingDir ?? 'none'})`
+      );
+      return;
+    }
+
+    this.ensureRunning({
+      chatroomId: opts.chatroomId,
+      role: opts.role,
+      agentHarness: harness,
+      model,
+      workingDir,
+      reason: 'platform.crash_recovery',
+    }).catch((err: Error) => {
+      console.log(`   ⚠️  Failed to restart agent: ${err.message}`);
+
+      // Emit start-failed event
+      this.deps.backend
+        .mutation(api.machines.emitAgentStartFailed, {
+          sessionId: this.deps.sessionId,
+          machineId: this.deps.machineId,
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          error: err.message,
+        })
+        .catch((emitErr: Error) => {
+          console.log(`   ⚠️  Failed to emit startFailed event: ${emitErr.message}`);
+        });
+    });
+  }
+
+  getSlot(chatroomId: string, role: string): AgentSlot | undefined {
+    return this.slots.get(agentKey(chatroomId, role));
+  }
+
+  listActive(): Array<{ chatroomId: string; role: string; slot: AgentSlot }> {
+    const result: Array<{ chatroomId: string; role: string; slot: AgentSlot }> = [];
+    for (const [key, slot] of this.slots) {
+      if (slot.state === 'running' || slot.state === 'spawning') {
+        const [chatroomId, role] = key.split(':');
+        result.push({ chatroomId, role, slot });
+      }
+    }
+    return result;
+  }
+
+  async recover(): Promise<void> {
+    const entries = this.deps.persistence.listAgentEntries(this.deps.machineId);
+    let recovered = 0;
+    let cleaned = 0;
+
+    for (const { chatroomId, role, entry } of entries) {
+      const key = agentKey(chatroomId, role);
+      let alive = false;
+      try {
+        this.deps.processes.kill(entry.pid, 0); // Signal 0 = check if alive
+        alive = true;
+      } catch {
+        alive = false;
+      }
+
+      if (alive) {
+        this.slots.set(key, {
+          state: 'running',
+          pid: entry.pid,
+          harness: entry.harness,
+        });
+        recovered++;
+      } else {
+        this.deps.persistence.clearAgentPid(this.deps.machineId, chatroomId, role);
+        cleaned++;
+      }
+    }
+
+    console.log(
+      `[AgentProcessManager] Recovery: ${recovered} alive, ${cleaned} cleaned up`
+    );
+  }
+
+  // ── Private ─────────────────────────────────────────────────────────────
+
+  private getOrCreateSlot(key: string): AgentSlot {
+    let slot = this.slots.get(key);
+    if (!slot) {
+      slot = { state: 'idle' };
+      this.slots.set(key, slot);
+    }
+    return slot;
+  }
+
+  private async doEnsureRunning(
+    key: string,
+    slot: AgentSlot,
+    opts: EnsureRunningOpts
+  ): Promise<OperationResult> {
+    // Transition: idle → spawning
+    slot.state = 'spawning';
+
+    try {
+      // Gate 1: Rate limit check
+      const spawnCheck = this.deps.spawning.shouldAllowSpawn(opts.chatroomId, opts.reason);
+      if (!spawnCheck.allowed) {
+        slot.state = 'idle';
+        slot.pendingOperation = undefined;
+        return { success: false, error: 'rate_limited' };
+      }
+
+      // Gate 2: Crash loop check (only for crash recovery)
+      if (opts.reason === 'platform.crash_recovery') {
+        const loopCheck = this.deps.crashLoop.record(opts.chatroomId, opts.role);
+        if (!loopCheck.allowed) {
+          // Emit restartLimitReached event
+          this.deps.backend
+            .mutation(api.machines.emitRestartLimitReached, {
+              sessionId: this.deps.sessionId,
+              machineId: this.deps.machineId,
+              chatroomId: opts.chatroomId,
+              role: opts.role,
+              restartCount: loopCheck.restartCount,
+              windowMs: loopCheck.windowMs,
+            })
+            .catch((err: Error) => {
+              console.log(`   ⚠️  Failed to emit restartLimitReached event: ${err.message}`);
+            });
+
+          slot.state = 'idle';
+          slot.pendingOperation = undefined;
+          return { success: false, error: 'crash_loop' };
+        }
+      }
+
+      // Gate 3: Validate working directory
+      try {
+        const dirStat = await this.deps.fs.stat(opts.workingDir);
+        if (!dirStat.isDirectory()) {
+          slot.state = 'idle';
+          slot.pendingOperation = undefined;
+          return { success: false, error: `Working directory is not a directory: ${opts.workingDir}` };
+        }
+      } catch {
+        slot.state = 'idle';
+        slot.pendingOperation = undefined;
+        return { success: false, error: `Working directory does not exist: ${opts.workingDir}` };
+      }
+
+      // Gate 4: Kill stale process (defensive)
+      if (slot.pid) {
+        try {
+          this.deps.processes.kill(-slot.pid, 'SIGTERM');
+        } catch {
+          // Process may already be dead
+        }
+        slot.pid = undefined;
+      }
+
+      // Step 5: Fetch init prompt
+      let initPromptResult;
+      try {
+        initPromptResult = await this.deps.backend.query(api.messages.getInitPrompt, {
+          sessionId: this.deps.sessionId,
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          convexUrl: this.deps.convexUrl,
+        });
+      } catch (e) {
+        slot.state = 'idle';
+        slot.pendingOperation = undefined;
+        return { success: false, error: `Failed to fetch init prompt: ${(e as Error).message}` };
+      }
+
+      if (!initPromptResult?.prompt) {
+        slot.state = 'idle';
+        slot.pendingOperation = undefined;
+        return { success: false, error: 'Failed to fetch init prompt from backend' };
+      }
+
+      // Step 6: Spawn process
+      const service = this.deps.agentServices.get(opts.agentHarness);
+      if (!service) {
+        slot.state = 'idle';
+        slot.pendingOperation = undefined;
+        return { success: false, error: `Unknown agent harness: ${opts.agentHarness}` };
+      }
+
+      let spawnResult: SpawnResult;
+      try {
+        spawnResult = await service.spawn({
+          workingDir: opts.workingDir,
+          prompt: initPromptResult.initialMessage,
+          systemPrompt: initPromptResult.rolePrompt,
+          model: opts.model,
+          context: {
+            machineId: this.deps.machineId,
+            chatroomId: opts.chatroomId,
+            role: opts.role,
+          },
+        });
+      } catch (e) {
+        slot.state = 'idle';
+        slot.pendingOperation = undefined;
+        return { success: false, error: `Failed to spawn agent: ${(e as Error).message}` };
+      }
+
+      const { pid } = spawnResult;
+
+      // Track spawn
+      this.deps.spawning.recordSpawn(opts.chatroomId);
+
+      // Transition: spawning → running
+      slot.state = 'running';
+      slot.pid = pid;
+      slot.harness = opts.agentHarness;
+      slot.model = opts.model;
+      slot.workingDir = opts.workingDir;
+      slot.startedAt = this.deps.clock.now();
+      slot.pendingOperation = undefined;
+
+      // Emit agent started event (fire-and-forget)
+      this.deps.backend
+        .mutation(api.machines.updateSpawnedAgent, {
+          sessionId: this.deps.sessionId,
+          machineId: this.deps.machineId,
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          pid,
+          model: opts.model,
+          reason: opts.reason,
+        })
+        .catch((err: Error) => {
+          console.log(`   ⚠️  Failed to update PID in backend: ${err.message}`);
+        });
+
+      // Persist to disk (fire-and-forget)
+      try {
+        this.deps.persistence.persistAgentPid(
+          this.deps.machineId,
+          opts.chatroomId,
+          opts.role,
+          pid,
+          opts.agentHarness
+        );
+      } catch {
+        // Non-critical
+      }
+
+      // Register exit handler
+      spawnResult.onExit(({ code, signal }) => {
+        this.handleExit({
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          pid,
+          code,
+          signal,
+        });
+      });
+
+      // Register agent-end handler
+      if (spawnResult.onAgentEnd) {
+        spawnResult.onAgentEnd(() => {
+          try {
+            this.deps.processes.kill(-pid, 'SIGTERM');
+          } catch {
+            // Process may already be dead
+          }
+        });
+      }
+
+      // Track token activity (throttled to 30s)
+      let lastReportedTokenAt = 0;
+      spawnResult.onOutput(() => {
+        const now = this.deps.clock.now();
+        if (now - lastReportedTokenAt >= 30_000) {
+          lastReportedTokenAt = now;
+          this.deps.backend
+            .mutation(api.participants.updateTokenActivity, {
+              sessionId: this.deps.sessionId,
+              chatroomId: opts.chatroomId,
+              role: opts.role,
+            })
+            .catch(() => {}); // fire-and-forget
+        }
+      });
+
+      return { success: true, pid };
+    } catch (e) {
+      // Catch-all: transition back to idle on unexpected errors
+      slot.state = 'idle';
+      slot.pendingOperation = undefined;
+      return { success: false, error: `Unexpected error: ${(e as Error).message}` };
+    }
+  }
+
+  private async doStop(
+    key: string,
+    slot: AgentSlot,
+    pid: number,
+    opts: StopOpts
+  ): Promise<OperationResult> {
+    slot.state = 'stopping';
+
+    try {
+      // SIGTERM to process group
+      try {
+        this.deps.processes.kill(-pid, 'SIGTERM');
+      } catch {
+        // Process may already be dead
+      }
+
+      // Poll for 10 seconds
+      let dead = false;
+      for (let i = 0; i < 20; i++) {
+        await this.deps.clock.delay(500);
+        try {
+          this.deps.processes.kill(pid, 0);
+        } catch {
+          dead = true;
+          break;
+        }
+      }
+
+      // If still alive, SIGKILL
+      if (!dead) {
+        try {
+          this.deps.processes.kill(-pid, 'SIGKILL');
+        } catch {
+          // Already dead
+        }
+
+        // Poll for 5 more seconds
+        for (let i = 0; i < 10; i++) {
+          await this.deps.clock.delay(500);
+          try {
+            this.deps.processes.kill(pid, 0);
+          } catch {
+            dead = true;
+            break;
+          }
+        }
+      }
+    } catch {
+      // Process cleanup is best-effort
+    }
+
+    // Transition: stopping → idle
+    slot.state = 'idle';
+    slot.pid = undefined;
+    slot.startedAt = undefined;
+    slot.pendingOperation = undefined;
+
+    // Emit agent.exited to backend (fire-and-forget)
+    this.deps.backend
+      .mutation(api.machines.recordAgentExited, {
+        sessionId: this.deps.sessionId,
+        machineId: this.deps.machineId,
+        chatroomId: opts.chatroomId,
+        role: opts.role,
+        pid,
+        stopReason: opts.reason,
+        exitCode: undefined,
+        signal: undefined,
+        agentHarness: slot.harness,
+      })
+      .catch((err: Error) => {
+        console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
+      });
+
+    // Clear from disk
+    this.deps.persistence.clearAgentPid(this.deps.machineId, opts.chatroomId, opts.role);
+
+    // Untrack in agent services
+    for (const service of this.deps.agentServices.values()) {
+      service.untrack(pid);
+    }
+
+    return { success: true };
+  }
+}
