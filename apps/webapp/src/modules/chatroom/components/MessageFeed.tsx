@@ -1922,7 +1922,7 @@ export const MessageFeed = memo(function MessageFeed({
         isOpen={isEventStreamOpen}
         onClose={() => setIsEventStreamOpen(false)}
         events={(paginatedEvents as EventStreamEvent[] | undefined) ?? []}
-        isLoading={isEventStreamOpen && paginatedEvents === undefined}
+        isLoading={isEventStreamOpen && (paginatedEvents === undefined || eventsPaginationStatus === 'LoadingFirstPage')}
         onLoadMore={() => loadMoreEvents(20)}
         hasMore={eventsPaginationStatus === 'CanLoadMore'}
       />
