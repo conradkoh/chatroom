@@ -553,6 +553,30 @@ backlogCommand
     await closeBacklog(options.chatroomId, options);
   });
 
+backlogCommand
+  .command('export')
+  .description('Export backlog items to a JSON file')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--path <path>', 'Directory path to export to (default: .chatroom/exports/)')
+  .action(async (options: { chatroomId: string; role: string; path?: string }) => {
+    await maybeRequireAuth();
+    const { exportBacklog } = await import('./commands/backlog/index.js');
+    await exportBacklog(options.chatroomId, { role: options.role, path: options.path });
+  });
+
+backlogCommand
+  .command('import')
+  .description('Import backlog items from a JSON export file')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .option('--path <path>', 'Directory path to import from (default: .chatroom/exports/)')
+  .action(async (options: { chatroomId: string; role: string; path?: string }) => {
+    await maybeRequireAuth();
+    const { importBacklog } = await import('./commands/backlog/index.js');
+    await importBacklog(options.chatroomId, { role: options.role, path: options.path });
+  });
+
 // ============================================================================
 // TASK COMMANDS (auth required)
 // ============================================================================
