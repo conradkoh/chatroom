@@ -4,7 +4,6 @@
  * Delegates to AgentProcessManager.stop() for the actual kill + cleanup.
  */
 
-import type { Id } from '../../../../api.js';
 import type { StopReason } from '../../../../infrastructure/machine/stop-reason.js';
 import type { CommandResult, DaemonContext, StopAgentCommand, StopAgentReason } from '../types.js';
 
@@ -15,7 +14,7 @@ import type { CommandResult, DaemonContext, StopAgentCommand, StopAgentReason } 
 export async function executeStopAgent(
   ctx: DaemonContext,
   args: {
-    chatroomId: Id<'chatroom_rooms'>;
+    chatroomId: string;
     role: string;
     reason: StopAgentReason;
   }

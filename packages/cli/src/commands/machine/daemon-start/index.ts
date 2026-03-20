@@ -21,7 +21,6 @@ export async function daemonStart(): Promise<void> {
 
 // ─── Re-exports for Testing ─────────────────────────────────────────────────
 
-export { handleStartAgent } from './handlers/start-agent.js';
 export { handleStopAgent } from './handlers/stop-agent.js';
 export { recoverAgentState } from './handlers/state-recovery.js';
 
