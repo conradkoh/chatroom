@@ -55,6 +55,14 @@ export function createMockDaemonDeps(overrides?: Partial<DaemonDeps>): DaemonDep
       recordExit: vi.fn(),
       getConcurrentCount: vi.fn().mockReturnValue(0),
     },
+    agentProcessManager: {
+      ensureRunning: vi.fn().mockResolvedValue({ success: true, pid: 12345 }),
+      stop: vi.fn().mockResolvedValue({ success: true }),
+      handleExit: vi.fn(),
+      recover: vi.fn().mockResolvedValue(undefined),
+      getSlot: vi.fn().mockReturnValue(undefined),
+      listActive: vi.fn().mockReturnValue([]),
+    } as any,
   };
 
   return {

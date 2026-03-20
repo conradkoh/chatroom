@@ -1,13 +1,11 @@
 /**
  * Handles an agent.requestStart event from chatroom_eventStream.
- * Checks deadline before executing — expired requests are skipped.
- * Calls executeStartAgent directly — no synthetic command ID needed.
+ * Delegates to AgentProcessManager for lifecycle management.
+ * Deadline check is kept at the caller level (transport concern).
  */
 
 import type { Id } from '../../../api.js';
-import { executeStartAgent } from '../../../commands/machine/daemon-start/handlers/start-agent.js';
 import type {
-  AgentHarness,
   DaemonContext,
   StartAgentReason,
 } from '../../../commands/machine/daemon-start/types.js';
@@ -16,7 +14,7 @@ export interface AgentRequestStartEventPayload {
   _id: Id<'chatroom_eventStream'>;
   chatroomId: Id<'chatroom_rooms'>;
   role: string;
-  agentHarness: AgentHarness;
+  agentHarness: 'opencode' | 'pi' | 'cursor';
   model: string;
   workingDir: string;
   reason: string;
@@ -29,6 +27,7 @@ export async function onRequestStartAgent(
 ): Promise<void> {
   const eventId = event._id.toString();
 
+  // Deadline check — transport-level concern, not lifecycle
   if (Date.now() > event.deadline) {
     console.log(
       `[daemon] ⏰ Skipping expired agent.requestStart for role=${event.role} (id: ${eventId}, deadline passed)`
@@ -36,19 +35,9 @@ export async function onRequestStartAgent(
     return;
   }
 
-  // Gate the spawn through the HarnessSpawningService rate limiter
-  const spawnCheck = ctx.deps.spawning.shouldAllowSpawn(event.chatroomId, event.reason);
-  if (!spawnCheck.allowed) {
-    const retryMsg = spawnCheck.retryAfterMs ? ` Retry after ${spawnCheck.retryAfterMs}ms.` : '';
-    console.warn(
-      `[daemon] ⚠️  Spawn suppressed for chatroom=${event.chatroomId} role=${event.role} reason=${event.reason} (id: ${eventId}).${retryMsg}`
-    );
-    return;
-  }
-
   console.log(`[daemon] Processing agent.requestStart (id: ${eventId})`);
 
-  await executeStartAgent(ctx, {
+  const result = await ctx.deps.agentProcessManager.ensureRunning({
     chatroomId: event.chatroomId,
     role: event.role,
     agentHarness: event.agentHarness,
@@ -56,4 +45,10 @@ export async function onRequestStartAgent(
     workingDir: event.workingDir,
     reason: event.reason as StartAgentReason,
   });
+
+  if (!result.success) {
+    console.log(
+      `[daemon] Agent start rejected for role=${event.role}: ${result.error ?? 'unknown'}`
+    );
+  }
 }
