@@ -15,7 +15,6 @@ import { pushGitState } from './git-heartbeat.js';
 import { startGitPollingLoop } from './git-polling.js';
 import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
-import { startTaskMonitor } from './task-monitor.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
@@ -180,12 +179,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Separate from the heartbeat so git requests get low latency (~5s).
   const gitPollingHandle = startGitPollingLoop(ctx);
 
-  // ── Task Monitor ─────────────────────────────────────────────────────
-  // Subscribes to getAssignedTasks and starts agents when the harness-specific
-  // restart policy allows. This is the primary restart mechanism; the backend's
-  // ensureAgentHandler is a fallback for when the daemon is completely offline.
-  const taskMonitorHandle = startTaskMonitor(ctx);
-
   // Trigger an immediate git state push on startup so the frontend gets
   // data right away without waiting 30s for the first heartbeat.
   pushGitState(ctx).catch(() => {});
@@ -198,9 +191,6 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
     // Stop git polling loop
     gitPollingHandle.stop();
-
-    // Stop task monitor
-    taskMonitorHandle.stop();
 
     await onDaemonShutdown(ctx);
 

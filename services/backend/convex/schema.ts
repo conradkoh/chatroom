@@ -1012,6 +1012,25 @@ export default defineSchema({
         role: v.string(),
         prompt: v.string(),
         timestamp: v.number(),
+      }),
+      // Daemon failed to start an agent process
+      v.object({
+        type: v.literal('agent.startFailed'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        error: v.string(),
+        timestamp: v.number(),
+      }),
+      // Daemon hit crash loop limit and stopped restarting
+      v.object({
+        type: v.literal('agent.restartLimitReached'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        restartCount: v.number(),
+        windowMs: v.number(),
+        timestamp: v.number(),
       })
     )
   )
@@ -1097,13 +1116,17 @@ export default defineSchema({
     hasMoreCommits: v.optional(v.boolean()),
 
     // Open pull requests for the current branch (only when status === 'available')
-    openPullRequests: v.optional(v.array(v.object({
-      number: v.number(),
-      title: v.string(),
-      url: v.string(),
-      headRefName: v.string(),
-      state: v.string(),
-    }))),
+    openPullRequests: v.optional(
+      v.array(
+        v.object({
+          number: v.number(),
+          title: v.string(),
+          url: v.string(),
+          headRefName: v.string(),
+          state: v.string(),
+        })
+      )
+    ),
 
     // Error message (only when status === 'error')
     errorMessage: v.optional(v.string()),

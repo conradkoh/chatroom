@@ -122,7 +122,13 @@ export async function withSpawnLock<T>(
   });
 
   // Chain the gate onto the previous lock entry so subsequent callers wait.
-  ctx.spawnLocks.set(key, prev.then(() => gate, () => gate));
+  ctx.spawnLocks.set(
+    key,
+    prev.then(
+      () => gate,
+      () => gate
+    )
+  );
 
   // Wait for the previous operation to complete before running ours.
   await prev.catch(() => {});
@@ -136,11 +142,13 @@ export async function withSpawnLock<T>(
     const current = ctx.spawnLocks.get(key);
     if (current) {
       // Check if the chain has settled (no new operations chained)
-      current.then(() => {
-        if (ctx.spawnLocks.get(key) === current) {
-          ctx.spawnLocks.delete(key);
-        }
-      }).catch(() => {});
+      current
+        .then(() => {
+          if (ctx.spawnLocks.get(key) === current) {
+            ctx.spawnLocks.delete(key);
+          }
+        })
+        .catch(() => {});
     }
   }
 }
@@ -169,7 +177,8 @@ export interface DaemonContext {
   /**
    * Tracks pending stop reasons for agents being intentionally stopped.
    * Key: `${chatroomId}:${role}` → stop reason.
-   * Used to distinguish intentional stops from crashes in the onExit handler.
+   * Set by onAgentShutdown BEFORE killing the process, read by the onExit
+   * callback in start-agent.ts to correctly classify intentional exits.
    */
   pendingStops: Map<string, StopReason>;
   /**

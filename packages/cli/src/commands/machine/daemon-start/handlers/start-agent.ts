@@ -18,13 +18,6 @@ import type {
 import { agentKey, withSpawnLock } from '../types.js';
 
 /**
- * Minimum duration for a healthy turn.
- * Turns shorter than this are considered quick-fails (likely provider issues)
- * and do NOT trigger agent restart.
- */
-const MIN_HEALTHY_TURN_MS = 30_000; // 30 seconds
-
-/**
  * Execute the start-agent logic for a given set of explicit args.
  *
  * This is the canonical implementation — `handleStartAgent` is a thin wrapper
@@ -47,9 +40,7 @@ export async function executeStartAgent(
     reason: StartAgentReason;
   }
 ): Promise<CommandResult> {
-  return withSpawnLock(ctx, args.chatroomId, args.role, () =>
-    executeStartAgentImpl(ctx, args)
-  );
+  return withSpawnLock(ctx, args.chatroomId, args.role, () => executeStartAgentImpl(ctx, args));
 }
 
 /**
@@ -192,7 +183,6 @@ async function executeStartAgentImpl(
   }
 
   const { pid } = spawnResult;
-  const spawnedAt = Date.now(); // Track spawn time for turn duration classification
   const msg = `Agent spawned (PID: ${pid})`;
   console.log(`   ✅ ${msg}`);
 
@@ -232,14 +222,14 @@ async function executeStartAgentImpl(
   spawnResult.onExit(({ code, signal }) => {
     // Decrement concurrent agent count for this chatroom
     ctx.deps.spawning.recordExit(chatroomId);
+
+    // Derive stop reason from exit info.
+    // Check pendingStops first — if onAgentShutdown set an intentional reason
+    // before killing, use that. Otherwise derive from exit code/signal.
     const key = agentKey(chatroomId, role);
-    const pendingReason = ctx.pendingStops.get(key) ?? null;
-    if (pendingReason) {
-      ctx.pendingStops.delete(key);
-    }
-    // If the daemon marked a specific reason (user.stop or daemon.respawn),
-    // use it directly. Otherwise, derive from exit code/signal as before.
-    const stopReason: StopReason = pendingReason ?? resolveStopReason(code, signal, false);
+    const intentionalReason = ctx.pendingStops.get(key);
+    ctx.pendingStops.delete(key); // Consume so it doesn't leak across restarts
+    const stopReason: StopReason = intentionalReason ?? resolveStopReason(code, signal, false);
     ctx.events.emit('agent:exited', {
       chatroomId,
       role,
@@ -248,30 +238,16 @@ async function executeStartAgentImpl(
       signal,
       stopReason,
       agentHarness,
+      model,
+      workingDir,
     });
   });
 
-  // When the agent completes a turn (agent_end), kill the process so the daemon's
-  // task monitor can start a fresh agent for the next task when one is assigned.
-  // We mark this as intentional so the backend does NOT create crash recovery events.
-  // The task monitor (PiRestartPolicy) will restart agents based on task state
-  // and pendingStops flag, preventing event spam from rapid agent_end cycles.
+  // When the agent completes a turn (agent_end), kill the process so a fresh
+  // agent can be started for the next task. The onAgentExited handler will
+  // detect the exit and restart automatically.
   if (spawnResult.onAgentEnd) {
     spawnResult.onAgentEnd(() => {
-      // Classify turn duration to distinguish healthy completions from quick-fails.
-      // Quick-fails (likely provider issues) should NOT trigger restart.
-      const elapsed = Date.now() - spawnedAt;
-      const isHealthyTurn = elapsed >= MIN_HEALTHY_TURN_MS;
-      const stopReason = isHealthyTurn
-        ? 'agent_process.turn_end'
-        : 'agent_process.turn_end_quick_fail';
-
-      // Mark as intentional stop so the backend doesn't create crash recovery events.
-      // This prevents rapid agent_end cycles from flooding the event stream.
-      // The key uses lowercase role for consistency with agentKey().
-      const key = agentKey(chatroomId, role);
-      ctx.pendingStops.set(key, stopReason);
-
       // Kill the process group (negative pid = entire process group).
       try {
         ctx.deps.processes.kill(-pid, 'SIGTERM');

@@ -701,7 +701,7 @@ describe('handleStartAgent', () => {
     );
   });
 
-  it('kills process with SIGTERM and marks stop reason when onAgentEnd fires', async () => {
+  it('kills process with SIGTERM when onAgentEnd fires', async () => {
     let agentEndCallback: (() => void) | null = null;
 
     const ctx = createMockContext({
@@ -723,13 +723,10 @@ describe('handleStartAgent', () => {
     // Simulate agent_end firing
     agentEndCallback!();
 
-    // Should kill the process group (negative pid)
+    // Should kill the process group (negative pid) — the exit triggers onAgentExited which restarts
     expect(ctx.deps.processes.kill).toHaveBeenCalledWith(-5678, 'SIGTERM');
-    // Should mark with stop reason (turn_end or turn_end_quick_fail based on elapsed time)
-    // Since this test runs quickly, it will be turn_end_quick_fail
-    expect(ctx.pendingStops.get('test-chatroom-123:builder')).toBe(
-      'agent_process.turn_end_quick_fail'
-    );
+    // No pendingStops entry — turn-end exits are treated as normal exits (restart via onAgentExited)
+    expect(ctx.pendingStops.has('test-chatroom-123:builder')).toBe(false);
   });
 
   it('does not register onAgentEnd handler when spawnResult does not provide it', async () => {

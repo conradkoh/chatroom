@@ -101,6 +101,25 @@ export type AgentWaitingEvent = {
   timestamp: number;
 };
 
+export type AgentStartFailedEvent = {
+  type: 'agent.startFailed';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  error: string;
+  timestamp: number;
+};
+
+export type AgentRestartLimitReachedEvent = {
+  type: 'agent.restartLimitReached';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  restartCount: number;
+  windowMs: number;
+  timestamp: number;
+};
+
 export type TaskAcknowledgedEvent = {
   type: 'task.acknowledged';
   chatroomId: Id<'chatroom_rooms'>;
@@ -154,4 +173,6 @@ export type ChatroomEvent =
   | TaskInProgressEvent
   | DaemonPingEvent
   | DaemonPongEvent
-  | SkillActivatedEvent;
+  | SkillActivatedEvent
+  | AgentStartFailedEvent
+  | AgentRestartLimitReachedEvent;

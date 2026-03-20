@@ -1432,3 +1432,64 @@ export const getAssignedTasks = query({
     });
   },
 });
+
+// ============================================================================
+// DAEMON OBSERVABILITY EVENTS
+// Emitted by the daemon to report agent lifecycle events to the event stream.
+// ============================================================================
+
+/** Emits an agent.startFailed event when the daemon fails to spawn an agent. */
+export const emitAgentStartFailed = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    error: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.startFailed',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      error: args.error,
+      timestamp: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
+/** Emits an agent.restartLimitReached event when crash loop protection triggers. */
+export const emitRestartLimitReached = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    restartCount: v.number(),
+    windowMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.restartLimitReached',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      restartCount: args.restartCount,
+      windowMs: args.windowMs,
+      timestamp: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
