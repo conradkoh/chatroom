@@ -10,6 +10,8 @@ import type {
   AgentRequestStopEvent,
   AgentRegisteredEvent,
   AgentWaitingEvent,
+  AgentStartFailedEvent,
+  AgentRestartLimitReachedEvent,
 } from '../viewModels/eventStreamViewModel';
 import { formatTimestampFull } from '../viewModels/eventStreamViewModel';
 
@@ -47,16 +49,47 @@ function renderAgentStartedDetails(event: AgentStartedEvent): React.ReactNode {
 // ─── Agent Exited ────────────────────────────────────────────────────────────
 
 function renderAgentExitedCell(event: AgentExitedEvent, isSelected: boolean): React.ReactNode {
-  const status = event.intentional ? 'Exit' : 'Crash';
+  let badgeText: string;
+  let badgeColor: 'info' | 'warning' | 'error';
+
+  switch (event.stopReason) {
+    case 'user.stop':
+    case 'platform.team_switch':
+      badgeText = 'Stopped';
+      badgeColor = 'info';
+      break;
+    case 'agent_process.exited_clean':
+    case 'daemon.respawn':
+      badgeText = 'Exit';
+      badgeColor = 'warning';
+      break;
+    case 'agent_process.crashed':
+      badgeText = 'Crash';
+      badgeColor = 'error';
+      break;
+    case 'agent_process.signal':
+      badgeText = 'Signal';
+      badgeColor = 'error';
+      break;
+    default:
+      // Legacy events without stopReason — fall back to intentional field
+      badgeText = event.intentional ? 'Exit' : 'Crash';
+      badgeColor = 'error';
+      break;
+  }
+
+  const exitCodeStr = event.exitCode !== undefined ? `exit(${event.exitCode}) ` : '';
+  const secondaryInfo = event.stopReason
+    ? `${exitCodeStr}${event.stopReason}`
+    : event.stopReason ?? 'unknown';
+
   return (
     <EventRow
       type="agent.exited"
-      badgeText={status}
-      badgeColor="error"
+      badgeText={badgeText}
+      badgeColor={badgeColor}
       primaryInfo={event.role}
-      secondaryInfo={
-        event.intentional ? `exit(${event.exitCode ?? 0})` : `signal ${event.signal ?? 'unknown'}`
-      }
+      secondaryInfo={secondaryInfo}
       timestamp={event.timestamp}
       isSelected={isSelected}
     />
@@ -69,8 +102,10 @@ function renderAgentExitedDetails(event: AgentExitedEvent): React.ReactNode {
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Machine ID" value={event.machineId} mono />
       <DetailRow label="PID" value={String(event.pid)} mono />
-      <DetailRow label="Intentional" value={event.intentional ? 'Yes' : 'No'} />
-      {event.stopReason && <DetailRow label="Stop Reason" value={event.stopReason} />}
+      <DetailRow
+        label="Stop Reason"
+        value={event.stopReason ?? (event.intentional ? 'intentional' : 'unknown')}
+      />
       {event.stopSignal && <DetailRow label="Stop Signal" value={event.stopSignal} />}
       {event.exitCode !== undefined && (
         <DetailRow label="Exit Code" value={String(event.exitCode)} mono />
@@ -211,7 +246,7 @@ function renderAgentRegisteredDetails(event: AgentRegisteredEvent): React.ReactN
 
 // ─── Agent Waiting ────────────────────────────────────────────────────────────
 
-function renderAgentWaitingingCell(event: AgentWaitingEvent, isSelected: boolean): React.ReactNode {
+function renderAgentWaitingCell(event: AgentWaitingEvent, isSelected: boolean): React.ReactNode {
   return (
     <EventRow
       type="agent.waiting"
@@ -229,6 +264,75 @@ function renderAgentWaitingDetails(event: AgentWaitingEvent): React.ReactNode {
     <EventDetails title="Agent Waiting" timestamp={event.timestamp} type="agent.waiting">
       <DetailRow label="Role" value={event.role} />
       {event.machineId && <DetailRow label="Machine ID" value={event.machineId} mono />}
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Agent Start Failed ───────────────────────────────────────────────────────
+
+function renderAgentStartFailedCell(
+  event: AgentStartFailedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  const truncatedError =
+    event.error.length > 60 ? event.error.substring(0, 57) + '...' : event.error;
+  return (
+    <EventRow
+      type="agent.startFailed"
+      badgeText="Start Failed"
+      badgeColor="error"
+      primaryInfo={event.role}
+      secondaryInfo={truncatedError}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentStartFailedDetails(event: AgentStartFailedEvent): React.ReactNode {
+  return (
+    <EventDetails title="Agent Start Failed" timestamp={event.timestamp} type="agent.startFailed">
+      <DetailRow label="Role" value={event.role} />
+      <DetailRow label="Machine ID" value={event.machineId} mono />
+      <DetailRow label="Error" value={event.error} />
+      <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
+    </EventDetails>
+  );
+}
+
+// ─── Agent Restart Limit Reached ──────────────────────────────────────────────
+
+function renderAgentRestartLimitReachedCell(
+  event: AgentRestartLimitReachedEvent,
+  isSelected: boolean
+): React.ReactNode {
+  return (
+    <EventRow
+      type="agent.restartLimitReached"
+      badgeText="Restart Limit"
+      badgeColor="error"
+      primaryInfo={event.role}
+      secondaryInfo={`${event.restartCount} restarts in ${event.windowMs / 1000}s`}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderAgentRestartLimitReachedDetails(
+  event: AgentRestartLimitReachedEvent
+): React.ReactNode {
+  return (
+    <EventDetails
+      title="Agent Restart Limit Reached"
+      timestamp={event.timestamp}
+      type="agent.restartLimitReached"
+    >
+      <DetailRow label="Role" value={event.role} />
+      <DetailRow label="Machine ID" value={event.machineId} mono />
+      <DetailRow label="Restart Count" value={String(event.restartCount)} />
+      <DetailRow label="Window" value={`${event.windowMs / 1000}s`} />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
     </EventDetails>
   );
@@ -262,7 +366,15 @@ export function registerAgentEvents(): void {
     detailsRenderer: renderAgentRegisteredDetails,
   });
   registerEventType('agent.waiting', {
-    cellRenderer: renderAgentWaitingingCell,
+    cellRenderer: renderAgentWaitingCell,
     detailsRenderer: renderAgentWaitingDetails,
+  });
+  registerEventType('agent.startFailed', {
+    cellRenderer: renderAgentStartFailedCell,
+    detailsRenderer: renderAgentStartFailedDetails,
+  });
+  registerEventType('agent.restartLimitReached', {
+    cellRenderer: renderAgentRestartLimitReachedCell,
+    detailsRenderer: renderAgentRestartLimitReachedDetails,
   });
 }

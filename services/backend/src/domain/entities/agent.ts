@@ -68,12 +68,13 @@ export type MachineCommandStatus = 'pending' | 'completed' | 'failed';
  * Why an agent was started. Used in `agent.requestStart` events.
  *
  * - `user.start`: User explicitly started the agent via UI or CLI
- * - `user.restart`: User explicitly restarted the agent via UI or CLI
+ * - `user.restart`: @deprecated — no longer used, kept for backward compatibility with old events
  * - `platform.crash_recovery`: Daemon restart after agent exit (all harnesses)
  * - `test`: Used in integration and unit tests only
  */
 export const AGENT_START_REASONS = [
   'user.start',
+  /** @deprecated No longer used — kept for backward compatibility with old events */
   'user.restart',
   'platform.crash_recovery',
   'test',
