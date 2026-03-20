@@ -25,7 +25,7 @@ export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 export interface AgentSlot {
   state: AgentSlotState;
   pid?: number;
-  harness?: string;
+  harness?: 'opencode' | 'pi' | 'cursor';
   model?: string;
   workingDir?: string;
   startedAt?: number;
@@ -42,7 +42,7 @@ export interface OperationResult {
 export interface EnsureRunningOpts {
   chatroomId: string;
   role: string;
-  agentHarness: string;
+  agentHarness: 'opencode' | 'pi' | 'cursor';
   model?: string;
   workingDir: string;
   reason: string;
@@ -70,7 +70,7 @@ export interface AgentProcessManagerDeps {
   };
   sessionId: string;
   machineId: string;
-  processes: { kill: (pid: number, signal: string | number) => void };
+  processes: { kill: (pid: number, signal?: number | NodeJS.Signals) => void };
   clock: { delay: (ms: number) => Promise<void>; now: () => number };
   fs: { stat: (path: string) => Promise<{ isDirectory: () => boolean }> };
   persistence: {
@@ -79,12 +79,16 @@ export interface AgentProcessManagerDeps {
       chatroomId: string,
       role: string,
       pid: number,
-      harness: string
+      harness: 'opencode' | 'pi' | 'cursor'
     ) => void;
     clearAgentPid: (machineId: string, chatroomId: string, role: string) => void;
     listAgentEntries: (
       machineId: string
-    ) => Array<{ chatroomId: string; role: string; entry: { pid: number; harness: string } }>;
+    ) => Array<{
+      chatroomId: string;
+      role: string;
+      entry: { pid: number; harness: 'opencode' | 'pi' | 'cursor' };
+    }>;
   };
   spawning: {
     shouldAllowSpawn: (

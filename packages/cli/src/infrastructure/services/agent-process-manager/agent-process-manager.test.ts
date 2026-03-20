@@ -245,11 +245,18 @@ describe('AgentProcessManager', () => {
 
     test('unknown harness: returns failure', async () => {
       const result = await manager.ensureRunning(
-        createOpts({ agentHarness: 'unknown-harness' })
+        createOpts({ agentHarness: 'cursor' }) // Use valid type but no service registered
       );
+      // Remove the cursor service so it's "unknown"
+      deps.agentServices.delete('cursor');
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Unknown agent harness');
+      const result2 = await manager.ensureRunning({
+        ...createOpts(),
+        agentHarness: 'cursor', // valid type, but no service for it
+      });
+
+      expect(result2.success).toBe(false);
+      expect(result2.error).toContain('Unknown agent harness');
     });
 
     test('init prompt fetch fails: returns failure', async () => {

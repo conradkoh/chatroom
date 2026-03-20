@@ -29,6 +29,8 @@ import {
   SpawnRateLimiter,
   HarnessSpawningService,
 } from '../../../infrastructure/services/harness-spawning/index.js';
+import { CrashLoopTracker } from '../../../infrastructure/machine/crash-loop-tracker.js';
+import { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 import {
   initHarnessRegistry,
   getAllHarnesses,
@@ -97,6 +99,8 @@ export function createDefaultDeps(): DaemonDeps {
       delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     },
     spawning: new HarnessSpawningService({ rateLimiter: new SpawnRateLimiter() }),
+    // Placeholder — initDaemon() creates the real instance after context is assembled.
+    agentProcessManager: null as unknown as AgentProcessManager,
   };
 }
 
@@ -288,6 +292,21 @@ export async function initDaemon(): Promise<DaemonContext> {
   const deps = createDefaultDeps();
   deps.backend.mutation = (endpoint, args) => client.mutation(endpoint, args);
   deps.backend.query = (endpoint, args) => client.query(endpoint, args);
+
+  // Create the AgentProcessManager with all required dependencies
+  deps.agentProcessManager = new AgentProcessManager({
+    agentServices,
+    backend: deps.backend,
+    sessionId: typedSessionId,
+    machineId,
+    processes: deps.processes,
+    clock: deps.clock,
+    fs: deps.fs,
+    persistence: deps.machine,
+    spawning: deps.spawning,
+    crashLoop: new CrashLoopTracker(),
+    convexUrl,
+  });
 
   const events = new DaemonEventBus();
   const ctx: DaemonContext = {
