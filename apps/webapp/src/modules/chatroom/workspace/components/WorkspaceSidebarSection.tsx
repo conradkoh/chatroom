@@ -82,6 +82,9 @@ export const WorkspaceInfoFooter = memo(function WorkspaceInfoFooter({
               <span className="text-[11px] font-mono uppercase tracking-wider">
                 {gitState.branch === 'HEAD' ? 'detached HEAD' : gitState.branch}
               </span>
+              <span className="text-[11px] font-mono">
+                (#{gitState.openPullRequests[0]!.number})
+              </span>
             </a>
           ) : (
             <div className="flex items-center gap-0.5">
@@ -162,34 +165,6 @@ const WorkspaceRow = memo(function WorkspaceRow({
         </span>
         <div className="flex items-center gap-1 mt-0.5 flex-wrap">
           <span className="text-[10px] text-chatroom-text-muted">{workspace.hostname}</span>
-          {branchName && (
-            <>
-              <span className="text-[10px] text-chatroom-text-muted">·</span>
-              {gitState.status === 'available' &&
-              (gitState.openPullRequests?.length ?? 0) > 0 ? (
-                <a
-                  href={gitState.openPullRequests[0]!.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex items-center gap-0.5 text-chatroom-status-info hover:text-chatroom-accent transition-colors"
-                  title={gitState.openPullRequests[0]!.title}
-                >
-                  <GitPullRequestIcon size={9} className="shrink-0" />
-                  <span className="text-[10px] font-mono truncate max-w-[80px]">
-                    {branchName}
-                  </span>
-                </a>
-              ) : (
-                <span className="flex items-center gap-0.5">
-                  <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
-                  <span className="text-[10px] font-mono text-chatroom-text-muted truncate max-w-[80px]">
-                    {branchName}
-                  </span>
-                </span>
-              )}
-            </>
-          )}
           {statContent && (
             <>
               <span className="text-[10px] text-chatroom-text-muted">·</span>
@@ -197,6 +172,36 @@ const WorkspaceRow = memo(function WorkspaceRow({
             </>
           )}
         </div>
+        {branchName && (
+          <div className="flex items-center gap-0.5 mt-0.5">
+            {gitState.status === 'available' &&
+            (gitState.openPullRequests?.length ?? 0) > 0 ? (
+              <a
+                href={gitState.openPullRequests[0]!.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-0.5 text-chatroom-status-info hover:text-chatroom-accent transition-colors"
+                title={gitState.openPullRequests[0]!.title}
+              >
+                <GitPullRequestIcon size={9} className="shrink-0" />
+                <span className="text-[10px] font-mono truncate max-w-[120px]">
+                  {branchName}
+                </span>
+                <span className="text-[10px] font-mono">
+                  (#{gitState.openPullRequests[0]!.number})
+                </span>
+              </a>
+            ) : (
+              <>
+                <GitBranch size={10} className="text-chatroom-text-muted shrink-0" />
+                <span className="text-[10px] font-mono text-chatroom-text-muted truncate max-w-[120px]">
+                  {branchName}
+                </span>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </button>
   );
