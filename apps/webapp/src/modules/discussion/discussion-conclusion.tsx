@@ -98,6 +98,7 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
   };
 
   const removeConclusion = (id: string) => {
+    delete inputRefs.current[id];
     const newConclusions = conclusions.filter((c) => c.id !== id);
     if (newConclusions.length === 0) {
       newConclusions.push({ id: createId(), text: '', tag: 'task' });

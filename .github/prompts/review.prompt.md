@@ -304,7 +304,7 @@ The review report MUST cover the following aspects in order:
 
 **Report Format:**
 
-````markdown
+`````markdown
 ### Documentation Review
 
 **Status:** ✅ PASS / ❌ FAIL / ⚠️ WARNING
@@ -350,7 +350,7 @@ The review report MUST cover the following aspects in order:
   - **Issue:** Complex regex pattern not explained
   - **Location:** Line 67
   - **Recommendation:** Add comment explaining what the regex pattern matches and why
-````
+`````
 
 ## Final Report Structure
 
