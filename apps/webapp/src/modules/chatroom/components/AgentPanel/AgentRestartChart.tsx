@@ -360,12 +360,13 @@ export function AgentRestartChart({
               />
               {filteredModelKeys.map((model, idx) => {
                 const isTop = idx === filteredModelKeys.length - 1;
+                const colorIdx = modelKeys.indexOf(model);
                 return (
                   <Bar
                     key={model}
                     dataKey={model}
                     stackId="a"
-                    fill={getModelColor(idx)}
+                    fill={getModelColor(colorIdx)}
                     radius={[0, 0, 0, 0]}
                   >
                     <LabelList
