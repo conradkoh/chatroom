@@ -34,8 +34,8 @@ import type { MutationCtx } from '../../../../convex/_generated/server';
 import { areAllAgentsWaiting } from '../../../../convex/auth/cliSessionAuth';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
-import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
 import { patchParticipantStatus } from '../../entities/participant';
+import { ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES, resolveTaskRole } from '../../entities/task';
 
 // ============================================================================
 // TYPES
@@ -88,11 +88,30 @@ export async function transitionTask(
   await fsmTransitionTask(ctx, taskId, newStatus, trigger, overrides);
 
   // 2. Write event to chatroom_eventStream based on new status.
-  //    Re-fetch the task to get current fields (assignedTo, content, chatroomId).
+  //    Re-fetch the task to get current fields (assignedTo, chatroomId).
   const eventTask = await ctx.db.get('chatroom_tasks', taskId);
   if (eventTask) {
-    if (ACTIVE_TASK_STATUSES.has(newStatus)) {
-      const chatroom = eventTask.assignedTo ? null : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
+    if (newStatus === 'in_progress') {
+      // Emit task.inProgress for in_progress status — this is the event type
+      // that the UI uses to show "WORKING" status (agentStatusLabel.ts maps it).
+      // Note: task.activated is intentionally NOT mapped to UI status.
+      const chatroom = eventTask.assignedTo
+        ? null
+        : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
+      const role = resolveTaskRole(eventTask.assignedTo, chatroom);
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'task.inProgress',
+        chatroomId: eventTask.chatroomId,
+        taskId,
+        role,
+        timestamp: Date.now(),
+      });
+    } else if (ACTIVE_TASK_STATUSES.has(newStatus)) {
+      // Emit task.activated for other active statuses (pending, acknowledged).
+      // Note: This event is NOT mapped to UI status — it's only for the event stream.
+      const chatroom = eventTask.assignedTo
+        ? null
+        : await ctx.db.get('chatroom_rooms', eventTask.chatroomId);
       const role = resolveTaskRole(eventTask.assignedTo, chatroom);
       await ctx.db.insert('chatroom_eventStream', {
         type: 'task.activated',
@@ -126,7 +145,12 @@ export async function transitionTask(
       // rather than the externally-forced completion.
       if (!options?.skipAgentStatusUpdate) {
         if (eventTask.assignedTo) {
-          await patchParticipantStatus(ctx, eventTask.chatroomId, eventTask.assignedTo, 'task.completed');
+          await patchParticipantStatus(
+            ctx,
+            eventTask.chatroomId,
+            eventTask.assignedTo,
+            'task.completed'
+          );
         }
       }
     }

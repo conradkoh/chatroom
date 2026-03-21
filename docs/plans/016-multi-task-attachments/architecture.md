@@ -4,18 +4,18 @@
 
 ### Components Involved
 
-| Component | File | Purpose |
-|-----------|------|---------|
-| SendForm | `SendForm.tsx` | Main message input at bottom of chat |
+| Component       | File                  | Purpose                                                  |
+| --------------- | --------------------- | -------------------------------------------------------- |
+| SendForm        | `SendForm.tsx`        | Main message input at bottom of chat                     |
 | MoveToChatModal | `MoveToChatModal.tsx` | Modal for adding message to backlog task (to be removed) |
-| TaskDetailModal | `TaskDetailModal.tsx` | Shows backlog task details, triggers "Move to Chat" |
-| TaskQueue | `TaskQueue.tsx` | Calls `moveToQueue` mutation |
+| TaskDetailModal | `TaskDetailModal.tsx` | Shows backlog task details, triggers "Move to Chat"      |
+| TaskQueue       | `TaskQueue.tsx`       | Calls `moveToQueue` mutation                             |
 
 ### Backend Support (Already Exists)
 
 ```typescript
 // schema.ts
-attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks')))
+attachedTaskIds: v.optional(v.array(v.id('chatroom_tasks')));
 
 // messages.ts - Validates and stores attached tasks
 if (args.attachedTaskIds && args.attachedTaskIds.length > 0) {
@@ -62,21 +62,25 @@ const MAX_ATTACHMENTS = 10;
 ### Component Changes
 
 #### TaskDetailModal.tsx
+
 - Remove `isMoveToChatOpen` state
 - Remove `MoveToChatModal` import and usage
 - Change "Move to Chat" button to call `addTask(task)` and `onClose()`
 
 #### SendForm.tsx
+
 - Add `AttachedTasksRow` component above textarea
 - Pass `attachedTaskIds` to `sendMessage` mutation
 - Clear attachments after successful send
 
 #### ChatroomDashboard.tsx (or parent)
+
 - Wrap with `AttachedTasksProvider`
 
 ### UI Components
 
 #### AttachedTaskChip
+
 ```tsx
 interface AttachedTaskChipProps {
   task: AttachedTask;
@@ -87,6 +91,7 @@ interface AttachedTaskChipProps {
 Display: `[📎 Task content truncated... (×)]`
 
 #### AttachedTasksRow
+
 ```tsx
 interface AttachedTasksRowProps {
   tasks: AttachedTask[];
@@ -119,14 +124,14 @@ TaskDetailModal              AttachedTasksContext           SendForm
 
 ## Files to Modify
 
-| File | Action |
-|------|--------|
-| `context/AttachedTasksContext.tsx` | Create (new) |
-| `components/AttachedTaskChip.tsx` | Create (new) |
-| `components/SendForm.tsx` | Modify - add chips row, pass attachedTaskIds |
-| `components/TaskDetailModal.tsx` | Modify - replace modal with context call |
-| `components/MoveToChatModal.tsx` | Delete |
-| `ChatroomDashboard.tsx` | Modify - add context provider |
+| File                               | Action                                       |
+| ---------------------------------- | -------------------------------------------- |
+| `context/AttachedTasksContext.tsx` | Create (new)                                 |
+| `components/AttachedTaskChip.tsx`  | Create (new)                                 |
+| `components/SendForm.tsx`          | Modify - add chips row, pass attachedTaskIds |
+| `components/TaskDetailModal.tsx`   | Modify - replace modal with context call     |
+| `components/MoveToChatModal.tsx`   | Delete                                       |
+| `ChatroomDashboard.tsx`            | Modify - add context provider                |
 
 ## Constraints
 

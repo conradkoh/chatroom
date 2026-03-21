@@ -3,7 +3,8 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import type { TaskStatus } from '@workspace/backend/convex/lib/taskStateMachine';
-import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
+import { useSessionQuery, useSessionMutation, useSessionId } from 'convex-helpers/react/sessions';
+import { usePaginatedQuery } from 'convex/react';
 import {
   ChevronUp,
   ChevronDown,
@@ -26,6 +27,8 @@ import {
   Pencil,
   Check,
   Copy,
+  Pin,
+  Paperclip,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -40,6 +43,7 @@ import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 
+import { getBacklogStatusBadge } from './backlog/presenters';
 import { AttachedArtifacts, type ArtifactMeta } from './ArtifactRenderer';
 import { AttachedTaskDetailModal } from './AttachedTaskDetailModal';
 import { BacklogItemDetailModal } from './BacklogItemDetailModal';
@@ -57,6 +61,8 @@ import {
   formatEventType,
   getEventBadgeTextColor,
 } from '../viewModels/eventStreamViewModel';
+import { useAttachments } from '../context/AttachmentsContext';
+import { useHandoffNotification } from '../hooks/useHandoffNotification';
 
 import {
   FixedModal,
@@ -97,6 +103,8 @@ interface Message {
   attachedBacklogItems?: AttachedBacklogItem[];
   // Attached artifacts
   attachedArtifacts?: ArtifactMeta[];
+  // Attached chatroom messages for context
+  attachedMessages?: AttachedMessage[];
   // Latest progress message for inline display
   latestProgress?: {
     content: string;
@@ -117,6 +125,13 @@ interface AttachedBacklogItem {
   id: string;
   content: string;
   status: string;
+}
+
+interface AttachedMessage {
+  _id: string;
+  content: string;
+  senderRole: string;
+  _creationTime: number;
 }
 
 // Shared badge styling constants
@@ -222,8 +237,9 @@ const getClassificationBadge = (classification: Message['classification']) => {
 };
 
 // Map task status to display label and CSS classes for attached task badges
-function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; classes: string } {
+function getAttachedTaskStatusBadge(status?: TaskStatus | string): { label: string; classes: string } {
   switch (status) {
+    // Task-specific statuses
     case 'in_progress':
       return {
         label: 'In Progress',
@@ -240,9 +256,14 @@ function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; class
         label: 'Completed',
         classes: 'bg-chatroom-status-success/15 text-chatroom-status-success',
       };
+    // Backlog-specific statuses
+    case 'backlog':
+    case 'pending_user_review':
+    case 'closed':
+      return getBacklogStatusBadge(status);
     default:
       return {
-        label: 'Unknown',
+        label: status ?? 'Unknown',
         classes: 'bg-chatroom-text-muted/15 text-chatroom-text-muted',
       };
   }
@@ -254,15 +275,41 @@ function getAttachedTaskStatusBadge(status?: TaskStatus): { label: string; class
 interface TaskHeaderProps {
   message: Message;
   onTap?: (message: Message) => void;
+  onDelete?: (message: Message) => void;
+  isDeleting?: boolean;
+  onStartEdit?: (message: Message) => void;
+  isEditing?: boolean;
 }
 
-const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps) {
+const TaskHeader = memo(function TaskHeader({
+  message,
+  onTap,
+  onDelete,
+  isDeleting,
+  onStartEdit,
+  isEditing,
+}: TaskHeaderProps) {
+  const [isDeletePopoverOpen, setIsDeletePopoverOpen] = useState(false);
+
   // useCallback must be called before any conditional returns (React hooks rules)
   const handleClick = useCallback(() => {
     if (onTap) {
       onTap(message);
     }
   }, [onTap, message]);
+
+  const handleConfirmDelete = useCallback(() => {
+    setIsDeletePopoverOpen(false);
+    if (onDelete) {
+      onDelete(message);
+    }
+  }, [onDelete, message]);
+
+  const handleStartEdit = useCallback(() => {
+    if (onStartEdit) {
+      onStartEdit(message);
+    }
+  }, [onStartEdit, message]);
 
   // Only show for user messages
   if (message.senderRole.toLowerCase() !== 'user') {
@@ -276,6 +323,12 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
 
   const classificationBadge = getClassificationBadge(message.classification);
   const taskStatusBadge = getTaskStatusBadge(message.taskStatus);
+
+  // Show delete button only for pending messages (not yet picked up by agent)
+  const canDelete = message.taskStatus === 'pending' && onDelete;
+
+  // Show edit button only for pending messages
+  const canEdit = message.taskStatus === 'pending' && onStartEdit;
 
   // Determine what to display:
   // - No classification yet AND task not finished: shimmer (waiting for classification)
@@ -295,42 +348,77 @@ const TaskHeader = memo(function TaskHeader({ message, onTap }: TaskHeaderProps)
   return (
     <div className="w-full bg-chatroom-bg-tertiary border-b-2 border-chatroom-border-strong">
       {/* Main header row - clickable */}
-      <button
-        onClick={handleClick}
-        className="w-full text-left h-8 px-3 flex items-center cursor-pointer hover:bg-chatroom-bg-hover transition-colors"
-      >
-        <div className="flex items-center gap-2 w-full min-w-0">
-          {/* Left: Classification badge or shimmer */}
-          {isAwaitingClassification ? (
-            // Shimmer state - waiting for classification
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
-              <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
-            </div>
-          ) : (
-            // Classified state - show badge and single-line truncated content
-            <>
-              {classificationBadge && (
-                <span className={`${classificationBadge.className} flex-shrink-0`}>
-                  {classificationBadge.icon}
-                  {classificationBadge.label}
+      <div className="flex items-center h-8 px-3">
+        <button
+          onClick={handleClick}
+          className="flex-1 text-left flex items-center cursor-pointer hover:bg-chatroom-bg-hover transition-colors h-full min-w-0"
+        >
+          <div className="flex items-center gap-2 w-full min-w-0">
+            {/* Left: Classification badge or shimmer */}
+            {isAwaitingClassification ? (
+              // Shimmer state - waiting for classification
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="h-4 w-16 bg-chatroom-border animate-pulse flex-shrink-0" />
+                <div className="h-4 flex-1 max-w-xs bg-chatroom-border/50 animate-pulse" />
+              </div>
+            ) : (
+              // Classified state - show badge and single-line truncated content
+              <>
+                {classificationBadge && (
+                  <span className={`${classificationBadge.className} flex-shrink-0`}>
+                    {classificationBadge.icon}
+                    {classificationBadge.label}
+                  </span>
+                )}
+                <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
+                  {getDisplayText()}
                 </span>
-              )}
-              <span className="flex-1 min-w-0 text-xs font-medium text-chatroom-text-primary truncate">
-                {getDisplayText()}
-              </span>
-            </>
-          )}
+              </>
+            )}
 
-          {/* Right: Status badge */}
-          {taskStatusBadge && (
-            <span className={`${taskStatusBadge.className} flex-shrink-0`}>
-              {taskStatusBadge.icon}
-              {taskStatusBadge.label}
-            </span>
-          )}
-        </div>
-      </button>
+            {/* Right: Status badge */}
+            {taskStatusBadge && (
+              <span className={`${taskStatusBadge.className} flex-shrink-0`}>
+                {taskStatusBadge.icon}
+                {taskStatusBadge.label}
+              </span>
+            )}
+          </div>
+        </button>
+
+        {/* Edit button for pending messages */}
+        {canEdit && (
+          <button
+            onClick={handleStartEdit}
+            disabled={isEditing}
+            className="flex-shrink-0 flex items-center justify-center w-6 h-6 ml-1 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Edit pending message"
+          >
+            <Pencil size={12} />
+          </button>
+        )}
+
+        {/* Delete button for pending messages — with popover confirmation */}
+        {canDelete && (
+          <Popover open={isDeletePopoverOpen} onOpenChange={setIsDeletePopoverOpen}>
+            <PopoverTrigger asChild>
+              <button
+                disabled={isDeleting}
+                className="flex-shrink-0 flex items-center justify-center w-6 h-6 ml-1 text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400 hover:bg-chatroom-bg-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Delete pending message"
+              >
+                {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-0 rounded-none" side="bottom" align="end">
+              <DeleteConfirmPopoverContent
+                onCancel={() => setIsDeletePopoverOpen(false)}
+                onConfirmDelete={handleConfirmDelete}
+              />
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
     </div>
   );
 });
@@ -512,11 +600,16 @@ interface DeleteConfirmPopoverContentProps {
   onConfirmDelete: () => void;
 }
 
-function DeleteConfirmPopoverContent({ onCancel, onConfirmDelete }: DeleteConfirmPopoverContentProps) {
+function DeleteConfirmPopoverContent({
+  onCancel,
+  onConfirmDelete,
+}: DeleteConfirmPopoverContentProps) {
   return (
     <>
       <div className="border-b-2 border-border px-3 py-2">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground">Delete Message</p>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground">
+          Delete Message
+        </p>
       </div>
       <div className="px-3 py-2">
         <p className="text-xs text-muted-foreground mb-3">
@@ -684,11 +777,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             className="flex-shrink-0 flex items-center justify-center w-6 h-6 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Promote to active (bypass queue)"
           >
-            {isPromoting ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <ArrowUp size={12} />
-            )}
+            {isPromoting ? <Loader2 size={12} className="animate-spin" /> : <ArrowUp size={12} />}
           </button>
 
           {/* Delete button — icon only, with popover confirmation */}
@@ -699,11 +788,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 className="flex-shrink-0 flex items-center justify-center w-6 h-6 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="Delete queued message"
               >
-                {isDeleting ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <Trash2 size={12} />
-                )}
+                {isDeleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
@@ -714,6 +799,50 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
             </PopoverContent>
           </Popover>
         </div>
+
+        {/* Attachment chips */}
+        {((message.attachedTasks?.length ?? 0) > 0 ||
+          (message.attachedBacklogItems?.length ?? 0) > 0 ||
+          (message.attachedMessages?.length ?? 0) > 0) && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {message.attachedTasks?.map((task) => {
+              const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
+              return (
+                <span
+                  key={task._id}
+                  className={`${BADGE_BASE} ${statusBadge.classes}`}
+                  title={task.content}
+                >
+                  <Paperclip size={ICON_SIZE} />
+                  {statusBadge.label}
+                </span>
+              );
+            })}
+            {message.attachedBacklogItems?.map((item) => {
+              const statusBadge = getAttachedTaskStatusBadge(item.status);
+              return (
+                <span
+                  key={item.id}
+                  className={`${BADGE_BASE} ${statusBadge.classes}`}
+                  title={item.content}
+                >
+                  <Paperclip size={ICON_SIZE} />
+                  {statusBadge.label}
+                </span>
+              );
+            })}
+            {message.attachedMessages?.map((msg) => (
+              <span
+                key={msg._id}
+                className={`${BADGE_BASE} bg-chatroom-bg-tertiary text-chatroom-text-muted border border-chatroom-border`}
+                title={`From ${msg.senderRole}: ${msg.content.slice(0, 50)}`}
+              >
+                <MessageSquare size={ICON_SIZE} />
+                {msg.senderRole}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Row 2: right-aligned timestamp + elapsed time */}
         <div className="flex justify-end gap-2 mt-0.5 text-[10px] text-muted-foreground tabular-nums">
@@ -743,9 +872,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                   onChange={(e) => setEditContent(e.target.value)}
                   autoFocus
                 />
-                {editError && (
-                  <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>
-                )}
+                {editError && <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>}
               </div>
             ) : (
               <div className="p-6">
@@ -754,6 +881,94 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                     {message.content}
                   </Markdown>
                 </div>
+              </div>
+            )}
+            {/* Attached Backlog Tasks + Backlog Items */}
+            {((message.attachedTasks && message.attachedTasks.length > 0) ||
+              (message.attachedBacklogItems && message.attachedBacklogItems.length > 0)) && (
+              <div className="mx-6 mb-4 pt-3 border-t border-chatroom-border">
+                <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
+                  Attached Backlog (
+                  {(message.attachedTasks?.length ?? 0) +
+                    (message.attachedBacklogItems?.length ?? 0)}
+                  )
+                </div>
+                {message.attachedTasks?.map((task) => {
+                  const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
+                  return (
+                    <div
+                      key={task._id}
+                      className="border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
+                          <Markdown
+                            remarkPlugins={REMARK_PLUGINS}
+                            components={compactMarkdownComponents}
+                          >
+                            {task.content}
+                          </Markdown>
+                        </div>
+                        <span
+                          className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${statusBadge.classes}`}
+                        >
+                          {statusBadge.label}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {message.attachedBacklogItems?.map((item) => {
+                  const statusBadge = getAttachedTaskStatusBadge(item.status);
+                  return (
+                    <div
+                      key={item.id}
+                      className="border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
+                          <Markdown
+                            remarkPlugins={REMARK_PLUGINS}
+                            components={compactMarkdownComponents}
+                          >
+                            {item.content}
+                          </Markdown>
+                        </div>
+                        <span
+                          className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${statusBadge.classes}`}
+                        >
+                          {statusBadge.label}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* Attached Messages */}
+            {message.attachedMessages && message.attachedMessages.length > 0 && (
+              <div className="mx-6 mb-4 pt-3 border-t border-chatroom-border">
+                <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
+                  Attached Messages ({message.attachedMessages.length})
+                </div>
+                {message.attachedMessages.map((attachedMsg) => (
+                  <div
+                    key={attachedMsg._id}
+                    className="border-l-2 border-chatroom-border bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
+                  >
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-1">
+                      {attachedMsg.senderRole}
+                    </div>
+                    <div className="text-xs text-chatroom-text-primary line-clamp-3">
+                      <Markdown
+                        remarkPlugins={REMARK_PLUGINS}
+                        components={compactMarkdownComponents}
+                      >
+                        {attachedMsg.content}
+                      </Markdown>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </FixedModalBody>
@@ -765,9 +980,7 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 <Timer size={12} className="flex-shrink-0" />
                 Queued
               </span>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {elapsed}
-              </span>
+              <span className="text-xs text-muted-foreground tabular-nums">{elapsed}</span>
             </div>
             {/* Right: action buttons (larger, thumb-friendly for mobile) */}
             {isEditing ? (
@@ -789,54 +1002,54 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                 </button>
               </div>
             ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handlePromoteAndClose}
-                disabled={isPromoting || isDeleting}
-                className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                title="Promote to active"
-              >
-                {isPromoting ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <ArrowUp size={14} />
-                )}
-                Promote
-              </button>
-              {/* Modal delete button with popover confirmation */}
-              <Popover open={isModalDeletePopoverOpen} onOpenChange={setIsModalDeletePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    disabled={isDeleting || isPromoting}
-                    className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                    title="Delete queued message"
-                  >
-                    {isDeleting ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={14} />
-                    )}
-                    Delete
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
-                  <DeleteConfirmPopoverContent
-                    onCancel={() => setIsModalDeletePopoverOpen(false)}
-                    onConfirmDelete={handleModalDelete}
-                  />
-                </PopoverContent>
-              </Popover>
-              {/* Edit button */}
-              <button
-                onClick={handleStartEdit}
-                disabled={isPromoting || isDeleting}
-                className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                title="Edit queued message"
-              >
-                <Pencil size={14} />
-                Edit
-              </button>
-            </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePromoteAndClose}
+                  disabled={isPromoting || isDeleting}
+                  className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                  title="Promote to active"
+                >
+                  {isPromoting ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <ArrowUp size={14} />
+                  )}
+                  Promote
+                </button>
+                {/* Modal delete button with popover confirmation */}
+                <Popover open={isModalDeletePopoverOpen} onOpenChange={setIsModalDeletePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      disabled={isDeleting || isPromoting}
+                      className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                      title="Delete queued message"
+                    >
+                      {isDeleting ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                      Delete
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 p-0 rounded-none" side="top" align="end">
+                    <DeleteConfirmPopoverContent
+                      onCancel={() => setIsModalDeletePopoverOpen(false)}
+                      onConfirmDelete={handleModalDelete}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {/* Edit button */}
+                <button
+                  onClick={handleStartEdit}
+                  disabled={isPromoting || isDeleting}
+                  className="flex items-center gap-2 px-4 py-2 border border-border text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                  title="Edit queued message"
+                >
+                  <Pencil size={14} />
+                  Edit
+                </button>
+              </div>
             )}
           </div>
         </FixedModalContent>
@@ -877,11 +1090,7 @@ const CopyMarkdownButton = memo(function CopyMarkdownButton({ content }: { conte
       className="flex items-center justify-center w-6 h-6 text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-colors"
       title="Copy as markdown"
     >
-      {copied ? (
-        <Check size={12} className="text-chatroom-status-success" />
-      ) : (
-        <Copy size={12} />
-      )}
+      {copied ? <Check size={12} className="text-chatroom-status-success" /> : <Copy size={12} />}
     </button>
   );
 });
@@ -891,6 +1100,11 @@ interface MessageItemProps {
   onFeatureClick?: (message: Message) => void;
   onAttachedTaskClick?: (task: AttachedTask) => void;
   onAttachedBacklogItemClick?: (item: AttachedBacklogItem) => void;
+  onAddToContext?: (message: Message) => void;
+  isAddedToContext?: boolean;
+  isEditing?: boolean;
+  onSaveEdit?: (messageId: string, newContent: string) => Promise<void>;
+  onCancelEdit?: () => void;
 }
 
 // System notification message (e.g. context change)
@@ -973,7 +1187,63 @@ const MessageItem = memo(function MessageItem({
   onFeatureClick,
   onAttachedTaskClick,
   onAttachedBacklogItemClick,
+  onAddToContext,
+  isAddedToContext,
+  isEditing,
+  onSaveEdit,
+  onCancelEdit,
 }: MessageItemProps) {
+  // Inline edit state
+  const [editContent, setEditContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // When editing starts, initialize edit content and focus textarea
+  useEffect(() => {
+    if (isEditing) {
+      setEditContent(message.content);
+      setEditError(null);
+      // Focus with slight delay to let the textarea render
+      setTimeout(() => editTextareaRef.current?.focus(), 50);
+    }
+  }, [isEditing, message.content]);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (isSaving || !onSaveEdit) return;
+    const trimmed = editContent.trim();
+    if (!trimmed) {
+      setEditError('Message cannot be empty');
+      return;
+    }
+    setIsSaving(true);
+    setEditError(null);
+    try {
+      await onSaveEdit(message._id, trimmed);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [message._id, editContent, onSaveEdit, isSaving]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditError(null);
+    onCancelEdit?.();
+  }, [onCancelEdit]);
+
+  const handleEditKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Escape') {
+        handleCancelEdit();
+      } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        handleSaveEdit();
+      }
+    },
+    [handleCancelEdit, handleSaveEdit]
+  );
+
   // Check if this is a new_feature message with a title
   const hasFeatureTitle = message.classification === 'new_feature' && message.featureTitle;
 
@@ -1036,9 +1306,43 @@ const MessageItem = memo(function MessageItem({
           )}
         </button>
       )}
-      {/* Message Content */}
-      {/* Message Content - unified renderer for all message types */}
-      <MessageContent content={message.content} />
+      {/* Message Content — inline edit mode for pending user messages */}
+      {isEditing ? (
+        <div className="space-y-2">
+          <textarea
+            ref={editTextareaRef}
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            onKeyDown={handleEditKeyDown}
+            className="w-full min-h-[80px] p-2 text-sm bg-chatroom-bg-tertiary border border-chatroom-border text-chatroom-text-primary focus:outline-none focus:border-chatroom-accent resize-y"
+            placeholder="Edit message content..."
+          />
+          {editError && (
+            <p className="text-xs text-red-500 dark:text-red-400">{editError}</p>
+          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSaveEdit}
+              disabled={isSaving}
+              className="px-3 py-1 text-xs font-medium bg-chatroom-accent text-white hover:bg-chatroom-accent/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
+            <button
+              onClick={handleCancelEdit}
+              disabled={isSaving}
+              className="px-3 py-1 text-xs font-medium text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <span className="text-[10px] text-chatroom-text-muted ml-auto">
+              ⌘+Enter to save · Esc to cancel
+            </span>
+          </div>
+        </div>
+      ) : (
+        <MessageContent content={message.content} />
+      )}
       {/* Attached Backlog Tasks (legacy chatroom_tasks) + Backlog Items (chatroom_backlog) */}
       {((message.attachedTasks && message.attachedTasks.length > 0) ||
         (message.attachedBacklogItems && message.attachedBacklogItems.length > 0)) && (
@@ -1075,7 +1379,7 @@ const MessageItem = memo(function MessageItem({
             );
           })}
           {message.attachedBacklogItems?.map((item) => {
-            const statusBadge = getAttachedTaskStatusBadge(item.status as TaskStatus);
+            const statusBadge = getAttachedTaskStatusBadge(item.status);
             return (
               <button
                 key={item.id}
@@ -1107,11 +1411,53 @@ const MessageItem = memo(function MessageItem({
       {message.attachedArtifacts && message.attachedArtifacts.length > 0 && (
         <AttachedArtifacts artifacts={message.attachedArtifacts} />
       )}
+      {/* Attached Messages */}
+      {message.attachedMessages && message.attachedMessages.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-chatroom-border">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
+            Attached Messages ({message.attachedMessages.length})
+          </div>
+          {message.attachedMessages.map((attachedMsg) => (
+            <div
+              key={attachedMsg._id}
+              className="border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <MessageSquare size={10} className="text-chatroom-text-muted flex-shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+                  {attachedMsg.senderRole}
+                </span>
+                <span className="text-[10px] font-mono tabular-nums text-chatroom-text-muted">
+                  {formatTime(attachedMsg._creationTime)}
+                </span>
+              </div>
+              <div className="text-xs text-chatroom-text-primary line-clamp-3">
+                <Markdown remarkPlugins={REMARK_PLUGINS} components={compactMarkdownComponents}>
+                  {attachedMsg.content}
+                </Markdown>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* Message Footer */}
       <div className="flex justify-between items-center mt-2 pt-1.5">
-        {/* Left: Copy button — appears on hover */}
-        <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity">
+        {/* Left: Copy button + Add to Context — appears on hover */}
+        <div className="flex items-center gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
           <CopyMarkdownButton content={message.content} />
+          {onAddToContext && (
+            <button
+              onClick={() => onAddToContext(message)}
+              className={`flex items-center justify-center w-6 h-6 transition-colors ${
+                isAddedToContext
+                  ? 'text-chatroom-accent'
+                  : 'text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover'
+              }`}
+              title={isAddedToContext ? 'Added to context' : 'Add to context'}
+            >
+              <Pin size={12} className={isAddedToContext ? 'fill-current' : ''} />
+            </button>
+          )}
         </div>
         {/* Right: Timestamp (non-user messages only; user message status/time is in TaskHeader) */}
         {!isUserMessage && (
@@ -1170,14 +1516,19 @@ const LatestEventTicker = memo(function LatestEventTicker({
         {formatEventType(event.type)}
       </span>
       {'role' in event && event.role && (
-        <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">{event.role}</span>
+        <span className="text-chatroom-text-secondary uppercase tracking-wider font-bold">
+          {event.role}
+        </span>
       )}
       <ChevronRight size={10} className="opacity-50 ml-0.5" />
     </button>
   );
 });
 
-export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _activeTask }: MessageFeedProps) {
+export const MessageFeed = memo(function MessageFeed({
+  chatroomId,
+  activeTask: _activeTask,
+}: MessageFeedProps) {
   const { results, status, loadMore, isLoading } = useSessionPaginatedQuery(
     api.messages.listPaginated,
     { chatroomId: chatroomId as Id<'chatroom_rooms'> },
@@ -1202,6 +1553,8 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
   const promoteSpecificTask = useSessionMutation(api.tasks.promoteSpecificTask);
   const deleteQueuedMessage = useSessionMutation(api.messages.deleteQueuedMessage);
   const updateQueuedMessage = useSessionMutation(api.messages.updateQueuedMessage);
+  const deletePendingMessage = useSessionMutation(api.messages.deletePendingMessage);
+  const updatePendingMessage = useSessionMutation(api.messages.updatePendingMessage);
 
   const feedRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
@@ -1215,7 +1568,6 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
 
   // Event stream panel state
   const [isEventStreamOpen, setIsEventStreamOpen] = useState(false);
-  const [eventStreamLimit, setEventStreamLimit] = useState(20);
 
   // Always fetch just the latest 1 event for the ticker display
   const latestEventTicker = useSessionQuery(api.events.listLatestEvents, {
@@ -1223,23 +1575,21 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
     limit: 1,
   });
 
-  // Fetch events only when panel is open, using the dynamic limit
-  const latestEvents = useSessionQuery(
-    api.events.listLatestEvents,
-    isEventStreamOpen
-      ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, limit: eventStreamLimit }
-      : 'skip'
+  // Fetch events only when panel is open, using paginated query
+  const [eventSessionId] = useSessionId();
+  const eventsPaginated = usePaginatedQuery(
+    api.events.listLatestEventsPaginated,
+    isEventStreamOpen && eventSessionId
+      ? { chatroomId: chatroomId as Id<'chatroom_rooms'>, sessionId: eventSessionId }
+      : 'skip',
+    { initialNumItems: 20 }
   );
+  const paginatedEvents = eventsPaginated.results;
+  const eventsPaginationStatus = eventsPaginated.status;
+  const loadMoreEvents = eventsPaginated.loadMore;
 
   // Cast needed: useSessionQuery returns the raw Convex DB type; we cast to the typed discriminated union
   const latestEvent: EventStreamEvent | null = (latestEventTicker as EventStreamEvent[] | undefined)?.[0] ?? null;
-
-  // Reset event limit when panel closes
-  useEffect(() => {
-    if (!isEventStreamOpen) {
-      setEventStreamLimit(20);
-    }
-  }, [isEventStreamOpen]);
   const [selectedAttachedTask, setSelectedAttachedTask] = useState<AttachedTask | null>(null);
 
   // Attached backlog item detail modal state (chatroom_backlog items clicked in MessageFeed)
@@ -1299,6 +1649,68 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
     setSelectedMessage(null);
   }, []);
 
+  // Delete pending message state — tracks which message is being deleted
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+
+  // Handle delete of a pending message — hard deletes message + associated task
+  const handleDeletePendingMessage = useCallback(
+    async (message: Message) => {
+      if (deletingMessageId) return; // Already deleting
+      setDeletingMessageId(message._id);
+      try {
+        await deletePendingMessage({
+          messageId: message._id as Id<'chatroom_messages'>,
+        });
+      } catch (error) {
+        console.error('Failed to delete pending message:', error);
+      } finally {
+        setDeletingMessageId(null);
+      }
+    },
+    [deletePendingMessage, deletingMessageId]
+  );
+
+  // Edit pending message state — tracks which message is being edited
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+
+  // Handle starting edit of a pending message
+  const handleStartEditPendingMessage = useCallback((message: Message) => {
+    setEditingMessageId(message._id);
+  }, []);
+
+  // Handle saving edit of a pending message
+  const handleSaveEditPendingMessage = useCallback(
+    async (messageId: string, newContent: string) => {
+      await updatePendingMessage({
+        messageId: messageId as Id<'chatroom_messages'>,
+        content: newContent,
+      });
+      setEditingMessageId(null);
+    },
+    [updatePendingMessage]
+  );
+
+  // Handle canceling edit
+  const handleCancelEditPendingMessage = useCallback(() => {
+    setEditingMessageId(null);
+  }, []);
+
+  // Attachments context for "Add to Context" feature
+  const { add: addAttachment, isAttached } = useAttachments();
+
+  // Handle "Add to Context" — adds a message to the attachments context
+  const handleAddToContext = useCallback(
+    (message: Message) => {
+      addAttachment({
+        type: 'message',
+        id: message._id as Id<'chatroom_messages'>,
+        content: message.content,
+        senderRole: message.senderRole,
+      });
+    },
+    [addAttachment]
+  );
+
   // Handle queued message Promote — calls promoteSpecificTask mutation
   const handleQueuedPromote = useCallback(
     async (queuedMessageId: string) => {
@@ -1353,6 +1765,9 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
     const regularMessages = [...(results || [])].reverse();
     return regularMessages; // Queued messages are shown separately (pinned at bottom)
   }, [results]);
+
+  // Fire browser notifications when an agent hands off to the user
+  useHandoffNotification(displayMessages);
 
   // Effective loadable status — respects the message cap to prevent unbounded memory growth
   const hasReachedCap = displayMessages.length >= MAX_LOADED_MESSAGES;
@@ -1542,7 +1957,14 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
         {displayMessages.map((message) => (
           <React.Fragment key={message._id}>
             {/* Task Header - sticky section header for user messages, tappable */}
-            <TaskHeader message={message} onTap={handleMessageDetailClick} />
+            <TaskHeader
+              message={message}
+              onTap={handleMessageDetailClick}
+              onDelete={handleDeletePendingMessage}
+              isDeleting={deletingMessageId === message._id}
+              onStartEdit={handleStartEditPendingMessage}
+              isEditing={editingMessageId === message._id}
+            />
             {/* Task Progress - inline progress updates below task header */}
             <TaskProgress message={message} chatroomId={chatroomId} />
             <MessageItem
@@ -1550,6 +1972,11 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
               onFeatureClick={handleFeatureClick}
               onAttachedTaskClick={handleAttachedTaskClick}
               onAttachedBacklogItemClick={handleAttachedBacklogItemClick}
+              onAddToContext={handleAddToContext}
+              isAddedToContext={isAttached('message', message._id)}
+              isEditing={editingMessageId === message._id}
+              onSaveEdit={handleSaveEditPendingMessage}
+              onCancelEdit={handleCancelEditPendingMessage}
             />
           </React.Fragment>
         ))}
@@ -1569,9 +1996,7 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
       {/* Always rendered — animated to height 0 when empty, slides in when a message is queued */}
       <div
         className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          displayQueuedMessages.length > 0
-            ? 'max-h-[600px] opacity-100'
-            : 'max-h-0 opacity-0'
+          displayQueuedMessages.length > 0 ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
         }`}
       >
         <div className="border-t border-border">
@@ -1607,7 +2032,11 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
         </div>
       </div>
       {/* Queue list modal — shows all queued messages */}
-      <FixedModal isOpen={isQueueModalOpen} onClose={() => setIsQueueModalOpen(false)} maxWidth="max-w-2xl">
+      <FixedModal
+        isOpen={isQueueModalOpen}
+        onClose={() => setIsQueueModalOpen(false)}
+        maxWidth="max-w-2xl"
+      >
         <FixedModalContent>
           <FixedModalHeader onClose={() => setIsQueueModalOpen(false)}>
             <FixedModalTitle>Queue ({displayQueuedMessages.length})</FixedModalTitle>
@@ -1629,9 +2058,10 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
       <EventStreamModal
         isOpen={isEventStreamOpen}
         onClose={() => setIsEventStreamOpen(false)}
-        events={(latestEvents as EventStreamEvent[] | undefined) ?? []}
-        onLoadMore={() => setEventStreamLimit((prev) => prev + 20)}
-        hasMore={(latestEvents as EventStreamEvent[] | undefined)?.length === eventStreamLimit}
+        events={(paginatedEvents as EventStreamEvent[] | undefined) ?? []}
+        isLoading={isEventStreamOpen && (paginatedEvents === undefined || eventsPaginationStatus === 'LoadingFirstPage')}
+        onLoadMore={() => loadMoreEvents(20)}
+        hasMore={eventsPaginationStatus === 'CanLoadMore'}
       />
       {/* Status bar - fixed at bottom with event ticker (left) + message count (right) */}
       <div className="flex items-center justify-between px-4 py-2 bg-chatroom-bg-surface border-t-2 border-chatroom-border-strong">
@@ -1670,7 +2100,10 @@ export const MessageFeed = memo(function MessageFeed({ chatroomId, activeTask: _
                 chatroomId: chatroomId as Id<'chatroom_rooms'>,
                 createdBy: 'unknown',
                 content: selectedAttachedBacklogItem.content,
-                status: selectedAttachedBacklogItem.status as 'backlog' | 'pending_user_review' | 'closed',
+                status: selectedAttachedBacklogItem.status as
+                  | 'backlog'
+                  | 'pending_user_review'
+                  | 'closed',
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
               }

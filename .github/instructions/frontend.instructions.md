@@ -1,5 +1,5 @@
 ---
-applyTo: "**"
+applyTo: '**'
 ---
 
 # Frontend Development Guidelines
@@ -95,11 +95,7 @@ In the latest Next.js app router, the `params` prop for top-level pages is now p
 
 ```tsx
 // Always destructure and use `await params` in your top-level page components.
-export default async function MyComponent({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function MyComponent({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   return <div>{id}</div>;
 }
@@ -116,10 +112,7 @@ Use the session helpers from convex-helpers to automatically handle session ID:
 ### Example
 
 ```tsx
-import {
-  useSessionQuery,
-  useSessionMutation,
-} from "convex-helpers/react/sessions";
+import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 
 // In your component:
 const authState = useSessionQuery(api.auth.getState);

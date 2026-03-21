@@ -19,6 +19,7 @@ import type {
 } from '../../../infrastructure/deps/index.js';
 import type { AgentHarness } from '../../../infrastructure/machine/types.js';
 import type { TryConsumeResult } from '../../../infrastructure/services/harness-spawning/index.js';
+import type { AgentProcessManager } from '../../../infrastructure/services/agent-process-manager/agent-process-manager.js';
 
 // ─── Domain-Specific Interfaces ─────────────────────────────────────────────
 
@@ -99,4 +100,5 @@ export interface DaemonDeps {
   machine: MachineStateOps;
   clock: ClockOps;
   spawning: SpawningOps;
+  agentProcessManager: AgentProcessManager;
 }

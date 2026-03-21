@@ -16,6 +16,8 @@ export type EventTypeName =
   | 'agent.requestStop'
   | 'agent.registered'
   | 'agent.waiting'
+  | 'agent.startFailed'
+  | 'agent.restartLimitReached'
   | 'task.activated'
   | 'task.acknowledged'
   | 'task.inProgress'
@@ -58,7 +60,7 @@ export interface AgentExitedEvent extends EventStreamEventBase {
   role: string;
   machineId: string;
   pid: number;
-  intentional: boolean;
+  intentional?: boolean;
   stopReason?: string;
   stopSignal?: string;
   exitCode?: number;
@@ -107,6 +109,23 @@ export interface AgentWaitingEvent extends EventStreamEventBase {
   type: 'agent.waiting';
   role: string;
   machineId?: string;
+  chatroomId: string;
+}
+
+export interface AgentStartFailedEvent extends EventStreamEventBase {
+  type: 'agent.startFailed';
+  role: string;
+  machineId: string;
+  error: string;
+  chatroomId: string;
+}
+
+export interface AgentRestartLimitReachedEvent extends EventStreamEventBase {
+  type: 'agent.restartLimitReached';
+  role: string;
+  machineId: string;
+  restartCount: number;
+  windowMs: number;
   chatroomId: string;
 }
 
@@ -200,6 +219,8 @@ export type EventStreamEvent =
   | AgentRequestStopEvent
   | AgentRegisteredEvent
   | AgentWaitingEvent
+  | AgentStartFailedEvent
+  | AgentRestartLimitReachedEvent
   | TaskActivatedEvent
   | TaskAcknowledgedEvent
   | TaskInProgressEvent
@@ -222,6 +243,8 @@ export function formatEventType(type: string): string {
     'agent.circuitOpen': 'Circuit Open',
     'agent.requestStart': 'Agent Request Start',
     'agent.requestStop': 'Agent Request Stop',
+    'agent.startFailed': 'Agent Start Failed',
+    'agent.restartLimitReached': 'Agent Restart Limit',
     'task.activated': 'Task Activated',
     'task.acknowledged': 'Task Acknowledged',
     'task.inProgress': 'Task In Progress',
@@ -245,6 +268,8 @@ export function getEventBadgeTextColor(type: string): string {
     'agent.waiting': 'text-chatroom-status-success',
     'agent.requestStart': 'text-chatroom-status-warning',
     'agent.requestStop': 'text-chatroom-status-error',
+    'agent.startFailed': 'text-chatroom-status-error',
+    'agent.restartLimitReached': 'text-chatroom-status-error',
     'task.activated': 'text-chatroom-status-success',
     'task.acknowledged': 'text-chatroom-status-success',
     'task.inProgress': 'text-chatroom-status-info',

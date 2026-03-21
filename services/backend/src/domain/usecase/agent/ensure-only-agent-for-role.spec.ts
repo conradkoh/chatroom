@@ -8,11 +8,11 @@
 import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
+import { ensureOnlyAgentForRole } from './ensure-only-agent-for-role';
 import { api } from '../../../../convex/_generated/api';
 import type { Id } from '../../../../convex/_generated/dataModel';
-import { ensureOnlyAgentForRole } from './ensure-only-agent-for-role';
-import { t } from '../../../../test.setup';
 import { buildTeamRoleKey } from '../../../../convex/utils/teamRoleKey';
+import { t } from '../../../../test.setup';
 
 // ---------------------------------------------------------------------------
 // Helpers

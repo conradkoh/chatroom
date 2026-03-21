@@ -16,6 +16,7 @@
 ```
 
 **Issues:**
+
 - All agents take equal space
 - Active agents not visually prioritized
 - N rows for N agents = tall sidebar
@@ -40,6 +41,7 @@
 ```
 
 **Benefits:**
+
 - Active agents get full attention
 - Ready agents grouped = less clutter
 - Fixed height regardless of team size
@@ -49,49 +51,47 @@
 ### `AgentPanel.tsx`
 
 **Current Structure:**
+
 ```tsx
 <div>
-  {rolesToShow.map(role => <AgentRow role={role} />)}
+  {rolesToShow.map((role) => (
+    <AgentRow role={role} />
+  ))}
   <TeamStatus />
 </div>
 ```
 
 **Proposed Structure:**
+
 ```tsx
 <div>
   {/* Active/Working agents - always expanded */}
-  {activeAgents.map(role => <ActiveAgentRow role={role} />)}
-  
+  {activeAgents.map((role) => (
+    <ActiveAgentRow role={role} />
+  ))}
+
   {/* Ready agents - collapsed by default */}
   {readyAgents.length > 0 && (
-    <CollapsedAgentGroup 
-      title="Ready"
-      agents={readyAgents}
-      status="success"
-    />
+    <CollapsedAgentGroup title="Ready" agents={readyAgents} status="success" />
   )}
-  
+
   {/* Disconnected/Missing agents - collapsed */}
   {otherAgents.length > 0 && (
-    <CollapsedAgentGroup
-      title="Disconnected/Not Joined"
-      agents={otherAgents}
-      status="warning"
-    />
+    <CollapsedAgentGroup title="Disconnected/Not Joined" agents={otherAgents} status="warning" />
   )}
-  
+
   <TeamStatus />
 </div>
 ```
 
 ## State Groups
 
-| Status | Display | Collapsible |
-|--------|---------|-------------|
-| `active` (WORKING) | Full row with prompt | No |
-| `waiting` (READY) | Grouped | Yes (collapsed by default) |
-| `disconnected` | Grouped | Yes |
-| `missing` (NOT JOINED) | Grouped | Yes |
+| Status                 | Display              | Collapsible                |
+| ---------------------- | -------------------- | -------------------------- |
+| `active` (WORKING)     | Full row with prompt | No                         |
+| `waiting` (READY)      | Grouped              | Yes (collapsed by default) |
+| `disconnected`         | Grouped              | Yes                        |
+| `missing` (NOT JOINED) | Grouped              | Yes                        |
 
 ## Interaction Behavior
 

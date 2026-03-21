@@ -48,7 +48,9 @@ describe('HarnessSpawningService', () => {
       const service = new HarnessSpawningService({ rateLimiter });
 
       service.shouldAllowSpawn('room-1', 'platform.restart');
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Spawn blocked by rate limiter'));
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Spawn blocked by rate limiter')
+      );
     });
   });
 
@@ -84,7 +86,9 @@ describe('HarnessSpawningService', () => {
       }
 
       service.shouldAllowSpawn('room-x', 'platform.restart');
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Concurrent agent limit reached'));
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Concurrent agent limit reached')
+      );
     });
 
     it('allows spawn again after an agent exits (below limit)', () => {

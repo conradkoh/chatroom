@@ -83,7 +83,7 @@ export class CursorStreamReader {
 
     if (type === 'assistant') {
       const message = event['message'] as Record<string, unknown> | undefined;
-      const content = (message?.['content'] as Array<Record<string, unknown>>) ?? [];
+      const content = (message?.['content'] as Record<string, unknown>[]) ?? [];
       for (const block of content) {
         if (block['type'] === 'text' && typeof block['text'] === 'string') {
           for (const cb of this.textCallbacks) cb(block['text']);

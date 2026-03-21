@@ -6,23 +6,22 @@ import {
   AGENT_REQUEST_DEADLINE_MS,
   DAEMON_HEARTBEAT_INTERVAL_MS,
 } from '@workspace/backend/config/reliability.js';
-
-import { api } from '../../../api.js';
 import type { FunctionReturnType } from 'convex/server';
-import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
-import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
-import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
-import { discoverModels } from './init.js';
+
 import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-start-agent.js';
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
-import { handlePing } from './handlers/ping.js';
-import { startGitPollingLoop } from './git-polling.js';
 import { pushGitState } from './git-heartbeat.js';
-import { startTaskMonitor } from './task-monitor.js';
-import { makeGitStateKey } from '../../../infrastructure/git/types.js';
+import { startGitRequestSubscription } from './git-subscription.js';
+import { handlePing } from './handlers/ping.js';
+import { discoverModels } from './init.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
+import { api } from '../../../api.js';
+import { onDaemonShutdown } from '../../../events/lifecycle/on-daemon-shutdown.js';
+import { getConvexWsClient } from '../../../infrastructure/convex/client.js';
+import { makeGitStateKey } from '../../../infrastructure/git/types.js';
+import { ensureMachineRegistered } from '../../../infrastructure/machine/index.js';
 
 // ─── Derived Types ──────────────────────────────────────────────────────────
 
@@ -175,16 +174,11 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
   // Don't let the heartbeat timer keep the process alive during shutdown
   heartbeatTimer.unref();
 
-  // ── Git Polling Loop ─────────────────────────────────────────────────
-  // Fast polling loop (5s) for on-demand workspace git requests.
-  // Separate from the heartbeat so git requests get low latency (~5s).
-  const gitPollingHandle = startGitPollingLoop(ctx);
-
-  // ── Task Monitor ─────────────────────────────────────────────────────
-  // Subscribes to getAssignedTasks and starts agents when the harness-specific
-  // restart policy allows. This is the primary restart mechanism; the backend's
-  // ensureAgentHandler is a fallback for when the daemon is completely offline.
-  const taskMonitorHandle = startTaskMonitor(ctx);
+  // ── Git Request Subscription ──────────────────────────────────────
+  // Reactive subscription for on-demand workspace git requests.
+  // Uses wsClient.onUpdate to react instantly when pending requests appear.
+  // Started after wsClient is initialized (see below).
+  let gitSubscriptionHandle: ReturnType<typeof startGitRequestSubscription> | null = null;
 
   // Trigger an immediate git state push on startup so the frontend gets
   // data right away without waiting 30s for the first heartbeat.
@@ -196,11 +190,8 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
     // Stop heartbeat timers
     clearInterval(heartbeatTimer);
 
-    // Stop git polling loop
-    gitPollingHandle.stop();
-
-    // Stop task monitor
-    taskMonitorHandle.stop();
+    // Stop git request subscription
+    if (gitSubscriptionHandle) gitSubscriptionHandle.stop();
 
     await onDaemonShutdown(ctx);
 
@@ -214,6 +205,10 @@ export async function startCommandLoop(ctx: DaemonContext): Promise<never> {
 
   // Open WebSocket connection for event stream subscription
   const wsClient = await getConvexWsClient();
+
+  // ── Git Request Subscription ──────────────────────────────────────────
+  // Now that wsClient is ready, start the reactive git request subscription.
+  gitSubscriptionHandle = startGitRequestSubscription(ctx, wsClient);
 
   console.log(`\nListening for commands...`);
   console.log(`Press Ctrl+C to stop\n`);

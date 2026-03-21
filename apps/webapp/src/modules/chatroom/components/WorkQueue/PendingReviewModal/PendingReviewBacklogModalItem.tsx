@@ -1,6 +1,6 @@
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
 import { type BacklogItem, getScoringBadge } from '../../backlog';
 import { compactMarkdownComponents } from '../../markdown-utils';

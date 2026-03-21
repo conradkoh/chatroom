@@ -1,16 +1,21 @@
 /**
- * Agent Auto-Restart Integration Tests
+ * Agent Exit Integration Tests
  *
- * Verifies that the `onAgentExited` handler correctly emits (or skips)
- * agent.requestStart based on the `stopReason` and `desiredState` values.
+ * Verifies that `recordAgentExited` correctly handles cleanup
+ * (PID clearing, event recording) regardless of stopReason.
  *
- * Tests A, B, C cover the stopReason-based restart logic documented in
- * `src/events/agent/on-agent-exited.ts`.
+ * Crash recovery is now fully owned by the daemon — the backend
+ * no longer emits `agent.requestStart` on exit. These tests confirm:
+ * 1. agent.exited event is always recorded
+ * 2. NO agent.requestStart is emitted (daemon owns restarts)
+ * 3. spawnedAgentPid is cleared after exit
  */
 
 import { expect, test } from 'vitest';
 
+import type { Id } from '../../convex/_generated/dataModel';
 import { api } from '../../convex/_generated/api';
+import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 import { t } from '../../test.setup';
 import {
   createPairTeamChatroom,
@@ -18,19 +23,20 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
-import { buildTeamRoleKey } from '../../convex/utils/teamRoleKey';
 
 // ---------------------------------------------------------------------------
-// Helper: find an agent.requestStart event with crash_recovery reason
+// Helpers
 // ---------------------------------------------------------------------------
 
-async function findCrashRecoveryEvent(chatroomId: string) {
+async function findRequestStartEvent(chatroomId: Id<'chatroom_rooms'>) {
   const events = await t.run(async (ctx) => {
     return ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
       .collect();
   });
+  // Only look for crash-recovery requestStart events — the setup helper emits
+  // a user.start event that should not count as a daemon-triggered restart.
   return events.find(
     (e) =>
       e.type === 'agent.requestStart' &&
@@ -38,19 +44,27 @@ async function findCrashRecoveryEvent(chatroomId: string) {
   );
 }
 
+async function findExitedEvent(chatroomId: Id<'chatroom_rooms'>) {
+  const events = await t.run(async (ctx) => {
+    return ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect();
+  });
+  return events.find((e) => e.type === 'agent.exited');
+}
+
 // ---------------------------------------------------------------------------
-// Test A: stopReason=agent_process.crashed → emits agent.requestStart
+// Tests — daemon owns restarts, backend only records exit
 // ---------------------------------------------------------------------------
 
-test('recordAgentExited with stopReason=agent_process.crashed emits agent.requestStart', async () => {
-  // SETUP
+test('recordAgentExited records agent.exited event and does NOT emit agent.requestStart (crashed)', async () => {
   const { sessionId } = await createTestSession('test-ar-a');
   const chatroomId = await createPairTeamChatroom(sessionId);
   const machineId = 'machine-ar-a';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-  // Set desiredState=running so crash recovery can trigger
   await t.run(async (ctx) => {
     const config = await ctx.db
       .query('chatroom_teamAgentConfigs')
@@ -61,7 +75,6 @@ test('recordAgentExited with stopReason=agent_process.crashed emits agent.reques
     if (config) await ctx.db.patch(config._id, { desiredState: 'running' });
   });
 
-  // ACTION — stopReason=agent_process.crashed triggers crash recovery
   await t.mutation(api.machines.recordAgentExited, {
     sessionId,
     machineId,
@@ -71,24 +84,23 @@ test('recordAgentExited with stopReason=agent_process.crashed emits agent.reques
     stopReason: 'agent_process.crashed',
   });
 
-  // VERIFY — agent.requestStart IS emitted with crash_recovery reason
-  const crashRecoveryEvent = await findCrashRecoveryEvent(chatroomId);
-  expect(crashRecoveryEvent, 'agent.requestStart should be emitted when stopReason=agent_process.crashed').toBeDefined();
+  const exitedEvent = await findExitedEvent(chatroomId);
+  expect(exitedEvent, 'agent.exited should be recorded').toBeDefined();
+
+  const requestStartEvent = await findRequestStartEvent(chatroomId);
+  expect(
+    requestStartEvent,
+    'agent.requestStart should NOT be emitted — daemon owns restarts'
+  ).toBeUndefined();
 });
 
-// ---------------------------------------------------------------------------
-// Test B: stopReason=agent_process.exited_clean → emits agent.requestStart
-// ---------------------------------------------------------------------------
-
-test('recordAgentExited with stopReason=agent_process.exited_clean emits agent.requestStart', async () => {
-  // SETUP
+test('recordAgentExited records agent.exited event and does NOT emit agent.requestStart (exited_clean)', async () => {
   const { sessionId } = await createTestSession('test-ar-b');
   const chatroomId = await createPairTeamChatroom(sessionId);
   const machineId = 'machine-ar-b';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-  // Set desiredState=running so crash recovery can trigger
   await t.run(async (ctx) => {
     const config = await ctx.db
       .query('chatroom_teamAgentConfigs')
@@ -99,7 +111,6 @@ test('recordAgentExited with stopReason=agent_process.exited_clean emits agent.r
     if (config) await ctx.db.patch(config._id, { desiredState: 'running' });
   });
 
-  // ACTION
   await t.mutation(api.machines.recordAgentExited, {
     sessionId,
     machineId,
@@ -109,45 +120,40 @@ test('recordAgentExited with stopReason=agent_process.exited_clean emits agent.r
     stopReason: 'agent_process.exited_clean',
   });
 
-  // VERIFY — agent.requestStart IS emitted
-  const crashRecoveryEvent = await findCrashRecoveryEvent(chatroomId);
-  expect(crashRecoveryEvent, 'agent.requestStart should be emitted when stopReason=agent_process.exited_clean').toBeDefined();
+  const exitedEvent = await findExitedEvent(chatroomId);
+  expect(exitedEvent, 'agent.exited should be recorded').toBeDefined();
+
+  const requestStartEvent = await findRequestStartEvent(chatroomId);
+  expect(
+    requestStartEvent,
+    'agent.requestStart should NOT be emitted — daemon owns restarts'
+  ).toBeUndefined();
 });
 
-// ---------------------------------------------------------------------------
-// Test C: desiredState=stopped → does NOT emit agent.requestStart even if stopReason says restart
-// ---------------------------------------------------------------------------
-
-test('recordAgentExited with desiredState=stopped does NOT emit agent.requestStart even when stopReason=agent_process.crashed', async () => {
-  // SETUP
+test('recordAgentExited clears spawnedAgentPid after exit', async () => {
   const { sessionId } = await createTestSession('test-ar-c');
   const chatroomId = await createPairTeamChatroom(sessionId);
   const machineId = 'machine-ar-c';
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-  // Set desiredState='stopped' for the builder role (user explicitly stopped the agent)
-  await t.run(async (ctx) => {
-    const config = await ctx.db
-      .query('chatroom_teamAgentConfigs')
-      .withIndex('by_teamRoleKey', (q) =>
-        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
-      )
-      .first();
-    if (config) await ctx.db.patch(config._id, { desiredState: 'stopped' });
-  });
-
-  // ACTION — stopReason would normally trigger restart, but desiredState='stopped' overrides
   await t.mutation(api.machines.recordAgentExited, {
     sessionId,
     machineId,
     chatroomId,
     role: 'builder',
     pid: 12347,
-    stopReason: 'agent_process.crashed',
+    stopReason: 'user.stop',
   });
 
-  // VERIFY — NO agent.requestStart emitted (user intent respected)
-  const crashRecoveryEvent = await findCrashRecoveryEvent(chatroomId);
-  expect(crashRecoveryEvent, 'agent.requestStart should NOT be emitted when desiredState=stopped').toBeUndefined();
+  const config = await t.run(async (ctx) => {
+    return ctx.db
+      .query('chatroom_teamAgentConfigs')
+      .withIndex('by_teamRoleKey', (q) =>
+        q.eq('teamRoleKey', buildTeamRoleKey(chatroomId, 'pair', 'builder'))
+      )
+      .first();
+  });
+
+  expect(config?.spawnedAgentPid, 'spawnedAgentPid should be cleared after exit').toBeUndefined();
 });

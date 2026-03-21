@@ -31,6 +31,8 @@ export interface DaemonEventMap {
   /**
    * Fired when an agent process exits (for any reason).
    * The `stopReason` provides granular classification of why the agent stopped.
+   * `agentHarness`, `model`, and `workingDir` are passed through so the exit
+   * handler can restart the agent without an extra backend query.
    */
   'agent:exited': {
     chatroomId: Id<'chatroom_rooms'>;
@@ -40,6 +42,8 @@ export interface DaemonEventMap {
     signal: string | null;
     stopReason: StopReason;
     agentHarness?: string;
+    model?: string;
+    workingDir?: string;
   };
 
   /**

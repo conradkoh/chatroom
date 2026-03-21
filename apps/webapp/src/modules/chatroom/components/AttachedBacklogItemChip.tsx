@@ -5,6 +5,9 @@ import { ListChecks, X } from 'lucide-react';
 import React, { useState } from 'react';
 import Markdown from 'react-markdown';
 
+import { getScoringBadge } from './backlog';
+import { compactMarkdownComponents, backlogProseClassNames } from './markdown-utils';
+
 import {
   FixedModal,
   FixedModalBody,
@@ -12,9 +15,6 @@ import {
   FixedModalHeader,
   FixedModalTitle,
 } from '@/components/ui/fixed-modal';
-
-import { compactMarkdownComponents, backlogProseClassNames } from './markdown-utils';
-import { getScoringBadge } from './backlog';
 
 interface AttachedBacklogItemChipProps {
   itemId: Id<'chatroom_backlog'>;
@@ -46,7 +46,13 @@ function stripMarkdownHeading(line: string): string {
  * Click the chip label to open a centered modal showing the full content.
  * Renders minimal markdown in the chip; full markdown in the modal.
  */
-export function AttachedBacklogItemChip({ content, onRemove, complexity, value, priority }: AttachedBacklogItemChipProps) {
+export function AttachedBacklogItemChip({
+  content,
+  onRemove,
+  complexity,
+  value,
+  priority,
+}: AttachedBacklogItemChipProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   // Get first non-empty line for chip label, stripping markdown heading syntax

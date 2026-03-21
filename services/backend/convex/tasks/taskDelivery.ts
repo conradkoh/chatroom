@@ -1,18 +1,18 @@
 // TODO: Move to src/domain/usecase/task/ as part of clean architecture migration
 /**
  * Task Delivery Data Generator
- * 
+ *
  * Internal module for generating the complete task delivery output.
  * Used by both tasks.readTask mutation and messages.getTaskDeliveryPrompt query.
  */
 
-import type { Doc, Id } from '../_generated/dataModel';
-import type { QueryCtx } from '../_generated/server';
-import { getTeamEntryPoint } from '../../src/domain/entities/team';
-import { isActiveParticipant } from '../../src/domain/entities/participant';
+import { generateFullCliOutput } from '../../prompts/cli/get-next-task/fullOutput';
 import { getConfig } from '../../prompts/config/index';
 import { getCliEnvPrefix } from '../../prompts/utils/index';
-import { generateFullCliOutput } from '../../prompts/cli/get-next-task/fullOutput';
+import { isActiveParticipant } from '../../src/domain/entities/participant';
+import { getTeamEntryPoint } from '../../src/domain/entities/team';
+import type { Doc, Id } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 
 // Types
 interface TaskDeliveryParams {
@@ -32,7 +32,7 @@ export interface TaskDeliveryResult {
 
 /**
  * Generate the complete task delivery data for CLI output.
- * 
+ *
  * This function:
  * 1. Fetches context (participants, recent messages, etc.)
  * 2. Generates the full CLI output string
@@ -40,7 +40,7 @@ export interface TaskDeliveryResult {
  */
 export async function getTaskDeliveryPromptData(
   ctx: QueryCtx,
-  params:TaskDeliveryParams
+  params: TaskDeliveryParams
 ): Promise<TaskDeliveryResult> {
   const { chatroomId, role, task, message, chatroom, convexUrl } = params;
   const config = getConfig();
@@ -97,17 +97,19 @@ export async function getTaskDeliveryPromptData(
   if (chatroom.currentContextId) {
     const context = await ctx.db.get('chatroom_contexts', chatroom.currentContextId);
     if (context) {
-      // Get current message count to compute staleness
-      const allMessages = await ctx.db
+      // Count only messages since context creation to compute staleness.
+      // Uses compound index for an indexed range scan (no full table scan).
+      const recentMessages = await ctx.db
         .query('chatroom_messages')
-        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .withIndex('by_chatroom', (q) =>
+          q.eq('chatroomId', chatroomId).gte('_creationTime', context.createdAt)
+        )
         .collect();
-      const currentMessageCount = allMessages.length;
-      const messagesSinceContext = currentMessageCount - (context.messageCountAtCreation ?? 0);
+      const messagesSinceContext = recentMessages.length;
 
       // Compute time elapsed since context creation
       const elapsedMs = Date.now() - context.createdAt;
-      const elapsedHours = elapsedMs / (1000 * 60* 60);
+      const elapsedHours = elapsedMs / (1000 * 60 * 60);
 
       currentContext = {
         _id: context._id,
@@ -208,7 +210,10 @@ export async function getTaskDeliveryPromptData(
   }
 
   // Fetch attached backlog items if any exist in origin message
-  const attachedBacklogItemsMap = new Map<string, { id: string; content: string; status: string }>();
+  const attachedBacklogItemsMap = new Map<
+    string,
+    { id: string; content: string; status: string }
+  >();
   if (originMessage?.attachedBacklogItemIds && originMessage.attachedBacklogItemIds.length > 0) {
     for (const itemId of originMessage.attachedBacklogItemIds) {
       const item = await ctx.db.get('chatroom_backlog', itemId);
@@ -217,6 +222,24 @@ export async function getTaskDeliveryPromptData(
           id: item._id,
           content: item.content,
           status: item.status,
+        });
+      }
+    }
+  }
+
+  // Fetch attached messages if any exist in origin message
+  const attachedMessagesMap = new Map<
+    string,
+    { id: string; content: string; senderRole: string }
+  >();
+  if (originMessage?.attachedMessageIds && originMessage.attachedMessageIds.length > 0) {
+    for (const msgId of originMessage.attachedMessageIds) {
+      const msg = await ctx.db.get('chatroom_messages', msgId);
+      if (msg) {
+        attachedMessagesMap.set(msgId, {
+          id: msg._id,
+          content: msg.content,
+          senderRole: msg.senderRole,
         });
       }
     }
@@ -262,8 +285,17 @@ export async function getTaskDeliveryPromptData(
             ?.map((id) => attachedBacklogItemsMap.get(id))
             .filter(Boolean)
             .map((i) => ({
+              _id: i!.id,
               status: i!.status,
               content: i!.content,
+            })),
+          attachedMessages: originMessage.attachedMessageIds
+            ?.map((id) => attachedMessagesMap.get(id))
+            .filter(Boolean)
+            .map((m) => ({
+              _id: m!.id,
+              content: m!.content,
+              senderRole: m!.senderRole,
             })),
         }
       : null,

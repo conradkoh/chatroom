@@ -36,7 +36,7 @@ Create or obtain an SVG file for your app icon:
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <!-- White background circle -->
   <circle cx="256" cy="256" r="256" fill="white"/>
-  
+
   <!-- Icon centered and scaled to fit nicely -->
   <g transform="translate(146, 96) scale(15)">
     <!-- Your icon path here -->
@@ -58,6 +58,7 @@ node apps/webapp/scripts/generate-pwa-assets.js
 ```
 
 This will create:
+
 - App icons in all required sizes (16×16 to 1024×1024 pixels)
 - A favicon.ico file for browser compatibility
 
@@ -149,9 +150,7 @@ export default function RootLayout({
         <meta name="apple-touch-fullscreen" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
-      <body>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
@@ -162,6 +161,7 @@ export default function RootLayout({
 After completing the setup:
 
 1. Build and run your Next.js app in production mode:
+
    ```bash
    pnpm run build
    pnpm start
@@ -182,6 +182,7 @@ After completing the setup:
    4. Follow the prompts to install
 
    ### For Desktop Browsers:
+
    In compatible browsers, look for the installation icon in the address bar.
 
 ## Icon Design Best Practices

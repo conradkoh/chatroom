@@ -12,15 +12,15 @@ Each chatroom may reside in one or more workspaces (determined by the `workingDi
 
 ## Key Decisions (User-Approved)
 
-| # | Decision | Choice | Rationale |
-|---|----------|--------|-----------|
-| 1 | Push frequency | Change-detection: skip if unchanged | Only push when git state changes (compare branch + diff hash) |
-| 2 | Diff storage | diffStat only; full diff on-demand | Lighter writes, fetch full diff when user requests |
-| 3 | Git log depth | 20 commits + "load more" | Start with 20, allow pagination for more |
-| 4 | Commit detail latency | Fast on-demand pipeline | NOT heartbeat-gated; process requests immediately via fast polling loop |
-| 5 | Data scope | machineId + workingDir | All chatrooms sharing machine+workingDir see same git data |
-| 6 | Diff type | `git diff HEAD` | Show all uncommitted changes (staged + unstaged) |
-| 7 | Non-git dirs | Show workspace, display "Git info not found" | Use union types for proper state encoding (not null/undefined) |
+| #   | Decision              | Choice                                       | Rationale                                                               |
+| --- | --------------------- | -------------------------------------------- | ----------------------------------------------------------------------- |
+| 1   | Push frequency        | Change-detection: skip if unchanged          | Only push when git state changes (compare branch + diff hash)           |
+| 2   | Diff storage          | diffStat only; full diff on-demand           | Lighter writes, fetch full diff when user requests                      |
+| 3   | Git log depth         | 20 commits + "load more"                     | Start with 20, allow pagination for more                                |
+| 4   | Commit detail latency | Fast on-demand pipeline                      | NOT heartbeat-gated; process requests immediately via fast polling loop |
+| 5   | Data scope            | machineId + workingDir                       | All chatrooms sharing machine+workingDir see same git data              |
+| 6   | Diff type             | `git diff HEAD`                              | Show all uncommitted changes (staged + unstaged)                        |
+| 7   | Non-git dirs          | Show workspace, display "Git info not found" | Use union types for proper state encoding (not null/undefined)          |
 
 ---
 
@@ -99,9 +99,16 @@ All git state uses discriminated unions for proper state encoding:
 ```typescript
 // GitState discriminated union
 type GitState =
-  | { status: 'available'; branch: string; isDirty: boolean; diffStat: DiffStat; recentCommits: Commit[]; updatedAt: number }
-  | { status: 'not_found' }  // Not a git repository
-  | { status: 'loading' }    // Initial state, daemon hasn't pushed yet
+  | {
+      status: 'available';
+      branch: string;
+      isDirty: boolean;
+      diffStat: DiffStat;
+      recentCommits: Commit[];
+      updatedAt: number;
+    }
+  | { status: 'not_found' } // Not a git repository
+  | { status: 'loading' }; // Initial state, daemon hasn't pushed yet
 ```
 
 ### New Table: `chatroom_workspaceGitState`
@@ -113,34 +120,36 @@ chatroom_workspaceGitState: defineTable({
   workingDir: v.string(),
 
   // Discriminated union status
-  status: v.union(
-    v.literal('available'),
-    v.literal('not_found'),
-    v.literal('error')
-  ),
+  status: v.union(v.literal('available'), v.literal('not_found'), v.literal('error')),
 
   // Branch info (only when status === 'available')
-  branch: v.optional(v.string()),           // e.g. "main", "feat/my-feature", "HEAD" (detached)
-  isDirty: v.optional(v.boolean()),         // true if working tree has uncommitted changes
+  branch: v.optional(v.string()), // e.g. "main", "feat/my-feature", "HEAD" (detached)
+  isDirty: v.optional(v.boolean()), // true if working tree has uncommitted changes
 
   // Diff summary: git diff HEAD --stat (only when status === 'available')
-  diffStat: v.optional(v.object({
-    filesChanged: v.number(),
-    insertions: v.number(),
-    deletions: v.number(),
-  })),
+  diffStat: v.optional(
+    v.object({
+      filesChanged: v.number(),
+      insertions: v.number(),
+      deletions: v.number(),
+    })
+  ),
 
   // NOTE: Full diff content is NOT stored here — fetch on-demand via requestFullDiff
 
   // Recent commits: git log -20 --format=... (only when status === 'available')
   // Paginated: daemon appends more when user requests "load more"
-  recentCommits: v.optional(v.array(v.object({
-    sha: v.string(),             // full SHA
-    shortSha: v.string(),        // 7-char short SHA
-    message: v.string(),         // commit message (first line)
-    author: v.string(),          // author name
-    date: v.string(),            // ISO 8601 date string
-  }))),
+  recentCommits: v.optional(
+    v.array(
+      v.object({
+        sha: v.string(), // full SHA
+        shortSha: v.string(), // 7-char short SHA
+        message: v.string(), // commit message (first line)
+        author: v.string(), // author name
+        date: v.string(), // ISO 8601 date string
+      })
+    )
+  ),
 
   // Total commit count (for "load more" logic)
   totalCommitCount: v.optional(v.number()),
@@ -151,8 +160,7 @@ chatroom_workspaceGitState: defineTable({
 
   // Last time git state was pushed by the daemon
   updatedAt: v.number(),
-})
-  .index('by_machine_workingDir', ['machineId', 'workingDir'])
+}).index('by_machine_workingDir', ['machineId', 'workingDir']);
 ```
 
 ### New Table: `chatroom_workspaceFullDiff`
@@ -163,8 +171,8 @@ chatroom_workspaceFullDiff: defineTable({
   workingDir: v.string(),
 
   // git diff HEAD output (up to 500KB cap)
-  diffContent: v.string(),      // raw unified diff string
-  truncated: v.boolean(),       // true if diff was capped at 500KB
+  diffContent: v.string(), // raw unified diff string
+  truncated: v.boolean(), // true if diff was capped at 500KB
 
   // Stats derived from the diff
   filesChanged: v.number(),
@@ -172,8 +180,7 @@ chatroom_workspaceFullDiff: defineTable({
   deletions: v.number(),
 
   updatedAt: v.number(),
-})
-  .index('by_machine_workingDir', ['machineId', 'workingDir'])
+}).index('by_machine_workingDir', ['machineId', 'workingDir']);
 ```
 
 ### New Table: `chatroom_workspaceDiffRequests`
@@ -191,12 +198,17 @@ chatroom_workspaceDiffRequests: defineTable({
   sha: v.optional(v.string()),
   // For more_commits requests
   offset: v.optional(v.number()),
-  status: v.union(v.literal('pending'), v.literal('processing'), v.literal('done'), v.literal('error')),
+  status: v.union(
+    v.literal('pending'),
+    v.literal('processing'),
+    v.literal('done'),
+    v.literal('error')
+  ),
   requestedAt: v.number(),
   updatedAt: v.number(),
 })
   .index('by_machine_status', ['machineId', 'status'])
-  .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType'])
+  .index('by_machine_workingDir_type', ['machineId', 'workingDir', 'requestType']);
 ```
 
 ### New Table: `chatroom_workspaceCommitDetail`
@@ -205,11 +217,11 @@ chatroom_workspaceDiffRequests: defineTable({
 chatroom_workspaceCommitDetail: defineTable({
   machineId: v.string(),
   workingDir: v.string(),
-  sha: v.string(),              // full commit SHA
+  sha: v.string(), // full commit SHA
 
   // git show <sha> output (stat + full patch)
-  diffContent: v.string(),      // raw unified diff string
-  truncated: v.boolean(),       // true if diff was capped
+  diffContent: v.string(), // raw unified diff string
+  truncated: v.boolean(), // true if diff was capped
 
   // Commit metadata
   message: v.string(),
@@ -222,8 +234,7 @@ chatroom_workspaceCommitDetail: defineTable({
   deletions: v.number(),
 
   updatedAt: v.number(),
-})
-  .index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha'])
+}).index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha']);
 ```
 
 ---
@@ -440,15 +451,23 @@ export interface GitCommit {
 }
 
 export type FullDiffState =
-  | { status: 'idle' }           // Not requested yet
-  | { status: 'loading' }        // Request pending
+  | { status: 'idle' } // Not requested yet
+  | { status: 'loading' } // Request pending
   | { status: 'available'; content: string; truncated: boolean; stats: DiffStat }
   | { status: 'error'; message: string };
 
 export type CommitDetailState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'available'; content: string; truncated: boolean; message: string; author: string; date: string; stats: DiffStat }
+  | {
+      status: 'available';
+      content: string;
+      truncated: boolean;
+      message: string;
+      author: string;
+      date: string;
+      stats: DiffStat;
+    }
   | { status: 'error'; message: string };
 ```
 
@@ -592,6 +611,7 @@ WorkspaceAgentList
 **Non-git directories:** Workspace icon still shows. When user clicks in, `WorkspaceGitPanel` displays "Git info not found" message (from the `not_found` state). No error, clean UX.
 
 **Why here (not as a separate modal)?**
+
 - The workspace panel is already the right context (user selected a workspace)
 - Git data is scoped to `machineId + workingDir` — exactly what a workspace represents
 - Avoids creating a new navigation layer
@@ -602,48 +622,48 @@ WorkspaceAgentList
 
 ### Backend — Schema & Mutations
 
-| File | Change |
-|------|--------|
-| `services/backend/convex/schema.ts` | Add `chatroom_workspaceGitState`, `chatroom_workspaceFullDiff`, `chatroom_workspaceCommitDetail`, `chatroom_workspaceDiffRequests` tables |
-| `services/backend/convex/workspaces.ts` | **NEW** — all mutations and queries listed in section 3 |
+| File                                    | Change                                                                                                                                    |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `services/backend/convex/schema.ts`     | Add `chatroom_workspaceGitState`, `chatroom_workspaceFullDiff`, `chatroom_workspaceCommitDetail`, `chatroom_workspaceDiffRequests` tables |
+| `services/backend/convex/workspaces.ts` | **NEW** — all mutations and queries listed in section 3                                                                                   |
 
 ### CLI/Daemon
 
-| File | Change |
-|------|--------|
-| `packages/cli/src/infrastructure/git/git-reader.ts` | **NEW** — git command wrappers with union return types |
-| `packages/cli/src/infrastructure/git/push-git-state.ts` | **NEW** — change-detection push on heartbeat |
-| `packages/cli/src/infrastructure/git/process-git-requests.ts` | **NEW** — fast loop request processor |
+| File                                                             | Change                                                  |
+| ---------------------------------------------------------------- | ------------------------------------------------------- |
+| `packages/cli/src/infrastructure/git/git-reader.ts`              | **NEW** — git command wrappers with union return types  |
+| `packages/cli/src/infrastructure/git/push-git-state.ts`          | **NEW** — change-detection push on heartbeat            |
+| `packages/cli/src/infrastructure/git/process-git-requests.ts`    | **NEW** — fast loop request processor                   |
 | `packages/cli/src/commands/machine/daemon-start/command-loop.ts` | **MODIFY** — add fast polling timer, call git functions |
-| `packages/cli/src/commands/machine/daemon-start/types.ts` | **MODIFY** — add `lastPushedGitState` to DaemonContext |
+| `packages/cli/src/commands/machine/daemon-start/types.ts`        | **MODIFY** — add `lastPushedGitState` to DaemonContext  |
 
 ### Frontend — Types
 
-| File | Change |
-|------|--------|
+| File                                            | Change                                            |
+| ----------------------------------------------- | ------------------------------------------------- |
 | `apps/webapp/src/modules/chatroom/types/git.ts` | **NEW** — discriminated union types for git state |
 
 ### Frontend — Hooks
 
-| File | Change |
-|------|--------|
+| File                                                        | Change                          |
+| ----------------------------------------------------------- | ------------------------------- |
 | `apps/webapp/src/modules/chatroom/hooks/useWorkspaceGit.ts` | **NEW** — all git-related hooks |
 
 ### Frontend — Components
 
-| File | Change |
-|------|--------|
-| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitBranch.tsx` | **NEW** — branch + dirty indicator + diff stat |
-| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceDiffViewer.tsx` | **NEW** — full diff renderer |
-| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitLog.tsx` | **NEW** — commit list with load more |
-| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceCommitDetail.tsx` | **NEW** — per-commit diff viewer |
-| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitPanel.tsx` | **NEW** — container with tabs + keyboard |
-| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceAgentList.tsx` | **MODIFY** — add collapsible WorkspaceGitPanel |
+| File                                                                               | Change                                         |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitBranch.tsx`    | **NEW** — branch + dirty indicator + diff stat |
+| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceDiffViewer.tsx`   | **NEW** — full diff renderer                   |
+| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitLog.tsx`       | **NEW** — commit list with load more           |
+| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceCommitDetail.tsx` | **NEW** — per-commit diff viewer               |
+| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceGitPanel.tsx`     | **NEW** — container with tabs + keyboard       |
+| `apps/webapp/src/modules/chatroom/components/AgentPanel/WorkspaceAgentList.tsx`    | **MODIFY** — add collapsible WorkspaceGitPanel |
 
 ### Backend — Supporting Changes
 
-| File | Change |
-|------|--------|
+| File                                                                 | Change                                                  |
+| -------------------------------------------------------------------- | ------------------------------------------------------- |
 | `services/backend/src/domain/usecase/chatroom/get-agent-statuses.ts` | **MODIFY** — ensure `WorkspaceView` exposes `machineId` |
 
 ---
@@ -659,11 +679,11 @@ WorkspaceAgentList
 **Goal:** Build the daemon infrastructure to support real-time receiving of on-demand commands (for git requests). This establishes the fast polling loop pattern.
 
 **Files:**
+
 1. `packages/cli/src/infrastructure/git/git-reader.ts` — **NEW**
    - Git command wrappers with discriminated union return types
    - Functions: `isGitRepo()`, `getBranch()`, `isDirty()`, `getDiffStat()`, `getFullDiff()`, `getRecentCommits()`, `getCommitDetail()`
    - All functions return `Result<T, GitError>` or similar union type
-   
 2. `packages/cli/src/infrastructure/git/types.ts` — **NEW**
    - Type definitions: `GitBranchInfo`, `GitDiffStat`, `GitCommit`, `GitReadResult`
    - Discriminated unions: `GitStateAvailable | GitStateNotFound | GitStateError`
@@ -682,6 +702,7 @@ WorkspaceAgentList
    - Add `lastPushedGitState: Map<string, string>` to DaemonContext (for change detection)
 
 **Acceptance:**
+
 - Daemon starts with two timers: heartbeat (30s) + git polling (5s)
 - `git-reader.ts` functions work standalone (manual testing via CLI)
 - Git commands return proper discriminated union results
@@ -694,6 +715,7 @@ WorkspaceAgentList
 **Goal:** Define the backend domain layer — types, use cases, and Convex functions — without schema yet. Use in-memory or placeholder data.
 
 **Files:**
+
 1. `services/backend/src/domain/types/workspace-git.ts` — **NEW**
    - Domain types: `WorkspaceGitState`, `GitCommit`, `DiffStat`, `FullDiff`, `CommitDetail`
    - Request types: `DiffRequest`, `CommitDetailRequest`, `MoreCommitsRequest`
@@ -707,7 +729,6 @@ WorkspaceAgentList
 3. `services/backend/src/domain/usecase/workspace/request-full-diff.ts` — **NEW**
    - Use case: `requestFullDiff(machineId, workingDir)`
    - For now: no-op or logs to console
-   
 4. `services/backend/src/domain/usecase/workspace/upsert-workspace-git-state.ts` — **NEW**
    - Use case: `upsertWorkspaceGitState(data)`
    - For now: logs or stores in memory (no DB)
@@ -719,6 +740,7 @@ WorkspaceAgentList
    - Auth: validate session + machine ownership pattern
 
 **Acceptance:**
+
 - Domain types are defined with proper discriminated unions
 - Convex functions are callable (via dashboard or frontend)
 - `getWorkspaceGitState` returns mock data with all fields
@@ -731,6 +753,7 @@ WorkspaceAgentList
 **Goal:** Build the full UI experience with hardcoded/mock data. All components, tabs, keyboard shortcuts, and states should work — just not connected to real backend yet.
 
 **Files:**
+
 1. `apps/webapp/src/modules/chatroom/types/git.ts` — **NEW**
    - Frontend type definitions (mirror of domain types)
    - `WorkspaceGitState`, `FullDiffState`, `CommitDetailState` discriminated unions
@@ -815,6 +838,7 @@ WorkspaceAgentList
    - Modification example with paired -/+ lines for intra-line highlighting verification
 
 **Acceptance:**
+
 - All UI components render correctly with mock data
 - Tab switching works (Branch → Diff → History)
 - Keyboard shortcuts work (g b/d/l, ↑/↓, Enter, Escape)
@@ -835,11 +859,13 @@ WorkspaceAgentList
 **Pause here for user review.**
 
 At this point:
+
 - CLI infrastructure is in place (git-reader, polling loop)
 - Backend domain types and use cases are defined
 - Frontend UI is fully built with mock data
 
 **User validates:**
+
 1. ✓ CLI git-reader works correctly (run manual tests)
 2. ✓ Domain types are well-structured (discriminated unions)
 3. ✓ UI looks and feels right (all states, tabs, keyboard)
@@ -854,6 +880,7 @@ At this point:
 **Goal:** Add the Convex schema tables. No data flow yet — just the schema definition.
 
 **Files:**
+
 1. `services/backend/convex/schema.ts` — **MODIFY**
    - Add `chatroom_workspaceGitState` table
    - Add `chatroom_workspaceFullDiff` table
@@ -924,6 +951,7 @@ At this point:
 ```
 
 **Acceptance:**
+
 - Schema deploys successfully to Convex
 - Tables visible in Convex dashboard
 - Indexes created correctly
@@ -935,10 +963,12 @@ At this point:
 **Pause here for user review.**
 
 At this point:
+
 - Schema is defined and deployed
 - No data flowing yet
 
 **User validates:**
+
 1. ✓ Table structure is correct
 2. ✓ Field types match domain model
 3. ✓ Indexes are appropriate
@@ -953,6 +983,7 @@ At this point:
 **Goal:** Connect daemon git-reader to backend. Daemon pushes git state on heartbeat (change-detected).
 
 **Files:**
+
 1. `packages/cli/src/infrastructure/git/push-git-state.ts` — **NEW**
    - `pushGitStateSummaryIfChanged(ctx)` function
    - Collects active workingDirs from agent configs
@@ -968,6 +999,7 @@ At this point:
    - Call `pushGitStateSummaryIfChanged` in heartbeat timer
 
 **Acceptance:**
+
 - Running daemon in a git repo creates `chatroom_workspaceGitState` row
 - Row shows correct branch, isDirty, diffStat
 - Non-git dir creates row with `status: 'not_found'`
@@ -982,6 +1014,7 @@ At this point:
 **Cleanup:** Remove hardcoded `machineId` fallback in `useWorkspaces.ts` (currently uses `hostname` as stand-in). Replace with real `machineId` from `WorkspaceView` after backend exposes it.
 
 **Files:**
+
 1. `apps/webapp/src/modules/chatroom/hooks/useWorkspaceGit.ts` — **MODIFY**
    - Replace mock data with `useSessionQuery(api.workspaces.getWorkspaceGitState)`
    - Transform backend response to discriminated union
@@ -990,6 +1023,7 @@ At this point:
    - Ensure `WorkspaceView` exposes `machineId`
 
 **Acceptance:**
+
 - Opening workspace panel shows real git data from daemon
 - Data updates live when branch changes
 - Non-git workspaces show "Git info not found"
@@ -1001,6 +1035,7 @@ At this point:
 **Goal:** Wire the full diff request/response cycle.
 
 **Files:**
+
 1. `services/backend/convex/workspaces.ts` — **MODIFY**
    - Implement `requestFullDiff` mutation (inserts pending request)
    - Implement `getFullDiff` query
@@ -1019,6 +1054,7 @@ At this point:
    - Implement `useFullDiff` with real backend calls
 
 **Acceptance:**
+
 - Clicking "Load Diff" triggers request
 - Diff appears within ~5s
 - Large diffs show truncation warning
@@ -1030,6 +1066,7 @@ At this point:
 **Goal:** Wire commit history and pagination.
 
 **Files:**
+
 1. `services/backend/convex/workspaces.ts` — **MODIFY**
    - Implement `requestMoreCommits` mutation
    - Implement `appendMoreCommits` mutation
@@ -1041,6 +1078,7 @@ At this point:
    - Implement `useLoadMoreCommits` with real backend calls
 
 **Acceptance:**
+
 - History tab shows 20 real commits
 - "Load More" fetches next 20
 - Commits match actual git history
@@ -1052,6 +1090,7 @@ At this point:
 **Goal:** Wire commit detail request/response.
 
 **Files:**
+
 1. `services/backend/convex/workspaces.ts` — **MODIFY**
    - Implement `requestCommitDetail` mutation
    - Implement `getCommitDetail` query
@@ -1064,6 +1103,7 @@ At this point:
    - Implement `useCommitDetail` with real backend calls
 
 **Acceptance:**
+
 - Clicking a commit shows loading state
 - Diff appears within ~5s
 - Back/Escape returns to log
@@ -1086,14 +1126,14 @@ At this point:
 
 ## Appendix: Git Commands Reference
 
-| Purpose | Command | Notes |
-|---------|---------|-------|
-| Check if git repo | `git rev-parse --is-inside-work-tree` | Returns 'true' or error |
-| Get branch | `git rev-parse --abbrev-ref HEAD` | Returns 'HEAD' if detached |
-| Check dirty | `git status --porcelain` | Non-empty = dirty |
-| Diff stat | `git diff HEAD --stat` | All uncommitted changes |
-| Full diff | `git diff HEAD` | Cap at 500KB |
-| Recent commits | `git log -20 --format="%H\|%h\|%s\|%an\|%aI"` | Pipe-delimited |
-| Total commits | `git rev-list --count HEAD` | For hasMoreCommits |
-| More commits | `git log -20 --skip=N --format=...` | Pagination |
-| Commit detail | `git show <sha> --format="%s\|%an\|%aI" -p` | Full patch |
+| Purpose           | Command                                       | Notes                      |
+| ----------------- | --------------------------------------------- | -------------------------- |
+| Check if git repo | `git rev-parse --is-inside-work-tree`         | Returns 'true' or error    |
+| Get branch        | `git rev-parse --abbrev-ref HEAD`             | Returns 'HEAD' if detached |
+| Check dirty       | `git status --porcelain`                      | Non-empty = dirty          |
+| Diff stat         | `git diff HEAD --stat`                        | All uncommitted changes    |
+| Full diff         | `git diff HEAD`                               | Cap at 500KB               |
+| Recent commits    | `git log -20 --format="%H\|%h\|%s\|%an\|%aI"` | Pipe-delimited             |
+| Total commits     | `git rev-list --count HEAD`                   | For hasMoreCommits         |
+| More commits      | `git log -20 --skip=N --format=...`           | Pagination                 |
+| Commit detail     | `git show <sha> --format="%s\|%an\|%aI" -p`   | Full patch                 |

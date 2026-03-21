@@ -20,8 +20,8 @@ import type { Task, TaskCounts, WorkQueueProps } from './WorkQueue/types';
 import { ViewMoreButton } from './WorkQueue/ViewMoreButton';
 import { TaskItem } from './WorkQueue/TaskItem';
 import { CompactBacklogItem } from './WorkQueue/CompactBacklogItem';
-import { PendingReviewModal } from './WorkQueue/PendingReviewModal/PendingReviewModal';
 import { PendingReviewBacklogItem } from './WorkQueue/PendingReviewModal/PendingReviewBacklogItem';
+import { ReviewPanel } from './ReviewPanel';
 import { CurrentTasksModal } from './WorkQueue/CurrentTasksModal';
 import { BacklogQueueModal } from './WorkQueue/BacklogQueueModal';
 
@@ -394,19 +394,12 @@ export function WorkQueue({ chatroomId, lifecycle }: WorkQueueProps) {
         }}
       />
 
-      {/* Pending Review Modal */}
-      {isPendingReviewModalOpen && (
-        <PendingReviewModal
-          backlogItems={pendingReviewBacklogItems}
-          onClose={() => setIsPendingReviewModalOpen(false)}
-          onTaskClick={(task) => {
-            handleOpenTaskDetail(task);
-          }}
-          onBacklogItemClick={(item) => {
-            setSelectedBacklogItemId(item._id);
-          }}
-        />
-      )}
+      {/* Review Panel — Split-pane layout for pending review items */}
+      <ReviewPanel
+        isOpen={isPendingReviewModalOpen}
+        onClose={() => setIsPendingReviewModalOpen(false)}
+        chatroomId={chatroomId as Id<'chatroom_rooms'>}
+      />
 
       {/* Current Tasks Modal */}
       {isCurrentTasksModalOpen && (

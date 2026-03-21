@@ -5,8 +5,10 @@ export const softwareEngineeringSkill: SkillModule = {
   name: 'Software Engineering Reference',
   description:
     'Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.',
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "software-engineering" skill.
+
+  getPrompt: (
+    _cliEnvPrefix: string
+  ) => `You have been activated with the "software-engineering" skill.
 
 ## Build Order
 

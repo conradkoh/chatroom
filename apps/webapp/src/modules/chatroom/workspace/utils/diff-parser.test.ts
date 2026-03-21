@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { parseDiff, basename, enrichWithIntraLineDiff, type DiffLine } from './diff-parser';
 
 // ─── Test Fixtures ────────────────────────────────────────────────────────────
@@ -359,9 +360,7 @@ index 111..222 100644
 
       // Find the deletion in the second hunk (should start at line 101)
       const secondHunkIdx = lines.indexOf(hunks[1]!);
-      const secondDeletion = lines
-        .slice(secondHunkIdx)
-        .find((l) => l.type === 'deletion');
+      const secondDeletion = lines.slice(secondHunkIdx).find((l) => l.type === 'deletion');
       expect(secondDeletion?.oldLineNum).toBe(101);
     });
   });

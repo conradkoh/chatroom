@@ -5,8 +5,8 @@
  * after receiving an event.
  */
 
-import type { Id } from '../../../convex/_generated/dataModel';
 import type { AgentHarness } from './agent.js';
+import type { Id } from '../../../convex/_generated/dataModel';
 
 export type AgentStartedEvent = {
   type: 'agent.started';
@@ -27,7 +27,9 @@ export type AgentExitedEvent = {
   role: string;
   machineId: string;
   pid: number;
-  intentional: boolean;
+  intentional?: boolean;
+  stopReason?: string;
+  stopSignal?: string;
   exitCode?: number;
   signal?: string;
   timestamp: number;
@@ -101,6 +103,25 @@ export type AgentWaitingEvent = {
   timestamp: number;
 };
 
+export type AgentStartFailedEvent = {
+  type: 'agent.startFailed';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  error: string;
+  timestamp: number;
+};
+
+export type AgentRestartLimitReachedEvent = {
+  type: 'agent.restartLimitReached';
+  chatroomId: Id<'chatroom_rooms'>;
+  role: string;
+  machineId: string;
+  restartCount: number;
+  windowMs: number;
+  timestamp: number;
+};
+
 export type TaskAcknowledgedEvent = {
   type: 'task.acknowledged';
   chatroomId: Id<'chatroom_rooms'>;
@@ -154,4 +175,6 @@ export type ChatroomEvent =
   | TaskInProgressEvent
   | DaemonPingEvent
   | DaemonPongEvent
-  | SkillActivatedEvent;
+  | SkillActivatedEvent
+  | AgentStartFailedEvent
+  | AgentRestartLimitReachedEvent;

@@ -5,8 +5,8 @@ import { Suspense } from 'react';
 import { PageSpinner } from '@/components/ui/spinner';
 import { AuthErrorBoundary } from '@/modules/auth/AuthErrorBoundary';
 import { RequireLogin } from '@/modules/auth/RequireLogin';
-import { ChatroomListingProvider } from '@/modules/chatroom/context/ChatroomListingContext';
 import { ChatroomSwitcher } from '@/modules/chatroom/components/ChatroomSwitcher';
+import { ChatroomListingProvider } from '@/modules/chatroom/context/ChatroomListingContext';
 
 /**
  * Authenticated application layout.

@@ -168,7 +168,7 @@ describe('handoff', () => {
       expect(errOutput).toContain('• user');
       expect(errOutput).toContain('• planner');
       expect(errOutput).toContain('• builder');
-      expect(errOutput).toContain('Check your team\'s workflow');
+      expect(errOutput).toContain("Check your team's workflow");
     });
   });
 

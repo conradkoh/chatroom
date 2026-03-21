@@ -21,7 +21,7 @@ export type TaskStatus =
   | 'closed' // @deprecated — was terminal status for backlog tasks; now handled by chatroom_backlog
   | 'backlog' // @deprecated — was initial status for backlog items; now handled by chatroom_backlog
   | 'pending_user_review' // @deprecated — was intermediate backlog status; now handled by chatroom_backlog
-  | 'backlog_acknowledged'; // @deprecated — transitional status, migrated via migrateBacklogAcknowledgedToBacklog
+  | 'backlog_acknowledged'; // @deprecated — transitional status, migrated via migrateBacklogAcknowledgedToBacklog; kept in type until removed from schema
 
 export type Task = Doc<'chatroom_tasks'>;
 

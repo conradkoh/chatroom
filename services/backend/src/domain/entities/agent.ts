@@ -17,6 +17,9 @@
  * A harness is the execution environment that hosts the AI agent.
  * Supported harnesses: 'opencode', 'pi', 'cursor'.
  */
+// Convex validator exports for use in schema.ts
+import { v } from 'convex/values';
+
 export type AgentHarness = 'opencode' | 'pi' | 'cursor';
 
 /**
@@ -65,16 +68,15 @@ export type MachineCommandStatus = 'pending' | 'completed' | 'failed';
  * Why an agent was started. Used in `agent.requestStart` events.
  *
  * - `user.start`: User explicitly started the agent via UI or CLI
- * - `user.restart`: User explicitly restarted the agent via UI or CLI
- * - `platform.crash_recovery`: Eager restart after agent exit when desiredState is 'running' but no active task
- * - `daemon.task_monitor`: Daemon's task monitor detected an unhandled task with no running agent and started a fresh agent
+ * - `user.restart`: @deprecated — no longer used, kept for backward compatibility with old events
+ * - `platform.crash_recovery`: Daemon restart after agent exit (all harnesses)
  * - `test`: Used in integration and unit tests only
  */
 export const AGENT_START_REASONS = [
   'user.start',
+  /** @deprecated No longer used — kept for backward compatibility with old events */
   'user.restart',
   'platform.crash_recovery',
-  'daemon.task_monitor',
   'test',
 ] as const;
 export type AgentStartReason = (typeof AGENT_START_REASONS)[number];
@@ -88,8 +90,6 @@ export type AgentStartReason = (typeof AGENT_START_REASONS)[number];
  * - `platform.dedup`: Agent stopped to deduplicate roles (another agent took over)
  * - `platform.team_switch`: Agent stopped because the chatroom's team was changed (no auto-restart)
  * - `daemon.respawn`: Daemon killed agent to spawn a fresh instance
- * - `agent_process.turn_end`: Pi agent cleanly ended its turn after a healthy run
- * - `agent_process.turn_end_quick_fail`: Pi agent ended its turn very quickly (likely provider issue)
  * - `test`: Used in integration and unit tests only
  */
 export const AGENT_STOP_REASONS = [
@@ -97,22 +97,13 @@ export const AGENT_STOP_REASONS = [
   'platform.dedup',
   'platform.team_switch',
   'daemon.respawn',
-  'agent_process.turn_end',
-  'agent_process.turn_end_quick_fail',
   'test',
 ] as const;
 export type AgentStopReason = (typeof AGENT_STOP_REASONS)[number];
 
-// Convex validator exports for use in schema.ts
-import { v } from 'convex/values';
+export const agentStartReasonValidator = v.union(...AGENT_START_REASONS.map((r) => v.literal(r)));
 
-export const agentStartReasonValidator = v.union(
-  ...AGENT_START_REASONS.map((r) => v.literal(r))
-);
-
-export const agentStopReasonValidator = v.union(
-  ...AGENT_STOP_REASONS.map((r) => v.literal(r))
-);
+export const agentStopReasonValidator = v.union(...AGENT_STOP_REASONS.map((r) => v.literal(r)));
 
 /**
  * Where the agent's AI model was resolved from.

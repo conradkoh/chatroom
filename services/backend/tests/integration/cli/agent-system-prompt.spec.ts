@@ -271,6 +271,7 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       - Document complex logic
       - Follow existing code patterns and conventions
       - Consider edge cases and error handling
+      - **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
 
       **Git Workflow:**
       - Use descriptive commit messages
@@ -309,6 +310,8 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       \`\`\`
 
       Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+
+      **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
@@ -610,6 +613,8 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
       Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
+      **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
+
       **Continue receiving messages after \`handoff\`:**
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom get-next-task --chatroom-id="10007;chatroom_rooms" --role="reviewer"
@@ -701,4 +706,3 @@ describe('Remote Agent Init Message (initialMessage)', () => {
     expect(initPrompt?.initialMessage).toBe('');
   });
 });
-

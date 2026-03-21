@@ -1,7 +1,7 @@
-import { registerHarness } from './registry.js';
+import { CursorAgentService } from './cursor/index.js';
 import { OpenCodeAgentService } from './opencode/index.js';
 import { PiAgentService } from './pi/index.js';
-import { CursorAgentService } from './cursor/index.js';
+import { registerHarness } from './registry.js';
 
 let initialized = false;
 

@@ -1,15 +1,15 @@
 /**
  * state-recovery handler Unit Tests
  *
- * Tests recoverAgentState using injected dependencies.
- * Covers: no entries, alive agents, stale PIDs, mixed state.
+ * Tests recoverAgentState — delegates to AgentProcessManager.recover()
+ * and registers workspaces via backend mutations.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import { OpenCodeAgentService } from '../../../../infrastructure/services/remote-agents/opencode/index.js';
 import type { DaemonDeps } from '../deps.js';
-import { DaemonEventBus } from '../../../../events/daemon/event-bus.js';
 import type { DaemonContext } from '../types.js';
 import { recoverAgentState } from './state-recovery.js';
 import { createMockDaemonDeps } from '../testing/index.js';
@@ -18,26 +18,19 @@ import { createMockDaemonDeps } from '../testing/index.js';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function createMockContext(
-  entries: { chatroomId: string; role: string; entry: { pid: number; harness: 'opencode' } }[],
-  aliveCheck?: (pid: number) => boolean
-): DaemonContext {
-  const deps: DaemonDeps = createMockDaemonDeps({
-    machine: {
-      clearAgentPid: vi.fn(),
-      persistAgentPid: vi.fn(),
-      listAgentEntries: vi.fn().mockReturnValue(entries),
-      persistEventCursor: vi.fn(),
-      loadEventCursor: vi.fn().mockReturnValue(null),
-    },
-  });
+function createMockContext(overrides?: {
+  activeSlots?: Array<{ chatroomId: string; role: string; slot: any }>;
+  configs?: Array<{ machineId: string; workingDir?: string; role?: string }>;
+}): DaemonContext {
+  const deps: DaemonDeps = createMockDaemonDeps();
 
-  // agentService.isAlive(pid) uses deps.kill(pid, 0) — throws => dead, no throw => alive
-  const killMock = vi.fn().mockImplementation((pid: number, _signal: number | string) => {
-    if (aliveCheck && !aliveCheck(pid)) {
-      throw new Error('ESRCH');
-    }
-  });
+  // Configure agentProcessManager mock
+  vi.mocked(deps.agentProcessManager.listActive).mockReturnValue(overrides?.activeSlots ?? []);
+
+  // Configure backend query for getMachineAgentConfigs
+  if (overrides?.configs) {
+    vi.mocked(deps.backend.query).mockResolvedValue({ configs: overrides.configs });
+  }
 
   return {
     client: {},
@@ -52,13 +45,11 @@ function createMockContext(
         new OpenCodeAgentService({
           execSync: vi.fn(),
           spawn: vi.fn() as any,
-          kill: killMock,
+          kill: vi.fn(),
         }),
       ],
     ]),
-    activeWorkingDirs: new Set(),
     lastPushedGitState: new Map(),
-    pendingStops: new Map(),
   };
 }
 
@@ -68,82 +59,69 @@ function createMockContext(
 
 beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function getAllLogOutput(): string {
-  return (console.log as any).mock.calls
-    .map((c: unknown[]) => (c as string[]).join(' '))
-    .join('\n');
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe('recoverAgentState', () => {
-  it('logs nothing to recover when no entries exist', async () => {
-    const ctx = createMockContext([]);
+  it('delegates to agentProcessManager.recover()', async () => {
+    const ctx = createMockContext();
 
     await recoverAgentState(ctx);
 
-    expect(getAllLogOutput()).toContain('nothing to recover');
-    expect(ctx.deps.machine.clearAgentPid).not.toHaveBeenCalled();
+    expect(ctx.deps.agentProcessManager.recover).toHaveBeenCalledOnce();
   });
 
-  it('recovers alive agents without clearing PIDs', async () => {
-    const entries = [
-      { chatroomId: 'room-1', role: 'builder', entry: { pid: 1234, harness: 'opencode' as const } },
-    ];
-    const ctx = createMockContext(entries, () => true);
+  it('registers workspaces for active agents via backend mutation', async () => {
+    const ctx = createMockContext({
+      activeSlots: [
+        { chatroomId: 'room-1', role: 'builder', slot: { state: 'running', pid: 100 } },
+      ],
+      configs: [{ machineId: 'test-machine-id', workingDir: '/tmp/workspace', role: 'builder' }],
+    });
 
     await recoverAgentState(ctx);
 
-    const output = getAllLogOutput();
-    expect(output).toContain('Recovered: builder');
-    expect(output).toContain('PID 1234');
-    expect(output).toContain('1 alive, 0 stale cleared');
-    expect(ctx.deps.machine.clearAgentPid).not.toHaveBeenCalled();
-  });
-
-  it('clears stale PIDs for dead agents', async () => {
-    const entries = [
-      { chatroomId: 'room-1', role: 'planner', entry: { pid: 5678, harness: 'opencode' as const } },
-    ];
-    const ctx = createMockContext(entries, () => false);
-
-    await recoverAgentState(ctx);
-
-    const output = getAllLogOutput();
-    expect(output).toContain('Stale PID 5678');
-    expect(output).toContain('0 alive, 1 stale cleared');
-    expect(ctx.deps.machine.clearAgentPid).toHaveBeenCalledWith(
-      'test-machine-id',
-      'room-1',
-      'planner'
+    expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(), // api.workspaces.registerWorkspace
+      expect.objectContaining({
+        sessionId: 'test-session-id',
+        chatroomId: 'room-1',
+        machineId: 'test-machine-id',
+        workingDir: '/tmp/workspace',
+        registeredBy: 'builder',
+      })
     );
   });
 
-  it('handles mixed alive and dead agents', async () => {
-    const entries = [
-      { chatroomId: 'room-1', role: 'builder', entry: { pid: 100, harness: 'opencode' as const } },
-      { chatroomId: 'room-1', role: 'reviewer', entry: { pid: 200, harness: 'opencode' as const } },
-      { chatroomId: 'room-2', role: 'planner', entry: { pid: 300, harness: 'opencode' as const } },
-    ];
-    const ctx = createMockContext(entries, (pid: number) => pid === 100 || pid === 300);
+  it('skips working dirs from other machines (no registerWorkspace called)', async () => {
+    const ctx = createMockContext({
+      activeSlots: [
+        { chatroomId: 'room-1', role: 'builder', slot: { state: 'running', pid: 100 } },
+      ],
+      configs: [{ machineId: 'other-machine', workingDir: '/tmp/other' }],
+    });
 
     await recoverAgentState(ctx);
 
-    const output = getAllLogOutput();
-    expect(output).toContain('2 alive, 1 stale cleared');
-    expect(ctx.deps.machine.clearAgentPid).toHaveBeenCalledTimes(1);
-    expect(ctx.deps.machine.clearAgentPid).toHaveBeenCalledWith(
-      'test-machine-id',
-      'room-1',
-      'reviewer'
-    );
+    // mutation should not have been called for workspace registration
+    expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
+  });
+
+  it('handles no active agents after recovery', async () => {
+    const ctx = createMockContext({ activeSlots: [] });
+
+    await recoverAgentState(ctx);
+
+    expect(ctx.deps.agentProcessManager.recover).toHaveBeenCalledOnce();
+    // No mutations should be called when there are no active agents
+    expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
   });
 });

@@ -88,7 +88,9 @@ export const AgentStatusRow = memo(function AgentStatusRow({
       <span className="text-base font-bold uppercase tracking-wider text-chatroom-text-primary truncate flex-shrink-0">
         {role}
       </span>
-      <span className={`text-[10px] font-bold uppercase tracking-wide flex-shrink-0 ${statusColorClass}`}>
+      <span
+        className={`text-[10px] font-bold uppercase tracking-wide flex-shrink-0 ${statusColorClass}`}
+      >
         {statusLabel}
       </span>
       <span className="text-[10px] font-bold text-chatroom-text-muted flex-shrink-0">·</span>

@@ -14,8 +14,8 @@ export type BacklogFilter = 'unscored';
 export interface ListBacklogItemsArgs {
   chatroomId: Id<'chatroom_rooms'>;
   statusFilter?: BacklogStatusFilter;
-  sort?: BacklogSortOrder;  // default: 'date:desc'
-  filter?: BacklogFilter;   // optional filter for items without priority
+  sort?: BacklogSortOrder; // default: 'date:desc'
+  filter?: BacklogFilter; // optional filter for items without priority
   limit?: number;
 }
 

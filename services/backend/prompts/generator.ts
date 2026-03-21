@@ -22,7 +22,6 @@
  * duplication.
  */
 
-import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
 import { getNextTaskCommand } from './cli/get-next-task/command';
 import { getNextTaskGuidance } from './cli/get-next-task/reminder';
 import { handoffCommand } from './cli/handoff/command';
@@ -48,6 +47,7 @@ import { getSquadRoleGuidanceFromContext } from './teams/squad/prompts/fromConte
 import type { SelectorContext, PromptSection } from './types/sections';
 import { composeSections } from './types/sections';
 import { getCliEnvPrefix } from './utils/index';
+import { getTeamEntryPoint, toTeam } from '../src/domain/entities/team';
 
 // Guidelines and policies are exported for external use
 // They can be included in review prompts as needed
@@ -289,7 +289,7 @@ export function generateRolePrompt(ctx: RolePromptContext): string {
 // sections/commands-reference.ts
 
 /**
- * Generate a focused reminder for task-started based on role + classification.
+ * Generate a focused reminder for classify/task-read based on role + classification.
  * Returns a short, specific prompt reminding the agent of the expected action.
  *
  * Uses SelectorContext internally for team/role detection (Phase 4).
@@ -542,7 +542,7 @@ Task ID: ${taskId}`;
     }
   }
 
-  // Reviewer should run task-started to acknowledge receipt
+  // Reviewer acknowledges receipt and reviews work
   if (normalizedRole === 'reviewer') {
     if (isSquadTeam) {
       // Squad team: reviewer hands off to planner, not user
@@ -598,7 +598,7 @@ export interface InitPromptInput {
 export interface ComposedInitPrompt {
   /** System prompt: general instructions + role prompt (for harnesses that support it) */
   systemPrompt: string;
-  /** Init message: context-gaining instructions and task-started guidance (first user message) */
+  /** Init message: context-gaining instructions and classify guidance (first user message) */
   initMessage: string;
   /** Combined init prompt: everything in one message (for harnesses without system prompt) */
   initPrompt: string;
@@ -729,7 +729,7 @@ export function composeInitMessage(_input: InitPromptInput): string {
  *
  * Returns all three forms so the caller can choose based on harness capability:
  *   - `systemPrompt` — for harnesses that support system prompt (general instructions + role)
- *   - `initMessage` — first user message (context-gaining, task-started, next steps)
+ *   - `initMessage` — first user message (context-gaining, classify, next steps)
  *   - `initPrompt` — combined single message (for harnesses without system prompt support)
  */
 export function composeInitPrompt(input: InitPromptInput): ComposedInitPrompt {

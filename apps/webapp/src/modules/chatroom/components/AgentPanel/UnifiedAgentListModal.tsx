@@ -4,11 +4,11 @@ import { memo, useState, useEffect, useMemo, useCallback, useContext } from 'rea
 
 import { WorkspaceAgentList } from './WorkspaceAgentList';
 import { WorkspaceSidebar } from './WorkspaceSidebar';
-import { useWorkspaces } from '../../hooks/useWorkspaces';
 import { useAgentPanelData } from '../../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../../hooks/useAgentStatuses';
+import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
+import type { Workspace, WorkspaceGroup } from '../../types/workspace';
 import type { StatusVariant } from '../../utils/agentStatusLabel';
-import { PromptsContext } from '@/contexts/PromptsContext';
 
 import {
   FixedModal,
@@ -17,6 +17,7 @@ import {
   FixedModalTitle,
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
+import { PromptsContext } from '@/contexts/PromptsContext';
 
 export interface AgentWithStatus {
   role: string;
@@ -46,7 +47,6 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   const {
     agents: agentRoleViews,
     teamRoles,
-    workspaces: backendWorkspaces,
     connectedMachines,
     machineConfigs,
     agentPreferenceMap,
@@ -79,20 +79,62 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     [promptsContext]
   );
 
-  const { workspaceGroups, allWorkspaces } = useWorkspaces({
-    agents,
-    backendWorkspaces,
+  // Workspace list from registry, enriched with agent roles
+  const { workspaces: allWorkspaces } = useChatroomWorkspaces(chatroomId, {
+    agentViews: agentRoleViews,
   });
+
+  // Derive workspace groups from flat list (group by hostname)
+  const workspaceGroups = useMemo((): WorkspaceGroup[] => {
+    const groupMap = new Map<string, WorkspaceGroup>();
+    for (const ws of allWorkspaces) {
+      const key = ws.hostname;
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          machineId: ws.machineId,
+          hostname: ws.hostname,
+          workspaces: [],
+        });
+      }
+      groupMap.get(key)!.workspaces.push(ws);
+    }
+
+    // Add unassigned workspace for agents not in any workspace
+    const assignedRoles = new Set(allWorkspaces.flatMap((w) => w.agentRoles));
+    const unassignedAgents = agents.filter((a) => !assignedRoles.has(a.role));
+    if (unassignedAgents.length > 0) {
+      const unassignedWs: Workspace = {
+        id: '__unassigned__',
+        machineId: null,
+        hostname: 'Unassigned',
+        workingDir: '',
+        agentRoles: unassignedAgents.map((a) => a.role),
+      };
+      groupMap.set('__unassigned__', {
+        machineId: null,
+        hostname: 'Unassigned',
+        workspaces: [unassignedWs],
+      });
+    }
+
+    return Array.from(groupMap.values());
+  }, [allWorkspaces, agents]);
+
+  // Flat list for selection lookup (includes unassigned)
+  const flatWorkspaces = useMemo(
+    () => workspaceGroups.flatMap((g) => g.workspaces),
+    [workspaceGroups]
+  );
 
   // Auto-select first workspace whenever workspaces load or current selection is stale
   useEffect(() => {
     if (
-      allWorkspaces.length > 0 &&
-      (selectedWorkspaceId === null || !allWorkspaces.find((w) => w.id === selectedWorkspaceId))
+      flatWorkspaces.length > 0 &&
+      (selectedWorkspaceId === null || !flatWorkspaces.find((w) => w.id === selectedWorkspaceId))
     ) {
-      setSelectedWorkspaceId(allWorkspaces[0].id);
+      setSelectedWorkspaceId(flatWorkspaces[0].id);
     }
-  }, [allWorkspaces, selectedWorkspaceId]);
+  }, [flatWorkspaces, selectedWorkspaceId]);
 
   // Reset selection when modal closes
   useEffect(() => {
@@ -102,8 +144,8 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   }, [isOpen]);
 
   const selectedWorkspace = useMemo(
-    () => allWorkspaces.find((w) => w.id === selectedWorkspaceId) ?? null,
-    [allWorkspaces, selectedWorkspaceId]
+    () => flatWorkspaces.find((w) => w.id === selectedWorkspaceId) ?? null,
+    [flatWorkspaces, selectedWorkspaceId]
   );
 
   // Build a map from role → AgentRoleView for passing to WorkspaceAgentList

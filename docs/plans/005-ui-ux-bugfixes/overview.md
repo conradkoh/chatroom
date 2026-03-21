@@ -3,6 +3,7 @@
 ## Summary
 
 Fix 4 UI bugs in the chatroom webapp that affect user experience:
+
 1. Loading cards not clickable until agent statuses load
 2. 3-dot menu overlapping status badge in chatroom cards
 3. Tables/markdown causing horizontal scroll

@@ -7,27 +7,44 @@
 
 import { createHash } from 'node:crypto';
 
+import { extractDiffStatFromShowOutput } from './git-subscription.js';
+import type { DaemonContext } from './types.js';
+import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { makeGitStateKey, COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
 import type { GitCommit } from '../../../infrastructure/git/types.js';
-import { extractDiffStatFromShowOutput } from './git-polling.js';
-import type { DaemonContext } from './types.js';
-import { formatTimestamp } from './utils.js';
 
 /**
  * Collect git state for all tracked working directories and push to backend.
  *
- * Iterates over `ctx.activeWorkingDirs`, runs git commands for each, and
- * calls `api.workspaces.upsertWorkspaceGitState` when the state has changed.
+ * Queries the backend for registered workspaces on this machine, then runs
+ * git commands for each unique working directory and pushes state changes.
  *
  * Safe to call concurrently with the heartbeat — errors per-workspace are
  * caught and logged without aborting the loop.
  */
 export async function pushGitState(ctx: DaemonContext): Promise<void> {
-  if (ctx.activeWorkingDirs.size === 0) return;
+  // Query backend for all registered workspaces on this machine
+  let workspaces: Array<{ workingDir: string }>;
+  try {
+    workspaces = await ctx.deps.backend.query(api.workspaces.listWorkspacesForMachine, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+    });
+  } catch (err) {
+    console.warn(
+      `[${formatTimestamp()}] ⚠️ Failed to query workspaces for git sync: ${(err as Error).message}`
+    );
+    return; // Skip this cycle — will retry on next heartbeat
+  }
 
-  for (const workingDir of ctx.activeWorkingDirs) {
+  // Deduplicate working directories (multiple chatrooms may share a workingDir)
+  const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
+
+  if (uniqueWorkingDirs.size === 0) return;
+
+  for (const workingDir of uniqueWorkingDirs) {
     try {
       await pushSingleWorkspaceGitState(ctx, workingDir);
     } catch (err) {
@@ -38,10 +55,7 @@ export async function pushGitState(ctx: DaemonContext): Promise<void> {
   }
 }
 
-async function pushSingleWorkspaceGitState(
-  ctx: DaemonContext,
-  workingDir: string
-): Promise<void> {
+async function pushSingleWorkspaceGitState(ctx: DaemonContext, workingDir: string): Promise<void> {
   const stateKey = makeGitStateKey(ctx.machineId, workingDir);
 
   // Check if it's a git repo first
@@ -89,6 +103,9 @@ async function pushSingleWorkspaceGitState(
     return;
   }
 
+  // Fetch open PRs for the current branch (non-blocking on failure)
+  const openPRs = await gitReader.getOpenPRsForBranch(workingDir, branchResult.branch);
+
   // Build available state
   const branch = branchResult.branch;
   const isDirty = dirtyResult;
@@ -100,7 +117,7 @@ async function pushSingleWorkspaceGitState(
 
   // Change detection: hash the relevant state to skip unchanged pushes
   const stateHash = createHash('md5')
-    .update(JSON.stringify({ branch, isDirty, diffStat, shas: commits.map((c) => c.sha) }))
+    .update(JSON.stringify({ branch, isDirty, diffStat, shas: commits.map((c) => c.sha), prs: openPRs.map((pr) => pr.number) }))
     .digest('hex');
 
   if (ctx.lastPushedGitState.get(stateKey) === stateHash) {
@@ -118,6 +135,7 @@ async function pushSingleWorkspaceGitState(
     diffStat,
     recentCommits: commits,
     hasMoreCommits,
+    openPullRequests: openPRs,
   });
 
   ctx.lastPushedGitState.set(stateKey, stateHash);

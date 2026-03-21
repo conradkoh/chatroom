@@ -1,6 +1,6 @@
-import type { MutationCtx } from '../../../../convex/_generated/server';
-import type { Id } from '../../../../convex/_generated/dataModel';
 import { createTask } from './create-task';
+import type { Id } from '../../../../convex/_generated/dataModel';
+import type { MutationCtx } from '../../../../convex/_generated/server';
 import { getAndIncrementQueuePosition } from '../../../../convex/auth/cliSessionAuth';
 
 /**
@@ -42,6 +42,9 @@ export async function promoteQueuedMessage(
     }),
     ...(queueRecord.attachedArtifactIds?.length && {
       attachedArtifactIds: queueRecord.attachedArtifactIds,
+    }),
+    ...(queueRecord.attachedMessageIds?.length && {
+      attachedMessageIds: queueRecord.attachedMessageIds,
     }),
   });
 

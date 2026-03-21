@@ -58,7 +58,6 @@ describe('getAgentStatusForChatroom — fresh team', () => {
     for (const agent of result!.agents) {
       expect(agent.state).toBe('stopped');
     }
-    expect(result!.workspaces).toHaveLength(0);
   });
 });
 
@@ -193,27 +192,6 @@ describe('getAgentStatusForChatroom — stale role exclusion', () => {
     expect(result!.agents).toHaveLength(2);
     const roles = result!.agents.map((a) => a.role).sort();
     expect(roles).toEqual(['builder', 'planner']);
-  });
-});
-
-// ─── Workspace derivation ─────────────────────────────────────────────────────
-
-describe('getAgentStatusForChatroom — workspaces', () => {
-  test('derives workspaces from team configs with machine+workingDir', async () => {
-    const { sessionId } = await createTestSession('test-gas-ws-1');
-    const machineId = 'machine-gas-ws-1';
-    await registerMachineWithDaemon(sessionId as any, machineId);
-    const chatroomId = await createPairTeamChatroom(sessionId as any);
-
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'builder');
-    await setupRemoteAgentConfig(sessionId as any, chatroomId, machineId, 'reviewer');
-
-    const result = await runStatusQuery(chatroomId);
-
-    expect(result!.workspaces).toHaveLength(1);
-    expect(result!.workspaces[0].hostname).toBe('test-host');
-    expect(result!.workspaces[0].workingDir).toBe('/test/workspace');
-    expect(result!.workspaces[0].agentRoles.sort()).toEqual(['builder', 'reviewer']);
   });
 });
 

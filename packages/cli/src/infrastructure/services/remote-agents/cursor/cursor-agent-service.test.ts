@@ -2,10 +2,7 @@ import { EventEmitter, Readable } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  CursorAgentService,
-  type CursorAgentServiceDeps,
-} from './cursor-agent-service.js';
+import { CursorAgentService, type CursorAgentServiceDeps } from './cursor-agent-service.js';
 
 function createMockDeps(overrides?: Partial<CursorAgentServiceDeps>): CursorAgentServiceDeps {
   return {

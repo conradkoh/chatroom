@@ -5,8 +5,8 @@
  * Participant records track real-time agent connection state.
  */
 
-import type { MutationCtx } from '../../../convex/_generated/server';
 import type { Id } from '../../../convex/_generated/dataModel';
+import type { MutationCtx } from '../../../convex/_generated/server';
 
 /**
  * The `lastSeenAction` value set when an agent exits (crash or intentional).
@@ -35,18 +35,16 @@ export async function patchParticipantStatus(
   chatroomId: Id<'chatroom_rooms'>,
   role: string,
   lastStatus: string,
-  lastDesiredState?: string,
+  lastDesiredState?: string
 ): Promise<void> {
   const participant = await ctx.db
     .query('chatroom_participants')
-    .withIndex('by_chatroom_and_role', (q) =>
-      q.eq('chatroomId', chatroomId).eq('role', role)
-    )
+    .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
     .unique();
   if (!participant) return;
   const patch: Record<string, string> = { lastStatus };
   if (lastDesiredState !== undefined) {
     patch.lastDesiredState = lastDesiredState;
   }
-  await ctx.db.patch(participant._id, patch);
+  await ctx.db.patch('chatroom_participants', participant._id, patch);
 }

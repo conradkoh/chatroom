@@ -12,9 +12,7 @@
  * 1 API call per role per chatroom visit.
  */
 
-import {
-  generateAgentPrompt,
-} from '@workspace/backend/prompts/base/webapp';
+import { generateAgentPrompt } from '@workspace/backend/prompts/base/webapp';
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useMemo } from 'react';
 

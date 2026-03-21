@@ -64,6 +64,8 @@ ${progressCmd}
 
 Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
+**Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
+
 **Continue receiving messages after \`handoff\`:**
 \`\`\`
 ${waitCmd}

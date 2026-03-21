@@ -1,17 +1,18 @@
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
+
 import { mutation, query } from './_generated/server';
 import { requireChatroomAccess } from './auth/cliSessionAuth';
-import { listBacklogItems as listBacklogItemsUseCase } from '../src/domain/usecase/backlog/list-backlog-items';
-import { createBacklogItem as createBacklogItemUseCase } from '../src/domain/usecase/backlog/create-backlog-item';
 import { closeBacklogItem as closeBacklogItemUseCase } from '../src/domain/usecase/backlog/close-backlog-item';
 import { completeBacklogItem as completeBacklogItemUseCase } from '../src/domain/usecase/backlog/complete-backlog-item';
-import { reopenBacklogItem as reopenBacklogItemUseCase } from '../src/domain/usecase/backlog/reopen-backlog-item';
+import { createBacklogItem as createBacklogItemUseCase } from '../src/domain/usecase/backlog/create-backlog-item';
+import { getBacklogItemsByIds as getBacklogItemsByIdsUseCase } from '../src/domain/usecase/backlog/get-backlog-items-by-ids';
+import { listBacklogItems as listBacklogItemsUseCase } from '../src/domain/usecase/backlog/list-backlog-items';
 import { markBacklogItemForReview as markBacklogItemForReviewUseCase } from '../src/domain/usecase/backlog/mark-backlog-item-for-review';
+import { patchBacklogItem as patchBacklogItemUseCase } from '../src/domain/usecase/backlog/patch-backlog-item';
+import { reopenBacklogItem as reopenBacklogItemUseCase } from '../src/domain/usecase/backlog/reopen-backlog-item';
 import { sendBacklogItemBackForRework as sendBacklogItemBackForReworkUseCase } from '../src/domain/usecase/backlog/send-backlog-item-back-for-rework';
 import { updateBacklogItem as updateBacklogItemUseCase } from '../src/domain/usecase/backlog/update-backlog-item';
-import { getBacklogItemsByIds as getBacklogItemsByIdsUseCase } from '../src/domain/usecase/backlog/get-backlog-items-by-ids';
-import { patchBacklogItem as patchBacklogItemUseCase } from '../src/domain/usecase/backlog/patch-backlog-item';
 
 /** Lists backlog items for a chatroom. statusFilter defaults to 'backlog' (excludes pending_user_review). */
 export const listBacklogItems = query({
@@ -23,7 +24,7 @@ export const listBacklogItems = query({
         v.literal('backlog'),
         v.literal('pending_user_review'),
         v.literal('closed'),
-        v.literal('active'), // backlog + pending_user_review
+        v.literal('active') // backlog + pending_user_review
       )
     ),
     sort: v.optional(v.union(v.literal('date:desc'), v.literal('priority:desc'))),
@@ -72,12 +73,13 @@ export const closeBacklogItem = mutation({
   args: {
     ...SessionIdArg,
     itemId: v.id('chatroom_backlog'),
+    reason: v.string(),
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get('chatroom_backlog', args.itemId);
     if (!item) throw new ConvexError('Backlog item not found');
     await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
-    await closeBacklogItemUseCase(ctx, args.itemId);
+    await closeBacklogItemUseCase(ctx, args.itemId, { reason: args.reason });
     return { success: true };
   },
 });

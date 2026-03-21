@@ -15,6 +15,8 @@
  * - Tool → Harness field rename (availableTools → availableHarnesses, etc.)
  * - Convert backlog_acknowledged task status to backlog (migrateBacklogAcknowledgedToBacklog)
  * - Move backlog items from chatroom_tasks to chatroom_backlog (migrateBacklogItemsToBacklogTable)
+ * - Remap legacy chatroom_tasks IDs in messages to chatroom_backlog IDs (remapBacklogTaskIdsInMessages)
+ * - Delete legacy backlog tasks from chatroom_tasks (deleteBacklogOriginTasks)
  */
 
 import { internalMutation } from './_generated/server';
@@ -69,7 +71,7 @@ export const migrateAvailableModelsToPerHarness = internalMutation({
       }
 
       // Convert flat string[] → { opencode: string[] }
-      await ctx.db.patch(machine._id, {
+      await ctx.db.patch('chatroom_machines', machine._id, {
         availableModels: { opencode: raw as string[] },
       });
       patched++;
@@ -128,10 +130,8 @@ export const stripParticipantStaleFields = internalMutation({
       // Unset only the stale fields — preserves all valid fields including
       // optional ones (connectionId, agentType, lastSeenAt, lastSeenAction,
       // lastSeenTokenAt) without needing to enumerate them explicitly.
-      const unsetPatch = Object.fromEntries(
-        staleFieldsPresent.map((f) => [f, undefined])
-      );
-      await ctx.db.patch(participant._id, unsetPatch);
+      const unsetPatch = Object.fromEntries(staleFieldsPresent.map((f) => [f, undefined]));
+      await ctx.db.patch('chatroom_participants', participant._id, unsetPatch);
       patched++;
     }
 
@@ -225,7 +225,7 @@ export const deleteLegacyMessageQueueDocuments = internalMutation({
       const raw = msg as Record<string, unknown>;
       // Old format: has taskId (pre-refactor back-reference to chatroom_tasks)
       if (raw.taskId !== undefined) {
-        await ctx.db.delete(msg._id);
+        await ctx.db.delete('chatroom_messageQueue', msg._id);
         deleted++;
       } else {
         skipped++;
@@ -260,7 +260,7 @@ export const migrateQueuedTasks = internalMutation({
     for (const task of allTasks) {
       const raw = task as Record<string, unknown>;
       if (raw.status === 'queued') {
-        await ctx.db.patch(task._id, { status: 'pending' });
+        await ctx.db.patch('chatroom_tasks', task._id, { status: 'pending' });
         migrated++;
       }
     }
@@ -312,7 +312,7 @@ export const migrateTeamRoleKeyAddTeamId = internalMutation({
         continue;
       }
 
-      const chatroom = await ctx.db.get(config.chatroomId);
+      const chatroom = await ctx.db.get('chatroom_rooms', config.chatroomId);
 
       if (!chatroom || !chatroom.teamId) {
         await ctx.db.delete('chatroom_teamAgentConfigs', config._id);
@@ -397,7 +397,7 @@ export const migrateStopReasonToActorPrefixed = internalMutation({
         continue;
       }
 
-      await ctx.db.patch(event._id, { stopReason: RENAME_MAP[oldReason] });
+      await ctx.db.patch('chatroom_eventStream', event._id, { stopReason: RENAME_MAP[oldReason] });
       migrated++;
     }
 
@@ -450,7 +450,9 @@ export const migrateEventReasonsToActorPrefixed = internalMutation({
       if (raw.type === 'agent.requestStop') {
         const oldReason = raw.reason as string | undefined;
         if (oldReason && oldReason in STOP_REASON_MAP) {
-          await ctx.db.patch(event._id, { reason: STOP_REASON_MAP[oldReason] } as never);
+          await ctx.db.patch('chatroom_eventStream', event._id, {
+            reason: STOP_REASON_MAP[oldReason],
+          } as never);
           migrated++;
           continue;
         }
@@ -459,7 +461,9 @@ export const migrateEventReasonsToActorPrefixed = internalMutation({
       if (raw.type === 'agent.requestStart') {
         const oldReason = raw.reason as string | undefined;
         if (oldReason && oldReason in START_REASON_MAP) {
-          await ctx.db.patch(event._id, { reason: START_REASON_MAP[oldReason] } as never);
+          await ctx.db.patch('chatroom_eventStream', event._id, {
+            reason: START_REASON_MAP[oldReason],
+          } as never);
           migrated++;
           continue;
         }
@@ -537,261 +541,3 @@ export const purgeWorkspaceCommitDetails = internalMutation({
   },
 });
 
-/**
- * Migration: Move backlog items from chatroom_tasks to chatroom_backlog.
- *
- * The chatroom_tasks table has records with origin="backlog" that should
- * have been migrated to the chatroom_backlog table. This migration moves
- * them and preserves the old task ID in legacyTaskId for reference mapping.
- *
- * Status mapping (from chatroom_tasks to chatroom_backlog):
- *   - "backlog" → "backlog"
- *   - "pending_user_review" → "pending_user_review"
- *   - "closed" → "closed"
- *   - All other statuses (pending, acknowledged, in_progress, completed,
- *     backlog_acknowledged) → "backlog" (safe default)
- *
- * After running this migration in production:
- *   1. Move this description to "Previously executed migrations" list above.
- *   2. Run remapBacklogTaskIdsInMessages migration to update message references.
- *   3. legacyTaskId can then be safely removed from chatroom_backlog schema.
- *
- * Idempotent: records already migrated (legacyTaskId exists) are skipped.
- *
- * Run from the Convex dashboard:
- *   internal.migration.migrateBacklogItemsToBacklogTable
- */
-export const migrateBacklogItemsToBacklogTable = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    // Get all tasks with origin="backlog"
-    const allTasks = await ctx.db.query('chatroom_tasks').collect();
-    const backlogTasks = allTasks.filter(
-      (task) => task.origin === 'backlog'
-    );
-
-    let migrated = 0;
-    let skipped = 0;
-
-    for (const task of backlogTasks) {
-      // Check if already migrated (idempotent check)
-      const existing = await ctx.db
-        .query('chatroom_backlog')
-        .withIndex('by_legacy_task_id', (q) => q.eq('legacyTaskId', task._id))
-        .first();
-
-      if (existing) {
-        skipped++;
-        continue;
-      }
-
-      // Map task status to backlog status
-      let backlogStatus: 'backlog' | 'pending_user_review' | 'closed';
-      if (task.status === 'backlog') {
-        backlogStatus = 'backlog';
-      } else if (task.status === 'pending_user_review') {
-        backlogStatus = 'pending_user_review';
-      } else if (task.status === 'closed') {
-        backlogStatus = 'closed';
-      } else {
-        // Default: 'backlog' for all other statuses (pending, acknowledged,
-        // in_progress, completed, backlog_acknowledged)
-        backlogStatus = 'backlog';
-      }
-
-      // Create backlog item
-      await ctx.db.insert('chatroom_backlog', {
-        chatroomId: task.chatroomId,
-        createdBy: task.createdBy,
-        content: task.content,
-        status: backlogStatus,
-        assignedTo: task.assignedTo,
-        createdAt: task.createdAt,
-        updatedAt: task.updatedAt,
-        completedAt: task.completedAt,
-        complexity: task.complexity,
-        value: task.value,
-        priority: task.priority,
-        legacyTaskId: task._id,
-      });
-
-      migrated++;
-    }
-
-    return {
-      total: backlogTasks.length,
-      migrated,
-      skipped,
-    };
-  },
-});
-
-/**
- * Migration: Remap legacy chatroom_tasks IDs in messages to chatroom_backlog IDs.
- *
- * When backlog items were migrated from chatroom_tasks to chatroom_backlog
- * (via migrateBacklogItemsToBacklogTable), the legacyTaskId field was set
- * to preserve the old ID for reference remapping.
- *
- * This migration finds all chatroom_messages and chatroom_messageQueue records
- * that still reference the old chatroom_tasks IDs in their attachedTaskIds field,
- * and moves those references to attachedBacklogItemIds (pointing to the new
- * chatroom_backlog records).
- *
- * Idempotent: records already updated (legacyTaskId no longer in attachedTaskIds)
- * are skipped.
- *
- * After running this migration in production:
- *   1. Move this description to "Previously executed migrations" list.
- *   2. legacyTaskId can then be safely removed from chatroom_backlog schema.
- *   3. Remove deprecated attachedTaskIds and parentTaskIds from chatroom_tasks.
- *
- * Run from the Convex dashboard:
- *   internal.migration.remapBacklogTaskIdsInMessages
- */
-export const remapBacklogTaskIdsInMessages = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    // Get all backlog items that have a legacyTaskId
-    const backlogItems = await ctx.db
-      .query('chatroom_backlog')
-      .collect();
-
-    const legacyItems = backlogItems.filter((item) => item.legacyTaskId != null);
-
-    // Build a map: oldTaskId (string) → newBacklogId
-    const legacyToNew = new Map(
-      legacyItems.map((item) => [item.legacyTaskId!.toString(), item._id])
-    );
-
-    let updatedMessages = 0;
-    let updatedQueueItems = 0;
-
-    // Process chatroom_messages
-    const messages = await ctx.db.query('chatroom_messages').collect();
-    for (const msg of messages) {
-      if (!msg.attachedTaskIds || msg.attachedTaskIds.length === 0) continue;
-
-      const remainingTaskIds: typeof msg.attachedTaskIds = [];
-      const newBacklogIds: typeof msg.attachedBacklogItemIds = [...(msg.attachedBacklogItemIds ?? [])];
-      let changed = false;
-
-      for (const taskId of msg.attachedTaskIds) {
-        const newId = legacyToNew.get(taskId.toString());
-        if (newId) {
-          // Don't add duplicates
-          if (!newBacklogIds.find((id) => id === newId)) {
-            newBacklogIds.push(newId);
-          }
-          changed = true;
-        } else {
-          remainingTaskIds.push(taskId);
-        }
-      }
-
-      if (changed) {
-        await ctx.db.patch(msg._id, {
-          attachedTaskIds: remainingTaskIds.length > 0 ? remainingTaskIds : undefined,
-          attachedBacklogItemIds: newBacklogIds.length > 0 ? newBacklogIds : undefined,
-        });
-        updatedMessages++;
-      }
-    }
-
-    // Process chatroom_messageQueue (same logic)
-    const queueItems = await ctx.db.query('chatroom_messageQueue').collect();
-    for (const item of queueItems) {
-      if (!item.attachedTaskIds || item.attachedTaskIds.length === 0) continue;
-
-      const remainingTaskIds: typeof item.attachedTaskIds = [];
-      const newBacklogIds: typeof item.attachedBacklogItemIds = [...(item.attachedBacklogItemIds ?? [])];
-      let changed = false;
-
-      for (const taskId of item.attachedTaskIds) {
-        const newId = legacyToNew.get(taskId.toString());
-        if (newId) {
-          if (!newBacklogIds.find((id) => id === newId)) {
-            newBacklogIds.push(newId);
-          }
-          changed = true;
-        } else {
-          remainingTaskIds.push(taskId);
-        }
-      }
-
-      if (changed) {
-        await ctx.db.patch(item._id, {
-          attachedTaskIds: remainingTaskIds.length > 0 ? remainingTaskIds : undefined,
-          attachedBacklogItemIds: newBacklogIds.length > 0 ? newBacklogIds : undefined,
-        });
-        updatedQueueItems++;
-      }
-    }
-
-    return {
-      legacyMappings: legacyItems.length,
-      updatedMessages,
-      updatedQueueItems,
-    };
-  },
-});
-
-/**
- * Migration: Delete legacy backlog tasks from chatroom_tasks.
- *
- * After migrateBacklogItemsToBacklogTable and remapBacklogTaskIdsInMessages have
- * run, the old chatroom_tasks records with origin="backlog" are no longer needed.
- * This migration cleans them up by deleting only those that have been successfully
- * migrated (confirmed by presence of a chatroom_backlog record with matching
- * legacyTaskId).
- *
- * Behavior:
- *   - Queries all chatroom_tasks with origin === "backlog"
- *   - For each, checks if a chatroom_backlog record exists with legacyTaskId === task._id
- *   - If confirmed migrated → deletes the task record
- *   - If NOT yet migrated → skips it (does not delete)
- *
- * Idempotent: tasks already deleted are simply not found on re-run.
- *
- * After running this migration in production:
- *   1. Move this description to "Previously executed migrations" list above.
- *   2. The `origin: "backlog"` literal can be removed from chatroom_tasks.status
- *      in schema.ts (if no longer needed for other purposes).
- *
- * Run from the Convex dashboard:
- *   internal.migration.deleteBacklogOriginTasks
- */
-export const deleteBacklogOriginTasks = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    // Get all tasks with origin="backlog"
-    const allTasks = await ctx.db.query('chatroom_tasks').collect();
-    const backlogTasks = allTasks.filter((task) => task.origin === 'backlog');
-
-    let deleted = 0;
-    let skipped = 0;
-
-    for (const task of backlogTasks) {
-      // Check if a corresponding backlog item exists with this task's ID as legacyTaskId
-      const backlogItem = await ctx.db
-        .query('chatroom_backlog')
-        .withIndex('by_legacy_task_id', (q) => q.eq('legacyTaskId', task._id))
-        .first();
-
-      if (backlogItem) {
-        // Confirmed migrated — safe to delete
-        await ctx.db.delete(task._id);
-        deleted++;
-      } else {
-        // Not yet migrated — skip to preserve data
-        skipped++;
-      }
-    }
-
-    return {
-      total: backlogTasks.length,
-      deleted,
-      skipped,
-    };
-  },
-});

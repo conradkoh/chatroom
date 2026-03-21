@@ -7,15 +7,16 @@
 
 // ─── Shared Domain Types ──────────────────────────────────────────────────────
 
-export type {
-  DiffStat,
-  GitCommit,
-  WorkspaceGitState,
-} from '@workspace/backend/src/domain/types/workspace-git';
-
 // ─── Frontend-Specific State Types ───────────────────────────────────────────
 
 import type { DiffStat } from '@workspace/backend/src/domain/types/workspace-git';
+
+export type {
+  DiffStat,
+  GitCommit,
+  GitPullRequest,
+  WorkspaceGitState,
+} from '@workspace/backend/src/domain/types/workspace-git';
 
 /**
  * State for an on-demand full diff request.

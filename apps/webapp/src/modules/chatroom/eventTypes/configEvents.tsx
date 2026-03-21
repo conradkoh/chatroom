@@ -6,7 +6,10 @@ import type { ConfigRequestRemovalEvent } from '../viewModels/eventStreamViewMod
 
 // ─── Config Request Removal ───────────────────────────────────────────────────
 
-function renderConfigRequestRemovalCell(event: ConfigRequestRemovalEvent, isSelected: boolean): React.ReactNode {
+function renderConfigRequestRemovalCell(
+  event: ConfigRequestRemovalEvent,
+  isSelected: boolean
+): React.ReactNode {
   return (
     <EventRow
       type="config.requestRemoval"
@@ -22,7 +25,11 @@ function renderConfigRequestRemovalCell(event: ConfigRequestRemovalEvent, isSele
 
 function renderConfigRequestRemovalDetails(event: ConfigRequestRemovalEvent): React.ReactNode {
   return (
-    <EventDetails title="Config Request Removal" timestamp={event.timestamp} type="config.requestRemoval">
+    <EventDetails
+      title="Config Request Removal"
+      timestamp={event.timestamp}
+      type="config.requestRemoval"
+    >
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Machine ID" value={event.machineId} mono />
       <DetailRow label="Reason" value={event.reason} />

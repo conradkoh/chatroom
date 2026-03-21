@@ -3,6 +3,10 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+import { SendForm } from './SendForm';
+
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 // Mock useSessionMutation
@@ -22,11 +26,12 @@ vi.mock('@workspace/backend/convex/_generated/api', () => ({
 }));
 
 // Attachment mock state (mutable so tests can control it)
-let mockAttachments = {
+const mockAttachments = {
   remove: vi.fn(),
   clearAll: vi.fn(),
   tasks: [] as { id: string; content: string }[],
   backlogItems: [] as { id: string; content: string }[],
+  messages: [] as { id: string; content: string; senderRole: string }[],
 };
 
 vi.mock('../context/AttachmentsContext', () => ({
@@ -36,6 +41,7 @@ vi.mock('../context/AttachmentsContext', () => ({
   }),
   useTaskAttachments: () => mockAttachments.tasks,
   useBacklogAttachments: () => mockAttachments.backlogItems,
+  useMessageAttachments: () => mockAttachments.messages,
 }));
 
 // Mock AttachedTaskChip as a simple div with test-id
@@ -52,9 +58,14 @@ vi.mock('./AttachedBacklogItemChip', () => ({
   ),
 }));
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// Mock AttachedMessageChip as a simple div with test-id
+vi.mock('./AttachedMessageChip', () => ({
+  AttachedMessageChip: ({ messageId, content }: { messageId: string; content: string }) => (
+    <div data-testid={`message-chip-${messageId}`}>{content}</div>
+  ),
+}));
 
-import { SendForm } from './SendForm';
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 const CHATROOM_ID = 'room1';
 const DRAFT_KEY = `chatroom-draft:${CHATROOM_ID}`;
@@ -74,6 +85,7 @@ describe('SendForm', () => {
     mockAttachments.clearAll.mockReset();
     mockAttachments.tasks = [];
     mockAttachments.backlogItems = [];
+    mockAttachments.messages = [];
 
     // Clear localStorage
     localStorage.clear();
@@ -116,7 +128,10 @@ describe('SendForm', () => {
       await user.type(textarea, 'Hello world');
 
       // Set the draft key in localStorage to simulate it being there
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ content: 'Hello world', updatedAt: Date.now() }));
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ content: 'Hello world', updatedAt: Date.now() })
+      );
 
       const sendButton = screen.getByRole('button', { name: /send/i });
       await user.click(sendButton);

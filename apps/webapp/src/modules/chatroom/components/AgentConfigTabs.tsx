@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import React, { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 
-import { CopyButton } from './CopyButton';
 import { PromptViewerModal, toTitleCase } from './AgentPanel/PromptViewerModal';
+import { CopyButton } from './CopyButton';
 import { ModelFilterPanel } from './ModelFilterPanel';
 import type {
   AgentHarness,
@@ -1022,7 +1022,12 @@ export const CustomTabContent = memo(function CustomTabContent({
         tabIndex={0}
         className="w-full flex items-center gap-2 text-left hover:bg-chatroom-bg-hover transition-colors px-2 py-2 -mx-2 cursor-pointer"
         onClick={() => setViewerOpen(true)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setViewerOpen(true); } }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setViewerOpen(true);
+          }
+        }}
       >
         <FileText size={14} className="text-chatroom-text-muted flex-shrink-0" />
         <span className="flex-1 text-[12px] font-medium text-chatroom-text-secondary">
@@ -1043,5 +1048,3 @@ export const CustomTabContent = memo(function CustomTabContent({
     </>
   );
 });
-
-

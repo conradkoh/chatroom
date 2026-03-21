@@ -4,6 +4,7 @@
  * Updates the content of a backlog item. Only allowed when status is 'backlog'.
  */
 import { ConvexError } from 'convex/values';
+
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
 import { canEditBacklogContent } from '../../entities/backlog-item';
@@ -21,9 +22,7 @@ export async function updateBacklogItem(
   if (!item) throw new ConvexError('Backlog item not found');
 
   if (!canEditBacklogContent(item.status)) {
-    throw new ConvexError(
-      `Cannot edit item with status: ${item.status}. Must be in backlog.`
-    );
+    throw new ConvexError(`Cannot edit item with status: ${item.status}. Must be in backlog.`);
   }
 
   if (!args.content.trim()) {

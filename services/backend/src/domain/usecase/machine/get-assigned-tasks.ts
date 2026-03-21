@@ -13,6 +13,7 @@
 
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
+import { getTeamEntryPoint } from '../../entities/team';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,15 @@ export async function getAssignedTasksForMachine(
   // 4. For each chatroom, fetch active tasks and pair with responsible agent configs
   const tasks: AssignedTaskView[] = [];
 
+  // Pre-fetch chatroom docs for entry point resolution (needed for unassigned tasks)
+  const chatroomDocs = new Map<string, { teamEntryPoint?: string | null; teamRoles?: string[] | null }>();
+  for (const chatroomId of chatroomIds) {
+    const chatroom = await ctx.db.get('chatroom_rooms', chatroomId);
+    if (chatroom) {
+      chatroomDocs.set(chatroomId, chatroom);
+    }
+  }
+
   for (const chatroomId of chatroomIds) {
     const activeTasks = await ctx.db
       .query('chatroom_tasks')
@@ -103,14 +113,31 @@ export async function getAssignedTasksForMachine(
     const configsForChatroom = agentConfigs.filter((c) => c.chatroomId === chatroomId);
 
     for (const task of activeTasks) {
-      // Find the agent config(s) responsible for this task.
-      // If assignedTo is set (and is not 'user'), match by role; otherwise include all configs.
-      const responsibleConfigs =
-        task.assignedTo && task.assignedTo.toLowerCase() !== 'user'
-          ? configsForChatroom.filter(
-              (c) => c.role.toLowerCase() === task.assignedTo!.toLowerCase()
-            )
-          : configsForChatroom;
+      // Find the agent config responsible for this task.
+      // If assignedTo is set (and is not 'user'), match by role.
+      // If assignedTo is not set, resolve to entry point — only the entry point
+      // agent should be restarted for unassigned tasks (fixes bug where ALL agents
+      // were restarted for unassigned user messages).
+      let responsibleConfigs: typeof configsForChatroom;
+
+      if (task.assignedTo && task.assignedTo.toLowerCase() !== 'user') {
+        // Task has an explicit assignee — match that role's config
+        responsibleConfigs = configsForChatroom.filter(
+          (c) => c.role.toLowerCase() === task.assignedTo!.toLowerCase()
+        );
+      } else {
+        // No assignee — resolve to entry point role only
+        const chatroom = chatroomDocs.get(chatroomId);
+        const entryPoint = getTeamEntryPoint(chatroom ?? {});
+        if (entryPoint) {
+          responsibleConfigs = configsForChatroom.filter(
+            (c) => c.role.toLowerCase() === entryPoint.toLowerCase()
+          );
+        } else {
+          // Fallback: no entry point configured — use first config as best guess
+          responsibleConfigs = configsForChatroom.slice(0, 1);
+        }
+      }
 
       for (const config of responsibleConfigs) {
         tasks.push({

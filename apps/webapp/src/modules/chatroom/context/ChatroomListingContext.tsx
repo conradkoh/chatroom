@@ -32,7 +32,7 @@ export interface ChatroomWithStatus {
   hasUnread: boolean;
   remoteAgentStatus: 'running' | 'stopped' | 'none';
   runningRoles: string[];
-  runningAgentConfigs: Array<{ machineId: string; role: string }>;
+  runningAgentConfigs: { machineId: string; role: string }[];
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -141,7 +141,10 @@ export function ChatroomListingProvider({ children }: { children: ReactNode }) {
         chatStatus,
         isFavorite: favoriteSet.has(chatroom._id),
         hasUnread: unreadMap.get(chatroom._id) ?? false,
-        remoteAgentStatus: (remoteAgentStatusMap.get(chatroom._id)?.agentStatus ?? 'none') as 'running' | 'stopped' | 'none',
+        remoteAgentStatus: (remoteAgentStatusMap.get(chatroom._id)?.agentStatus ?? 'none') as
+          | 'running'
+          | 'stopped'
+          | 'none',
         runningRoles: remoteAgentStatusMap.get(chatroom._id)?.runningRoles ?? [],
         runningAgentConfigs: remoteAgentStatusMap.get(chatroom._id)?.runningAgents ?? [],
       } as ChatroomWithStatus;

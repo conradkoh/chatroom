@@ -21,11 +21,7 @@ export function getTaskSection(status: TaskStatus): TaskSection {
 
   // Active work - shows in current section
   // Includes acknowledged state (agent has claimed but not started)
-  if (
-    status === 'in_progress' ||
-    status === 'pending' ||
-    status === 'acknowledged'
-  ) {
+  if (status === 'in_progress' || status === 'pending' || status === 'acknowledged') {
     return 'current';
   }
 
@@ -36,10 +32,7 @@ export function getTaskSection(status: TaskStatus): TaskSection {
 /**
  * Check if a status transition is valid
  */
-export function isValidTransition(
-  fromStatus: TaskStatus,
-  toStatus: TaskStatus
-): boolean {
+export function isValidTransition(fromStatus: TaskStatus, toStatus: TaskStatus): boolean {
   // Chat-origin workflow transitions:
   // pending → acknowledged (claimTask)
   // acknowledged → in_progress (startTask)
@@ -79,9 +72,7 @@ export function getNextStatuses(status: TaskStatus): TaskStatus[] {
 }
 
 /** Returns the completion status a task should transition to when the agent finishes work. */
-export function getCompletionStatus(
-  currentStatus: TaskStatus
-): TaskStatus {
+export function getCompletionStatus(currentStatus: TaskStatus): TaskStatus {
   // All tasks transition to 'completed' when work is done
   if (currentStatus === 'in_progress' || currentStatus === 'acknowledged') {
     return 'completed';

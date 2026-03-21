@@ -140,24 +140,29 @@ interface DriverRegistry {
 ## Modified Components
 
 ### `daemon-start.ts`
+
 - **Before**: Switch on `command.payload.agentTool` → call `spawnAgent()`
 - **After**: Resolve driver from registry → call `driver.start(options)`
 - **Recovery**: On daemon start, iterate all drivers → call `driver.recover()` → reconcile with Convex state
 
 ### `spawn.ts`
+
 - **Before**: Monolithic `spawnAgent()` with tool-specific switch cases
 - **After**: Deprecated. Logic migrated into individual driver implementations.
 
 ### Machine registration (`storage.ts`)
+
 - **Before**: Stores `availableTools: AgentTool[]`
 - **After**: Also stores `toolCapabilities: Record<AgentTool, AgentCapabilities>`
 - Detection logic queries each driver's capabilities
 
 ### Backend schema (`schema.ts`)
+
 - Add `capabilities` field to `chatroom_machines` for reporting driver capabilities to the UI
 - Add `sessionId` and `serverUrl` to `chatroom_machineAgentConfigs` for session-based drivers
 
 ### Frontend (`AgentPanel.tsx`, `ChatroomAgentDetailsModal.tsx`)
+
 - Query per-tool capabilities from machine data
 - Conditionally render model selector, abort button, etc. based on capabilities
 - For session-based tools, show session status instead of PID
@@ -165,16 +170,19 @@ interface DriverRegistry {
 ## Data Flow Changes
 
 ### Current flow (process-based):
+
 ```
 UI → sendCommand → Convex → Daemon → spawn.ts → child_process.spawn → PID stored in Convex
 ```
 
 ### New flow (unified):
+
 ```
 UI → sendCommand → Convex → Daemon → registry.get(tool) → driver.start() → AgentHandle → stored in Convex
 ```
 
 ### Recovery flow (daemon restart):
+
 ```
 Daemon starts → for each driver: driver.recover(workingDir) → AgentHandle[] → reconcile with Convex state
 ```
@@ -182,11 +190,13 @@ Daemon starts → for each driver: driver.recover(workingDir) → AgentHandle[] 
 ## Integration Changes
 
 ### New dependency: `@opencode-ai/sdk`
+
 - Added to `packages/cli/package.json`
 - Used only in `opencode-driver.ts`
 - Other drivers have no new dependencies
 
 ### OpenCode server management
+
 - The OpenCode driver manages one `opencode serve` instance per working directory
 - Server URLs and session IDs are persisted in the local machine config file
 - On daemon start, existing servers are rediscovered via stored URLs

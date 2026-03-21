@@ -1,6 +1,7 @@
 # Phases: Task Workflow Cleanup
 
 ## Phase 1: Pre-Migration Cleanup
+
 **Status: Pending**
 **Risk: Low**
 **Blocking: None**
@@ -21,12 +22,12 @@ Safe cleanup that can be done before running the migration script.
 
 ### Files to Modify
 
-| File | Changes |
-|------|---------|
-| `TaskQueue.tsx` | Remove `isArchivedTask` callback |
+| File                  | Changes                                        |
+| --------------------- | ---------------------------------------------- |
+| `TaskQueue.tsx`       | Remove `isArchivedTask` callback               |
 | `types/task.ts` (new) | Create shared `TaskStatus`, `TaskOrigin` types |
-| `TaskDetailModal.tsx` | Import shared types |
-| `TaskQueueModal.tsx` | Import shared types |
+| `TaskDetailModal.tsx` | Import shared types                            |
+| `TaskQueueModal.tsx`  | Import shared types                            |
 
 ### Success Criteria
 
@@ -37,6 +38,7 @@ Safe cleanup that can be done before running the migration script.
 ---
 
 ## Phase 2: Post-Migration Cleanup
+
 **Status: Blocked (waiting for migration)**
 **Risk: High**
 **Blocking: Migration script must be run first**
@@ -74,15 +76,15 @@ Safe cleanup that can be done before running the migration script.
 
 ### Files to Modify
 
-| File | Changes |
-|------|---------|
-| `schema.ts` | Remove `backlog` field, `cancelled` status |
-| `tasks.ts` | Remove dual origin checks, remove `backlogStatusFilter` |
-| `messages.ts` | Remove dual origin checks |
-| `taskWorkflows.ts` | Remove deprecated status handling |
-| `migration.ts` | Remove/archive old migrations |
-| `TaskQueue.tsx` | Remove backlog.status checks |
-| `TaskDetailModal.tsx` | Remove backlog.status checks |
+| File                  | Changes                                                 |
+| --------------------- | ------------------------------------------------------- |
+| `schema.ts`           | Remove `backlog` field, `cancelled` status              |
+| `tasks.ts`            | Remove dual origin checks, remove `backlogStatusFilter` |
+| `messages.ts`         | Remove dual origin checks                               |
+| `taskWorkflows.ts`    | Remove deprecated status handling                       |
+| `migration.ts`        | Remove/archive old migrations                           |
+| `TaskQueue.tsx`       | Remove backlog.status checks                            |
+| `TaskDetailModal.tsx` | Remove backlog.status checks                            |
 
 ### Success Criteria
 

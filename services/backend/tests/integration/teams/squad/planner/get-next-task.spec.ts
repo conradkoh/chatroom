@@ -91,6 +91,9 @@ describe('Squad Team > Planner > Get Next Task', () => {
       <summary of current focus>
       EOF\`
       4. Delegate phase 1 to builder:
+
+      ⚠️ Before delivering to user: Verify the codebase is in a good state.
+         Run: pnpm typecheck && pnpm test
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role=builder << 'EOF'
       ---MESSAGE---
@@ -159,6 +162,9 @@ describe('Squad Team > Planner > Get Next Task', () => {
       <summary of current focus>
       EOF\`
       3. Hand off when complete:
+
+      ⚠️ Before delivering to user: Verify the codebase is in a good state.
+         Run: pnpm typecheck && pnpm test
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role=<target> << 'EOF'
       ---MESSAGE---

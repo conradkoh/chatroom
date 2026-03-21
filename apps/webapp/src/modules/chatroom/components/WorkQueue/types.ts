@@ -1,8 +1,7 @@
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 
-import type { TeamLifecycle } from '../../types/readiness';
-
 import type { TaskStatus, TaskOrigin } from '../../../../domain/entities/task';
+import type { TeamLifecycle } from '../../types/readiness';
 
 export type { TaskStatus, TaskOrigin };
 

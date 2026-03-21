@@ -1,28 +1,22 @@
 /**
- * Tests for on-agent-exited — verifies restart logic based on stopReason.
+ * Tests for on-agent-exited — verifies cleanup and event recording.
  *
- * Uses the recordAgentExited mutation (which calls onAgentExited internally)
- * to test the full pipeline. After calling recordAgentExited, we verify
- * side effects via the event stream (agent.exited events are written).
+ * The backend's onAgentExited is now a no-op for restart logic.
+ * Crash recovery is fully owned by the daemon's onAgentExited handler.
  *
- * The restart scheduling (ctx.scheduler.runAfter) is not directly observable
- * in convex-test, so we test the decision logic by verifying that:
- * 1. The function completes without errors for all stop reasons
- * 2. The agent.exited event is written correctly
- *
- * The core restart condition logic is:
- * - user.stop → NO restart
- * - agent_process.turn_end / agent_process.turn_end_quick_fail → NO restart
- * - Any other stopReason → restart (guarded by desiredState)
- * - No stopReason → restart (safe default fallback for legacy events)
+ * These tests verify:
+ * 1. agent.exited event is recorded for all stop reasons
+ * 2. spawnedAgentPid is cleared on exit
+ * 3. participant status is updated to 'exited'
+ * 4. NO agent.requestStart events are emitted (daemon owns restarts)
  */
 
+import type { SessionId } from 'convex-helpers/server/sessions';
 import { describe, expect, test } from 'vitest';
 
-import type { SessionId } from 'convex-helpers/server/sessions';
 import type { Id } from '../../../convex/_generated/dataModel';
-import { t } from '../../../test.setup';
 import { buildTeamRoleKey } from '../../../convex/utils/teamRoleKey';
+import { t } from '../../../test.setup';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -54,7 +48,7 @@ async function registerMachineAndConfig(
   agentHarness?: string
 ) {
   const { api } = await import('../../../convex/_generated/api');
-  const harness = agentHarness ?? 'opencode';
+  const harness = (agentHarness ?? 'opencode') as 'opencode' | 'pi' | 'cursor';
   await t.mutation(api.machines.register, {
     sessionId,
     machineId,
@@ -83,9 +77,7 @@ async function registerMachineAndConfig(
   });
 }
 
-async function seedPendingTask(
-  chatroomId: Id<'chatroom_rooms'>
-): Promise<Id<'chatroom_tasks'>> {
+async function seedPendingTask(chatroomId: Id<'chatroom_rooms'>): Promise<Id<'chatroom_tasks'>> {
   return await t.run(async (ctx) => {
     const now = Date.now();
     return await ctx.db.insert('chatroom_tasks', {
@@ -118,7 +110,7 @@ async function callRecordAgentExited(
     role: 'builder',
     pid: 1234,
     stopReason: opts.stopReason,
-    agentHarness: opts.agentHarness,
+    agentHarness: opts.agentHarness as 'opencode' | 'pi' | 'cursor' | undefined,
   });
 }
 
@@ -126,9 +118,7 @@ async function countAgentRequestStartEvents(chatroomId: Id<'chatroom_rooms'>) {
   return await t.run(async (ctx) => {
     const events = await ctx.db
       .query('chatroom_eventStream')
-      .withIndex('by_chatroomId_role', (q) =>
-        q.eq('chatroomId', chatroomId).eq('role', 'builder')
-      )
+      .withIndex('by_chatroomId_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
       .collect();
     return events.filter((e) => e.type === 'agent.requestStart').length;
   });
@@ -138,9 +128,7 @@ async function countAgentExitedEvents(chatroomId: Id<'chatroom_rooms'>) {
   return await t.run(async (ctx) => {
     const events = await ctx.db
       .query('chatroom_eventStream')
-      .withIndex('by_chatroomId_role', (q) =>
-        q.eq('chatroomId', chatroomId).eq('role', 'builder')
-      )
+      .withIndex('by_chatroomId_role', (q) => q.eq('chatroomId', chatroomId).eq('role', 'builder'))
       .collect();
     return events.filter((e) => e.type === 'agent.exited').length;
   });
@@ -247,32 +235,28 @@ describe('onAgentExited via recordAgentExited — stopReason handling', () => {
   });
 });
 
-describe('onAgentExited — Pi harness crash recovery suppression', () => {
-  test('Pi harness does NOT generate agent.requestStart even when shouldRestart=true', async () => {
+describe('onAgentExited — no backend restart (daemon owns restarts)', () => {
+  test('Pi harness does NOT generate agent.requestStart', async () => {
     const { sessionId } = await createTestSession('oae-pi-1');
     const chatroomId = await createChatroom(sessionId);
-    // Register with pi harness and desiredState=running (would normally trigger crash recovery)
     await registerMachineAndConfig(sessionId, 'oae-pi-m1', chatroomId, 'running', 'pi');
 
-    // Use a stopReason that would normally trigger crash recovery (shouldRestart=true)
     await callRecordAgentExited(sessionId, 'oae-pi-m1', chatroomId, {
       stopReason: 'agent_process.crashed',
       agentHarness: 'pi',
     });
 
-    // Verify agent.exited event was recorded (cleanup still happens)
     const exitEvents = await countAgentExitedEvents(chatroomId);
     expect(exitEvents).toBe(1);
 
-    // The key assertion: NO agent.requestStart event — task monitor owns restarts for Pi
+    // Daemon owns all restarts — no agent.requestStart emitted by backend
     const requestStartEvents = await countAgentRequestStartEvents(chatroomId);
     expect(requestStartEvents).toBe(0);
   });
 
-  test('OpenCode harness DOES generate agent.requestStart on crash', async () => {
+  test('OpenCode harness also does NOT generate agent.requestStart (daemon owns restarts)', async () => {
     const { sessionId } = await createTestSession('oae-pi-2');
     const chatroomId = await createChatroom(sessionId);
-    // Register with opencode harness and desiredState=running
     await registerMachineAndConfig(sessionId, 'oae-pi-m2', chatroomId, 'running', 'opencode');
 
     await callRecordAgentExited(sessionId, 'oae-pi-m2', chatroomId, {
@@ -280,12 +264,15 @@ describe('onAgentExited — Pi harness crash recovery suppression', () => {
       agentHarness: 'opencode',
     });
 
-    // OpenCode harness should generate crash recovery
+    const exitEvents = await countAgentExitedEvents(chatroomId);
+    expect(exitEvents).toBe(1);
+
+    // Daemon owns restarts for all harnesses now
     const requestStartEvents = await countAgentRequestStartEvents(chatroomId);
-    expect(requestStartEvents).toBe(1);
+    expect(requestStartEvents).toBe(0);
   });
 
-  test('Pi harness with user.stop still skips crash recovery (shouldRestart=false path)', async () => {
+  test('user.stop still produces no agent.requestStart', async () => {
     const { sessionId } = await createTestSession('oae-pi-3');
     const chatroomId = await createChatroom(sessionId);
     await registerMachineAndConfig(sessionId, 'oae-pi-m3', chatroomId, 'running', 'pi');

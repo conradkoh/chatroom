@@ -2,23 +2,23 @@
 
 import { ConvexError, v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
-import { agentHarnessValidator } from './schema';
 
 import type { Doc, Id } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
+import { agentHarnessValidator } from './schema';
 import { buildTeamRoleKey, deleteStaleTeamAgentConfigs } from './utils/teamRoleKey';
-import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
-import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
+import { patchParticipantStatus } from '../src/domain/entities/participant';
 import { ensureOnlyAgentForRole } from '../src/domain/usecase/agent/ensure-only-agent-for-role';
-import { cleanupMachineAgent } from '../src/domain/usecase/machine/cleanup-machine-agent';
-import { onAgentExited } from '../src/events/agent/on-agent-exited';
-import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
 import { getAgentConfigForStart } from '../src/domain/usecase/agent/get-agent-config-for-start';
 import { listChatroomAgentOverview } from '../src/domain/usecase/agent/list-chatroom-agent-overview';
-import { patchParticipantStatus } from '../src/domain/entities/participant';
+import { startAgent as startAgentUseCase } from '../src/domain/usecase/agent/start-agent';
+import { stopAgent as stopAgentUseCase } from '../src/domain/usecase/agent/stop-agent';
+import { getAgentStatusForChatroom } from '../src/domain/usecase/chatroom/get-agent-statuses';
+import { cleanupMachineAgent } from '../src/domain/usecase/machine/cleanup-machine-agent';
 import { getAssignedTasksForMachine } from '../src/domain/usecase/machine/get-assigned-tasks';
+import { onAgentExited } from '../src/events/agent/on-agent-exited';
 
 // ─── Shared Helpers ──────────────────────────────────────────────────
 
@@ -538,7 +538,6 @@ export const updateDaemonStatus = mutation({
   },
 });
 
-
 /** Updates lastSeenAt for liveness detection; sets daemonConnected to true. */
 export const daemonHeartbeat = mutation({
   args: {
@@ -603,7 +602,11 @@ export const sendCommand = mutation({
       const cmdChatroom = await ctx.db.get('chatroom_rooms', args.payload.chatroomId);
       let existingConfig: Doc<'chatroom_teamAgentConfigs'> | null = null;
       if (cmdChatroom?.teamId) {
-        const teamRoleKey = buildTeamRoleKey(cmdChatroom._id, cmdChatroom.teamId, args.payload.role);
+        const teamRoleKey = buildTeamRoleKey(
+          cmdChatroom._id,
+          cmdChatroom.teamId,
+          args.payload.role
+        );
         existingConfig = await ctx.db
           .query('chatroom_teamAgentConfigs')
           .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', teamRoleKey))
@@ -611,7 +614,8 @@ export const sendCommand = mutation({
       }
 
       const resolvedModel =
-        args.payload.model ?? (existingConfig?.type === 'remote' ? existingConfig.model : undefined);
+        args.payload.model ??
+        (existingConfig?.type === 'remote' ? existingConfig.model : undefined);
       const resolvedHarness =
         args.payload.agentHarness ??
         (existingConfig?.type === 'remote' ? existingConfig.agentHarness : undefined);
@@ -751,7 +755,9 @@ export const updateSpawnedAgent = mutation({
         .first();
 
       if (existingMetric) {
-        await ctx.db.patch(existingMetric._id, { count: existingMetric.count + 1 });
+        await ctx.db.patch('chatroom_agentRestartMetrics', existingMetric._id, {
+          count: existingMetric.count + 1,
+        });
       } else {
         await ctx.db.insert('chatroom_agentRestartMetrics', {
           machineId: args.machineId,
@@ -1343,6 +1349,57 @@ export const getAgentRestartSummaryByRole = query({
   },
 });
 
+/** Returns restart summaries for multiple agent roles within a chatroom, aggregated across all machines.
+ * This batch query allows parent components to fetch all restart stats in a single subscription
+ * instead of N subscriptions for N visible InlineAgentCard components.
+ */
+export const getAgentRestartSummariesByRoles = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    roles: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      return args.roles.map((role) => ({ role, count1h: 0, count24h: 0 }));
+    }
+
+    const now = Date.now();
+    const since1h = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
+    const since24h = Math.floor((now - 24 * 3_600_000) / 3_600_000) * 3_600_000;
+
+    // Query each role individually and aggregate (parallel queries are automatic in Convex)
+    // This is more efficient than N separate useSessionQuery calls in the frontend.
+    const roleCounts = new Map<string, { count1h: number; count24h: number }>();
+
+    for (const role of args.roles) {
+      const rows = await ctx.db
+        .query('chatroom_agentRestartMetrics')
+        .withIndex('by_chatroom_role_hour', (q) =>
+          q.eq('chatroomId', args.chatroomId).eq('role', role).gte('hourBucket', since24h)
+        )
+        .collect();
+
+      let count1h = 0;
+      let count24h = 0;
+      for (const row of rows) {
+        count24h += row.count;
+        if (row.hourBucket >= since1h) {
+          count1h += row.count;
+        }
+      }
+      roleCounts.set(role, { count1h, count24h });
+    }
+
+    // Return summaries for all requested roles (missing roles get 0 counts)
+    return args.roles.map((role) => ({
+      role,
+      ...(roleCounts.get(role) ?? { count1h: 0, count24h: 0 }),
+    }));
+  },
+});
+
 // ============================================================================
 // NEW QUERIES — Phase 3 (use-case wrappers)
 // ============================================================================
@@ -1424,5 +1481,66 @@ export const getAssignedTasks = query({
       machineId: args.machineId,
       userId: auth.user._id,
     });
+  },
+});
+
+// ============================================================================
+// DAEMON OBSERVABILITY EVENTS
+// Emitted by the daemon to report agent lifecycle events to the event stream.
+// ============================================================================
+
+/** Emits an agent.startFailed event when the daemon fails to spawn an agent. */
+export const emitAgentStartFailed = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    error: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.startFailed',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      error: args.error,
+      timestamp: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
+/** Emits an agent.restartLimitReached event when crash loop protection triggers. */
+export const emitRestartLimitReached = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    chatroomId: v.id('chatroom_rooms'),
+    role: v.string(),
+    restartCount: v.number(),
+    windowMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) throw new Error('Authentication required');
+    await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'agent.restartLimitReached',
+      chatroomId: args.chatroomId,
+      role: args.role,
+      machineId: args.machineId,
+      restartCount: args.restartCount,
+      windowMs: args.windowMs,
+      timestamp: Date.now(),
+    });
+
+    return { success: true };
   },
 });

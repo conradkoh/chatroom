@@ -151,6 +151,7 @@ describe('Squad Team > Builder > Custom Init Prompt', () => {
       - Document complex logic
       - Follow existing code patterns and conventions
       - Consider edge cases and error handling
+      - **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
 
       **Git Workflow:**
       - Use descriptive commit messages
@@ -191,6 +192,8 @@ describe('Squad Team > Builder > Custom Init Prompt', () => {
       \`\`\`
 
       Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+
+      **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`

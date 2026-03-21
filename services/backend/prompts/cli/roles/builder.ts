@@ -10,7 +10,12 @@ import { classifyCommand } from '../classify/command';
  * Generate builder-specific guidance
  */
 export function getBuilderGuidance(params: BuilderGuidanceParams): string {
-  const { isEntryPoint, convexUrl, questionTarget: questionTargetParam, codeChangesTarget: codeChangesTargetParam } = params;
+  const {
+    isEntryPoint,
+    convexUrl,
+    questionTarget: questionTargetParam,
+    codeChangesTarget: codeChangesTargetParam,
+  } = params;
   const cliEnvPrefix = getCliEnvPrefix(convexUrl);
   const questionTarget = questionTargetParam ?? 'user';
   const codeChangesTarget = codeChangesTargetParam ?? 'reviewer';
@@ -51,16 +56,21 @@ flowchart TD
 - **After code changes** → Hand off to \`${codeChangesTarget}\`
 - **For simple questions** → Can hand off directly to \`${questionTarget}\`
 - **For \`new_feature\` classification** → MUST hand off to \`${codeChangesTarget}\` (cannot skip ${hasReviewer ? 'review' : 'planner'})
-${hasReviewer ? `
+${
+  hasReviewer
+    ? `
 **When you receive handoffs from the reviewer:**
 You will receive feedback on your code. Review the feedback, make the requested changes, and hand back to the reviewer.
-` : ''}
+`
+    : ''
+}
 **Development Best Practices:**
 - Write clean, maintainable code
 - Add appropriate tests when applicable
 - Document complex logic
 - Follow existing code patterns and conventions
 - Consider edge cases and error handling
+- **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
 
 **Git Workflow:**
 - Use descriptive commit messages

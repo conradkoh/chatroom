@@ -110,6 +110,44 @@ export async function taskRead(
     console.log(`✅ Task content:`);
     console.log(`   Task ID: ${result.taskId}`);
     console.log(`   Status: ${result.status}`);
+
+    // Display pinned context if available
+    if (result.context) {
+      console.log('');
+      console.log('PINNED CONTEXT');
+      console.log('---');
+      console.log('<context>');
+      console.log(result.context.content);
+      console.log('</context>');
+
+      if (result.context.triggerMessageContent) {
+        console.log('in response to');
+        const senderTag = result.context.triggerMessageSenderRole ?? 'unknown';
+        console.log(`<${senderTag}-message>`);
+        console.log(result.context.triggerMessageContent);
+        console.log(`</${senderTag}-message>`);
+      }
+
+      // Staleness notice
+      const hoursAgo = Math.round(result.context.elapsedHours);
+      const msgsSince = result.context.messagesSinceContext;
+      const isStale = hoursAgo >= 24 || msgsSince >= 50;
+      if (isStale) {
+        const ageLabel =
+          hoursAgo >= 48
+            ? `${Math.round(hoursAgo / 24)}d old`
+            : hoursAgo >= 24
+              ? `${hoursAgo}h old`
+              : `${msgsSince} messages old`;
+        console.log(`<system-notice>`);
+        console.log(`⚠️ Context is ${ageLabel}.`);
+        console.log(`   Entry point role will update when needed.`);
+        console.log(`</system-notice>`);
+      }
+
+      console.log('---');
+    }
+
     console.log(`\n${result.content}`);
   } catch (error) {
     const err = error as Error;

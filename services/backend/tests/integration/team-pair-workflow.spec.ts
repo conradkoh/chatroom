@@ -201,6 +201,7 @@ Test technical specifications`,
         - Document complex logic
         - Follow existing code patterns and conventions
         - Consider edge cases and error handling
+        - **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
 
         **Git Workflow:**
         - Use descriptive commit messages
@@ -244,6 +245,8 @@ Test technical specifications`,
         \`\`\`
 
         Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+
+        **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
@@ -498,6 +501,8 @@ Test technical specifications`,
 
         Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
+        **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
+
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
         chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="reviewer"
@@ -713,6 +718,7 @@ Test technical specifications`,
         - Document complex logic
         - Follow existing code patterns and conventions
         - Consider edge cases and error handling
+        - **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
 
         **Git Workflow:**
         - Use descriptive commit messages
@@ -733,7 +739,7 @@ Test technical specifications`,
         **Complete task and hand off:**
 
         \`\`\`bash
-        chatroom handoff --chatroom-id="10036;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
+        chatroom handoff --chatroom-id="10033;chatroom_rooms" --role="builder" --next-role="<target>" << 'EOF'
         ---MESSAGE---
         [Your message here]
         EOF
@@ -747,7 +753,7 @@ Test technical specifications`,
         **Report progress on current task:**
 
         \`\`\`bash
-        chatroom report-progress --chatroom-id="10036;chatroom_rooms" --role="builder" << 'EOF'
+        chatroom report-progress --chatroom-id="10033;chatroom_rooms" --role="builder" << 'EOF'
         ---MESSAGE---
         [Your progress message here]
         EOF
@@ -755,20 +761,22 @@ Test technical specifications`,
 
         Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
+        **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
+
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
-        chatroom get-next-task --chatroom-id="10036;chatroom_rooms" --role="builder"
+        chatroom get-next-task --chatroom-id="10033;chatroom_rooms" --role="builder"
         \`\`\`
 
         Message availability is critical: Use \`get-next-task\` in the foreground to stay connected, otherwise your team cannot reach you. If this command was moved to background, terminate and restart it.
 
         **Reference commands:**
-        - List recent messages: \`chatroom messages list --chatroom-id="10036;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
+        - List recent messages: \`chatroom messages list --chatroom-id="10033;chatroom_rooms" --role="builder" --sender-role=user --limit=5 --full\`
         - Git log: \`git log --oneline -10\`
 
         **Recovery commands** (only needed after compaction/restart):
-        - Reload system prompt: \`chatroom get-system-prompt --chatroom-id="10036;chatroom_rooms" --role="builder"\`
-        - Read current task context: \`chatroom context read --chatroom-id="10036;chatroom_rooms" --role="builder"\`"
+        - Reload system prompt: \`chatroom get-system-prompt --chatroom-id="10033;chatroom_rooms" --role="builder"\`
+        - Read current task context: \`chatroom context read --chatroom-id="10033;chatroom_rooms" --role="builder"\`"
       `);
 
       // Builder hands off directly to user (should succeed)

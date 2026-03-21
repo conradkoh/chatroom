@@ -2,13 +2,15 @@
  * Daemon Types — shared type definitions for the daemon command module.
  */
 
+import type {
+  AgentStartReason,
+  AgentStopReason,
+} from '@workspace/backend/src/domain/entities/agent';
+
 import type { DaemonDeps } from './deps.js';
 import type { DaemonEventBus } from '../../../events/daemon/event-bus.js';
-import type { Id } from '../../../api.js';
 import type { AgentHarness, MachineConfig } from '../../../infrastructure/machine/types.js';
-import type { AgentStartReason, AgentStopReason } from '@workspace/backend/src/domain/entities/agent';
 import type { RemoteAgentService } from '../../../infrastructure/services/remote-agents/remote-agent-service.js';
-import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
 // ─── Session & Config Types ─────────────────────────────────────────────────
 
 /**
@@ -40,7 +42,7 @@ export interface StartAgentCommand {
    */
   reason: StartAgentReason;
   payload: {
-    chatroomId: Id<'chatroom_rooms'>;
+    chatroomId: string;
     role: string;
     agentHarness: AgentHarness;
     model?: string;
@@ -60,7 +62,7 @@ export interface StopAgentCommand {
    */
   reason: StopAgentReason;
   payload: {
-    chatroomId: Id<'chatroom_rooms'>;
+    chatroomId: string;
     role: string;
   };
 }
@@ -84,14 +86,6 @@ export interface CommandResult {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ConvexClient = any;
 
-/**
- * Build a unique key for an agent in a chatroom.
- * Role is lowercased for case-insensitive matching.
- */
-export function agentKey(chatroomId: string, role: string): string {
-  return `${chatroomId}:${role.toLowerCase()}`;
-}
-
 /** Shared context passed to all command handlers. */
 export interface DaemonContext {
   client: ConvexClient;
@@ -102,21 +96,9 @@ export interface DaemonContext {
   events: DaemonEventBus;
   agentServices: Map<string, RemoteAgentService>;
   /**
-   * Set of active working directories being tracked for git state.
-   * Populated when agents start (via start-agent handler) and on daemon startup
-   * (via state recovery). Used by the heartbeat to know which directories to collect.
-   */
-  activeWorkingDirs: Set<string>;
-  /**
    * Tracks the last git state pushed for each workspace (keyed by `machineId::workingDir`).
    * Value is a hash of the git state (branch + isDirty + diffStat) used for change detection.
    * Only push to backend when this hash changes.
    */
   lastPushedGitState: Map<string, string>;
-  /**
-   * Tracks pending stop reasons for agents being intentionally stopped.
-   * Key: `${chatroomId}:${role}` → stop reason.
-   * Used to distinguish intentional stops from crashes in the onExit handler.
-   */
-  pendingStops: Map<string, StopReason>;
 }

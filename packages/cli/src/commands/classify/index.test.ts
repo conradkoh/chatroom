@@ -37,7 +37,8 @@ function createMockDeps(overrides?: Partial<ClassifyDeps>): ClassifyDeps {
     backend: {
       mutation: vi.fn().mockResolvedValue({ reminder: null }),
       query: vi.fn().mockResolvedValue({
-        content: 'Test task content',status: 'acknowledged',
+        content: 'Test task content',
+        status: 'acknowledged',
         teamEntryPoint: 'planner',
         teamRoles: ['planner', 'builder'],
       }),

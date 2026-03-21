@@ -5,12 +5,15 @@
  * the UI. Reads from teamAgentConfigs (the authoritative source for model,
  * workingDir, spawnedAgentPid, spawnedAt) so the frontend never needs to see
  * raw table records.
+ *
+ * Workspace listing is now handled by the workspace registry
+ * (chatroom_workspaces table + useChatroomWorkspaces hook).
  */
 
+import { getTeamRolesFromChatroom } from './get-team-roles';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { QueryCtx } from '../../../../convex/_generated/server';
 import type { AgentHarness, AgentType } from '../../entities/agent';
-import { getTeamRolesFromChatroom } from './get-team-roles';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,19 +29,10 @@ export interface AgentRoleView {
   spawnedAt?: number;
 }
 
-/** Workspace view derived from team agent configs. */
-export interface WorkspaceView {
-  machineId: string;
-  hostname: string;
-  workingDir: string;
-  agentRoles: string[];
-}
-
 /** Full chatroom agent status returned to the UI. */
 export interface ChatroomAgentStatus {
   teamRoles: string[];
   agents: AgentRoleView[];
-  workspaces: WorkspaceView[];
 }
 
 export interface GetAgentStatusInput {
@@ -87,9 +81,7 @@ export async function getAgentStatusForChatroom(
       };
     }
 
-    const machine = teamConfig.machineId
-      ? userMachineMap.get(teamConfig.machineId)
-      : undefined;
+    const machine = teamConfig.machineId ? userMachineMap.get(teamConfig.machineId) : undefined;
 
     // Determine state
     let state: AgentRoleView['state'] = 'stopped';
@@ -118,30 +110,8 @@ export async function getAgentStatusForChatroom(
     };
   });
 
-  // Derive workspaces from team configs
-  const workspaceMap = new Map<string, WorkspaceView>();
-  for (const teamConfig of teamConfigs) {
-    if (!teamConfig.machineId || !teamConfig.workingDir) continue;
-    if (!teamRoles.some((r) => r.toLowerCase() === teamConfig.role.toLowerCase())) continue;
-
-    const machine = userMachineMap.get(teamConfig.machineId);
-    const hostname = machine?.hostname ?? teamConfig.machineId.slice(0, 8);
-    const wsKey = `${teamConfig.machineId}::${teamConfig.workingDir}`;
-
-    if (!workspaceMap.has(wsKey)) {
-      workspaceMap.set(wsKey, {
-        machineId: teamConfig.machineId,
-        hostname,
-        workingDir: teamConfig.workingDir,
-        agentRoles: [],
-      });
-    }
-    workspaceMap.get(wsKey)!.agentRoles.push(teamConfig.role);
-  }
-
   return {
     teamRoles,
     agents,
-    workspaces: Array.from(workspaceMap.values()),
   };
 }

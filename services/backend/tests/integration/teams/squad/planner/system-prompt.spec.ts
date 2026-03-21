@@ -213,7 +213,7 @@ describe('Squad Team > Planner > System Prompt', () => {
           A([Start]) --> B[Receive task from user]
           B --> C[task read:
       get content + mark in_progress]
-          C --> D[Classify with task-started]
+          C --> D[Classify with classify]
           D --> E[Decompose into phases]
           E --> F[Delegate ONE phase to builder]
           F --> G[Builder completes phase]
@@ -225,8 +225,9 @@ describe('Squad Team > Planner > System Prompt', () => {
           L --> F
           K -->|yes| M{more phases?}
           M -->|yes| F
-          M -->|no| N[Deliver final result to user]
-          N --> O([Stop])
+          M -->|no| N[Verify: pnpm typecheck && pnpm test]
+          N --> O[Deliver final result to user]
+          O --> P([Stop])
       \`\`\`
 
       **Core Responsibilities:**
@@ -291,6 +292,8 @@ describe('Squad Team > Planner > System Prompt', () => {
       \`\`\`
 
       Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+
+      **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
       **Continue receiving messages after \`handoff\`:**
       \`\`\`

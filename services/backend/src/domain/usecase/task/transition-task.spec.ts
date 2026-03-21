@@ -320,6 +320,7 @@ describe('transitionTask usecase — trigger label determines the rule', () => {
     const result = await t.mutation(api.backlog.closeBacklogItem, {
       sessionId,
       itemId: backlogItemId,
+      reason: 'Test: transition task close',
     });
     expect(result.success).toBe(true);
 
@@ -365,6 +366,7 @@ describe('transitionTask usecase — trigger label determines the rule', () => {
     await t.mutation(api.backlog.closeBacklogItem, {
       sessionId,
       itemId: backlogItemId,
+      reason: 'Test: close before reopen test',
     });
 
     // Now reopen: closed → backlog
@@ -440,7 +442,9 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
     });
     const taskCompletedEvents = eventsAfter.filter((e) => e.type === 'task.completed');
     expect(taskCompletedEvents.length).toBe(1);
-    expect((taskCompletedEvents[0] as { skipAgentStatusUpdate?: boolean }).skipAgentStatusUpdate).toBe(true);
+    expect(
+      (taskCompletedEvents[0] as { skipAgentStatusUpdate?: boolean }).skipAgentStatusUpdate
+    ).toBe(true);
   });
 
   test('force-complete: participant lastStatus NOT updated when skipAgentStatusUpdate=true', async () => {
@@ -529,6 +533,8 @@ describe('transitionTask — skipAgentStatusUpdate option', () => {
     const taskCompletedEvents = events.filter((e) => e.type === 'task.completed');
     expect(taskCompletedEvents.length).toBe(1);
     // Normal completion: skipAgentStatusUpdate should NOT be set
-    expect((taskCompletedEvents[0] as { skipAgentStatusUpdate?: boolean }).skipAgentStatusUpdate).toBeUndefined();
+    expect(
+      (taskCompletedEvents[0] as { skipAgentStatusUpdate?: boolean }).skipAgentStatusUpdate
+    ).toBeUndefined();
   });
 });

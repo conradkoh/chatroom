@@ -158,9 +158,9 @@ test('task creation writes task.activated event for pending tasks', async () => 
   }
 });
 
-// ─── Test 4: task.activated event on transition to in_progress ───────────────
+// ─── Test 4: task.inProgress event on transition to in_progress ───────────────
 
-test('transitionTask to in_progress writes task.activated event', async () => {
+test('transitionTask to in_progress writes task.inProgress event', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-trans-inprog-1');
   const chatroomId = await createPairTeamChatroom(sessionId);
@@ -210,15 +210,14 @@ test('transitionTask to in_progress writes task.activated event', async () => {
   // There should be at least one new event
   expect(eventsAfter.length).toBeGreaterThan(countBefore);
 
-  // Find the in_progress activated event
-  const inProgressEvent = eventsAfter.find(
-    (e) => e.type === 'task.activated' && (e as { taskStatus: string }).taskStatus === 'in_progress'
-  );
+  // Find the task.inProgress event (not task.activated with taskStatus: 'in_progress')
+  // Note: transitionTask now emits task.inProgress for in_progress status to avoid
+  // double events and ensure the UI correctly shows "WORKING" status.
+  const inProgressEvent = eventsAfter.find((e) => e.type === 'task.inProgress');
   expect(inProgressEvent).toBeDefined();
-  if (inProgressEvent && inProgressEvent.type === 'task.activated') {
+  if (inProgressEvent && inProgressEvent.type === 'task.inProgress') {
     expect(inProgressEvent.chatroomId).toBe(chatroomId);
     expect(inProgressEvent.taskId).toBe(taskId);
-    expect(inProgressEvent.taskStatus).toBe('in_progress');
   }
 });
 
@@ -382,9 +381,9 @@ test('recordAgentExited mutation writes agent.exited event', async () => {
   expect(agentConfig?.spawnedAgentPid).toBeUndefined();
 });
 
-// ─── Test 7: Crash triggers agent.requestStart with crash_recovery ────────────
+// ─── Test 7: Crash does NOT trigger backend agent.requestStart (daemon owns restarts) ──
 
-test('recordAgentExited emits agent.requestStart when active task exists and desiredState=running', async () => {
+test('recordAgentExited does NOT emit agent.requestStart — daemon owns crash recovery', async () => {
   // ===== SETUP =====
   const { sessionId } = await createTestSession('test-es-crash-1');
   const chatroomId = await createPairTeamChatroom(sessionId);
@@ -392,7 +391,7 @@ test('recordAgentExited emits agent.requestStart when active task exists and des
   await registerMachineWithDaemon(sessionId, machineId);
   await setupRemoteAgentConfig(sessionId, chatroomId, machineId, 'builder');
 
-  // Set desiredState=running so crash recovery triggers
+  // Set desiredState=running
   await t.run(async (ctx) => {
     const config = await ctx.db
       .query('chatroom_teamAgentConfigs')
@@ -412,6 +411,17 @@ test('recordAgentExited emits agent.requestStart when active task exists and des
     type: 'message',
   });
 
+  // Count events before the exit (includes the agent.requestStart from setupRemoteAgentConfig)
+  const eventsBefore = await t.run(async (ctx) => {
+    return ctx.db
+      .query('chatroom_eventStream')
+      .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+      .collect();
+  });
+  const requestStartCountBefore = eventsBefore.filter(
+    (e) => e.type === 'agent.requestStart'
+  ).length;
+
   // ===== ACTION =====
   await t.mutation(api.machines.recordAgentExited, {
     sessionId,
@@ -423,21 +433,18 @@ test('recordAgentExited emits agent.requestStart when active task exists and des
   });
 
   // ===== VERIFY =====
-  // An agent.requestStart event should be emitted with reason 'platform.crash_recovery'
-  const events = await t.run(async (ctx) => {
+  // Backend should NOT emit any new agent.requestStart — daemon owns restarts
+  const eventsAfter = await t.run(async (ctx) => {
     return ctx.db
       .query('chatroom_eventStream')
       .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
       .collect();
   });
 
-  const crashRecoveryEvents = events.filter(
-    (e) =>
-      e.type === 'agent.requestStart' &&
-      (e as { reason?: string }).reason === 'platform.crash_recovery'
-  );
+  const requestStartCountAfter = eventsAfter.filter((e) => e.type === 'agent.requestStart').length;
 
-  expect(crashRecoveryEvents.length).toBe(1);
+  expect(requestStartCountAfter).toBe(requestStartCountBefore); // no new requestStart events
+  expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined(); // exited event still recorded
 });
 
 // ─── Test 8: Intentional stop does NOT schedule ensure-agent ─────────────────
@@ -739,7 +746,7 @@ test('updateSpawnedAgent with null pid does NOT write agent.started or update me
 // ─── Eager crash recovery (idle agent restart) ──────────────────────────────
 
 describe('Eager crash recovery (idle agent restart)', () => {
-  test('crash with no task + desiredState=running emits agent.requestStart with reason platform.crash_recovery', async () => {
+  test('crash with no task + desiredState=running does NOT emit agent.requestStart (daemon owns restarts)', async () => {
     const { sessionId } = await createTestSession('test-eager-1');
     const chatroomId = await createPairTeamChatroom(sessionId);
     const machineId = 'machine-eager-1';
@@ -764,6 +771,17 @@ describe('Eager crash recovery (idle agent restart)', () => {
       pid: 12345,
     });
 
+    // Count requestStart events before the exit
+    const eventsBefore = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const requestStartCountBefore = eventsBefore.filter(
+      (e) => e.type === 'agent.requestStart'
+    ).length;
+
     await t.mutation(api.machines.recordAgentExited, {
       sessionId,
       machineId,
@@ -773,29 +791,21 @@ describe('Eager crash recovery (idle agent restart)', () => {
       stopReason: 'agent_process.crashed',
     });
 
-    const events = await t.run(async (ctx) => {
+    const eventsAfter = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_eventStream')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
-    const crashRecoveryEvents = events.filter(
-      (e) =>
-        e.type === 'agent.requestStart' &&
-        (e as { reason?: string }).reason === 'platform.crash_recovery'
-    );
-    expect(crashRecoveryEvents.length).toBe(1);
 
-    const evt = crashRecoveryEvents[0] as {
-      machineId: string;
-      agentHarness: string;
-      model: string;
-      workingDir: string;
-    };
-    expect(evt.machineId).toBe(machineId);
-    expect(typeof evt.agentHarness).toBe('string');
-    expect(typeof evt.model).toBe('string');
-    expect(typeof evt.workingDir).toBe('string');
+    // Backend should NOT emit any new agent.requestStart — daemon owns restarts
+    const requestStartCountAfter = eventsAfter.filter(
+      (e) => e.type === 'agent.requestStart'
+    ).length;
+    expect(requestStartCountAfter).toBe(requestStartCountBefore);
+
+    // agent.exited should still be recorded
+    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined();
   });
 
   test('crash with no task + desiredState=stopped does NOT emit agent.requestStart', async () => {
@@ -918,7 +928,7 @@ describe('Eager crash recovery (idle agent restart)', () => {
     expect(crashRecoveryEvents.length).toBe(0);
   });
 
-  test('crash with active task still emits agent.requestStart with crash_recovery reason', async () => {
+  test('crash with active task does NOT emit agent.requestStart (daemon owns restarts)', async () => {
     const { sessionId } = await createTestSession('test-eager-5');
     const chatroomId = await createPairTeamChatroom(sessionId);
     const machineId = 'machine-eager-5';
@@ -951,6 +961,17 @@ describe('Eager crash recovery (idle agent restart)', () => {
       pid: 12345,
     });
 
+    // Count requestStart events before the exit
+    const eventsBefore = await t.run(async (ctx) => {
+      return ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect();
+    });
+    const requestStartCountBefore = eventsBefore.filter(
+      (e) => e.type === 'agent.requestStart'
+    ).length;
+
     await t.mutation(api.machines.recordAgentExited, {
       sessionId,
       machineId,
@@ -960,23 +981,21 @@ describe('Eager crash recovery (idle agent restart)', () => {
       stopReason: 'agent_process.crashed',
     });
 
-    // Note: The ensureAgentHandler has been removed (PR #98). Now when an agent
-    // crashes with an active task, onAgentExited directly emits agent.requestStart
-    // with reason 'platform.crash_recovery'.
-
-    const events = await t.run(async (ctx) => {
+    const eventsAfter = await t.run(async (ctx) => {
       return ctx.db
         .query('chatroom_eventStream')
         .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
         .collect();
     });
-    const crashRecoveryEvents = events.filter(
-      (e) =>
-        e.type === 'agent.requestStart' &&
-        (e as { reason?: string }).reason === 'platform.crash_recovery'
-    );
-    // Now we expect a crash_recovery event to be emitted for active tasks too
-    expect(crashRecoveryEvents.length).toBe(1);
+
+    // Backend should NOT emit any new agent.requestStart — daemon owns restarts
+    const requestStartCountAfter = eventsAfter.filter(
+      (e) => e.type === 'agent.requestStart'
+    ).length;
+    expect(requestStartCountAfter).toBe(requestStartCountBefore);
+
+    // agent.exited should still be recorded
+    expect(eventsAfter.find((e) => e.type === 'agent.exited')).toBeDefined();
   });
 });
 

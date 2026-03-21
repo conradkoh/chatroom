@@ -8,6 +8,7 @@
 import { describe, expect, test } from 'vitest';
 
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { startAgent } from '../../src/domain/usecase/agent/start-agent';
 import { stopAgent } from '../../src/domain/usecase/agent/stop-agent';
 import { t } from '../../test.setup';
@@ -18,15 +19,12 @@ import {
   joinParticipant,
   setupRemoteAgentConfig,
 } from '../helpers/integration';
-import type { Id } from '../../convex/_generated/dataModel';
 
 async function getParticipantStatus(chatroomId: Id<'chatroom_rooms'>, role: string) {
   return t.run(async (ctx) => {
     const p = await ctx.db
       .query('chatroom_participants')
-      .withIndex('by_chatroom_and_role', (q) =>
-        q.eq('chatroomId', chatroomId).eq('role', role)
-      )
+      .withIndex('by_chatroom_and_role', (q) => q.eq('chatroomId', chatroomId).eq('role', role))
       .unique();
     return {
       lastStatus: p?.lastStatus ?? null,
@@ -101,7 +99,7 @@ describe('Participant Status Tracking', () => {
           workingDir: '/test/workspace',
           reason: 'user.start',
         },
-        machine!,
+        machine!
       );
     });
 
@@ -294,16 +292,20 @@ describe('Participant Status Tracking', () => {
         .query('chatroom_machines')
         .withIndex('by_machineId', (q) => q.eq('machineId', machineId))
         .first();
-      return startAgent(ctx, {
-        machineId,
-        chatroomId,
-        role: 'builder',
-        userId: user!._id,
-        model: 'claude-sonnet-4',
-        agentHarness: 'opencode',
-        workingDir: '/test/workspace',
-        reason: 'user.start',
-      }, machine!);
+      return startAgent(
+        ctx,
+        {
+          machineId,
+          chatroomId,
+          role: 'builder',
+          userId: user!._id,
+          model: 'claude-sonnet-4',
+          agentHarness: 'opencode',
+          workingDir: '/test/workspace',
+          reason: 'user.start',
+        },
+        machine!
+      );
     });
     let status = await getParticipantStatus(chatroomId, 'builder');
     expect(status.lastStatus).toBe('agent.requestStart');
@@ -343,7 +345,9 @@ describe('Participant Status Tracking', () => {
       role: 'builder',
       taskId,
     });
-    expect((await getParticipantStatus(chatroomId, 'builder')).lastStatus).toBe('task.acknowledged');
+    expect((await getParticipantStatus(chatroomId, 'builder')).lastStatus).toBe(
+      'task.acknowledged'
+    );
 
     // 6. Start task (in progress)
     await t.mutation(api.tasks.startTask, {

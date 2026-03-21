@@ -57,6 +57,33 @@ ${cliEnvPrefix}chatroom backlog reopen --chatroom-id=<id> --role=<role> --task-i
 ${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --task-id=<id>
 \`\`\`
 
+### Export
+\`\`\`
+${cliEnvPrefix}chatroom backlog export --chatroom-id=<id> --role=<role> [--path=<directory>]
+\`\`\`
+Exports all backlog items (status=\`backlog\`) to a \`backlog-export.json\` file in the specified directory.
+Creates the directory if it doesn't exist.
+Default path (if \`--path\` is omitted): \`<cwd>/.chatroom/exports/\`
+
+### Import
+\`\`\`
+${cliEnvPrefix}chatroom backlog import --chatroom-id=<id> --role=<role> [--path=<directory>]
+\`\`\`
+Imports backlog items from a \`backlog-export.json\` file in the specified directory.
+- **Idempotent**: skips items whose content already exists (matched by SHA-256 content hash)
+- **Staleness warning**: warns if the export is older than 7 days
+Default path (if \`--path\` is omitted): \`<cwd>/.chatroom/exports/\`
+
+### Close
+\`\`\`
+${cliEnvPrefix}chatroom backlog close --chatroom-id=<id> --role=<role> --backlog-item-id=<id> --reason="<reason>"
+\`\`\`
+
+⚠️ **RESTRICTED: Only use this command when the user explicitly instructs you to close an item.**
+Agents must NEVER close backlog items autonomously. If an item appears stale or already implemented, use \`mark-for-review\` instead and let the user make the final decision.
+
+The \`--reason\` flag is mandatory — provide a clear explanation of why the item is being closed (e.g. "User confirmed: already implemented in PR #119").
+
 ---
 
 ## Workflows
@@ -115,5 +142,64 @@ flowchart TD
 \`\`\`
 
 Stale item = backlog task already present in the codebase. Mark immediately; skip implementation.
-ROI = low complexity × high value.`,
+ROI = low complexity × high value.
+
+### 4. Backlog Cleanup
+
+Follow these steps to clean up the backlog by identifying and closing stale items.
+
+1. List all backlog items:
+   \`\`\`
+   ${cliEnvPrefix}chatroom backlog list --chatroom-id=<id> --role=<role>
+   \`\`\`
+
+2. For each item, assess staleness:
+   - Read the content carefully
+   - Check if already implemented (look at recent commits, PRs, or existing code)
+   - Check if superseded by a newer backlog item
+
+3. For stale items, mark for review:
+   \`\`\`
+   ${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id=<id> --role=<role> --backlog-item-id=<item-id>
+   \`\`\`
+   **Important:** Always mark for review — do NOT close directly. Let the user confirm.
+
+4. If you are the coordinator, delegate assessment to workers:
+   - Builder checks codebase to determine if items are stale
+   - Builder marks stale items for review and reports back
+
+5. Report summary: items reviewed, marked for review, kept, needs clarification
+
+### 5. Export / Import Backlog
+
+Use export/import to transfer backlog items between workspaces or for backup.
+Default path: \`<cwd>/.chatroom/exports/\` — omit \`--path\` to use this.
+
+**Export workflow:**
+\`\`\`mermaid
+flowchart TD
+  A([Start]) --> B["Export backlog"]
+  B --> C["chatroom backlog export\\n(writes to <cwd>/.chatroom/exports/ by default)"]
+  C --> D["File written: backlog-export.json"]
+  D --> E([Done — report file path to user])
+\`\`\`
+
+**Import workflow:**
+\`\`\`mermaid
+flowchart TD
+  A([Start]) --> B["Import backlog"]
+  B --> C["chatroom backlog import\\n(reads from <cwd>/.chatroom/exports/ by default)"]
+  C --> D{Staleness warning?}
+  D -->|Yes — export > 7 days old| E["Warn user: export may be stale"]
+  D -->|No| F["Import items (skip duplicates)"]
+  E --> F
+  F --> G["Report: total / imported / skipped"]
+  G --> H([Done])
+\`\`\`
+
+**Key points:**
+- Default path is \`<cwd>/.chatroom/exports/\` — no \`--path\` needed for standard usage
+- Use \`--path=<dir>\` to override with a custom directory
+- Imports are idempotent — running import twice with the same file won't create duplicates
+- Each item is identified by a SHA-256 hash of its content`,
 };

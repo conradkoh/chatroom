@@ -16,4 +16,3 @@ export function getHarness(id: string): RemoteAgentService | undefined {
 export function getAllHarnesses(): RemoteAgentService[] {
   return [...registry.values()];
 }
-

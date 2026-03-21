@@ -20,8 +20,8 @@ This plan addresses write conflicts and reduces the number of database operation
 
 ## Impact Assessment
 
-| Metric | Before | After (Expected) |
-|--------|--------|------------------|
-| Handoff operations | ~15 | ~8-10 |
-| Queue position conflicts | Possible | None |
-| Duplicate chatroom fetches | 1-2 per mutation | 0 |
+| Metric                     | Before           | After (Expected) |
+| -------------------------- | ---------------- | ---------------- |
+| Handoff operations         | ~15              | ~8-10            |
+| Queue position conflicts   | Possible         | None             |
+| Duplicate chatroom fetches | 1-2 per mutation | 0                |

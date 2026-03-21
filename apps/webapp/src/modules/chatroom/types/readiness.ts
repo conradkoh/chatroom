@@ -33,5 +33,3 @@ export interface TeamLifecycle {
   /** Whether the chatroom has been used (has user messages) */
   hasHistory: boolean;
 }
-
-

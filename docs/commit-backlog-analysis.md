@@ -41,7 +41,7 @@ This document analyzes unpushed commits and verifies they achieved their intende
 
 ```typescript
 // Current (incorrect)
-title: process.env.NODE_ENV === "development" ? "Chatroom (Local)" : "Chatroom";
+title: process.env.NODE_ENV === 'development' ? 'Chatroom (Local)' : 'Chatroom';
 
 // Should compare configured URLs instead
 // e.g., check if NEXT_PUBLIC_CONVEX_URL matches production URL

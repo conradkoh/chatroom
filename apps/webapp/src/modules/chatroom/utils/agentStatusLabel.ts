@@ -22,11 +22,11 @@
 
 /** Semantic status variant used to select indicator color in the UI. */
 export type StatusVariant =
-  | 'offline'     // Grey — not started or cleanly stopped
-  | 'error'       // Red — crash or circuit breaker
+  | 'offline' // Grey — not started or cleanly stopped
+  | 'error' // Red — crash or circuit breaker
   | 'transitioning' // Yellow — starting, stopping, registered
-  | 'ready'       // Green — waiting or task received
-  | 'working';    // Blue pulse — actively processing
+  | 'ready' // Green — waiting or task received
+  | 'working'; // Blue pulse — actively processing
 
 /**
  * Resolved status: the label string plus the semantic color variant.

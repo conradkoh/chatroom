@@ -128,7 +128,7 @@ export function ModelFilterPanel({
         </div>
 
         {/* Model list grouped by provider */}
-        <div className="max-h-96 overflow-y-auto">
+        <div className="max-h-[576px] overflow-y-auto">
           {Array.from(modelsByProvider.entries()).map(([provider, models]) => {
             const isProviderHidden = hiddenProviders.includes(provider);
             return (

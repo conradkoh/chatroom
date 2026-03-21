@@ -2,13 +2,13 @@
 
 ## Glossary
 
-| Term | Definition |
-|------|------------|
-| **Queue Position** | An integer representing a task's order in the queue. Higher numbers = added later. |
-| **OCC (Optimistic Concurrency Control)** | Convex's conflict detection mechanism that fails transactions when documents have changed. |
-| **Write Conflict** | When two transactions attempt to modify the same document simultaneously, causing one to fail. |
-| **Race Condition** | When the outcome depends on the timing of uncontrollable events, leading to potential bugs. |
-| **Atomic Counter** | A value that is incremented in a single atomic operation, preventing race conditions. |
+| Term                                     | Definition                                                                                     |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Queue Position**                       | An integer representing a task's order in the queue. Higher numbers = added later.             |
+| **OCC (Optimistic Concurrency Control)** | Convex's conflict detection mechanism that fails transactions when documents have changed.     |
+| **Write Conflict**                       | When two transactions attempt to modify the same document simultaneously, causing one to fail. |
+| **Race Condition**                       | When the outcome depends on the timing of uncontrollable events, leading to potential bugs.    |
+| **Atomic Counter**                       | A value that is incremented in a single atomic operation, preventing race conditions.          |
 
 ## User Stories
 

@@ -13,8 +13,8 @@
  */
 
 import { getNextTaskReminder, getCompactionRecoveryOneLiner } from './reminder';
-import { contextNewCommand } from '../context/new';
 import { classifyCommand } from '../classify/command';
+import { contextNewCommand } from '../context/new';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,8 +53,14 @@ export interface FullCliOutputParams {
       content: string;
     }[];
     attachedBacklogItems?: {
+      _id: string;
       status: string;
       content: string;
+    }[];
+    attachedMessages?: {
+      _id: string;
+      content: string;
+      senderRole: string;
     }[];
   } | null;
 
@@ -69,6 +75,24 @@ export interface FullCliOutputParams {
 
   /** Available handoff targets for this role (e.g. ['builder', 'reviewer', 'user']) */
   availableHandoffTargets: string[];
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * If `user` is among the available handoff targets, add a verification
+ * reminder before the handoff command so the planner/coordinator verifies
+ * the codebase before delivering to the user.
+ */
+function maybeAddVerificationReminder(
+  lines: string[],
+  availableHandoffTargets: string[]
+): void {
+  if (availableHandoffTargets.includes('user')) {
+    lines.push('');
+    lines.push('⚠️ Before delivering to user: Verify the codebase is in a good state.');
+    lines.push('   Run: pnpm typecheck && pnpm test');
+  }
 }
 
 // ─── Generator ────────────────────────────────────────────────────────────────
@@ -127,8 +151,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(
           `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
-      } else {
-        lines.push('   Entry point role will update when needed.');
       }
     }
 
@@ -141,8 +163,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(
           `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
-      } else {
-        lines.push('   Entry point role will update when needed.');
       }
     }
   }
@@ -162,8 +182,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(
           `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
-      } else {
-        lines.push('   Entry point role will update when needed.');
       }
     }
 
@@ -179,8 +197,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
           lines.push(
             `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
           );
-        } else {
-          lines.push('   Entry point role will update when needed.');
         }
       }
     }
@@ -197,15 +213,52 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
   lines.push('```');
 
   // Attached items from origin message (legacy chatroom_tasks + backlog items)
-  const allAttached = [
-    ...(originMessage?.attachedTasks ?? []),
-    ...(originMessage?.attachedBacklogItems ?? []),
-  ];
-  if (allAttached.length > 0) {
+  const legacyTasks = originMessage?.attachedTasks ?? [];
+  const backlogItems = originMessage?.attachedBacklogItems ?? [];
+  const totalAttached = legacyTasks.length + backlogItems.length;
+
+  if (totalAttached > 0) {
     lines.push('');
-    lines.push(`## Attached Backlog (${allAttached.length})`);
-    for (const attached of allAttached) {
+    lines.push(`## Attached Backlog (${totalAttached})`);
+
+    // Legacy tasks (no _id available — render as plain lines)
+    for (const attached of legacyTasks) {
       lines.push(`- [${attached.status.toUpperCase()}] ${attached.content}`);
+    }
+
+    // Backlog items (with _id — wrap in <backlog-item> tags)
+    for (const attached of backlogItems) {
+      lines.push('<backlog-item>');
+      lines.push(`- [${attached.status.toUpperCase()}] ${attached.content}`);
+      lines.push(`  ID: ${attached._id}`);
+      lines.push('</backlog-item>');
+    }
+
+    // System info hint (only when backlog items with IDs are present)
+    if (backlogItems.length > 0) {
+      lines.push('<system-info>');
+      lines.push(
+        'HINT: If you have completed work on a backlog item and it is ready for review, run:'
+      );
+      lines.push(
+        `  ${cliEnvPrefix}chatroom backlog mark-for-review --chatroom-id="${chatroomId}" --role="${role}" --backlog-item-id=<id>`
+      );
+      lines.push('</system-info>');
+    }
+  }
+
+  // Attached messages from origin message (user-pinned messages as context)
+  const attachedMessages = originMessage?.attachedMessages ?? [];
+  if (attachedMessages.length > 0) {
+    lines.push('');
+    lines.push(`## Attached Messages (${attachedMessages.length})`);
+    for (const attached of attachedMessages) {
+      lines.push('<attached-message>');
+      lines.push(`From: ${attached.senderRole}`);
+      lines.push(`ID: ${attached._id}`);
+      lines.push('---');
+      lines.push(attached.content);
+      lines.push('</attached-message>');
     }
   }
 
@@ -240,7 +293,10 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
       taskId: task._id,
       classification: 'question',
       cliEnvPrefix,
-    }).replace('--origin-message-classification=question', '--origin-message-classification=<type>');
+    }).replace(
+      '--origin-message-classification=question',
+      '--origin-message-classification=<type>'
+    );
     lines.push(`2. Classify → \`${baseCmd}\``);
 
     // new_feature example
@@ -266,6 +322,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         `3. Code changes expected? → \`${contextNewCommand({ chatroomId, role, cliEnvPrefix })}\``
       );
       lines.push('4. Delegate phase 1 to builder:');
+      maybeAddVerificationReminder(lines, availableHandoffTargets);
       lines.push('```');
       lines.push(
         `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=builder << 'EOF'`
@@ -288,6 +345,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         nextStepNum++;
       }
       lines.push(`${nextStepNum}. Hand off when complete:`);
+      maybeAddVerificationReminder(lines, availableHandoffTargets);
       lines.push('```');
       lines.push(
         `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`
@@ -320,6 +378,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     }
 
     lines.push(`${nextStepNum}. Hand off when complete:`);
+    maybeAddVerificationReminder(lines, availableHandoffTargets);
     lines.push('```');
     lines.push(
       `${cliEnvPrefix}chatroom handoff --chatroom-id="${chatroomId}" --role="${role}" --next-role=<target> << 'EOF'`

@@ -18,13 +18,14 @@ import type { TeamCompositionConfig } from './team-composition';
 export function getWorkflowSection(config: TeamCompositionConfig): string {
   if (config.hasBuilder && config.hasReviewer) {
     return getFullTeamWorkflow();
-  } else if (config.hasBuilder && !config.hasReviewer) {
-    return getPlannerPlusBuilderWorkflow();
-  } else if (!config.hasBuilder && config.hasReviewer) {
-    return getPlannerPlusReviewerWorkflow();
-  } else {
-    return getPlannerSoloWorkflow();
   }
+  if (config.hasBuilder && !config.hasReviewer) {
+    return getPlannerPlusBuilderWorkflow();
+  }
+  if (!config.hasBuilder && config.hasReviewer) {
+    return getPlannerPlusReviewerWorkflow();
+  }
+  return getPlannerSoloWorkflow();
 }
 
 /**
@@ -37,7 +38,7 @@ export function getFullTeamWorkflow(): string {
 flowchart TD
     A([Start]) --> B[Receive task from user]
     B --> C[task read:\nget content + mark in_progress]
-    C --> D[Classify with task-started]
+    C --> D[Classify with classify]
     D --> E[Decompose into phases]
     E --> F[Delegate ONE phase to builder]
     F --> G[Builder completes phase]
@@ -49,8 +50,9 @@ flowchart TD
     L --> F
     K -->|yes| M{more phases?}
     M -->|yes| F
-    M -->|no| N[Deliver final result to user]
-    N --> O([Stop])
+    M -->|no| N[Verify: pnpm typecheck && pnpm test]
+    N --> O[Deliver final result to user]
+    O --> P([Stop])
 \`\`\``;
 }
 
@@ -75,8 +77,9 @@ flowchart TD
     K --> F
     J -->|yes| L{more phases?}
     L -->|yes| F
-    L -->|no| M[Deliver final result to user]
-    M --> N([Stop])
+    L -->|no| M[Verify: pnpm typecheck && pnpm test]
+    M --> N[Deliver final result to user]
+    N --> O([Stop])
 \`\`\``;
 }
 
@@ -100,8 +103,9 @@ flowchart TD
     J --> F
     I -->|yes| K{more phases?}
     K -->|yes| F
-    K -->|no| L[Deliver final result to user]
-    L --> M([Stop])
+    K -->|no| L[Verify: pnpm typecheck && pnpm test]
+    L --> M[Deliver final result to user]
+    M --> N([Stop])
 \`\`\``;
 }
 
@@ -113,8 +117,9 @@ export function getPlannerSoloWorkflow(): string {
 
 1. Receive task from user
 2. Run task read (get content + mark in_progress)
-3. Classify with task-started
+3. Classify with classify
 4. Implement the solution yourself
 5. Review your own work for quality
-6. Deliver to **user**`;
+6. Verify: \`pnpm typecheck && pnpm test\`
+7. Deliver to **user**`;
 }

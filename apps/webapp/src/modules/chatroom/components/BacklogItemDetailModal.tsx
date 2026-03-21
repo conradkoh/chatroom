@@ -5,16 +5,12 @@ import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Check, CornerUpLeft, Link, ListChecks, MoreHorizontal, Pencil, X } from 'lucide-react';
 import React, { useState, useCallback, useEffect } from 'react';
 import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 
-import {
-  FixedModal,
-  FixedModalContent,
-  FixedModalHeader,
-  FixedModalTitle,
-  FixedModalBody,
-} from '@/components/ui/fixed-modal';
+import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
+import { baseMarkdownComponents, backlogProseClassNames } from './markdown-utils';
+import { useAttachments } from '../context/AttachmentsContext';
 
 import {
   DropdownMenu,
@@ -23,10 +19,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
-import { baseMarkdownComponents, backlogProseClassNames } from './markdown-utils';
-import { type BacklogItem, getBacklogStatusBadge, getScoringBadge } from './backlog';
-import { useAttachments } from '../context/AttachmentsContext';
+import {
+  FixedModal,
+  FixedModalContent,
+  FixedModalHeader,
+  FixedModalTitle,
+  FixedModalBody,
+} from '@/components/ui/fixed-modal';
 
 interface BacklogItemDetailModalProps {
   isOpen: boolean;
@@ -373,7 +372,11 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                         Mark as Complete
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => handleMutation(() => closeItem({ itemId: item._id }))}
+                        onClick={() =>
+                          handleMutation(() =>
+                            closeItem({ itemId: item._id, reason: 'Closed by user from UI' })
+                          )
+                        }
                         disabled={isLoading}
                         className="flex items-center gap-2 cursor-pointer text-chatroom-status-error"
                       >

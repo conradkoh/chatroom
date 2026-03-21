@@ -1,7 +1,10 @@
 /**
- * Git Polling Loop — fast polling loop for on-demand workspace git requests.
+ * Git Request Subscription — reactive subscription for on-demand workspace git requests.
  *
- * Runs every `GIT_POLLING_INTERVAL_MS` (5 seconds).
+ * Subscribes to `api.workspaces.getPendingRequests` via Convex WebSocket,
+ * processing requests instantly when they appear (replacing the previous
+ * 5-second setInterval polling loop).
+ *
  * Processes pending requests from the backend:
  *   - `full_diff` → run `getFullDiff()`, push via `upsertFullDiff()`
  *   - `commit_detail` → run `getCommitDetail()` + `getCommitMetadata()`, push via `upsertCommitDetail()`
@@ -9,52 +12,84 @@
  *
  * The heartbeat loop (every 30s) is responsible for pushing incremental
  * git state (branch, isDirty, diffStat, recentCommits) when state changes.
- * This fast loop is only for on-demand requests that require low latency.
+ * This subscription is only for on-demand requests that require low latency.
  */
 
+import type { ConvexClient } from 'convex/browser';
+import type { FunctionReturnType } from 'convex/server';
+
+import type { DaemonContext } from './types.js';
+import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
 import * as gitReader from '../../../infrastructure/git/git-reader.js';
 import { COMMITS_PER_PAGE } from '../../../infrastructure/git/types.js';
-import type { DaemonContext } from './types.js';
-import { formatTimestamp } from './utils.js';
 
-/** How often the git polling loop checks for pending requests (ms). */
-export const GIT_POLLING_INTERVAL_MS = 5_000; // 5 seconds
-
-/** Handle returned by `startGitPollingLoop` to stop the loop. */
-export interface GitPollingHandle {
-  /** Stop the polling loop and clear the timer. */
+/** Handle returned by `startGitRequestSubscription` to stop the subscription. */
+export interface GitSubscriptionHandle {
+  /** Stop the subscription and clean up. */
   stop: () => void;
 }
 
 /**
- * Start the fast git polling loop.
+ * Start the reactive git request subscription.
+ *
+ * Subscribes to `api.workspaces.getPendingRequests` via the Convex WebSocket
+ * client. When new pending requests appear, they are processed immediately.
  *
  * Called once during daemon startup, after the heartbeat loop is running.
  * Returns a handle with a `stop()` method for clean shutdown.
  *
  * @param ctx - Daemon context (session, machineId, deps)
+ * @param wsClient - Convex WebSocket client for reactive subscriptions
  */
-export function startGitPollingLoop(ctx: DaemonContext): GitPollingHandle {
-  const timer = setInterval(() => {
-    runPollingTick(ctx).catch((err: Error) => {
-      console.warn(
-        `[${formatTimestamp()}] ⚠️  Git polling tick failed: ${err.message}`
-      );
-    });
-  }, GIT_POLLING_INTERVAL_MS);
+export function startGitRequestSubscription(
+  ctx: DaemonContext,
+  wsClient: ConvexClient
+): GitSubscriptionHandle {
+  // Session-scoped dedup — prevents re-processing the same request within a single daemon run.
+  // Map<requestId, processedAt timestamp>. Entries are evicted when older than 5 minutes.
+  const processedRequestIds = new Map<string, number>();
+  const DEDUP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-  // Don't prevent process exit during shutdown
-  timer.unref();
+  // Track whether we're currently processing to avoid overlapping batches
+  let processing = false;
+
+  const unsubscribe = wsClient.onUpdate(
+    api.workspaces.getPendingRequests,
+    {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+    },
+    (requests) => {
+      if (!requests || requests.length === 0) return;
+      if (processing) return; // Skip if still processing previous batch
+
+      processing = true;
+      processRequests(ctx, requests, processedRequestIds, DEDUP_TTL_MS)
+        .catch((err: Error) => {
+          console.warn(
+            `[${formatTimestamp()}] ⚠️  Git request processing failed: ${err.message}`
+          );
+        })
+        .finally(() => {
+          processing = false;
+        });
+    },
+    (err) => {
+      console.warn(
+        `[${formatTimestamp()}] ⚠️  Git request subscription error: ${err.message}`
+      );
+    }
+  );
 
   console.log(
-    `[${formatTimestamp()}] 🔀 Git polling loop started (interval: ${GIT_POLLING_INTERVAL_MS}ms)`
+    `[${formatTimestamp()}] 🔀 Git request subscription started (reactive)`
   );
 
   return {
     stop: () => {
-      clearInterval(timer);
-      console.log(`[${formatTimestamp()}] 🔀 Git polling loop stopped`);
+      unsubscribe();
+      console.log(`[${formatTimestamp()}] 🔀 Git request subscription stopped`);
     },
   };
 }
@@ -83,26 +118,14 @@ export function extractDiffStatFromShowOutput(content: string): {
 
 // ─── Request Processors ───────────────────────────────────────────────────────
 
-type PendingRequest = {
-  _id: string;
-  machineId: string;
-  workingDir: string;
-  requestType: 'full_diff' | 'commit_detail' | 'more_commits';
-  sha?: string;
-  offset?: number;
-  status: string;
-  requestedAt: number;
-  updatedAt: number;
-};
+/** Inferred type for a single pending request from the backend query. */
+export type PendingRequest = FunctionReturnType<typeof api.workspaces.getPendingRequests>[number];
 
 /**
  * Process a `full_diff` request:
  * Run `git diff HEAD`, parse stats, push via `upsertFullDiff`.
  */
-async function processFullDiff(
-  ctx: DaemonContext,
-  req: PendingRequest
-): Promise<void> {
+async function processFullDiff(ctx: DaemonContext, req: PendingRequest): Promise<void> {
   const result = await gitReader.getFullDiff(req.workingDir);
 
   if (result.status === 'available' || result.status === 'truncated') {
@@ -146,10 +169,7 @@ async function processFullDiff(
  * Process a `commit_detail` request:
  * Run `git show <sha>`, get commit metadata, push via `upsertCommitDetail`.
  */
-async function processCommitDetail(
-  ctx: DaemonContext,
-  req: PendingRequest
-): Promise<void> {
+async function processCommitDetail(ctx: DaemonContext, req: PendingRequest): Promise<void> {
   if (!req.sha) {
     throw new Error('commit_detail request missing sha');
   }
@@ -214,10 +234,7 @@ async function processCommitDetail(
  * Process a `more_commits` request:
  * Run `git log` with skip offset, push via `appendMoreCommits`.
  */
-async function processMoreCommits(
-  ctx: DaemonContext,
-  req: PendingRequest
-): Promise<void> {
+async function processMoreCommits(ctx: DaemonContext, req: PendingRequest): Promise<void> {
   const offset = req.offset ?? 0;
   const commits = await gitReader.getRecentCommits(req.workingDir, COMMITS_PER_PAGE, offset);
   const hasMoreCommits = commits.length >= COMMITS_PER_PAGE;
@@ -235,25 +252,34 @@ async function processMoreCommits(
   );
 }
 
-// ─── Polling Tick ─────────────────────────────────────────────────────────────
+// ─── Request Processing ───────────────────────────────────────────────────────
 
 /**
- * A single tick of the polling loop.
+ * Process a batch of pending requests from a subscription update.
  *
- * Queries the backend for pending workspace requests and processes each one,
- * transitioning status: `pending` → `processing` → `done` | `error`.
+ * Handles deduplication and transitions each request through
+ * `pending` → `processing` → `done` | `error`.
  */
-async function runPollingTick(ctx: DaemonContext): Promise<void> {
-  // Query backend for pending requests for this machine
-  const requests = await ctx.deps.backend.query(api.workspaces.getPendingRequests, {
-    sessionId: ctx.sessionId,
-    machineId: ctx.machineId,
-  });
-
-  if (requests.length === 0) return;
+export async function processRequests(
+  ctx: DaemonContext,
+  requests: PendingRequest[],
+  processedRequestIds: Map<string, number>,
+  dedupTtlMs: number
+): Promise<void> {
+  // Evict stale dedup entries
+  const evictBefore = Date.now() - dedupTtlMs;
+  for (const [id, ts] of processedRequestIds) {
+    if (ts < evictBefore) processedRequestIds.delete(id);
+  }
 
   // Process each request sequentially
-  for (const req of requests as PendingRequest[]) {
+  for (const req of requests) {
+    const requestId = req._id.toString();
+
+    // Skip already-processed requests (dedup within this daemon session)
+    if (processedRequestIds.has(requestId)) continue;
+    processedRequestIds.set(requestId, Date.now());
+
     try {
       // Mark as processing
       await ctx.deps.backend.mutation(api.workspaces.updateRequestStatus, {

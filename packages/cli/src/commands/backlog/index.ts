@@ -2,14 +2,16 @@
  * Backlog commands for managing task queue and backlog
  */
 
-import type { BacklogDeps } from './deps.js';
+import type { BacklogDeps, BacklogFsOps } from './deps.js';
 import { api, type Id } from '../../api.js';
 import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
+import { createHash } from 'node:crypto';
+import * as nodePath from 'node:path';
 
 // ─── Re-exports ────────────────────────────────────────────────────────────
 
-export type { BacklogDeps } from './deps.js';
+export type { BacklogDeps, BacklogFsOps } from './deps.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -70,15 +72,54 @@ export interface MarkForReviewBacklogOptions {
 export interface HistoryBacklogOptions {
   role: string;
   from?: string; // ISO date string e.g. "2026-03-01"
-  to?: string;   // ISO date string e.g. "2026-03-16"
+  to?: string; // ISO date string e.g. "2026-03-16"
   // status removed - always shows both completed and closed
   limit?: number;
 }
+
+export interface ExportBacklogOptions {
+  role: string;
+  path?: string;
+}
+
+export interface ImportBacklogOptions {
+  role: string;
+  path?: string;
+}
+
+/** Shape of a single item in the export JSON */
+export interface BacklogExportItem {
+  contentHash: string;
+  content: string;
+  status: string;
+  createdBy: string;
+  createdAt: number;
+  complexity?: string;
+  value?: string;
+  priority?: number;
+}
+
+/** Shape of the export JSON file */
+export interface BacklogExportFile {
+  exportedAt: number;
+  chatroomId: string;
+  items: BacklogExportItem[];
+}
+
+/** Export file name constant */
+const BACKLOG_EXPORT_FILENAME = 'backlog-export.json';
+
+/** Staleness threshold: 7 days in milliseconds */
+const STALENESS_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Default export/import directory relative to cwd */
+const DEFAULT_EXPORT_DIR = '.chatroom/exports';
 
 // ─── Default Deps Factory ──────────────────────────────────────────────────
 
 async function createDefaultDeps(): Promise<BacklogDeps> {
   const client = await getConvexClient();
+  const fs = await import('node:fs/promises');
   return {
     backend: {
       mutation: (endpoint, args) => client.mutation(endpoint, args),
@@ -88,6 +129,11 @@ async function createDefaultDeps(): Promise<BacklogDeps> {
       getSessionId,
       getConvexUrl,
       getOtherSessionUrls,
+    },
+    fs: {
+      writeFile: (path, data) => fs.writeFile(path, data, 'utf-8'),
+      readFile: (path, encoding) => fs.readFile(path, { encoding }),
+      mkdir: (path, options) => fs.mkdir(path, options),
     },
   };
 }
@@ -174,7 +220,11 @@ export async function listBacklog(
           `   Created: ${date}${item.assignedTo ? ` | Assigned: ${item.assignedTo}` : ''}`
         );
         // Show scoring info if available
-        if (item.complexity !== undefined || item.value !== undefined || item.priority !== undefined) {
+        if (
+          item.complexity !== undefined ||
+          item.value !== undefined ||
+          item.priority !== undefined
+        ) {
           const parts: string[] = [];
           if (item.complexity) parts.push(`complexity=${item.complexity}`);
           if (item.value) parts.push(`value=${item.value}`);
@@ -634,8 +684,14 @@ export async function historyBacklog(
 
         console.log(`#${i + 1} [${statusEmoji} ${task.status.toUpperCase()}] ${task.content}`);
         console.log(`   ID: ${task._id}`);
-        console.log(`   Completed: ${date}${task.assignedTo ? ` | Assigned: ${task.assignedTo}` : ''}`);
-        if (task.complexity !== undefined || task.value !== undefined || task.priority !== undefined) {
+        console.log(
+          `   Completed: ${date}${task.assignedTo ? ` | Assigned: ${task.assignedTo}` : ''}`
+        );
+        if (
+          task.complexity !== undefined ||
+          task.value !== undefined ||
+          task.priority !== undefined
+        ) {
           const parts: string[] = [];
           if (task.complexity) parts.push(`complexity=${task.complexity}`);
           if (task.value) parts.push(`value=${task.value}`);
@@ -651,6 +707,50 @@ export async function historyBacklog(
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to load history: ${(error as Error).message}`);
+    process.exit(1);
+    return;
+  }
+}
+
+/**
+ * Close a backlog item (mark as closed/stale).
+ */
+export async function closeBacklog(
+  chatroomId: string,
+  options: { role: string; backlogItemId: string; reason: string },
+  deps?: BacklogDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
+
+  if (!options.backlogItemId || options.backlogItemId.trim().length === 0) {
+    console.error(`❌ Backlog item ID is required`);
+    process.exit(1);
+    return;
+  }
+
+  if (!options.reason || options.reason.trim().length === 0) {
+    console.error(`❌ Reason is required when closing a backlog item`);
+    process.exit(1);
+    return;
+  }
+
+  try {
+    await d.backend.mutation(api.backlog.closeBacklogItem, {
+      sessionId,
+      itemId: options.backlogItemId as Id<'chatroom_backlog'>,
+      reason: options.reason,
+    });
+
+    console.log('');
+    console.log('✅ Backlog item closed');
+    console.log(`   ID: ${options.backlogItemId}`);
+    console.log(`   Status: closed`);
+    console.log(`   Reason: ${options.reason}`);
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to close backlog item: ${(error as Error).message}`);
     process.exit(1);
     return;
   }
@@ -674,5 +774,176 @@ function getStatusEmoji(status: TaskStatus | BacklogItemStatus): string {
       return '🔒';
     default:
       return '⚫';
+  }
+}
+
+// ─── Content Hash Helper ───────────────────────────────────────────────────
+
+/**
+ * Compute a SHA-256 content hash for idempotent import.
+ */
+export function computeContentHash(content: string): string {
+  return createHash('sha256').update(content).digest('hex');
+}
+
+// ─── Export / Import Commands ──────────────────────────────────────────────
+
+/**
+ * Export all backlog items to a JSON file.
+ */
+export async function exportBacklog(
+  chatroomId: string,
+  options: ExportBacklogOptions,
+  deps?: BacklogDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
+
+  if (!d.fs) {
+    console.error('❌ File system operations not available');
+    process.exit(1);
+    return;
+  }
+
+  try {
+    // Fetch all backlog items
+    const backlogItems = await d.backend.query(api.backlog.listBacklogItems, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      statusFilter: 'backlog',
+    });
+
+    // Build export structure
+    const exportData: BacklogExportFile = {
+      exportedAt: Date.now(),
+      chatroomId,
+      items: backlogItems.map(
+        (item: {
+          content: string;
+          status: string;
+          createdBy?: string;
+          createdAt: number;
+          complexity?: string;
+          value?: string;
+          priority?: number;
+        }) => {
+          const exportItem: BacklogExportItem = {
+            contentHash: computeContentHash(item.content),
+            content: item.content,
+            status: item.status,
+            createdBy: item.createdBy ?? 'unknown',
+            createdAt: item.createdAt,
+          };
+          if (item.complexity) exportItem.complexity = item.complexity;
+          if (item.value) exportItem.value = item.value;
+          if (item.priority !== undefined) exportItem.priority = item.priority;
+          return exportItem;
+        }
+      ),
+    };
+
+    // Ensure output directory exists
+    const exportDir = options.path ?? nodePath.join(process.cwd(), DEFAULT_EXPORT_DIR);
+    await d.fs.mkdir(exportDir, { recursive: true });
+
+    // Write JSON file
+    const filePath = nodePath.join(exportDir, BACKLOG_EXPORT_FILENAME);
+    await d.fs.writeFile(filePath, JSON.stringify(exportData, null, 2));
+
+    console.log('');
+    console.log(`✅ Exported ${exportData.items.length} backlog item(s)`);
+    console.log(`   File: ${filePath}`);
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to export backlog items: ${(error as Error).message}`);
+    process.exit(1);
+    return;
+  }
+}
+
+/**
+ * Import backlog items from a JSON export file.
+ * Idempotent — skips items whose content hash matches an existing item.
+ */
+export async function importBacklog(
+  chatroomId: string,
+  options: ImportBacklogOptions,
+  deps?: BacklogDeps
+): Promise<void> {
+  const d = deps ?? (await createDefaultDeps());
+  const sessionId = requireAuth(d);
+  validateChatroomId(chatroomId);
+
+  if (!d.fs) {
+    console.error('❌ File system operations not available');
+    process.exit(1);
+    return;
+  }
+
+  try {
+    // Read the export file
+    const importDir = options.path ?? nodePath.join(process.cwd(), DEFAULT_EXPORT_DIR);
+    const filePath = nodePath.join(importDir, BACKLOG_EXPORT_FILENAME);
+    const raw = await d.fs.readFile(filePath, 'utf-8');
+    const exportData: BacklogExportFile = JSON.parse(raw);
+
+    // Staleness warning
+    const ageMs = Date.now() - exportData.exportedAt;
+    if (ageMs > STALENESS_THRESHOLD_MS) {
+      const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+      console.log(`⚠️  This export is ${ageDays} days old and may be stale.`);
+    }
+
+    // Fetch existing backlog items to check for duplicates
+    const existingItems = await d.backend.query(api.backlog.listBacklogItems, {
+      sessionId,
+      chatroomId: chatroomId as Id<'chatroom_rooms'>,
+      statusFilter: 'backlog',
+    });
+
+    // Build set of existing content hashes
+    const existingHashes = new Set<string>(
+      existingItems.map((item: { content: string }) => computeContentHash(item.content))
+    );
+
+    let imported = 0;
+    let skipped = 0;
+
+    for (const item of exportData.items) {
+      // Recompute hash from content for verification
+      const hash = computeContentHash(item.content);
+
+      if (existingHashes.has(hash)) {
+        skipped++;
+        continue;
+      }
+
+      // Create the backlog item
+      await d.backend.mutation(api.backlog.createBacklogItem, {
+        sessionId,
+        chatroomId: chatroomId as Id<'chatroom_rooms'>,
+        content: item.content,
+        createdBy: item.createdBy,
+        priority: item.priority,
+        complexity: item.complexity as 'low' | 'medium' | 'high' | undefined,
+        value: item.value as 'low' | 'medium' | 'high' | undefined,
+      });
+
+      // Add hash to set so subsequent duplicates in same file are also skipped
+      existingHashes.add(hash);
+      imported++;
+    }
+
+    console.log('');
+    console.log(`✅ Import complete`);
+    console.log(`   Total items in file: ${exportData.items.length}`);
+    console.log(`   Imported: ${imported}`);
+    console.log(`   Skipped (duplicate): ${skipped}`);
+    console.log('');
+  } catch (error) {
+    console.error(`❌ Failed to import backlog items: ${(error as Error).message}`);
+    process.exit(1);
+    return;
   }
 }

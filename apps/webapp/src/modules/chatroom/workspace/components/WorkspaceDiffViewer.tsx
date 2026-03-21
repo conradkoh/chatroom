@@ -1,11 +1,13 @@
 'use client';
 
-import { memo, useState, useEffect } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
+import { memo, useState, useEffect } from 'react';
+
 import type { FullDiffState } from '../types/git';
 import { parseDiff, basename, type DiffLine, type FileDiffSection } from '../utils/diff-parser';
+
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -130,10 +132,7 @@ const FileDiffBlock = memo(function FileDiffBlock({ section }: { section: FileDi
 
 // ─── File List Sidebar ────────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<
-  FileDiffSection['status'],
-  { letter: string; className: string }
-> = {
+const STATUS_CONFIG: Record<FileDiffSection['status'], { letter: string; className: string }> = {
   created: { letter: 'A', className: 'text-green-600 dark:text-green-400' },
   deleted: { letter: 'D', className: 'text-red-600 dark:text-red-400' },
   modified: { letter: 'M', className: 'text-yellow-600 dark:text-yellow-400' },
@@ -175,7 +174,7 @@ const FileListSidebar = memo(function FileListSidebar({
               'w-full text-left px-3 py-2 flex items-center gap-1.5 transition-colors',
               isActive
                 ? 'bg-chatroom-bg-hover border-l-2 border-chatroom-accent'
-                : 'border-l-2 border-transparent hover:bg-chatroom-bg-hover/50',
+                : 'border-l-2 border-transparent hover:bg-chatroom-bg-hover/50'
             )}
           >
             {/* Status indicator */}
@@ -187,7 +186,7 @@ const FileListSidebar = memo(function FileListSidebar({
             <span
               className={cn(
                 'font-mono text-[11px] truncate',
-                isActive ? 'text-chatroom-text-primary' : 'text-chatroom-text-secondary',
+                isActive ? 'text-chatroom-text-primary' : 'text-chatroom-text-secondary'
               )}
             >
               {name}

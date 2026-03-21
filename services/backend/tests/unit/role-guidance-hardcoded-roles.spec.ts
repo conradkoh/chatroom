@@ -13,8 +13,8 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { getPlannerGuidance } from '../../prompts/cli/roles/planner';
 import { getBuilderGuidance } from '../../prompts/cli/roles/builder';
+import { getPlannerGuidance } from '../../prompts/cli/roles/planner';
 import { buildSelectorContext, getRoleGuidanceFromContext } from '../../prompts/generator';
 
 const CONVEX_URL = 'http://127.0.0.1:3210';
@@ -266,6 +266,7 @@ describe('getBuilderGuidance - reviewer-related content should be conditional', 
       - Document complex logic
       - Follow existing code patterns and conventions
       - Consider edge cases and error handling
+      - **Report progress frequently** — send short \`report-progress\` updates before and after each major step (e.g. "Implementing data model", "Tests passing, moving to UI layer"). Small, frequent updates are better than one large summary at the end.
 
       **Git Workflow:**
       - Use descriptive commit messages

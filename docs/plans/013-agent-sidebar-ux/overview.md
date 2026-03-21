@@ -7,6 +7,7 @@ Improve the AGENTS section in the chatroom sidebar to be more compact and focuse
 ## Problem
 
 The current AgentPanel shows all agents as separate expandable rows:
+
 - Takes up too much fixed height
 - Active agents aren't visually prioritized
 - Ready (waiting) agents clutter the view
@@ -14,6 +15,7 @@ The current AgentPanel shows all agents as separate expandable rows:
 ## Solution
 
 Redesign the agent section to:
+
 1. **Prominently show working agents** - Active agents get full visibility
 2. **Collapse ready agents** - Group all ready agents into a single collapsible item
 3. **Reduce overall height** - More compact design

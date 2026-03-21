@@ -1,7 +1,5 @@
 import type { Id } from '../../../api.js';
-import { api } from '../../../api.js';
 import type { DaemonContext } from '../../../commands/machine/daemon-start/types.js';
-import { formatTimestamp } from '../../../commands/machine/daemon-start/utils.js';
 import type { StopReason } from '../../../infrastructure/machine/stop-reason.js';
 
 export interface AgentExitedPayload {
@@ -12,71 +10,26 @@ export interface AgentExitedPayload {
   signal: string | null;
   stopReason: StopReason;
   agentHarness?: string;
+  model?: string;
+  workingDir?: string;
 }
 
 /**
  * Handles the `agent:exited` DaemonEvent.
  *
- * When an agent process exits (crash or intentional), cleans up all state:
- * 1. Report to backend via recordAgentExited (clears PID, removes participant, triggers crash recovery)
- * 2. Clear PID from local machine state
- * 3. Untrack PID in all remote agent services
+ * Thin passthrough to AgentProcessManager.handleExit().
+ * The manager handles all cleanup, backend events, and restart decisions.
+ *
+ * For agents spawned by the manager (via ensureRunning), the exit is also
+ * handled internally via the onExit callback. The manager's handleExit is
+ * idempotent — it checks PID match and ignores stale exits.
  */
 export function onAgentExited(ctx: DaemonContext, payload: AgentExitedPayload): void {
-  const { chatroomId, role, pid, code, signal, stopReason } = payload;
-  const ts = formatTimestamp();
-
-  console.log(`[${ts}] Agent stopped: ${stopReason} (${role})`);
-
-  const isDaemonRespawn = stopReason === 'daemon.respawn';
-  const isIntentional = stopReason === 'user.stop' || stopReason === 'platform.team_switch' || stopReason === 'agent_process.turn_end' || stopReason === 'agent_process.turn_end_quick_fail';
-
-  if (isIntentional && !isDaemonRespawn) {
-    console.log(
-      `[${ts}] ℹ️  Agent process exited after intentional stop ` +
-        `(PID: ${pid}, role: ${role}, code: ${code}, signal: ${signal})`
-    );
-  } else if (isDaemonRespawn) {
-    console.log(
-      `[${ts}] 🔄  Agent process stopped for respawn ` +
-        `(PID: ${pid}, role: ${role}, code: ${code}, signal: ${signal})`
-    );
-  } else {
-    // DESIGN DECISION: stops without explicit stopReason are treated as crashes.
-    // A process that exits cleanly (code 0) without a prior stops.mark() call is
-    // treated identically to a crash — ensureAgentHandler fires immediately to restart.
-    // Known trade-off: if an agent finishes work and exits before its handoff mutation
-    // is processed, a restart may be triggered unnecessarily. This is accepted because
-    // reliability (never leaving a task stuck) is prioritized over efficiency.
-    console.log(
-      `[${ts}] ⚠️  Agent process exited ` +
-        `(PID: ${pid}, role: ${role}, code: ${code}, signal: ${signal})`
-    );
-  }
-
-  // Record agent exit event and clear state atomically via recordAgentExited
-  ctx.deps.backend
-    .mutation(api.machines.recordAgentExited, {
-      sessionId: ctx.sessionId,
-      machineId: ctx.machineId,
-      chatroomId: chatroomId as Id<'chatroom_rooms'>,
-      role,
-      pid,
-      stopReason,
-      stopSignal: stopReason === 'agent_process.signal' ? (signal ?? undefined) : undefined,
-      exitCode: code ?? undefined,
-      signal: signal ?? undefined,
-      agentHarness: payload.agentHarness,
-    })
-    .catch((err: Error) => {
-      console.log(`   ⚠️  Failed to record agent exit event: ${err.message}`);
-    });
-
-  // Clear PID from local state
-  ctx.deps.machine.clearAgentPid(ctx.machineId, chatroomId, role);
-
-  // Stop tracking in all remote agent services (pid tracking is per-service)
-  for (const service of ctx.agentServices.values()) {
-    service.untrack(pid);
-  }
+  ctx.deps.agentProcessManager.handleExit({
+    chatroomId: payload.chatroomId,
+    role: payload.role,
+    pid: payload.pid,
+    code: payload.code,
+    signal: payload.signal,
+  });
 }

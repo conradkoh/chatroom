@@ -91,7 +91,8 @@ export function getTaskStartedPromptForHandoffRecipient(ctx: {
 }): string {
   const cliEnvPrefix = ctx.cliEnvPrefix;
 
-  // Non-entry roles use --no-classify since classification was already done
+  // Non-entry roles acknowledge by running task read (which transitions to in_progress)
+  // Then use task-started --no-classify for backward compatibility
   const taskStartedCmd = `${cliEnvPrefix}chatroom task-started --chatroom-id="${ctx.chatroomId}" --role="${ctx.role}" --task-id=<task-id> --no-classify`;
 
   return `### Start Working

@@ -1,20 +1,17 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type {
-  AgentRoleView,
-  WorkspaceView,
-} from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
+import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useMemo, useCallback } from 'react';
-import type { MachineInfo, AgentConfig } from '../types/machine';
-import type { AgentPreference } from '../components/AgentConfigTabs';
 
-export type { AgentRoleView, WorkspaceView };
+import type { AgentPreference } from '../components/AgentConfigTabs';
+import type { MachineInfo, AgentConfig } from '../types/machine';
+
+export type { AgentRoleView };
 
 export interface AgentPanelData {
   agents: AgentRoleView[];
   teamRoles: string[];
-  workspaces: WorkspaceView[];
   connectedMachines: MachineInfo[];
   machineConfigs: AgentConfig[];
   agentPreferenceMap: Map<string, AgentPreference>;
@@ -37,19 +34,11 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
   const sendCommand = useSessionMutation(api.machines.sendCommand);
   const saveAgentPreference = useSessionMutation(api.machines.saveAgentPreference);
 
-  const agents = useMemo<AgentRoleView[]>(
-    () => statusResult?.agents ?? [],
-    [statusResult?.agents]
-  );
+  const agents = useMemo<AgentRoleView[]>(() => statusResult?.agents ?? [], [statusResult?.agents]);
 
   const teamRoles = useMemo<string[]>(
     () => statusResult?.teamRoles ?? [],
     [statusResult?.teamRoles]
-  );
-
-  const workspaces = useMemo<WorkspaceView[]>(
-    () => statusResult?.workspaces ?? [],
-    [statusResult?.workspaces]
   );
 
   const connectedMachines = useMemo<MachineInfo[]>(
@@ -67,9 +56,7 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
   }, []);
 
   const isLoading =
-    statusResult === undefined ||
-    machineResult === undefined ||
-    machineConfigResult === undefined;
+    statusResult === undefined || machineResult === undefined || machineConfigResult === undefined;
 
   const savePreference = useCallback(
     (pref: AgentPreference) => {
@@ -90,7 +77,6 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
   return {
     agents,
     teamRoles,
-    workspaces,
     connectedMachines,
     machineConfigs,
     agentPreferenceMap,

@@ -268,6 +268,8 @@ export default defineSchema({
     nextQueuePosition: v.optional(v.number()),
     // Current active context for this chatroom (explicit context management)
     currentContextId: v.optional(v.id('chatroom_contexts')),
+    // @deprecated — legacy field kept for backward compatibility with existing documents
+    messageCount: v.optional(v.number()),
   })
     .index('by_status', ['status'])
     .index('by_ownerId', ['ownerId'])
@@ -380,6 +382,10 @@ export default defineSchema({
     // Agents can attach multiple artifacts to handoffs for reference
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
 
+    // Attached chatroom messages for context
+    // User can attach existing messages as context for a new message
+    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
+
     // Message lifecycle tracking
     // acknowledgedAt: When an agent received and started working on this message
     acknowledgedAt: v.optional(v.number()),
@@ -388,6 +394,8 @@ export default defineSchema({
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_taskId', ['taskId'])
+    // Note: _creationTime is automatically appended to all indexes by Convex,
+    // so 'by_chatroom' on ['chatroomId'] enables efficient time-range queries.
     // Index for efficient origin message lookup (non-follow-up user messages)
     // Fields ordered: chatroomId (always filtered) → senderRole ('user') → type ('message') → _creationTime (ordering)
     .index('by_chatroom_senderRole_type_createdAt', ['chatroomId', 'senderRole', 'type']),
@@ -415,6 +423,8 @@ export default defineSchema({
     attachedBacklogItemIds: v.optional(v.array(v.id('chatroom_backlog'))),
     // Attached artifacts
     attachedArtifactIds: v.optional(v.array(v.id('chatroom_artifacts'))),
+    // Attached chatroom messages for context
+    attachedMessageIds: v.optional(v.array(v.id('chatroom_messages'))),
     // Queue ordering (lower = earlier in queue, older message)
     queuePosition: v.number(),
   })
@@ -488,6 +498,7 @@ export default defineSchema({
   })
     .index('by_chatroom', ['chatroomId'])
     .index('by_chatroom_status', ['chatroomId', 'status'])
+    .index('by_chatroom_status_assignedTo', ['chatroomId', 'status', 'assignedTo'])
     .index('by_chatroom_queue', ['chatroomId', 'queuePosition']),
 
   /**
@@ -527,6 +538,9 @@ export default defineSchema({
     value: v.optional(v.union(v.literal('low'), v.literal('medium'), v.literal('high'))),
     // Priority: numeric priority for flexible ordering (higher = more important)
     priority: v.optional(v.number()),
+
+    // Close reason — mandatory when closing via CLI, for audit trail
+    closeReason: v.optional(v.string()),
 
     // Legacy reference — set during migration from chatroom_tasks
     // Used to remap attachedTaskIds/parentTaskIds in messages and tasks
@@ -999,6 +1013,25 @@ export default defineSchema({
         role: v.string(),
         prompt: v.string(),
         timestamp: v.number(),
+      }),
+      // Daemon failed to start an agent process
+      v.object({
+        type: v.literal('agent.startFailed'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        error: v.string(),
+        timestamp: v.number(),
+      }),
+      // Daemon hit crash loop limit and stopped restarting
+      v.object({
+        type: v.literal('agent.restartLimitReached'),
+        chatroomId: v.id('chatroom_rooms'),
+        role: v.string(),
+        machineId: v.string(),
+        restartCount: v.number(),
+        windowMs: v.number(),
+        timestamp: v.number(),
       })
     )
   )
@@ -1052,42 +1085,56 @@ export default defineSchema({
     workingDir: v.string(),
 
     // Discriminated union status
-    status: v.union(
-      v.literal('available'),
-      v.literal('not_found'),
-      v.literal('error')
-    ),
+    status: v.union(v.literal('available'), v.literal('not_found'), v.literal('error')),
 
     // Branch info (only when status === 'available')
     branch: v.optional(v.string()),
     isDirty: v.optional(v.boolean()),
 
     // Diff summary: git diff HEAD --stat (only when status === 'available')
-    diffStat: v.optional(v.object({
-      filesChanged: v.number(),
-      insertions: v.number(),
-      deletions: v.number(),
-    })),
+    diffStat: v.optional(
+      v.object({
+        filesChanged: v.number(),
+        insertions: v.number(),
+        deletions: v.number(),
+      })
+    ),
 
     // Recent commits (only when status === 'available')
-    recentCommits: v.optional(v.array(v.object({
-      sha: v.string(),
-      shortSha: v.string(),
-      message: v.string(),
-      author: v.string(),
-      date: v.string(),
-    }))),
+    recentCommits: v.optional(
+      v.array(
+        v.object({
+          sha: v.string(),
+          shortSha: v.string(),
+          message: v.string(),
+          author: v.string(),
+          date: v.string(),
+        })
+      )
+    ),
 
     // Pagination
     hasMoreCommits: v.optional(v.boolean()),
+
+    // Open pull requests for the current branch (only when status === 'available')
+    openPullRequests: v.optional(
+      v.array(
+        v.object({
+          number: v.number(),
+          title: v.string(),
+          url: v.string(),
+          headRefName: v.string(),
+          state: v.string(),
+        })
+      )
+    ),
 
     // Error message (only when status === 'error')
     errorMessage: v.optional(v.string()),
 
     // Timestamp
     updatedAt: v.number(),
-  })
-    .index('by_machine_workingDir', ['machineId', 'workingDir']),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
    * On-demand full diff content for a workspace.
@@ -1110,8 +1157,7 @@ export default defineSchema({
     }),
 
     updatedAt: v.number(),
-  })
-    .index('by_machine_workingDir', ['machineId', 'workingDir']),
+  }).index('by_machine_workingDir', ['machineId', 'workingDir']),
 
   /**
    * Request queue for on-demand workspace operations.
@@ -1158,17 +1204,19 @@ export default defineSchema({
       v.literal('available'),
       v.literal('too_large'),
       v.literal('error'),
-      v.literal('not_found'),
+      v.literal('not_found')
     ),
 
     // Only when status === 'available'
     diffContent: v.optional(v.string()),
     truncated: v.optional(v.boolean()),
-    diffStat: v.optional(v.object({
-      filesChanged: v.number(),
-      insertions: v.number(),
-      deletions: v.number(),
-    })),
+    diffStat: v.optional(
+      v.object({
+        filesChanged: v.number(),
+        insertions: v.number(),
+        deletions: v.number(),
+      })
+    ),
 
     // Commit metadata (available when status === 'available' or 'too_large')
     message: v.optional(v.string()),
@@ -1179,6 +1227,22 @@ export default defineSchema({
     errorMessage: v.optional(v.string()),
 
     updatedAt: v.number(),
+  }).index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha']),
+
+  // ─── Workspace Registry ──────────────────────────────────────────────────────
+  // Persistent record of workspaces (machine + working directory pairs) where
+  // agents operate. Unlike chatroom_teamAgentConfigs (transient), these persist
+  // independently of agent lifecycle.
+  chatroom_workspaces: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.string(),
+    workingDir: v.string(),
+    hostname: v.string(),
+    registeredAt: v.number(),
+    registeredBy: v.string(), // role that first registered this workspace
+    removedAt: v.optional(v.number()), // soft delete timestamp
   })
-    .index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha']),
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_machine', ['machineId'])
+    .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
 });

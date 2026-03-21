@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Star } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-
-import { cn } from '@/lib/utils';
+import { Star } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 import {
   Command,
@@ -16,6 +14,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { Dialog, DialogPortal } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import {
   useChatroomListing,
   type ChatroomWithStatus,
@@ -100,35 +99,42 @@ export function ChatroomSwitcher() {
             Search and navigate to a chatroom
           </DialogPrimitive.Description>
 
-          <Command>
-            <CommandInput placeholder="Search chatrooms..." />
-            <CommandList className="h-[300px]">
-              <CommandEmpty className="text-muted-foreground text-xs font-bold uppercase tracking-wider">
+          <Command className="bg-chatroom-bg-primary text-chatroom-text-primary">
+            <CommandInput
+              placeholder="Search chatrooms..."
+              className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
+            />
+            <CommandList className="min-h-[300px] h-[300px]">
+              <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
                 No chatrooms found.
               </CommandEmpty>
               {chatrooms && chatrooms.length > 0 && (
                 <CommandGroup
                   heading="Chatrooms"
-                  className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-[10px]"
+                  className="[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:font-bold [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:text-chatroom-text-muted"
                 >
                   {chatrooms.map((chatroom) => (
                     <CommandItem
                       key={chatroom._id}
                       value={getChatroomDisplayName(chatroom)}
                       onSelect={() => handleSelect(chatroom._id)}
-                      className="flex flex-row items-center gap-2 rounded-none hover:bg-accent/50 data-[selected=true]:bg-accent/50"
+                      className="flex flex-row items-center gap-2 rounded-none text-chatroom-text-primary hover:bg-chatroom-bg-hover data-[selected=true]:bg-chatroom-bg-hover data-[selected=true]:text-chatroom-text-primary"
                     >
                       {/* Status indicator dot */}
                       <span className={getStatusIndicatorClasses(chatroom.chatStatus)} />
 
                       {/* Chatroom name */}
-                      <span className="text-xs font-bold uppercase tracking-wide text-foreground flex-1 truncate">
+                      <span className="text-xs font-bold uppercase tracking-wide text-chatroom-text-primary flex-1 truncate">
                         {getChatroomDisplayName(chatroom)}
                       </span>
 
                       {/* Favourite star */}
                       {chatroom.isFavorite && (
-                        <Star size={10} className="text-yellow-500 flex-shrink-0" fill="currentColor" />
+                        <Star
+                          size={10}
+                          className="text-yellow-500 flex-shrink-0"
+                          fill="currentColor"
+                        />
                       )}
 
                       {/* Unread dot */}

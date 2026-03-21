@@ -85,6 +85,9 @@ describe('Pair Team > Reviewer > Get Next Task', () => {
       <tech-specs>
       EOF
       3. Hand off when complete:
+
+      ⚠️ Before delivering to user: Verify the codebase is in a good state.
+         Run: pnpm typecheck && pnpm test
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---
@@ -148,6 +151,9 @@ describe('Pair Team > Reviewer > Get Next Task', () => {
 
       1. Read task → \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task read --chatroom-id="test-chatroom-id" --role="reviewer" --task-id="test-task-id"\`
       2. Hand off when complete:
+
+      ⚠️ Before delivering to user: Verify the codebase is in a good state.
+         Run: pnpm typecheck && pnpm test
       \`\`\`
       CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="reviewer" --next-role=<target> << 'EOF'
       ---MESSAGE---

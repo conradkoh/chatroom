@@ -5,10 +5,10 @@
  * exhaustive handling — no optional fields for conditional state.
  */
 
-import type { DiffStat, GitCommit } from '@workspace/backend/src/domain/types/workspace-git';
+import type { DiffStat, GitCommit, GitPullRequest } from '@workspace/backend/src/domain/types/workspace-git';
 
 // Re-export backend domain types so existing consumers don't break.
-export type { DiffStat, GitCommit };
+export type { DiffStat, GitCommit, GitPullRequest };
 
 // ─── Primitive Types ─────────────────────────────────────────────────────────
 

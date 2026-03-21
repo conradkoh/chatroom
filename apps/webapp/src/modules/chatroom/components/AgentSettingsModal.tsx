@@ -50,12 +50,6 @@ type SettingsTab = 'setup' | 'team' | 'machine';
 const TEAMS_CONFIG: TeamsConfig = {
   defaultTeam: 'duo',
   teams: {
-    pair: {
-      name: 'Pair',
-      description: 'A builder and reviewer working together',
-      roles: ['builder', 'reviewer'],
-      entryPoint: 'builder',
-    },
     duo: {
       name: 'Duo',
       description: 'A planner and builder working as a pair, planner as coordinator',

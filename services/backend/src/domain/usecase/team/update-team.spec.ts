@@ -9,6 +9,7 @@
 
 import { describe, expect, test } from 'vitest';
 
+import { updateTeam } from './update-team';
 import { api } from '../../../../convex/_generated/api';
 import { t } from '../../../../test.setup';
 import {
@@ -16,7 +17,6 @@ import {
   registerMachineWithDaemon,
   setupRemoteAgentConfig,
 } from '../../../../tests/helpers/integration';
-import { updateTeam } from './update-team';
 
 function createSquadChatroom(sessionId: string) {
   return t.mutation(api.chatrooms.create, {
@@ -99,5 +99,4 @@ describe('updateTeam use case', () => {
     // Both planner and builder had desiredState=running
     expect(result.stoppedAgentCount).toBeGreaterThanOrEqual(2);
   });
-
 });

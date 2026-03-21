@@ -18,11 +18,11 @@ Add a new field for atomic queue position tracking:
 ```typescript
 chatroom_rooms: defineTable({
   // ... existing fields ...
-  
+
   // NEW: Atomic counter for task queue positions
   // Incremented atomically when creating tasks to prevent race conditions
   nextQueuePosition: v.optional(v.number()),
-})
+});
 ```
 
 ## Modified Components
@@ -32,21 +32,23 @@ chatroom_rooms: defineTable({
 **Change:** Modify `requireChatroomAccess` to return the chatroom object.
 
 **Before:**
+
 ```typescript
 export async function requireChatroomAccess(
   ctx: QueryCtx | MutationCtx,
   sessionId: string,
   chatroomId: Id<'chatroom_rooms'>
-): Promise<void>
+): Promise<void>;
 ```
 
 **After:**
+
 ```typescript
 export async function requireChatroomAccess(
   ctx: QueryCtx | MutationCtx,
   sessionId: string,
   chatroomId: Id<'chatroom_rooms'>
-): Promise<Doc<'chatroom_rooms'>>
+): Promise<Doc<'chatroom_rooms'>>;
 ```
 
 ### 2. `messages.ts`
@@ -54,6 +56,7 @@ export async function requireChatroomAccess(
 **Change:** Use returned chatroom from auth helper; use atomic counter for queue position.
 
 **Before:**
+
 ```typescript
 await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 const chatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);  // Duplicate!
@@ -62,6 +65,7 @@ const queuePosition = allTasks.reduce(...) + 1;  // Race condition!
 ```
 
 **After:**
+
 ```typescript
 const chatroom = await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 const queuePosition = (chatroom.nextQueuePosition || 0) + 1;
@@ -90,7 +94,7 @@ interface AuthenticatedChatroom {
   teamEntryPoint?: string;
   lastActivityAt?: number;
   completedAt?: number;
-  nextQueuePosition?: number;  // NEW
+  nextQueuePosition?: number; // NEW
 }
 ```
 

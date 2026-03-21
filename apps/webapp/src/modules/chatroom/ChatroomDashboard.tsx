@@ -61,12 +61,6 @@ interface TeamDefinition {
 const TEAMS_CONFIG: { defaultTeam: string; teams: Record<string, TeamDefinition> } = {
   defaultTeam: 'duo',
   teams: {
-    pair: {
-      name: 'Pair',
-      description: 'A builder and reviewer working together',
-      roles: ['builder', 'reviewer'],
-      entryPoint: 'builder',
-    },
     duo: {
       name: 'Duo',
       description: 'A planner and builder working as a pair',
@@ -351,7 +345,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
   const { aggregateStatus } = useAgentStatuses(chatroomId, teamRoles);
 
   // Workspace bar data
-  const { workspaces: chatroomWorkspaces } = useChatroomWorkspaces(chatroomId);
+  const { workspaces: chatroomWorkspaces, removeWorkspace } = useChatroomWorkspaces(chatroomId);
 
   // Memoize the team entry point
   const teamEntryPoint = useMemo(
@@ -683,7 +677,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                   onConfigure={handleOpenSettings}
                 />
                 <WorkQueue chatroomId={chatroomId} lifecycle={lifecycle} />
-                <WorkspaceSidebarSection workspaces={chatroomWorkspaces} chatroomId={chatroomId} />
+                <WorkspaceSidebarSection workspaces={chatroomWorkspaces} chatroomId={chatroomId} onRemoveWorkspace={removeWorkspace} />
               </div>
             </div>
           </div>

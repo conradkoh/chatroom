@@ -6,7 +6,10 @@ import type { SkillActivatedEvent } from '../viewModels/eventStreamViewModel';
 
 // ─── Skill Activated ───────────────────────────────────────────────────────────
 
-function renderSkillActivatedCell(event: SkillActivatedEvent, isSelected: boolean): React.ReactNode {
+function renderSkillActivatedCell(
+  event: SkillActivatedEvent,
+  isSelected: boolean
+): React.ReactNode {
   return (
     <EventRow
       type="skill.activated"
