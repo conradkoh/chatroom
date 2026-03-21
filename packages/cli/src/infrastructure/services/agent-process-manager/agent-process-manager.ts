@@ -64,6 +64,11 @@ export interface HandleExitOpts {
 
 export interface AgentProcessManagerDeps {
   agentServices: Map<string, RemoteAgentService>;
+  /**
+   * Backend client for Convex queries/mutations.
+   * Uses `any` because the Convex client type is complex and varies by context.
+   * All call sites use typed `api.*` references which provide compile-time safety.
+   */
   backend: {
     query: (fn: any, args: any) => Promise<any>;
     mutation: (fn: any, args: any) => Promise<any>;
