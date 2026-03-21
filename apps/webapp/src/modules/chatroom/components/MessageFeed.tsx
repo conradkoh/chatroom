@@ -61,6 +61,7 @@ import {
   getEventBadgeTextColor,
 } from '../viewModels/eventStreamViewModel';
 import { useAttachments } from '../context/AttachmentsContext';
+import { useHandoffNotification } from '../hooks/useHandoffNotification';
 
 import {
   FixedModal,
@@ -1631,6 +1632,9 @@ export const MessageFeed = memo(function MessageFeed({
     const regularMessages = [...(results || [])].reverse();
     return regularMessages; // Queued messages are shown separately (pinned at bottom)
   }, [results]);
+
+  // Fire browser notifications when an agent hands off to the user
+  useHandoffNotification(displayMessages);
 
   // Effective loadable status — respects the message cap to prevent unbounded memory growth
   const hasReachedCap = displayMessages.length >= MAX_LOADED_MESSAGES;
