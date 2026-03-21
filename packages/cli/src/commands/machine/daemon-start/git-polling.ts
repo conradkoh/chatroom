@@ -16,6 +16,7 @@
  */
 
 import type { ConvexClient } from 'convex/browser';
+import type { FunctionReturnType } from 'convex/server';
 
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
@@ -64,7 +65,7 @@ export function startGitRequestSubscription(
       if (processing) return; // Skip if still processing previous batch
 
       processing = true;
-      processRequests(ctx, requests as PendingRequest[], processedRequestIds, DEDUP_TTL_MS)
+      processRequests(ctx, requests, processedRequestIds, DEDUP_TTL_MS)
         .catch((err: Error) => {
           console.warn(
             `[${formatTimestamp()}] ⚠️  Git request processing failed: ${err.message}`
@@ -117,17 +118,8 @@ export function extractDiffStatFromShowOutput(content: string): {
 
 // ─── Request Processors ───────────────────────────────────────────────────────
 
-type PendingRequest = {
-  _id: string;
-  machineId: string;
-  workingDir: string;
-  requestType: 'full_diff' | 'commit_detail' | 'more_commits';
-  sha?: string;
-  offset?: number;
-  status: string;
-  requestedAt: number;
-  updatedAt: number;
-};
+/** Inferred type for a single pending request from the backend query. */
+export type PendingRequest = FunctionReturnType<typeof api.workspaces.getPendingRequests>[number];
 
 /**
  * Process a `full_diff` request:
@@ -268,7 +260,7 @@ async function processMoreCommits(ctx: DaemonContext, req: PendingRequest): Prom
  * Handles deduplication and transitions each request through
  * `pending` → `processing` → `done` | `error`.
  */
-async function processRequests(
+export async function processRequests(
   ctx: DaemonContext,
   requests: PendingRequest[],
   processedRequestIds: Map<string, number>,
