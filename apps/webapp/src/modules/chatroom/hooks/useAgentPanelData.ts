@@ -1,21 +1,17 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type {
-  AgentRoleView,
-  WorkspaceView,
-} from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
+import type { AgentRoleView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
 import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
 import { useMemo, useCallback } from 'react';
 
 import type { AgentPreference } from '../components/AgentConfigTabs';
 import type { MachineInfo, AgentConfig } from '../types/machine';
 
-export type { AgentRoleView, WorkspaceView };
+export type { AgentRoleView };
 
 export interface AgentPanelData {
   agents: AgentRoleView[];
   teamRoles: string[];
-  workspaces: WorkspaceView[];
   connectedMachines: MachineInfo[];
   machineConfigs: AgentConfig[];
   agentPreferenceMap: Map<string, AgentPreference>;
@@ -43,11 +39,6 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
   const teamRoles = useMemo<string[]>(
     () => statusResult?.teamRoles ?? [],
     [statusResult?.teamRoles]
-  );
-
-  const workspaces = useMemo<WorkspaceView[]>(
-    () => statusResult?.workspaces ?? [],
-    [statusResult?.workspaces]
   );
 
   const connectedMachines = useMemo<MachineInfo[]>(
@@ -86,7 +77,6 @@ export function useAgentPanelData(chatroomId: string): AgentPanelData {
   return {
     agents,
     teamRoles,
-    workspaces,
     connectedMachines,
     machineConfigs,
     agentPreferenceMap,

@@ -7,14 +7,24 @@ import { useMemo, useCallback } from 'react';
 
 import type { Workspace } from '../../types/workspace';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface UseChatroomWorkspacesOptions {
+  /** Optional: agent views to enrich workspaces with agentRoles (matched by workingDir) */
+  agentViews?: Array<{ role: string; workingDir?: string }>;
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
 /**
  * Hook that returns registered workspaces for a chatroom from the workspace registry.
- * Also provides a removeWorkspace callback for the trash icon.
- *
- * This replaces the previous implementation that derived workspaces from
- * `getAgentStatus`. The workspace registry is the persistent source of truth.
+ * Optionally enriches workspaces with `agentRoles` when `agentViews` is provided.
+ * Also provides a `removeWorkspace` callback for the trash icon.
  */
-export function useChatroomWorkspaces(chatroomId: string) {
+export function useChatroomWorkspaces(
+  chatroomId: string,
+  options?: UseChatroomWorkspacesOptions
+) {
   const registryResult = useSessionQuery(api.workspaces.listWorkspacesForChatroom, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
@@ -25,15 +35,21 @@ export function useChatroomWorkspaces(chatroomId: string) {
     if (!registryResult) return [];
     return registryResult
       .filter((ws) => ws.workingDir && ws.machineId)
-      .map((ws) => ({
-        id: `${ws.machineId}::${ws.workingDir}`,
-        machineId: ws.machineId,
-        hostname: ws.hostname,
-        workingDir: ws.workingDir,
-        agentRoles: [], // Registry doesn't track roles — agents derive from agent configs separately
-        _registryId: ws._id,
-      }));
-  }, [registryResult]);
+      .map((ws) => {
+        // If agentViews provided, derive agentRoles from agents with matching workingDir
+        const agentRoles = options?.agentViews
+          ? options.agentViews.filter((a) => a.workingDir === ws.workingDir).map((a) => a.role)
+          : [];
+        return {
+          id: `${ws.machineId}::${ws.workingDir}`,
+          machineId: ws.machineId,
+          hostname: ws.hostname,
+          workingDir: ws.workingDir,
+          agentRoles,
+          _registryId: ws._id,
+        };
+      });
+  }, [registryResult, options?.agentViews]);
 
   const removeWorkspace = useCallback(
     async (workspaceRegistryId: string) => {

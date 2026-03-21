@@ -41,7 +41,6 @@ describe('machines.getAgentStatus', () => {
       expect(agent).toHaveProperty('state');
       expect(agent).toHaveProperty('type');
     }
-    expect(result!.workspaces).toBeDefined();
   });
 
   test('returns null for invalid session', async () => {
