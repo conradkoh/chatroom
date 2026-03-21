@@ -152,51 +152,47 @@ export const InlineAgentCard = memo(function InlineAgentCard({
           initialTab={agentRoleView?.type === 'custom' ? 'custom' : 'remote'}
         />
 
-        {/* Restart stats row — always shown when data is loaded */}
-        {restartSummary && (
-          <>
-            <div className="mt-2 pt-2 border-t border-chatroom-border flex items-center gap-2">
-              <span className="text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted flex-shrink-0">
-                Restarts
-              </span>
-              <span className="text-[10px] text-chatroom-text-secondary">
-                <span className="font-bold text-chatroom-text-primary">
-                  {restartSummary.count1h}
-                </span>
-                <span className="text-chatroom-text-muted"> in 1h</span>
-                <span className="mx-1.5 text-chatroom-border-strong">·</span>
-                <span className="font-bold text-chatroom-text-primary">
-                  {restartSummary.count24h}
-                </span>
-                <span className="text-chatroom-text-muted"> in 24h</span>
-              </span>
-              {statsMachineId && (
-                <button
-                  type="button"
-                  onClick={() => setStatsOpen(true)}
-                  className="ml-auto text-[9px] font-bold uppercase tracking-widest text-chatroom-accent hover:text-chatroom-text-primary transition-colors flex-shrink-0"
-                >
-                  View Stats →
-                </button>
-              )}
-            </div>
+        {/* Restart stats row — always shown */}
+        <div className="mt-2 pt-2 border-t border-chatroom-border flex items-center gap-2">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted flex-shrink-0">
+            Restarts
+          </span>
+          <span className="text-[10px] text-chatroom-text-secondary">
+            <span className="font-bold text-chatroom-text-primary">
+              {restartSummary?.count1h ?? 0}
+            </span>
+            <span className="text-chatroom-text-muted"> in 1h</span>
+            <span className="mx-1.5 text-chatroom-border-strong">·</span>
+            <span className="font-bold text-chatroom-text-primary">
+              {restartSummary?.count24h ?? 0}
+            </span>
+            <span className="text-chatroom-text-muted"> in 24h</span>
+          </span>
+          {statsMachineId && (
+            <button
+              type="button"
+              onClick={() => setStatsOpen(true)}
+              className="ml-auto text-[9px] font-bold uppercase tracking-widest text-chatroom-accent hover:text-chatroom-text-primary transition-colors flex-shrink-0"
+            >
+              View Stats →
+            </button>
+          )}
+        </div>
 
-            {statsMachineId && (
-              <AgentRestartStatsModal
-                isOpen={statsOpen}
-                onClose={() => setStatsOpen(false)}
-                roles={allRoles}
-                defaultRole={role}
-                machineId={statsMachineId}
-                chatroomId={chatroomId}
-                defaultModel={
-                  agentRoleView?.agentHarness && agentRoleView?.model
-                    ? `${agentRoleView.agentHarness}/${agentRoleView.model}`
-                    : undefined
-                }
-              />
-            )}
-          </>
+        {statsMachineId && (
+          <AgentRestartStatsModal
+            isOpen={statsOpen}
+            onClose={() => setStatsOpen(false)}
+            roles={allRoles}
+            defaultRole={role}
+            machineId={statsMachineId}
+            chatroomId={chatroomId}
+            defaultModel={
+              agentRoleView?.agentHarness && agentRoleView?.model
+                ? `${agentRoleView.agentHarness}/${agentRoleView.model}`
+                : undefined
+            }
+          />
         )}
       </div>
     </div>
