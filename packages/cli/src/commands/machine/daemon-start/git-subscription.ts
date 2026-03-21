@@ -3,7 +3,7 @@
  *
  * Subscribes to `api.workspaces.getPendingRequests` via Convex WebSocket,
  * processing requests instantly when they appear (replacing the previous
- * 5-second polling loop).
+ * 5-second setInterval polling loop).
  *
  * Processes pending requests from the backend:
  *   - `full_diff` → run `getFullDiff()`, push via `upsertFullDiff()`

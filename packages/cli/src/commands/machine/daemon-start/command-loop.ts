@@ -12,7 +12,7 @@ import { onRequestStartAgent } from '../../../events/daemon/agent/on-request-sta
 import { onRequestStopAgent } from '../../../events/daemon/agent/on-request-stop-agent.js';
 import { releaseLock } from '../pid.js';
 import { pushGitState } from './git-heartbeat.js';
-import { startGitRequestSubscription } from './git-polling.js';
+import { startGitRequestSubscription } from './git-subscription.js';
 import { handlePing } from './handlers/ping.js';
 import { discoverModels } from './init.js';
 import type { DaemonContext } from './types.js';

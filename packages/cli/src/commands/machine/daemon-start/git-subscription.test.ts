@@ -1,6 +1,6 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
-import { processRequests } from './git-polling.js';
+import { processRequests } from './git-subscription.js';
 import type { DaemonContext } from './types.js';
 
 // ─── Test Helpers ────────────────────────────────────────────────────────────
