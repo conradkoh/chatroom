@@ -20,7 +20,6 @@ import type { GitCommit } from '../../../infrastructure/git/types.js';
  *
  * Queries the backend for registered workspaces on this machine, then runs
  * git commands for each unique working directory and pushes state changes.
- * Falls back to `ctx.activeWorkingDirs` if the backend query fails.
  *
  * Safe to call concurrently with the heartbeat — errors per-workspace are
  * caught and logged without aborting the loop.
@@ -37,8 +36,7 @@ export async function pushGitState(ctx: DaemonContext): Promise<void> {
     console.warn(
       `[${formatTimestamp()}] ⚠️ Failed to query workspaces for git sync: ${(err as Error).message}`
     );
-    // Fallback to activeWorkingDirs for resilience
-    workspaces = Array.from(ctx.activeWorkingDirs).map((wd) => ({ workingDir: wd }));
+    return; // Skip this cycle — will retry on next heartbeat
   }
 
   // Deduplicate working directories (multiple chatrooms may share a workingDir)

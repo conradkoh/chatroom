@@ -1,7 +1,8 @@
 /**
  * state-recovery handler Unit Tests
  *
- * Tests recoverAgentState — delegates to AgentProcessManager.recover().
+ * Tests recoverAgentState — delegates to AgentProcessManager.recover()
+ * and registers workspaces via backend mutations.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,7 +20,7 @@ import { createMockDaemonDeps } from '../testing/index.js';
 
 function createMockContext(overrides?: {
   activeSlots?: Array<{ chatroomId: string; role: string; slot: any }>;
-  configs?: Array<{ machineId: string; workingDir?: string }>;
+  configs?: Array<{ machineId: string; workingDir?: string; role?: string }>;
 }): DaemonContext {
   const deps: DaemonDeps = createMockDaemonDeps();
 
@@ -48,7 +49,6 @@ function createMockContext(overrides?: {
         }),
       ],
     ]),
-    activeWorkingDirs: new Set(),
     lastPushedGitState: new Map(),
   };
 }
@@ -59,6 +59,7 @@ function createMockContext(overrides?: {
 
 beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -78,20 +79,29 @@ describe('recoverAgentState', () => {
     expect(ctx.deps.agentProcessManager.recover).toHaveBeenCalledOnce();
   });
 
-  it('recovers working directories for active agents from backend configs', async () => {
+  it('registers workspaces for active agents via backend mutation', async () => {
     const ctx = createMockContext({
       activeSlots: [
         { chatroomId: 'room-1', role: 'builder', slot: { state: 'running', pid: 100 } },
       ],
-      configs: [{ machineId: 'test-machine-id', workingDir: '/tmp/workspace' }],
+      configs: [{ machineId: 'test-machine-id', workingDir: '/tmp/workspace', role: 'builder' }],
     });
 
     await recoverAgentState(ctx);
 
-    expect(ctx.activeWorkingDirs.has('/tmp/workspace')).toBe(true);
+    expect(ctx.deps.backend.mutation).toHaveBeenCalledWith(
+      expect.anything(), // api.workspaces.registerWorkspace
+      expect.objectContaining({
+        sessionId: 'test-session-id',
+        chatroomId: 'room-1',
+        machineId: 'test-machine-id',
+        workingDir: '/tmp/workspace',
+        registeredBy: 'builder',
+      })
+    );
   });
 
-  it('skips working dirs from other machines', async () => {
+  it('skips working dirs from other machines (no registerWorkspace called)', async () => {
     const ctx = createMockContext({
       activeSlots: [
         { chatroomId: 'room-1', role: 'builder', slot: { state: 'running', pid: 100 } },
@@ -101,7 +111,8 @@ describe('recoverAgentState', () => {
 
     await recoverAgentState(ctx);
 
-    expect(ctx.activeWorkingDirs.size).toBe(0);
+    // mutation should not have been called for workspace registration
+    expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
   });
 
   it('handles no active agents after recovery', async () => {
@@ -110,6 +121,7 @@ describe('recoverAgentState', () => {
     await recoverAgentState(ctx);
 
     expect(ctx.deps.agentProcessManager.recover).toHaveBeenCalledOnce();
-    expect(ctx.activeWorkingDirs.size).toBe(0);
+    // No mutations should be called when there are no active agents
+    expect(ctx.deps.backend.mutation).not.toHaveBeenCalled();
   });
 });
