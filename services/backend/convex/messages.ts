@@ -4,7 +4,7 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { generateRolePrompt, generateTaskStartedReminder, composeInitPrompt } from '../prompts';
 import type { Doc, Id } from './_generated/dataModel';
-import type { MutationCtx } from './_generated/server';
+import type { MutationCtx, QueryCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { getAndIncrementQueuePosition, requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
@@ -31,6 +31,89 @@ interface TaskDeliveryPromptResponse {
   fullCliOutput: string; // Complete CLI output for task delivery (backend-generated)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   json: any; // Dynamic JSON structure from prompt generator
+}
+
+// =============================================================================
+// SHARED HELPERS
+// =============================================================================
+
+/**
+ * Resolves attachment IDs on a message into full attachment details.
+ * Shared by listPaginated and listQueued to avoid duplication.
+ */
+async function enrichMessageAttachments(
+  ctx: QueryCtx,
+  msg: {
+    attachedTaskIds?: Id<'chatroom_tasks'>[];
+    attachedBacklogItemIds?: Id<'chatroom_backlog'>[];
+    attachedMessageIds?: Id<'chatroom_messages'>[];
+    attachedArtifactIds?: Id<'chatroom_artifacts'>[];
+  }
+) {
+  // Resolve attached tasks
+  let attachedTasks: { _id: string; content: string; status: string }[] | undefined;
+  if (msg.attachedTaskIds && msg.attachedTaskIds.length > 0) {
+    const tasks = await Promise.all(
+      msg.attachedTaskIds.map((taskId) => ctx.db.get(taskId))
+    );
+    attachedTasks = tasks
+      .filter((t): t is NonNullable<typeof t> => t !== null)
+      .map((t) => ({ _id: t._id, content: t.content, status: t.status }));
+  }
+
+  // Resolve attached backlog items
+  let attachedBacklogItems: { id: string; content: string; status: string }[] | undefined;
+  if (msg.attachedBacklogItemIds && msg.attachedBacklogItemIds.length > 0) {
+    const items = await Promise.all(
+      msg.attachedBacklogItemIds.map((itemId) => ctx.db.get(itemId))
+    );
+    attachedBacklogItems = items
+      .filter((i): i is NonNullable<typeof i> => i !== null)
+      .map((i) => ({ id: i._id, content: i.content, status: i.status }));
+  }
+
+  // Resolve attached messages
+  let attachedMessages:
+    | { _id: string; content: string; senderRole: string; _creationTime: number }[]
+    | undefined;
+  if (msg.attachedMessageIds && msg.attachedMessageIds.length > 0) {
+    const msgs = await Promise.all(
+      msg.attachedMessageIds.map((msgId) => ctx.db.get(msgId))
+    );
+    attachedMessages = msgs
+      .filter((m): m is NonNullable<typeof m> => m !== null)
+      .map((m) => ({
+        _id: m._id,
+        content: m.content,
+        senderRole: m.senderRole,
+        _creationTime: m._creationTime,
+      }));
+  }
+
+  // Resolve attached artifacts
+  let attachedArtifacts:
+    | { _id: string; filename: string; description?: string; mimeType?: string }[]
+    | undefined;
+  if (msg.attachedArtifactIds && msg.attachedArtifactIds.length > 0) {
+    const artifacts = await Promise.all(
+      msg.attachedArtifactIds.map((artifactId) => ctx.db.get(artifactId))
+    );
+    attachedArtifacts = artifacts
+      .filter((a): a is NonNullable<typeof a> => a !== null)
+      .map((a) => ({
+        _id: a._id,
+        filename: a.filename,
+        description: a.description,
+        mimeType: a.mimeType,
+      }));
+  }
+
+  return {
+    ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
+    ...(attachedBacklogItems && attachedBacklogItems.length > 0 && { attachedBacklogItems }),
+    ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
+    ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
+  };
 }
 
 // =============================================================================
@@ -1209,7 +1292,15 @@ export const listQueued = query({
       queuePosition: qMsg.queuePosition,
     }));
 
-    return transformedMessages.slice(-limit);
+    // Enrich queued messages with attachment details (shared helper)
+    const enrichedMessages = await Promise.all(
+      transformedMessages.map(async (qMsg) => {
+        const attachments = await enrichMessageAttachments(ctx, qMsg);
+        return { ...qMsg, ...attachments };
+      })
+    );
+
+    return enrichedMessages.slice(-limit);
   },
 });
 
@@ -1245,57 +1336,8 @@ export const listPaginated = query({
           taskStatus = task?.status;
         }
 
-        // Fetch attached task details if message has attached tasks
-        let attachedTasks:
-          | {
-              _id: string;
-              content: string;
-              status: TaskStatus;
-            }[]
-          | undefined;
-        if (message.attachedTaskIds && message.attachedTaskIds.length > 0) {
-          const tasks = await Promise.all(
-            message.attachedTaskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId))
-          );
-          attachedTasks = tasks
-            .filter((t) => t !== null)
-            .map((t) => ({
-              _id: t!._id,
-              content: t!.content,
-              status: t!.status,
-            }));
-        }
-
-        // Fetch attached backlog item details if message has attached backlog items
-        let attachedBacklogItems: { id: string; content: string; status: string }[] | undefined;
-        if (message.attachedBacklogItemIds && message.attachedBacklogItemIds.length > 0) {
-          const items = await Promise.all(
-            message.attachedBacklogItemIds.map((itemId) => ctx.db.get('chatroom_backlog', itemId))
-          );
-          attachedBacklogItems = items
-            .filter((i): i is NonNullable<typeof i> => i !== null)
-            .map((i) => ({ id: i._id, content: i.content, status: i.status }));
-        }
-
-        // Fetch attached artifact details if message has attached artifacts
-        let attachedArtifacts:
-          | { _id: string; filename: string; description?: string; mimeType?: string }[]
-          | undefined;
-        if (message.attachedArtifactIds && message.attachedArtifactIds.length > 0) {
-          const artifacts = await Promise.all(
-            message.attachedArtifactIds.map((artifactId) =>
-              ctx.db.get('chatroom_artifacts', artifactId)
-            )
-          );
-          attachedArtifacts = artifacts
-            .filter((a) => a !== null)
-            .map((a) => ({
-              _id: a!._id,
-              filename: a!.filename,
-              description: a!.description,
-              mimeType: a!.mimeType,
-            }));
-        }
+        // Resolve attachments (shared helper)
+        const attachments = await enrichMessageAttachments(ctx, message);
 
         // Fetch latest progress message for tasks (for inline progress display)
         let latestProgress:
@@ -1318,31 +1360,10 @@ export const listPaginated = query({
           }
         }
 
-        // Fetch attached message details if message has attached messages
-        let attachedMessages:
-          | { _id: string; content: string; senderRole: string; _creationTime: number }[]
-          | undefined;
-        if (message.attachedMessageIds && message.attachedMessageIds.length > 0) {
-          const msgs = await Promise.all(
-            message.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
-          );
-          attachedMessages = msgs
-            .filter((m): m is NonNullable<typeof m> => m !== null)
-            .map((m) => ({
-              _id: m._id,
-              content: m.content,
-              senderRole: m.senderRole,
-              _creationTime: m._creationTime,
-            }));
-        }
-
         return {
           ...message,
           ...(taskStatus && { taskStatus }),
-          ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
-          ...(attachedBacklogItems && attachedBacklogItems.length > 0 && { attachedBacklogItems }),
-          ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
-          ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
+          ...attachments,
           ...(latestProgress && { latestProgress }),
         };
       })
