@@ -547,11 +547,19 @@ backlogCommand
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role')
   .requiredOption('--backlog-item-id <id>', 'Backlog item ID to close')
-  .action(async (options: { chatroomId: string; role: string; backlogItemId: string }) => {
-    await maybeRequireAuth();
-    const { closeBacklog } = await import('./commands/backlog/index.js');
-    await closeBacklog(options.chatroomId, options);
-  });
+  .requiredOption('--reason <text>', 'Reason for closing (required for audit trail)')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      backlogItemId: string;
+      reason: string;
+    }) => {
+      await maybeRequireAuth();
+      const { closeBacklog } = await import('./commands/backlog/index.js');
+      await closeBacklog(options.chatroomId, options);
+    }
+  );
 
 backlogCommand
   .command('export')

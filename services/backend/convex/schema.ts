@@ -539,6 +539,9 @@ export default defineSchema({
     // Priority: numeric priority for flexible ordering (higher = more important)
     priority: v.optional(v.number()),
 
+    // Close reason — mandatory when closing via CLI, for audit trail
+    closeReason: v.optional(v.string()),
+
     // Legacy reference — set during migration from chatroom_tasks
     // Used to remap attachedTaskIds/parentTaskIds in messages and tasks
     // @deprecated — migration reference from Phase 1; can be removed after Phase 5 (reference cleanup)

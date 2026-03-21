@@ -289,6 +289,7 @@ describe('Task Workflow - Backlog Origin', () => {
       const closeResult = await t.mutation(api.backlog.closeBacklogItem, {
         sessionId,
         itemId: backlogItemId,
+        reason: 'Test: closing backlog item',
       });
 
       expect(closeResult.success).toBe(true);
@@ -362,6 +363,7 @@ describe('Task Workflow - Cancel Actions', () => {
     const closeResult = await t.mutation(api.backlog.closeBacklogItem, {
       sessionId,
       itemId: backlogItemId,
+      reason: 'Test: cancel action close',
     });
 
     expect(closeResult.success).toBe(true);

@@ -372,7 +372,11 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
                         Mark as Complete
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => handleMutation(() => closeItem({ itemId: item._id }))}
+                        onClick={() =>
+                          handleMutation(() =>
+                            closeItem({ itemId: item._id, reason: 'Closed by user from UI' })
+                          )
+                        }
                         disabled={isLoading}
                         className="flex items-center gap-2 cursor-pointer text-chatroom-status-error"
                       >

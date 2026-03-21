@@ -717,7 +717,7 @@ export async function historyBacklog(
  */
 export async function closeBacklog(
   chatroomId: string,
-  options: { role: string; backlogItemId: string },
+  options: { role: string; backlogItemId: string; reason: string },
   deps?: BacklogDeps
 ): Promise<void> {
   const d = deps ?? (await createDefaultDeps());
@@ -730,16 +730,24 @@ export async function closeBacklog(
     return;
   }
 
+  if (!options.reason || options.reason.trim().length === 0) {
+    console.error(`❌ Reason is required when closing a backlog item`);
+    process.exit(1);
+    return;
+  }
+
   try {
     await d.backend.mutation(api.backlog.closeBacklogItem, {
       sessionId,
       itemId: options.backlogItemId as Id<'chatroom_backlog'>,
+      reason: options.reason,
     });
 
     console.log('');
     console.log('✅ Backlog item closed');
     console.log(`   ID: ${options.backlogItemId}`);
     console.log(`   Status: closed`);
+    console.log(`   Reason: ${options.reason}`);
     console.log('');
   } catch (error) {
     console.error(`❌ Failed to close backlog item: ${(error as Error).message}`);

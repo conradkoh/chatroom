@@ -703,6 +703,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       const closeResult = await t.mutation(api.backlog.closeBacklogItem, {
         sessionId,
         itemId: backlogItemId,
+        reason: 'Test: FSM close backlog item',
       });
       expect(closeResult.success).toBe(true);
 
@@ -732,6 +733,7 @@ describe('FSM Phase 4: All Mutations Use FSM', () => {
       await t.mutation(api.backlog.closeBacklogItem, {
         sessionId,
         itemId: backlogItemId,
+        reason: 'Test: close before reopen',
       });
 
       // Reopen the item: closed → backlog
