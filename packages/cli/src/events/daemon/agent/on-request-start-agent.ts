@@ -4,6 +4,7 @@
  * Deadline check is kept at the caller level (transport concern).
  */
 
+import { api } from '../../../api.js';
 import type { Id } from '../../../api.js';
 import type {
   DaemonContext,
@@ -50,5 +51,19 @@ export async function onRequestStartAgent(
     console.log(
       `[daemon] Agent start rejected for role=${event.role}: ${result.error ?? 'unknown'}`
     );
+  } else {
+    // Register workspace (fire-and-forget — don't block agent start)
+    ctx.deps.backend
+      .mutation(api.workspaces.registerWorkspace, {
+        sessionId: ctx.sessionId,
+        chatroomId: event.chatroomId,
+        machineId: ctx.machineId,
+        workingDir: event.workingDir,
+        hostname: ctx.config?.hostname ?? 'unknown',
+        registeredBy: event.role,
+      })
+      .catch((err: Error) => {
+        console.warn(`[daemon] ⚠️ Failed to register workspace: ${err.message}`);
+      });
   }
 }

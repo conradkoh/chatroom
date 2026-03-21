@@ -42,6 +42,22 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
       for (const config of configsResult.configs) {
         if (config.machineId === ctx.machineId && config.workingDir) {
           ctx.activeWorkingDirs.add(config.workingDir);
+
+          // Register workspace (fire-and-forget — don't block recovery)
+          ctx.deps.backend
+            .mutation(api.workspaces.registerWorkspace, {
+              sessionId: ctx.sessionId,
+              chatroomId: chatroomId as Id<'chatroom_rooms'>,
+              machineId: ctx.machineId,
+              workingDir: config.workingDir,
+              hostname: ctx.config?.hostname ?? 'unknown',
+              registeredBy: config.role,
+            })
+            .catch((err: Error) => {
+              console.warn(
+                `[daemon] ⚠️ Failed to register workspace on recovery: ${err.message}`
+              );
+            });
         }
       }
     } catch {
