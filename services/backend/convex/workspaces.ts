@@ -1,12 +1,9 @@
 /**
- * Convex functions for workspace git integration.
+ * Convex functions for workspace registry and git integration.
  *
- * These functions expose workspace git data to the frontend and daemon CLI.
- * All functions read/write to the database tables created in Phase 4:
- *   - chatroom_workspaceGitState
- *   - chatroom_workspaceFullDiff
- *   - chatroom_workspaceCommitDetail
- *   - chatroom_workspaceDiffRequests
+ * This file contains two sections:
+ *   1. Workspace Registry — persistent workspace registration (chatroom_workspaces)
+ *   2. Workspace Git — git state, diffs, commits (chatroom_workspaceGit* tables)
  */
 
 import { v } from 'convex/values';
@@ -15,8 +12,92 @@ import { SessionIdArg } from 'convex-helpers/server/sessions';
 import { mutation, query } from './_generated/server';
 import { validateSession } from './auth/cliSessionAuth';
 import type { WorkspaceGitState } from '../src/domain/types/workspace-git';
+import { registerWorkspace as registerWorkspaceUseCase } from '../src/domain/usecase/workspace/register-workspace';
+import { removeWorkspace as removeWorkspaceUseCase } from '../src/domain/usecase/workspace/remove-workspace';
+import { listWorkspacesForMachine as listWorkspacesForMachineUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-machine';
+import { listWorkspacesForChatroom as listWorkspacesForChatroomUseCase } from '../src/domain/usecase/workspace/list-workspaces-for-chatroom';
 
-// ─── Queries (called by frontend) ────────────────────────────────────────────
+// ─── Workspace Registry (queries + mutations) ────────────────────────────────
+
+/**
+ * Registers (or reactivates) a workspace for a chatroom.
+ *
+ * Called by the daemon or CLI when an agent starts working in a directory.
+ * Upsert semantics: if the workspace already exists and is active, no-op.
+ * If it was soft-deleted, it gets reactivated.
+ */
+export const registerWorkspace = mutation({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.string(),
+    workingDir: v.string(),
+    hostname: v.string(),
+    registeredBy: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await validateSession(ctx, args.sessionId);
+    return registerWorkspaceUseCase(ctx, {
+      chatroomId: args.chatroomId,
+      machineId: args.machineId,
+      workingDir: args.workingDir,
+      hostname: args.hostname,
+      registeredBy: args.registeredBy,
+    });
+  },
+});
+
+/**
+ * Soft-deletes a workspace by setting its `removedAt` timestamp.
+ *
+ * Called by users to remove a workspace from the registry.
+ */
+export const removeWorkspace = mutation({
+  args: {
+    ...SessionIdArg,
+    workspaceId: v.id('chatroom_workspaces'),
+  },
+  handler: async (ctx, args) => {
+    await validateSession(ctx, args.sessionId);
+    return removeWorkspaceUseCase(ctx, { workspaceId: args.workspaceId });
+  },
+});
+
+/**
+ * Lists all active workspaces for a given machine.
+ *
+ * Called by the daemon to discover which chatrooms/workspaces it manages.
+ */
+export const listWorkspacesForMachine = query({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.valid) return [];
+    return listWorkspacesForMachineUseCase(ctx, { machineId: args.machineId });
+  },
+});
+
+/**
+ * Lists all active workspaces for a given chatroom.
+ *
+ * Called by the frontend to display workspace information.
+ */
+export const listWorkspacesForChatroom = query({
+  args: {
+    ...SessionIdArg,
+    chatroomId: v.id('chatroom_rooms'),
+  },
+  handler: async (ctx, args) => {
+    const session = await validateSession(ctx, args.sessionId);
+    if (!session.valid) return [];
+    return listWorkspacesForChatroomUseCase(ctx, { chatroomId: args.chatroomId });
+  },
+});
+
+// ─── Workspace Git — Queries (called by frontend) ────────────────────────────
 
 /**
  * Returns the git state for a workspace (machineId + workingDir).
