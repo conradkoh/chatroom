@@ -104,7 +104,7 @@ export function ChatroomSwitcher() {
               placeholder="Search chatrooms..."
               className="text-chatroom-text-primary placeholder:text-chatroom-text-muted bg-transparent"
             />
-            <CommandList className="h-[300px]">
+            <CommandList className="min-h-[300px] h-[300px]">
               <CommandEmpty className="text-chatroom-text-muted text-xs font-bold uppercase tracking-wider px-4">
                 No chatrooms found.
               </CommandEmpty>
