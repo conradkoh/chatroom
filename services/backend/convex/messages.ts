@@ -505,38 +505,10 @@ async function _handoffHandler(
     });
   }
 
-  // Step 5: Update attached backlog items to pending_user_review when handing off to user
-  // This is the ONLY place where attached backlog items should have their status changed
-  if (isHandoffToUser) {
-    // For each completed task, get its source message and update attached backlog items
-    for (const task of inProgressTasks) {
-      if (task.sourceMessageId) {
-        const sourceMessage = await ctx.db.get('chatroom_messages', task.sourceMessageId);
-
-        // Update chatroom_backlog items attached via "Attach to Context" (attachedBacklogItemIds)
-        if (
-          sourceMessage?.attachedBacklogItemIds &&
-          sourceMessage.attachedBacklogItemIds.length > 0
-        ) {
-          const now = Date.now();
-          for (const backlogItemId of sourceMessage.attachedBacklogItemIds) {
-            const backlogItem = await ctx.db.get('chatroom_backlog', backlogItemId);
-            // Only transition items that are in 'backlog' status (not already reviewed/closed)
-            if (backlogItem && backlogItem.status === 'backlog') {
-              await ctx.db.patch('chatroom_backlog', backlogItemId, {
-                status: 'pending_user_review',
-                updatedAt: now,
-              });
-              console.warn(
-                `[Attached Backlog Item Update] chatroomId=${task.chatroomId} itemId=${backlogItemId} ` +
-                  `from=backlog to=pending_user_review`
-              );
-            }
-          }
-        }
-      }
-    }
-  }
+  // Step 5: Attached backlog items remain in their current status on handoff.
+  // Agents should explicitly use `chatroom backlog mark-for-review` to transition
+  // items they worked on to pending_user_review. Auto-transitioning all attached
+  // items would incorrectly mark items that were attached for context only.
 
   // Step 6: Explicit queue promotion on handoff-to-user
   // When handing off to user, we need to explicitly promote the next queued task
@@ -885,7 +857,7 @@ export const taskStarted = mutation({
     }
 
     // Note: Attached backlog tasks remain in their current status when agent acknowledges.
-    // They will only be transitioned to pending_user_review when the agent hands off to user.
+    // Agents explicitly use `chatroom backlog mark-for-review` for items they worked on.
 
     // For follow-ups, link to the previous non-follow-up message
     if (!args.skipClassification && finalClassification === 'follow_up' && message) {
