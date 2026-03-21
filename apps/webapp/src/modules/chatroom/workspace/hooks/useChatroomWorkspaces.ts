@@ -2,44 +2,67 @@
 
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
-import type { WorkspaceView } from '@workspace/backend/src/domain/usecase/chatroom/get-agent-statuses';
-import { useSessionQuery } from 'convex-helpers/react/sessions';
-import { useMemo } from 'react';
+import { useSessionQuery, useSessionMutation } from 'convex-helpers/react/sessions';
+import { useMemo, useCallback } from 'react';
 
-import { useWorkspaces } from '../../hooks/useWorkspaces';
 import type { Workspace } from '../../types/workspace';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface UseChatroomWorkspacesOptions {
+  /** Optional: agent views to enrich workspaces with agentRoles (matched by workingDir) */
+  agentViews?: Array<{ role: string; workingDir?: string }>;
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
 /**
- * Lightweight hook that returns workspace data for use in the chatroom dashboard.
- *
- * Reuses the same `getAgentStatus` query as `useAgentPanelData`, but only
- * exposes workspace-level data (no per-agent status details).
- *
- * Filters out unassigned workspaces and workspaces without a workingDir / machineId.
+ * Hook that returns registered workspaces for a chatroom from the workspace registry.
+ * Optionally enriches workspaces with `agentRoles` when `agentViews` is provided.
+ * Also provides a `removeWorkspace` callback for the trash icon.
  */
-export function useChatroomWorkspaces(chatroomId: string): {
-  workspaces: Workspace[];
-  isLoading: boolean;
-} {
-  const statusResult = useSessionQuery(api.machines.getAgentStatus, {
+export function useChatroomWorkspaces(
+  chatroomId: string,
+  options?: UseChatroomWorkspacesOptions
+) {
+  const registryResult = useSessionQuery(api.workspaces.listWorkspacesForChatroom, {
     chatroomId: chatroomId as Id<'chatroom_rooms'>,
   });
 
-  const backendWorkspaces = useMemo<WorkspaceView[]>(
-    () => statusResult?.workspaces ?? [],
-    [statusResult?.workspaces]
+  const removeWorkspaceMutation = useSessionMutation(api.workspaces.removeWorkspace);
+
+  const workspaces = useMemo<Workspace[]>(() => {
+    if (!registryResult) return [];
+    return registryResult
+      .filter((ws) => ws.workingDir && ws.machineId)
+      .map((ws) => {
+        // If agentViews provided, derive agentRoles from agents with matching workingDir
+        const agentRoles = options?.agentViews
+          ? options.agentViews.filter((a) => a.workingDir === ws.workingDir).map((a) => a.role)
+          : [];
+        return {
+          id: `${ws.machineId}::${ws.workingDir}`,
+          machineId: ws.machineId,
+          hostname: ws.hostname,
+          workingDir: ws.workingDir,
+          agentRoles,
+          _registryId: ws._id,
+        };
+      });
+  }, [registryResult, options?.agentViews]);
+
+  const removeWorkspace = useCallback(
+    async (workspaceRegistryId: string) => {
+      await removeWorkspaceMutation({
+        workspaceId: workspaceRegistryId as Id<'chatroom_workspaces'>,
+      });
+    },
+    [removeWorkspaceMutation]
   );
 
-  const { allWorkspaces } = useWorkspaces({
-    agents: statusResult?.agents?.map((a) => ({ role: a.role })) ?? [],
-    backendWorkspaces,
-  });
-
-  // Filter out unassigned and workspaces without workingDir / machineId
-  const workspaces = useMemo(
-    () => allWorkspaces.filter((w) => w.workingDir && w.machineId),
-    [allWorkspaces]
-  );
-
-  return { workspaces, isLoading: statusResult === undefined };
+  return {
+    workspaces,
+    isLoading: registryResult === undefined,
+    removeWorkspace,
+  };
 }

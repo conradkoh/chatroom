@@ -16,6 +16,8 @@ export interface Workspace {
   workingDir: string;
   /** Roles of agents that belong to this workspace */
   agentRoles: string[];
+  /** ID from workspace registry, used for manual removal */
+  _registryId?: string;
 }
 
 /** Workspaces grouped under a single machine — for sidebar rendering. */

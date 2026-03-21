@@ -62,7 +62,6 @@ function createTestContext(): DaemonContext {
         listActive: vi.fn().mockReturnValue([]),
       } as any,
     },
-    activeWorkingDirs: new Set(),
     lastPushedGitState: new Map(),
   };
 }

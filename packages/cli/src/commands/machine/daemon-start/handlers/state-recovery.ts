@@ -16,13 +16,12 @@ import type { DaemonContext } from '../types.js';
  * - Creates running slots for alive agents
  * - Clears dead agent PIDs from disk
  *
- * After recovery, fetches working directories from backend configs
- * for alive agents so git state collection starts immediately.
+ * After recovery, registers workspaces for alive agents via the backend
+ * workspace registry (fire-and-forget mutations).
  */
 export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
   await ctx.deps.agentProcessManager.recover();
 
-  // Recover active working directories from backend configs for alive agents
   const activeSlots = ctx.deps.agentProcessManager.listActive();
 
   if (activeSlots.length === 0) {
@@ -32,6 +31,7 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
 
   // Collect unique chatroomIds
   const chatroomIds = new Set(activeSlots.map((s) => s.chatroomId));
+  let registeredCount = 0;
 
   for (const chatroomId of chatroomIds) {
     try {
@@ -41,7 +41,23 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
       });
       for (const config of configsResult.configs) {
         if (config.machineId === ctx.machineId && config.workingDir) {
-          ctx.activeWorkingDirs.add(config.workingDir);
+          registeredCount++;
+
+          // Register workspace (fire-and-forget — don't block recovery)
+          ctx.deps.backend
+            .mutation(api.workspaces.registerWorkspace, {
+              sessionId: ctx.sessionId,
+              chatroomId: chatroomId as Id<'chatroom_rooms'>,
+              machineId: ctx.machineId,
+              workingDir: config.workingDir,
+              hostname: ctx.config?.hostname ?? 'unknown',
+              registeredBy: config.role,
+            })
+            .catch((err: Error) => {
+              console.warn(
+                `[daemon] ⚠️ Failed to register workspace on recovery: ${err.message}`
+              );
+            });
         }
       }
     } catch {
@@ -49,9 +65,7 @@ export async function recoverAgentState(ctx: DaemonContext): Promise<void> {
     }
   }
 
-  if (ctx.activeWorkingDirs.size > 0) {
-    console.log(
-      `   🔀 Recovered ${ctx.activeWorkingDirs.size} active working dir(s) for git tracking`
-    );
+  if (registeredCount > 0) {
+    console.log(`   🔀 Registered ${registeredCount} workspace(s) on recovery`);
   }
 }

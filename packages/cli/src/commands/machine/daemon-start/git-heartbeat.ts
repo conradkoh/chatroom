@@ -18,16 +18,33 @@ import type { GitCommit } from '../../../infrastructure/git/types.js';
 /**
  * Collect git state for all tracked working directories and push to backend.
  *
- * Iterates over `ctx.activeWorkingDirs`, runs git commands for each, and
- * calls `api.workspaces.upsertWorkspaceGitState` when the state has changed.
+ * Queries the backend for registered workspaces on this machine, then runs
+ * git commands for each unique working directory and pushes state changes.
  *
  * Safe to call concurrently with the heartbeat — errors per-workspace are
  * caught and logged without aborting the loop.
  */
 export async function pushGitState(ctx: DaemonContext): Promise<void> {
-  if (ctx.activeWorkingDirs.size === 0) return;
+  // Query backend for all registered workspaces on this machine
+  let workspaces: Array<{ workingDir: string }>;
+  try {
+    workspaces = await ctx.deps.backend.query(api.workspaces.listWorkspacesForMachine, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+    });
+  } catch (err) {
+    console.warn(
+      `[${formatTimestamp()}] ⚠️ Failed to query workspaces for git sync: ${(err as Error).message}`
+    );
+    return; // Skip this cycle — will retry on next heartbeat
+  }
 
-  for (const workingDir of ctx.activeWorkingDirs) {
+  // Deduplicate working directories (multiple chatrooms may share a workingDir)
+  const uniqueWorkingDirs = new Set(workspaces.map((ws) => ws.workingDir));
+
+  if (uniqueWorkingDirs.size === 0) return;
+
+  for (const workingDir of uniqueWorkingDirs) {
     try {
       await pushSingleWorkspaceGitState(ctx, workingDir);
     } catch (err) {

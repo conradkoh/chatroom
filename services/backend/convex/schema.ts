@@ -1225,4 +1225,21 @@ export default defineSchema({
 
     updatedAt: v.number(),
   }).index('by_machine_workingDir_sha', ['machineId', 'workingDir', 'sha']),
+
+  // ─── Workspace Registry ──────────────────────────────────────────────────────
+  // Persistent record of workspaces (machine + working directory pairs) where
+  // agents operate. Unlike chatroom_teamAgentConfigs (transient), these persist
+  // independently of agent lifecycle.
+  chatroom_workspaces: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    machineId: v.string(),
+    workingDir: v.string(),
+    hostname: v.string(),
+    registeredAt: v.number(),
+    registeredBy: v.string(), // role that first registered this workspace
+    removedAt: v.optional(v.number()), // soft delete timestamp
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_machine', ['machineId'])
+    .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
 });
