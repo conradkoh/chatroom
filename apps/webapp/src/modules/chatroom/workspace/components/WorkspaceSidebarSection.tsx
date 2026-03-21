@@ -1,6 +1,6 @@
 'use client';
 
-import { FolderOpen, GitBranch, GitPullRequest as GitPullRequestIcon } from 'lucide-react';
+import { FolderOpen, GitBranch, GitPullRequest as GitPullRequestIcon, Trash2 } from 'lucide-react';
 import { memo, useState, useCallback } from 'react';
 
 import { InlineDiffStat } from './shared';
@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 interface WorkspaceSidebarSectionProps {
   workspaces: Workspace[];
   chatroomId: string;
+  onRemoveWorkspace?: (registryId: string) => Promise<void>;
 }
 
 /**
@@ -114,10 +115,12 @@ const WorkspaceRow = memo(function WorkspaceRow({
   workspace,
   isActive,
   onClick,
+  onRemove,
 }: {
   workspace: WorkspaceWithMachine;
   isActive: boolean;
   onClick: () => void;
+  onRemove?: () => void;
 }) {
   const gitState = useWorkspaceGit(workspace.machineId, workspace.workingDir);
 
@@ -141,7 +144,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
       type="button"
       onClick={onClick}
       className={cn(
-        'w-full text-left px-3 py-2 flex items-center gap-2 transition-colors',
+        'group/wsrow w-full text-left px-3 py-2 flex items-center gap-2 transition-colors',
         isActive
           ? 'bg-chatroom-bg-hover border-l-2 border-chatroom-accent'
           : 'border-l-2 border-transparent hover:bg-chatroom-bg-hover/50'
@@ -154,7 +157,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
           isActive ? 'text-chatroom-text-primary' : 'text-chatroom-text-muted'
         )}
       />
-      <div className="flex flex-col items-start min-w-0">
+      <div className="flex flex-col items-start min-w-0 flex-1">
         <span
           className={cn(
             'text-[10px] font-bold uppercase tracking-wider truncate w-full',
@@ -203,6 +206,19 @@ const WorkspaceRow = memo(function WorkspaceRow({
           </div>
         )}
       </div>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="shrink-0 p-1 opacity-0 group-hover/wsrow:opacity-100 transition-opacity text-chatroom-text-muted hover:text-red-500 dark:hover:text-red-400"
+          title="Remove workspace"
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
     </button>
   );
 });
@@ -216,6 +232,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
 export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
   workspaces,
   chatroomId,
+  onRemoveWorkspace,
 }: WorkspaceSidebarSectionProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -227,6 +244,15 @@ export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
   const handleClose = useCallback(() => {
     setSelectedId(null);
   }, []);
+
+  const handleRemove = useCallback(
+    async (workspace: Workspace) => {
+      if (!workspace._registryId || !onRemoveWorkspace) return;
+      if (!window.confirm('Remove this workspace from the list?')) return;
+      await onRemoveWorkspace(workspace._registryId);
+    },
+    [onRemoveWorkspace]
+  );
 
   const selectedWorkspace = workspaces.find((w) => w.id === selectedId);
 
@@ -267,6 +293,11 @@ export const WorkspaceSidebarSection = memo(function WorkspaceSidebarSection({
             workspace={ws as WorkspaceWithMachine}
             isActive={selectedId === ws.id}
             onClick={() => handleClick(ws.id)}
+            onRemove={
+              onRemoveWorkspace && ws._registryId
+                ? () => handleRemove(ws)
+                : undefined
+            }
           />
         ))}
 
