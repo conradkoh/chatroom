@@ -151,8 +151,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(
           `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
-      } else {
-        lines.push('   Entry point role will update when needed.');
       }
     }
 
@@ -165,8 +163,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(
           `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
-      } else {
-        lines.push('   Entry point role will update when needed.');
       }
     }
   }
@@ -186,8 +182,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
         lines.push(
           `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
         );
-      } else {
-        lines.push('   Entry point role will update when needed.');
       }
     }
 
@@ -203,8 +197,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
           lines.push(
             `   Update → \`${cliEnvPrefix}chatroom context new --chatroom-id="${chatroomId}" --role="${role}" --content="<summary>"\``
           );
-        } else {
-          lines.push('   Entry point role will update when needed.');
         }
       }
     }
