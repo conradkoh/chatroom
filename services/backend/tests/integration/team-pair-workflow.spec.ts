@@ -245,6 +245,8 @@ Test technical specifications`,
 
         Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
 
+        **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
+
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
         chatroom get-next-task --chatroom-id="10002;chatroom_rooms" --role="builder"
@@ -497,6 +499,8 @@ Test technical specifications`,
         \`\`\`
 
         Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+
+        **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
@@ -754,6 +758,8 @@ Test technical specifications`,
         \`\`\`
 
         Keep the team informed: Send \`report-progress\` updates at milestones or when blocked. Progress appears inline with the task.
+
+        **Progress format:** Use short, single-line plain text (no markdown). Example: "Starting Phase 1: implementing the data model. Delegating to builder."
 
         **Continue receiving messages after \`handoff\`:**
         \`\`\`
