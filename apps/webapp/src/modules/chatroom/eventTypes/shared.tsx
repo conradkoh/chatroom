@@ -88,17 +88,19 @@ export interface EventDetailsProps {
   title: string;
   timestamp: number;
   type: string;
+  eventId?: string;
   children: React.ReactNode;
 }
 
 /**
  * Container for event details panel.
- * Wraps children with header showing event type and timestamp.
+ * Wraps children with header showing event type, timestamp, and event ID.
  */
 export const EventDetails = memo(function EventDetails({
   title,
   timestamp,
   type,
+  eventId,
   children,
 }: EventDetailsProps) {
   return (
@@ -112,6 +114,13 @@ export const EventDetails = memo(function EventDetails({
           </span>
         </div>
         <span className="text-[10px] text-chatroom-text-secondary font-mono">{type}</span>
+        {eventId && (
+          <div className="mt-1">
+            <span className="text-[9px] text-chatroom-text-muted font-mono select-all">
+              ID: {eventId}
+            </span>
+          </div>
+        )}
       </div>
       {/* Scrollable content area */}
       <div className="flex-1 overflow-y-auto">
@@ -185,6 +194,7 @@ export const MarkdownDetailBlock = memo(function MarkdownDetailBlock({
 export interface PlaceholderEventProps {
   type: string;
   timestamp: number;
+  eventId?: string;
   isSelected?: boolean;
   onClick?: () => void;
 }
@@ -230,9 +240,10 @@ export const PlaceholderEventRow = memo(function PlaceholderEventRow({
 export const PlaceholderEventDetails = memo(function PlaceholderEventDetails({
   type,
   timestamp,
+  eventId,
 }: PlaceholderEventProps) {
   return (
-    <EventDetails title={type} timestamp={timestamp} type={type}>
+    <EventDetails title={type} timestamp={timestamp} type={type} eventId={eventId}>
       <div className="px-4 py-3 text-chatroom-text-muted text-xs">
         No details available for this event type.
       </div>
