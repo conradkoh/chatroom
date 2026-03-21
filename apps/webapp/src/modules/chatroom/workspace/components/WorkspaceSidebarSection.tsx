@@ -140,11 +140,18 @@ const WorkspaceRow = memo(function WorkspaceRow({
       : null;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        'group/wsrow w-full text-left px-3 py-2 flex items-center gap-2 transition-colors',
+        'group/wsrow w-full text-left px-3 py-2 flex items-center gap-2 transition-colors cursor-pointer',
         isActive
           ? 'bg-chatroom-bg-hover border-l-2 border-chatroom-accent'
           : 'border-l-2 border-transparent hover:bg-chatroom-bg-hover/50'
@@ -219,7 +226,7 @@ const WorkspaceRow = memo(function WorkspaceRow({
           <Trash2 size={12} />
         </button>
       )}
-    </button>
+    </div>
   );
 });
 
