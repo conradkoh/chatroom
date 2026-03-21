@@ -28,6 +28,7 @@ import {
   Check,
   Copy,
   Pin,
+  Paperclip,
 } from 'lucide-react';
 import React, {
   useEffect,
@@ -799,6 +800,50 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
           </Popover>
         </div>
 
+        {/* Attachment chips */}
+        {((message.attachedTasks?.length ?? 0) > 0 ||
+          (message.attachedBacklogItems?.length ?? 0) > 0 ||
+          (message.attachedMessages?.length ?? 0) > 0) && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {message.attachedTasks?.map((task) => {
+              const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
+              return (
+                <span
+                  key={task._id}
+                  className={`${BADGE_BASE} ${statusBadge.classes}`}
+                  title={task.content}
+                >
+                  <Paperclip size={ICON_SIZE} />
+                  {statusBadge.label}
+                </span>
+              );
+            })}
+            {message.attachedBacklogItems?.map((item) => {
+              const statusBadge = getAttachedTaskStatusBadge(item.status);
+              return (
+                <span
+                  key={item.id}
+                  className={`${BADGE_BASE} ${statusBadge.classes}`}
+                  title={item.content}
+                >
+                  <Paperclip size={ICON_SIZE} />
+                  {statusBadge.label}
+                </span>
+              );
+            })}
+            {message.attachedMessages?.map((msg) => (
+              <span
+                key={msg._id}
+                className={`${BADGE_BASE} bg-chatroom-bg-tertiary text-chatroom-text-muted border border-chatroom-border`}
+                title={`From ${msg.senderRole}: ${msg.content.slice(0, 50)}`}
+              >
+                <MessageSquare size={ICON_SIZE} />
+                {msg.senderRole}
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* Row 2: right-aligned timestamp + elapsed time */}
         <div className="flex justify-end gap-2 mt-0.5 text-[10px] text-muted-foreground tabular-nums">
           <span>
@@ -836,6 +881,94 @@ const QueuedMessageCard = memo(function QueuedMessageCard({
                     {message.content}
                   </Markdown>
                 </div>
+              </div>
+            )}
+            {/* Attached Backlog Tasks + Backlog Items */}
+            {((message.attachedTasks && message.attachedTasks.length > 0) ||
+              (message.attachedBacklogItems && message.attachedBacklogItems.length > 0)) && (
+              <div className="mx-6 mb-4 pt-3 border-t border-chatroom-border">
+                <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
+                  Attached Backlog (
+                  {(message.attachedTasks?.length ?? 0) +
+                    (message.attachedBacklogItems?.length ?? 0)}
+                  )
+                </div>
+                {message.attachedTasks?.map((task) => {
+                  const statusBadge = getAttachedTaskStatusBadge(task.backlogStatus);
+                  return (
+                    <div
+                      key={task._id}
+                      className="border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
+                          <Markdown
+                            remarkPlugins={REMARK_PLUGINS}
+                            components={compactMarkdownComponents}
+                          >
+                            {task.content}
+                          </Markdown>
+                        </div>
+                        <span
+                          className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${statusBadge.classes}`}
+                        >
+                          {statusBadge.label}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {message.attachedBacklogItems?.map((item) => {
+                  const statusBadge = getAttachedTaskStatusBadge(item.status);
+                  return (
+                    <div
+                      key={item.id}
+                      className="border-l-2 border-chatroom-accent bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0 text-xs text-chatroom-text-primary line-clamp-2">
+                          <Markdown
+                            remarkPlugins={REMARK_PLUGINS}
+                            components={compactMarkdownComponents}
+                          >
+                            {item.content}
+                          </Markdown>
+                        </div>
+                        <span
+                          className={`flex-shrink-0 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${statusBadge.classes}`}
+                        >
+                          {statusBadge.label}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* Attached Messages */}
+            {message.attachedMessages && message.attachedMessages.length > 0 && (
+              <div className="mx-6 mb-4 pt-3 border-t border-chatroom-border">
+                <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-2">
+                  Attached Messages ({message.attachedMessages.length})
+                </div>
+                {message.attachedMessages.map((attachedMsg) => (
+                  <div
+                    key={attachedMsg._id}
+                    className="border-l-2 border-chatroom-border bg-chatroom-bg-tertiary p-2 mb-2 last:mb-0"
+                  >
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted mb-1">
+                      {attachedMsg.senderRole}
+                    </div>
+                    <div className="text-xs text-chatroom-text-primary line-clamp-3">
+                      <Markdown
+                        remarkPlugins={REMARK_PLUGINS}
+                        components={compactMarkdownComponents}
+                      >
+                        {attachedMsg.content}
+                      </Markdown>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </FixedModalBody>

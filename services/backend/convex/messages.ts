@@ -1209,7 +1209,87 @@ export const listQueued = query({
       queuePosition: qMsg.queuePosition,
     }));
 
-    return transformedMessages.slice(-limit);
+    // Enrich queued messages with attachment details (same as listPaginated)
+    const enrichedMessages = await Promise.all(
+      transformedMessages.map(async (qMsg) => {
+        // Resolve attached tasks
+        let attachedTasks:
+          | { _id: string; content: string; status: string }[]
+          | undefined;
+        if (qMsg.attachedTaskIds && qMsg.attachedTaskIds.length > 0) {
+          const tasks = await Promise.all(
+            qMsg.attachedTaskIds.map((taskId) => ctx.db.get('chatroom_tasks', taskId))
+          );
+          attachedTasks = tasks
+            .filter((t): t is NonNullable<typeof t> => t !== null)
+            .map((t) => ({ _id: t._id, content: t.content, status: t.status }));
+        }
+
+        // Resolve attached backlog items
+        let attachedBacklogItems:
+          | { id: string; content: string; status: string }[]
+          | undefined;
+        if (qMsg.attachedBacklogItemIds && qMsg.attachedBacklogItemIds.length > 0) {
+          const items = await Promise.all(
+            qMsg.attachedBacklogItemIds.map((itemId) =>
+              ctx.db.get('chatroom_backlog', itemId)
+            )
+          );
+          attachedBacklogItems = items
+            .filter((i): i is NonNullable<typeof i> => i !== null)
+            .map((i) => ({ id: i._id, content: i.content, status: i.status }));
+        }
+
+        // Resolve attached messages
+        let attachedMessages:
+          | { _id: string; content: string; senderRole: string; _creationTime: number }[]
+          | undefined;
+        if (qMsg.attachedMessageIds && qMsg.attachedMessageIds.length > 0) {
+          const msgs = await Promise.all(
+            qMsg.attachedMessageIds.map((msgId) => ctx.db.get('chatroom_messages', msgId))
+          );
+          attachedMessages = msgs
+            .filter((m): m is NonNullable<typeof m> => m !== null)
+            .map((m) => ({
+              _id: m._id,
+              content: m.content,
+              senderRole: m.senderRole,
+              _creationTime: m._creationTime,
+            }));
+        }
+
+        // Resolve attached artifacts
+        let attachedArtifacts:
+          | { _id: string; filename: string; description?: string; mimeType?: string }[]
+          | undefined;
+        if (qMsg.attachedArtifactIds && qMsg.attachedArtifactIds.length > 0) {
+          const artifacts = await Promise.all(
+            qMsg.attachedArtifactIds.map((artifactId) =>
+              ctx.db.get('chatroom_artifacts', artifactId)
+            )
+          );
+          attachedArtifacts = artifacts
+            .filter((a): a is NonNullable<typeof a> => a !== null)
+            .map((a) => ({
+              _id: a._id,
+              filename: a.filename,
+              description: a.description,
+              mimeType: a.mimeType,
+            }));
+        }
+
+        return {
+          ...qMsg,
+          ...(attachedTasks && attachedTasks.length > 0 && { attachedTasks }),
+          ...(attachedBacklogItems &&
+            attachedBacklogItems.length > 0 && { attachedBacklogItems }),
+          ...(attachedArtifacts && attachedArtifacts.length > 0 && { attachedArtifacts }),
+          ...(attachedMessages && attachedMessages.length > 0 && { attachedMessages }),
+        };
+      })
+    );
+
+    return enrichedMessages.slice(-limit);
   },
 });
 
