@@ -41,6 +41,45 @@ interface UndoEntry {
   timestamp: number;
 }
 
+// ─── Shared Components ──────────────────────────────────────────────────
+
+type ScoringLevel = 'low' | 'medium' | 'high';
+
+interface ScoringBadgesProps {
+  complexity?: ScoringLevel;
+  value?: ScoringLevel;
+  priority?: number;
+}
+
+/** Renders priority, complexity, and value scoring badges. Shared by ReviewListItem and ReviewDetail. */
+const ScoringBadges = memo(function ScoringBadges({ complexity, value, priority }: ScoringBadgesProps) {
+  if (!complexity && !value && priority === undefined) return null;
+
+  return (
+    <div className="flex items-center gap-1">
+      {priority !== undefined && (
+        <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
+          P:{priority}
+        </span>
+      )}
+      {complexity && (
+        <span
+          className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', complexity).classes}`}
+        >
+          {getScoringBadge('complexity', complexity).label}
+        </span>
+      )}
+      {value && (
+        <span
+          className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', value).classes}`}
+        >
+          {getScoringBadge('value', value).label}
+        </span>
+      )}
+    </div>
+  );
+});
+
 // ─── ReviewListItem ─────────────────────────────────────────────────────
 
 interface ReviewListItemProps {
@@ -67,29 +106,9 @@ const ReviewListItem = memo(function ReviewListItem({
       }`}
     >
       {/* Scoring badges row */}
-      {(item.complexity || item.value || item.priority !== undefined) && (
-        <div className="flex items-center gap-1 mb-1">
-          {item.priority !== undefined && (
-            <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
-              P:{item.priority}
-            </span>
-          )}
-          {item.complexity && (
-            <span
-              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', item.complexity).classes}`}
-            >
-              {getScoringBadge('complexity', item.complexity).label}
-            </span>
-          )}
-          {item.value && (
-            <span
-              className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', item.value).classes}`}
-            >
-              {getScoringBadge('value', item.value).label}
-            </span>
-          )}
-        </div>
-      )}
+      <div className="mb-1">
+        <ScoringBadges complexity={item.complexity} value={item.value} priority={item.priority} />
+      </div>
 
       {/* Content preview — 2 lines max */}
       <div className="text-xs text-chatroom-text-primary line-clamp-2 leading-relaxed">
@@ -125,25 +144,7 @@ const ReviewDetail = memo(function ReviewDetail({
       {/* Metadata bar */}
       <div className="flex items-center gap-2 px-6 py-3 border-b border-chatroom-border bg-chatroom-bg-surface flex-shrink-0">
         {/* Scoring badges */}
-        {item.priority !== undefined && (
-          <span className="px-1 py-0.5 text-[8px] font-bold bg-chatroom-accent/15 text-chatroom-accent">
-            P:{item.priority}
-          </span>
-        )}
-        {item.complexity && (
-          <span
-            className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('complexity', item.complexity).classes}`}
-          >
-            {getScoringBadge('complexity', item.complexity).label}
-          </span>
-        )}
-        {item.value && (
-          <span
-            className={`px-1 py-0.5 text-[8px] font-bold ${getScoringBadge('value', item.value).classes}`}
-          >
-            {getScoringBadge('value', item.value).label}
-          </span>
-        )}
+        <ScoringBadges complexity={item.complexity} value={item.value} priority={item.priority} />
         <div className="flex-1" />
         <span className="text-[10px] text-chatroom-text-muted">
           Created by {item.createdBy} · {createdTime}

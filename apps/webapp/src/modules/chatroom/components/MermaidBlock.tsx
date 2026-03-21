@@ -88,6 +88,9 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
     <div
       ref={containerRef}
       className="my-3 flex justify-center overflow-x-auto [&_svg]:max-w-full"
+      /* SECURITY: SVG is rendered by mermaid with securityLevel: 'strict', which
+         sanitizes the output. The chart content originates from agent messages
+         (not untrusted external input). See: https://mermaid.js.org/config/security.html */
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
