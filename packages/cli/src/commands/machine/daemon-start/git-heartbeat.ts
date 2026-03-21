@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto';
 
-import { extractDiffStatFromShowOutput } from './git-polling.js';
+import { extractDiffStatFromShowOutput } from './git-subscription.js';
 import type { DaemonContext } from './types.js';
 import { formatTimestamp } from './utils.js';
 import { api } from '../../../api.js';
