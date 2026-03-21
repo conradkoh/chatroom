@@ -421,24 +421,35 @@ backlogCommand
   .description('Add a backlog item')
   .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
   .requiredOption('--role <role>', 'Your role (creator)')
-  .requiredOption('--content-file <path>', 'Path to file containing task content')
-  .action(async (options: { chatroomId: string; role: string; contentFile: string }) => {
+  .option('--content-file <path>', 'Path to file containing task content (or use stdin/heredoc)')
+  .action(async (options: { chatroomId: string; role: string; contentFile?: string }) => {
     await maybeRequireAuth();
 
-    // Read content from file
-    const { readFileContent } = await import('./utils/file-content.js');
     let content: string;
 
-    try {
-      content = readFileContent(options.contentFile, 'content-file');
-    } catch (err) {
-      console.error(`❌ ${(err as Error).message}`);
-      process.exit(1);
+    if (options.contentFile) {
+      // Read content from file
+      const { readFileContent } = await import('./utils/file-content.js');
+      try {
+        content = readFileContent(options.contentFile, 'content-file');
+      } catch (err) {
+        console.error(`❌ ${(err as Error).message}`);
+        process.exit(1);
+      }
+    } else {
+      // Read content from stdin (heredoc support)
+      const stdinContent = await readStdin();
+      content = stdinContent;
     }
 
     // Validate that content is not empty
     if (!content || content.trim().length === 0) {
-      console.error('❌ Content file is empty');
+      console.error('❌ Content is empty. Provide content via --content-file or stdin (heredoc).');
+      console.error('');
+      console.error('   Example with heredoc:');
+      console.error("   chatroom backlog add --chatroom-id=<id> --role=<role> << 'EOF'");
+      console.error('   Your backlog item content here');
+      console.error('   EOF');
       process.exit(1);
     }
 
