@@ -61,12 +61,6 @@ interface TeamDefinition {
 const TEAMS_CONFIG: { defaultTeam: string; teams: Record<string, TeamDefinition> } = {
   defaultTeam: 'duo',
   teams: {
-    pair: {
-      name: 'Pair',
-      description: 'A builder and reviewer working together',
-      roles: ['builder', 'reviewer'],
-      entryPoint: 'builder',
-    },
     duo: {
       name: 'Duo',
       description: 'A planner and builder working as a pair',
