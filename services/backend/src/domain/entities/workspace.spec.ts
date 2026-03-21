@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from 'vitest';
 
-import { isActiveWorkspace } from '../../../../src/domain/entities/workspace';
+import { isActiveWorkspace } from './workspace';
 
 describe('isActiveWorkspace', () => {
   test('returns true when removedAt is undefined', () => {
