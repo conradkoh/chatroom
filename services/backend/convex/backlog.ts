@@ -73,12 +73,13 @@ export const closeBacklogItem = mutation({
   args: {
     ...SessionIdArg,
     itemId: v.id('chatroom_backlog'),
+    reason: v.string(),
   },
   handler: async (ctx, args) => {
     const item = await ctx.db.get('chatroom_backlog', args.itemId);
     if (!item) throw new ConvexError('Backlog item not found');
     await requireChatroomAccess(ctx, args.sessionId, item.chatroomId);
-    await closeBacklogItemUseCase(ctx, args.itemId);
+    await closeBacklogItemUseCase(ctx, args.itemId, { reason: args.reason });
     return { success: true };
   },
 });

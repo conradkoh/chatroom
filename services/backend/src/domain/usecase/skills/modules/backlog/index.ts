@@ -74,6 +74,16 @@ Imports backlog items from a \`backlog-export.json\` file in the specified direc
 - **Staleness warning**: warns if the export is older than 7 days
 Default path (if \`--path\` is omitted): \`<cwd>/.chatroom/exports/\`
 
+### Close
+\`\`\`
+${cliEnvPrefix}chatroom backlog close --chatroom-id=<id> --role=<role> --backlog-item-id=<id> --reason="<reason>"
+\`\`\`
+
+⚠️ **RESTRICTED: Only use this command when the user explicitly instructs you to close an item.**
+Agents must NEVER close backlog items autonomously. If an item appears stale or already implemented, use \`mark-for-review\` instead and let the user make the final decision.
+
+The \`--reason\` flag is mandatory — provide a clear explanation of why the item is being closed (e.g. "User confirmed: already implemented in PR #119").
+
 ---
 
 ## Workflows

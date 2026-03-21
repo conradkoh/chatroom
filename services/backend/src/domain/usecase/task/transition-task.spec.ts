@@ -320,6 +320,7 @@ describe('transitionTask usecase — trigger label determines the rule', () => {
     const result = await t.mutation(api.backlog.closeBacklogItem, {
       sessionId,
       itemId: backlogItemId,
+      reason: 'Test: transition task close',
     });
     expect(result.success).toBe(true);
 
@@ -365,6 +366,7 @@ describe('transitionTask usecase — trigger label determines the rule', () => {
     await t.mutation(api.backlog.closeBacklogItem, {
       sessionId,
       itemId: backlogItemId,
+      reason: 'Test: close before reopen test',
     });
 
     // Now reopen: closed → backlog
