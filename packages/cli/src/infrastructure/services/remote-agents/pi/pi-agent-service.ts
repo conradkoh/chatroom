@@ -119,6 +119,12 @@ export class PiAgentService extends BaseCLIAgentService {
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       detached: true,
+      env: {
+        ...process.env,
+        // Prevent git rebase/merge from opening an interactive editor
+        GIT_EDITOR: 'true',
+        GIT_SEQUENCE_EDITOR: 'true',
+      },
     });
 
     // Send the initial prompt as a JSON RPC command over stdin.
