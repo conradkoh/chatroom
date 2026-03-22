@@ -30,6 +30,11 @@ export async function promoteQueuedMessage(
   const queuePosition = await getAndIncrementQueuePosition(ctx, chatroom);
 
   // Copy from staging → messages
+  // NOTE: This creates a NEW document with a fresh Convex _creationTime set at
+  // INSERT time (i.e., promotion time), NOT the time the user originally sent the
+  // message. This is intentional — the message should appear in the timeline at
+  // the position corresponding to when it was promoted, ensuring correct ordering
+  // in the UI (which orders by _creationTime via the by_chatroom index).
   const messageId = await ctx.db.insert('chatroom_messages', {
     chatroomId: queueRecord.chatroomId,
     senderRole: queueRecord.senderRole,
