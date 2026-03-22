@@ -122,7 +122,8 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
         );
       }
 
-      // Make SVG fill the container
+      // Make SVG fill the container — remove mermaid's inline max-width constraint
+      svgEl.style.maxWidth = 'none';
       svgEl.setAttribute('width', '100%');
       svgEl.setAttribute('height', '100%');
       svgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
