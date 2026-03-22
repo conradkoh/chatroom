@@ -27,16 +27,19 @@ import type * as events from "../events.js";
 import type * as guidelines from "../guidelines.js";
 import type * as lib_backlogStateMachine from "../lib/backlogStateMachine.js";
 import type * as lib_hierarchy from "../lib/hierarchy.js";
+import type * as lib_promoteNextTaskDeps from "../lib/promoteNextTaskDeps.js";
 import type * as lib_stdinDecoder from "../lib/stdinDecoder.js";
 import type * as lib_taskStateMachine from "../lib/taskStateMachine.js";
 import type * as lib_taskWorkflows from "../lib/taskWorkflows.js";
 import type * as machines from "../machines.js";
 import type * as messages from "../messages.js";
 import type * as migration from "../migration.js";
+import type * as migrations from "../migrations.js";
 import type * as participants from "../participants.js";
 import type * as presentations from "../presentations.js";
 import type * as prompts_webapp from "../prompts/webapp.js";
 import type * as serviceDesk from "../serviceDesk.js";
+import type * as sessions from "../sessions.js";
 import type * as skills from "../skills.js";
 import type * as system_auth_google from "../system/auth/google.js";
 import type * as tasks from "../tasks.js";
@@ -70,16 +73,19 @@ declare const fullApi: ApiFromModules<{
   guidelines: typeof guidelines;
   "lib/backlogStateMachine": typeof lib_backlogStateMachine;
   "lib/hierarchy": typeof lib_hierarchy;
+  "lib/promoteNextTaskDeps": typeof lib_promoteNextTaskDeps;
   "lib/stdinDecoder": typeof lib_stdinDecoder;
   "lib/taskStateMachine": typeof lib_taskStateMachine;
   "lib/taskWorkflows": typeof lib_taskWorkflows;
   machines: typeof machines;
   messages: typeof messages;
   migration: typeof migration;
+  migrations: typeof migrations;
   participants: typeof participants;
   presentations: typeof presentations;
   "prompts/webapp": typeof prompts_webapp;
   serviceDesk: typeof serviceDesk;
+  sessions: typeof sessions;
   skills: typeof skills;
   "system/auth/google": typeof system_auth_google;
   tasks: typeof tasks;
@@ -114,4 +120,91 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  migrations: {
+    lib: {
+      cancel: FunctionReference<
+        "mutation",
+        "internal",
+        { name: string },
+        {
+          batchSize?: number;
+          cursor?: string | null;
+          error?: string;
+          isDone: boolean;
+          latestEnd?: number;
+          latestStart: number;
+          name: string;
+          next?: Array<string>;
+          processed: number;
+          state: "inProgress" | "success" | "failed" | "canceled" | "unknown";
+        }
+      >;
+      cancelAll: FunctionReference<
+        "mutation",
+        "internal",
+        { sinceTs?: number },
+        Array<{
+          batchSize?: number;
+          cursor?: string | null;
+          error?: string;
+          isDone: boolean;
+          latestEnd?: number;
+          latestStart: number;
+          name: string;
+          next?: Array<string>;
+          processed: number;
+          state: "inProgress" | "success" | "failed" | "canceled" | "unknown";
+        }>
+      >;
+      clearAll: FunctionReference<
+        "mutation",
+        "internal",
+        { before?: number },
+        null
+      >;
+      getStatus: FunctionReference<
+        "query",
+        "internal",
+        { limit?: number; names?: Array<string> },
+        Array<{
+          batchSize?: number;
+          cursor?: string | null;
+          error?: string;
+          isDone: boolean;
+          latestEnd?: number;
+          latestStart: number;
+          name: string;
+          next?: Array<string>;
+          processed: number;
+          state: "inProgress" | "success" | "failed" | "canceled" | "unknown";
+        }>
+      >;
+      migrate: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          batchSize?: number;
+          cursor?: string | null;
+          dryRun: boolean;
+          fnHandle: string;
+          name: string;
+          next?: Array<{ fnHandle: string; name: string }>;
+          oneBatchOnly?: boolean;
+        },
+        {
+          batchSize?: number;
+          cursor?: string | null;
+          error?: string;
+          isDone: boolean;
+          latestEnd?: number;
+          latestStart: number;
+          name: string;
+          next?: Array<string>;
+          processed: number;
+          state: "inProgress" | "success" | "failed" | "canceled" | "unknown";
+        }
+      >;
+    };
+  };
+};

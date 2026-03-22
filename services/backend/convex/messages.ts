@@ -518,8 +518,11 @@ async function _handoffHandler(
     // All tasks complete to 'completed' status
     const newStatus: 'completed' = 'completed';
 
-    // Use FSM for transition
-    await transitionTask(ctx, task._id, newStatus, 'completeTask');
+    // Use FSM for transition — skip auto-promotion because the handoff handler
+    // manages promotion explicitly (Step 6 for handoff-to-user).
+    await transitionTask(ctx, task._id, newStatus, 'completeTask', undefined, {
+      skipAutoPromotion: true,
+    });
     completedTaskIds.push(task._id);
 
     // Set completedAt on the source message (lifecycle tracking)

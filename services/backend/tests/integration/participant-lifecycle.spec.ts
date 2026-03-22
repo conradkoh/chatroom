@@ -74,7 +74,7 @@ describe('Participant Lifecycle', () => {
       });
     });
 
-    test('busy participant blocks queue promotion on entry point join', async () => {
+    test('entry point join promotes queued task when no active tasks exist (regardless of participant state)', async () => {
       const { sessionId } = await createTestSession('test-non-idle-blocks-promo');
       const chatroomId = await createPairTeamChatroom(sessionId);
 
@@ -94,21 +94,22 @@ describe('Participant Lifecycle', () => {
         })) as unknown as string;
       });
 
-      // Now join builder (entry point) — queue promotion should NOT happen
-      // because reviewer does not have lastSeenAction = 'get-next-task:started'
+      // Now join builder (entry point) — queue promotion SHOULD happen
+      // because no active tasks exist. The canPromote guard uses task state
+      // (not participant state) as the source of truth.
       await joinParticipant(sessionId, chatroomId, 'builder');
 
-      // Verify the queue record was NOT consumed (no task created)
+      // Verify the queue record WAS consumed (task created from promotion)
       await t.run(async (ctx) => {
         const queueRecord = await ctx.db.get('chatroom_messageQueue', queuedMessageId as any);
-        expect(queueRecord).not.toBeNull(); // Should still be in queue, not promoted
+        expect(queueRecord).toBeNull(); // Promoted — no longer in queue
 
-        // No pending task should have been created
+        // A pending task should have been created from the queued message
         const tasks = await ctx.db
           .query('chatroom_tasks')
           .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
           .collect();
-        expect(tasks.filter((t) => t.status === 'pending').length).toBe(0);
+        expect(tasks.filter((t) => t.status === 'pending').length).toBe(1);
       });
     });
   });
