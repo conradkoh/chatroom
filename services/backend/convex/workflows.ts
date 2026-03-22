@@ -161,7 +161,10 @@ async function advanceWorkflow(
 ): Promise<void> {
   const steps = await getAllSteps(ctx, workflowId);
 
-  // Build a lookup of step status by key
+  // NOTE: We build the status snapshot before patching. This is safe because
+  // we only promote 'pending' steps — the snapshot correctly reflects the
+  // pre-call state of all steps. Newly promoted steps won't be re-evaluated
+  // in this same invocation.
   const statusByKey = new Map(steps.map((s) => [s.stepKey, s.status]));
 
   // Promote pending steps whose dependencies are all completed

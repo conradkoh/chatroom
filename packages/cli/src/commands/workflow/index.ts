@@ -4,7 +4,7 @@
 
 import type { WorkflowDeps } from './deps.js';
 import { api, type Id } from '../../api.js';
-import { getSessionId } from '../../infrastructure/auth/storage.js';
+import { getSessionId, getOtherSessionUrls } from '../../infrastructure/auth/storage.js';
 import { getConvexClient, getConvexUrl } from '../../infrastructure/convex/client.js';
 
 // ─── Re-exports ────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ async function createDefaultDeps(): Promise<WorkflowDeps> {
     session: {
       getSessionId,
       getConvexUrl,
-      getOtherSessionUrls: () => [],
+      getOtherSessionUrls,
     },
   };
 }
@@ -106,7 +106,7 @@ function validateChatroomId(chatroomId: string): void {
 /**
  * Parse multi-section stdin content with markers like ---GOAL---, ---REQUIREMENTS---, ---WARNINGS---
  */
-function parseSections(
+export function parseSections(
   input: string,
   requiredSections: string[],
   optionalSections: string[]
