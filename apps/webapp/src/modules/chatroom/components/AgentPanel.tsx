@@ -174,7 +174,7 @@ export const AgentPanel = memo(function AgentPanel({
   // Loading state
   if (lifecycle === undefined) {
     return (
-      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
+      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
           Agents
         </div>
@@ -188,7 +188,7 @@ export const AgentPanel = memo(function AgentPanel({
   // Legacy chatroom without team
   if (lifecycle === null) {
     return (
-      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden flex-1">
+      <div className="flex flex-col border-b-2 border-chatroom-border-strong overflow-hidden">
         <div className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted p-4 border-b-2 border-chatroom-border">
           Agents
         </div>
