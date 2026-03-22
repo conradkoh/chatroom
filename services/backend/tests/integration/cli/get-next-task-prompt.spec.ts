@@ -978,12 +978,6 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
 
-      Then acknowledge the handoff (classification was already done):
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10036;chatroom_rooms" --role="reviewer" --task-id=<task-id> --no-classify
-      \`\`\`
-
 
        **Pair Team Context:**
        - You work with a builder who implements code
@@ -1217,10 +1211,11 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(initPrompt?.prompt).toContain('### Context Recovery (after compaction/summarization)');
     expect(initPrompt?.prompt).toContain('### Get Next Task');
 
-    // CRITICAL: Should have task-started instruction for reviewer (without classification)
+    // CRITICAL: Should have Start Working instruction for reviewer (without task-started command)
     // Reviewer receives handoffs, not user messages, so no classification needed
     expect(initPrompt?.prompt).toContain('### Start Working');
-    expect(initPrompt?.prompt).toContain('--no-classify');
+    expect(initPrompt?.prompt).not.toContain('--no-classify');
+    expect(initPrompt?.prompt).not.toContain('task-started');
 
     // Should NOT have classification section (that's only for entry point roles)
     expect(initPrompt?.prompt).not.toContain('### Classify Task');

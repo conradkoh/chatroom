@@ -102,12 +102,6 @@ describe('Pair Team > Reviewer > Custom Init Prompt', () => {
 
       After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
 
-      Then acknowledge the handoff (classification was already done):
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="test-pair-chatroom" --role="reviewer" --task-id=<task-id> --no-classify
-      \`\`\`
-
 
        **Pair Team Context:**
        - You work with a builder who implements code
