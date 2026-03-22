@@ -179,7 +179,19 @@ export default defineSchema({
     ), // How the user authenticated for this session
     expiresAt: v.optional(v.number()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
     expiresAtLabel: v.optional(v.string()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
-  }).index('by_sessionId', ['sessionId']),
+    // Device and activity tracking for session management
+    lastActivityAt: v.optional(v.number()), // Timestamp of last activity
+    deviceInfo: v.optional(
+      v.object({
+        userAgent: v.optional(v.string()), // Raw user agent string
+        browser: v.optional(v.string()), // Browser name (e.g., "Chrome", "Firefox")
+        os: v.optional(v.string()), // Operating system (e.g., "Windows", "macOS", "iOS")
+        device: v.optional(v.string()), // Device type (e.g., "Desktop", "Mobile", "Tablet")
+      })
+    ),
+  })
+    .index('by_sessionId', ['sessionId'])
+    .index('by_userId', ['userId']),
 
   /**
    * Temporary login codes for cross-device authentication.
@@ -191,6 +203,17 @@ export default defineSchema({
     createdAt: v.number(), // When the code was created
     expiresAt: v.number(), // When the code expires (1 minute after creation)
   }).index('by_code', ['code']),
+
+  /**
+   * Rate limiting for login attempts to prevent brute force attacks.
+   * Tracks failed login attempts per session with automatic lockout.
+   */
+  loginAttempts: defineTable({
+    sessionId: v.string(), // The session making the attempt
+    attemptCount: v.number(), // Number of failed attempts in the window
+    lastAttemptAt: v.number(), // Timestamp of the last attempt
+    lockedUntil: v.optional(v.number()), // If locked out, when the lockout expires
+  }).index('by_sessionId', ['sessionId']),
 
   /**
    * Authentication provider configuration for dynamic auth provider setup.

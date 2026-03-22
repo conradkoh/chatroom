@@ -3,7 +3,7 @@ import type { Doc } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionQuery } from 'convex-helpers/react/sessions';
 import { useRouter, useSearchParams } from 'next/navigation';
 // External imports
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 // Internal imports
 import { useCurrentUser } from '@/modules/auth/AuthProvider';
@@ -239,15 +239,16 @@ export const useAttendanceData = ({
     [router, searchParams]
   );
 
-  // Update active tab when URL changes
-  useEffect(() => {
+  const [prevSearchParams, setPrevSearchParams] = useState(searchParams);
+  if (prevSearchParams !== searchParams) {
+    setPrevSearchParams(searchParams);
     const tabFromUrl = searchParams.get('attendanceTab');
     if (tabFromUrl === 'pending' || tabFromUrl === 'responded') {
       if (tabFromUrl !== activeTab) {
         setActiveTab(tabFromUrl);
       }
     }
-  }, [searchParams, activeTab]);
+  }
 
   return {
     // Data

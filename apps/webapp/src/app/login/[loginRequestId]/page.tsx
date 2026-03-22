@@ -36,15 +36,24 @@ export default function LoginRequestPage({ params }: LoginRequestPageProps) {
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Get Google auth config to get client ID and redirect URIs
   const googleConfig = useQuery(api.auth.google.getConfig);
 
-  // Resolve params
-  useEffect(() => {
+  // Resolve params — must use effect for Promise resolution
+  const [prevParams, setPrevParams] = useState(params);
+  if (prevParams !== params) {
+    setPrevParams(params);
     params.then((resolvedParams) => {
       setLoginRequestId(resolvedParams.loginRequestId);
     });
-  }, [params]);
+  }
+  // Initial resolution
+  const initializedRef = useRef(false);
+  if (!initializedRef.current) {
+    initializedRef.current = true;
+    params.then((resolvedParams) => {
+      setLoginRequestId(resolvedParams.loginRequestId);
+    });
+  }
 
   // Query the login request status
   const loginRequest = useQuery(
@@ -120,28 +129,28 @@ export default function LoginRequestPage({ params }: LoginRequestPageProps) {
     }, 1000);
   }, [buildGoogleOAuthUrl]);
 
-  /**
-   * Handles login request status changes.
-   */
-  useEffect(() => {
-    if (!loginRequest) return;
+  const loginStatus = loginRequest?.status;
+  const loginError = loginRequest?.error;
 
-    if (loginRequest.status === 'completed') {
+  const [prevLoginStatus, setPrevLoginStatus] = useState(loginStatus);
+  if (prevLoginStatus !== loginStatus && loginStatus) {
+    setPrevLoginStatus(loginStatus);
+    if (loginStatus === 'completed') {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
       toast.success('Login successful!');
       router.push('/app');
-    } else if (loginRequest.status === 'failed') {
+    } else if (loginStatus === 'failed') {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
-      toast.error(loginRequest.error || 'Login failed');
+      toast.error(loginError || 'Login failed');
       setIsPopupOpen(false);
     }
-  }, [loginRequest, router]);
+  }
 
   useEffect(() => {
     return () => {

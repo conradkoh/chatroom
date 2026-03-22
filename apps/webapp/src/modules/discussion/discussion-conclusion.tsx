@@ -1,7 +1,7 @@
 'use client';
 
 import { Plus, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,12 +39,9 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const formRef = useRef<HTMLFormElement>(null);
-  const [isMac, setIsMac] = useState(false);
-
-  // Detect OS for keyboard shortcut display
-  useEffect(() => {
-    setIsMac(typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent));
-  }, []);
+  const [isMac] = useState(
+    () => typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
+  );
 
   // Register input ref
   const registerInputRef = useCallback(
@@ -54,8 +51,9 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
     []
   );
 
-  // Load existing conclusion data if available
-  useEffect(() => {
+  const [prevExistingConclusion, setPrevExistingConclusion] = useState(existingConclusion);
+  if (prevExistingConclusion !== existingConclusion) {
+    setPrevExistingConclusion(existingConclusion);
     if (existingConclusion?.conclusions && existingConclusion.conclusions.length > 0) {
       setConclusions(
         existingConclusion.conclusions.map((c) => ({
@@ -65,7 +63,7 @@ export function ConclusionForm({ onSubmit, onCancel, existingConclusion }: Concl
         }))
       );
     }
-  }, [existingConclusion]);
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

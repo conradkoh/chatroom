@@ -101,27 +101,31 @@ export function NameEditForm() {
       : 'skip'
   );
 
-  // Effect to handle connect request status changes
-  useEffect(() => {
-    if (!connectRequest || !isConnectingGoogle) return;
-
-    if (connectRequest.status === 'completed') {
-      toast.success('Google account connected successfully!');
-      setIsConnectingGoogle(false);
-      setConnectLoginRequestId(null);
-    } else if (connectRequest.status === 'failed') {
-      toast.error(connectRequest.error || 'Failed to connect Google account');
-      setIsConnectingGoogle(false);
-      setConnectLoginRequestId(null);
+  const prevConnectRequestRef = useRef(connectRequest);
+  if (prevConnectRequestRef.current !== connectRequest) {
+    prevConnectRequestRef.current = connectRequest;
+    if (connectRequest && isConnectingGoogle) {
+      if (connectRequest.status === 'completed') {
+        queueMicrotask(() => toast.success('Google account connected successfully!'));
+        setIsConnectingGoogle(false);
+        setConnectLoginRequestId(null);
+      } else if (connectRequest.status === 'failed') {
+        queueMicrotask(() =>
+          toast.error(connectRequest.error || 'Failed to connect Google account')
+        );
+        setIsConnectingGoogle(false);
+        setConnectLoginRequestId(null);
+      }
     }
-  }, [connectRequest, isConnectingGoogle]);
+  }
 
-  // Initialize name when user data is available
-  useEffect(() => {
+  const prevUserNameRef = useRef(currentUser?.name);
+  if (prevUserNameRef.current !== currentUser?.name) {
+    prevUserNameRef.current = currentUser?.name;
     if (currentUser?.name) {
       setName(currentUser.name);
     }
-  }, [currentUser?.name]);
+  }
 
   // Handle name change
   const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useReducer, useRef } from 'react';
 
 import { verifyPassword } from './password-utils';
 
@@ -29,35 +29,73 @@ export interface PasswordProtectProviderProps {
   children: React.ReactNode;
 }
 
+type AuthAction =
+  | { type: 'INIT_COMPLETE'; authorized: boolean }
+  | { type: 'AUTH_START' }
+  | { type: 'AUTH_SUCCESS' }
+  | { type: 'AUTH_FAIL'; error: string }
+  | { type: 'LOGOUT' }
+  | { type: 'TEMPORARILY_HIDE' }
+  | { type: 'UNHIDE' };
+
+interface AuthState {
+  isAuthorized: boolean;
+  isLoading: boolean;
+  isTemporarilyHidden: boolean;
+  error: string;
+}
+
+function authReducer(state: AuthState, action: AuthAction): AuthState {
+  switch (action.type) {
+    case 'INIT_COMPLETE':
+      return { ...state, isAuthorized: action.authorized, isLoading: false };
+    case 'AUTH_START':
+      return { ...state, isLoading: true, error: '' };
+    case 'AUTH_SUCCESS':
+      return { ...state, isAuthorized: true, isLoading: false };
+    case 'AUTH_FAIL':
+      return { ...state, isLoading: false, error: action.error };
+    case 'LOGOUT':
+      return { ...state, isAuthorized: false, isTemporarilyHidden: false, error: '' };
+    case 'TEMPORARILY_HIDE':
+      return { ...state, isTemporarilyHidden: true };
+    case 'UNHIDE':
+      return { ...state, isTemporarilyHidden: false };
+  }
+}
+
+const initialAuthState: AuthState = {
+  isAuthorized: false,
+  isLoading: true,
+  isTemporarilyHidden: false,
+  error: '',
+};
+
 export function PasswordProtectProvider({ config, children }: PasswordProtectProviderProps) {
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isTemporarilyHidden, setIsTemporarilyHidden] = useState(false);
-  const [error, setError] = useState('');
+  const [state, dispatch] = useReducer(authReducer, initialAuthState);
+  const initRef = useRef(false);
 
   const { verifyHash, salt, localStorageKey } = config;
 
-  // Check localStorage on mount for existing valid password
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
     const checkStoredPassword = async () => {
       try {
         const storedPassword = localStorage.getItem(localStorageKey);
         if (storedPassword) {
           const isValid = await verifyPassword(storedPassword, verifyHash, salt);
           if (isValid) {
-            setIsAuthorized(true);
-          } else {
-            // Remove invalid stored password
-            localStorage.removeItem(localStorageKey);
+            dispatch({ type: 'INIT_COMPLETE', authorized: true });
+            return;
           }
+          localStorage.removeItem(localStorageKey);
         }
       } catch (err) {
         console.error('Error checking stored password:', err);
-        // Remove potentially corrupted stored password
         localStorage.removeItem(localStorageKey);
-      } finally {
-        setIsLoading(false);
       }
+      dispatch({ type: 'INIT_COMPLETE', authorized: false });
     };
 
     checkStoredPassword();
@@ -65,26 +103,25 @@ export function PasswordProtectProvider({ config, children }: PasswordProtectPro
 
   const authenticate = useCallback(
     async (password: string): Promise<boolean> => {
-      setIsLoading(true);
-      setError('');
+      dispatch({ type: 'AUTH_START' });
 
       try {
         const isValid = await verifyPassword(password, verifyHash, salt);
         if (isValid) {
-          // Store the password in localStorage
           localStorage.setItem(localStorageKey, password);
-          setIsAuthorized(true);
+          dispatch({ type: 'AUTH_SUCCESS' });
           return true;
         }
 
-        setError('Incorrect password. Please try again.');
+        dispatch({ type: 'AUTH_FAIL', error: 'Incorrect password. Please try again.' });
         return false;
       } catch (err) {
-        setError('An error occurred while verifying the password.');
+        dispatch({
+          type: 'AUTH_FAIL',
+          error: 'An error occurred while verifying the password.',
+        });
         console.error('Password verification error:', err);
         return false;
-      } finally {
-        setIsLoading(false);
       }
     },
     [verifyHash, salt, localStorageKey]
@@ -92,41 +129,27 @@ export function PasswordProtectProvider({ config, children }: PasswordProtectPro
 
   const logout = useCallback(() => {
     localStorage.removeItem(localStorageKey);
-    setIsAuthorized(false);
-    setIsTemporarilyHidden(false);
-    setError('');
+    dispatch({ type: 'LOGOUT' });
   }, [localStorageKey]);
 
   const temporarilyHide = useCallback(() => {
-    setIsTemporarilyHidden(true);
+    dispatch({ type: 'TEMPORARILY_HIDE' });
   }, []);
 
   const unhide = useCallback(() => {
-    setIsTemporarilyHidden(false);
+    dispatch({ type: 'UNHIDE' });
   }, []);
 
-  const contextValue = useMemo<PasswordProtectContextValue>(
-    () => ({
-      isAuthorized,
-      isLoading,
-      error,
-      authenticate,
-      logout,
-      temporarilyHide,
-      unhide,
-      isTemporarilyHidden,
-    }),
-    [
-      isAuthorized,
-      isLoading,
-      error,
-      isTemporarilyHidden,
-      authenticate,
-      logout,
-      temporarilyHide,
-      unhide,
-    ]
-  );
+  const contextValue: PasswordProtectContextValue = {
+    isAuthorized: state.isAuthorized,
+    isLoading: state.isLoading,
+    error: state.error,
+    authenticate,
+    logout,
+    temporarilyHide,
+    unhide,
+    isTemporarilyHidden: state.isTemporarilyHidden,
+  };
 
   return (
     <PasswordProtectContext.Provider value={contextValue}>

@@ -2,7 +2,7 @@ import { api } from '@workspace/backend/convex/_generated/api';
 import type { Doc, Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Loader2, Trash2, UserCog, UserRound } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { AttendanceStatus } from '../types';
@@ -87,23 +87,27 @@ export function AttendanceDialog({
   const recordAttendance = useSessionMutation(api.attendance.recordAttendance);
   const deleteAttendanceRecord = useSessionMutation(api.attendance.deleteAttendanceRecord);
 
-  useEffect(() => {
-    // Automatically set the respond as to the default if the default changes
+  const prevDefaultRespondAsRef = useRef(defaultRespondAs);
+  if (prevDefaultRespondAsRef.current !== defaultRespondAs) {
+    prevDefaultRespondAsRef.current = defaultRespondAs;
     setRespondAs(defaultRespondAs);
-  }, [defaultRespondAs]);
+  }
 
-  useEffect(() => {
-    // Set initial status and reason from existing record if available
+  const prevExistingRecordRef = useRef(existingRecord);
+  if (prevExistingRecordRef.current !== existingRecord) {
+    prevExistingRecordRef.current = existingRecord;
     if (existingRecord) {
       setStatus((existingRecord.status as AttendanceStatus) || AttendanceStatus.ATTENDING);
       setReason(existingRecord.reason || '');
       setRemarks(existingRecord.remarks || '');
     }
-  }, [existingRecord]);
+  }
 
-  useEffect(() => {
+  const prevPersonNameRef = useRef(personName);
+  if (prevPersonNameRef.current !== personName) {
+    prevPersonNameRef.current = personName;
     setEnteredName(personName || '');
-  }, [personName]);
+  }
 
   const handleSubmit = useCallback(async () => {
     const nameToUse = !isAuthenticated || !personName ? enteredName : personName;
