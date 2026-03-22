@@ -142,13 +142,13 @@ export function AgentRestartChart({
   const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set());
   const initializedRef = useRef(false);
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
-    start: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+    start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
     end: new Date(),
   });
-  const [selectedPreset, setSelectedPreset] = useState<'3d' | '7d' | '30d' | 'custom'>('3d');
+  const [selectedPreset, setSelectedPreset] = useState<'7d' | '30d' | 'custom'>('7d');
 
-  const handlePreset = useCallback((preset: '3d' | '7d' | '30d') => {
-    const days = preset === '3d' ? 3 : preset === '7d' ? 7 : 30;
+  const handlePreset = useCallback((preset: '7d' | '30d') => {
+    const days = preset === '7d' ? 7 : 30;
     const now = new Date();
     setDateRange({ start: new Date(now.getTime() - days * 24 * 60 * 60 * 1000), end: now });
     setSelectedPreset(preset);
@@ -300,7 +300,7 @@ export function AgentRestartChart({
           <span className="text-[9px] font-bold uppercase tracking-widest text-chatroom-text-muted mr-1">
             Restarts
           </span>
-          {(['3d', '7d', '30d'] as const).map((preset) => (
+          {(['7d', '30d'] as const).map((preset) => (
             <button
               key={preset}
               onClick={() => handlePreset(preset)}
