@@ -119,17 +119,17 @@ function parseSections(
   const regex = new RegExp(`(${markerPattern})`, 'g');
 
   // Find all marker positions
-  const markers: Array<{ section: string; index: number }> = [];
+  const markers: Array<{ section: string; index: number; matchStart: number }> = [];
   let match: RegExpExecArray | null;
   while ((match = regex.exec(input)) !== null) {
     const sectionName = match[1]!.replace(/^---/, '').replace(/---$/, '');
-    markers.push({ section: sectionName, index: match.index + match[0].length });
+    markers.push({ section: sectionName, index: match.index + match[0].length, matchStart: match.index });
   }
 
   // Extract content between markers
   for (let i = 0; i < markers.length; i++) {
     const start = markers[i]!.index;
-    const end = i + 1 < markers.length ? input.lastIndexOf('---', markers[i + 1]!.index) : input.length;
+    const end = i + 1 < markers.length ? markers[i + 1]!.matchStart : input.length;
     const content = input.substring(start, end).trim();
     result.set(markers[i]!.section, content);
   }
