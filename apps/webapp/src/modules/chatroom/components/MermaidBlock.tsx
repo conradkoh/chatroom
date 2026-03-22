@@ -103,8 +103,9 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Wait for DOM to render the SVG
-    const timer = setTimeout(() => {
+    // Use rAF to wait for the browser to paint the SVG from dangerouslySetInnerHTML.
+    // More robust than setTimeout — fires after layout/paint cycle completes.
+    const rafId = requestAnimationFrame(() => {
       const svgEl = svgContainerRef.current?.querySelector('svg');
       if (!svgEl) return;
 
@@ -132,10 +133,10 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
       zoomRef.current = 1;
       panRef.current = { x: 0, y: 0 };
       updateZoomLabel();
-    }, 50);
+    });
 
     return () => {
-      clearTimeout(timer);
+      cancelAnimationFrame(rafId);
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
