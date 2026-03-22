@@ -597,6 +597,201 @@ backlogCommand
   });
 
 // ============================================================================
+// WORKFLOW COMMANDS (auth required)
+// ============================================================================
+
+const workflowCommand = program.command('workflow').description('Manage structured workflows');
+
+workflowCommand
+  .command('create')
+  .description('Create a new workflow with steps (reads JSON from stdin)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role (creator)')
+  .requiredOption('--workflow-key <key>', 'Unique workflow key')
+  .action(async (options: { chatroomId: string; role: string; workflowKey: string }) => {
+    await maybeRequireAuth();
+    const stdinContent = await readStdin();
+    if (!stdinContent || stdinContent.trim().length === 0) {
+      console.error('❌ JSON input is required via stdin.');
+      console.error('');
+      console.error('   Example:');
+      console.error(
+        "   chatroom workflow create --chatroom-id=<id> --role=<role> --workflow-key=<key> << 'EOF'"
+      );
+      console.error(
+        '   { "steps": [{ "stepKey": "step1", "description": "First step", "dependsOn": [], "order": 1 }] }'
+      );
+      console.error('   EOF');
+      process.exit(1);
+    }
+    const { createWorkflow } = await import('./commands/workflow/index.js');
+    await createWorkflow(options.chatroomId, {
+      role: options.role,
+      workflowKey: options.workflowKey,
+      stdinContent,
+    });
+  });
+
+workflowCommand
+  .command('specify')
+  .description('Specify a workflow step with goal, requirements, and optional warnings')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--workflow-key <key>', 'Workflow key')
+  .requiredOption('--step-key <stepKey>', 'Step key to specify')
+  .requiredOption('--assignee-role <assigneeRole>', 'Role to assign the step to')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      workflowKey: string;
+      stepKey: string;
+      assigneeRole: string;
+    }) => {
+      await maybeRequireAuth();
+      const stdinContent = await readStdin();
+      if (!stdinContent || stdinContent.trim().length === 0) {
+        console.error('❌ Step specification is required via stdin.');
+        console.error('');
+        console.error('   Example:');
+        console.error(
+          "   chatroom workflow specify --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<step> --assignee-role=<role> << 'EOF'"
+        );
+        console.error('   ---GOAL---');
+        console.error('   Your goal here');
+        console.error('   ---REQUIREMENTS---');
+        console.error('   Your requirements here');
+        console.error('   ---WARNINGS---');
+        console.error('   Optional warnings here');
+        console.error('   EOF');
+        process.exit(1);
+      }
+      const { specifyWorkflowStep } = await import('./commands/workflow/index.js');
+      await specifyWorkflowStep(options.chatroomId, {
+        role: options.role,
+        workflowKey: options.workflowKey,
+        stepKey: options.stepKey,
+        assigneeRole: options.assigneeRole,
+        stdinContent,
+      });
+    }
+  );
+
+workflowCommand
+  .command('execute')
+  .description('Activate a draft workflow (transitions to active, starts root steps)')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--workflow-key <key>', 'Workflow key to execute')
+  .action(async (options: { chatroomId: string; role: string; workflowKey: string }) => {
+    await maybeRequireAuth();
+    const { executeWorkflow } = await import('./commands/workflow/index.js');
+    await executeWorkflow(options.chatroomId, {
+      role: options.role,
+      workflowKey: options.workflowKey,
+    });
+  });
+
+workflowCommand
+  .command('status')
+  .description('View the full status of a workflow including all steps')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--workflow-key <key>', 'Workflow key')
+  .action(async (options: { chatroomId: string; role: string; workflowKey: string }) => {
+    await maybeRequireAuth();
+    const { getWorkflowStatus } = await import('./commands/workflow/index.js');
+    await getWorkflowStatus(options.chatroomId, {
+      role: options.role,
+      workflowKey: options.workflowKey,
+    });
+  });
+
+workflowCommand
+  .command('step-complete')
+  .description('Mark a workflow step as completed')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--workflow-key <key>', 'Workflow key')
+  .requiredOption('--step-key <stepKey>', 'Step key to mark as complete')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      workflowKey: string;
+      stepKey: string;
+    }) => {
+      await maybeRequireAuth();
+      const { completeStep } = await import('./commands/workflow/index.js');
+      await completeStep(options.chatroomId, {
+        role: options.role,
+        workflowKey: options.workflowKey,
+        stepKey: options.stepKey,
+      });
+    }
+  );
+
+workflowCommand
+  .command('step-cancel')
+  .description('Cancel a workflow step with a reason')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--workflow-key <key>', 'Workflow key')
+  .requiredOption('--step-key <stepKey>', 'Step key to cancel')
+  .requiredOption('--reason <text>', 'Reason for cancellation (required)')
+  .action(
+    async (options: {
+      chatroomId: string;
+      role: string;
+      workflowKey: string;
+      stepKey: string;
+      reason: string;
+    }) => {
+      await maybeRequireAuth();
+
+      // Validate reason is non-empty (belt-and-suspenders with requiredOption)
+      if (!options.reason || options.reason.trim().length === 0) {
+        console.error('❌ --reason is required and cannot be empty');
+        process.exit(1);
+      }
+
+      const { cancelStep } = await import('./commands/workflow/index.js');
+      await cancelStep(options.chatroomId, {
+        role: options.role,
+        workflowKey: options.workflowKey,
+        stepKey: options.stepKey,
+        reason: options.reason,
+      });
+    }
+  );
+
+workflowCommand
+  .command('exit')
+  .description('Exit (cancel) an entire workflow with a reason')
+  .requiredOption('--chatroom-id <id>', 'Chatroom identifier')
+  .requiredOption('--role <role>', 'Your role')
+  .requiredOption('--workflow-key <key>', 'Workflow key to exit')
+  .requiredOption('--reason <text>', 'Reason for exiting the workflow (required)')
+  .action(
+    async (options: { chatroomId: string; role: string; workflowKey: string; reason: string }) => {
+      await maybeRequireAuth();
+
+      // Validate reason is non-empty (belt-and-suspenders with requiredOption)
+      if (!options.reason || options.reason.trim().length === 0) {
+        console.error('❌ --reason is required and cannot be empty');
+        process.exit(1);
+      }
+
+      const { exitWorkflow } = await import('./commands/workflow/index.js');
+      await exitWorkflow(options.chatroomId, {
+        role: options.role,
+        workflowKey: options.workflowKey,
+        reason: options.reason,
+      });
+    }
+  );
+
+// ============================================================================
 // TASK COMMANDS (auth required)
 // ============================================================================
 
