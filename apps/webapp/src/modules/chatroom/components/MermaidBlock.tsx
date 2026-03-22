@@ -12,7 +12,7 @@ import { createPortal } from 'react-dom';
  * - Dark/light mode detection via document class
  * - Graceful fallback to raw code on parse errors
  * - Unique IDs for concurrent rendering
- * - Fullscreen modal with hardware-accelerated zoom/pan
+ * - Fullscreen modal with SVG viewBox-based zoom (crisp text at all zoom levels)
  */
 
 interface MermaidBlockProps {
@@ -25,6 +25,15 @@ const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.15;
 
+// ─── ViewBox type ────────────────────────────────────────────────────────────
+
+interface ViewBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 // ─── Fullscreen Modal ────────────────────────────────────────────────────────
 
 interface MermaidFullscreenModalProps {
@@ -34,104 +43,152 @@ interface MermaidFullscreenModalProps {
 }
 
 /**
- * Fullscreen mermaid diagram viewer with hardware-accelerated zoom and pan.
+ * Fullscreen mermaid diagram viewer with SVG viewBox-based zoom and pan.
  *
- * Performance: Uses refs for transform state and applies transforms directly
- * to the DOM via requestAnimationFrame, bypassing React's render cycle.
- * Only the zoom percentage display triggers React re-renders.
+ * Performance: Uses SVG viewBox manipulation instead of CSS transforms.
+ * Text renders crisp at any zoom level since the browser re-rasterizes
+ * the SVG natively. Transform state is stored in refs and applied via
+ * requestAnimationFrame to bypass React's render cycle.
  */
 const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
   svg,
   isOpen,
   onClose,
 }: MermaidFullscreenModalProps) {
-  // Transform state stored in refs — mutations don't trigger re-renders
+  // Zoom/pan state in refs — no React re-renders on interaction
   const zoomRef = useRef(1);
-  const panRef = useRef({ x: 0, y: 0 });
-  const isPanningRef = useRef(false);
+  const panRef = useRef({ x: 0, y: 0 }); // Pan in SVG coordinate space
+  const baseViewBoxRef = useRef<ViewBox | null>(null);
   const lastPanRef = useRef({ x: 0, y: 0 });
   const lastTouchDistRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
 
   // DOM refs
-  const transformRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgContainerRef = useRef<HTMLDivElement>(null);
 
-  // Only the zoom display uses React state (updates less frequently)
+  // Only zoom display triggers React re-renders
   const [zoomDisplay, setZoomDisplay] = useState(100);
 
-  // Apply transform directly to DOM — no React re-render
-  const applyTransform = useCallback(() => {
-    if (transformRef.current) {
-      transformRef.current.style.transform =
-        `translate(${panRef.current.x}px, ${panRef.current.y}px) scale(${zoomRef.current})`;
-    }
+  // Apply viewBox to the SVG element — crisp rendering at any zoom
+  const applyViewBox = useCallback(() => {
+    const svgEl = svgContainerRef.current?.querySelector('svg');
+    const base = baseViewBoxRef.current;
+    if (!svgEl || !base) return;
+
+    const vbWidth = base.width / zoomRef.current;
+    const vbHeight = base.height / zoomRef.current;
+    // Center the zoom, then apply pan offset (pan is in SVG units)
+    const vbX = base.x + (base.width - vbWidth) / 2 - panRef.current.x;
+    const vbY = base.y + (base.height - vbHeight) / 2 - panRef.current.y;
+
+    svgEl.setAttribute('viewBox', `${vbX} ${vbY} ${vbWidth} ${vbHeight}`);
   }, []);
 
-  // Schedule transform update via rAF (coalesces multiple calls per frame)
-  const scheduleTransform = useCallback(() => {
-    if (rafRef.current !== null) return; // Already scheduled
+  // Schedule viewBox update via rAF
+  const scheduleUpdate = useCallback(() => {
+    if (rafRef.current !== null) return;
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null;
-      applyTransform();
+      applyViewBox();
     });
-  }, [applyTransform]);
+  }, [applyViewBox]);
 
-  // Update zoom display (debounced — only updates React state)
   const updateZoomDisplay = useCallback(() => {
     setZoomDisplay(Math.round(zoomRef.current * 100));
   }, []);
 
-  // Reset zoom/pan when modal opens
+  // Initialize SVG for viewBox-based zoom when modal opens
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+
+    // Wait for DOM to render the SVG
+    const timer = setTimeout(() => {
+      const svgEl = svgContainerRef.current?.querySelector('svg');
+      if (!svgEl) return;
+
+      // Read the original viewBox (mermaid usually sets one)
+      const vb = svgEl.viewBox?.baseVal;
+      if (vb && vb.width > 0 && vb.height > 0) {
+        baseViewBoxRef.current = { x: vb.x, y: vb.y, width: vb.width, height: vb.height };
+      } else {
+        // Fallback: use getBBox for the natural bounds
+        const bbox = svgEl.getBBox();
+        baseViewBoxRef.current = { x: bbox.x, y: bbox.y, width: bbox.width, height: bbox.height };
+        svgEl.setAttribute(
+          'viewBox',
+          `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`
+        );
+      }
+
+      // Make SVG fill the container
+      svgEl.setAttribute('width', '100%');
+      svgEl.setAttribute('height', '100%');
+      svgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+      // Reset zoom/pan
       zoomRef.current = 1;
       panRef.current = { x: 0, y: 0 };
       setZoomDisplay(100);
-      // Apply initial transform after mount
-      requestAnimationFrame(applyTransform);
-    }
+    }, 50);
+
     return () => {
+      clearTimeout(timer);
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
     };
-  }, [isOpen, applyTransform]);
+  }, [isOpen]);
 
-  // Native event listeners for wheel and mouse — better performance than React synthetic events
+  // Native event listeners for smooth interaction
   useEffect(() => {
     if (!isOpen) return;
     const container = containerRef.current;
     if (!container) return;
 
-    // Wheel zoom (passive: false to allow preventDefault)
+    // Convert pixel delta to SVG coordinate delta
+    const pixelToSvg = (pixelDelta: number): number => {
+      const base = baseViewBoxRef.current;
+      if (!base) return 0;
+      const containerWidth = container.clientWidth;
+      const currentVbWidth = base.width / zoomRef.current;
+      return pixelDelta * (currentVbWidth / containerWidth);
+    };
+
+    // Wheel zoom
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
       zoomRef.current = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomRef.current + delta));
-      scheduleTransform();
+      scheduleUpdate();
       updateZoomDisplay();
     };
 
+    // Mouse pan
+    let isPanning = false;
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
-      isPanningRef.current = true;
+      isPanning = true;
       lastPanRef.current = { x: e.clientX, y: e.clientY };
       container.style.cursor = 'grabbing';
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isPanningRef.current) return;
+      if (!isPanning) return;
       const dx = e.clientX - lastPanRef.current.x;
       const dy = e.clientY - lastPanRef.current.y;
-      panRef.current = { x: panRef.current.x + dx, y: panRef.current.y + dy };
+      // Convert pixel movement to SVG units and apply (negative because viewBox moves opposite)
+      panRef.current = {
+        x: panRef.current.x + pixelToSvg(dx),
+        y: panRef.current.y + pixelToSvg(dy),
+      };
       lastPanRef.current = { x: e.clientX, y: e.clientY };
-      scheduleTransform();
+      scheduleUpdate();
     };
 
     const handleMouseUp = () => {
-      isPanningRef.current = false;
+      isPanning = false;
       container.style.cursor = 'grab';
     };
 
@@ -156,14 +213,17 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
           updateZoomDisplay();
         }
         lastTouchDistRef.current = dist;
-        scheduleTransform();
+        scheduleUpdate();
       } else if (e.touches.length === 1) {
         const touch = e.touches[0];
         const dx = touch.clientX - lastPanRef.current.x;
         const dy = touch.clientY - lastPanRef.current.y;
-        panRef.current = { x: panRef.current.x + dx, y: panRef.current.y + dy };
+        panRef.current = {
+          x: panRef.current.x + pixelToSvg(dx),
+          y: panRef.current.y + pixelToSvg(dy),
+        };
         lastPanRef.current = { x: touch.clientX, y: touch.clientY };
-        scheduleTransform();
+        scheduleUpdate();
       }
     };
 
@@ -188,9 +248,9 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isOpen, scheduleTransform, updateZoomDisplay]);
+  }, [isOpen, scheduleUpdate, updateZoomDisplay]);
 
-  // Escape key to close
+  // Escape key
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -203,21 +263,21 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
   const resetView = useCallback(() => {
     zoomRef.current = 1;
     panRef.current = { x: 0, y: 0 };
-    applyTransform();
+    applyViewBox();
     setZoomDisplay(100);
-  }, [applyTransform]);
+  }, [applyViewBox]);
 
   const zoomIn = useCallback(() => {
     zoomRef.current = Math.min(MAX_ZOOM, zoomRef.current + ZOOM_STEP * 2);
-    applyTransform();
+    applyViewBox();
     updateZoomDisplay();
-  }, [applyTransform, updateZoomDisplay]);
+  }, [applyViewBox, updateZoomDisplay]);
 
   const zoomOut = useCallback(() => {
     zoomRef.current = Math.max(MIN_ZOOM, zoomRef.current - ZOOM_STEP * 2);
-    applyTransform();
+    applyViewBox();
     updateZoomDisplay();
-  }, [applyTransform, updateZoomDisplay]);
+  }, [applyViewBox, updateZoomDisplay]);
 
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
@@ -231,7 +291,7 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       onClick={handleBackdropClick}
     >
       {/* Modal panel — landscape-oriented, near-full viewport */}
@@ -242,7 +302,6 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
             Mermaid Diagram
           </span>
           <div className="flex items-center gap-2">
-            {/* Zoom controls */}
             <button
               onClick={zoomOut}
               className="p-1 text-chatroom-text-muted hover:text-chatroom-text-primary transition-colors"
@@ -277,22 +336,17 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
           </div>
         </div>
 
-        {/* Diagram area — zoomable and pannable via native events */}
+        {/* Diagram area — SVG viewBox zoom */}
         <div
           ref={containerRef}
           className="flex-1 overflow-hidden cursor-grab select-none"
           style={{ touchAction: 'none' }}
         >
           <div
-            ref={transformRef}
-            className="w-full h-full flex items-center justify-center"
-            style={{ willChange: 'transform', transformOrigin: 'center center' }}
-          >
-            <div
-              className="[&_svg]:max-w-none [&_svg]:h-auto"
-              dangerouslySetInnerHTML={{ __html: svg }}
-            />
-          </div>
+            ref={svgContainerRef}
+            className="w-full h-full [&_svg]:w-full [&_svg]:h-full"
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
         </div>
       </div>
     </div>,
@@ -314,10 +368,7 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
 
     async function renderChart() {
       try {
-        // Dynamic import to avoid SSR issues
         const mermaid = (await import('mermaid')).default;
-
-        // Detect dark mode from document class (Next.js dark mode adds 'dark' to html)
         const isDark =
           typeof document !== 'undefined' &&
           (document.documentElement.classList.contains('dark') ||
@@ -327,7 +378,6 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
           startOnLoad: false,
           theme: isDark ? 'dark' : 'default',
           securityLevel: 'strict',
-          // Use square/rectangular nodes for better text wrapping
           flowchart: {
             htmlLabels: true,
             curve: 'basis',
@@ -336,7 +386,6 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
             useMaxWidth: true,
             wrappingWidth: 200,
           },
-          // Ensure diagrams respect container width
           themeVariables: {
             fontSize: '12px',
           },
@@ -359,13 +408,9 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
     }
 
     renderChart();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [chart]);
 
-  // Loading state
   if (loading && !error) {
     return (
       <div className="my-3 flex justify-center p-4 bg-chatroom-bg-tertiary border-2 border-chatroom-border">
@@ -374,7 +419,6 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
     );
   }
 
-  // Error fallback: show raw code
   if (error) {
     return (
       <pre className="bg-chatroom-bg-tertiary border-2 border-chatroom-border p-3 my-3 overflow-x-auto text-sm text-chatroom-text-primary">
@@ -383,7 +427,6 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
     );
   }
 
-  // Rendered SVG with expand button
   return (
     <>
       <div className="relative my-3 group">
@@ -391,12 +434,8 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
           ref={containerRef}
           className="flex justify-center overflow-x-auto [&_svg]:max-w-full [&_svg]:h-auto [&_svg]:min-w-0"
           style={{ maxWidth: '100%' }}
-          /* SECURITY: SVG is rendered by mermaid with securityLevel: 'strict', which
-             sanitizes the output. The chart content originates from agent messages
-             (not untrusted external input). See: https://mermaid.js.org/config/security.html */
           dangerouslySetInnerHTML={{ __html: svg }}
         />
-        {/* Expand button — appears on hover */}
         <button
           onClick={() => setIsModalOpen(true)}
           className="absolute top-2 right-2 p-1.5 bg-chatroom-bg-primary/80 border border-chatroom-border text-chatroom-text-muted hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover transition-all opacity-0 group-hover:opacity-100"
