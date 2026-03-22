@@ -23,7 +23,7 @@ interface MermaidBlockProps {
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
-const ZOOM_STEP = 0.1;
+const ZOOM_STEP = 0.05;
 
 // ─── ViewBox type ────────────────────────────────────────────────────────────
 
