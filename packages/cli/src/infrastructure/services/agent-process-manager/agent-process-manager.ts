@@ -244,7 +244,7 @@ export class AgentProcessManager {
     }
 
     // Restart decision
-    const isIntentionalStop = stopReason === 'user.stop' || stopReason === 'platform.team_switch';
+    const isIntentionalStop = stopReason === 'user.stop' || stopReason === 'platform.team_switch' || stopReason === 'daemon.shutdown';
     const isDaemonRespawn = stopReason === 'daemon.respawn';
 
     if (isIntentionalStop) {
