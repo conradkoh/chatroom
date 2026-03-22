@@ -40,6 +40,19 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
           startOnLoad: false,
           theme: isDark ? 'dark' : 'default',
           securityLevel: 'strict',
+          // Use square/rectangular nodes for better text wrapping
+          flowchart: {
+            htmlLabels: true,
+            curve: 'basis',
+            nodeSpacing: 30,
+            rankSpacing: 50,
+            useMaxWidth: true,
+            wrappingWidth: 200,
+          },
+          // Ensure diagrams respect container width
+          themeVariables: {
+            fontSize: '12px',
+          },
         });
 
         const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
@@ -87,7 +100,8 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
   return (
     <div
       ref={containerRef}
-      className="my-3 flex justify-center overflow-x-auto [&_svg]:max-w-full"
+      className="my-3 flex justify-center overflow-x-auto [&_svg]:max-w-full [&_svg]:h-auto [&_svg]:min-w-0"
+      style={{ maxWidth: '100%' }}
       /* SECURITY: SVG is rendered by mermaid with securityLevel: 'strict', which
          sanitizes the output. The chart content originates from agent messages
          (not untrusted external input). See: https://mermaid.js.org/config/security.html */
