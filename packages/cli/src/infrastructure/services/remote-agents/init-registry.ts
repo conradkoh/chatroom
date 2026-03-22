@@ -1,3 +1,4 @@
+import { ClaudeCodeAgentService } from './claude/index.js';
 import { CursorAgentService } from './cursor/index.js';
 import { OpenCodeAgentService } from './opencode/index.js';
 import { PiAgentService } from './pi/index.js';
@@ -11,5 +12,6 @@ export function initHarnessRegistry(): void {
   registerHarness(new OpenCodeAgentService());
   registerHarness(new PiAgentService());
   registerHarness(new CursorAgentService());
+  registerHarness(new ClaudeCodeAgentService());
   initialized = true;
 }

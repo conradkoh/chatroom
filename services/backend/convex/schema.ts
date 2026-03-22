@@ -5,7 +5,8 @@ import { v } from 'convex/values';
 export const agentHarnessValidator = v.union(
   v.literal('opencode'),
   v.literal('pi'),
-  v.literal('cursor')
+  v.literal('cursor'),
+  v.literal('claude')
 );
 
 /**
