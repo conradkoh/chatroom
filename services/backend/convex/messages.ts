@@ -844,7 +844,7 @@ export const taskStarted = mutation({
     if (task.status !== 'in_progress') {
       throw new ConvexError({
         code: 'INVALID_TASK_STATUS',
-        message: `Task must be in_progress to classify (current status: ${task.status}). Call startTask first.`,
+        message: `Task must be in_progress to classify (current status: ${task.status}). Call 'task read' first to transition task to in_progress.`,
       });
     }
 
