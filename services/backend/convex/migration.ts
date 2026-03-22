@@ -1,5 +1,14 @@
 /**
- * Database Migrations
+ * Database Migrations (LEGACY)
+ *
+ * @deprecated Use `migrations.ts` with the @convex-dev/migrations framework instead.
+ * These internal mutations are kept for backward compatibility until the migration
+ * framework version is confirmed working in production.
+ *
+ * New migrations should be added to `migrations.ts` using `migrations.define()`.
+ * Run all migrations via: `npx convex run migrations:runAll`
+ *
+ * ---
  *
  * Internal mutations and actions for one-off data migrations.
  * Run from the Convex dashboard as internal functions.
