@@ -769,6 +769,8 @@ export default defineSchema({
     userId: v.id('users'),
     // Machine hostname
     hostname: v.string(),
+    // Optional user-defined display name for this machine
+    alias: v.optional(v.string()),
     // Operating system (darwin, linux, win32)
     os: v.string(),
     // Available agent harnesses on this machine
