@@ -58,6 +58,10 @@ function renderAgentExitedCell(event: AgentExitedEvent, isSelected: boolean): Re
       badgeText = 'Stopped';
       badgeColor = 'info';
       break;
+    case 'daemon.shutdown':
+      badgeText = 'Daemon Shutdown';
+      badgeColor = 'info';
+      break;
     case 'agent_process.exited_clean':
     case 'daemon.respawn':
       badgeText = 'Exit';
