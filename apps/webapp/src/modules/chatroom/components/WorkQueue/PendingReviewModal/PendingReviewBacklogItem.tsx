@@ -1,4 +1,5 @@
 import { ChevronRight } from 'lucide-react';
+import React, { memo } from 'react';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
@@ -12,7 +13,7 @@ export interface PendingReviewBacklogItemProps {
   onClick: () => void;
 }
 
-export function PendingReviewBacklogItem({ item, onClick }: PendingReviewBacklogItemProps) {
+export const PendingReviewBacklogItem = memo(function PendingReviewBacklogItem({ item, onClick }: PendingReviewBacklogItemProps) {
   const relativeTime = formatRelativeTime(item.updatedAt);
 
   return (
@@ -75,4 +76,4 @@ export function PendingReviewBacklogItem({ item, onClick }: PendingReviewBacklog
       />
     </div>
   );
-}
+});

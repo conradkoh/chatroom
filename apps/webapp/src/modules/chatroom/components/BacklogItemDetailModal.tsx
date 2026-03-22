@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import { useSessionMutation } from 'convex-helpers/react/sessions';
 import { Check, CornerUpLeft, Link, ListChecks, MoreHorizontal, Pencil, X } from 'lucide-react';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
@@ -125,6 +125,20 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
     add({ type: 'backlog', id: item._id, content: item.content });
   };
 
+  // Memoize markdown rendering — parsing is expensive and re-runs on every render.
+  // Only re-parse when the content actually changes.
+  const renderedContent = useMemo(
+    () => (
+      <Markdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        components={baseMarkdownComponents}
+      >
+        {item.content}
+      </Markdown>
+    ),
+    [item.content]
+  );
+
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-2xl">
       <FixedModalContent>
@@ -225,12 +239,7 @@ export function BacklogItemDetailModal({ isOpen, item, onClose }: BacklogItemDet
           ) : (
             // View mode — Read-only rendered markdown
             <div className={`p-4 ${backlogProseClassNames}`}>
-              <Markdown
-                remarkPlugins={[remarkGfm, remarkBreaks]}
-                components={baseMarkdownComponents}
-              >
-                {item.content}
-              </Markdown>
+              {renderedContent}
             </div>
           )}
         </FixedModalBody>

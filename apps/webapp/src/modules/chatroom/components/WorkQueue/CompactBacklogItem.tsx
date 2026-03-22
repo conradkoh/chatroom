@@ -1,4 +1,5 @@
 import { ChevronRight } from 'lucide-react';
+import React, { memo } from 'react';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
@@ -13,7 +14,7 @@ export interface CompactBacklogItemProps {
 
 // compactMarkdownComponents is imported from markdown-utils.tsx
 
-export function CompactBacklogItem({ item, onClick }: CompactBacklogItemProps) {
+export const CompactBacklogItem = memo(function CompactBacklogItem({ item, onClick }: CompactBacklogItemProps) {
   const hasScoring = item.complexity || item.value || item.priority !== undefined;
 
   return (
@@ -68,4 +69,4 @@ export function CompactBacklogItem({ item, onClick }: CompactBacklogItemProps) {
       />
     </div>
   );
-}
+});
