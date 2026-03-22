@@ -14,6 +14,7 @@ import {
   requireChatroomAccess,
   validateSession,
 } from './auth/cliSessionAuth';
+import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { patchParticipantStatus } from '../src/domain/entities/participant';
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { createTask as createTaskUsecase } from '../src/domain/usecase/task/create-task';
@@ -689,17 +690,7 @@ export const promoteNextTask = mutation({
     await requireChatroomAccess(ctx, args.sessionId, args.chatroomId);
 
     // Delegate to the promote-next-task usecase with deps wired from ctx
-    const result = await promoteNextTaskUsecase(args.chatroomId, {
-      areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
-      getOldestQueuedMessage: async (chatroomId) => {
-        return await ctx.db
-          .query('chatroom_messageQueue')
-          .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', chatroomId))
-          .order('asc')
-          .first();
-      },
-      promoteQueuedMessage: (queuedMessageId) => promoteQueuedMessage(ctx, queuedMessageId),
-    });
+    const result = await promoteNextTaskUsecase(args.chatroomId, makePromoteNextTaskDeps(ctx));
 
     return result.promoted
       ? { promoted: true, reason: 'success', taskId: result.promoted }

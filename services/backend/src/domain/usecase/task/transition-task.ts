@@ -28,10 +28,9 @@
  */
 
 import { promoteNextTask } from './promote-next-task';
-import { promoteQueuedMessage } from './promote-queued-message';
+import { makePromoteNextTaskDeps } from '../../../../convex/lib/promoteNextTaskDeps';
 import type { Id } from '../../../../convex/_generated/dataModel';
 import type { MutationCtx } from '../../../../convex/_generated/server';
-import { areAllAgentsWaiting } from '../../../../convex/auth/cliSessionAuth';
 import type { Task, TaskStatus } from '../../../../convex/lib/taskStateMachine';
 import { transitionTask as fsmTransitionTask } from '../../../../convex/lib/taskStateMachine';
 import { patchParticipantStatus } from '../../entities/participant';
@@ -55,6 +54,17 @@ export interface TransitionTaskOptions {
    * when it calls get-next-task again or when it crashes and exits.
    */
   skipAgentStatusUpdate?: boolean;
+
+  /**
+   * When true, skips automatic queue promotion after terminal transitions.
+   *
+   * Use this when the caller manages promotion explicitly (e.g. the handoff
+   * handler has its own promotion logic in Step 6). Without this flag,
+   * transitionTask would auto-promote queued messages immediately after
+   * completing a task, which can conflict with the caller's own promotion
+   * or task creation logic.
+   */
+  skipAutoPromotion?: boolean;
 }
 
 // ============================================================================
@@ -159,20 +169,11 @@ export async function transitionTask(
   // 3. After terminal transitions, attempt to promote the next queued task.
   //    We re-fetch the task to get its chatroomId (the transition has already
   //    committed, so the status is now `newStatus`).
-  if (TERMINAL_TASK_STATUSES.has(newStatus)) {
+  //    Skip when caller manages promotion explicitly (e.g. handoff handler).
+  if (TERMINAL_TASK_STATUSES.has(newStatus) && !options?.skipAutoPromotion) {
     const task = await ctx.db.get('chatroom_tasks', taskId);
     if (task) {
-      await promoteNextTask(task.chatroomId, {
-        areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
-        getOldestQueuedMessage: async (chatroomId) => {
-          return await ctx.db
-            .query('chatroom_messageQueue')
-            .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', chatroomId))
-            .order('asc')
-            .first();
-        },
-        promoteQueuedMessage: (queuedMessageId) => promoteQueuedMessage(ctx, queuedMessageId),
-      });
+      await promoteNextTask(task.chatroomId, makePromoteNextTaskDeps(ctx));
     }
   }
 
