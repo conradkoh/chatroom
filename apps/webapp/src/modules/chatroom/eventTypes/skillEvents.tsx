@@ -25,7 +25,7 @@ function renderSkillActivatedCell(
 
 function renderSkillActivatedDetails(event: SkillActivatedEvent): React.ReactNode {
   return (
-    <EventDetails title="Skill Activated" timestamp={event.timestamp} type="skill.activated">
+    <EventDetails eventId={event._id} title="Skill Activated" timestamp={event.timestamp} type="skill.activated">
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Skill ID" value={event.skillId} mono />
       <DetailRow label="Skill Name" value={event.skillName} />

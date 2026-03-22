@@ -27,7 +27,7 @@ function renderTaskActivatedCell(event: TaskActivatedEvent, isSelected: boolean)
 
 function renderTaskActivatedDetails(event: TaskActivatedEvent): React.ReactNode {
   return (
-    <EventDetails title="Task Activated" timestamp={event.timestamp} type="task.activated">
+    <EventDetails eventId={event._id} title="Task Activated" timestamp={event.timestamp} type="task.activated">
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Task ID" value={event.taskId} mono />
       <DetailRow label="Status" value={event.taskStatus} />
@@ -58,7 +58,7 @@ function renderTaskAcknowledgedCell(
 
 function renderTaskAcknowledgedDetails(event: TaskAcknowledgedEvent): React.ReactNode {
   return (
-    <EventDetails title="Task Acknowledged" timestamp={event.timestamp} type="task.acknowledged">
+    <EventDetails eventId={event._id} title="Task Acknowledged" timestamp={event.timestamp} type="task.acknowledged">
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Task ID" value={event.taskId} mono />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
@@ -86,7 +86,7 @@ function renderTaskInProgressCell(
 
 function renderTaskInProgressDetails(event: TaskInProgressEvent): React.ReactNode {
   return (
-    <EventDetails title="Task In Progress" timestamp={event.timestamp} type="task.inProgress">
+    <EventDetails eventId={event._id} title="Task In Progress" timestamp={event.timestamp} type="task.inProgress">
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Task ID" value={event.taskId} mono />
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
@@ -113,7 +113,7 @@ function renderTaskCompletedCell(event: TaskCompletedEvent, isSelected: boolean)
 
 function renderTaskCompletedDetails(event: TaskCompletedEvent): React.ReactNode {
   return (
-    <EventDetails title="Task Completed" timestamp={event.timestamp} type="task.completed">
+    <EventDetails eventId={event._id} title="Task Completed" timestamp={event.timestamp} type="task.completed">
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Task ID" value={event.taskId} mono />
       <DetailRow label="Final Status" value={event.finalStatus} />
