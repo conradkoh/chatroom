@@ -66,9 +66,14 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
   // DOM refs
   const containerRef = useRef<HTMLDivElement>(null);
   const svgContainerRef = useRef<HTMLDivElement>(null);
+  const zoomLabelRef = useRef<HTMLSpanElement>(null);
 
-  // Only zoom display triggers React re-renders
-  const [zoomDisplay, setZoomDisplay] = useState(100);
+  // Update zoom label via direct DOM mutation — zero React re-renders
+  const updateZoomLabel = useCallback(() => {
+    if (zoomLabelRef.current) {
+      zoomLabelRef.current.textContent = `${Math.round(zoomRef.current * 100)}%`;
+    }
+  }, []);
 
   // Apply viewBox to the SVG element — crisp rendering at any zoom
   const applyViewBox = useCallback(() => {
@@ -93,10 +98,6 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
       applyViewBox();
     });
   }, [applyViewBox]);
-
-  const updateZoomDisplay = useCallback(() => {
-    setZoomDisplay(Math.round(zoomRef.current * 100));
-  }, []);
 
   // Initialize SVG for viewBox-based zoom when modal opens
   useEffect(() => {
@@ -129,7 +130,7 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
       // Reset zoom/pan
       zoomRef.current = 1;
       panRef.current = { x: 0, y: 0 };
-      setZoomDisplay(100);
+      updateZoomLabel();
     }, 50);
 
     return () => {
@@ -162,7 +163,7 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
       const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
       zoomRef.current = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomRef.current + delta));
       scheduleUpdate();
-      updateZoomDisplay();
+      updateZoomLabel();
     };
 
     // Mouse pan
@@ -210,7 +211,7 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
         if (lastTouchDistRef.current !== null) {
           const delta = (dist - lastTouchDistRef.current) * 0.005;
           zoomRef.current = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomRef.current + delta));
-          updateZoomDisplay();
+          updateZoomLabel();
         }
         lastTouchDistRef.current = dist;
         scheduleUpdate();
@@ -248,7 +249,7 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isOpen, scheduleUpdate, updateZoomDisplay]);
+  }, [isOpen, scheduleUpdate, updateZoomLabel]);
 
   // Escape key
   useEffect(() => {
@@ -264,20 +265,20 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
     zoomRef.current = 1;
     panRef.current = { x: 0, y: 0 };
     applyViewBox();
-    setZoomDisplay(100);
+    updateZoomLabel();
   }, [applyViewBox]);
 
   const zoomIn = useCallback(() => {
     zoomRef.current = Math.min(MAX_ZOOM, zoomRef.current + ZOOM_STEP * 2);
     applyViewBox();
-    updateZoomDisplay();
-  }, [applyViewBox, updateZoomDisplay]);
+    updateZoomLabel();
+  }, [applyViewBox, updateZoomLabel]);
 
   const zoomOut = useCallback(() => {
     zoomRef.current = Math.max(MIN_ZOOM, zoomRef.current - ZOOM_STEP * 2);
     applyViewBox();
-    updateZoomDisplay();
-  }, [applyViewBox, updateZoomDisplay]);
+    updateZoomLabel();
+  }, [applyViewBox, updateZoomLabel]);
 
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
@@ -309,8 +310,8 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
             >
               <Minus size={14} />
             </button>
-            <span className="text-[10px] font-mono text-chatroom-text-muted min-w-[3rem] text-center">
-              {zoomDisplay}%
+            <span ref={zoomLabelRef} className="text-[10px] font-mono text-chatroom-text-muted min-w-[3rem] text-center">
+              100%
             </span>
             <button
               onClick={zoomIn}
