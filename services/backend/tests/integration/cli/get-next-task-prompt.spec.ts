@@ -606,7 +606,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(jsonContext.contextWindow.classification).toBeDefined();
   });
 
-  test('includes classification info for task-started command', async () => {
+  test('includes classification info for classify command', async () => {
     // Setup
     const { sessionId } = await createTestSession('test-classification-info');
     const chatroomId = await createPairTeamChatroom(sessionId);
@@ -1211,7 +1211,7 @@ ${taskDeliveryPrompt.fullCliOutput}
     expect(initPrompt?.prompt).toContain('### Context Recovery (after compaction/summarization)');
     expect(initPrompt?.prompt).toContain('### Get Next Task');
 
-    // CRITICAL: Should have Start Working instruction for reviewer (without task-started command)
+    // CRITICAL: Should have Start Working instruction for reviewer (without task-started references)
     // Reviewer receives handoffs, not user messages, so no classification needed
     expect(initPrompt?.prompt).toContain('### Start Working');
     expect(initPrompt?.prompt).not.toContain('--no-classify');

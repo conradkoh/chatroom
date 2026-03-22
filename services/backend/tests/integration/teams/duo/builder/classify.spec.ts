@@ -1,11 +1,11 @@
 /**
- * Pair Team — Builder Task Started Reminder
+ * Duo Team — Builder Classify Reminder
  *
- * Verifies the task-started reminder prompt generated for the builder role
- * in a Pair team. Tests `generateTaskStartedReminder` which produces
- * role-specific guidance after acknowledging a task via `task-started`.
+ * Verifies the classify reminder prompt generated for the builder role
+ * in a Duo team. Tests `generateTaskStartedReminder` which produces
+ * role-specific guidance after acknowledging a task via `classify`.
  *
- * In pair team, builder is the entry point and can hand off to user or reviewer.
+ * In duo team, builder hands off to planner, never to user.
  *
  * Uses inline snapshots for human-reviewable regression detection.
  */
@@ -20,11 +20,11 @@ const BASE_PARAMS = {
   messageId: 'test-message-id',
   taskId: 'test-task-id',
   convexUrl: 'http://127.0.0.1:3210',
-  teamRoles: ['builder', 'reviewer'] as string[],
-  teamName: 'Pair',
+  teamRoles: ['planner', 'builder'] as string[],
+  teamName: 'Duo',
 };
 
-describe('Pair Team > Builder > Task Started Reminder', () => {
+describe('Duo Team > Builder > Classify Reminder', () => {
   test('question classification', () => {
     const reminder = generateTaskStartedReminder(
       BASE_PARAMS.role,
@@ -39,26 +39,25 @@ describe('Pair Team > Builder > Task Started Reminder', () => {
 
     expect(reminder).toBeDefined();
     expect(reminder).toContain('QUESTION');
-    // Pair builder can hand off to user for questions
-    expect(reminder).toContain('hand off directly to user');
+    // Duo builder should never hand off to user
+    expect(reminder).toContain('never hand off directly to user');
 
     expect(reminder).toMatchInlineSnapshot(`
       "✅ Task acknowledged as QUESTION.
 
       **Next steps:**
-      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="builder" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF\`
-      2. Answer the user's question
-      3. When done, hand off directly to user:
+      1. Implement the requested changes
+      2. Send \`report-progress\` at milestones
+      3. Hand off to planner when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="user" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="planner" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
+
+      ⚠️ In duo team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
       Task ID: test-task-id"
@@ -79,24 +78,24 @@ describe('Pair Team > Builder > Task Started Reminder', () => {
 
     expect(reminder).toBeDefined();
     expect(reminder).toContain('NEW FEATURE');
-    // Pair builder must hand off to reviewer for new features
-    expect(reminder).toContain('reviewer');
+    expect(reminder).toContain('never hand off directly to user');
 
     expect(reminder).toMatchInlineSnapshot(`
       "✅ Task acknowledged as NEW FEATURE.
 
       **Next steps:**
-      1. Implement the feature
-      2. Send \`report-progress\` at milestones (e.g., after major changes, when blocked)
-      3. Commit your changes
-      4. MUST hand off to reviewer for approval:
+      1. Implement the requested changes
+      2. Send \`report-progress\` at milestones
+      3. Hand off to planner when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="reviewer" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="planner" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
+
+      ⚠️ In duo team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
       Task ID: test-task-id"
@@ -117,16 +116,24 @@ describe('Pair Team > Builder > Task Started Reminder', () => {
 
     expect(reminder).toBeDefined();
     expect(reminder).toContain('FOLLOW UP');
+    expect(reminder).toContain('never hand off directly to user');
 
     expect(reminder).toMatchInlineSnapshot(`
       "✅ Task acknowledged as FOLLOW UP.
 
       **Next steps:**
-      1. Complete the follow-up work
-      2. Send \`report-progress\` at milestones for visibility
-      3. Follow-up inherits the workflow rules from the original task:
-         - If original was a QUESTION → hand off to user when done
-         - If original was a NEW FEATURE → hand off to reviewer when done
+      1. Implement the requested changes
+      2. Send \`report-progress\` at milestones
+      3. Hand off to planner when complete:
+
+      \`\`\`bash
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="planner" << 'EOF'
+      ---MESSAGE---
+      [Your message here]
+      EOF
+      \`\`\`
+
+      ⚠️ In duo team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
       Task ID: test-task-id"

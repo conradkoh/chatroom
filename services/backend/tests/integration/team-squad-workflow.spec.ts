@@ -871,7 +871,7 @@ Standard implementation`,
   // =========================================================================
   // TASK-STARTED REMINDERS
   // =========================================================================
-  describe('task-started reminders', () => {
+  describe('classify reminders', () => {
     test('planner + new_feature: reminder mentions delegating to builder', async () => {
       const { sessionId } = await createTestSession('test-squad-reminder-planner-nf');
       const chatroomId = await createSquadTeamChatroom(sessionId);

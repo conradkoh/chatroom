@@ -23,7 +23,7 @@ ${varName}="${HANDOFF_DIR}/${filePrefix}-$(date +%s%N).md"`;
 
 /**
  * Generates a bash snippet for multiple files with a shared unique ID.
- * Useful for task-started which needs description and tech-specs files.
+ * Useful for classify which needs description and tech-specs files.
  * @param files - Array of { prefix, varName } for each file needed
  * @returns Bash snippet with shared UNIQUE_ID
  */

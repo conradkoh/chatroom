@@ -1,9 +1,9 @@
 /**
- * Squad Team — Reviewer Task Started Reminder
+ * Squad Team — Reviewer Classify Reminder
  *
- * Verifies the task-started reminder prompt generated for the reviewer role
+ * Verifies the classify reminder prompt generated for the reviewer role
  * in a Squad team. Tests `generateTaskStartedReminder` which produces
- * role-specific guidance after acknowledging a task via `task-started`.
+ * role-specific guidance after acknowledging a task via `classify`.
  *
  * In squad team, reviewer hands off to planner (not user).
  *
@@ -24,7 +24,7 @@ const BASE_PARAMS = {
   teamName: 'Squad',
 };
 
-describe('Squad Team > Reviewer > Task Started Reminder', () => {
+describe('Squad Team > Reviewer > Classify Reminder', () => {
   test('question classification', () => {
     const reminder = generateTaskStartedReminder(
       BASE_PARAMS.role,
