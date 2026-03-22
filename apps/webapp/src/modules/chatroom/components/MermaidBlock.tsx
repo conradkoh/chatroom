@@ -12,7 +12,7 @@ import { createPortal } from 'react-dom';
  * - Dark/light mode detection via document class
  * - Graceful fallback to raw code on parse errors
  * - Unique IDs for concurrent rendering
- * - Fullscreen modal with pinch/scroll zoom
+ * - Fullscreen modal with hardware-accelerated zoom/pan
  */
 
 interface MermaidBlockProps {
@@ -33,24 +33,162 @@ interface MermaidFullscreenModalProps {
   onClose: () => void;
 }
 
+/**
+ * Fullscreen mermaid diagram viewer with hardware-accelerated zoom and pan.
+ *
+ * Performance: Uses refs for transform state and applies transforms directly
+ * to the DOM via requestAnimationFrame, bypassing React's render cycle.
+ * Only the zoom percentage display triggers React re-renders.
+ */
 const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
   svg,
   isOpen,
   onClose,
 }: MermaidFullscreenModalProps) {
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
+  // Transform state stored in refs — mutations don't trigger re-renders
+  const zoomRef = useRef(1);
+  const panRef = useRef({ x: 0, y: 0 });
+  const isPanningRef = useRef(false);
   const lastPanRef = useRef({ x: 0, y: 0 });
-  const contentRef = useRef<HTMLDivElement>(null);
+  const lastTouchDistRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  // DOM refs
+  const transformRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Only the zoom display uses React state (updates less frequently)
+  const [zoomDisplay, setZoomDisplay] = useState(100);
+
+  // Apply transform directly to DOM — no React re-render
+  const applyTransform = useCallback(() => {
+    if (transformRef.current) {
+      transformRef.current.style.transform =
+        `translate(${panRef.current.x}px, ${panRef.current.y}px) scale(${zoomRef.current})`;
+    }
+  }, []);
+
+  // Schedule transform update via rAF (coalesces multiple calls per frame)
+  const scheduleTransform = useCallback(() => {
+    if (rafRef.current !== null) return; // Already scheduled
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      applyTransform();
+    });
+  }, [applyTransform]);
+
+  // Update zoom display (debounced — only updates React state)
+  const updateZoomDisplay = useCallback(() => {
+    setZoomDisplay(Math.round(zoomRef.current * 100));
+  }, []);
 
   // Reset zoom/pan when modal opens
   useEffect(() => {
     if (isOpen) {
-      setZoom(1);
-      setPan({ x: 0, y: 0 });
+      zoomRef.current = 1;
+      panRef.current = { x: 0, y: 0 };
+      setZoomDisplay(100);
+      // Apply initial transform after mount
+      requestAnimationFrame(applyTransform);
     }
-  }, [isOpen]);
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [isOpen, applyTransform]);
+
+  // Native event listeners for wheel and mouse — better performance than React synthetic events
+  useEffect(() => {
+    if (!isOpen) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Wheel zoom (passive: false to allow preventDefault)
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+      zoomRef.current = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomRef.current + delta));
+      scheduleTransform();
+      updateZoomDisplay();
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      isPanningRef.current = true;
+      lastPanRef.current = { x: e.clientX, y: e.clientY };
+      container.style.cursor = 'grabbing';
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isPanningRef.current) return;
+      const dx = e.clientX - lastPanRef.current.x;
+      const dy = e.clientY - lastPanRef.current.y;
+      panRef.current = { x: panRef.current.x + dx, y: panRef.current.y + dy };
+      lastPanRef.current = { x: e.clientX, y: e.clientY };
+      scheduleTransform();
+    };
+
+    const handleMouseUp = () => {
+      isPanningRef.current = false;
+      container.style.cursor = 'grab';
+    };
+
+    // Touch events
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        lastPanRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+      lastTouchDistRef.current = null;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (lastTouchDistRef.current !== null) {
+          const delta = (dist - lastTouchDistRef.current) * 0.005;
+          zoomRef.current = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomRef.current + delta));
+          updateZoomDisplay();
+        }
+        lastTouchDistRef.current = dist;
+        scheduleTransform();
+      } else if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - lastPanRef.current.x;
+        const dy = touch.clientY - lastPanRef.current.y;
+        panRef.current = { x: panRef.current.x + dx, y: panRef.current.y + dy };
+        lastPanRef.current = { x: touch.clientX, y: touch.clientY };
+        scheduleTransform();
+      }
+    };
+
+    const handleTouchEnd = () => {
+      lastTouchDistRef.current = null;
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    container.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isOpen, scheduleTransform, updateZoomDisplay]);
 
   // Escape key to close
   useEffect(() => {
@@ -62,86 +200,24 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Scroll wheel zoom
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-      setZoom((prev) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev + delta)));
-    },
-    []
-  );
-
-  // Mouse pan
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return; // Only left click
-    setIsPanning(true);
-    lastPanRef.current = { x: e.clientX, y: e.clientY };
-  }, []);
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!isPanning) return;
-      const dx = e.clientX - lastPanRef.current.x;
-      const dy = e.clientY - lastPanRef.current.y;
-      setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
-      lastPanRef.current = { x: e.clientX, y: e.clientY };
-    },
-    [isPanning]
-  );
-
-  const handleMouseUp = useCallback(() => {
-    setIsPanning(false);
-  }, []);
-
-  // Touch pinch zoom
-  const lastTouchDistRef = useRef<number | null>(null);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (lastTouchDistRef.current !== null) {
-        const delta = (dist - lastTouchDistRef.current) * 0.005;
-        setZoom((prev) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev + delta)));
-      }
-      lastTouchDistRef.current = dist;
-    } else if (e.touches.length === 1) {
-      // Single finger pan
-      const touch = e.touches[0];
-      const dx = touch.clientX - lastPanRef.current.x;
-      const dy = touch.clientY - lastPanRef.current.y;
-      setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
-      lastPanRef.current = { x: touch.clientX, y: touch.clientY };
-    }
-  }, []);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      lastPanRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    }
-    lastTouchDistRef.current = null;
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    lastTouchDistRef.current = null;
-  }, []);
-
   const resetView = useCallback(() => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }, []);
+    zoomRef.current = 1;
+    panRef.current = { x: 0, y: 0 };
+    applyTransform();
+    setZoomDisplay(100);
+  }, [applyTransform]);
 
   const zoomIn = useCallback(() => {
-    setZoom((prev) => Math.min(MAX_ZOOM, prev + ZOOM_STEP * 2));
-  }, []);
+    zoomRef.current = Math.min(MAX_ZOOM, zoomRef.current + ZOOM_STEP * 2);
+    applyTransform();
+    updateZoomDisplay();
+  }, [applyTransform, updateZoomDisplay]);
 
   const zoomOut = useCallback(() => {
-    setZoom((prev) => Math.max(MIN_ZOOM, prev - ZOOM_STEP * 2));
-  }, []);
+    zoomRef.current = Math.max(MIN_ZOOM, zoomRef.current - ZOOM_STEP * 2);
+    applyTransform();
+    updateZoomDisplay();
+  }, [applyTransform, updateZoomDisplay]);
 
   const handleBackdropClick = useCallback(
     (e: React.MouseEvent) => {
@@ -175,7 +251,7 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
               <Minus size={14} />
             </button>
             <span className="text-[10px] font-mono text-chatroom-text-muted min-w-[3rem] text-center">
-              {Math.round(zoom * 100)}%
+              {zoomDisplay}%
             </span>
             <button
               onClick={zoomIn}
@@ -201,26 +277,16 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
           </div>
         </div>
 
-        {/* Diagram area — zoomable and pannable */}
+        {/* Diagram area — zoomable and pannable via native events */}
         <div
-          ref={contentRef}
-          className="flex-1 overflow-hidden cursor-grab active:cursor-grabbing"
-          onWheel={handleWheel}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
+          ref={containerRef}
+          className="flex-1 overflow-hidden cursor-grab select-none"
+          style={{ touchAction: 'none' }}
         >
           <div
+            ref={transformRef}
             className="w-full h-full flex items-center justify-center"
-            style={{
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-              transformOrigin: 'center center',
-              transition: isPanning ? 'none' : 'transform 0.1s ease-out',
-            }}
+            style={{ willChange: 'transform', transformOrigin: 'center center' }}
           >
             <div
               className="[&_svg]:max-w-none [&_svg]:h-auto"
