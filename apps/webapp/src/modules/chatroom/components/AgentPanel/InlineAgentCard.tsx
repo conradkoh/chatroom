@@ -127,7 +127,11 @@ export const InlineAgentCard = memo(function InlineAgentCard({
   const restartSummary = restartSummaryProp ?? ownRestartSummary;
 
   return (
-    <div className="border-b border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3">
+    <div
+      className="border-b border-chatroom-border last:border-b-0 px-4 py-3 flex items-stretch gap-3"
+      /* Force WebKit compositing layer flush to prevent Safari ghost rendering */
+      style={{ backfaceVisibility: 'hidden' }}
+    >
       {/* Column 1: Agent details + tabs + tab content (stretches) */}
       <div className="flex flex-col min-w-0 flex-1">
         {/* Status row at top — extra breathing room below */}
