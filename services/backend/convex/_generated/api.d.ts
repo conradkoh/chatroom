@@ -44,6 +44,7 @@ import type * as system_auth_google from "../system/auth/google.js";
 import type * as tasks from "../tasks.js";
 import type * as tasks_taskDelivery from "../tasks/taskDelivery.js";
 import type * as utils_teamRoleKey from "../utils/teamRoleKey.js";
+import type * as workflows from "../workflows.js";
 import type * as workspaces from "../workspaces.js";
 
 import type {
@@ -89,6 +90,7 @@ declare const fullApi: ApiFromModules<{
   tasks: typeof tasks;
   "tasks/taskDelivery": typeof tasks_taskDelivery;
   "utils/teamRoleKey": typeof utils_teamRoleKey;
+  workflows: typeof workflows;
   workspaces: typeof workspaces;
 }>;
 
