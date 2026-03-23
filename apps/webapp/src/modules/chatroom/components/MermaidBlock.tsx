@@ -403,8 +403,20 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
         const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
         const { svg: renderedSvg } = await mermaid.render(id, chart);
 
+        // Remove the max-width style Mermaid injects on the SVG element.
+        // This allows the SVG to render at its natural computed size, letting
+        // the container's overflow-x-auto handle horizontal scrolling instead
+        // of squeezing the diagram into a fixed box and clipping text.
+        const cleanedSvg = renderedSvg.replace(
+          /(<svg[^>]*)\bstyle="([^"]*)max-width:[^;";]*;?([^"]*)"/,
+          (_m, open, before, after) => {
+            const cleanStyle = (before + after).replace(/;\s*;/g, ';').replace(/^\s*;\s*|\s*;\s*$/g, '');
+            return cleanStyle ? `${open} style="${cleanStyle}"` : open;
+          }
+        );
+
         if (!cancelled) {
-          setSvg(renderedSvg);
+          setSvg(cleanedSvg);
           setLoading(false);
         }
       } catch (err) {
@@ -441,7 +453,7 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
       <div className="relative my-3 group">
         <div
           ref={containerRef}
-          className="flex justify-center overflow-x-auto [&_svg]:max-w-full [&_svg]:h-auto [&_svg]:min-w-0"
+          className="flex justify-center overflow-x-auto"
           style={{ maxWidth: '100%' }}
           dangerouslySetInnerHTML={{ __html: svg }}
         />
