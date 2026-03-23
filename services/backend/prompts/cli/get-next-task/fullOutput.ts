@@ -462,11 +462,15 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     lines.push(`No message found. Task ID: ${task._id}`);
   }
 
-  // If active workflow, add status command hint
+  // If active workflow, add status command hint and restriction notice
   if (activeWorkflow && activeWorkflow.status === 'active') {
     lines.push('');
     lines.push(
       `Workflow status: \`${cliEnvPrefix}chatroom workflow status --chatroom-id="${chatroomId}" --role="${role}" --workflow-key="${activeWorkflow.workflowKey}"\``
+    );
+    lines.push('');
+    lines.push(
+      `⚠️ Workflow "${activeWorkflow.workflowKey}" is active — handoff to user is blocked until workflow completes or is exited.`
     );
   }
 
