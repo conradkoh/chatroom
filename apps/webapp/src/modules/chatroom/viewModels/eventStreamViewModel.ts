@@ -29,6 +29,7 @@ export type EventTypeName =
   | 'config.requestRemoval'
   | 'workflow.started'
   | 'workflow.stepCompleted'
+  | 'workflow.stepCancelled'
   | 'workflow.completed';
 
 // ─── Base Event Interface ─────────────────────────────────────────────────────
@@ -234,6 +235,16 @@ export interface WorkflowStepCompletedEvent extends EventStreamEventBase {
   completedBy?: string;
 }
 
+export interface WorkflowStepCancelledEvent extends EventStreamEventBase {
+  type: 'workflow.stepCancelled';
+  chatroomId: string;
+  workflowKey: string;
+  workflowId: string;
+  stepKey: string;
+  cancelledBy?: string;
+  reason: string;
+}
+
 export interface WorkflowCompletedEvent extends EventStreamEventBase {
   type: 'workflow.completed';
   chatroomId: string;
@@ -265,6 +276,7 @@ export type EventStreamEvent =
   | DaemonGitRefreshEvent
   | WorkflowStartedEvent
   | WorkflowStepCompletedEvent
+  | WorkflowStepCancelledEvent
   | WorkflowCompletedEvent;
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -292,6 +304,7 @@ export function formatEventType(type: string): string {
     'config.requestRemoval': 'Config Request Removal',
     'workflow.started': 'Workflow Started',
     'workflow.stepCompleted': 'Workflow Step Completed',
+    'workflow.stepCancelled': 'Workflow Step Cancelled',
     'workflow.completed': 'Workflow Completed',
   };
   return labels[type] ?? type;

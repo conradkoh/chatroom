@@ -5,6 +5,7 @@ import { EventRow, EventDetails, DetailRow } from './shared';
 import type {
   WorkflowStartedEvent,
   WorkflowStepCompletedEvent,
+  WorkflowStepCancelledEvent,
   WorkflowCompletedEvent,
 } from '../viewModels/eventStreamViewModel';
 
@@ -72,6 +73,39 @@ function renderStepCompletedDetails(event: WorkflowStepCompletedEvent) {
   );
 }
 
+// ─── Workflow Step Cancelled ───────────────────────────────────────
+
+function renderStepCancelledCell(event: WorkflowStepCancelledEvent, isSelected: boolean) {
+  return (
+    <EventRow
+      type="workflow.stepCancelled"
+      badgeText="Step ❌"
+      badgeColor="error"
+      primaryInfo={event.stepKey}
+      secondaryInfo={event.cancelledBy ?? ''}
+      timestamp={event.timestamp}
+      isSelected={isSelected}
+    />
+  );
+}
+
+function renderStepCancelledDetails(event: WorkflowStepCancelledEvent) {
+  return (
+    <EventDetails
+      eventId={event._id}
+      title="Workflow Step Cancelled"
+      timestamp={event.timestamp}
+      type="workflow.stepCancelled"
+    >
+      <DetailRow label="Step Key" value={event.stepKey} mono />
+      <DetailRow label="Workflow Key" value={event.workflowKey} mono />
+      <DetailRow label="Reason" value={event.reason} />
+      {event.cancelledBy && <DetailRow label="Cancelled By" value={event.cancelledBy} />}
+      <DetailRow label="Workflow ID" value={event.workflowId} mono />
+    </EventDetails>
+  );
+}
+
 // ─── Workflow Completed ────────────────────────────────────────────
 
 function renderWorkflowCompletedCell(event: WorkflowCompletedEvent, isSelected: boolean) {
@@ -114,6 +148,10 @@ export function registerWorkflowEvents(): void {
   registerEventType('workflow.stepCompleted', {
     cellRenderer: renderStepCompletedCell,
     detailsRenderer: renderStepCompletedDetails,
+  });
+  registerEventType('workflow.stepCancelled', {
+    cellRenderer: renderStepCancelledCell,
+    detailsRenderer: renderStepCancelledDetails,
   });
   registerEventType('workflow.completed', {
     cellRenderer: renderWorkflowCompletedCell,

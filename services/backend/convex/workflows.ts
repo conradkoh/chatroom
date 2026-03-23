@@ -481,6 +481,18 @@ export const cancelStep = mutation({
       updatedAt: now,
     });
 
+    // Emit step cancelled event
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'workflow.stepCancelled',
+      chatroomId: workflow.chatroomId,
+      workflowKey: workflow.workflowKey,
+      workflowId: workflow._id,
+      stepKey: step.stepKey,
+      cancelledBy: step.assigneeRole ?? undefined,
+      reason: args.reason,
+      timestamp: now,
+    });
+
     await advanceWorkflow(ctx, workflow._id, now);
 
     return { success: true };

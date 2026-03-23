@@ -1079,6 +1079,17 @@ export default defineSchema({
         completedBy: v.optional(v.string()),
         timestamp: v.number(),
       }),
+      // Workflow step cancelled
+      v.object({
+        type: v.literal('workflow.stepCancelled'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        stepKey: v.string(),
+        cancelledBy: v.optional(v.string()),
+        reason: v.string(),
+        timestamp: v.number(),
+      }),
       // Workflow completed (all steps terminal)
       v.object({
         type: v.literal('workflow.completed'),
