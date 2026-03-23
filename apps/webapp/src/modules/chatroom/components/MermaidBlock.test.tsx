@@ -92,11 +92,11 @@ describe('MermaidBlock — performance patterns', () => {
 });
 
 describe('MermaidBlock — cross-browser text alignment', () => {
-  test('uses CSS dominant-baseline for SVG text vertical centering', () => {
-    // Should use dominant-baseline CSS property for cross-browser text alignment
-    expect(source).toContain('dominant-baseline');
-    // Should NOT use JavaScript-based recenterNodeLabels function (removed)
+  test('does not use JavaScript-based post-render text manipulation', () => {
+    // Should NOT use JavaScript-based recenterNodeLabels function
     expect(source).not.toContain('recenterNodeLabels');
+    // Should NOT use dominant-baseline CSS (causes downward shift in Chrome)
+    expect(source).not.toContain('dominant-baseline');
   });
 });
 

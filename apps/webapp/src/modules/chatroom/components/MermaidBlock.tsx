@@ -347,7 +347,7 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
         >
           <div
             ref={svgContainerRef}
-            className="w-full h-full [&_svg]:w-full [&_svg]:h-full [&_svg_.node_text]:[dominant-baseline:central]"
+            className="w-full h-full [&_svg]:w-full [&_svg]:h-full"
             dangerouslySetInnerHTML={{ __html: svg }}
           />
         </div>
@@ -526,7 +526,7 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
       <div className="relative my-3 group">
         <div
           ref={containerRef}
-          className="flex justify-center overflow-x-auto [&_svg]:overflow-visible [&_svg_.node_text]:[dominant-baseline:central]"
+          className="flex justify-center overflow-x-auto [&_svg]:overflow-visible"
           style={{ maxWidth: '100%' }}
           dangerouslySetInnerHTML={{ __html: svg }}
         />
