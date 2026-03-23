@@ -34,6 +34,61 @@ interface ViewBox {
   height: number;
 }
 
+// ─── Post-Render Text Re-Centering ───────────────────────────────────────────
+
+/**
+ * Post-process rendered Mermaid SVG to fix text vertical centering.
+ *
+ * Mermaid computes label positions using getBBox() during its internal render
+ * pass, but Safari's font metrics differ from Chrome's, causing text to appear
+ * vertically misaligned within node rectangles.
+ *
+ * This function re-measures and re-centers each node's text label using the
+ * browser's own getBBox() — making it self-correcting across all browsers.
+ */
+function recenterNodeLabels(containerEl: HTMLElement): void {
+  const svgEl = containerEl.querySelector('svg');
+  if (!svgEl) return;
+
+  // Find all node groups
+  const nodeGroups = svgEl.querySelectorAll('g.node');
+
+  for (const nodeGroup of nodeGroups) {
+    const rect = nodeGroup.querySelector('rect.label-container, rect.basic');
+    const labelGroup = nodeGroup.querySelector('g.label');
+    if (!rect || !labelGroup) continue;
+
+    // Get the rect's position in the node's local coordinate space
+    // The rect is positioned relative to the node group's origin (usually centered)
+    const rectEl = rect as SVGRectElement;
+    const rectY = rectEl.y.baseVal.value;
+    const rectH = rectEl.height.baseVal.value;
+    const rectCenterY = rectY + rectH / 2;
+
+    // Get the label group's current bounding box (in its parent's coordinate space)
+    const labelBBox = (labelGroup as SVGGElement).getBBox();
+    const labelCenterY = labelBBox.y + labelBBox.height / 2;
+
+    // Calculate the vertical offset needed to center the label within the rect
+    const deltaY = rectCenterY - labelCenterY;
+
+    // Parse existing transform to preserve the x component
+    const existingTransform = labelGroup.getAttribute('transform') || '';
+    const translateMatch = existingTransform.match(
+      /translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/
+    );
+
+    if (translateMatch) {
+      const currentX = parseFloat(translateMatch[1]);
+      const currentY = parseFloat(translateMatch[2]);
+      labelGroup.setAttribute('transform', `translate(${currentX}, ${currentY + deltaY})`);
+    } else {
+      // If no transform exists, just add one
+      labelGroup.setAttribute('transform', `translate(0, ${deltaY})`);
+    }
+  }
+}
+
 // ─── Fullscreen Modal ────────────────────────────────────────────────────────
 
 interface MermaidFullscreenModalProps {
@@ -133,6 +188,13 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
       zoomRef.current = 1;
       panRef.current = { x: 0, y: 0 };
       updateZoomLabel();
+
+      // Fix vertical centering of text labels within node rects.
+      // Safari's font metrics differ from Chrome's, so Mermaid's internal
+      // positioning may be slightly off. Re-center using live getBBox().
+      if (svgContainerRef.current) {
+        recenterNodeLabels(svgContainerRef.current);
+      }
     });
 
     return () => {
@@ -365,6 +427,21 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Post-render: fix vertical centering of text in node rects.
+  // Must run after the SVG is painted in the DOM so getBBox() returns
+  // accurate measurements. Safari's font metrics differ from Chrome's,
+  // causing Mermaid's internal positioning to be slightly off.
+  useEffect(() => {
+    if (!svg || !containerRef.current) return;
+
+    // Wait for browser to paint the SVG
+    const rafId = requestAnimationFrame(() => {
+      recenterNodeLabels(containerRef.current!);
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [svg]);
 
   useEffect(() => {
     let cancelled = false;
