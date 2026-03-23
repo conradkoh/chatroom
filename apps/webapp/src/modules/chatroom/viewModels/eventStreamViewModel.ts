@@ -257,7 +257,7 @@ export interface WorkflowCompletedEvent extends EventStreamEventBase {
   chatroomId: string;
   workflowKey: string;
   workflowId: string;
-  finalStatus: string;
+  finalStatus: 'completed' | 'cancelled';
 }
 
 // ─── Combined Event Union ─────────────────────────────────────────────────────
