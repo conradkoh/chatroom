@@ -421,6 +421,13 @@ export const completeStep = mutation({
       });
     }
 
+    if (!step.specification) {
+      throw new ConvexError({
+        code: 'MISSING_SPECIFICATION',
+        message: `Cannot complete step "${args.stepKey}" — no specification has been set. Run 'workflow specify' first to define the goal and requirements.`,
+      });
+    }
+
     const now = Date.now();
 
     await ctx.db.patch('chatroom_workflow_steps', step._id, {

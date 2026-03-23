@@ -29,6 +29,8 @@ Reads JSON from stdin:
 }
 \`\`\`
 
+**Note:** \`assigneeRole\` is not set at create time. Use the \`specify\` command to assign a role and add goal/requirements to each step.
+
 ### Specify Step
 \`\`\`
 ${cliEnvPrefix}chatroom workflow specify --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey> --assignee-role=<role>

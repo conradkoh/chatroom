@@ -441,6 +441,20 @@ export async function getWorkflowStatus(
 
         console.log(`   ${details.join(' | ')}`);
 
+        // Show specification details if present
+        if (step.specification) {
+          const spec = step.specification as { goal?: string; requirements?: string; warnings?: string };
+          if (spec.goal) {
+            console.log(`   📎 Goal: ${spec.goal}`);
+          }
+          if (spec.requirements) {
+            console.log(`   📎 Requirements: ${spec.requirements}`);
+          }
+          if (spec.warnings) {
+            console.log(`   ⚠️  Warnings: ${spec.warnings}`);
+          }
+        }
+
         if (step.cancelReason) {
           console.log(`   Cancel reason: ${step.cancelReason}`);
         }

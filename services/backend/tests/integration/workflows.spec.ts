@@ -23,6 +23,28 @@ function linearSteps() {
   ];
 }
 
+/**
+ * Helper: specify a step with a minimal specification.
+ * Required before completing steps due to the MISSING_SPECIFICATION guard.
+ */
+async function specifyStepHelper(
+  sessionId: string,
+  chatroomId: any,
+  workflowKey: string,
+  stepKey: string,
+  assigneeRole = 'builder'
+) {
+  await t.mutation(api.workflows.specifyStep, {
+    sessionId: sessionId as any,
+    chatroomId,
+    workflowKey,
+    stepKey,
+    assigneeRole,
+    goal: `Complete ${stepKey}`,
+    requirements: `Requirements for ${stepKey}`,
+  });
+}
+
 // ============================================================================
 // createWorkflow
 // ============================================================================
@@ -270,6 +292,9 @@ describe('workflows.completeStep', () => {
       steps: linearSteps(),
     });
 
+    // Specify step before executing so it can be completed
+    await specifyStepHelper(sessionId, chatroomId, 'complete-test', 'a');
+
     await t.mutation(api.workflows.executeWorkflow, {
       sessionId: sessionId as any,
       chatroomId,
@@ -307,6 +332,11 @@ describe('workflows.completeStep', () => {
       createdBy: 'planner',
       steps: linearSteps(),
     });
+
+    // Specify all steps before executing
+    for (const key of ['a', 'b', 'c']) {
+      await specifyStepHelper(sessionId, chatroomId, 'autocomp', key);
+    }
 
     await t.mutation(api.workflows.executeWorkflow, {
       sessionId: sessionId as any,
@@ -361,6 +391,35 @@ describe('workflows.completeStep', () => {
         stepKey: 'b',
       })
     ).rejects.toThrow('must be in_progress');
+  });
+
+  test('rejects completing step without specification', async () => {
+    const { sessionId } = await createTestSession('test-wf-comp-nospec-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'comp-nospec',
+      createdBy: 'planner',
+      steps: [{ stepKey: 'a', description: 'A', dependsOn: [], order: 1 }],
+    });
+
+    await t.mutation(api.workflows.executeWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'comp-nospec',
+    });
+
+    // Step A is in_progress but has no specification
+    await expect(
+      t.mutation(api.workflows.completeStep, {
+        sessionId: sessionId as any,
+        chatroomId,
+        workflowKey: 'comp-nospec',
+        stepKey: 'a',
+      })
+    ).rejects.toThrow('no specification has been set');
   });
 });
 
@@ -419,6 +478,8 @@ describe('workflows.cancelStep', () => {
       steps: [{ stepKey: 'a', description: 'A', dependsOn: [], order: 1 }],
     });
 
+    await specifyStepHelper(sessionId, chatroomId, 'cancel-err', 'a');
+
     await t.mutation(api.workflows.executeWorkflow, {
       sessionId: sessionId as any,
       chatroomId,
@@ -460,6 +521,8 @@ describe('workflows.exitWorkflow', () => {
       createdBy: 'planner',
       steps: linearSteps(),
     });
+
+    await specifyStepHelper(sessionId, chatroomId, 'exit-test', 'a');
 
     await t.mutation(api.workflows.executeWorkflow, {
       sessionId: sessionId as any,
@@ -508,6 +571,8 @@ describe('workflows.exitWorkflow', () => {
       createdBy: 'planner',
       steps: [{ stepKey: 'a', description: 'A', dependsOn: [], order: 1 }],
     });
+
+    await specifyStepHelper(sessionId, chatroomId, 'exit-err', 'a');
 
     await t.mutation(api.workflows.executeWorkflow, {
       sessionId: sessionId as any,
@@ -597,6 +662,8 @@ describe('workflows — event stream emissions', () => {
         { stepKey: 'a', description: 'Step A', dependsOn: [] as string[], order: 1, },
       ],
     });
+
+    await specifyStepHelper(sessionId, chatroomId, 'es-step-complete', 'a');
 
     await t.mutation(api.workflows.executeWorkflow, {
       sessionId: sessionId as any,
@@ -688,6 +755,8 @@ describe('workflows — event stream emissions', () => {
       createdBy: 'planner',
       steps: [{ stepKey: 'a', description: 'Step A', dependsOn: [] as string[], order: 1 }],
     });
+
+    await specifyStepHelper(sessionId, chatroomId, 'es-wf-complete', 'a');
 
     await t.mutation(api.workflows.executeWorkflow, {
       sessionId: sessionId as any,
@@ -825,6 +894,11 @@ describe('workflows.getWorkflowStatus', () => {
         { stepKey: 'd', description: 'D', dependsOn: ['b', 'c'], order: 4 },
       ],
     });
+
+    // Specify all steps so they can be completed
+    for (const key of ['a', 'b', 'c', 'd']) {
+      await specifyStepHelper(sessionId, chatroomId, 'diamond', key);
+    }
 
     await t.mutation(api.workflows.executeWorkflow, {
       sessionId: sessionId as any,
