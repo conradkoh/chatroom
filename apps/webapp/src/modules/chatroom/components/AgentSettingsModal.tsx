@@ -39,9 +39,10 @@ interface AgentSettingsModalProps {
   chatroomId: string;
   currentTeamId?: string;
   currentTeamRoles?: string[];
+  initialTab?: SettingsTab;
 }
 
-type SettingsTab = 'setup' | 'team' | 'machine' | 'workspaces';
+export type SettingsTab = 'setup' | 'team' | 'machine' | 'workspaces';
 
 // ─── Constants ──────────────────────────────────────────────────────────
 
@@ -693,8 +694,14 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
   chatroomId,
   currentTeamId,
   currentTeamRoles,
+  initialTab,
 }: AgentSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('setup');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab ?? 'setup');
+
+  // Sync activeTab when initialTab changes (e.g. opening to a different tab)
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">

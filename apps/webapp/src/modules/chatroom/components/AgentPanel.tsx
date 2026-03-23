@@ -23,6 +23,8 @@ interface AgentPanelProps {
   lifecycle: TeamLifecycle | null | undefined;
   /** Called when user clicks Configure in the menu */
   onConfigure?: () => void;
+  /** Called when user clicks an agent row — opens settings to workspaces tab */
+  onOpenWorkspaces?: () => void;
 }
 
 // ─── AgentSidebarRow ─────────────────────────────────────────────────────────
@@ -142,6 +144,7 @@ export const AgentPanel = memo(function AgentPanel({
   teamRoles = [],
   lifecycle,
   onConfigure,
+  onOpenWorkspaces,
 }: AgentPanelProps) {
   const [isAgentListModalOpen, setIsAgentListModalOpen] = useState(false);
 
@@ -161,10 +164,15 @@ export const AgentPanel = memo(function AgentPanel({
     rolesToShow
   );
 
-  // Open unified agent list modal
+  // Open agent list — if onOpenWorkspaces is provided, open settings to workspaces tab;
+  // otherwise fall back to the standalone UnifiedAgentListModal
   const openAgentListModal = useCallback(() => {
-    setIsAgentListModalOpen(true);
-  }, []);
+    if (onOpenWorkspaces) {
+      onOpenWorkspaces();
+    } else {
+      setIsAgentListModalOpen(true);
+    }
+  }, [onOpenWorkspaces]);
 
   // Close unified agent list modal
   const closeAgentListModal = useCallback(() => {
