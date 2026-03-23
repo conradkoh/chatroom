@@ -91,57 +91,12 @@ describe('MermaidBlock — performance patterns', () => {
   });
 });
 
-describe('MermaidBlock — post-render text re-centering', () => {
-  test('defines recenterNodeLabels as a module-level utility function', () => {
-    // Should be defined outside components at module level
-    expect(source).toContain('function recenterNodeLabels(containerEl: HTMLElement): void');
-    // Should be before MermaidFullscreenModal (module-level, not nested)
-    const fnIndex = source.indexOf('function recenterNodeLabels');
-    const modalIndex = source.indexOf('const MermaidFullscreenModal = memo(');
-    const mainIndex = source.indexOf('export const MermaidBlock = memo(');
-    expect(fnIndex).toBeLessThan(modalIndex);
-    expect(fnIndex).toBeLessThan(mainIndex);
-  });
-
-  test('main MermaidBlock has useEffect that calls recenterNodeLabels after SVG render', () => {
-    // Extract the main MermaidBlock function body
-    const mainMatch = source.match(
-      /export const MermaidBlock = memo\(function MermaidBlock\([\s\S]*?\n\}\);/
-    );
-    expect(mainMatch).not.toBeNull();
-    const mainSource = mainMatch![0];
-
-    // Should call recenterNodeLabels inside the main component
-    expect(mainSource).toContain('recenterNodeLabels(containerRef.current!)');
-    // Should use requestAnimationFrame for the post-render call
-    expect(mainSource).toContain('requestAnimationFrame');
-  });
-
-  test('fullscreen modal calls recenterNodeLabels after SVG initialization', () => {
-    const modalMatch = source.match(
-      /const MermaidFullscreenModal = memo\(function MermaidFullscreenModal\([\s\S]*?\n\}\);/
-    );
-    expect(modalMatch).not.toBeNull();
-    const modalSource = modalMatch![0];
-
-    // Should call recenterNodeLabels in the modal
-    expect(modalSource).toContain('recenterNodeLabels');
-  });
-
-  test('recenterNodeLabels queries correct SVG elements', () => {
-    // Should query g.node groups
-    expect(source).toContain("querySelectorAll('g.node')");
-    // Should query rect.label-container
-    expect(source).toContain("querySelector('rect.label-container, rect.basic')");
-    // Should query g.label
-    expect(source).toContain("querySelector('g.label')");
-  });
-
-  test('recenterNodeLabels uses getBBox for measurement and adjusts transform', () => {
-    // Should use getBBox for measuring
-    expect(source).toContain('.getBBox()');
-    // Should set transform attribute
-    expect(source).toContain("setAttribute('transform'");
+describe('MermaidBlock — cross-browser text alignment', () => {
+  test('uses CSS dominant-baseline for SVG text vertical centering', () => {
+    // Should use dominant-baseline CSS property for cross-browser text alignment
+    expect(source).toContain('dominant-baseline');
+    // Should NOT use JavaScript-based recenterNodeLabels function (removed)
+    expect(source).not.toContain('recenterNodeLabels');
   });
 });
 
