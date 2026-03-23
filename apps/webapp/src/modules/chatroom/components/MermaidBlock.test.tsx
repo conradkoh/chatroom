@@ -91,6 +91,31 @@ describe('MermaidBlock — performance patterns', () => {
   });
 });
 
+describe('MermaidBlock — cross-browser text alignment', () => {
+  test('defines recenterNodeLabels using screen-space measurements', () => {
+    // Should use screen-space getBoundingClientRect (not getBBox)
+    expect(source).toContain('getBoundingClientRect()');
+    // Should use getScreenCTM for coordinate conversion
+    expect(source).toContain('getScreenCTM()');
+    // Should have a threshold guard (1px)
+    expect(source).toContain('Math.abs(screenDeltaY) <= 1.0');
+  });
+
+  test('applies re-centering in both main component and fullscreen modal', () => {
+    const mainMatch = source.match(
+      /export const MermaidBlock = memo\(function MermaidBlock\([\s\S]*?\n\}\);/
+    );
+    expect(mainMatch).not.toBeNull();
+    expect(mainMatch![0]).toContain('recenterNodeLabels');
+
+    const modalMatch = source.match(
+      /const MermaidFullscreenModal = memo\(function MermaidFullscreenModal\([\s\S]*?\n\}\);/
+    );
+    expect(modalMatch).not.toBeNull();
+    expect(modalMatch![0]).toContain('recenterNodeLabels');
+  });
+});
+
 describe('MermaidBlock — structure', () => {
   test('exports MermaidBlock as a named memo export', () => {
     expect(source).toContain('export const MermaidBlock = memo(');

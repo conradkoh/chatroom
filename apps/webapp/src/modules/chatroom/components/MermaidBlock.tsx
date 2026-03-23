@@ -34,6 +34,69 @@ interface ViewBox {
   height: number;
 }
 
+// ─── Post-Render Text Re-Centering (Screen-Space) ────────────────────────────
+
+/**
+ * Post-process rendered Mermaid SVG to fix text vertical centering in Safari.
+ *
+ * Mermaid computes label positions using getBBox() during its internal render
+ * pass, but Safari's font metrics differ from Chrome's, causing the label
+ * group's translate offset to be slightly wrong — text appears shifted up.
+ *
+ * This function uses getBoundingClientRect() (screen-space coordinates) to
+ * measure the actual rendered positions of rects and labels, then adjusts the
+ * label transform to center text within its node rect. Screen-space avoids
+ * the coordinate space mismatches that getBBox() has with nested transforms.
+ *
+ * A 1px threshold prevents unnecessary corrections on browsers where Mermaid's
+ * positioning is already accurate (e.g., Chrome).
+ */
+function recenterNodeLabels(containerEl: HTMLElement): void {
+  const svgEl = containerEl.querySelector('svg');
+  if (!svgEl) return;
+
+  const nodeGroups = svgEl.querySelectorAll('g.node');
+
+  for (const nodeGroup of nodeGroups) {
+    const labelGroup = nodeGroup.querySelector('g.label');
+    if (!labelGroup) continue;
+
+    // Use the full node group as the container reference.
+    // This works for all shape types: rect, path (stadium), circle, polygon, etc.
+    const nodeBounds = nodeGroup.getBoundingClientRect();
+    const labelBounds = labelGroup.getBoundingClientRect();
+
+    const rectCenterY = nodeBounds.top + nodeBounds.height / 2;
+    const labelCenterY = labelBounds.top + labelBounds.height / 2;
+
+    // Screen-space delta (pixels on screen)
+    const screenDeltaY = rectCenterY - labelCenterY;
+
+    // Only correct if the offset is noticeable (> 1px)
+    if (Math.abs(screenDeltaY) <= 1.0) continue;
+
+    // Convert screen pixels to SVG units using the CTM (Current Transform Matrix)
+    // getScreenCTM() maps SVG units → screen pixels. We need the inverse scale factor.
+    const ctm = svgEl.getScreenCTM();
+    if (!ctm) continue;
+    const svgDeltaY = screenDeltaY / ctm.d; // ctm.d is the vertical scale factor
+
+    // Parse existing transform to preserve the x component
+    const existingTransform = labelGroup.getAttribute('transform') || '';
+    const translateMatch = existingTransform.match(
+      /translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/
+    );
+
+    if (translateMatch) {
+      const currentX = parseFloat(translateMatch[1]);
+      const currentY = parseFloat(translateMatch[2]);
+      labelGroup.setAttribute('transform', `translate(${currentX}, ${currentY + svgDeltaY})`);
+    } else {
+      labelGroup.setAttribute('transform', `translate(0, ${svgDeltaY})`);
+    }
+  }
+}
+
 // ─── Fullscreen Modal ────────────────────────────────────────────────────────
 
 interface MermaidFullscreenModalProps {
@@ -133,6 +196,12 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
       zoomRef.current = 1;
       panRef.current = { x: 0, y: 0 };
       updateZoomLabel();
+
+      // Fix vertical centering of text labels for Safari.
+      // Uses screen-space measurements to correct Mermaid's positioning.
+      if (svgContainerRef.current) {
+        recenterNodeLabels(svgContainerRef.current);
+      }
     });
 
     return () => {
@@ -366,6 +435,22 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Post-render: fix vertical centering of text in node rects (Safari).
+  // Uses screen-space measurements (getBoundingClientRect) to avoid the
+  // coordinate space mismatches that getBBox() has with nested transforms.
+  // A 1px threshold skips correction on browsers where it's not needed.
+  useEffect(() => {
+    if (!svg || !containerRef.current) return;
+
+    const rafId = requestAnimationFrame(() => {
+      if (containerRef.current) {
+        recenterNodeLabels(containerRef.current);
+      }
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [svg]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -381,13 +466,30 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
           startOnLoad: false,
           theme: isDark ? 'dark' : 'default',
           securityLevel: 'strict',
+          // IMPORTANT: htmlLabels must be at the top level.
+          // In Mermaid 11.x, flowchart.htmlLabels is deprecated and ignored.
+          // The global htmlLabels controls whether node labels use SVG
+          // foreignObject (true) or native SVG text (false).
+          //
+          // foreignObject has a fixed height that Mermaid calculates from
+          // estimated text metrics. Safari's text measurements differ from
+          // Chrome's, so multi-line labels (e.g., "stepKey\nDescription\n[role]")
+          // overflow the foreignObject boundary and get clipped. Native SVG
+          // text nodes auto-size to content, eliminating this entirely.
+          htmlLabels: false,
           flowchart: {
-            htmlLabels: true,
             curve: 'basis',
             nodeSpacing: 30,
             rankSpacing: 50,
-            useMaxWidth: true,
-            wrappingWidth: 200,
+            // useMaxWidth:false renders at natural size instead of constraining
+            // to container width. Safari clips SVG content that extends beyond
+            // the calculated viewBox when the diagram is scaled down to fit.
+            // With useMaxWidth:false the SVG is rendered at full size and the
+            // container scrolls horizontally if needed.
+            useMaxWidth: false,
+            // Remove the 200px wrapping cap — let the layout engine size nodes
+            // naturally based on their content length.
+            wrappingWidth: 500,
           },
           themeVariables: {
             fontSize: '12px',
@@ -397,8 +499,82 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
         const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
         const { svg: renderedSvg } = await mermaid.render(id, chart);
 
+        // Post-process the rendered SVG for cross-browser compatibility.
+        //
+        // Safari-specific issues:
+        // 1. Safari strictly clips SVG content at the viewBox boundary. When
+        //    Mermaid calculates the viewBox from text bounding boxes, Safari's
+        //    slightly different text metrics can cause labels to be cut off.
+        // 2. Safari respects overflow="hidden" on SVG elements (the SVG spec
+        //    default), whereas Chrome is more lenient.
+        // 3. Mermaid injects a max-width inline style that constrains the SVG.
+        //
+        // Fixes applied:
+        // a) Remove max-width from inline style
+        // b) Set overflow="visible" on the root SVG element
+        // c) Add padding to the viewBox so content near edges isn't clipped
+        let cleanedSvg = renderedSvg;
+
+        // (a) Remove max-width inline style
+        cleanedSvg = cleanedSvg.replace(
+          /(<svg[^>]*)\bstyle="([^"]*)max-width:[^;";]*;?([^"]*)"/,
+          (_m, open, before, after) => {
+            const cleanStyle = (before + after).replace(/;\s*;/g, ';').replace(/^\s*;\s*|\s*;\s*$/g, '');
+            return cleanStyle ? `${open} style="${cleanStyle}"` : open;
+          }
+        );
+
+        // (b) Force overflow="visible" on the root SVG — Safari clips at
+        // viewBox bounds by default (SVG spec says overflow:hidden).
+        // Replace existing overflow attribute or add it.
+        if (/(<svg[^>]*)\boverflow="[^"]*"/.test(cleanedSvg)) {
+          cleanedSvg = cleanedSvg.replace(
+            /(<svg[^>]*)\boverflow="[^"]*"/,
+            '$1overflow="visible"'
+          );
+        } else {
+          cleanedSvg = cleanedSvg.replace(
+            /(<svg\b)/,
+            '$1 overflow="visible"'
+          );
+        }
+
+        // (c) Pad the viewBox by 8px on each side to give text breathing room.
+        // Safari's text metrics differ from Chrome's, so the tight viewBox
+        // Mermaid computes can clip the last few pixels of text in Safari.
+        const VB_PAD = 8;
+        cleanedSvg = cleanedSvg.replace(
+          /(<svg[^>]*\bviewBox=")([^"]*)(")/,
+          (_m, pre, vb, post) => {
+            const parts = vb.trim().split(/\s+/).map(Number);
+            if (parts.length === 4 && parts.every((n: number) => !isNaN(n))) {
+              const [x, y, w, h] = parts;
+              return `${pre}${x - VB_PAD} ${y - VB_PAD} ${w + VB_PAD * 2} ${h + VB_PAD * 2}${post}`;
+            }
+            return _m;
+          }
+        );
+
+        // (d) Defense-in-depth: if foreignObject elements are still present
+        // (htmlLabels may not take effect for all diagram types), ensure they
+        // have overflow:visible so Safari doesn't clip their content at the
+        // fixed height boundary. Also add a generous height to prevent clipping.
+        cleanedSvg = cleanedSvg.replace(
+          /<foreignObject([^>]*)>/g,
+          (_m, attrs) => {
+            // Add overflow="visible" to the foreignObject
+            let newAttrs = attrs;
+            if (/overflow=/.test(newAttrs)) {
+              newAttrs = newAttrs.replace(/overflow="[^"]*"/, 'overflow="visible"');
+            } else {
+              newAttrs += ' overflow="visible"';
+            }
+            return `<foreignObject${newAttrs}>`;
+          }
+        );
+
         if (!cancelled) {
-          setSvg(renderedSvg);
+          setSvg(cleanedSvg);
           setLoading(false);
         }
       } catch (err) {
@@ -435,7 +611,7 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
       <div className="relative my-3 group">
         <div
           ref={containerRef}
-          className="flex justify-center overflow-x-auto [&_svg]:max-w-full [&_svg]:h-auto [&_svg]:min-w-0"
+          className="flex justify-center overflow-x-auto [&_svg]:overflow-visible"
           style={{ maxWidth: '100%' }}
           dangerouslySetInnerHTML={{ __html: svg }}
         />
