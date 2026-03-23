@@ -34,6 +34,69 @@ interface ViewBox {
   height: number;
 }
 
+// ─── Post-Render Text Re-Centering (Screen-Space) ────────────────────────────
+
+/**
+ * Post-process rendered Mermaid SVG to fix text vertical centering in Safari.
+ *
+ * Mermaid computes label positions using getBBox() during its internal render
+ * pass, but Safari's font metrics differ from Chrome's, causing the label
+ * group's translate offset to be slightly wrong — text appears shifted up.
+ *
+ * This function uses getBoundingClientRect() (screen-space coordinates) to
+ * measure the actual rendered positions of rects and labels, then adjusts the
+ * label transform to center text within its node rect. Screen-space avoids
+ * the coordinate space mismatches that getBBox() has with nested transforms.
+ *
+ * A 1px threshold prevents unnecessary corrections on browsers where Mermaid's
+ * positioning is already accurate (e.g., Chrome).
+ */
+function recenterNodeLabels(containerEl: HTMLElement): void {
+  const svgEl = containerEl.querySelector('svg');
+  if (!svgEl) return;
+
+  const nodeGroups = svgEl.querySelectorAll('g.node');
+
+  for (const nodeGroup of nodeGroups) {
+    const labelGroup = nodeGroup.querySelector('g.label');
+    if (!labelGroup) continue;
+
+    // Use the full node group as the container reference.
+    // This works for all shape types: rect, path (stadium), circle, polygon, etc.
+    const nodeBounds = nodeGroup.getBoundingClientRect();
+    const labelBounds = labelGroup.getBoundingClientRect();
+
+    const rectCenterY = nodeBounds.top + nodeBounds.height / 2;
+    const labelCenterY = labelBounds.top + labelBounds.height / 2;
+
+    // Screen-space delta (pixels on screen)
+    const screenDeltaY = rectCenterY - labelCenterY;
+
+    // Only correct if the offset is noticeable (> 1px)
+    if (Math.abs(screenDeltaY) <= 1.0) continue;
+
+    // Convert screen pixels to SVG units using the CTM (Current Transform Matrix)
+    // getScreenCTM() maps SVG units → screen pixels. We need the inverse scale factor.
+    const ctm = svgEl.getScreenCTM();
+    if (!ctm) continue;
+    const svgDeltaY = screenDeltaY / ctm.d; // ctm.d is the vertical scale factor
+
+    // Parse existing transform to preserve the x component
+    const existingTransform = labelGroup.getAttribute('transform') || '';
+    const translateMatch = existingTransform.match(
+      /translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/
+    );
+
+    if (translateMatch) {
+      const currentX = parseFloat(translateMatch[1]);
+      const currentY = parseFloat(translateMatch[2]);
+      labelGroup.setAttribute('transform', `translate(${currentX}, ${currentY + svgDeltaY})`);
+    } else {
+      labelGroup.setAttribute('transform', `translate(0, ${svgDeltaY})`);
+    }
+  }
+}
+
 // ─── Fullscreen Modal ────────────────────────────────────────────────────────
 
 interface MermaidFullscreenModalProps {
@@ -133,6 +196,12 @@ const MermaidFullscreenModal = memo(function MermaidFullscreenModal({
       zoomRef.current = 1;
       panRef.current = { x: 0, y: 0 };
       updateZoomLabel();
+
+      // Fix vertical centering of text labels for Safari.
+      // Uses screen-space measurements to correct Mermaid's positioning.
+      if (svgContainerRef.current) {
+        recenterNodeLabels(svgContainerRef.current);
+      }
     });
 
     return () => {
@@ -365,6 +434,22 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Post-render: fix vertical centering of text in node rects (Safari).
+  // Uses screen-space measurements (getBoundingClientRect) to avoid the
+  // coordinate space mismatches that getBBox() has with nested transforms.
+  // A 1px threshold skips correction on browsers where it's not needed.
+  useEffect(() => {
+    if (!svg || !containerRef.current) return;
+
+    const rafId = requestAnimationFrame(() => {
+      if (containerRef.current) {
+        recenterNodeLabels(containerRef.current);
+      }
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [svg]);
 
   useEffect(() => {
     let cancelled = false;
