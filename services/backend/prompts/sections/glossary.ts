@@ -39,6 +39,13 @@ const GLOSSARY_TERMS: GlossaryTerm[] = [
       'Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.',
     linkedSkillId: 'software-engineering',
   },
+  {
+    term: 'code-review',
+    definition:
+      'Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. ' +
+      'Covers AI-generated code review with focus on maintainability and tech debt prevention.',
+    linkedSkillId: 'code-review',
+  },
 ];
 
 /**
