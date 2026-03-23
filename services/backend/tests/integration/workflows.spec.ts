@@ -572,6 +572,15 @@ describe('workflows — event stream emissions', () => {
       expect(startedEvent.stepCount).toBe(3);
       expect(typeof startedEvent.workflowId).toBe('string');
       expect(typeof startedEvent.timestamp).toBe('number');
+      // Verify steps array is included
+      expect(Array.isArray(startedEvent.steps)).toBe(true);
+      expect(startedEvent.steps).toHaveLength(3);
+      expect(startedEvent.steps[0]).toMatchObject({
+        stepKey: 'a',
+        description: 'Step A',
+        dependsOn: [],
+        order: 1,
+      });
     }
   });
 

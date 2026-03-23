@@ -375,6 +375,13 @@ export const executeWorkflow = mutation({
       workflowId: workflow._id,
       createdBy: workflow.createdBy,
       stepCount: steps.length,
+      steps: steps.map((s) => ({
+        stepKey: s.stepKey,
+        description: s.description,
+        assigneeRole: s.assigneeRole ?? undefined,
+        dependsOn: s.dependsOn,
+        order: s.order,
+      })),
       timestamp: now,
     });
 

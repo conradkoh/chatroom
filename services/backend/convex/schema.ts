@@ -1067,6 +1067,15 @@ export default defineSchema({
         workflowId: v.id('chatroom_workflows'),
         createdBy: v.string(),
         stepCount: v.number(),
+        steps: v.array(
+          v.object({
+            stepKey: v.string(),
+            description: v.string(),
+            assigneeRole: v.optional(v.string()),
+            dependsOn: v.array(v.string()),
+            order: v.number(),
+          })
+        ),
         timestamp: v.number(),
       }),
       // Workflow step completed

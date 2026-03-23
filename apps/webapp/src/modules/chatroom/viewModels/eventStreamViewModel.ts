@@ -224,6 +224,13 @@ export interface WorkflowStartedEvent extends EventStreamEventBase {
   workflowId: string;
   createdBy: string;
   stepCount: number;
+  steps?: {
+    stepKey: string;
+    description: string;
+    assigneeRole?: string;
+    dependsOn: string[];
+    order: number;
+  }[];
 }
 
 export interface WorkflowStepCompletedEvent extends EventStreamEventBase {
