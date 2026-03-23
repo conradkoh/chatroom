@@ -150,6 +150,9 @@ Test technical specifications`,
         - \`software-engineering\` (1 skill available)
             - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
 
+        - \`workflow\` (1 skill available)
+            - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
         # Skills
 
         Run \`chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
@@ -347,6 +350,9 @@ Test technical specifications`,
 
         - \`software-engineering\` (1 skill available)
             - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+
+        - \`workflow\` (1 skill available)
+            - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
 
         # Skills
 
@@ -666,6 +672,9 @@ Test technical specifications`,
 
         - \`software-engineering\` (1 skill available)
             - Universal software engineering standards: build from the application core outward, SOLID principles, and naming conventions.
+
+        - \`workflow\` (1 skill available)
+            - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
 
         # Skills
 

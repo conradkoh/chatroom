@@ -75,6 +75,22 @@ export interface FullCliOutputParams {
 
   /** Available handoff targets for this role (e.g. ['builder', 'reviewer', 'user']) */
   availableHandoffTargets: string[];
+
+  /** Active workflow context (if any) */
+  activeWorkflow?: {
+    workflowKey: string;
+    status: string;
+    steps: {
+      stepKey: string;
+      description: string;
+      status: string;
+      assigneeRole?: string;
+      dependsOn: string[];
+      goal?: string;
+      requirements?: string;
+      warnings?: string;
+    }[];
+  } | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -116,6 +132,7 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     originMessageCreatedAt,
     isEntryPoint,
     availableHandoffTargets,
+    activeWorkflow,
   } = params;
 
   const lines: string[] = [];
@@ -262,6 +279,57 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     }
   }
 
+  // Active workflow context
+  if (activeWorkflow && activeWorkflow.status === 'active') {
+    lines.push('');
+    lines.push('## Active Workflow');
+    lines.push(`Key: ${activeWorkflow.workflowKey} | Status: ${activeWorkflow.status}`);
+
+    // Show step summary
+    const statusEmoji: Record<string, string> = {
+      pending: '⏳',
+      in_progress: '🔵',
+      completed: '✅',
+      cancelled: '❌',
+    };
+    lines.push('');
+    lines.push('Steps:');
+    for (const step of activeWorkflow.steps) {
+      const emoji = statusEmoji[step.status] || '❓';
+      const assignee = step.assigneeRole ? ` (${step.assigneeRole})` : '';
+      lines.push(`  ${emoji} ${step.stepKey}${assignee} — ${step.description}`);
+    }
+
+    // Show steps assigned to this role
+    const mySteps = activeWorkflow.steps.filter(
+      (s) => s.assigneeRole?.toLowerCase() === role.toLowerCase() && s.status === 'in_progress'
+    );
+
+    if (mySteps.length > 0) {
+      lines.push('');
+      lines.push('### Your Active Steps');
+      for (const step of mySteps) {
+        lines.push(`**Step: ${step.stepKey}** — ${step.description}`);
+        if (step.goal) {
+          lines.push('Goal:');
+          lines.push(step.goal);
+        }
+        if (step.requirements) {
+          lines.push('Requirements:');
+          lines.push(step.requirements);
+        }
+        if (step.warnings) {
+          lines.push('Warnings:');
+          lines.push(step.warnings);
+        }
+        lines.push('');
+        lines.push(
+          `When done: \`${cliEnvPrefix}chatroom workflow step-complete --chatroom-id="${chatroomId}" --role="${role}" --workflow-key="${activeWorkflow.workflowKey}" --step-key="${step.stepKey}"\``
+        );
+      }
+    }
+  }
+
   // Classification status
   const existingClassification = originMessage?.classification;
   if (existingClassification) {
@@ -392,6 +460,18 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     }
   } else {
     lines.push(`No message found. Task ID: ${task._id}`);
+  }
+
+  // If active workflow, add status command hint and restriction notice
+  if (activeWorkflow && activeWorkflow.status === 'active') {
+    lines.push('');
+    lines.push(
+      `Workflow status: \`${cliEnvPrefix}chatroom workflow status --chatroom-id="${chatroomId}" --role="${role}" --workflow-key="${activeWorkflow.workflowKey}"\``
+    );
+    lines.push('');
+    lines.push(
+      `⚠️ Workflow "${activeWorkflow.workflowKey}" is active — handoff to user is blocked until workflow completes or is exited.`
+    );
   }
 
   lines.push('</next-steps>');

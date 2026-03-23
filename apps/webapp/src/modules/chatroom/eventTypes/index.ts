@@ -8,6 +8,7 @@ import { registerConfigEvents } from './configEvents';
 import { registerDaemonEvents } from './daemonEvents';
 import { registerSkillEvents } from './skillEvents';
 import { registerTaskEvents } from './taskEvents';
+import { registerWorkflowEvents } from './workflowEvents';
 
 // Re-export registry functions
 export {
@@ -39,4 +40,5 @@ export function initializeEventTypes(): void {
   registerDaemonEvents();
   registerSkillEvents();
   registerConfigEvents();
+  registerWorkflowEvents();
 }
