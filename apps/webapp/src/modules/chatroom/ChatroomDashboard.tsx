@@ -693,9 +693,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onClose={handleCloseSettings}
             chatroomId={chatroomId}
             currentTeamId={chatroom?.teamId}
-            currentTeamName={chatroom?.teamName}
             currentTeamRoles={teamRoles}
-            currentTeamEntryPoint={chatroom?.teamEntryPoint}
           />
 
           {/* Setup modal - only shown during setup mode */}
