@@ -186,11 +186,24 @@ async function advanceWorkflow(
   );
 
   if (allTerminal) {
+    const workflow = await ctx.db.get(workflowId);
     await ctx.db.patch('chatroom_workflows', workflowId, {
       status: 'completed',
       completedAt: now,
       updatedAt: now,
     });
+
+    // Emit workflow completed event
+    if (workflow) {
+      await ctx.db.insert('chatroom_eventStream', {
+        type: 'workflow.completed',
+        chatroomId: workflow.chatroomId,
+        workflowKey: workflow.workflowKey,
+        workflowId: workflow._id,
+        finalStatus: 'completed',
+        timestamp: now,
+      });
+    }
   }
 }
 
@@ -354,6 +367,17 @@ export const executeWorkflow = mutation({
       }
     }
 
+    // Emit workflow started event
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'workflow.started',
+      chatroomId: workflow.chatroomId,
+      workflowKey: workflow.workflowKey,
+      workflowId: workflow._id,
+      createdBy: workflow.createdBy,
+      stepCount: steps.length,
+      timestamp: now,
+    });
+
     return { success: true };
   },
 });
@@ -396,6 +420,17 @@ export const completeStep = mutation({
       status: 'completed',
       completedAt: now,
       updatedAt: now,
+    });
+
+    // Emit step completed event
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'workflow.stepCompleted',
+      chatroomId: workflow.chatroomId,
+      workflowKey: workflow.workflowKey,
+      workflowId: workflow._id,
+      stepKey: step.stepKey,
+      completedBy: step.assigneeRole ?? undefined,
+      timestamp: now,
     });
 
     await advanceWorkflow(ctx, workflow._id, now);
@@ -495,6 +530,16 @@ export const exitWorkflow = mutation({
       cancelledAt: now,
       cancelReason: args.reason,
       updatedAt: now,
+    });
+
+    // Emit workflow completed (cancelled) event
+    await ctx.db.insert('chatroom_eventStream', {
+      type: 'workflow.completed',
+      chatroomId: workflow.chatroomId,
+      workflowKey: workflow.workflowKey,
+      workflowId: workflow._id,
+      finalStatus: 'cancelled',
+      timestamp: now,
     });
 
     return { success: true };
