@@ -372,7 +372,8 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
 
     // Reviewer is NOT the entry point — should have Start Working, not Classify Task
     expect(rolePrompt).toContain('### Start Working');
-    expect(rolePrompt).toContain('--no-classify');
+    expect(rolePrompt).not.toContain('--no-classify');
+    expect(rolePrompt).not.toContain('task-started');
     expect(rolePrompt).not.toContain('### Classify Task');
     expect(rolePrompt).not.toContain('--origin-message-classification');
 
@@ -460,12 +461,6 @@ describe('Remote Agent System Prompt (rolePrompt)', () => {
       ### Start Working
 
       After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
-
-      Then acknowledge the handoff (classification was already done):
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10007;chatroom_rooms" --role="reviewer" --task-id=<task-id> --no-classify
-      \`\`\`
 
 
        **Pair Team Context:**

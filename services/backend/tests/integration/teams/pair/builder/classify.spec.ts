@@ -1,9 +1,11 @@
 /**
- * Duo Team — Planner Task Started Reminder
+ * Pair Team — Builder Classify Reminder
  *
- * Verifies the task-started reminder prompt generated for the planner role
- * in a Duo team. Tests `generateTaskStartedReminder` which produces
- * role-specific guidance after acknowledging a task via `task-started`.
+ * Verifies the classify reminder prompt generated for the builder role
+ * in a Pair team. Tests `generateTaskStartedReminder` which produces
+ * role-specific guidance after acknowledging a task via `classify`.
+ *
+ * In pair team, builder is the entry point and can hand off to user or reviewer.
  *
  * Uses inline snapshots for human-reviewable regression detection.
  */
@@ -13,16 +15,16 @@ import { describe, expect, test } from 'vitest';
 import { generateTaskStartedReminder } from '../../../../../prompts/generator';
 
 const BASE_PARAMS = {
-  role: 'planner',
+  role: 'builder',
   chatroomId: 'test-chatroom-id',
   messageId: 'test-message-id',
   taskId: 'test-task-id',
   convexUrl: 'http://127.0.0.1:3210',
-  teamRoles: ['planner', 'builder'] as string[],
-  teamName: 'Duo',
+  teamRoles: ['builder', 'reviewer'] as string[],
+  teamName: 'Pair',
 };
 
-describe('Duo Team > Planner > Task Started Reminder', () => {
+describe('Pair Team > Builder > Classify Reminder', () => {
   test('question classification', () => {
     const reminder = generateTaskStartedReminder(
       BASE_PARAMS.role,
@@ -37,17 +39,22 @@ describe('Duo Team > Planner > Task Started Reminder', () => {
 
     expect(reminder).toBeDefined();
     expect(reminder).toContain('QUESTION');
-    expect(reminder).toContain('hand off to user');
+    // Pair builder can hand off to user for questions
+    expect(reminder).toContain('hand off directly to user');
 
     expect(reminder).toMatchInlineSnapshot(`
       "✅ Task acknowledged as QUESTION.
 
       **Next steps:**
-      1. Answer the user's question
-      2. When done, hand off to user:
+      1. Send a progress update: \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="builder" << 'EOF'
+      ---MESSAGE---
+      [Your progress message here]
+      EOF\`
+      2. Answer the user's question
+      3. When done, hand off directly to user:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role="user" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="user" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
@@ -72,35 +79,24 @@ describe('Duo Team > Planner > Task Started Reminder', () => {
 
     expect(reminder).toBeDefined();
     expect(reminder).toContain('NEW FEATURE');
-    expect(reminder).toContain('Decompose');
-    expect(reminder).toContain('builder');
+    // Pair builder must hand off to reviewer for new features
+    expect(reminder).toContain('reviewer');
 
     expect(reminder).toMatchInlineSnapshot(`
       "✅ Task acknowledged as NEW FEATURE.
 
       **Next steps:**
-      1. Decompose the task into clear, actionable work items
-      2. **Report progress to the user** before delegating — so they know work has started:
+      1. Implement the feature
+      2. Send \`report-progress\` at milestones (e.g., after major changes, when blocked)
+      3. Commit your changes
+      4. MUST hand off to reviewer for approval:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="planner" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF
-      \`\`\`
-
-      3. Delegate implementation to builder:
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role="builder" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="reviewer" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
-
-      4. When work returns, send another \`report-progress\` update before reviewing
-      5. Review completed work before delivering to user
-      6. Hand back for rework if requirements are not met
 
       💡 You're working on:
       Task ID: test-task-id"
@@ -126,20 +122,11 @@ describe('Duo Team > Planner > Task Started Reminder', () => {
       "✅ Task acknowledged as FOLLOW UP.
 
       **Next steps:**
-      1. Review the follow-up request against previous work
-      2. **Report progress to the user** so they know you're handling it:
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="planner" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF
-      \`\`\`
-
-      3. Delegate to appropriate team member or handle yourself
-      4. Follow-up inherits the workflow rules from the original task:
-         - If original was a QUESTION → handle and hand off to user when done
-         - If original was a NEW FEATURE → delegate, review, and deliver to user
+      1. Complete the follow-up work
+      2. Send \`report-progress\` at milestones for visibility
+      3. Follow-up inherits the workflow rules from the original task:
+         - If original was a QUESTION → hand off to user when done
+         - If original was a NEW FEATURE → hand off to reviewer when done
 
       💡 You're working on:
       Task ID: test-task-id"

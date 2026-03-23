@@ -6,7 +6,7 @@
  */
 
 /**
- * Classification types for task-started command
+ * Classification types for classify command
  */
 export type MessageClassification = 'question' | 'new_feature' | 'follow_up';
 
@@ -26,21 +26,6 @@ export interface BasePromptParams {
 export interface CommandContext {
   /** CLI environment prefix for non-production environments (empty string for production) */
   cliEnvPrefix: string;
-}
-
-// ============================================================================
-// task-started command types
-// ============================================================================
-
-export interface TaskStartedParams extends CommandContext {
-  chatroomId?: string;
-  role?: string;
-  taskId?: string;
-  classification?: MessageClassification;
-  /** Required for new_feature classification */
-  title?: string;
-  description?: string;
-  techSpecs?: string;
 }
 
 // ============================================================================

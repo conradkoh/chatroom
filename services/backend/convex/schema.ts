@@ -375,7 +375,7 @@ export default defineSchema({
       v.literal('progress'),
       v.literal('new-context') // Displayed when a new context is created
     ),
-    // Classification of user messages (set via task-started command)
+    // Classification of user messages (set via task read / classify)
     // Used to determine allowed handoff paths and context window
     classification: v.optional(
       v.union(
@@ -389,7 +389,7 @@ export default defineSchema({
     featureDescription: v.optional(v.string()),
     featureTechSpecs: v.optional(v.string()),
     // Reference to the original user message that started this task chain
-    // Set when an agent runs task-started, links all related messages
+    // Set when an agent runs task read / classify, links all related messages
     taskOriginMessageId: v.optional(v.id('chatroom_messages')),
     // Link to the task created for this message (for user messages)
     // Used to track processing status in the UI
@@ -514,7 +514,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     acknowledgedAt: v.optional(v.number()), // When agent claimed task via get-next-task
-    startedAt: v.optional(v.number()), // When task-started was called
+    startedAt: v.optional(v.number()), // When task read was called
     completedAt: v.optional(v.number()), // When task-complete was called
 
     // Queue ordering (lower = earlier in queue)
@@ -991,7 +991,7 @@ export default defineSchema({
         taskId: v.id('chatroom_tasks'),
         timestamp: v.number(),
       }),
-      // Agent began active work via task-started command (acknowledged → in_progress)
+      // Agent began active work via task read / classify (acknowledged → in_progress)
       v.object({
         type: v.literal('task.inProgress'),
         chatroomId: v.id('chatroom_rooms'),

@@ -195,7 +195,7 @@ export const startTask = mutation({
     let acknowledgedTask;
 
     if (args.taskId) {
-      // Start a specific task (used by task-started command)
+      // Start a specific task (used by task read)
       acknowledgedTask = await ctx.db.get('chatroom_tasks', args.taskId);
 
       if (!acknowledgedTask) {
@@ -267,8 +267,7 @@ export const startTask = mutation({
 
 /**
  * Marks a task as in_progress when an agent reads it.
- * This is the primary way to transition a task from acknowledged → in_progress,
- * replacing the legacy task-started CLI command.
+ * This is the primary way to transition a task from acknowledged → in_progress.
  *
  * Business logic is delegated to the readTask usecase in src/domain/usecase/task/.
  */

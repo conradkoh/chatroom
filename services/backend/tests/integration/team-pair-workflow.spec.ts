@@ -1150,7 +1150,7 @@ Test technical specifications`,
     });
   });
 
-  describe('task-started reminders', () => {
+  describe('classify reminders', () => {
     test('taskStarted returns focused reminder for builder + new_feature', async () => {
       // Setup
       const { sessionId } = await createTestSession('test-reminder-new-feature');

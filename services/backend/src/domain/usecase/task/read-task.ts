@@ -57,8 +57,7 @@ export interface ReadTaskResult {
 /**
  * Reads a task and transitions it from acknowledged → in_progress.
  *
- * This is the primary way to transition a task from acknowledged → in_progress,
- * replacing the legacy task-started CLI command.
+ * This is the primary way to transition a task from acknowledged → in_progress.
  *
  * Idempotency: If the task is already in_progress, this function accepts it —
  * this handles recovery scenarios where a new agent process picks up where a

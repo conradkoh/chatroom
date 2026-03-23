@@ -1,9 +1,9 @@
 /**
- * Pair Team — Reviewer Task Started Reminder
+ * Pair Team — Reviewer Classify Reminder
  *
- * Verifies the task-started reminder prompt generated for the reviewer role
+ * Verifies the classify reminder prompt generated for the reviewer role
  * in a Pair team. Tests `generateTaskStartedReminder` which produces
- * role-specific guidance after acknowledging a task via `task-started`.
+ * role-specific guidance after acknowledging a task via `classify`.
  *
  * In pair team, reviewer can hand off to user or builder.
  *
@@ -24,7 +24,7 @@ const BASE_PARAMS = {
   teamName: 'Pair',
 };
 
-describe('Pair Team > Reviewer > Task Started Reminder', () => {
+describe('Pair Team > Reviewer > Classify Reminder', () => {
   test('question classification', () => {
     const reminder = generateTaskStartedReminder(
       BASE_PARAMS.role,
