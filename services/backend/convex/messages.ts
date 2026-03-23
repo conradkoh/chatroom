@@ -493,6 +493,31 @@ async function _handoffHandler(
     }
   }
 
+  // Validate handoff to user is not blocked by active workflow
+  if (isHandoffToUser) {
+    const activeWorkflows = await ctx.db
+      .query('chatroom_workflows')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId).eq('status', 'active')
+      )
+      .collect();
+
+    if (activeWorkflows.length > 0) {
+      const workflow = activeWorkflows[0];
+      return {
+        success: false,
+        error: {
+          code: 'WORKFLOW_ACTIVE',
+          message: `Cannot hand off to user while workflow "${workflow.workflowKey}" is active. Complete all workflow steps or exit the workflow first.\n\nTo check status: chatroom workflow status --workflow-key="${workflow.workflowKey}"\nTo exit workflow: chatroom workflow exit --workflow-key="${workflow.workflowKey}" --reason="<reason>"`,
+        },
+        messageId: null,
+        completedTaskIds: [],
+        newTaskId: null,
+        promotedTaskId: null,
+      };
+    }
+  }
+
   const now = Date.now();
 
   // Step 1: Complete ALL in_progress and acknowledged tasks
