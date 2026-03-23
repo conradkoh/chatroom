@@ -1067,6 +1067,8 @@ export default defineSchema({
         workflowId: v.id('chatroom_workflows'),
         createdBy: v.string(),
         stepCount: v.number(),
+        // Optional for backward compatibility — existing events in the DB may not have this field.
+        // New events always include steps.
         steps: v.optional(v.array(
           v.object({
             stepKey: v.string(),
@@ -1105,7 +1107,7 @@ export default defineSchema({
         chatroomId: v.id('chatroom_rooms'),
         workflowKey: v.string(),
         workflowId: v.id('chatroom_workflows'),
-        finalStatus: v.string(),
+        finalStatus: v.union(v.literal('completed'), v.literal('cancelled')),
         timestamp: v.number(),
       })
     )

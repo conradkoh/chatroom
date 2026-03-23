@@ -12,6 +12,15 @@ import type {
 // ─── Helpers ───────────────────────────────────────────────────────
 
 /**
+ * Sanitize text for use in Mermaid node labels.
+ * Escapes backslashes and replaces double quotes with single quotes
+ * to prevent Mermaid parse errors.
+ */
+function sanitizeMermaidLabel(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/"/g, "'");
+}
+
+/**
  * Generate a Mermaid flowchart string from workflow steps.
  * Each step is rendered as a node with its key, description, and optional assignee.
  * Dependency edges connect steps.
@@ -23,9 +32,11 @@ function buildWorkflowMermaid(
 
   // Node definitions — sanitize labels by replacing quotes with backtick-safe chars
   for (const step of steps) {
-    const label = step.assigneeRole
-      ? `${step.stepKey}\\n${step.description}\\n[${step.assigneeRole}]`
-      : `${step.stepKey}\\n${step.description}`;
+    const desc = sanitizeMermaidLabel(step.description);
+    const role = step.assigneeRole ? sanitizeMermaidLabel(step.assigneeRole) : null;
+    const label = role
+      ? `${step.stepKey}\\n${desc}\\n[${role}]`
+      : `${step.stepKey}\\n${desc}`;
     // Use square bracket nodes for all steps
     lines.push(`  ${step.stepKey}["${label}"]`);
   }

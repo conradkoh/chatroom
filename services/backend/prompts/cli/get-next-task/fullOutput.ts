@@ -394,7 +394,6 @@ export function generateFullCliOutput(params: FullCliOutputParams): string {
     lines.push(`No message found. Task ID: ${task._id}`);
   }
 
-
   lines.push('</next-steps>');
 
   // ── Reminder footer ───────────────────────────────────────────────────────
