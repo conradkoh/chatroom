@@ -2328,6 +2328,53 @@ export const getTaskDeliveryPrompt = query({
     // Determine entry point status for context management
     const entryPoint = getTeamEntryPoint(chatroom);
     const isEntryPoint = entryPoint ? args.role.toLowerCase() === entryPoint.toLowerCase() : true; // Default to true if no entry point configured
+
+    // Query active workflow for this chatroom
+    const messagesWorkflows = await ctx.db
+      .query('chatroom_workflows')
+      .withIndex('by_chatroom_status', (q) =>
+        q.eq('chatroomId', args.chatroomId as any).eq('status', 'active')
+      )
+      .collect();
+
+    let messagesActiveWorkflow: {
+      workflowKey: string;
+      status: string;
+      steps: {
+        stepKey: string;
+        description: string;
+        status: string;
+        assigneeRole?: string;
+        dependsOn: string[];
+        goal?: string;
+        requirements?: string;
+        warnings?: string;
+      }[];
+    } | null = null;
+
+    if (messagesWorkflows.length > 0) {
+      const workflow = messagesWorkflows[0];
+      const steps = await ctx.db
+        .query('chatroom_workflow_steps')
+        .withIndex('by_workflow', (q) => q.eq('workflowId', workflow._id))
+        .collect();
+
+      messagesActiveWorkflow = {
+        workflowKey: workflow.workflowKey,
+        status: workflow.status,
+        steps: steps.map((s) => ({
+          stepKey: s.stepKey,
+          description: s.description,
+          status: s.status,
+          assigneeRole: s.assigneeRole ?? undefined,
+          dependsOn: s.dependsOn,
+          goal: s.specification?.goal,
+          requirements: s.specification?.requirements,
+          warnings: s.specification?.warnings ?? undefined,
+        })),
+      };
+    }
+
     // Generate the complete CLI output (backend-generated, CLI just prints it)
     const fullCliOutput = generateFullCliOutput({
       chatroomId: args.chatroomId,
@@ -2379,6 +2426,7 @@ export const getTaskDeliveryPrompt = query({
       originMessageCreatedAt: originMessage?._creationTime ?? null,
       isEntryPoint,
       availableHandoffTargets: availableHandoffRoles,
+      activeWorkflow: messagesActiveWorkflow,
     });
 
     return {

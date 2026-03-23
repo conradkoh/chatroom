@@ -252,6 +252,52 @@ export async function getTaskDeliveryPromptData(
   const entryPoint = getTeamEntryPoint(chatroom);
   const isEntryPoint = entryPoint ? role.toLowerCase() === entryPoint.toLowerCase() : true;
 
+  // Query active workflow for this chatroom
+  const workflows = await ctx.db
+    .query('chatroom_workflows')
+    .withIndex('by_chatroom_status', (q) =>
+      q.eq('chatroomId', chatroomId).eq('status', 'active')
+    )
+    .collect();
+
+  let activeWorkflowData: {
+    workflowKey: string;
+    status: string;
+    steps: {
+      stepKey: string;
+      description: string;
+      status: string;
+      assigneeRole?: string;
+      dependsOn: string[];
+      goal?: string;
+      requirements?: string;
+      warnings?: string;
+    }[];
+  } | null = null;
+
+  if (workflows.length > 0) {
+    const workflow = workflows[0];
+    const steps = await ctx.db
+      .query('chatroom_workflow_steps')
+      .withIndex('by_workflow', (q) => q.eq('workflowId', workflow._id))
+      .collect();
+
+    activeWorkflowData = {
+      workflowKey: workflow.workflowKey,
+      status: workflow.status,
+      steps: steps.map((s) => ({
+        stepKey: s.stepKey,
+        description: s.description,
+        status: s.status,
+        assigneeRole: s.assigneeRole ?? undefined,
+        dependsOn: s.dependsOn,
+        goal: s.specification?.goal,
+        requirements: s.specification?.requirements,
+        warnings: s.specification?.warnings ?? undefined,
+      })),
+    };
+  }
+
   // Generate the complete CLI output
   const fullCliOutput = generateFullCliOutput({
     chatroomId,
@@ -303,6 +349,7 @@ export async function getTaskDeliveryPromptData(
     originMessageCreatedAt: originMessage?._creationTime ?? null,
     isEntryPoint,
     availableHandoffTargets: availableHandoffRoles,
+    activeWorkflow: activeWorkflowData,
   });
 
   // Build JSON context
