@@ -1271,4 +1271,61 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_machine', ['machineId'])
     .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
+
+  // ─── Structured Workflows ────────────────────────────────────────────────────
+  // DAG-based workflows that agents create and execute step-by-step.
+  // Workflows block user handoff until completed or explicitly exited.
+
+  /** Workflow definitions — one per workflowKey per chatroom. */
+  chatroom_workflows: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    workflowKey: v.string(), // User-provided unique key within chatroom
+    status: v.union(
+      v.literal('draft'), // Created but not yet started
+      v.literal('active'), // In progress — steps are being executed
+      v.literal('completed'), // All steps completed or cancelled
+      v.literal('cancelled') // Manually exited early
+    ),
+    createdBy: v.string(), // Role that created the workflow
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    cancelReason: v.optional(v.string()),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_workflowKey', ['chatroomId', 'workflowKey'])
+    .index('by_chatroom_status', ['chatroomId', 'status']),
+
+  /** Steps within a workflow — nodes of the DAG. */
+  chatroom_workflow_steps: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    workflowId: v.id('chatroom_workflows'),
+    stepKey: v.string(), // User-provided unique key within workflow
+    description: v.string(), // Short plain text description
+    status: v.union(
+      v.literal('pending'), // Waiting for dependencies
+      v.literal('in_progress'), // Dependencies met, work in progress
+      v.literal('completed'), // Step finished successfully
+      v.literal('cancelled') // Step cancelled
+    ),
+    assigneeRole: v.optional(v.string()), // Role assigned to this step
+    dependsOn: v.array(v.string()), // stepKeys this step depends on (DAG edges)
+    order: v.number(), // Display order
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    cancelReason: v.optional(v.string()),
+    specification: v.optional(
+      v.object({
+        goal: v.string(),
+        requirements: v.string(),
+        warnings: v.optional(v.string()),
+      })
+    ),
+  })
+    .index('by_workflow', ['workflowId'])
+    .index('by_workflow_stepKey', ['workflowId', 'stepKey'])
+    .index('by_chatroom', ['chatroomId']),
 });
