@@ -390,7 +390,12 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
             curve: 'basis',
             nodeSpacing: 30,
             rankSpacing: 50,
-            useMaxWidth: true,
+            // useMaxWidth:false renders at natural size instead of constraining
+            // to container width. Safari clips SVG content that extends beyond
+            // the calculated viewBox when the diagram is scaled down to fit.
+            // With useMaxWidth:false the SVG is rendered at full size and the
+            // container scrolls horizontally if needed.
+            useMaxWidth: false,
             // Remove the 200px wrapping cap — let the layout engine size nodes
             // naturally based on their content length.
             wrappingWidth: 500,
@@ -403,15 +408,59 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
         const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
         const { svg: renderedSvg } = await mermaid.render(id, chart);
 
-        // Remove the max-width style Mermaid injects on the SVG element.
-        // This allows the SVG to render at its natural computed size, letting
-        // the container's overflow-x-auto handle horizontal scrolling instead
-        // of squeezing the diagram into a fixed box and clipping text.
-        const cleanedSvg = renderedSvg.replace(
+        // Post-process the rendered SVG for cross-browser compatibility.
+        //
+        // Safari-specific issues:
+        // 1. Safari strictly clips SVG content at the viewBox boundary. When
+        //    Mermaid calculates the viewBox from text bounding boxes, Safari's
+        //    slightly different text metrics can cause labels to be cut off.
+        // 2. Safari respects overflow="hidden" on SVG elements (the SVG spec
+        //    default), whereas Chrome is more lenient.
+        // 3. Mermaid injects a max-width inline style that constrains the SVG.
+        //
+        // Fixes applied:
+        // a) Remove max-width from inline style
+        // b) Set overflow="visible" on the root SVG element
+        // c) Add padding to the viewBox so content near edges isn't clipped
+        let cleanedSvg = renderedSvg;
+
+        // (a) Remove max-width inline style
+        cleanedSvg = cleanedSvg.replace(
           /(<svg[^>]*)\bstyle="([^"]*)max-width:[^;";]*;?([^"]*)"/,
           (_m, open, before, after) => {
             const cleanStyle = (before + after).replace(/;\s*;/g, ';').replace(/^\s*;\s*|\s*;\s*$/g, '');
             return cleanStyle ? `${open} style="${cleanStyle}"` : open;
+          }
+        );
+
+        // (b) Force overflow="visible" on the root SVG — Safari clips at
+        // viewBox bounds by default (SVG spec says overflow:hidden).
+        // Replace existing overflow attribute or add it.
+        if (/(<svg[^>]*)\boverflow="[^"]*"/.test(cleanedSvg)) {
+          cleanedSvg = cleanedSvg.replace(
+            /(<svg[^>]*)\boverflow="[^"]*"/,
+            '$1overflow="visible"'
+          );
+        } else {
+          cleanedSvg = cleanedSvg.replace(
+            /(<svg\b)/,
+            '$1 overflow="visible"'
+          );
+        }
+
+        // (c) Pad the viewBox by 8px on each side to give text breathing room.
+        // Safari's text metrics differ from Chrome's, so the tight viewBox
+        // Mermaid computes can clip the last few pixels of text in Safari.
+        const VB_PAD = 8;
+        cleanedSvg = cleanedSvg.replace(
+          /(<svg[^>]*\bviewBox=")([^"]*)(")/,
+          (_m, pre, vb, post) => {
+            const parts = vb.trim().split(/\s+/).map(Number);
+            if (parts.length === 4 && parts.every((n: number) => !isNaN(n))) {
+              const [x, y, w, h] = parts;
+              return `${pre}${x - VB_PAD} ${y - VB_PAD} ${w + VB_PAD * 2} ${h + VB_PAD * 2}${post}`;
+            }
+            return _m;
           }
         );
 
@@ -453,7 +502,7 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
       <div className="relative my-3 group">
         <div
           ref={containerRef}
-          className="flex justify-center overflow-x-auto"
+          className="flex justify-center overflow-x-auto [&_svg]:overflow-visible"
           style={{ maxWidth: '100%' }}
           dangerouslySetInnerHTML={{ __html: svg }}
         />
