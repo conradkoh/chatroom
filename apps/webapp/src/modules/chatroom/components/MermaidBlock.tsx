@@ -381,12 +381,18 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
           startOnLoad: false,
           theme: isDark ? 'dark' : 'default',
           securityLevel: 'strict',
+          // IMPORTANT: htmlLabels must be at the top level.
+          // In Mermaid 11.x, flowchart.htmlLabels is deprecated and ignored.
+          // The global htmlLabels controls whether node labels use SVG
+          // foreignObject (true) or native SVG text (false).
+          //
+          // foreignObject has a fixed height that Mermaid calculates from
+          // estimated text metrics. Safari's text measurements differ from
+          // Chrome's, so multi-line labels (e.g., "stepKey\nDescription\n[role]")
+          // overflow the foreignObject boundary and get clipped. Native SVG
+          // text nodes auto-size to content, eliminating this entirely.
+          htmlLabels: false,
           flowchart: {
-            // Use SVG text instead of HTML foreignObject labels.
-            // foreignObject sizing is unreliable across browsers and causes
-            // text to be clipped when node content exceeds the fixed box size.
-            // SVG text nodes auto-size to their content, eliminating truncation.
-            htmlLabels: false,
             curve: 'basis',
             nodeSpacing: 30,
             rankSpacing: 50,
@@ -461,6 +467,24 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
               return `${pre}${x - VB_PAD} ${y - VB_PAD} ${w + VB_PAD * 2} ${h + VB_PAD * 2}${post}`;
             }
             return _m;
+          }
+        );
+
+        // (d) Defense-in-depth: if foreignObject elements are still present
+        // (htmlLabels may not take effect for all diagram types), ensure they
+        // have overflow:visible so Safari doesn't clip their content at the
+        // fixed height boundary. Also add a generous height to prevent clipping.
+        cleanedSvg = cleanedSvg.replace(
+          /<foreignObject([^>]*)>/g,
+          (_m, attrs) => {
+            // Add overflow="visible" to the foreignObject
+            let newAttrs = attrs;
+            if (/overflow=/.test(newAttrs)) {
+              newAttrs = newAttrs.replace(/overflow="[^"]*"/, 'overflow="visible"');
+            } else {
+              newAttrs += ' overflow="visible"';
+            }
+            return `<foreignObject${newAttrs}>`;
           }
         );
 
