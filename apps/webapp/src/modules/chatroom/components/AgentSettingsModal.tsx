@@ -37,9 +37,7 @@ interface AgentSettingsModalProps {
   onClose: () => void;
   chatroomId: string;
   currentTeamId?: string;
-  currentTeamName?: string;
   currentTeamRoles?: string[];
-  currentTeamEntryPoint?: string;
 }
 
 type SettingsTab = 'setup' | 'team' | 'machine';
@@ -290,97 +288,8 @@ const TeamConfigContent = memo(function TeamConfigContent({
   );
 });
 
-// ─── Ping State Management ──────────────────────────────────────────────
-
-type PingState = 'idle' | 'pinging' | 'success' | 'failed';
-
-interface PingInfo {
-  state: PingState;
-  pingEventId: Id<'chatroom_eventStream'> | null;
-  startedAt: number | null;
-}
-
 /**
- * Hook to manage ping state for a single machine.
- * Sends a ping event and reactively watches for a daemon.pong response event.
- */
-function useMachinePing(machineId: string) {
-  const [pingInfo, setPingInfo] = useState<PingInfo>({
-    state: 'idle',
-    pingEventId: null,
-    startedAt: null,
-  });
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const sendCommand = useSessionMutation(api.machines.sendCommand);
-
-  // Reactively watch for a daemon.pong event after the ping was sent
-  const pongEvent = useSessionQuery(
-    api.machines.getDaemonPongEvent,
-    pingInfo.pingEventId ? { machineId, afterEventId: pingInfo.pingEventId } : 'skip'
-  );
-
-  // React to pong event arrival
-  useEffect(() => {
-    if (!pongEvent || pingInfo.state !== 'pinging') return;
-
-    setPingInfo((prev) => ({ ...prev, state: 'success' }));
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  }, [pongEvent, pingInfo.state]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  const sendPing = useCallback(async () => {
-    // Reset any previous state
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-
-    setPingInfo({ state: 'pinging', pingEventId: null, startedAt: Date.now() });
-
-    try {
-      const result = await sendCommand({
-        machineId,
-        type: 'ping',
-      });
-      const eventId = result?.eventId as Id<'chatroom_eventStream'> | undefined;
-
-      if (eventId) {
-        setPingInfo({ state: 'pinging', pingEventId: eventId, startedAt: Date.now() });
-
-        // Auto-timeout after 10 seconds
-        timeoutRef.current = setTimeout(() => {
-          setPingInfo((prev) => {
-            if (prev.state === 'pinging') {
-              return { ...prev, state: 'failed' };
-            }
-            return prev;
-          });
-        }, 10000);
-      } else {
-        setPingInfo({ state: 'failed', pingEventId: null, startedAt: null });
-      }
-    } catch {
-      setPingInfo({ state: 'failed', pingEventId: null, startedAt: null });
-    }
-  }, [machineId, sendCommand]);
-
-  return { pingState: pingInfo.state, sendPing };
-}
-
-/**
- * Individual machine row with integrated ping button and inline alias editing
+ * Individual machine row with inline alias editing
  */
 const MachineRow = memo(function MachineRow({
   machine,
@@ -395,7 +304,6 @@ const MachineRow = memo(function MachineRow({
     registeredAt: number;
   };
 }) {
-  const { pingState, sendPing } = useMachinePing(machine.machineId);
   const [isEditing, setIsEditing] = useState(false);
   const [aliasValue, setAliasValue] = useState(machine.alias || '');
   const [isSaving, setIsSaving] = useState(false);
@@ -457,44 +365,10 @@ const MachineRow = memo(function MachineRow({
 
   const displayName = machine.alias || machine.hostname;
 
-  const pingLabel = (() => {
-    switch (pingState) {
-      case 'pinging':
-        return 'Pinging...';
-      case 'success':
-        return 'Online';
-      case 'failed':
-        return 'No Response';
-      default:
-        return 'Ping';
-    }
-  })();
-
-  const pingClasses = (() => {
-    switch (pingState) {
-      case 'pinging':
-        return 'text-chatroom-text-muted border-chatroom-border cursor-wait';
-      case 'success':
-        return 'text-chatroom-status-success border-chatroom-status-success/30 bg-chatroom-status-success/10';
-      case 'failed':
-        return 'text-chatroom-status-error border-chatroom-status-error/30 bg-chatroom-status-error/10';
-      default:
-        return 'text-chatroom-text-muted border-chatroom-border hover:text-chatroom-text-primary hover:bg-chatroom-bg-hover';
-    }
-  })();
-
   return (
     <div className="flex items-center gap-3 p-3 border border-chatroom-border bg-chatroom-bg-surface">
       <div
-        className={`w-2.5 h-2.5 flex-shrink-0 ${
-          pingState === 'success'
-            ? 'bg-chatroom-status-success'
-            : pingState === 'failed'
-              ? 'bg-chatroom-status-error'
-              : machine.daemonConnected
-                ? 'bg-chatroom-status-success'
-                : 'bg-chatroom-text-muted'
-        }`}
+        className={`w-2.5 h-2.5 flex-shrink-0 ${machine.daemonConnected ? 'bg-chatroom-status-success' : 'bg-chatroom-text-muted'}`}
       />
       <div className="flex-1 min-w-0">
         {isEditing ? (
@@ -546,16 +420,6 @@ const MachineRow = memo(function MachineRow({
           {new Date(machine.lastSeenAt).toLocaleTimeString()}
         </div>
       )}
-      <button
-        onClick={sendPing}
-        disabled={pingState === 'pinging'}
-        className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide border transition-colors flex-shrink-0 ${pingClasses}`}
-      >
-        {pingState === 'pinging' && (
-          <span className="inline-block w-3 h-3 border border-current border-t-transparent animate-spin mr-1.5 align-middle" />
-        )}
-        {pingLabel}
-      </button>
     </div>
   );
 });
@@ -564,19 +428,7 @@ const MachineRow = memo(function MachineRow({
  * Machine tab — shows connected machines with ping/health-check and daemon start command
  */
 const MachineContent = memo(function MachineContent(_props: { chatroomId: string }) {
-  const machinesResult = useSessionQuery(api.machines.listMachines, {}) as
-    | {
-        machines: {
-          machineId: string;
-          hostname: string;
-          alias?: string;
-          os: string;
-          daemonConnected: boolean;
-          lastSeenAt: number;
-          registeredAt: number;
-        }[];
-      }
-    | undefined;
+  const machinesResult = useSessionQuery(api.machines.listMachines, {});
   const machines = machinesResult?.machines;
 
   // Daemon start command
@@ -589,8 +441,7 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
           Machine Integration
         </h3>
         <p className="text-xs text-chatroom-text-muted">
-          View connected machines and their status. Use the ping button to verify if a daemon is
-          responsive.
+          View connected machines and their status.
         </p>
       </div>
 
@@ -637,12 +488,6 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
         </div>
       </div>
 
-      {/* Future Feature Note */}
-      <div className="p-3 bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] text-chatroom-text-muted">
-        <strong className="text-chatroom-text-secondary">Coming soon:</strong> Automatic agent
-        startup — machines will automatically start offline agents when new messages are received in
-        this chatroom.
-      </div>
     </div>
   );
 });
