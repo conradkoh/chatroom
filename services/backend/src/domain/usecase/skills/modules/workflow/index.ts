@@ -29,6 +29,8 @@ Reads JSON from stdin:
 }
 \`\`\`
 
+**Note:** \`assigneeRole\` is not set at create time. Use the \`specify\` command to assign a role and add goal/requirements to each step.
+
 ### Specify Step
 \`\`\`
 ${cliEnvPrefix}chatroom workflow specify --chatroom-id=<id> --role=<role> --workflow-key=<key> --step-key=<stepKey> --assignee-role=<role>
@@ -73,13 +75,14 @@ Cancels the entire workflow.
 
 ## Workflow Lifecycle
 1. **Create** — Define steps with dependencies (creates a DAG)
-2. **Specify** — Add goal/requirements/warnings to each step, assign to roles
+2. **Specify** (required) — Add goal/requirements/warnings to each step, assign to roles. Steps cannot be completed without a specification.
 3. **Execute** — Activate the workflow; root steps become in_progress
 4. **Work** — Agents complete their assigned steps
 5. **Advance** — Completing a step automatically promotes dependent steps
 6. **Complete** — Workflow completes when all steps are terminal (completed/cancelled)
 
 ## Best Practices
+- Every step must be specified before it can be completed
 - Keep steps focused and independently verifiable
 - Use meaningful step keys (e.g., "schema", "backend", "tests")
 - Specify clear requirements so step completion can be objectively verified
