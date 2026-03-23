@@ -534,8 +534,278 @@ describe('workflows.exitWorkflow', () => {
 });
 
 // ============================================================================
-// getWorkflowStatus — availableNextSteps
+// Event Stream Emission Tests
 // ============================================================================
+
+describe('workflows — event stream emissions', () => {
+  test('executeWorkflow emits workflow.started event', async () => {
+    const { sessionId } = await createTestSession('test-wf-es-start-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-start-test',
+      createdBy: 'planner',
+      steps: linearSteps(),
+    });
+
+    await t.mutation(api.workflows.executeWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-start-test',
+    });
+
+    const events = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    const startedEvent = events.find((e) => e.type === 'workflow.started');
+    expect(startedEvent).toBeDefined();
+    if (startedEvent && startedEvent.type === 'workflow.started') {
+      expect(startedEvent.chatroomId).toBe(chatroomId);
+      expect(startedEvent.workflowKey).toBe('es-start-test');
+      expect(startedEvent.createdBy).toBe('planner');
+      expect(startedEvent.stepCount).toBe(3);
+      expect(typeof startedEvent.workflowId).toBe('string');
+      expect(typeof startedEvent.timestamp).toBe('number');
+      // Verify steps array is included
+      expect(Array.isArray(startedEvent.steps)).toBe(true);
+      expect(startedEvent.steps).toHaveLength(3);
+      expect(startedEvent.steps[0]).toMatchObject({
+        stepKey: 'a',
+        description: 'Step A',
+        dependsOn: [],
+        order: 1,
+      });
+    }
+  });
+
+  test('completeStep emits workflow.stepCompleted event', async () => {
+    const { sessionId } = await createTestSession('test-wf-es-stepcomplete-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-step-complete',
+      createdBy: 'planner',
+      steps: [
+        { stepKey: 'a', description: 'Step A', dependsOn: [] as string[], order: 1, },
+      ],
+    });
+
+    await t.mutation(api.workflows.executeWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-step-complete',
+    });
+
+    await t.mutation(api.workflows.completeStep, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-step-complete',
+      stepKey: 'a',
+    });
+
+    const events = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    const stepCompletedEvent = events.find((e) => e.type === 'workflow.stepCompleted');
+    expect(stepCompletedEvent).toBeDefined();
+    if (stepCompletedEvent && stepCompletedEvent.type === 'workflow.stepCompleted') {
+      expect(stepCompletedEvent.chatroomId).toBe(chatroomId);
+      expect(stepCompletedEvent.workflowKey).toBe('es-step-complete');
+      expect(stepCompletedEvent.stepKey).toBe('a');
+      expect(typeof stepCompletedEvent.workflowId).toBe('string');
+      expect(typeof stepCompletedEvent.timestamp).toBe('number');
+    }
+  });
+
+  test('cancelStep emits workflow.stepCancelled event', async () => {
+    const { sessionId } = await createTestSession('test-wf-es-stepcancel-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-step-cancel',
+      createdBy: 'planner',
+      steps: [
+        { stepKey: 'a', description: 'Step A', dependsOn: [] as string[], order: 1 },
+        { stepKey: 'b', description: 'Step B', dependsOn: [] as string[], order: 2 },
+      ],
+    });
+
+    await t.mutation(api.workflows.executeWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-step-cancel',
+    });
+
+    await t.mutation(api.workflows.cancelStep, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-step-cancel',
+      stepKey: 'a',
+      reason: 'no longer needed',
+    });
+
+    const events = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    const stepCancelledEvent = events.find((e) => e.type === 'workflow.stepCancelled');
+    expect(stepCancelledEvent).toBeDefined();
+    if (stepCancelledEvent && stepCancelledEvent.type === 'workflow.stepCancelled') {
+      expect(stepCancelledEvent.chatroomId).toBe(chatroomId);
+      expect(stepCancelledEvent.workflowKey).toBe('es-step-cancel');
+      expect(stepCancelledEvent.stepKey).toBe('a');
+      expect(stepCancelledEvent.reason).toBe('no longer needed');
+      expect(typeof stepCancelledEvent.workflowId).toBe('string');
+      expect(typeof stepCancelledEvent.timestamp).toBe('number');
+    }
+  });
+
+  test('completing all steps emits workflow.completed event with finalStatus=completed', async () => {
+    const { sessionId } = await createTestSession('test-wf-es-wfcomplete-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-wf-complete',
+      createdBy: 'planner',
+      steps: [{ stepKey: 'a', description: 'Step A', dependsOn: [] as string[], order: 1 }],
+    });
+
+    await t.mutation(api.workflows.executeWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-wf-complete',
+    });
+
+    await t.mutation(api.workflows.completeStep, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-wf-complete',
+      stepKey: 'a',
+    });
+
+    const events = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    const wfCompletedEvent = events.find((e) => e.type === 'workflow.completed');
+    expect(wfCompletedEvent).toBeDefined();
+    if (wfCompletedEvent && wfCompletedEvent.type === 'workflow.completed') {
+      expect(wfCompletedEvent.chatroomId).toBe(chatroomId);
+      expect(wfCompletedEvent.workflowKey).toBe('es-wf-complete');
+      expect(wfCompletedEvent.finalStatus).toBe('completed');
+      expect(typeof wfCompletedEvent.workflowId).toBe('string');
+      expect(typeof wfCompletedEvent.timestamp).toBe('number');
+    }
+  });
+
+  test('exitWorkflow emits workflow.completed event with finalStatus=cancelled', async () => {
+    const { sessionId } = await createTestSession('test-wf-es-exit-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-exit-test',
+      createdBy: 'planner',
+      steps: [{ stepKey: 'a', description: 'Step A', dependsOn: [] as string[], order: 1 }],
+    });
+
+    await t.mutation(api.workflows.executeWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-exit-test',
+    });
+
+    await t.mutation(api.workflows.exitWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-exit-test',
+      reason: 'shutting down',
+    });
+
+    const events = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    const wfCompletedEvent = events.find((e) => e.type === 'workflow.completed');
+    expect(wfCompletedEvent).toBeDefined();
+    if (wfCompletedEvent && wfCompletedEvent.type === 'workflow.completed') {
+      expect(wfCompletedEvent.chatroomId).toBe(chatroomId);
+      expect(wfCompletedEvent.workflowKey).toBe('es-exit-test');
+      expect(wfCompletedEvent.finalStatus).toBe('cancelled');
+    }
+  });
+
+  test('cancelling a step also emits workflow.completed when it is the only step', async () => {
+    const { sessionId } = await createTestSession('test-wf-es-cancel-complete-1');
+    const chatroomId = await createPairTeamChatroom(sessionId as any);
+
+    await t.mutation(api.workflows.createWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-cancel-complete',
+      createdBy: 'planner',
+      steps: [{ stepKey: 'a', description: 'Step A', dependsOn: [] as string[], order: 1 }],
+    });
+
+    await t.mutation(api.workflows.executeWorkflow, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-cancel-complete',
+    });
+
+    await t.mutation(api.workflows.cancelStep, {
+      sessionId: sessionId as any,
+      chatroomId,
+      workflowKey: 'es-cancel-complete',
+      stepKey: 'a',
+      reason: 'skipping',
+    });
+
+    const events = await t.run(async (ctx) =>
+      ctx.db
+        .query('chatroom_eventStream')
+        .withIndex('by_chatroom', (q) => q.eq('chatroomId', chatroomId))
+        .collect()
+    );
+
+    // Both a stepCancelled and a workflow.completed event should exist
+    const stepCancelledEvent = events.find((e) => e.type === 'workflow.stepCancelled');
+    expect(stepCancelledEvent).toBeDefined();
+
+    const wfCompletedEvent = events.find((e) => e.type === 'workflow.completed');
+    expect(wfCompletedEvent).toBeDefined();
+    if (wfCompletedEvent && wfCompletedEvent.type === 'workflow.completed') {
+      expect(wfCompletedEvent.finalStatus).toBe('completed');
+    }
+  });
+});
+
 
 describe('workflows.getWorkflowStatus', () => {
   test('computes available next steps correctly', async () => {

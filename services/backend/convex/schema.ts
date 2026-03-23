@@ -1058,6 +1058,57 @@ export default defineSchema({
         restartCount: v.number(),
         windowMs: v.number(),
         timestamp: v.number(),
+      }),
+      // Workflow started (draft → active)
+      v.object({
+        type: v.literal('workflow.started'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        createdBy: v.string(),
+        stepCount: v.number(),
+        // Optional for backward compatibility — existing events in the DB may not have this field.
+        // New events always include steps.
+        steps: v.optional(v.array(
+          v.object({
+            stepKey: v.string(),
+            description: v.string(),
+            assigneeRole: v.optional(v.string()),
+            dependsOn: v.array(v.string()),
+            order: v.number(),
+          })
+        )),
+        timestamp: v.number(),
+      }),
+      // Workflow step completed
+      v.object({
+        type: v.literal('workflow.stepCompleted'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        stepKey: v.string(),
+        completedBy: v.optional(v.string()),
+        timestamp: v.number(),
+      }),
+      // Workflow step cancelled
+      v.object({
+        type: v.literal('workflow.stepCancelled'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        stepKey: v.string(),
+        cancelledBy: v.optional(v.string()),
+        reason: v.string(),
+        timestamp: v.number(),
+      }),
+      // Workflow completed (all steps terminal)
+      v.object({
+        type: v.literal('workflow.completed'),
+        chatroomId: v.id('chatroom_rooms'),
+        workflowKey: v.string(),
+        workflowId: v.id('chatroom_workflows'),
+        finalStatus: v.union(v.literal('completed'), v.literal('cancelled')),
+        timestamp: v.number(),
       })
     )
   )
