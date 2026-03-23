@@ -1,12 +1,12 @@
 import type { SkillModule } from '../../registry';
 
-export const aiCodeReviewSkill: SkillModule = {
-  skillId: 'ai-code-review',
-  name: 'AI Code Review',
+export const codeReviewSkill: SkillModule = {
+  skillId: 'code-review',
+  name: 'Code Review',
   description:
-    'Use this skill when reviewing, auditing, or giving feedback on code that was written or assisted by an AI tool — including Claude Code, GitHub Copilot, Cursor, Codeium, Tabnine, or any LLM prompt-to-code workflow. Covers seven pillars: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability.',
+    'Use this skill when reviewing, auditing, or giving feedback on code. Covers seven pillars: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability.',
 
-  getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "ai-code-review" skill.
+  getPrompt: (_cliEnvPrefix: string) => `You have been activated with the "code-review" skill.
 
 # AI Code Review — Tech Debt Prevention
 
