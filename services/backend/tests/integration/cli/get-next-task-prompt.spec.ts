@@ -183,6 +183,9 @@ ${taskDeliveryPrompt.fullCliOutput}
       - \`code-review\` (1 skill available)
           - Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. Covers AI-generated code review with focus on maintainability and tech debt prevention.
 
+      - \`workflow\` (1 skill available)
+          - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
+
       # Skills
 
       Run \`CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom skill list --chatroom-id=<id> --role=<role>\` to list all available skills.
@@ -926,6 +929,9 @@ ${taskDeliveryPrompt.fullCliOutput}
 
       - \`code-review\` (1 skill available)
           - Seven-pillar code review framework: simplification, type drift, duplication, design patterns, security, test quality, and ownership/observability. Covers AI-generated code review with focus on maintainability and tech debt prevention.
+
+      - \`workflow\` (1 skill available)
+          - DAG-based structured workflows for planning and executing multi-step tasks. Agents use the \`chatroom workflow\` CLI command group to create, specify, execute, and track workflows.
 
       # Skills
 

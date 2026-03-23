@@ -46,6 +46,13 @@ const GLOSSARY_TERMS: GlossaryTerm[] = [
       'Covers AI-generated code review with focus on maintainability and tech debt prevention.',
     linkedSkillId: 'code-review',
   },
+  {
+    term: 'workflow',
+    definition:
+      'DAG-based structured workflows for planning and executing multi-step tasks. ' +
+      'Agents use the `chatroom workflow` CLI command group to create, specify, execute, and track workflows.',
+    linkedSkillId: 'workflow',
+  },
 ];
 
 /**
