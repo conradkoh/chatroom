@@ -382,12 +382,18 @@ export const MermaidBlock = memo(function MermaidBlock({ chart }: MermaidBlockPr
           theme: isDark ? 'dark' : 'default',
           securityLevel: 'strict',
           flowchart: {
-            htmlLabels: true,
+            // Use SVG text instead of HTML foreignObject labels.
+            // foreignObject sizing is unreliable across browsers and causes
+            // text to be clipped when node content exceeds the fixed box size.
+            // SVG text nodes auto-size to their content, eliminating truncation.
+            htmlLabels: false,
             curve: 'basis',
             nodeSpacing: 30,
             rankSpacing: 50,
             useMaxWidth: true,
-            wrappingWidth: 200,
+            // Remove the 200px wrapping cap — let the layout engine size nodes
+            // naturally based on their content length.
+            wrappingWidth: 500,
           },
           themeVariables: {
             fontSize: '12px',
