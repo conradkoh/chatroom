@@ -3,7 +3,7 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Settings, Users, Server, Check, AlertTriangle } from 'lucide-react';
+import { Settings, Users, Server, Check, AlertTriangle, Pencil, X } from 'lucide-react';
 import React, { useState, useCallback, memo, useEffect, useRef } from 'react';
 
 import { CopyButton } from './CopyButton';
@@ -380,7 +380,7 @@ function useMachinePing(machineId: string) {
 }
 
 /**
- * Individual machine row with integrated ping button
+ * Individual machine row with integrated ping button and inline alias editing
  */
 const MachineRow = memo(function MachineRow({
   machine,
@@ -388,6 +388,7 @@ const MachineRow = memo(function MachineRow({
   machine: {
     machineId: string;
     hostname: string;
+    alias?: string;
     os: string;
     daemonConnected: boolean;
     lastSeenAt: number;
@@ -395,6 +396,66 @@ const MachineRow = memo(function MachineRow({
   };
 }) {
   const { pingState, sendPing } = useMachinePing(machine.machineId);
+  const [isEditing, setIsEditing] = useState(false);
+  const [aliasValue, setAliasValue] = useState(machine.alias || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const setMachineAlias = useSessionMutation(api.machines.setMachineAlias);
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleStartEdit = useCallback(() => {
+    setAliasValue(machine.alias || '');
+    setIsEditing(true);
+  }, [machine.alias]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setAliasValue(machine.alias || '');
+  }, [machine.alias]);
+
+  const handleSaveAlias = useCallback(async () => {
+    const trimmed = aliasValue.trim();
+    // No change — just close
+    if (trimmed === (machine.alias || '')) {
+      setIsEditing(false);
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await setMachineAlias({
+        machineId: machine.machineId,
+        alias: trimmed || undefined, // empty string clears alias
+      });
+      setIsEditing(false);
+    } catch {
+      // Keep editing on error
+    } finally {
+      setIsSaving(false);
+    }
+  }, [aliasValue, machine.alias, machine.machineId, setMachineAlias]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSaveAlias();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCancelEdit();
+      }
+    },
+    [handleSaveAlias, handleCancelEdit]
+  );
+
+  const displayName = machine.alias || machine.hostname;
 
   const pingLabel = (() => {
     switch (pingState) {
@@ -436,10 +497,47 @@ const MachineRow = memo(function MachineRow({
         }`}
       />
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-bold text-chatroom-text-primary truncate">
-          {machine.hostname}
-        </div>
+        {isEditing ? (
+          <div className="flex items-center gap-1.5">
+            <input
+              ref={inputRef}
+              type="text"
+              value={aliasValue}
+              onChange={(e) => setAliasValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleSaveAlias}
+              maxLength={64}
+              placeholder={machine.hostname}
+              disabled={isSaving}
+              className="flex-1 min-w-0 text-xs font-bold text-chatroom-text-primary bg-chatroom-bg-tertiary border border-chatroom-accent px-1.5 py-0.5 outline-none disabled:opacity-50"
+            />
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleCancelEdit}
+              className="flex-shrink-0 p-0.5 text-chatroom-text-muted hover:text-chatroom-text-primary"
+              title="Cancel"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <div className="group flex items-center gap-1.5">
+            <div className="text-xs font-bold text-chatroom-text-primary truncate">
+              {displayName}
+            </div>
+            <button
+              type="button"
+              onClick={handleStartEdit}
+              className="flex-shrink-0 p-0.5 text-chatroom-text-muted opacity-0 group-hover:opacity-100 hover:text-chatroom-text-primary transition-opacity"
+              title="Edit alias"
+            >
+              <Pencil size={10} />
+            </button>
+          </div>
+        )}
         <div className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
+          {machine.alias ? `${machine.hostname} · ` : ''}
           {machine.daemonConnected ? 'online' : 'offline'} · {machine.os}
         </div>
       </div>
@@ -471,6 +569,7 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
         machines: {
           machineId: string;
           hostname: string;
+          alias?: string;
           os: string;
           daemonConnected: boolean;
           lastSeenAt: number;

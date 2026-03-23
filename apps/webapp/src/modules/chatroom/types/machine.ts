@@ -22,6 +22,7 @@ export type { AgentHarness, HarnessVersionInfo };
 export interface MachineInfo {
   machineId: string;
   hostname: string;
+  alias?: string;
   os: string;
   availableHarnesses: AgentHarness[];
   harnessVersions: Partial<Record<AgentHarness, HarnessVersionInfo>>;
@@ -34,6 +35,7 @@ export interface MachineInfo {
 export interface AgentConfig {
   machineId: string;
   hostname: string;
+  alias?: string;
   role: string;
   agentType: AgentHarness;
   workingDir: string;
@@ -90,6 +92,11 @@ export function getHarnessDisplayName(harness: string): string {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
+
+/** Returns the display name for a machine: alias if set, otherwise hostname. */
+export function getMachineDisplayName(machine: { hostname: string; alias?: string }): string {
+  return machine.alias || machine.hostname;
+}
 
 /**
  * Convert a hyphenated slug to an uppercase display label.

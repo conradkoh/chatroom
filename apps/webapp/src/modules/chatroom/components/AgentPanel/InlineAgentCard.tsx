@@ -7,6 +7,7 @@ import { useSessionQuery } from 'convex-helpers/react/sessions';
 import React, { memo, useState, useMemo } from 'react';
 
 import type { MachineInfo, AgentConfig, SendCommandFn } from '../../types/machine';
+import { getMachineDisplayName } from '../../types/machine';
 import { useAgentControls } from '../AgentConfigTabs';
 import type { AgentPreference } from '../AgentConfigTabs';
 import { AgentControlsSection } from './AgentControlsSection';
@@ -21,14 +22,14 @@ export { formatLastSeen } from './AgentStatusRow';
 
 // ─── Helper functions ────────────────────────────────────────────────────────
 
-/** Resolves machine hostname from connected machines by machineId. */
+/** Resolves machine display name (alias or hostname) from connected machines by machineId. */
 export function resolveMachineHostname(
   machineId: string | undefined,
   connectedMachines: MachineInfo[]
 ): string | undefined {
   if (!machineId) return undefined;
   const machine = connectedMachines.find((m) => m.machineId === machineId);
-  return machine?.hostname;
+  return machine ? getMachineDisplayName(machine) : undefined;
 }
 
 // ─── InlineAgentCard ─────────────────────────────────────────────────────────
