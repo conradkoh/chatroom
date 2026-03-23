@@ -2,8 +2,9 @@ import { v } from 'convex/values';
 import { SessionIdArg } from 'convex-helpers/server/sessions';
 
 import { mutation, query } from './_generated/server';
-import { areAllAgentsWaiting, requireChatroomAccess } from './auth/cliSessionAuth';
+import { requireChatroomAccess } from './auth/cliSessionAuth';
 import { getRolePriority } from './lib/hierarchy';
+import { makePromoteNextTaskDeps } from './lib/promoteNextTaskDeps';
 import { buildTeamRoleKey } from './utils/teamRoleKey';
 import {
   PARTICIPANT_EXITED_ACTION,
@@ -13,7 +14,6 @@ import {
 import { getTeamEntryPoint } from '../src/domain/entities/team';
 import { getTeamRolesFromChatroom } from '../src/domain/usecase/chatroom/get-team-roles';
 import { promoteNextTask } from '../src/domain/usecase/task/promote-next-task';
-import { promoteQueuedMessage } from '../src/domain/usecase/task/promote-queued-message';
 
 /** Upserts a chatroom participant record.
  * Emits agent.waiting and enables queue promotion only when action is 'get-next-task:started',
@@ -89,54 +89,10 @@ export const join = mutation({
     const normalizedEntryPoint = entryPoint?.toLowerCase();
 
     if (normalizedRole === normalizedEntryPoint) {
-      // Check if there's an active task (pending, acknowledged, or in_progress).
-      // 'acknowledged' must be included: it means an agent has claimed the task
-      // (called get-next-task and received it) but hasn't started work yet.
-      // Promoting a queued message while an acknowledged task exists would create
-      // a race condition where two tasks compete for the same agent simultaneously.
-      //
-      // Promotion is only attempted when no active task exists — this guard is
-      // unique to the join scenario (no task transition fires here, so the
-      // transitionTask usecase's auto-promotion won't trigger).
-      // Use indexed .first() queries per status to avoid loading all tasks.
-      const pendingTask = await ctx.db
-        .query('chatroom_tasks')
-        .withIndex('by_chatroom_status', (q) =>
-          q.eq('chatroomId', args.chatroomId).eq('status', 'pending')
-        )
-        .first();
-      const acknowledgedTask = pendingTask
-        ? null
-        : await ctx.db
-            .query('chatroom_tasks')
-            .withIndex('by_chatroom_status', (q) =>
-              q.eq('chatroomId', args.chatroomId).eq('status', 'acknowledged')
-            )
-            .first();
-      const inProgressTask =
-        pendingTask || acknowledgedTask
-          ? null
-          : await ctx.db
-              .query('chatroom_tasks')
-              .withIndex('by_chatroom_status', (q) =>
-                q.eq('chatroomId', args.chatroomId).eq('status', 'in_progress')
-              )
-              .first();
-      const hasActiveTask = !!(pendingTask || acknowledgedTask || inProgressTask);
-
-      if (!hasActiveTask) {
-        await promoteNextTask(args.chatroomId, {
-          areAllAgentsWaiting: (chatroomId) => areAllAgentsWaiting(ctx, chatroomId),
-          getOldestQueuedMessage: async (chatroomId) => {
-            return await ctx.db
-              .query('chatroom_messageQueue')
-              .withIndex('by_chatroom_queue', (q) => q.eq('chatroomId', chatroomId))
-              .order('asc')
-              .first();
-          },
-          promoteQueuedMessage: (queuedMessageId) => promoteQueuedMessage(ctx, queuedMessageId),
-        });
-      }
+      // Attempt queue promotion — promoteNextTask internally checks that
+      // no active tasks (pending/acknowledged/in_progress) exist before
+      // promoting, so no pre-check is needed here.
+      await promoteNextTask(args.chatroomId, makePromoteNextTaskDeps(ctx));
     }
 
     // Reset circuit breaker when agent successfully registers (proves it's healthy)

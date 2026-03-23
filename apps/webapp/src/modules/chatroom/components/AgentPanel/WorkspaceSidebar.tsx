@@ -19,7 +19,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebar({
 }: WorkspaceSidebarProps) {
   if (workspaceGroups.length === 0) {
     return (
-      <div className="w-48 flex-shrink-0 border-r-2 border-chatroom-border overflow-y-auto p-3">
+      <div className="hidden sm:block w-48 flex-shrink-0 border-r-2 border-chatroom-border overflow-y-auto p-3">
         <p className="text-[10px] font-bold uppercase tracking-wide text-chatroom-text-muted">
           No workspaces
         </p>
@@ -28,7 +28,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebar({
   }
 
   return (
-    <div className="w-48 flex-shrink-0 border-r-2 border-chatroom-border overflow-y-auto">
+    <div className="hidden sm:block w-48 flex-shrink-0 border-r-2 border-chatroom-border overflow-y-auto">
       {/* Sidebar header */}
       <div className="px-3 pt-3 pb-2 border-b border-chatroom-border">
         <span className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">

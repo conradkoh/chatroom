@@ -352,16 +352,35 @@ describe('initDaemon', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
-  it('calls formatConnectivityError on network failure for updateDaemonStatus', async () => {
+  it('retries with delay on network failure for updateDaemonStatus', async () => {
+    vi.useFakeTimers();
     const mockClient = await getMockClient();
     const networkError = new Error('fetch failed');
-    mockClient.mutation.mockResolvedValueOnce(undefined).mockRejectedValueOnce(networkError);
+    // 1st mutation: registerCapabilities succeeds
+    // 2nd mutation: connectDaemon fails with network error
+    // 3rd mutation: registerCapabilities succeeds (retry)
+    // 4th mutation: connectDaemon succeeds (retry)
+    mockClient.mutation
+      .mockResolvedValueOnce(undefined) // registerCapabilities
+      .mockRejectedValueOnce(networkError) // connectDaemon (fail)
+      .mockResolvedValueOnce(undefined) // registerCapabilities (retry)
+      .mockResolvedValueOnce(undefined); // connectDaemon (retry success)
     vi.mocked(isNetworkError).mockReturnValue(true);
 
-    await initDaemon();
+    const initPromise = initDaemon();
+
+    // Advance past the 1s retry delay
+    await vi.advanceTimersByTimeAsync(1500);
+
+    const ctx = await initPromise;
 
     expect(formatConnectivityError).toHaveBeenCalledWith(networkError, 'http://localhost:3210');
-    expect(exitSpy).toHaveBeenCalledWith(1);
+    // Should NOT exit — should retry and succeed
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(ctx).toBeDefined();
+    expect(ctx.machineId).toBe('machine-abc');
+
+    vi.useRealTimers();
   });
 
   it('warns but continues when machine registration fails', async () => {

@@ -19,6 +19,7 @@ export interface AllCleanupResults {
   results: {
     loginRequests: LoginRequestsCleanupResult;
     loginCodes: CleanupResult;
+    loginAttempts: CleanupResult;
   };
 }
 
@@ -129,6 +130,42 @@ export const cleanupExpiredLoginCodes = internalMutation({
 });
 
 /**
+ * Cleanup task for old login attempt records.
+ * Removes records where the lockout has expired and the attempt window has passed.
+ */
+export const cleanupOldLoginAttempts = internalMutation({
+  args: {},
+  handler: async (ctx, _args): Promise<CleanupResult> => {
+    const now = Date.now();
+    // Clean up attempts older than 1 hour (well past any lockout or attempt window)
+    const cleanupThreshold = now - 60 * 60 * 1000; // 1 hour
+
+    // Find old login attempt records
+    const oldAttempts = await ctx.db
+      .query('loginAttempts')
+      .filter((q) =>
+        q.and(
+          q.lt(q.field('lastAttemptAt'), cleanupThreshold),
+          q.or(q.eq(q.field('lockedUntil'), undefined), q.lt(q.field('lockedUntil'), now))
+        )
+      )
+      .collect();
+
+    // Delete old attempt records
+    let deletedCount = 0;
+    for (const attempt of oldAttempts) {
+      await ctx.db.delete('loginAttempts', attempt._id);
+      deletedCount++;
+    }
+
+    return {
+      success: true,
+      deletedCount,
+    };
+  },
+});
+
+/**
  * Master cleanup function that runs all cleanup tasks.
  */
 export const runAllCleanupTasks = internalMutation({
@@ -137,6 +174,7 @@ export const runAllCleanupTasks = internalMutation({
     const results = {
       loginRequests: await ctx.runMutation(internal.cleanupTasks.cleanupExpiredLoginRequests, {}),
       loginCodes: await ctx.runMutation(internal.cleanupTasks.cleanupExpiredLoginCodes, {}),
+      loginAttempts: await ctx.runMutation(internal.cleanupTasks.cleanupOldLoginAttempts, {}),
     };
 
     return {

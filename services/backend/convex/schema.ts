@@ -5,7 +5,8 @@ import { v } from 'convex/values';
 export const agentHarnessValidator = v.union(
   v.literal('opencode'),
   v.literal('pi'),
-  v.literal('cursor')
+  v.literal('cursor'),
+  v.literal('claude')
 );
 
 /**
@@ -179,7 +180,19 @@ export default defineSchema({
     ), // How the user authenticated for this session
     expiresAt: v.optional(v.number()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
     expiresAtLabel: v.optional(v.string()), // DEPRECATED: No longer used for session expiry. Kept for migration compatibility.
-  }).index('by_sessionId', ['sessionId']),
+    // Device and activity tracking for session management
+    lastActivityAt: v.optional(v.number()), // Timestamp of last activity
+    deviceInfo: v.optional(
+      v.object({
+        userAgent: v.optional(v.string()), // Raw user agent string
+        browser: v.optional(v.string()), // Browser name (e.g., "Chrome", "Firefox")
+        os: v.optional(v.string()), // Operating system (e.g., "Windows", "macOS", "iOS")
+        device: v.optional(v.string()), // Device type (e.g., "Desktop", "Mobile", "Tablet")
+      })
+    ),
+  })
+    .index('by_sessionId', ['sessionId'])
+    .index('by_userId', ['userId']),
 
   /**
    * Temporary login codes for cross-device authentication.
@@ -191,6 +204,17 @@ export default defineSchema({
     createdAt: v.number(), // When the code was created
     expiresAt: v.number(), // When the code expires (1 minute after creation)
   }).index('by_code', ['code']),
+
+  /**
+   * Rate limiting for login attempts to prevent brute force attacks.
+   * Tracks failed login attempts per session with automatic lockout.
+   */
+  loginAttempts: defineTable({
+    sessionId: v.string(), // The session making the attempt
+    attemptCount: v.number(), // Number of failed attempts in the window
+    lastAttemptAt: v.number(), // Timestamp of the last attempt
+    lockedUntil: v.optional(v.number()), // If locked out, when the lockout expires
+  }).index('by_sessionId', ['sessionId']),
 
   /**
    * Authentication provider configuration for dynamic auth provider setup.
@@ -351,7 +375,7 @@ export default defineSchema({
       v.literal('progress'),
       v.literal('new-context') // Displayed when a new context is created
     ),
-    // Classification of user messages (set via task-started command)
+    // Classification of user messages (set via task read / classify)
     // Used to determine allowed handoff paths and context window
     classification: v.optional(
       v.union(
@@ -365,7 +389,7 @@ export default defineSchema({
     featureDescription: v.optional(v.string()),
     featureTechSpecs: v.optional(v.string()),
     // Reference to the original user message that started this task chain
-    // Set when an agent runs task-started, links all related messages
+    // Set when an agent runs task read / classify, links all related messages
     taskOriginMessageId: v.optional(v.id('chatroom_messages')),
     // Link to the task created for this message (for user messages)
     // Used to track processing status in the UI
@@ -490,7 +514,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     acknowledgedAt: v.optional(v.number()), // When agent claimed task via get-next-task
-    startedAt: v.optional(v.number()), // When task-started was called
+    startedAt: v.optional(v.number()), // When task read was called
     completedAt: v.optional(v.number()), // When task-complete was called
 
     // Queue ordering (lower = earlier in queue)
@@ -745,6 +769,8 @@ export default defineSchema({
     userId: v.id('users'),
     // Machine hostname
     hostname: v.string(),
+    // Optional user-defined display name for this machine
+    alias: v.optional(v.string()),
     // Operating system (darwin, linux, win32)
     os: v.string(),
     // Available agent harnesses on this machine
@@ -967,7 +993,7 @@ export default defineSchema({
         taskId: v.id('chatroom_tasks'),
         timestamp: v.number(),
       }),
-      // Agent began active work via task-started command (acknowledged → in_progress)
+      // Agent began active work via task read / classify (acknowledged → in_progress)
       v.object({
         type: v.literal('task.inProgress'),
         chatroomId: v.id('chatroom_rooms'),
@@ -1245,4 +1271,61 @@ export default defineSchema({
     .index('by_chatroom', ['chatroomId'])
     .index('by_machine', ['machineId'])
     .index('by_chatroom_machine_workingDir', ['chatroomId', 'machineId', 'workingDir']),
+
+  // ─── Structured Workflows ────────────────────────────────────────────────────
+  // DAG-based workflows that agents create and execute step-by-step.
+  // Workflows block user handoff until completed or explicitly exited.
+
+  /** Workflow definitions — one per workflowKey per chatroom. */
+  chatroom_workflows: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    workflowKey: v.string(), // User-provided unique key within chatroom
+    status: v.union(
+      v.literal('draft'), // Created but not yet started
+      v.literal('active'), // In progress — steps are being executed
+      v.literal('completed'), // All steps completed or cancelled
+      v.literal('cancelled') // Manually exited early
+    ),
+    createdBy: v.string(), // Role that created the workflow
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    cancelReason: v.optional(v.string()),
+  })
+    .index('by_chatroom', ['chatroomId'])
+    .index('by_chatroom_workflowKey', ['chatroomId', 'workflowKey'])
+    .index('by_chatroom_status', ['chatroomId', 'status']),
+
+  /** Steps within a workflow — nodes of the DAG. */
+  chatroom_workflow_steps: defineTable({
+    chatroomId: v.id('chatroom_rooms'),
+    workflowId: v.id('chatroom_workflows'),
+    stepKey: v.string(), // User-provided unique key within workflow
+    description: v.string(), // Short plain text description
+    status: v.union(
+      v.literal('pending'), // Waiting for dependencies
+      v.literal('in_progress'), // Dependencies met, work in progress
+      v.literal('completed'), // Step finished successfully
+      v.literal('cancelled') // Step cancelled
+    ),
+    assigneeRole: v.optional(v.string()), // Role assigned to this step
+    dependsOn: v.array(v.string()), // stepKeys this step depends on (DAG edges)
+    order: v.number(), // Display order
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    cancelReason: v.optional(v.string()),
+    specification: v.optional(
+      v.object({
+        goal: v.string(),
+        requirements: v.string(),
+        warnings: v.optional(v.string()),
+      })
+    ),
+  })
+    .index('by_workflow', ['workflowId'])
+    .index('by_workflow_stepKey', ['workflowId', 'stepKey'])
+    .index('by_chatroom', ['chatroomId']),
 });

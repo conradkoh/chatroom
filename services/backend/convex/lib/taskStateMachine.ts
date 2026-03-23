@@ -14,7 +14,7 @@ export type TaskStatus =
   // User message flow
   | 'pending' // Created, waiting for agent
   | 'acknowledged' // Agent claimed via get-next-task
-  | 'in_progress' // Agent started work via task-started
+  | 'in_progress' // Agent started work via task read
   | 'completed' // Work finished
 
   // @deprecated — legacy backlog-origin statuses; exist in old DB records, remove after cleanup migration

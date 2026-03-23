@@ -25,7 +25,7 @@ function renderDaemonPingCell(event: DaemonPingEvent, isSelected: boolean): Reac
 
 function renderDaemonPingDetails(event: DaemonPingEvent): React.ReactNode {
   return (
-    <EventDetails title="Daemon Ping" timestamp={event.timestamp} type="daemon.ping">
+    <EventDetails eventId={event._id} title="Daemon Ping" timestamp={event.timestamp} type="daemon.ping">
       <DetailRow label="Machine ID" value={event.machineId} mono />
     </EventDetails>
   );
@@ -48,7 +48,7 @@ function renderDaemonPongCell(event: DaemonPongEvent, isSelected: boolean): Reac
 
 function renderDaemonPongDetails(event: DaemonPongEvent): React.ReactNode {
   return (
-    <EventDetails title="Daemon Pong" timestamp={event.timestamp} type="daemon.pong">
+    <EventDetails eventId={event._id} title="Daemon Pong" timestamp={event.timestamp} type="daemon.pong">
       <DetailRow label="Machine ID" value={event.machineId} mono />
       <DetailRow label="Ping Event ID" value={event.pingEventId} mono />
     </EventDetails>
@@ -75,7 +75,7 @@ function renderDaemonGitRefreshCell(
 
 function renderDaemonGitRefreshDetails(event: DaemonGitRefreshEvent): React.ReactNode {
   return (
-    <EventDetails title="Git Refresh" timestamp={event.timestamp} type="daemon.gitRefresh">
+    <EventDetails eventId={event._id} title="Git Refresh" timestamp={event.timestamp} type="daemon.gitRefresh">
       <DetailRow label="Machine ID" value={event.machineId} mono />
       <DetailRow label="Working Dir" value={event.workingDir} mono />
     </EventDetails>

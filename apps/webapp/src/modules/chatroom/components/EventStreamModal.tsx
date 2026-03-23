@@ -165,7 +165,7 @@ export const EventStreamModal = memo(function EventStreamModal({
       return definition.detailsRenderer(selectedEvent as never);
     }
 
-    return <PlaceholderEventDetails type={selectedEvent.type} timestamp={timestamp} />;
+    return <PlaceholderEventDetails type={selectedEvent.type} timestamp={timestamp} eventId={selectedEvent._id} />;
   };
 
   return (

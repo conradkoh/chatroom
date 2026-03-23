@@ -1,5 +1,5 @@
 import { CheckCircle2, ChevronDown, Copy, MoreVertical, UserPlus, X, XCircle } from 'lucide-react';
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useState } from 'react';
 
 import { AttendanceCopyDialog } from './AttendanceCopyDialog';
 import { AttendanceDialog } from './AttendanceDialog';
@@ -115,14 +115,13 @@ const AttendanceContentInner = ({
     setIsManualJoin(false);
   }, []);
 
-  /**
-   * Reset modal search when the full list modal is opened.
-   */
-  useEffect(() => {
+  const [prevShowFullListModal, setPrevShowFullListModal] = useState(showFullListModal);
+  if (prevShowFullListModal !== showFullListModal) {
+    setPrevShowFullListModal(showFullListModal);
     if (showFullListModal) {
       setModalSearchQuery('');
     }
-  }, [showFullListModal, setModalSearchQuery]);
+  }
 
   return (
     <>

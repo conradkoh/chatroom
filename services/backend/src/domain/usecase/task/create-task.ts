@@ -47,9 +47,9 @@ export interface CreateTaskResult {
  * A chatroom is considered "busy" when any task is in one of these states:
  * - 'pending': task created but not yet claimed by an agent
  * - 'acknowledged': agent called get-next-task (pending → acknowledged); task is being
- *   processed — the agent will call task-started imminently. This state MUST be included
+ *   processed — the agent will call task read imminently. This state MUST be included
  *   to prevent user messages from slipping through during the claim→start window.
- * - 'in_progress': agent called task-started; actively working
+ * - 'in_progress': agent called task read; actively working
  */
 export async function shouldEnqueueMessage(
   ctx: MutationCtx,

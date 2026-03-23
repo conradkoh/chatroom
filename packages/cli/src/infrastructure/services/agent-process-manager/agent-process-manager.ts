@@ -16,6 +16,7 @@ import { api } from '../../../api.js';
 import type { CrashLoopTracker } from '../../machine/crash-loop-tracker.js';
 import { resolveStopReason } from '../../machine/stop-reason.js';
 import type { StopReason } from '../../machine/stop-reason.js';
+import type { AgentHarness } from '../../machine/types.js';
 import type { RemoteAgentService, SpawnResult } from '../remote-agents/remote-agent-service.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -25,7 +26,7 @@ export type AgentSlotState = 'idle' | 'spawning' | 'running' | 'stopping';
 export interface AgentSlot {
   state: AgentSlotState;
   pid?: number;
-  harness?: 'opencode' | 'pi' | 'cursor';
+  harness?: AgentHarness;
   model?: string;
   workingDir?: string;
   startedAt?: number;
@@ -42,7 +43,7 @@ export interface OperationResult {
 export interface EnsureRunningOpts {
   chatroomId: string;
   role: string;
-  agentHarness: 'opencode' | 'pi' | 'cursor';
+  agentHarness: AgentHarness;
   model?: string;
   workingDir: string;
   reason: string;
@@ -84,13 +85,13 @@ export interface AgentProcessManagerDeps {
       chatroomId: string,
       role: string,
       pid: number,
-      harness: 'opencode' | 'pi' | 'cursor'
+      harness: AgentHarness
     ) => void;
     clearAgentPid: (machineId: string, chatroomId: string, role: string) => void;
     listAgentEntries: (machineId: string) => Array<{
       chatroomId: string;
       role: string;
-      entry: { pid: number; harness: 'opencode' | 'pi' | 'cursor' };
+      entry: { pid: number; harness: AgentHarness };
     }>;
   };
   spawning: {
@@ -244,7 +245,7 @@ export class AgentProcessManager {
     }
 
     // Restart decision
-    const isIntentionalStop = stopReason === 'user.stop' || stopReason === 'platform.team_switch';
+    const isIntentionalStop = stopReason === 'user.stop' || stopReason === 'platform.team_switch' || stopReason === 'daemon.shutdown';
     const isDaemonRespawn = stopReason === 'daemon.respawn';
 
     if (isIntentionalStop) {

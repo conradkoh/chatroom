@@ -90,8 +90,6 @@ export type SectionId =
   | 'commands-reference'
   // Actions (task delivery)
   | 'available-actions'
-  // Task-Started Reminders
-  | 'task-started-reminder'
   // Policies
   | 'review-policies'
   // Next Step

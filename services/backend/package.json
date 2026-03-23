@@ -7,6 +7,7 @@
     "dev": "convex dev",
     "deploy": "convex deploy",
     "build": "tsc --build",
+    "migrate": "convex run migrations:runAll",
     "typecheck": "tsc --build",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -15,13 +16,14 @@
   "author": "",
   "license": "Elastic-2.0",
   "dependencies": {
-    "convex": "^1.31.2",
-    "convex-helpers": "^0.1.108",
+    "@convex-dev/migrations": "^0.3.1",
+    "convex": "^1.34.0",
+    "convex-helpers": "^0.1.114",
     "zod": "^4.0.5"
   },
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
-    "convex-test": "^0.0.41",
+    "convex-test": "^0.0.43",
     "typescript": "^5.9.3",
     "vite": "^6.3.5",
     "vitest": "^4.0.6"

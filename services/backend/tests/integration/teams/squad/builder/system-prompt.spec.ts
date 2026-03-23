@@ -149,12 +149,6 @@ describe('Squad Team > Builder > System Prompt', () => {
 
       After receiving a handoff, run \`task read\` to get the task content and mark it as \`in_progress\`.
 
-      Then acknowledge the handoff (classification was already done):
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom task-started --chatroom-id="10002;chatroom_rooms" --role="builder" --task-id=<task-id> --no-classify
-      \`\`\`
-
 
        **Squad Team Context:**
        - You work with a planner who coordinates the team and communicates with the user

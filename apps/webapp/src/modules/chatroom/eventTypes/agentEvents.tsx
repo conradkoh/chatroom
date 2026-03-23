@@ -33,7 +33,7 @@ function renderAgentStartedCell(event: AgentStartedEvent, isSelected: boolean): 
 
 function renderAgentStartedDetails(event: AgentStartedEvent): React.ReactNode {
   return (
-    <EventDetails title="Agent Started" timestamp={event.timestamp} type="agent.started">
+    <EventDetails eventId={event._id} title="Agent Started" timestamp={event.timestamp} type="agent.started">
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Machine ID" value={event.machineId} mono />
       <DetailRow label="Harness" value={event.agentHarness} />
@@ -56,6 +56,10 @@ function renderAgentExitedCell(event: AgentExitedEvent, isSelected: boolean): Re
     case 'user.stop':
     case 'platform.team_switch':
       badgeText = 'Stopped';
+      badgeColor = 'info';
+      break;
+    case 'daemon.shutdown':
+      badgeText = 'Daemon Shutdown';
       badgeColor = 'info';
       break;
     case 'agent_process.exited_clean':
@@ -98,7 +102,7 @@ function renderAgentExitedCell(event: AgentExitedEvent, isSelected: boolean): Re
 
 function renderAgentExitedDetails(event: AgentExitedEvent): React.ReactNode {
   return (
-    <EventDetails title="Agent Exited" timestamp={event.timestamp} type="agent.exited">
+    <EventDetails eventId={event._id} title="Agent Exited" timestamp={event.timestamp} type="agent.exited">
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Machine ID" value={event.machineId} mono />
       <DetailRow label="PID" value={String(event.pid)} mono />
@@ -136,7 +140,7 @@ function renderAgentCircuitOpenCell(
 
 function renderAgentCircuitOpenDetails(event: AgentCircuitOpenEvent): React.ReactNode {
   return (
-    <EventDetails title="Circuit Breaker Open" timestamp={event.timestamp} type="agent.circuitOpen">
+    <EventDetails eventId={event._id} title="Circuit Breaker Open" timestamp={event.timestamp} type="agent.circuitOpen">
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Machine ID" value={event.machineId} mono />
       <DetailRow label="Reason" value={event.reason} />
@@ -204,7 +208,7 @@ function renderAgentRequestStopCell(
 
 function renderAgentRequestStopDetails(event: AgentRequestStopEvent): React.ReactNode {
   return (
-    <EventDetails title="Agent Stop Requested" timestamp={event.timestamp} type="agent.requestStop">
+    <EventDetails eventId={event._id} title="Agent Stop Requested" timestamp={event.timestamp} type="agent.requestStop">
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Machine ID" value={event.machineId} mono />
       <DetailRow label="Reason" value={event.reason} />
@@ -235,7 +239,7 @@ function renderAgentRegisteredCell(
 
 function renderAgentRegisteredDetails(event: AgentRegisteredEvent): React.ReactNode {
   return (
-    <EventDetails title="Agent Registered" timestamp={event.timestamp} type="agent.registered">
+    <EventDetails eventId={event._id} title="Agent Registered" timestamp={event.timestamp} type="agent.registered">
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Agent Type" value={event.agentType} />
       {event.machineId && <DetailRow label="Machine ID" value={event.machineId} mono />}
@@ -261,7 +265,7 @@ function renderAgentWaitingCell(event: AgentWaitingEvent, isSelected: boolean): 
 
 function renderAgentWaitingDetails(event: AgentWaitingEvent): React.ReactNode {
   return (
-    <EventDetails title="Agent Waiting" timestamp={event.timestamp} type="agent.waiting">
+    <EventDetails eventId={event._id} title="Agent Waiting" timestamp={event.timestamp} type="agent.waiting">
       <DetailRow label="Role" value={event.role} />
       {event.machineId && <DetailRow label="Machine ID" value={event.machineId} mono />}
       <DetailRow label="Chatroom ID" value={event.chatroomId} mono />
@@ -292,7 +296,7 @@ function renderAgentStartFailedCell(
 
 function renderAgentStartFailedDetails(event: AgentStartFailedEvent): React.ReactNode {
   return (
-    <EventDetails title="Agent Start Failed" timestamp={event.timestamp} type="agent.startFailed">
+    <EventDetails eventId={event._id} title="Agent Start Failed" timestamp={event.timestamp} type="agent.startFailed">
       <DetailRow label="Role" value={event.role} />
       <DetailRow label="Machine ID" value={event.machineId} mono />
       <DetailRow label="Error" value={event.error} />

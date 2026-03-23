@@ -5,6 +5,7 @@ import importPlugin from 'eslint-plugin-import';
 import jsdocPlugin from 'eslint-plugin-jsdoc';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
+import reactYouMightNotNeedAnEffect from 'eslint-plugin-react-you-might-not-need-an-effect';
 import globals from 'globals';
 
 /**
@@ -40,6 +41,9 @@ export default [
       '**/convex/_generated/**',
     ],
   },
+
+  // React "You Might Not Need An Effect" — warns on common unnecessary useEffect patterns
+  reactYouMightNotNeedAnEffect.configs.recommended,
 
   // Base TypeScript configuration for all files
   {

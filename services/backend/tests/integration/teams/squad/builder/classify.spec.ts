@@ -1,9 +1,11 @@
 /**
- * Squad Team — Planner Task Started Reminder
+ * Squad Team — Builder Classify Reminder
  *
- * Verifies the task-started reminder prompt generated for the planner role
+ * Verifies the classify reminder prompt generated for the builder role
  * in a Squad team. Tests `generateTaskStartedReminder` which produces
- * role-specific guidance after acknowledging a task via `task-started`.
+ * role-specific guidance after acknowledging a task via `classify`.
+ *
+ * In squad team, builder hands off to reviewer or planner, never to user.
  *
  * Uses inline snapshots for human-reviewable regression detection.
  */
@@ -13,7 +15,7 @@ import { describe, expect, test } from 'vitest';
 import { generateTaskStartedReminder } from '../../../../../prompts/generator';
 
 const BASE_PARAMS = {
-  role: 'planner',
+  role: 'builder',
   chatroomId: 'test-chatroom-id',
   messageId: 'test-message-id',
   taskId: 'test-task-id',
@@ -22,7 +24,7 @@ const BASE_PARAMS = {
   teamName: 'Squad',
 };
 
-describe('Squad Team > Planner > Task Started Reminder', () => {
+describe('Squad Team > Builder > Classify Reminder', () => {
   test('question classification', () => {
     const reminder = generateTaskStartedReminder(
       BASE_PARAMS.role,
@@ -37,21 +39,25 @@ describe('Squad Team > Planner > Task Started Reminder', () => {
 
     expect(reminder).toBeDefined();
     expect(reminder).toContain('QUESTION');
-    expect(reminder).toContain('hand off to user');
+    // Squad builder should never hand off to user
+    expect(reminder).toContain('never hand off directly to user');
 
     expect(reminder).toMatchInlineSnapshot(`
       "✅ Task acknowledged as QUESTION.
 
       **Next steps:**
-      1. Answer the user's question
-      2. When done, hand off to user:
+      1. Implement the requested changes
+      2. Send \`report-progress\` at milestones
+      3. Hand off to reviewer when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role="user" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="reviewer" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
+
+      ⚠️ In squad team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
       Task ID: test-task-id"
@@ -72,35 +78,24 @@ describe('Squad Team > Planner > Task Started Reminder', () => {
 
     expect(reminder).toBeDefined();
     expect(reminder).toContain('NEW FEATURE');
-    expect(reminder).toContain('Decompose');
-    expect(reminder).toContain('builder');
+    expect(reminder).toContain('never hand off directly to user');
 
     expect(reminder).toMatchInlineSnapshot(`
       "✅ Task acknowledged as NEW FEATURE.
 
       **Next steps:**
-      1. Decompose the task into clear, actionable work items
-      2. **Report progress to the user** before delegating — so they know work has started:
+      1. Implement the requested changes
+      2. Send \`report-progress\` at milestones
+      3. Hand off to reviewer when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="planner" << 'EOF'
-      ---MESSAGE---
-      [Your progress message here]
-      EOF
-      \`\`\`
-
-      3. Delegate implementation to builder:
-
-      \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="planner" --next-role="builder" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="reviewer" << 'EOF'
       ---MESSAGE---
       [Your message here]
       EOF
       \`\`\`
 
-      4. When work returns, send another \`report-progress\` update before reviewing
-      5. Review completed work before delivering to user
-      6. Hand back for rework if requirements are not met
+      ⚠️ In squad team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
       Task ID: test-task-id"
@@ -121,25 +116,24 @@ describe('Squad Team > Planner > Task Started Reminder', () => {
 
     expect(reminder).toBeDefined();
     expect(reminder).toContain('FOLLOW UP');
+    expect(reminder).toContain('never hand off directly to user');
 
     expect(reminder).toMatchInlineSnapshot(`
       "✅ Task acknowledged as FOLLOW UP.
 
       **Next steps:**
-      1. Review the follow-up request against previous work
-      2. **Report progress to the user** so they know you're handling it:
+      1. Implement the requested changes
+      2. Send \`report-progress\` at milestones
+      3. Hand off to reviewer when complete:
 
       \`\`\`bash
-      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom report-progress --chatroom-id="test-chatroom-id" --role="planner" << 'EOF'
+      CHATROOM_CONVEX_URL=http://127.0.0.1:3210 chatroom handoff --chatroom-id="test-chatroom-id" --role="builder" --next-role="reviewer" << 'EOF'
       ---MESSAGE---
-      [Your progress message here]
+      [Your message here]
       EOF
       \`\`\`
 
-      3. Delegate to appropriate team member or handle yourself
-      4. Follow-up inherits the workflow rules from the original task:
-         - If original was a QUESTION → handle and hand off to user when done
-         - If original was a NEW FEATURE → delegate, review, and deliver to user
+      ⚠️ In squad team, never hand off directly to user — go through the planner.
 
       💡 You're working on:
       Task ID: test-task-id"

@@ -2,7 +2,7 @@
 
 import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Component, type ReactNode, useEffect, useState } from 'react';
+import { Component, type ReactNode, useCallback } from 'react';
 
 /**
  * Props for the AuthErrorBoundary component.
@@ -98,17 +98,10 @@ class AuthErrorBoundaryClass extends Component<
  */
 export function AuthErrorBoundary({ children, fallback }: AuthErrorBoundaryProps) {
   const router = useRouter();
-  const [shouldRedirect, setShouldRedirect] = useState(false);
 
-  useEffect(() => {
-    if (shouldRedirect) {
-      router.replace('/login');
-    }
-  }, [shouldRedirect, router]);
-
-  const handleAuthError = () => {
-    setShouldRedirect(true);
-  };
+  const handleAuthError = useCallback(() => {
+    router.replace('/login');
+  }, [router]);
 
   return (
     <AuthErrorBoundaryClass fallback={fallback} onAuthError={handleAuthError}>

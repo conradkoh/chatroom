@@ -25,7 +25,7 @@ import type {
   AgentConfig,
   SendCommandFn,
 } from '../types/machine';
-import { getHarnessDisplayName, getModelDisplayLabel } from '../types/machine';
+import { getHarnessDisplayName, getModelDisplayLabel, getMachineDisplayName } from '../types/machine';
 
 import {
   Command,
@@ -668,8 +668,10 @@ export const RemoteTabContent = memo(function RemoteTabContent({
               {isAgentRunning ? (
                 <div className="w-full bg-chatroom-bg-tertiary border border-chatroom-border text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary px-2 py-1.5 opacity-50 truncate">
                   {displayMachineId
-                    ? (connectedMachines.find((m) => m.machineId === displayMachineId)?.hostname ??
-                      displayMachineId)
+                    ? (() => {
+                        const m = connectedMachines.find((m) => m.machineId === displayMachineId);
+                        return m ? getMachineDisplayName(m) : displayMachineId;
+                      })()
                     : 'Machine...'}
                 </div>
               ) : (
@@ -682,8 +684,12 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                     >
                       <span className="truncate">
                         {displayMachineId
-                          ? (connectedMachines.find((m) => m.machineId === displayMachineId)
-                              ?.hostname ?? displayMachineId)
+                          ? (() => {
+                              const m = connectedMachines.find(
+                                (m) => m.machineId === displayMachineId
+                              );
+                              return m ? getMachineDisplayName(m) : displayMachineId;
+                            })()
                           : 'Machine...'}
                       </span>
                       <ChevronDown
@@ -702,14 +708,14 @@ export const RemoteTabContent = memo(function RemoteTabContent({
                           {connectedMachines.map((machine) => (
                             <CommandItem
                               key={machine.machineId}
-                              value={machine.hostname}
+                              value={getMachineDisplayName(machine)}
                               onSelect={() => {
                                 handleMachineChange(machine.machineId);
                                 setMachinePopoverOpen(false);
                               }}
                               className="text-[10px] font-bold uppercase tracking-wider text-chatroom-text-primary hover:bg-chatroom-bg-hover cursor-pointer flex items-center justify-between rounded-none"
                             >
-                              <span className="truncate">{machine.hostname}</span>
+                              <span className="truncate">{getMachineDisplayName(machine)}</span>
                               {displayMachineId === machine.machineId && (
                                 <span className="ml-2 flex-shrink-0 text-chatroom-accent">✓</span>
                               )}

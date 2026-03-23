@@ -664,7 +664,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
                 ${isSmallScreen ? 'fixed right-0 top-14 bottom-0 z-40 overscroll-contain w-80' : 'relative overflow-hidden'}
                 ${!isSmallScreen && sidebarVisible ? 'w-80' : ''}
                 ${!isSmallScreen && !sidebarVisible ? 'w-0' : ''}
-                flex flex-col border-l-2 border-chatroom-border-strong
+                grid grid-rows-[auto_1fr_auto] border-l-2 border-chatroom-border-strong
                 ${isSmallScreen ? 'bg-chatroom-bg-primary' : 'bg-chatroom-bg-surface backdrop-blur-xl'}
                 transition-all duration-300 ease-in-out
                 ${isSmallScreen ? (sidebarVisible ? 'translate-x-0' : 'translate-x-full') : ''}
@@ -693,9 +693,7 @@ export function ChatroomDashboard({ chatroomId, onBack }: ChatroomDashboardProps
             onClose={handleCloseSettings}
             chatroomId={chatroomId}
             currentTeamId={chatroom?.teamId}
-            currentTeamName={chatroom?.teamName}
             currentTeamRoles={teamRoles}
-            currentTeamEntryPoint={chatroom?.teamEntryPoint}
           />
 
           {/* Setup modal - only shown during setup mode */}

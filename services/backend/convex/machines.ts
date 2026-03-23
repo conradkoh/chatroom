@@ -180,6 +180,36 @@ export const register = mutation({
   },
 });
 
+/** Sets or clears the user-defined alias for a machine. */
+export const setMachineAlias = mutation({
+  args: {
+    ...SessionIdArg,
+    machineId: v.string(),
+    alias: v.optional(v.string()), // undefined or empty string to clear
+  },
+  handler: async (ctx, args) => {
+    const auth = await getAuthenticatedUser(ctx, args.sessionId);
+    if (!auth.isAuthenticated) {
+      throw new Error('Authentication required');
+    }
+    const machine = await getOwnedMachine(ctx, args.machineId, auth.user._id);
+
+    // Normalize: empty string or whitespace-only = clear alias
+    const normalizedAlias = args.alias?.trim() || undefined;
+
+    // Validate length
+    if (normalizedAlias && normalizedAlias.length > 64) {
+      throw new Error('Machine alias must be 64 characters or fewer');
+    }
+
+    await ctx.db.patch('chatroom_machines', machine._id, {
+      alias: normalizedAlias,
+    });
+
+    return { success: true };
+  },
+});
+
 /**
  * Patch mutable capabilities on an already-registered machine.
  * Used by the daemon's periodic refresh loop — only updates fields that
@@ -250,6 +280,7 @@ export const listMachines = query({
       machines: machines.map((m) => ({
         machineId: m.machineId,
         hostname: m.hostname,
+        alias: m.alias,
         os: m.os,
         availableHarnesses: m.availableHarnesses,
         harnessVersions: m.harnessVersions ?? {},
@@ -301,6 +332,7 @@ export const getMachineAgentConfigs = query({
       return {
         machineId: config.machineId!,
         hostname: machine?.hostname ?? 'Unknown',
+        alias: machine?.alias,
         role: config.role,
         agentType: config.agentHarness,
         workingDir: config.workingDir,
