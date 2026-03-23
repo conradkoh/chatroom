@@ -18,6 +18,15 @@ import {
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
 import { PromptsContext } from '@/contexts/PromptsContext';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export interface AgentWithStatus {
   role: string;
@@ -160,7 +169,37 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
         <FixedModalHeader onClose={onClose}>
           <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
         </FixedModalHeader>
-        <FixedModalBody className="flex flex-row p-0 overflow-hidden">
+        <FixedModalBody className="flex flex-col sm:flex-row p-0 overflow-hidden">
+          {/* Mobile workspace selector — visible only on small screens */}
+          <div className="sm:hidden border-b border-chatroom-border px-3 py-2 flex-shrink-0">
+            <Select
+              value={selectedWorkspaceId ?? undefined}
+              onValueChange={setSelectedWorkspaceId}
+            >
+              <SelectTrigger size="sm" className="w-full text-xs">
+                <SelectValue placeholder="Select workspace" />
+              </SelectTrigger>
+              <SelectContent>
+                {workspaceGroups.map((group) => (
+                  <SelectGroup key={group.machineId ?? group.hostname}>
+                    <SelectLabel>{group.hostname}</SelectLabel>
+                    {group.workspaces.map((ws) => {
+                      const dirLabel = ws.workingDir
+                        ? (ws.workingDir.split('/').filter(Boolean).pop() ?? ws.workingDir)
+                        : '(no directory)';
+                      return (
+                        <SelectItem key={ws.id} value={ws.id}>
+                          {dirLabel}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Desktop sidebar — hidden on mobile */}
           <WorkspaceSidebar
             workspaceGroups={workspaceGroups}
             selectedWorkspaceId={selectedWorkspaceId}
