@@ -90,13 +90,18 @@ describe('SendForm', () => {
     // Clear localStorage
     localStorage.clear();
 
-    // Clear touch device simulation
-    delete (window as Window & { ontouchstart?: unknown }).ontouchstart;
-    Object.defineProperty(navigator, 'maxTouchPoints', {
-      value: 0,
-      writable: true,
-      configurable: true,
-    });
+    // Default: non-touch device (pointer: fine)
+    // Mock matchMedia to return false for (pointer: coarse)
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
   });
 
   afterEach(() => {
@@ -275,8 +280,7 @@ describe('SendForm', () => {
 
   describe('Keyboard Behavior', () => {
     it('Enter submits on desktop (non-touch device)', async () => {
-      // Ensure non-touch device (default)
-      delete (window as Window & { ontouchstart?: unknown }).ontouchstart;
+      // Ensure non-touch device (default matchMedia returns false for pointer: coarse)
 
       const user = userEvent.setup();
       renderSendForm();
@@ -301,7 +305,7 @@ describe('SendForm', () => {
     });
 
     it('Shift+Enter does NOT submit on desktop', async () => {
-      delete (window as Window & { ontouchstart?: unknown }).ontouchstart;
+      // Default: non-touch device (matchMedia returns false for pointer: coarse)
 
       const user = userEvent.setup();
       renderSendForm();
@@ -318,8 +322,17 @@ describe('SendForm', () => {
     });
 
     it('Enter does NOT submit on touch device', async () => {
-      // Simulate touch device before rendering
-      (window as Window & { ontouchstart?: unknown }).ontouchstart = () => {};
+      // Simulate touch device: matchMedia returns true for (pointer: coarse)
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query === '(pointer: coarse)',
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
 
       const user = userEvent.setup();
       renderSendForm();
