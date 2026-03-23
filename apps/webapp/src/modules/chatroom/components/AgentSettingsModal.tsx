@@ -3,10 +3,15 @@
 import { api } from '@workspace/backend/convex/_generated/api';
 import type { Id } from '@workspace/backend/convex/_generated/dataModel';
 import { useSessionMutation, useSessionQuery } from 'convex-helpers/react/sessions';
-import { Settings, Users, Server, Check, AlertTriangle, Pencil, X } from 'lucide-react';
-import React, { useState, useCallback, memo, useEffect, useRef } from 'react';
+import { Settings, Users, Server, Monitor, Check, AlertTriangle, Pencil, X } from 'lucide-react';
+import React, { useState, useCallback, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
+
+import { useAgentPanelData } from '../hooks/useAgentPanelData';
+import { useAgentStatuses } from '../hooks/useAgentStatuses';
+import { useChatroomWorkspaces } from '../workspace/hooks/useChatroomWorkspaces';
+import type { Workspace, WorkspaceGroup } from '../types/workspace';
 
 import {
   FixedModal,
@@ -36,7 +41,7 @@ interface AgentSettingsModalProps {
   currentTeamRoles?: string[];
 }
 
-type SettingsTab = 'setup' | 'team' | 'machine';
+type SettingsTab = 'setup' | 'team' | 'machine' | 'workspaces';
 
 // ─── Constants ──────────────────────────────────────────────────────────
 
@@ -44,6 +49,7 @@ const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = 
   { id: 'setup', label: 'Setup', icon: <Settings size={16} /> },
   { id: 'team', label: 'Team', icon: <Users size={16} /> },
   { id: 'machine', label: 'Machine', icon: <Server size={16} /> },
+  { id: 'workspaces', label: 'Workspaces', icon: <Monitor size={16} /> },
 ];
 
 // ─── Tab Content Components ─────────────────────────────────────────────
@@ -469,6 +475,216 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
   );
 });
 
+// ─── Workspaces Content ─────────────────────────────────────────────────
+
+/**
+ * Helper: relative time label (e.g. "2m ago", "1h ago")
+ */
+function formatRelativeTime(timestamp: number | null | undefined): string {
+  if (!timestamp) return 'never';
+  const diff = Date.now() - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+/**
+ * Status dot color based on agent status variant
+ */
+function getStatusDotClass(variant: string): string {
+  switch (variant) {
+    case 'success':
+      return 'bg-chatroom-status-success';
+    case 'working':
+      return 'bg-chatroom-status-info';
+    case 'warning':
+      return 'bg-chatroom-status-warning';
+    case 'error':
+      return 'bg-chatroom-status-error';
+    default:
+      return 'bg-chatroom-text-muted';
+  }
+}
+
+/**
+ * Workspaces tab — shows agents grouped by machine/workspace.
+ * Mirrors the data from the "All Agents" modal in a settings-style layout.
+ */
+const WorkspacesContent = memo(function WorkspacesContent({
+  chatroomId,
+}: {
+  chatroomId: string;
+}) {
+  const {
+    agents: agentRoleViews,
+    teamRoles,
+  } = useAgentPanelData(chatroomId);
+
+  const { agents: agentStatusList } = useAgentStatuses(chatroomId, teamRoles);
+
+  // Build workspace groups
+  const { workspaces: allWorkspaces } = useChatroomWorkspaces(chatroomId, {
+    agentViews: agentRoleViews,
+  });
+
+  const workspaceGroups = useMemo((): WorkspaceGroup[] => {
+    const groupMap = new Map<string, WorkspaceGroup>();
+    for (const ws of allWorkspaces) {
+      const key = ws.hostname;
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          machineId: ws.machineId,
+          hostname: ws.hostname,
+          workspaces: [],
+        });
+      }
+      groupMap.get(key)!.workspaces.push(ws);
+    }
+
+    // Unassigned agents
+    const assignedRoles = new Set(allWorkspaces.flatMap((w) => w.agentRoles));
+    const unassignedRoles = agentStatusList
+      .filter((a) => !assignedRoles.has(a.role))
+      .map((a) => a.role);
+
+    if (unassignedRoles.length > 0) {
+      const unassignedWs: Workspace = {
+        id: '__unassigned__',
+        machineId: null,
+        hostname: 'Unassigned',
+        workingDir: '',
+        agentRoles: unassignedRoles,
+      };
+      groupMap.set('__unassigned__', {
+        machineId: null,
+        hostname: 'Unassigned',
+        workspaces: [unassignedWs],
+      });
+    }
+
+    return Array.from(groupMap.values());
+  }, [allWorkspaces, agentStatusList]);
+
+  // Build a status lookup map
+  const statusMap = useMemo(() => {
+    const map = new Map<string, (typeof agentStatusList)[number]>();
+    for (const agent of agentStatusList) {
+      map.set(agent.role.toLowerCase(), agent);
+    }
+    return map;
+  }, [agentStatusList]);
+
+  const totalAgents = agentStatusList.length;
+  const onlineAgents = agentStatusList.filter((a) => a.online).length;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-bold uppercase tracking-wider text-chatroom-text-primary mb-1">
+          Workspaces
+        </h3>
+        <p className="text-xs text-chatroom-text-muted">
+          Agents grouped by machine and workspace. {onlineAgents}/{totalAgents} agents online.
+        </p>
+      </div>
+
+      {workspaceGroups.length === 0 ? (
+        <div className="p-4 text-center text-chatroom-text-muted text-xs border border-chatroom-border bg-chatroom-bg-tertiary">
+          No workspaces or agents configured
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {workspaceGroups.map((group, groupIdx) => (
+            <div key={group.machineId ?? `__group_${groupIdx}`} className="space-y-2">
+              {/* Machine header */}
+              <div className="flex items-center gap-2">
+                <Server size={14} className="text-chatroom-text-muted flex-shrink-0" />
+                <label className="text-[10px] font-bold uppercase tracking-widest text-chatroom-text-muted">
+                  {group.hostname}
+                </label>
+              </div>
+
+              {/* Workspaces under this machine */}
+              {group.workspaces.map((ws) => {
+                const dirLabel = ws.workingDir
+                  ? (ws.workingDir.split('/').filter(Boolean).pop() ?? ws.workingDir)
+                  : 'Unassigned';
+
+                return (
+                  <div
+                    key={ws.id}
+                    className="border border-chatroom-border bg-chatroom-bg-surface"
+                  >
+                    {/* Workspace header */}
+                    <div className="px-3 py-2 border-b border-chatroom-border bg-chatroom-bg-tertiary">
+                      <div className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wide">
+                        {dirLabel}
+                      </div>
+                      {ws.workingDir && (
+                        <div className="text-[10px] font-mono text-chatroom-text-muted mt-0.5 truncate">
+                          {ws.workingDir}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Agent rows */}
+                    {ws.agentRoles.length === 0 ? (
+                      <div className="px-3 py-2 text-[10px] text-chatroom-text-muted">
+                        No agents
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-chatroom-border">
+                        {ws.agentRoles.map((role) => {
+                          const status = statusMap.get(role.toLowerCase());
+                          const variant = status?.statusVariant ?? 'default';
+                          const label = status?.statusLabel ?? 'Unknown';
+                          const lastSeen = status?.lastSeenAt ?? null;
+
+                          return (
+                            <div
+                              key={role}
+                              className="flex items-center gap-3 px-3 py-2.5 hover:bg-chatroom-bg-hover transition-colors"
+                            >
+                              {/* Status dot */}
+                              <div
+                                className={`w-2 h-2 flex-shrink-0 rounded-full ${getStatusDotClass(variant)}`}
+                              />
+
+                              {/* Role name */}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-bold text-chatroom-text-primary uppercase tracking-wide">
+                                  {role}
+                                </div>
+                                <div className="text-[10px] text-chatroom-text-muted uppercase tracking-wide">
+                                  {label}
+                                </div>
+                              </div>
+
+                              {/* Last seen */}
+                              <div className="text-[10px] text-chatroom-text-muted flex-shrink-0">
+                                {formatRelativeTime(lastSeen)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
 // ─── Main Modal Component ───────────────────────────────────────────────
 
 export const AgentSettingsModal = memo(function AgentSettingsModal({
@@ -541,6 +757,7 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
             />
           )}
           {activeTab === 'machine' && <MachineContent chatroomId={chatroomId} />}
+          {activeTab === 'workspaces' && <WorkspacesContent chatroomId={chatroomId} />}
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>
