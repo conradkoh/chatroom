@@ -16,21 +16,17 @@ import {
   FixedModalBody,
   FixedModalSidebar,
 } from '@/components/ui/fixed-modal';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { getDaemonStartCommand } from '@/lib/environment';
+import { TEAMS_CONFIG } from '../config/teams';
 
 // ─── Types ──────────────────────────────────────────────────────────────
-
-interface TeamDefinition {
-  name: string;
-  description: string;
-  roles: string[];
-  entryPoint?: string;
-}
-
-interface TeamsConfig {
-  defaultTeam: string;
-  teams: Record<string, TeamDefinition>;
-}
 
 interface AgentSettingsModalProps {
   isOpen: boolean;
@@ -43,25 +39,6 @@ interface AgentSettingsModalProps {
 type SettingsTab = 'setup' | 'team' | 'machine';
 
 // ─── Constants ──────────────────────────────────────────────────────────
-
-// Available teams (matching CreateChatroomForm and CLI defaults)
-const TEAMS_CONFIG: TeamsConfig = {
-  defaultTeam: 'duo',
-  teams: {
-    duo: {
-      name: 'Duo',
-      description: 'A planner and builder working as a pair, planner as coordinator',
-      roles: ['planner', 'builder'],
-      entryPoint: 'planner',
-    },
-    squad: {
-      name: 'Squad',
-      description: 'A planner, builder, and reviewer working as a coordinated team',
-      roles: ['planner', 'builder', 'reviewer'],
-      entryPoint: 'planner',
-    },
-  },
-};
 
 const TAB_CONFIG: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: 'setup', label: 'Setup', icon: <Settings size={16} /> },
@@ -425,7 +402,7 @@ const MachineRow = memo(function MachineRow({
 });
 
 /**
- * Machine tab — shows connected machines with ping/health-check and daemon start command
+ * Machine tab — shows connected machines and daemon start command
  */
 const MachineContent = memo(function MachineContent(_props: { chatroomId: string }) {
   const machinesResult = useSessionQuery(api.machines.listMachines, {});
@@ -505,8 +482,8 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
 
   return (
     <FixedModal isOpen={isOpen} onClose={onClose} maxWidth="max-w-5xl">
-      {/* Side Navigation */}
-      <FixedModalSidebar className="w-48">
+      {/* Side Navigation — hidden on mobile */}
+      <FixedModalSidebar className="w-48 hidden sm:flex">
         {/* Sidebar Title — uses FixedModalHeader for consistent height alignment */}
         <FixedModalHeader>
           <FixedModalTitle>Settings</FixedModalTitle>
@@ -537,6 +514,22 @@ export const AgentSettingsModal = memo(function AgentSettingsModal({
         <FixedModalHeader onClose={onClose}>
           <FixedModalTitle>{TAB_CONFIG.find((t) => t.id === activeTab)?.label}</FixedModalTitle>
         </FixedModalHeader>
+
+        {/* Mobile tab selector — visible only on small screens */}
+        <div className="sm:hidden border-b border-chatroom-border px-4 py-2 flex-shrink-0">
+          <Select value={activeTab} onValueChange={(val) => setActiveTab(val as SettingsTab)}>
+            <SelectTrigger size="sm" className="w-full text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TAB_CONFIG.map((tab) => (
+                <SelectItem key={tab.id} value={tab.id}>
+                  {tab.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <FixedModalBody className="p-6">
           {activeTab === 'setup' && <SetupContent chatroomId={chatroomId} />}
