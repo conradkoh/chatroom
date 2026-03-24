@@ -18,6 +18,7 @@
  *   agent.exited       | stopped         | OFFLINE         | Grey
  *   agent.exited       | running/undef   | OFFLINE (ERROR) | Red
  *   agent.circuitOpen  | any             | OFFLINE (ERROR) | Red
+ *   agent.startFailed  | any             | OFFLINE (ERROR) | Red
  */
 
 /** Semantic status variant used to select indicator color in the UI. */
@@ -65,6 +66,10 @@ export function resolveAgentStatus(
   }
 
   if (eventType === 'agent.circuitOpen') {
+    return { label: 'OFFLINE (ERROR)', variant: 'error' };
+  }
+
+  if (eventType === 'agent.startFailed') {
     return { label: 'OFFLINE (ERROR)', variant: 'error' };
   }
 

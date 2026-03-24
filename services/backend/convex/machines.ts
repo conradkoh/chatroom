@@ -1544,6 +1544,29 @@ export const emitAgentStartFailed = mutation({
       timestamp: Date.now(),
     });
 
+    // Update participant status so the UI reflects the failure
+    await patchParticipantStatus(ctx, args.chatroomId, args.role, 'agent.startFailed', 'stopped');
+
+    // Reset desiredState to 'stopped' so AgentRoleView.state doesn't stay stuck at 'starting'
+    const failedChatroom = await ctx.db.get('chatroom_rooms', args.chatroomId);
+    if (failedChatroom?.teamId) {
+      const failedTeamRoleKey = buildTeamRoleKey(
+        failedChatroom._id,
+        failedChatroom.teamId,
+        args.role
+      );
+      const failedConfig = await ctx.db
+        .query('chatroom_teamAgentConfigs')
+        .withIndex('by_teamRoleKey', (q) => q.eq('teamRoleKey', failedTeamRoleKey))
+        .first();
+      if (failedConfig) {
+        await ctx.db.patch('chatroom_teamAgentConfigs', failedConfig._id, {
+          desiredState: 'stopped',
+          updatedAt: Date.now(),
+        });
+      }
+    }
+
     return { success: true };
   },
 });

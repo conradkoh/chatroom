@@ -153,6 +153,24 @@ export class AgentProcessManager {
     const slot = this.slots.get(key);
 
     if (!slot || slot.state === 'idle') {
+      // Slot is already idle — no process to kill. But we still need to notify
+      // the backend so participant status is cleaned up. Without this, a failed
+      // spawn leaves the agent stuck in "STARTING" or "STOPPING" state in the UI.
+      this.deps.backend
+        .mutation(api.machines.recordAgentExited, {
+          sessionId: this.deps.sessionId,
+          machineId: this.deps.machineId,
+          chatroomId: opts.chatroomId,
+          role: opts.role,
+          pid: 0, // No real PID — agent was never running
+          stopReason: opts.reason,
+          exitCode: undefined,
+          signal: undefined,
+          agentHarness: undefined,
+        })
+        .catch((err: Error) => {
+          console.log(`   ⚠️  Failed to record agent exit (idle cleanup): ${err.message}`);
+        });
       return { success: true };
     }
     if (slot.state === 'stopping' && slot.pendingOperation) {

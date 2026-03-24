@@ -11,7 +11,7 @@ import { resolveAgentStatus, type StatusVariant } from '../utils/agentStatusLabe
 // ─── Offline event types ────────────────────────────────────────────────────
 // Agent is considered offline when their lastStatus is one of these.
 // null/undefined means the agent has never registered.
-const OFFLINE_EVENT_TYPES = new Set(['agent.exited', 'agent.circuitOpen', null, undefined]);
+const OFFLINE_EVENT_TYPES = new Set(['agent.exited', 'agent.circuitOpen', 'agent.startFailed', null, undefined]);
 
 // ─── Not-working event types ─────────────────────────────────────────────────
 // Agent is online but NOT actively processing a task.
