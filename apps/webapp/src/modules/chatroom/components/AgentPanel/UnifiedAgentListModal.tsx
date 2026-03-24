@@ -3,13 +3,13 @@
 import { memo, useState, useEffect, useMemo, useCallback, useContext } from 'react';
 
 import { WorkspaceAgentList } from './WorkspaceAgentList';
-import { WorkspaceSidebar } from './WorkspaceSidebar';
 import { useAgentPanelData } from '../../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../../hooks/useAgentStatuses';
 import { useChatroomWorkspaces } from '../../workspace/hooks/useChatroomWorkspaces';
 import type { WorkspaceGroup } from '../../types/workspace';
 import type { StatusVariant } from '../../utils/agentStatusLabel';
 import { buildWorkspaceGroups } from '../../utils/buildWorkspaceGroups';
+import { WorkspaceDropdown, ALL_WORKSPACES } from '../WorkspaceDropdown';
 
 import {
   FixedModal,
@@ -19,15 +19,6 @@ import {
   FixedModalBody,
 } from '@/components/ui/fixed-modal';
 import { PromptsContext } from '@/contexts/PromptsContext';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 export interface AgentWithStatus {
   role: string;
@@ -44,7 +35,7 @@ interface UnifiedAgentListModalProps {
   chatroomId: string;
 }
 
-/** All Agents modal with workspace sidebar + filtered agent list.
+/** All Agents modal with dropdown workspace selector + filtered agent list.
  *  Self-sufficient: fetches agents and prompt data internally.
  *  Works correctly when rendered outside PromptsProvider (prompt defaults to ''). */
 export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
@@ -52,7 +43,7 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
   onClose,
   chatroomId,
 }: UnifiedAgentListModalProps) {
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>(ALL_WORKSPACES);
 
   const {
     agents: agentRoleViews,
@@ -106,27 +97,38 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
     [workspaceGroups]
   );
 
-  // Auto-select first workspace whenever workspaces load or current selection is stale
+  // Reset selection to "all" if current selection becomes stale
   useEffect(() => {
     if (
-      flatWorkspaces.length > 0 &&
-      (selectedWorkspaceId === null || !flatWorkspaces.find((w) => w.id === selectedWorkspaceId))
+      selectedWorkspaceId !== ALL_WORKSPACES &&
+      !flatWorkspaces.find((w) => w.id === selectedWorkspaceId)
     ) {
-      setSelectedWorkspaceId(flatWorkspaces[0].id);
+      setSelectedWorkspaceId(ALL_WORKSPACES);
     }
   }, [flatWorkspaces, selectedWorkspaceId]);
 
   // Reset selection when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setSelectedWorkspaceId(null);
+      setSelectedWorkspaceId(ALL_WORKSPACES);
     }
   }, [isOpen]);
 
+  // Resolve the selected workspace (null when "All" is selected)
   const selectedWorkspace = useMemo(
-    () => flatWorkspaces.find((w) => w.id === selectedWorkspaceId) ?? null,
+    () =>
+      selectedWorkspaceId === ALL_WORKSPACES
+        ? null
+        : (flatWorkspaces.find((w) => w.id === selectedWorkspaceId) ?? null),
     [flatWorkspaces, selectedWorkspaceId]
   );
+
+  // When a specific workspace is selected, pass it to WorkspaceAgentList.
+  // When "All" is selected, we render one WorkspaceAgentList per workspace.
+  const visibleWorkspaces = useMemo(() => {
+    if (selectedWorkspace) return [selectedWorkspace];
+    return flatWorkspaces;
+  }, [selectedWorkspace, flatWorkspaces]);
 
   // Build a map from role → AgentRoleView for passing to WorkspaceAgentList
   const agentRoleViewMap = useMemo(
@@ -140,55 +142,45 @@ export const UnifiedAgentListModal = memo(function UnifiedAgentListModal({
         <FixedModalHeader onClose={onClose}>
           <FixedModalTitle>All Agents ({agents.length})</FixedModalTitle>
         </FixedModalHeader>
-        <FixedModalBody className="flex flex-col sm:flex-row p-0 overflow-hidden">
-          {/* Mobile workspace selector — visible only on small screens */}
-          <div className="sm:hidden border-b border-chatroom-border px-3 py-2 flex-shrink-0">
-            <Select
-              value={selectedWorkspaceId ?? undefined}
-              onValueChange={setSelectedWorkspaceId}
-            >
-              <SelectTrigger size="sm" className="w-full text-xs">
-                <SelectValue placeholder="Select workspace" />
-              </SelectTrigger>
-              <SelectContent>
-                {workspaceGroups.map((group) => (
-                  <SelectGroup key={group.machineId ?? group.hostname}>
-                    <SelectLabel>{group.hostname}</SelectLabel>
-                    {group.workspaces.map((ws) => {
-                      const dirLabel = ws.workingDir
-                        ? (ws.workingDir.split('/').filter(Boolean).pop() ?? ws.workingDir)
-                        : '(no directory)';
-                      return (
-                        <SelectItem key={ws.id} value={ws.id}>
-                          {dirLabel}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectGroup>
-                ))}
-              </SelectContent>
-            </Select>
+        <FixedModalBody className="flex flex-col p-0 overflow-hidden">
+          {/* Workspace selector */}
+          <div className="border-b border-chatroom-border px-3 py-2 flex-shrink-0">
+            <WorkspaceDropdown
+              workspaceGroups={workspaceGroups}
+              selectedWorkspaceId={selectedWorkspaceId}
+              onSelectWorkspace={setSelectedWorkspaceId}
+              showAllOption={true}
+              totalAgents={agents.length}
+            />
           </div>
 
-          {/* Desktop sidebar — hidden on mobile */}
-          <WorkspaceSidebar
-            workspaceGroups={workspaceGroups}
-            selectedWorkspaceId={selectedWorkspaceId}
-            onSelectWorkspace={setSelectedWorkspaceId}
-          />
-          <WorkspaceAgentList
-            workspace={selectedWorkspace}
-            agents={agents}
-            generatePrompt={generatePrompt}
-            chatroomId={chatroomId}
-            connectedMachines={connectedMachines}
-            isLoadingMachines={isLoading}
-            agentConfigs={machineConfigs}
-            sendCommand={sendCommand}
-            agentRoleViewMap={agentRoleViewMap}
-            agentPreferenceMap={agentPreferenceMap}
-            onSavePreference={savePreference}
-          />
+          {/* Agent list — scrollable */}
+          <div className="flex-1 overflow-y-auto">
+            {visibleWorkspaces.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center p-8">
+                <p className="text-xs text-chatroom-text-muted uppercase tracking-wide">
+                  No workspaces or agents configured
+                </p>
+              </div>
+            ) : (
+              visibleWorkspaces.map((ws) => (
+                <WorkspaceAgentList
+                  key={ws.id}
+                  workspace={ws}
+                  agents={agents}
+                  generatePrompt={generatePrompt}
+                  chatroomId={chatroomId}
+                  connectedMachines={connectedMachines}
+                  isLoadingMachines={isLoading}
+                  agentConfigs={machineConfigs}
+                  sendCommand={sendCommand}
+                  agentRoleViewMap={agentRoleViewMap}
+                  agentPreferenceMap={agentPreferenceMap}
+                  onSavePreference={savePreference}
+                />
+              ))
+            )}
+          </div>
         </FixedModalBody>
       </FixedModalContent>
     </FixedModal>

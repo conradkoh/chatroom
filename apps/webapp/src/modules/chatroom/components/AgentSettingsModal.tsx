@@ -7,6 +7,7 @@ import { Settings, Users, Server, Monitor, Check, AlertTriangle, Pencil, X } fro
 import React, { useState, useCallback, useContext, memo, useEffect, useRef, useMemo } from 'react';
 
 import { CopyButton } from './CopyButton';
+import { WorkspaceDropdown, ALL_WORKSPACES } from './WorkspaceDropdown';
 
 import { useAgentPanelData } from '../hooks/useAgentPanelData';
 import { useAgentStatuses } from '../hooks/useAgentStatuses';
@@ -485,12 +486,15 @@ const MachineContent = memo(function MachineContent(_props: { chatroomId: string
  * Workspaces tab — shows agents grouped by machine/workspace.
  * Uses InlineAgentCard for each agent to show full configuration details
  * (status, controls, machine, model, restart stats).
+ * Includes a dropdown workspace selector to filter by workspace.
  */
 const WorkspacesContent = memo(function WorkspacesContent({
   chatroomId,
 }: {
   chatroomId: string;
 }) {
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>(ALL_WORKSPACES);
+
   const {
     agents: agentRoleViews,
     teamRoles,
@@ -513,6 +517,35 @@ const WorkspacesContent = memo(function WorkspacesContent({
     (): WorkspaceGroup[] => buildWorkspaceGroups(allWorkspaces, agentStatusList),
     [allWorkspaces, agentStatusList]
   );
+
+  // Flat workspace list for selection lookup
+  const flatWorkspaces = useMemo(
+    () => workspaceGroups.flatMap((g) => g.workspaces),
+    [workspaceGroups]
+  );
+
+  // Filter workspace groups based on selection
+  const filteredGroups = useMemo((): WorkspaceGroup[] => {
+    if (selectedWorkspaceId === ALL_WORKSPACES) return workspaceGroups;
+    // Find the selected workspace and return only its group
+    for (const group of workspaceGroups) {
+      const ws = group.workspaces.find((w) => w.id === selectedWorkspaceId);
+      if (ws) {
+        return [{ ...group, workspaces: [ws] }];
+      }
+    }
+    return workspaceGroups; // fallback to all if selection is stale
+  }, [workspaceGroups, selectedWorkspaceId]);
+
+  // Reset selection to "all" if current selection becomes stale
+  useEffect(() => {
+    if (
+      selectedWorkspaceId !== ALL_WORKSPACES &&
+      !flatWorkspaces.find((w) => w.id === selectedWorkspaceId)
+    ) {
+      setSelectedWorkspaceId(ALL_WORKSPACES);
+    }
+  }, [flatWorkspaces, selectedWorkspaceId]);
 
   // Build a status lookup map
   const statusMap = useMemo(() => {
@@ -578,7 +611,16 @@ const WorkspacesContent = memo(function WorkspacesContent({
         </div>
       ) : (
         <div className="space-y-4">
-          {workspaceGroups.map((group, groupIdx) => (
+          {/* Workspace selector */}
+          <WorkspaceDropdown
+            workspaceGroups={workspaceGroups}
+            selectedWorkspaceId={selectedWorkspaceId}
+            onSelectWorkspace={setSelectedWorkspaceId}
+            showAllOption={true}
+            totalAgents={totalAgents}
+          />
+
+          {filteredGroups.map((group, groupIdx) => (
             <div key={group.machineId ?? `__group_${groupIdx}`} className="space-y-2">
               {/* Machine header */}
               <div className="flex items-center gap-2">
