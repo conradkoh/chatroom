@@ -73,8 +73,11 @@ export class InvalidBacklogTransitionError extends Error {
  * All valid state transitions:
  * - backlog → pending_user_review (via markBacklogItemForReview)
  * - pending_user_review → closed (via completeBacklogItem)
+ * - backlog → closed (via completeBacklogItem — direct completion)
  * - pending_user_review → backlog (via sendBacklogItemBackForRework)
  * - closed → backlog (via reopenBacklogItem)
+ * - backlog → closed (via closeBacklogItem)
+ * - pending_user_review → closed (via closeBacklogItem)
  */
 const TRANSITIONS: BacklogTransitionRule[] = [
   // ==========================================================================
@@ -96,6 +99,20 @@ const TRANSITIONS: BacklogTransitionRule[] = [
 
   {
     from: 'pending_user_review',
+    to: 'closed',
+    trigger: 'completeBacklogItem',
+    setFields: {
+      completedAt: 'NOW',
+      updatedAt: 'NOW',
+    },
+  },
+
+  // ==========================================================================
+  // DIRECT COMPLETE FLOW: backlog → closed (user marks as done directly)
+  // ==========================================================================
+
+  {
+    from: 'backlog',
     to: 'closed',
     trigger: 'completeBacklogItem',
     setFields: {
