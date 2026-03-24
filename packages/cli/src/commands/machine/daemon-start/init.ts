@@ -253,6 +253,22 @@ async function recoverState(ctx: DaemonContext): Promise<void> {
     console.log(`   ⚠️  Recovery failed: ${(e as Error).message}`);
     console.log(`   Continuing with fresh state`);
   }
+
+  // Clear all stale spawnedAgentPid values for this machine.
+  // Since the daemon just started, no agents are running yet — any PIDs in the
+  // backend are stale from before the restart and must be cleared to prevent
+  // the UI from showing dead agents as "running" or "starting".
+  try {
+    const result = await ctx.deps.backend.mutation(api.machines.clearAllSpawnedPids, {
+      sessionId: ctx.sessionId,
+      machineId: ctx.machineId,
+    });
+    if (result.clearedCount > 0) {
+      console.log(`   🧹 Cleared ${result.clearedCount} stale agent PID(s) from backend`);
+    }
+  } catch (e) {
+    console.log(`   ⚠️  Failed to clear stale PIDs: ${(e as Error).message}`);
+  }
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
